@@ -2,5 +2,12 @@
 {
   "name": "mehran-msh-auth",
   "main": "worker.js",
-  "compatibility_date": "2026-11-03"
+  "compatibility_date": "2026-11-03",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mehran-msh-db",
+      "database_id": "2ee71f12-042b-4dba-8bf0-a0b577ace519"
+    }
+  ]
 }
