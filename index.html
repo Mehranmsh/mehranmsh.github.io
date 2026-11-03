@@ -12,11 +12,11 @@
 :root{
 --bg:#050914;--panel:#0b192a;--panel2:#10243a;
 --border:#1a4262;--blue:#39caff;--text:#edf6ff;
---muted:#9bb4ca;--green:#75e0a7;
+--muted:#9bb4ca;--green:#75e0a7;--red:#ff8585;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
-button,input,textarea{font:inherit}
+button,input,textarea,select{font:inherit}
 button{
 background:var(--panel2);color:var(--blue);
 border:1px solid #2875a0;padding:10px 15px;
@@ -75,15 +75,18 @@ display:inline-block;margin-top:12px;padding:5px 9px;
 border:1px solid #28664d;border-radius:20px;
 color:var(--green);font-size:11px
 }
+.tag.planned{border-color:#806a35;color:#f0cb78}
+.tag.paused{border-color:#75444b;color:#ff9ba5}
 .subnav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
 .subnav button{font-size:13px}
 .admin-section{display:none}
 .admin-section.active{display:block}
 .field{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}
-.field input,.field textarea{
+.field input,.field textarea,.field select{
 flex:1;min-width:180px;background:#071321;color:white;
 border:1px solid #245071;border-radius:9px;padding:12px
 }
+.field select option{background:#071321}
 textarea{width:100%;resize:vertical}
 .task{
 background:#0b1728;border:1px solid #163b5b;
@@ -91,12 +94,20 @@ border-radius:10px;padding:12px;margin:9px 0;
 display:flex;justify-content:space-between;align-items:center;
 gap:10px;flex-wrap:wrap
 }
-.task-actions{display:flex;gap:7px}
+.task-actions{display:flex;gap:7px;flex-wrap:wrap}
 .task small,.status{color:var(--muted);font-size:12px}
 .empty{color:#829bb0;font-size:14px;padding:15px 0}
 .hidden{display:none!important}
 .module-link{display:block;text-decoration:none;color:inherit}
 .module-link:hover .card{border-color:var(--blue)}
+.project-card{display:flex;flex-direction:column;gap:9px}
+.project-card .project-bottom{margin-top:auto}
+.project-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.project-actions button{font-size:12px;padding:8px 11px}
+.danger{color:var(--red);border-color:#75444b}
+.primary{background:#12446a;color:white}
+.form-title{color:var(--blue);margin:0 0 12px}
+.form-hint{color:var(--muted);font-size:12px;line-height:1.7}
 footer{text-align:center;padding:28px;color:#718da8;border-top:1px solid #142c48;font-size:13px}
 [dir="rtl"]{font-family:Tahoma,Arial,sans-serif}
 [dir="rtl"] .nav,[dir="rtl"] .subnav{direction:rtl}
@@ -150,7 +161,7 @@ One central platform for projects, management, intelligent tools and user servic
 
 <h2 class="section-title" data-en="Ecosystem Overview" data-fa="نمای کلی اکوسیستم">Ecosystem Overview</h2>
 <div class="grid">
-<div class="card"><h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3><div class="number">04</div><p data-en="Main ecosystem projects" data-fa="پروژه‌های اصلی اکوسیستم">Main ecosystem projects</p></div>
+<div class="card"><h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3><div class="number" id="projectCount">04</div><p data-en="Registered ecosystem projects" data-fa="پروژه‌های ثبت‌شده اکوسیستم">Registered ecosystem projects</p></div>
 <div class="card"><h3 data-en="User Center" data-fa="مرکز کاربران">User Center</h3><div class="number">01</div><p data-en="Public access and services" data-fa="دسترسی و خدمات عمومی">Public access and services</p></div>
 <div class="card"><h3 data-en="Intelligence" data-fa="هوشمندی">Intelligence</h3><div class="number">AI</div><p data-en="Intelligent assistant development" data-fa="توسعه دستیار هوشمند">Intelligent assistant development</p></div>
 <div class="card"><h3 data-en="Infrastructure" data-fa="زیرساخت">Infrastructure</h3><div class="number">MSH</div><p data-en="Central ecosystem infrastructure" data-fa="زیرساخت مرکزی اکوسیستم">Central ecosystem infrastructure</p></div>
@@ -208,19 +219,46 @@ Central control area for ecosystem operations and project planning.</p>
 <h2 class="section-title" data-en="Management Overview" data-fa="نمای کلی مدیریت">Management Overview</h2>
 <div class="grid">
 <div class="card"><h3 data-en="Core" data-fa="هسته مرکزی">Core</h3><p data-en="Central platform structure." data-fa="ساختار پلتفرم مرکزی.">Central platform structure.</p><span class="tag">ACTIVE</span></div>
-<div class="card"><h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3><p data-en="Four projects registered." data-fa="چهار پروژه ثبت‌شده.">Four projects registered.</p><span class="tag">4 PROJECTS</span></div>
+<div class="card"><h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3><p id="adminProjectCount">Four projects registered.</p><span class="tag" id="adminProjectTag">4 PROJECTS</span></div>
 <div class="card"><h3 data-en="Pi Connection" data-fa="اتصال پای">Pi Connection</h3><p data-en="Pi sign-in integration." data-fa="یکپارچه‌سازی ورود با پای.">Pi sign-in integration.</p><span class="tag">SERVER VERIFIED</span></div>
 </div>
 </div>
 
 <div id="projectControl" class="admin-section">
 <h2 class="section-title" data-en="Project Management" data-fa="مدیریت پروژه‌ها">Project Management</h2>
-<div class="grid">
-<div class="card"><h3>Music</h3><p data-en="Music platform" data-fa="پلتفرم موسیقی">Music platform</p><span class="tag">ACTIVE</span></div>
-<div class="card"><h3>AI</h3><p data-en="AI services" data-fa="خدمات هوش مصنوعی">AI services</p><span class="tag">ACTIVE</span></div>
-<div class="card"><h3>Robotics</h3><p data-en="Robotics and automation" data-fa="رباتیک و اتوماسیون">Robotics and automation</p><span class="tag">PLANNED</span></div>
-<div class="card"><h3>Technologies</h3><p data-en="Technology development" data-fa="توسعه فناوری">Technology development</p><span class="tag">PLANNED</span></div>
+
+<div class="card">
+<h3 class="form-title" id="projectFormTitle" data-en="Add New Project" data-fa="افزودن پروژه جدید">Add New Project</h3>
+
+<div class="field">
+<input id="projectName" maxlength="60" placeholder="Project name">
+<input id="projectLink" type="url" placeholder="Project URL (optional)">
 </div>
+
+<div class="field">
+<textarea id="projectDescription" rows="3" maxlength="300" placeholder="Project description"></textarea>
+</div>
+
+<div class="field">
+<select id="projectStatus">
+<option value="Active">Active</option>
+<option value="Planned">Planned</option>
+<option value="Paused">Paused</option>
+</select>
+</div>
+
+<div class="field">
+<button class="primary" id="saveProjectButton" onclick="saveProject()" data-en="Add Project" data-fa="افزودن پروژه">Add Project</button>
+<button id="cancelEditButton" class="hidden" onclick="cancelProjectEdit()" data-en="Cancel" data-fa="انصراف">Cancel</button>
+</div>
+<p class="form-hint" data-en="Project information is currently stored in this browser only."
+data-fa="اطلاعات پروژه‌ها فعلاً فقط در همین مرورگر ذخیره می‌شوند.">
+Project information is currently stored in this browser only.</p>
+</div>
+
+<br>
+<h3 class="section-title" data-en="Registered Projects" data-fa="پروژه‌های ثبت‌شده">Registered Projects</h3>
+<div id="adminProjectList" class="grid"></div>
 </div>
 
 <div id="taskControl" class="admin-section">
@@ -255,12 +293,12 @@ Notes are stored in this browser only. Do not store sensitive information here.<
 <h2 class="section-title" data-en="System Information" data-fa="اطلاعات سیستم">System Information</h2>
 <div class="card">
 <h3>MEHRAN MSH</h3>
-<p>Version 2.1</p>
+<p>Version 2.2</p>
 <p data-en="Central ecosystem interface." data-fa="رابط مرکزی اکوسیستم.">Central ecosystem interface.</p>
 <br>
-<p class="status" data-en="Backend, database, secure roles and user management are planned for future development."
-data-fa="بک‌اند، پایگاه داده، سطح دسترسی امن و مدیریت کاربران برای مراحل بعدی توسعه برنامه‌ریزی شده‌اند.">
-Backend, database, secure roles and user management are planned for future development.</p>
+<p class="status" data-en="Project management is available locally. Backend, database and secure shared management are future development tasks."
+data-fa="مدیریت پروژه به‌صورت محلی فعال است. بک‌اند، پایگاه داده و مدیریت مشترک امن در مراحل بعدی توسعه قرار دارند.">
+Project management is available locally. Backend, database and secure shared management are future development tasks.</p>
 </div>
 </div>
 </div>
@@ -291,16 +329,7 @@ These are planned capabilities, not active AI functions yet.</p>
 <section id="projects" class="page">
 <div class="container">
 <h2 class="section-title" data-en="Ecosystem Projects" data-fa="پروژه‌های اکوسیستم">Ecosystem Projects</h2>
-<div class="grid">
-<a class="module-link" href="https://mehranmusicxx6898.pinet.com/" target="_blank" rel="noopener noreferrer">
-<div class="card"><h3>Music</h3><p data-en="Music, creativity, songs and artist experiences." data-fa="موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.">Music, creativity, songs and artist experiences.</p><span class="tag">ACTIVE</span></div>
-</a>
-<a class="module-link" href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_blank" rel="noopener noreferrer">
-<div class="card"><h3>AI</h3><p data-en="Artificial intelligence and digital assistants." data-fa="هوش مصنوعی و دستیارهای دیجیتال.">Artificial intelligence and digital assistants.</p><span class="tag">ACTIVE</span></div>
-</a>
-<div class="card"><h3>Robotics</h3><p data-en="Robotics, automation and future technologies." data-fa="رباتیک، اتوماسیون و فناوری‌های آینده.">Robotics, automation and future technologies.</p><span class="tag">PLANNED</span></div>
-<div class="card"><h3>Technologies</h3><p data-en="Technology projects and innovation." data-fa="پروژه‌های فناوری و نوآوری.">Technology projects and innovation.</p><span class="tag">PLANNED</span></div>
-</div>
+<div id="publicProjectList" class="grid"></div>
 </div>
 </section>
 
@@ -330,6 +359,7 @@ A central space for digital services and future ecosystem integrations.</p>
 
 let english = true;
 let currentUser = null;
+let editingProjectId = null;
 
 const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const PI_REDIRECT_URI = "https://mehranmsh.github.io/";
@@ -353,7 +383,7 @@ function isAdmin() {
 return currentUser !== null && currentUser.isAdmin === true;
 }
 
-/* PAGE NAVIGATION */
+/* NAVIGATION */
 
 function showPage(page, button) {
 if (page === "admin" && !isAdmin()) {
@@ -378,6 +408,8 @@ document.getElementById(id).classList.add("active");
 
 document.querySelectorAll(".subnav button").forEach(item => item.classList.remove("active"));
 if (button) button.classList.add("active");
+
+if (id === "projectControl") renderProjects();
 }
 
 /* ACCESS CONTROL */
@@ -427,7 +459,314 @@ document.getElementById("taskInput").placeholder = english
 document.getElementById("adminNotes").placeholder = english
 ? "Write your private notes..." : "یادداشت خود را بنویس...";
 
+document.getElementById("projectName").placeholder = english
+? "Project name" : "نام پروژه";
+
+document.getElementById("projectLink").placeholder = english
+? "Project URL (optional)" : "لینک پروژه (اختیاری)";
+
+document.getElementById("projectDescription").placeholder = english
+? "Project description" : "توضیحات پروژه";
+
+updateProjectFormLanguage();
+renderProjects();
 renderTasks();
+}
+
+/* PROJECT MANAGEMENT */
+
+const DEFAULT_PROJECTS = [
+{
+id:"music",
+name:"Music",
+description:"Music platform, creativity, songs and artist experiences.",
+faDescription:"پلتفرم موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.",
+link:"https://mehranmusicxx6898.pinet.com/",
+status:"Active"
+},
+{
+id:"ai",
+name:"AI",
+description:"Artificial intelligence and digital assistants.",
+faDescription:"هوش مصنوعی و دستیارهای دیجیتال.",
+link:"https://mehranmusicavmq2545.pinet.com/chatbot",
+status:"Active"
+},
+{
+id:"robotics",
+name:"Robotics",
+description:"Robotics, automation and future technologies.",
+faDescription:"رباتیک، اتوماسیون و فناوری‌های آینده.",
+link:"",
+status:"Planned"
+},
+{
+id:"technologies",
+name:"Technologies",
+description:"Technology projects, innovation and development.",
+faDescription:"پروژه‌های فناوری، نوآوری و توسعه.",
+link:"",
+status:"Planned"
+}
+];
+
+function getProjects() {
+try {
+const saved = localStorage.getItem("msh_projects");
+if (!saved) {
+localStorage.setItem("msh_projects", JSON.stringify(DEFAULT_PROJECTS));
+return [...DEFAULT_PROJECTS];
+}
+const parsed = JSON.parse(saved);
+return Array.isArray(parsed) ? parsed : [...DEFAULT_PROJECTS];
+} catch (error) {
+console.error("Project storage error:", error);
+return [...DEFAULT_PROJECTS];
+}
+}
+
+function saveProjects(projects) {
+localStorage.setItem("msh_projects", JSON.stringify(projects));
+renderProjects();
+}
+
+function statusText(status) {
+if (english) return status;
+return {
+Active:"فعال",
+Planned:"برنامه‌ریزی‌شده",
+Paused:"متوقف"
+}[status] || status;
+}
+
+function createProjectCard(project, adminMode) {
+const card = document.createElement("div");
+card.className = "card project-card";
+
+const title = document.createElement("h3");
+title.textContent = project.name;
+
+const description = document.createElement("p");
+description.textContent = (!english && project.faDescription)
+? project.faDescription
+: project.description;
+
+const tag = document.createElement("span");
+tag.className = "tag " + project.status.toLowerCase();
+tag.textContent = statusText(project.status);
+
+card.append(title, description, tag);
+
+const bottom = document.createElement("div");
+bottom.className = "project-bottom";
+
+if (project.link) {
+try {
+const url = new URL(project.link);
+if (url.protocol === "https:" || url.protocol === "http:") {
+const link = document.createElement("a");
+link.href = url.href;
+link.target = "_blank";
+link.rel = "noopener noreferrer";
+
+const openButton = document.createElement("button");
+openButton.textContent = english ? "Open Project" : "ورود به پروژه";
+link.appendChild(openButton);
+bottom.appendChild(link);
+}
+} catch (error) {
+console.warn("Invalid project URL:", project.link);
+}
+}
+
+if (adminMode) {
+const actions = document.createElement("div");
+actions.className = "project-actions";
+
+const edit = document.createElement("button");
+edit.textContent = english ? "Edit" : "ویرایش";
+edit.onclick = () => editProject(project.id);
+
+const del = document.createElement("button");
+del.className = "danger";
+del.textContent = english ? "Delete" : "حذف";
+del.onclick = () => deleteProject(project.id);
+
+actions.append(edit, del);
+bottom.appendChild(actions);
+}
+
+card.appendChild(bottom);
+return card;
+}
+
+function renderProjects() {
+const projects = getProjects();
+
+const publicList = document.getElementById("publicProjectList");
+const adminList = document.getElementById("adminProjectList");
+
+publicList.innerHTML = "";
+adminList.innerHTML = "";
+
+projects.forEach(project => {
+publicList.appendChild(createProjectCard(project, false));
+if (isAdmin()) {
+adminList.appendChild(createProjectCard(project, true));
+}
+});
+
+if (projects.length === 0) {
+publicList.innerHTML = '<p class="empty">' +
+(english ? "No projects registered yet." : "هنوز پروژه‌ای ثبت نشده است.") +
+"</p>";
+adminList.innerHTML = '<p class="empty">' +
+(english ? "No projects registered yet." : "هنوز پروژه‌ای ثبت نشده است.") +
+"</p>";
+}
+
+document.getElementById("projectCount").textContent =
+String(projects.length).padStart(2, "0");
+
+document.getElementById("adminProjectCount").textContent =
+english
+? projects.length + " projects registered."
+: projects.length + " پروژه ثبت شده است.";
+
+document.getElementById("adminProjectTag").textContent =
+projects.length + " PROJECTS";
+}
+
+function saveProject() {
+if (!isAdmin()) return;
+
+const name = document.getElementById("projectName").value.trim();
+const description = document.getElementById("projectDescription").value.trim();
+const link = document.getElementById("projectLink").value.trim();
+const status = document.getElementById("projectStatus").value;
+
+if (!name || !description) {
+alert(english
+? "Please enter the project name and description."
+: "نام و توضیحات پروژه را وارد کن.");
+return;
+}
+
+if (link) {
+try {
+const url = new URL(link);
+if (url.protocol !== "https:" && url.protocol !== "http:") {
+throw new Error("Invalid URL");
+}
+} catch (error) {
+alert(english
+? "Please enter a valid project URL beginning with https:// or http://"
+: "لطفاً یک لینک معتبر با https:// یا http:// وارد کن.");
+return;
+}
+}
+
+const projects = getProjects();
+
+if (editingProjectId) {
+const index = projects.findIndex(p => p.id === editingProjectId);
+if (index === -1) return;
+
+projects[index] = {
+...projects[index],
+name,
+description,
+faDescription: description,
+link,
+status
+};
+} else {
+projects.push({
+id: "project-" + Date.now(),
+name,
+description,
+faDescription: description,
+link,
+status
+});
+}
+
+saveProjects(projects);
+cancelProjectEdit();
+
+showPiMessage(english
+? "Project information saved."
+: "اطلاعات پروژه ذخیره شد.");
+}
+
+function editProject(id) {
+if (!isAdmin()) return;
+
+const project = getProjects().find(p => p.id === id);
+if (!project) return;
+
+editingProjectId = id;
+
+document.getElementById("projectName").value = project.name;
+document.getElementById("projectDescription").value = project.description;
+document.getElementById("projectLink").value = project.link || "";
+document.getElementById("projectStatus").value = project.status;
+
+document.getElementById("projectFormTitle").textContent =
+english ? "Edit Project" : "ویرایش پروژه";
+
+document.getElementById("saveProjectButton").textContent =
+english ? "Save Changes" : "ذخیره تغییرات";
+
+document.getElementById("cancelEditButton").classList.remove("hidden");
+
+document.getElementById("projectName").scrollIntoView({
+behavior:"smooth",
+block:"center"
+});
+}
+
+function cancelProjectEdit() {
+editingProjectId = null;
+
+document.getElementById("projectName").value = "";
+document.getElementById("projectDescription").value = "";
+document.getElementById("projectLink").value = "";
+document.getElementById("projectStatus").value = "Active";
+
+updateProjectFormLanguage();
+
+document.getElementById("cancelEditButton").classList.add("hidden");
+}
+
+function updateProjectFormLanguage() {
+document.getElementById("projectFormTitle").textContent =
+editingProjectId
+? (english ? "Edit Project" : "ویرایش پروژه")
+: (english ? "Add New Project" : "افزودن پروژه جدید");
+
+document.getElementById("saveProjectButton").textContent =
+editingProjectId
+? (english ? "Save Changes" : "ذخیره تغییرات")
+: (english ? "Add Project" : "افزودن پروژه");
+}
+
+function deleteProject(id) {
+if (!isAdmin()) return;
+
+const confirmed = confirm(english
+? "Are you sure you want to delete this project?"
+: "از حذف این پروژه مطمئنی؟");
+
+if (!confirmed) return;
+
+saveProjects(getProjects().filter(p => p.id !== id));
+
+if (editingProjectId === id) cancelProjectEdit();
+
+showPiMessage(english
+? "Project deleted."
+: "پروژه حذف شد.");
 }
 
 /* RANDOM STATE FOR OAUTH */
@@ -478,6 +817,7 @@ document.getElementById("piLogin").disabled = true;
 
 updateAccess();
 renderTasks();
+renderProjects();
 
 if (isAdmin()) {
 loadNotes();
@@ -512,7 +852,7 @@ throw new Error("Pi did not return an access token.");
 await verifyWithWorker(auth.accessToken);
 }
 
-/* CHROME LOGIN: DIRECT OFFICIAL OAUTH */
+/* CHROME LOGIN */
 
 function signInWithChrome() {
 const state = createState();
@@ -736,6 +1076,8 @@ localStorage.getItem("msh_notes") || "";
 handlePiCallback();
 updateAccess();
 renderTasks();
+renderProjects();
+
 </script>
 
 </body>
