@@ -9,198 +9,209 @@
 
 <style>
 :root{
---bg:#050914;--panel:#0b192a;--panel2:#10243a;
---border:#1a4262;--blue:#39caff;--text:#edf6ff;
---muted:#9bb4ca;--green:#75e0a7;--red:#ff8585;
+  --bg:#050914;
+  --panel:#0b1425;
+  --panel2:#101d32;
+  --line:#1c3452;
+  --blue:#168cff;
+  --cyan:#00d9ff;
+  --text:#edf6ff;
+  --muted:#91a8c3;
+  --green:#27d99a;
+  --red:#ff6376;
+  --yellow:#ffc857;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,sans-serif}
+body{
+  margin:0;
+  background:radial-gradient(circle at top,#102342 0,#050914 48%);
+  color:var(--text);
+  font-family:Arial,Helvetica,sans-serif;
+  min-height:100vh;
+}
 button,input,textarea,select{font:inherit}
-button{
-background:var(--panel2);color:var(--blue);
-border:1px solid #2875a0;padding:10px 15px;
-border-radius:9px;cursor:pointer
-}
-button:hover{background:#173653}
-button:disabled{opacity:.5;cursor:not-allowed}
+button{cursor:pointer}
 header{
-padding:17px 5%;display:flex;align-items:center;
-justify-content:space-between;gap:15px;flex-wrap:wrap;
-background:#050914ee;border-bottom:1px solid var(--border);
-position:sticky;top:0;z-index:20;backdrop-filter:blur(12px)
+  position:sticky;
+  top:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 18px;
+  background:rgba(5,9,20,.94);
+  border-bottom:1px solid var(--line);
+  backdrop-filter:blur(14px);
 }
-.logo{font-size:22px;font-weight:bold;letter-spacing:3px;color:var(--blue)}
-.header-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-#piUser{color:var(--green);font-size:13px}
+.brand{
+  font-size:20px;
+  font-weight:900;
+  letter-spacing:1px;
+  color:white;
+}
+.brand span{color:var(--cyan)}
+.header-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+button,.btn{
+  border:1px solid #24517e;
+  color:white;
+  background:linear-gradient(135deg,#126ac0,#08417c);
+  padding:10px 14px;
+  border-radius:10px;
+  font-weight:700;
+}
+button:hover{filter:brightness(1.15)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.secondary{
+  background:#111f33;
+  border-color:#29415f;
+}
+.danger{
+  background:#521d2a;
+  border-color:#853347;
+}
+main{max-width:1150px;margin:auto;padding:22px 16px 70px}
 .hero{
-text-align:center;padding:55px 18px 35px;
-background:radial-gradient(ellipse at top,#12385a 0%,var(--bg) 72%)
+  padding:30px 24px;
+  border:1px solid #1b4772;
+  border-radius:20px;
+  background:linear-gradient(130deg,rgba(12,54,99,.75),rgba(8,17,32,.9));
+  box-shadow:0 15px 50px #0005;
 }
-.hero h1{font-size:clamp(34px,7vw,58px);letter-spacing:4px;margin:0}
-.hero h1 span{color:var(--blue)}
-.hero p{color:var(--muted);line-height:1.8;max-width:700px;margin:15px auto}
-#piMessage{font-size:13px;color:var(--muted);min-height:22px;margin-top:12px;overflow-wrap:anywhere}
-.nav{
-display:flex;gap:8px;flex-wrap:wrap;padding:13px 5%;
-background:#081321;border-bottom:1px solid var(--border)
+.hero h1{font-size:clamp(28px,5vw,48px);margin:0 0 12px}
+.hero h1 span{color:var(--cyan)}
+.hero p{color:var(--muted);line-height:1.7;max-width:700px}
+.section{display:none}
+.section.active{display:block}
+.section-title{font-size:25px;margin:8px 0 18px}
+.muted{color:var(--muted);line-height:1.6}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:14px;
+  margin-top:18px;
 }
-.nav button{font-size:13px}
-.nav button.active,.subnav button.active{
-background:#12446a;border-color:var(--blue);color:white
-}
-.page{display:none}
-.page.active{display:block}
-.container{max-width:1180px;margin:auto;padding:30px 5%}
-.welcome{
-background:linear-gradient(120deg,#102b45,#0b192a);
-border:1px solid var(--border);border-radius:15px;
-padding:22px;margin-bottom:25px
-}
-.welcome h2{color:var(--blue);margin:0 0 9px}
-.welcome p{color:var(--muted);line-height:1.8;margin:0}
-.section-title{font-size:21px;color:var(--blue);margin:0 0 18px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:15px}
 .card{
-background:linear-gradient(145deg,#0e2035,#091321);
-border:1px solid #163b5b;border-radius:14px;
-padding:20px;min-height:135px
+  padding:18px;
+  background:linear-gradient(145deg,#101d32,#091322);
+  border:1px solid var(--line);
+  border-radius:16px;
+  min-width:0;
 }
-.card h3{color:var(--blue);margin:0 0 11px;font-size:17px}
-.card p{color:var(--muted);font-size:14px;line-height:1.8;margin:0}
-.card .number{font-size:28px;font-weight:bold;margin:10px 0;color:white}
-.card a{display:inline-block;margin-top:15px;text-decoration:none}
-.tag{
-display:inline-block;margin-top:12px;padding:5px 9px;
-border:1px solid #28664d;border-radius:20px;
-color:var(--green);font-size:11px
+.card h3{margin:0 0 10px}
+.card p{color:var(--muted);line-height:1.6}
+.nav{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:18px 0 24px;
 }
-.tag.planned{border-color:#806a35;color:#f0cb78}
-.tag.paused{border-color:#75444b;color:#ff9ba5}
-.subnav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
-.subnav button{font-size:13px}
-.admin-section{display:none}
-.admin-section.active{display:block}
-.field{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}
+.nav button{background:#0b1729}
+.nav button.active{
+  background:linear-gradient(135deg,#087bd9,#07519a);
+  border-color:var(--cyan);
+}
+.status{
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#0b1728;
+  margin:12px 0;
+  color:var(--muted);
+  overflow-wrap:anywhere;
+}
+.status.success{border-color:#176b50;color:#79eac0}
+.status.error{border-color:#873447;color:#ff9aa8}
+.status.warning{border-color:#806324;color:#ffdb83}
+.form-box{
+  background:#0a1526;
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:18px;
+}
+.form-box h3{margin-top:0}
+.field{margin:12px 0}
+.field label{
+  display:block;
+  font-size:13px;
+  color:#b5c9df;
+  margin-bottom:7px;
+}
 .field input,.field textarea,.field select{
-flex:1;min-width:180px;background:#071321;color:white;
-border:1px solid #245071;border-radius:9px;padding:12px
+  width:100%;
+  padding:12px;
+  border-radius:9px;
+  border:1px solid #294563;
+  background:#050d19;
+  color:white;
+  outline:none;
 }
-.field select option{background:#071321}
-textarea{width:100%;resize:vertical}
-.task{
-background:#0b1728;border:1px solid #163b5b;
-border-radius:10px;padding:12px;margin:9px 0;
-display:flex;justify-content:space-between;align-items:center;
-gap:10px;flex-wrap:wrap
+.field input:focus,.field textarea:focus{
+  border-color:var(--cyan);
+  box-shadow:0 0 0 2px #00d9ff22;
 }
-.task-actions{display:flex;gap:7px;flex-wrap:wrap}
-.task small,.status{color:var(--muted);font-size:12px}
-.empty{color:#829bb0;font-size:14px;padding:15px 0}
+.field textarea{min-height:90px;resize:vertical}
+.form-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tabs button{background:#101d30}
+.tabs button.active{border-color:var(--cyan);background:#104b7b}
 .hidden{display:none!important}
-.module-link{display:block;text-decoration:none;color:inherit}
-.module-link:hover .card{border-color:var(--blue)}
-.project-card{display:flex;flex-direction:column;gap:9px}
-.project-card .project-bottom{margin-top:auto}
-.project-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
-.project-actions button{font-size:12px;padding:8px 11px}
-.danger{color:var(--red);border-color:#75444b}
-.primary{background:#12446a;color:white}
-.form-title{color:var(--blue);margin:0 0 12px}
-.form-hint{color:var(--muted);font-size:12px;line-height:1.7}
-
-/* SOCIAL */
-
-.social-hero{
-background:
-radial-gradient(ellipse at top right,#12466b 0%,transparent 55%),
-linear-gradient(130deg,#102b45,#091321);
-border:1px solid #1d5278;
-border-radius:18px;
-padding:28px;
-margin-bottom:25px;
+.profile-head{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-wrap:wrap;
 }
-.social-brand{
-font-size:clamp(32px,6vw,48px);
-font-weight:bold;
-letter-spacing:4px;
-color:var(--blue);
-margin:0 0 12px;
+.avatar{
+  width:68px;height:68px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:27px;font-weight:900;
+  color:#001525;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
 }
-.social-description{
-color:var(--muted);
-line-height:1.9;
-max-width:750px;
+.profile-meta{min-width:0}
+.profile-meta h2{margin:0 0 6px;overflow-wrap:anywhere}
+.profile-meta p{margin:0;color:var(--muted)}
+.pill{
+  display:inline-block;
+  padding:5px 9px;
+  border:1px solid #28557b;
+  border-radius:30px;
+  font-size:11px;
+  color:#a9dcff;
+  margin:4px 4px 4px 0;
 }
-.social-feature{
-min-height:155px;
-position:relative;
-overflow:hidden;
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+.item{
+  padding:12px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  margin:9px 0;
+  background:#0b1728;
 }
-.social-feature .feature-icon{
-font-size:27px;
-margin-bottom:13px;
+.item small{color:var(--muted)}
+footer{
+  border-top:1px solid var(--line);
+  padding:22px;
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
 }
-.social-feature h3{margin-bottom:8px}
-.social-status{
-display:inline-block;
-margin-top:18px;
-padding:7px 12px;
-border:1px solid #806a35;
-border-radius:20px;
-color:#f0cb78;
-font-size:11px;
-letter-spacing:1px;
+.notice{
+  padding:13px;
+  border-left:3px solid var(--cyan);
+  background:#0b1b2d;
+  color:#b8cce0;
+  border-radius:7px;
+  line-height:1.6;
+  margin:12px 0;
 }
-.social-notice{
-background:#0b192a;
-border:1px solid #806a35;
-border-radius:12px;
-padding:16px;
-margin-top:20px;
-color:#e8d5a2;
-font-size:13px;
-line-height:1.9;
-}
-.social-roadmap{
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-gap:12px;
-margin-top:18px;
-}
-.roadmap-item{
-background:#091727;
-border:1px solid #183c5b;
-border-radius:11px;
-padding:15px;
-}
-.roadmap-item strong{
-display:block;
-color:var(--blue);
-margin-bottom:7px;
-}
-.roadmap-item span{
-font-size:12px;
-line-height:1.7;
-color:var(--muted);
-}
-.social-open-button{
-margin-top:18px;
-padding:12px 20px;
-background:#12446a;
-color:white;
-border-color:var(--blue);
-}
-footer{text-align:center;padding:28px;color:#718da8;border-top:1px solid #142c48;font-size:13px}
-[dir="rtl"]{font-family:Tahoma,Arial,sans-serif}
-[dir="rtl"] .nav,[dir="rtl"] .subnav{direction:rtl}
-[dir="rtl"] .task{direction:rtl}
-[dir="rtl"] .social-hero{text-align:right}
 @media(max-width:600px){
-header{padding:14px 4%}
-.container{padding:23px 4%}
-.nav{padding:12px 4%}
-.nav button{flex:1}
-.social-hero{padding:21px}
+  header{padding:12px}
+  .brand{font-size:17px}
+  main{padding:15px 12px 45px}
+  .hero{padding:22px 17px}
+  .nav button{flex:1 1 42%}
 }
 </style>
 </head>
@@ -208,1332 +219,937 @@ header{padding:14px 4%}
 <body>
 
 <header>
-<div class="logo">MEHRAN MSH</div>
-<div class="header-actions">
-<span id="piUser"></span>
-<button id="piLogin" onclick="signInWithPi()">Sign in with Pi</button>
-<button id="lang" onclick="toggleLanguage()">فارسی</button>
-</div>
+  <div class="brand">MEHRAN <span>MSH</span></div>
+  <div class="header-actions">
+    <button class="secondary" id="languageButton" onclick="toggleLanguage()">فارسی</button>
+    <button id="piLoginButton" onclick="signInWithPi()">Sign in with Pi</button>
+  </div>
 </header>
-
-<section class="hero">
-<h1>MEHRAN <span>MSH</span></h1>
-<p id="intro">The central hub for managing projects, services and ecosystem operations.</p>
-<div id="piMessage" aria-live="polite"></div>
-</section>
-
-<nav class="nav">
-<button class="active" onclick="showPage('dashboard',this)" data-en="Dashboard" data-fa="داشبورد">Dashboard</button>
-<button onclick="showPage('user',this)" data-en="User Center" data-fa="مرکز کاربران">User Center</button>
-<button onclick="showPage('social',this)" data-en="SOCIAL" data-fa="سوشال">SOCIAL</button>
-<button id="adminNav" class="hidden" onclick="showPage('admin',this)" data-en="Admin" data-fa="مدیریت">Admin</button>
-<button onclick="showPage('intelligence',this)" data-en="Intelligence" data-fa="هوشمندی">Intelligence</button>
-<button onclick="showPage('projects',this)" data-en="Projects" data-fa="پروژه‌ها">Projects</button>
-<button onclick="showPage('services',this)" data-en="Services" data-fa="خدمات">Services</button>
-</nav>
 
 <main>
 
-<section id="dashboard" class="page active">
-<div class="container">
-<div class="welcome">
-<h2 data-en="Welcome to your ecosystem" data-fa="به اکوسیستم خوش آمدید">Welcome to your ecosystem</h2>
-<p data-en="One central platform for projects, management, intelligent tools and user services."
-data-fa="یک پلتفرم مرکزی برای پروژه‌ها، مدیریت، ابزارهای هوشمند و خدمات کاربران.">
-One central platform for projects, management, intelligent tools and user services.</p>
-<span class="tag" id="accountStatus">GUEST ACCESS</span>
-</div>
+  <section id="dashboard" class="section active">
+    <div class="hero">
+      <h1>Welcome to <span>MEHRAN MSH</span></h1>
+      <p>
+        A connected digital ecosystem for technology, creativity,
+        intelligent services and future businesses.
+      </p>
+      <div class="form-actions">
+        <button onclick="showPage('projects')">Explore Projects</button>
+        <button class="secondary" onclick="openSocial()">Open SOCIAL</button>
+      </div>
+    </div>
 
-<h2 class="section-title" data-en="Ecosystem Overview" data-fa="نمای کلی اکوسیستم">Ecosystem Overview</h2>
-<div class="grid">
-<div class="card"><h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3><div class="number" id="projectCount">04</div><p data-en="Registered ecosystem projects" data-fa="پروژه‌های ثبت‌شده اکوسیستم">Registered ecosystem projects</p></div>
-<div class="card"><h3 data-en="User Center" data-fa="مرکز کاربران">User Center</h3><div class="number">01</div><p data-en="Public access and services" data-fa="دسترسی و خدمات عمومی">Public access and services</p></div>
-<div class="card"><h3>Intelligence</h3><div class="number">AI</div><p data-en="Intelligent assistant development" data-fa="توسعه دستیار هوشمند">Intelligent assistant development</p></div>
-<div class="card"><h3>Infrastructure</h3><div class="number">MSH</div><p data-en="Central ecosystem infrastructure" data-fa="زیرساخت مرکزی اکوسیستم">Central ecosystem infrastructure</p></div>
-<div class="card">
-<h3>SOCIAL</h3>
-<div class="number">01</div>
-<p data-en="A social network combining messaging and media sharing."
-data-fa="شبکه اجتماعی ترکیبی با پیام‌رسانی و اشتراک‌گذاری محتوا.">
-A social network combining messaging and media sharing.</p>
-<button class="social-open-button" onclick="openSocial()" data-en="Explore SOCIAL" data-fa="ورود به سوشال">Explore SOCIAL</button>
-</div>
-</div>
+    <div class="grid">
+      <div class="card">
+        <h3>Projects</h3>
+        <p>Explore and manage ecosystem projects.</p>
+        <button onclick="showPage('projects')">Open Projects</button>
+      </div>
+      <div class="card">
+        <h3>SOCIAL</h3>
+        <p>A social network combining community, content and messaging.</p>
+        <button onclick="openSocial()">Enter SOCIAL</button>
+      </div>
+      <div class="card">
+        <h3>Intelligence</h3>
+        <p>Future intelligent tools and assistant services.</p>
+        <button onclick="showPage('intelligence')">Explore</button>
+      </div>
+      <div class="card">
+        <h3>Services</h3>
+        <p>Discover services across the ecosystem.</p>
+        <button onclick="showPage('services')">Explore</button>
+      </div>
+    </div>
 
-<br>
-<h2 class="section-title" data-en="Quick Access" data-fa="دسترسی سریع">Quick Access</h2>
-<div class="grid">
-<a class="module-link" href="https://mehranmusicxx6898.pinet.com/" target="_blank" rel="noopener noreferrer">
-<div class="card"><h3>Music</h3><p data-en="Music platform and artist experience." data-fa="پلتفرم موسیقی و تجربه هنری.">Music platform and artist experience.</p></div>
-</a>
-<a class="module-link" href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_blank" rel="noopener noreferrer">
-<div class="card"><h3>AI</h3><p data-en="Artificial intelligence services." data-fa="خدمات هوش مصنوعی.">Artificial intelligence services.</p></div>
-</a>
-</div>
-</div>
-</section>
+    <div class="card" style="margin-top:18px">
+      <h3>Personal Workspace</h3>
+      <div id="piStatus" class="status">Pi account not connected.</div>
+      <div id="welcomeUser" class="muted">Sign in with Pi to access account features.</div>
+    </div>
+  </section>
 
-<section id="user" class="page">
-<div class="container">
-<div class="welcome">
-<h2 data-en="User Center" data-fa="مرکز کاربران">User Center</h2>
-<p data-en="Access available platforms and upcoming ecosystem services."
-data-fa="به پلتفرم‌های موجود و خدمات آینده اکوسیستم دسترسی پیدا کنید.">
-Access available platforms and upcoming ecosystem services.</p>
-</div>
-<div class="grid">
-<div class="card"><h3>Music</h3><p data-en="Discover songs and artist experiences." data-fa="آهنگ‌ها و تجربه‌های هنری را کشف کنید.">Discover songs and artist experiences.</p><a href="https://mehranmusicxx6898.pinet.com/" target="_blank" rel="noopener noreferrer"><button data-en="Open Music" data-fa="ورود به موسیقی">Open Music</button></a></div>
-<div class="card"><h3>AI</h3><p data-en="Explore artificial intelligence services." data-fa="خدمات هوش مصنوعی را بررسی کنید.">Explore artificial intelligence services.</p><a href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_blank" rel="noopener noreferrer"><button data-en="Open AI" data-fa="ورود به هوش مصنوعی">Open AI</button></a></div>
-<div class="card"><h3>Intelligence</h3><p data-en="An ecosystem-wide intelligent assistant." data-fa="دستیار هوشمند برای سراسر اکوسیستم.">An ecosystem-wide intelligent assistant.</p><span class="tag" data-en="IN DEVELOPMENT" data-fa="در حال توسعه">IN DEVELOPMENT</span></div>
-<div class="card"><h3>Services</h3><p data-en="A growing collection of digital services." data-fa="مجموعه‌ای در حال گسترش از خدمات دیجیتال.">A growing collection of digital services.</p><span class="tag" data-en="COMING SOON" data-fa="به‌زودی">COMING SOON</span></div>
-<div class="card">
-<h3>SOCIAL</h3>
-<p data-en="Connect with people, share content, create communities and communicate."
-data-fa="با دیگران ارتباط بگیر، محتوا منتشر کن، کامیونیتی بساز و گفتگو کن.">
-Connect with people, share content, create communities and communicate.</p>
-<button class="social-open-button" onclick="openSocial()" data-en="Explore SOCIAL" data-fa="ورود به سوشال">Explore SOCIAL</button>
-</div>
-</div>
-</div>
-</section>
+  <section id="usercenter" class="section">
+    <h2 class="section-title">User Center</h2>
+    <div class="card">
+      <h3>Account Information</h3>
+      <div id="userInfo" class="muted">Sign in with Pi to view your Pi account information.</div>
+    </div>
+    <div class="card" style="margin-top:15px">
+      <h3>Personal Notes</h3>
+      <div class="field">
+        <textarea id="personalNote" placeholder="Write your note..."></textarea>
+      </div>
+      <button onclick="saveNote()">Save Note</button>
+      <div id="noteStatus" class="status">Notes are stored locally in this browser.</div>
+    </div>
+  </section>
 
-<!-- SOCIAL PAGE -->
+  <section id="social" class="section">
+    <h2 class="section-title">SOCIAL</h2>
+    <p class="muted">
+      Your social space for profiles, communities, content and conversations.
+    </p>
 
-<section id="social" class="page">
-<div class="container">
+    <div class="notice">
+      SOCIAL account registration and login are connected to the MEHRAN MSH server.
+      Email verification and Pi account linking are not enabled yet.
+    </div>
 
-<div class="social-hero">
-<h2 class="social-brand">SOCIAL</h2>
-<p class="social-description"
-data-en="One place to connect, communicate, share moments and build communities. SOCIAL is being developed as a public social network inside the MEHRAN MSH ecosystem."
-data-fa="یک فضا برای ارتباط، گفتگو، اشتراک‌گذاری لحظه‌ها و ساخت کامیونیتی. سوشال به‌عنوان یک شبکه اجتماعی عمومی در اکوسیستم MEHRAN MSH در حال توسعه است.">
-One place to connect, communicate, share moments and build communities. SOCIAL is being developed as a public social network inside the MEHRAN MSH ecosystem.
-</p>
-<span class="social-status" data-en="PRODUCT DEVELOPMENT" data-fa="در حال توسعه محصول">PRODUCT DEVELOPMENT</span>
-</div>
+    <div id="socialMessage" class="status">
+      Checking SOCIAL account status...
+    </div>
 
-<h2 class="section-title" data-en="Explore SOCIAL" data-fa="امکانات سوشال">Explore SOCIAL</h2>
+    <div id="socialAuthArea">
+      <div class="tabs">
+        <button id="socialLoginTab" class="active" onclick="showSocialForm('login')">Login</button>
+        <button id="socialRegisterTab" onclick="showSocialForm('register')">Create Account</button>
+      </div>
 
-<div class="grid">
+      <div id="socialLoginForm" class="form-box">
+        <h3>Welcome Back</h3>
+        <div class="field">
+          <label>Email or Username</label>
+          <input id="socialLoginIdentifier" autocomplete="username" placeholder="Email or username">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="socialLoginPassword" type="password" autocomplete="current-password" placeholder="Your password">
+        </div>
+        <div class="form-actions">
+          <button id="socialLoginSubmit" onclick="socialLogin()">Login</button>
+        </div>
+      </div>
 
-<div class="card social-feature">
-<div class="feature-icon">👤</div>
-<h3 data-en="Profiles" data-fa="پروفایل کاربران">Profiles</h3>
-<p data-en="Create a personal profile, introduce yourself and follow other users."
-data-fa="پروفایل شخصی بساز، خودت را معرفی کن و کاربران دیگر را دنبال کن.">
-Create a personal profile, introduce yourself and follow other users.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+      <div id="socialRegisterForm" class="form-box hidden">
+        <h3>Create Your SOCIAL Account</h3>
+        <div class="field">
+          <label>Username</label>
+          <input id="socialRegisterUsername" autocomplete="username" placeholder="Choose a username">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input id="socialRegisterEmail" type="email" autocomplete="email" placeholder="Your email address">
+        </div>
+        <div class="field">
+          <label>Display Name (optional)</label>
+          <input id="socialRegisterDisplayName" placeholder="Your display name">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input id="socialRegisterPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+        </div>
+        <div class="form-actions">
+          <button id="socialRegisterSubmit" onclick="socialRegister()">Create Account</button>
+        </div>
+        <p class="muted">Use a unique password. Do not reuse your Pi account password.</p>
+      </div>
+    </div>
 
-<div class="card social-feature">
-<div class="feature-icon">📰</div>
-<h3 data-en="Posts & Feed" data-fa="پست و فید">Posts & Feed</h3>
-<p data-en="Publish text, photos and videos. Discover posts and interact with the community."
-data-fa="متن، عکس و ویدئو منتشر کن. پست‌ها را ببین و با جامعه تعامل داشته باش.">
-Publish text, photos and videos. Discover posts and interact with the community.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+    <div id="socialProfileArea" class="hidden">
+      <div class="card">
+        <div class="profile-head">
+          <div class="avatar" id="socialAvatar">S</div>
+          <div class="profile-meta">
+            <h2 id="socialDisplayName">SOCIAL User</h2>
+            <p id="socialUsername">@username</p>
+          </div>
+        </div>
+        <hr>
+        <div>
+          <span class="pill">SOCIAL Account</span>
+          <span class="pill" id="socialEmailStatus">Email not verified</span>
+        </div>
+        <div class="item">
+          <small>Email</small>
+          <div id="socialEmail"></div>
+        </div>
+        <div class="item">
+          <small>Pi Account</small>
+          <div id="socialPiUsername">Not connected</div>
+        </div>
+        <div class="item">
+          <small>Bio</small>
+          <div id="socialBio">No bio added yet.</div>
+        </div>
+        <div class="form-actions">
+          <button class="danger" onclick="socialLogout()">Logout</button>
+        </div>
+      </div>
 
-<div class="card social-feature">
-<div class="feature-icon">💬</div>
-<h3 data-en="Messages" data-fa="پیام‌ها">Messages</h3>
-<p data-en="Private conversations, file sharing and voice messages."
-data-fa="گفتگوهای خصوصی، اشتراک فایل و پیام‌های صوتی.">
-Private conversations, file sharing and voice messages.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+      <div class="card" style="margin-top:15px">
+        <h3>Your SOCIAL Space</h3>
+        <p class="muted">
+          Your account is active. More social features will be connected to the server in upcoming development stages.
+        </p>
+        <div class="grid">
+          <div class="item">
+            <h3>Feed</h3>
+            <small>Posts and content sharing</small>
+            <span class="pill">In development</span>
+          </div>
+          <div class="item">
+            <h3>Messages</h3>
+            <small>Private conversations</small>
+            <span class="pill">In development</span>
+          </div>
+          <div class="item">
+            <h3>Stories</h3>
+            <small>24-hour stories</small>
+            <span class="pill">In development</span>
+          </div>
+          <div class="item">
+            <h3>Groups & Channels</h3>
+            <small>Communities and public channels</small>
+            <span class="pill">In development</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-<div class="card social-feature">
-<div class="feature-icon">👥</div>
-<h3 data-en="Groups" data-fa="گروه‌ها">Groups</h3>
-<p data-en="Create communities and group conversations around shared interests."
-data-fa="بر اساس علایق مشترک گروه و کامیونیتی ایجاد کن.">
-Create communities and group conversations around shared interests.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+  <section id="admin" class="section">
+    <h2 class="section-title">Admin</h2>
+    <div id="adminStatus" class="status warning">Admin access requires Pi authentication.</div>
+    <div id="adminContent" class="hidden">
+      <div class="card">
+        <h3>Administrator Workspace</h3>
+        <p class="muted">Manage ecosystem projects.</p>
+        <div class="field">
+          <label>Project Name</label>
+          <input id="newProjectName" placeholder="Project name">
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="newProjectDescription" placeholder="Project description"></textarea>
+        </div>
+        <div class="field">
+          <label>Project URL</label>
+          <input id="newProjectUrl" placeholder="https://example.com">
+        </div>
+        <button onclick="createProject()">Add Project</button>
+        <div id="adminProjectStatus" class="status"></div>
+      </div>
+    </div>
+  </section>
 
-<div class="card social-feature">
-<div class="feature-icon">📢</div>
-<h3 data-en="Channels" data-fa="کانال‌ها">Channels</h3>
-<p data-en="Create public or private channels and publish updates for followers."
-data-fa="کانال عمومی یا خصوصی بساز و برای دنبال‌کنندگان محتوا منتشر کن.">
-Create public or private channels and publish updates for followers.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+  <section id="intelligence" class="section">
+    <h2 class="section-title">Intelligence</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>AI Assistant</h3>
+        <p>Intelligent assistant and conversational tools.</p>
+        <span class="pill">Planned</span>
+      </div>
+      <div class="card">
+        <h3>Creative Intelligence</h3>
+        <p>Tools for music, writing and creative workflows.</p>
+        <span class="pill">Planned</span>
+      </div>
+      <div class="card">
+        <h3>Personal Agent</h3>
+        <p>A persistent assistant with identity and memory.</p>
+        <span class="pill">Planned</span>
+      </div>
+    </div>
+  </section>
 
-<div class="card social-feature">
-<div class="feature-icon">⏳</div>
-<h3 data-en="Stories" data-fa="استوری‌ها">Stories</h3>
-<p data-en="Share temporary photos and videos that disappear after 24 hours."
-data-fa="عکس و ویدئوهای موقت منتشر کن که پس از ۲۴ ساعت ناپدید می‌شوند.">
-Share temporary photos and videos that disappear after 24 hours.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+  <section id="projects" class="section">
+    <h2 class="section-title">Projects</h2>
+    <p class="muted">Projects connected to the MEHRAN MSH ecosystem.</p>
+    <div id="projectsStatus" class="status">Loading projects...</div>
+    <div id="projectsList" class="grid"></div>
+  </section>
 
-<div class="card social-feature">
-<div class="feature-icon">🔔</div>
-<h3 data-en="Notifications" data-fa="اعلان‌ها">Notifications</h3>
-<p data-en="Stay informed about followers, comments, likes and messages."
-data-fa="از دنبال‌کنندگان، نظرات، پسندها و پیام‌ها باخبر شو.">
-Stay informed about followers, comments, likes and messages.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
+  <section id="services" class="section">
+    <h2 class="section-title">Services</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Music</h3>
+        <p>Music publishing, artist identity and creative services.</p>
+        <span class="pill">MEHRAN MUSIC</span>
+      </div>
+      <div class="card">
+        <h3>Technology</h3>
+        <p>Digital products and technology services.</p>
+        <span class="pill">Planned</span>
+      </div>
+      <div class="card">
+        <h3>Robotics</h3>
+        <p>Future robotics and intelligent systems.</p>
+        <span class="pill">Planned</span>
+      </div>
+      <div class="card">
+        <h3>AI</h3>
+        <p>Artificial intelligence products and tools.</p>
+        <span class="pill">Planned</span>
+      </div>
+    </div>
+  </section>
 
-<div class="card social-feature">
-<div class="feature-icon">🔖</div>
-<h3 data-en="Saved Posts" data-fa="پست‌های ذخیره‌شده">Saved Posts</h3>
-<p data-en="Save interesting posts and return to them whenever you want."
-data-fa="پست‌های جالب را ذخیره کن و هر زمان خواستی دوباره ببین.">
-Save interesting posts and return to them whenever you want.</p>
-<span class="tag planned" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
-</div>
-
-</div>
-
-<div class="social-notice">
-<strong data-en="Development status" data-fa="وضعیت توسعه">Development status</strong>
-<p data-en="The SOCIAL interface and database structure are being prepared. Registration, login, posts, messaging and media uploads are not active yet. They will be connected to secure server APIs in the next development stages."
-data-fa="رابط سوشال و ساختار پایگاه داده آن در حال آماده‌سازی است. ثبت‌نام، ورود، پست‌ها، پیام‌رسانی و بارگذاری رسانه هنوز فعال نیستند. این قابلیت‌ها در مراحل بعدی توسعه به APIهای امن سرور متصل خواهند شد.">
-The SOCIAL interface and database structure are being prepared. Registration, login, posts, messaging and media uploads are not active yet. They will be connected to secure server APIs in the next development stages.
-</p>
-</div>
-
-<br>
-<h2 class="section-title" data-en="Development Roadmap" data-fa="نقشه راه توسعه">Development Roadmap</h2>
-
-<div class="social-roadmap">
-<div class="roadmap-item">
-<strong data-en="01. Accounts" data-fa="۱. حساب‌های کاربری">01. Accounts</strong>
-<span data-en="Registration, secure login, user profiles and optional Pi connection."
-data-fa="ثبت‌نام، ورود امن، پروفایل کاربران و اتصال اختیاری پای.">
-Registration, secure login, user profiles and optional Pi connection.</span>
-</div>
-
-<div class="roadmap-item">
-<strong data-en="02. Social Feed" data-fa="۲. فید اجتماعی">02. Social Feed</strong>
-<span data-en="Posts, photos, videos, likes, comments and following."
-data-fa="پست‌ها، عکس‌ها، ویدئوها، لایک، کامنت و دنبال‌کردن.">
-Posts, photos, videos, likes, comments and following.</span>
-</div>
-
-<div class="roadmap-item">
-<strong data-en="03. Messaging" data-fa="۳. پیام‌رسانی">03. Messaging</strong>
-<span data-en="Private messages, groups, channels and media sharing."
-data-fa="پیام خصوصی، گروه‌ها، کانال‌ها و اشتراک رسانه.">
-Private messages, groups, channels and media sharing.</span>
-</div>
-
-<div class="roadmap-item">
-<strong data-en="04. Advanced Features" data-fa="۴. امکانات پیشرفته">04. Advanced Features</strong>
-<span data-en="Stories, notifications, voice messages and future calls."
-data-fa="استوری، اعلان‌ها، پیام صوتی و تماس در مراحل آینده.">
-Stories, notifications, voice messages and future calls.</span>
-</div>
-</div>
-
-</div>
-</section>
-
-<!-- ADMIN -->
-
-<section id="admin" class="page">
-<div class="container">
-<div class="welcome">
-<h2 data-en="Administrator Workspace" data-fa="فضای مدیریت">Administrator Workspace</h2>
-<p data-en="Central control area for ecosystem operations and project planning."
-data-fa="مرکز کنترل عملیات اکوسیستم و برنامه‌ریزی پروژه‌ها.">
-Central control area for ecosystem operations and project planning.</p>
-<span class="tag">ADMIN: MEHRANMSH</span>
-</div>
-
-<div class="subnav">
-<button class="active" onclick="showAdminSection('overview',this)" data-en="Overview" data-fa="نمای کلی">Overview</button>
-<button onclick="showAdminSection('projectControl',this)" data-en="Projects" data-fa="پروژه‌ها">Projects</button>
-<button onclick="showAdminSection('taskControl',this)" data-en="Tasks" data-fa="وظایف">Tasks</button>
-<button onclick="showAdminSection('notesControl',this)" data-en="Notes" data-fa="یادداشت‌ها">Notes</button>
-<button onclick="showAdminSection('systemControl',this)" data-en="System" data-fa="سیستم">System</button>
-</div>
-
-<div id="overview" class="admin-section active">
-<h2 class="section-title" data-en="Management Overview" data-fa="نمای کلی مدیریت">Management Overview</h2>
-<div class="grid">
-<div class="card"><h3 data-en="Core" data-fa="هسته مرکزی">Core</h3><p data-en="Central platform structure." data-fa="ساختار پلتفرم مرکزی.">Central platform structure.</p><span class="tag">ACTIVE</span></div>
-<div class="card"><h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3><p id="adminProjectCount">Four projects registered.</p><span class="tag" id="adminProjectTag">4 PROJECTS</span></div>
-<div class="card"><h3 data-en="Pi Connection" data-fa="اتصال پای">Pi Connection</h3><p data-en="Pi sign-in integration." data-fa="یکپارچه‌سازی ورود با پای.">Pi sign-in integration.</p><span class="tag">SERVER VERIFIED</span></div>
-<div class="card"><h3>SOCIAL</h3><p data-en="Social network development." data-fa="توسعه شبکه اجتماعی.">Social network development.</p><span class="tag planned">IN DEVELOPMENT</span></div>
-</div>
-</div>
-
-<div id="projectControl" class="admin-section">
-<h2 class="section-title" data-en="Project Management" data-fa="مدیریت پروژه‌ها">Project Management</h2>
-
-<div class="card">
-<h3 class="form-title" id="projectFormTitle" data-en="Add New Project" data-fa="افزودن پروژه جدید">Add New Project</h3>
-
-<div class="field">
-<input id="projectName" maxlength="100" placeholder="Project name">
-<input id="projectLink" type="url" maxlength="500" placeholder="Project URL (optional)">
-</div>
-
-<div class="field">
-<textarea id="projectDescription" rows="3" maxlength="3000" placeholder="Project description"></textarea>
-</div>
-
-<div class="field">
-<select id="projectStatus">
-<option value="Active">Active</option>
-<option value="Planned">Planned</option>
-<option value="Paused">Paused</option>
-</select>
-</div>
-
-<div class="field">
-<button class="primary" id="saveProjectButton" onclick="saveProject()" data-en="Add Project" data-fa="افزودن پروژه">Add Project</button>
-<button id="cancelEditButton" class="hidden" onclick="cancelProjectEdit()" data-en="Cancel" data-fa="انصراف">Cancel</button>
-</div>
-
-<p class="form-hint" data-en="Projects are stored in the shared Cloudflare D1 database."
-data-fa="اطلاعات پروژه‌ها در پایگاه داده مشترک Cloudflare D1 ذخیره می‌شوند.">
-Projects are stored in the shared Cloudflare D1 database.</p>
-</div>
-
-<br>
-<h3 class="section-title" data-en="Registered Projects" data-fa="پروژه‌های ثبت‌شده">Registered Projects</h3>
-<div id="adminProjectList" class="grid"></div>
-</div>
-
-<div id="taskControl" class="admin-section">
-<h2 class="section-title" data-en="Task Manager" data-fa="مدیریت وظایف">Task Manager</h2>
-<div class="card">
-<p data-en="Create and track your management tasks." data-fa="وظایف مدیریتی خود را ثبت و پیگیری کن.">Create and track your management tasks.</p>
-<div class="field">
-<input id="taskInput" maxlength="120" placeholder="Enter a new task...">
-<button onclick="addTask()" data-en="Add Task" data-fa="افزودن وظیفه">Add Task</button>
-</div>
-<div id="taskList"></div>
-<p class="status" data-en="Tasks are stored in this browser only."
-data-fa="وظایف فعلاً فقط در همین مرورگر ذخیره می‌شوند.">
-Tasks are stored in this browser only.</p>
-</div>
-</div>
-
-<div id="notesControl" class="admin-section">
-<h2 class="section-title" data-en="Management Notes" data-fa="یادداشت‌های مدیریتی">Management Notes</h2>
-<div class="card">
-<textarea id="adminNotes" rows="7" placeholder="Write your private notes..."></textarea>
-<br><br>
-<button onclick="saveNotes()" data-en="Save Notes" data-fa="ذخیره یادداشت">Save Notes</button>
-<span id="notesMessage" class="status"></span>
-<p class="status" data-en="Notes are stored in this browser only. Do not store sensitive information here."
-data-fa="یادداشت‌ها فقط در همین مرورگر ذخیره می‌شوند. اطلاعات حساس را اینجا ننویس.">
-Notes are stored in this browser only. Do not store sensitive information here.</p>
-</div>
-</div>
-
-<div id="systemControl" class="admin-section">
-<h2 class="section-title" data-en="System Information" data-fa="اطلاعات سیستم">System Information</h2>
-<div class="card">
-<h3>MEHRAN MSH</h3>
-<p>Version 2.4</p>
-<p data-en="Central ecosystem interface connected to Cloudflare D1."
-data-fa="رابط مرکزی اکوسیستم متصل به پایگاه داده Cloudflare D1.">
-Central ecosystem interface connected to Cloudflare D1.</p>
-<br>
-<p class="status" data-en="Project data is managed through the secure Worker API. Tasks and notes remain local."
-data-fa="اطلاعات پروژه‌ها از طریق API امن Worker مدیریت می‌شوند. وظایف و یادداشت‌ها همچنان محلی هستند.">
-Project data is managed through the secure Worker API. Tasks and notes remain local.</p>
-</div>
-</div>
-</div>
-</section>
-
-<section id="intelligence" class="page">
-<div class="container">
-<div class="welcome">
-<h2>Intelligence</h2>
-<p data-en="The intelligent layer planned to connect information, projects and services across the ecosystem."
-data-fa="لایه هوشمندی که برای اتصال اطلاعات، پروژه‌ها و خدمات سراسر اکوسیستم طراحی خواهد شد.">
-The intelligent layer planned to connect information, projects and services across the ecosystem.</p>
-<span class="tag" data-en="IN DEVELOPMENT" data-fa="در حال توسعه">IN DEVELOPMENT</span>
-</div>
-<h2 class="section-title" data-en="Planned Capabilities" data-fa="قابلیت‌های برنامه‌ریزی‌شده">Planned Capabilities</h2>
-<div class="grid">
-<div class="card"><h3 data-en="Personal Assistant" data-fa="دستیار شخصی">Personal Assistant</h3><p data-en="An assistant for users and the ecosystem owner." data-fa="دستیار کاربران و مدیر اکوسیستم.">An assistant for users and the ecosystem owner.</p></div>
-<div class="card"><h3 data-en="Knowledge Center" data-fa="مرکز دانش">Knowledge Center</h3><p data-en="Organize and retrieve ecosystem information." data-fa="سازمان‌دهی و بازیابی اطلاعات اکوسیستم.">Organize and retrieve ecosystem information.</p></div>
-<div class="card"><h3 data-en="Project Intelligence" data-fa="هوشمندی پروژه‌ها">Project Intelligence</h3><p data-en="Support project planning and analysis." data-fa="کمک به برنامه‌ریزی و تحلیل پروژه‌ها.">Support project planning and analysis.</p></div>
-<div class="card"><h3 data-en="Automation" data-fa="اتوماسیون">Automation</h3><p data-en="Assist with repetitive management operations." data-fa="کمک به انجام عملیات تکراری مدیریتی.">Assist with repetitive management operations.</p></div>
-</div>
-<p class="status" style="margin-top:18px" data-en="These are planned capabilities, not active AI functions yet."
-data-fa="این موارد قابلیت‌های برنامه‌ریزی‌شده هستند و هنوز به‌عنوان امکانات هوش مصنوعی فعال نشده‌اند.">
-These are planned capabilities, not active AI functions yet.</p>
-</div>
-</section>
-
-<section id="projects" class="page">
-<div class="container">
-<h2 class="section-title" data-en="Ecosystem Projects" data-fa="پروژه‌های اکوسیستم">Ecosystem Projects</h2>
-<div id="publicProjectList" class="grid"></div>
-</div>
-</section>
-
-<section id="services" class="page">
-<div class="container">
-<div class="welcome">
-<h2 data-en="Services" data-fa="خدمات">Services</h2>
-<p data-en="A central space for digital services and future ecosystem integrations."
-data-fa="فضایی مرکزی برای خدمات دیجیتال و یکپارچه‌سازی‌های آینده اکوسیستم.">
-A central space for digital services and future ecosystem integrations.</p>
-</div>
-<div class="grid">
-<div class="card"><h3 data-en="Account" data-fa="حساب کاربری">Account</h3><p data-en="Pi identity connection and user access." data-fa="اتصال هویت پای و دسترسی کاربران.">Pi identity connection and user access.</p><span class="tag">PI INTEGRATION</span></div>
-<div class="card"><h3 data-en="Digital Tools" data-fa="ابزارهای دیجیتال">Digital Tools</h3><p data-en="Tools and utilities for ecosystem users." data-fa="ابزارها و امکانات کاربردی برای کاربران اکوسیستم.">Tools and utilities for ecosystem users.</p><span class="tag">PLANNED</span></div>
-<div class="card"><h3 data-en="Support" data-fa="پشتیبانی">Support</h3><p data-en="A future support and help center." data-fa="مرکز پشتیبانی و راهنمای کاربران در آینده.">A future support and help center.</p><span class="tag">PLANNED</span></div>
-<div class="card"><h3 data-en="Integrations" data-fa="یکپارچه‌سازی">Integrations</h3><p data-en="Connections between ecosystem platforms." data-fa="ارتباط میان پلتفرم‌های اکوسیستم.">Connections between ecosystem platforms.</p><span class="tag">PLANNED</span></div>
-</div>
-</div>
-</section>
+  <div class="nav">
+    <button class="active" data-page="dashboard" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button data-page="usercenter" onclick="showPage('usercenter',this)">User Center</button>
+    <button data-page="social" onclick="openSocial(this)">SOCIAL</button>
+    <button data-page="projects" onclick="showPage('projects',this)">Projects</button>
+    <button data-page="services" onclick="showPage('services',this)">Services</button>
+    <button data-page="intelligence" onclick="showPage('intelligence',this)">Intelligence</button>
+    <button data-page="admin" onclick="showPage('admin',this)">Admin</button>
+  </div>
 
 </main>
 
-<footer>© 2026 MEHRAN MSH | Building the Future</footer>
+<footer>
+  MEHRAN MSH Ecosystem · Building connected digital experiences
+</footer>
 
 <script>
-"use strict";
+/* =====================================================
+   CONFIGURATION
+===================================================== */
 
-/* CORE STATE */
-
-let english = true;
-let currentUser = null;
-let piAccessToken = null;
-let editingProjectId = null;
-let projectsCache = [];
-let projectsLoading = false;
+const AUTH_WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
+const SOCIAL_API = AUTH_WORKER + "/social";
 
 const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const PI_REDIRECT_URI = "https://mehranmsh.github.io/";
-const AUTH_WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
 
-const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
+const SOCIAL_TOKEN_KEY = "msh_social_token";
 
-try {
-  if (window.Pi && typeof window.Pi.init === "function") {
-    window.Pi.init({ version: "2.0" });
+let currentUser = null;
+let piAccessToken = null;
+let socialUser = null;
+let socialToken = sessionStorage.getItem(SOCIAL_TOKEN_KEY) || null;
+
+const ADMIN_USERNAME = "Mehranmsh";
+
+
+/* =====================================================
+   NAVIGATION
+===================================================== */
+
+function showPage(page,button){
+  document.querySelectorAll(".section").forEach(section=>{
+    section.classList.remove("active");
+  });
+
+  const target = document.getElementById(page);
+  if(target) target.classList.add("active");
+
+  document.querySelectorAll(".nav button").forEach(btn=>{
+    btn.classList.remove("active");
+  });
+
+  const navButton = button || document.querySelector('.nav button[data-page="'+page+'"]');
+  if(navButton) navButton.classList.add("active");
+
+  if(page === "admin") updateAccess();
+  if(page === "projects") loadProjects();
+}
+
+function openSocial(button){
+  showPage("social",button);
+  restoreSocialSession();
+}
+
+
+/* =====================================================
+   LANGUAGE
+===================================================== */
+
+let currentLanguage = "en";
+
+function toggleLanguage(){
+  currentLanguage = currentLanguage === "en" ? "fa" : "en";
+  document.documentElement.lang = currentLanguage;
+  document.documentElement.dir = currentLanguage === "fa" ? "rtl" : "ltr";
+
+  document.getElementById("languageButton").textContent =
+    currentLanguage === "en" ? "فارسی" : "English";
+
+  if(currentLanguage === "fa"){
+    document.querySelector(".brand").innerHTML = "MEHRAN <span>MSH</span>";
+    document.querySelector("#dashboard .hero h1").innerHTML = "به <span>MEHRAN MSH</span> خوش آمدید";
+    document.querySelector("#dashboard .hero p").textContent =
+      "یک اکوسیستم دیجیتال متصل برای فناوری، خلاقیت، خدمات هوشمند و کسب‌وکارهای آینده.";
+  }else{
+    document.querySelector(".brand").innerHTML = "MEHRAN <span>MSH</span>";
+    document.querySelector("#dashboard .hero h1").innerHTML = "Welcome to <span>MEHRAN MSH</span>";
+    document.querySelector("#dashboard .hero p").textContent =
+      "A connected digital ecosystem for technology, creativity, intelligent services and future businesses.";
   }
-} catch (error) {
-  console.error("Pi SDK initialization error:", error);
 }
 
-function showPiMessage(message) {
-  document.getElementById("piMessage").textContent = message;
+
+/* =====================================================
+   PI AUTHENTICATION
+===================================================== */
+
+function initPi(){
+  try{
+    if(window.Pi){
+      Pi.init({version:"2.0",sandbox:false});
+      console.log("Pi SDK initialized");
+    }
+  }catch(error){
+    console.error("Pi initialization error:",error);
+  }
 }
 
-function isAdmin() {
-  return currentUser !== null && currentUser.isAdmin === true;
-}
-
-/* NAVIGATION */
-
-function showPage(page, button) {
-  if (page === "admin" && !isAdmin()) {
-    showPiMessage(english
-      ? "Administrator access required."
-      : "برای ورود به بخش مدیریت باید مدیر تأییدشده باشید.");
+async function signInWithPi(){
+  if(!window.Pi){
+    setPiStatus("Pi SDK is unavailable. Open this app inside Pi Browser.",true);
     return;
   }
 
-  document.querySelectorAll(".page").forEach(item =>
-    item.classList.remove("active")
-  );
+  try{
+    if(window.Pi.authenticate){
+      const auth = await Pi.authenticate(
+        ["username"],
+        function(payment){
+          console.log("Incomplete payment:",payment);
+        }
+      );
 
-  document.getElementById(page).classList.add("active");
-
-  document.querySelectorAll(".nav button").forEach(item =>
-    item.classList.remove("active")
-  );
-
-  if (button) button.classList.add("active");
-
-  window.scrollTo({ top: 0, behavior: "smooth" });
-
-  if (page === "projects" || page === "admin") {
-    loadProjects();
-  }
-}
-
-function openSocial() {
-  const button = document.querySelector('.nav button[onclick*="social"]');
-  showPage("social", button);
-}
-
-function showAdminSection(id, button) {
-  if (!isAdmin()) return;
-
-  document.querySelectorAll(".admin-section").forEach(item =>
-    item.classList.remove("active")
-  );
-
-  document.getElementById(id).classList.add("active");
-
-  document.querySelectorAll(".subnav button").forEach(item =>
-    item.classList.remove("active")
-  );
-
-  if (button) button.classList.add("active");
-
-  if (id === "projectControl") loadProjects();
-}
-
-/* ACCESS CONTROL */
-
-function updateAccess() {
-  const adminNav = document.getElementById("adminNav");
-  const status = document.getElementById("accountStatus");
-
-  adminNav.classList.toggle("hidden", !isAdmin());
-
-  if (isAdmin()) {
-    status.textContent = "ADMIN ACCOUNT";
-  } else {
-    status.textContent = currentUser ? "PI USER" : "GUEST ACCESS";
-
-    if (document.getElementById("admin").classList.contains("active")) {
-      showPage("dashboard", document.querySelector(".nav button"));
-    }
-  }
-}
-
-/* LANGUAGE */
-
-function toggleLanguage() {
-  english = !english;
-
-  document.documentElement.lang = english ? "en" : "fa";
-  document.documentElement.dir = english ? "ltr" : "rtl";
-
-  document.getElementById("lang").textContent =
-    english ? "فارسی" : "English";
-
-  document.querySelectorAll("[data-en]").forEach(element => {
-    element.textContent = english
-      ? element.dataset.en
-      : element.dataset.fa;
-  });
-
-  document.getElementById("intro").textContent = english
-    ? "The central hub for managing projects, services and ecosystem operations."
-    : "مرکز اصلی مدیریت پروژه‌ها، خدمات و عملیات اکوسیستم.";
-
-  document.getElementById("piLogin").textContent = currentUser
-    ? (english ? "Pi Connected" : "اتصال پای برقرار است")
-    : (english ? "Sign in with Pi" : "ورود با پای");
-
-  document.getElementById("taskInput").placeholder = english
-    ? "Enter a new task..."
-    : "وظیفه جدید را وارد کن...";
-
-  document.getElementById("adminNotes").placeholder = english
-    ? "Write your private notes..."
-    : "یادداشت خود را بنویس...";
-
-  document.getElementById("projectName").placeholder = english
-    ? "Project name"
-    : "نام پروژه";
-
-  document.getElementById("projectLink").placeholder = english
-    ? "Project URL (optional)"
-    : "لینک پروژه (اختیاری)";
-
-  document.getElementById("projectDescription").placeholder = english
-    ? "Project description"
-    : "توضیحات پروژه";
-
-  updateProjectFormLanguage();
-  renderProjects();
-  renderTasks();
-}
-
-/* PROJECT DATABASE */
-
-const DEFAULT_PROJECTS = [
-  {
-    id: "music",
-    name: "Music",
-    description: "Music platform, creativity, songs and artist experiences.",
-    faDescription: "پلتفرم موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.",
-    url: "https://mehranmusicxx6898.pinet.com/",
-    status: "Active"
-  },
-  {
-    id: "ai",
-    name: "AI",
-    description: "Artificial intelligence and digital assistants.",
-    faDescription: "هوش مصنوعی و دستیارهای دیجیتال.",
-    url: "https://mehranmusicavmq2545.pinet.com/chatbot",
-    status: "Active"
-  },
-  {
-    id: "robotics",
-    name: "Robotics",
-    description: "Robotics, automation and future technologies.",
-    faDescription: "رباتیک، اتوماسیون و فناوری‌های آینده.",
-    url: "",
-    status: "Planned"
-  },
-  {
-    id: "technologies",
-    name: "Technologies",
-    description: "Technology projects, innovation and development.",
-    faDescription: "پروژه‌های فناوری، نوآوری و توسعه.",
-    url: "",
-    status: "Planned"
-  }
-];
-
-function normalizeProject(project) {
-  return {
-    id: String(project.id),
-    name: project.name || "",
-    description: project.description || "",
-    faDescription: project.faDescription || project.fa_description || "",
-    link: project.url || project.link || "",
-    status: project.status || "Planned"
-  };
-}
-
-function getLegacyProjects() {
-  try {
-    const saved = localStorage.getItem("msh_projects");
-
-    if (!saved) return [...DEFAULT_PROJECTS];
-
-    const parsed = JSON.parse(saved);
-
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return [...DEFAULT_PROJECTS];
+      if(auth && auth.accessToken){
+        await verifyWithWorker(auth.accessToken,auth.user);
+        return;
+      }
     }
 
-    return parsed.map(normalizeProject);
-
-  } catch (error) {
-    console.error("Legacy project storage error:", error);
-    return [...DEFAULT_PROJECTS];
+    setPiStatus("Pi authentication could not be completed.",true);
+  }catch(error){
+    console.error(error);
+    setPiStatus("Pi sign-in failed: "+error.message,true);
   }
 }
 
-async function projectRequest(path, method = "GET", data = null) {
-  const options = {
-    method,
-    headers: {
-      "Content-Type": "application/json"
-    }
-  };
-
-  if (data !== null) {
-    options.body = JSON.stringify({
-      ...data,
-      accessToken: piAccessToken
+async function verifyWithWorker(accessToken,user){
+  try{
+    const response = await fetch(AUTH_WORKER+"/auth",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        accessToken:accessToken,
+        user:user
+      })
     });
-  }
 
-  const response = await fetch(AUTH_WORKER + path, options);
+    const data = await response.json();
 
-  let result;
-
-  try {
-    result = await response.json();
-  } catch (error) {
-    throw new Error("Invalid response from project server.");
-  }
-
-  if (!response.ok || result.success !== true) {
-    throw new Error(result.error || "Project request failed.");
-  }
-
-  return result;
-}
-
-async function migrateLegacyProjects() {
-  const oldProjects = getLegacyProjects();
-
-  for (const oldProject of oldProjects) {
-    const project = {
-      id: oldProject.id,
-      name: oldProject.name,
-      description: oldProject.description || "",
-      faDescription: oldProject.faDescription || "",
-      url: oldProject.link || oldProject.url || "",
-      status: oldProject.status || "Planned"
-    };
-
-    await projectRequest("/projects", "POST", { project });
-  }
-}
-
-async function loadProjects() {
-  if (projectsLoading) return;
-
-  projectsLoading = true;
-
-  try {
-    let result = await projectRequest("/projects");
-
-    if (result.projects.length === 0 && isAdmin() && piAccessToken) {
-      await migrateLegacyProjects();
-      result = await projectRequest("/projects");
+    if(!response.ok || data.error){
+      throw new Error(data.error || "Pi verification failed");
     }
 
-    projectsCache = result.projects.map(normalizeProject);
-    renderProjects();
+    piAccessToken = accessToken;
+    currentUser = data.user || user || null;
 
-  } catch (error) {
-    console.error("Project database error:", error);
+    setPiStatus("Connected as @"+(currentUser.username || "Pioneer"),false);
+    document.getElementById("welcomeUser").textContent =
+      "Welcome, @"+(currentUser.username || "Pioneer");
 
-    showPiMessage(
-      (english ? "Project database error: " : "خطای پایگاه داده پروژه‌ها: ")
-      + error.message
-    );
+    document.getElementById("userInfo").textContent =
+      "Pi username: @"+(currentUser.username || "Unknown");
 
-  } finally {
-    projectsLoading = false;
+    updateAccess();
+  }catch(error){
+    console.error(error);
+    setPiStatus(error.message,true);
   }
 }
 
-function statusText(status) {
-  if (english) return status;
-
-  return {
-    Active: "فعال",
-    Planned: "برنامه‌ریزی‌شده",
-    Paused: "متوقف"
-  }[status] || status;
+function setPiStatus(message,isError){
+  const el = document.getElementById("piStatus");
+  el.textContent = message;
+  el.className = "status "+(isError ? "error" : "success");
 }
 
-/* PROJECT CARDS */
 
-function createProjectCard(project, adminMode) {
-  const card = document.createElement("div");
-  card.className = "card project-card";
+/* =====================================================
+   PI OAUTH CALLBACK
+===================================================== */
 
-  const title = document.createElement("h3");
-  title.textContent = project.name;
+async function handlePiCallback(){
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  const state = params.get("state");
+  const storedState = sessionStorage.getItem("pi_oauth_state");
 
-  const description = document.createElement("p");
-  description.textContent =
-    (!english && project.faDescription)
-      ? project.faDescription
-      : project.description;
+  if(!code) return;
 
-  const tag = document.createElement("span");
-  tag.className = "tag " + project.status.toLowerCase();
-  tag.textContent = statusText(project.status);
-
-  card.append(title, description, tag);
-
-  const bottom = document.createElement("div");
-  bottom.className = "project-bottom";
-
-  if (project.link) {
-    try {
-      const url = new URL(project.link);
-
-      if (url.protocol === "https:" || url.protocol === "http:") {
-        const link = document.createElement("a");
-        link.href = url.href;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-
-        const openButton = document.createElement("button");
-        openButton.textContent = english
-          ? "Open Project"
-          : "ورود به پروژه";
-
-        link.appendChild(openButton);
-        bottom.appendChild(link);
-      }
-    } catch (error) {
-      console.warn("Invalid project URL:", project.link);
-    }
-  }
-
-  if (adminMode) {
-    const actions = document.createElement("div");
-    actions.className = "project-actions";
-
-    const edit = document.createElement("button");
-    edit.textContent = english ? "Edit" : "ویرایش";
-    edit.onclick = () => editProject(project.id);
-
-    const del = document.createElement("button");
-    del.className = "danger";
-    del.textContent = english ? "Delete" : "حذف";
-    del.onclick = () => deleteProject(project.id);
-
-    actions.append(edit, del);
-    bottom.appendChild(actions);
-  }
-
-  card.appendChild(bottom);
-  return card;
-}
-
-function renderProjects() {
-  const publicList = document.getElementById("publicProjectList");
-  const adminList = document.getElementById("adminProjectList");
-
-  publicList.innerHTML = "";
-  adminList.innerHTML = "";
-
-  projectsCache.forEach(project => {
-    publicList.appendChild(createProjectCard(project, false));
-
-    if (isAdmin()) {
-      adminList.appendChild(createProjectCard(project, true));
-    }
-  });
-
-  if (projectsCache.length === 0) {
-    const message = english
-      ? "No projects registered yet."
-      : "هنوز پروژه‌ای ثبت نشده است.";
-
-    publicList.textContent = message;
-    adminList.textContent = message;
-  }
-
-  document.getElementById("projectCount").textContent =
-    String(projectsCache.length).padStart(2, "0");
-
-  document.getElementById("adminProjectCount").textContent =
-    english
-      ? projectsCache.length + " projects registered."
-      : projectsCache.length + " پروژه ثبت شده است.";
-
-  document.getElementById("adminProjectTag").textContent =
-    projectsCache.length + " PROJECTS";
-}
-
-/* ADD AND EDIT PROJECT */
-
-async function saveProject() {
-  if (!isAdmin() || !piAccessToken) {
-    showPiMessage(english
-      ? "Please sign in with the administrator Pi account."
-      : "ابتدا با حساب پای مدیر وارد شو.");
+  if(state && storedState && state !== storedState){
+    setPiStatus("Pi sign-in state validation failed.",true);
     return;
   }
-
-  const name = document.getElementById("projectName").value.trim();
-  const description = document.getElementById("projectDescription").value.trim();
-  const link = document.getElementById("projectLink").value.trim();
-  const status = document.getElementById("projectStatus").value;
-
-  if (!name || !description) {
-    alert(english
-      ? "Please enter the project name and description."
-      : "نام و توضیحات پروژه را وارد کن.");
-    return;
-  }
-
-  if (name.length > 100 || description.length > 3000) {
-    alert(english
-      ? "Project information is too long."
-      : "اطلاعات پروژه بیش از حد طولانی است.");
-    return;
-  }
-
-  if (link) {
-    try {
-      const url = new URL(link);
-
-      if (url.protocol !== "https:" && url.protocol !== "http:") {
-        throw new Error("Invalid URL");
-      }
-    } catch (error) {
-      alert(english
-        ? "Please enter a valid project URL beginning with https:// or http://"
-        : "لطفاً یک لینک معتبر با https:// یا http:// وارد کن.");
-      return;
-    }
-  }
-
-  const existing = editingProjectId
-    ? projectsCache.find(p => p.id === editingProjectId)
-    : null;
-
-  const project = {
-    id: editingProjectId || ("project-" + crypto.randomUUID()),
-    name,
-    description,
-    faDescription: existing ? existing.faDescription : "",
-    url: link,
-    status
-  };
-
-  const button = document.getElementById("saveProjectButton");
-  button.disabled = true;
-
-  try {
-    if (editingProjectId) {
-      await projectRequest(
-        "/projects/" + encodeURIComponent(editingProjectId),
-        "PUT",
-        { project }
-      );
-    } else {
-      await projectRequest(
-        "/projects",
-        "POST",
-        { project }
-      );
-    }
-
-    cancelProjectEdit();
-    await loadProjects();
-
-    showPiMessage(english
-      ? "Project saved to the shared database."
-      : "پروژه در پایگاه داده مشترک ذخیره شد.");
-
-  } catch (error) {
-    console.error("Save project error:", error);
-
-    showPiMessage(
-      (english ? "Save failed: " : "ذخیره ناموفق بود: ")
-      + error.message
-    );
-
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function editProject(id) {
-  if (!isAdmin()) return;
-
-  const project = projectsCache.find(p => p.id === id);
-  if (!project) return;
-
-  editingProjectId = id;
-
-  document.getElementById("projectName").value = project.name;
-  document.getElementById("projectDescription").value = project.description;
-  document.getElementById("projectLink").value = project.link || "";
-  document.getElementById("projectStatus").value = project.status;
-
-  document.getElementById("cancelEditButton").classList.remove("hidden");
-
-  updateProjectFormLanguage();
-
-  document.getElementById("projectName").scrollIntoView({
-    behavior: "smooth",
-    block: "center"
-  });
-}
-
-function cancelProjectEdit() {
-  editingProjectId = null;
-
-  document.getElementById("projectName").value = "";
-  document.getElementById("projectDescription").value = "";
-  document.getElementById("projectLink").value = "";
-  document.getElementById("projectStatus").value = "Active";
-
-  document.getElementById("cancelEditButton").classList.add("hidden");
-
-  updateProjectFormLanguage();
-}
-
-function updateProjectFormLanguage() {
-  document.getElementById("projectFormTitle").textContent =
-    editingProjectId
-      ? (english ? "Edit Project" : "ویرایش پروژه")
-      : (english ? "Add New Project" : "افزودن پروژه جدید");
-
-  document.getElementById("saveProjectButton").textContent =
-    editingProjectId
-      ? (english ? "Save Changes" : "ذخیره تغییرات")
-      : (english ? "Add Project" : "افزودن پروژه");
-}
-
-/* DELETE PROJECT */
-
-async function deleteProject(id) {
-  if (!isAdmin() || !piAccessToken) return;
-
-  const confirmed = confirm(english
-    ? "Are you sure you want to delete this project?"
-    : "از حذف این پروژه مطمئنی؟");
-
-  if (!confirmed) return;
-
-  try {
-    await projectRequest(
-      "/projects/" + encodeURIComponent(id),
-      "DELETE",
-      {}
-    );
-
-    if (editingProjectId === id) {
-      cancelProjectEdit();
-    }
-
-    await loadProjects();
-
-    showPiMessage(english
-      ? "Project deleted from the shared database."
-      : "پروژه از پایگاه داده مشترک حذف شد.");
-
-  } catch (error) {
-    console.error("Delete project error:", error);
-
-    showPiMessage(
-      (english ? "Delete failed: " : "حذف ناموفق بود: ")
-      + error.message
-    );
-  }
-}
-
-/* RANDOM STATE FOR OAUTH */
-
-function createState() {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-
-  return Array.from(bytes)
-    .map(byte => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/* VERIFY TOKEN THROUGH WORKER */
-
-async function verifyWithWorker(accessToken) {
-  const response = await fetch(AUTH_WORKER + "/auth", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ accessToken })
-  });
-
-  let result;
-
-  try {
-    result = await response.json();
-  } catch (error) {
-    throw new Error("Invalid response from authentication server.");
-  }
-
-  if (!response.ok || result.success !== true) {
-    throw new Error(result.error || "Pi authentication failed.");
-  }
-
-  if (
-    typeof result.username !== "string" ||
-    typeof result.uid !== "string"
-  ) {
-    throw new Error("Invalid verified Pi user information.");
-  }
-
-  piAccessToken = accessToken;
-
-  currentUser = {
-    username: result.username,
-    uid: result.uid,
-    isAdmin: result.isAdmin === true
-  };
-
-  document.getElementById("piUser").textContent =
-    "@" + currentUser.username;
-
-  document.getElementById("piLogin").textContent =
-    english ? "Pi Connected" : "اتصال برقرار است";
-
-  document.getElementById("piLogin").disabled = true;
-
-  updateAccess();
-  renderTasks();
-
-  await loadProjects();
-
-  if (isAdmin()) {
-    loadNotes();
-
-    showPiMessage(english
-      ? "Welcome, administrator! Your Pi identity is verified."
-      : "خوش آمدی مدیر! هویت پای تو تأیید شد.");
-  } else {
-    showPiMessage(english
-      ? "Your Pi identity has been verified."
-      : "هویت پای شما با موفقیت تأیید شد.");
-  }
-}
-
-/* PI BROWSER LOGIN */
-
-async function signInWithPiBrowser() {
-  if (!window.Pi || typeof window.Pi.authenticate !== "function") {
-    throw new Error(
-      "Pi authentication is unavailable. Open this app in Pi Browser."
-    );
-  }
-
-  const auth = await window.Pi.authenticate(
-    ["username"],
-    function(payment) {
-      console.warn("Incomplete Pi payment:", payment);
-    }
-  );
-
-  if (!auth || !auth.accessToken) {
-    throw new Error("Pi did not return an access token.");
-  }
-
-  await verifyWithWorker(auth.accessToken);
-}
-
-/* CHROME LOGIN */
-
-function signInWithChrome() {
-  const state = createState();
-
-  sessionStorage.setItem("pi_oauth_state", state);
-
-  const authorizeURL =
-    new URL("https://accounts.pinet.com/oauth/authorize");
-
-  authorizeURL.searchParams.set("response_type", "token");
-  authorizeURL.searchParams.set("client_id", PI_CLIENT_ID);
-  authorizeURL.searchParams.set("redirect_uri", PI_REDIRECT_URI);
-  authorizeURL.searchParams.set("scope", "username");
-  authorizeURL.searchParams.set("state", state);
-
-  window.location.assign(authorizeURL.toString());
-}
-
-/* MAIN LOGIN BUTTON */
-
-async function signInWithPi() {
-  const button = document.getElementById("piLogin");
-
-  if (currentUser) return;
-
-  button.disabled = true;
-
-  try {
-    if (!window.isSecureContext) {
-      throw new Error("HTTPS connection is required.");
-    }
-
-    showPiMessage(english
-      ? "Connecting to Pi Network..."
-      : "در حال اتصال به شبکه پای...");
-
-    if (isPiBrowser) {
-      await signInWithPiBrowser();
-    } else {
-      signInWithChrome();
-    }
-
-  } catch (error) {
-    console.error("Pi sign-in error:", error);
-    button.disabled = false;
-
-    showPiMessage(
-      (english ? "Sign-in error: " : "خطای ورود: ")
-      + error.message
-    );
-  }
-}
-
-/* HANDLE OAUTH RETURN */
-
-async function handlePiCallback() {
-  const params = new URLSearchParams(window.location.hash.slice(1));
-
-  const accessToken = params.get("access_token");
-  const oauthError = params.get("error");
-
-  if (!accessToken && !oauthError) return;
-
-  const returnedState = params.get("state");
-  const expectedState = sessionStorage.getItem("pi_oauth_state");
-
-  history.replaceState(
-    null,
-    "",
-    window.location.pathname + window.location.search
-  );
 
   sessionStorage.removeItem("pi_oauth_state");
 
-  if (!expectedState || returnedState !== expectedState) {
-    showPiMessage(english
-      ? "Sign-in verification failed. Please try again."
-      : "تأیید ورود ناموفق بود. دوباره تلاش کن.");
+  setPiStatus("Completing Pi sign-in...",false);
 
-    document.getElementById("piLogin").disabled = false;
-    return;
+  try{
+    const response = await fetch(AUTH_WORKER+"/auth",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({code:code})
+    });
+
+    const data = await response.json();
+
+    if(!response.ok || data.error){
+      throw new Error(data.error || "OAuth verification failed");
+    }
+
+    if(data.accessToken){
+      piAccessToken = data.accessToken;
+    }
+
+    currentUser = data.user || null;
+
+    if(currentUser){
+      setPiStatus("Connected as @"+(currentUser.username || "Pioneer"),false);
+      document.getElementById("welcomeUser").textContent =
+        "Welcome, @"+(currentUser.username || "Pioneer");
+    }
+
+    updateAccess();
+  }catch(error){
+    console.error(error);
+    setPiStatus("Pi callback error: "+error.message,true);
   }
 
-  if (oauthError) {
-    document.getElementById("piLogin").disabled = false;
-    showPiMessage("Pi Sign-In failed: " + oauthError);
-    return;
-  }
-
-  try {
-    showPiMessage(english
-      ? "Verifying your Pi identity..."
-      : "در حال بررسی هویت پای...");
-
-    await verifyWithWorker(accessToken);
-
-  } catch (error) {
-    console.error("Pi callback verification error:", error);
-    document.getElementById("piLogin").disabled = false;
-
-    showPiMessage(
-      (english ? "Verification error: " : "خطای تأیید هویت: ")
-      + error.message
-    );
-  }
+  window.history.replaceState({},document.title,PI_REDIRECT_URI);
 }
 
-/* TASK MANAGER */
 
-function getTasks() {
-  try {
-    return JSON.parse(localStorage.getItem("msh_tasks") || "[]");
-  } catch (error) {
-    return [];
-  }
-}
+/* =====================================================
+   ADMIN ACCESS
+===================================================== */
 
-function saveTasks(tasks) {
-  localStorage.setItem("msh_tasks", JSON.stringify(tasks));
-}
-
-function addTask() {
-  if (!isAdmin()) return;
-
-  const input = document.getElementById("taskInput");
-  const value = input.value.trim();
-
-  if (!value) {
-    alert(english ? "Enter a task first." : "ابتدا یک وظیفه وارد کن.");
-    return;
-  }
-
-  const tasks = getTasks();
-
-  tasks.push({
-    id: Date.now(),
-    title: value,
-    done: false
-  });
-
-  saveTasks(tasks);
-  input.value = "";
-  renderTasks();
-}
-
-function toggleTask(id) {
-  if (!isAdmin()) return;
-
-  const tasks = getTasks().map(task => {
-    if (task.id === id) task.done = !task.done;
-    return task;
-  });
-
-  saveTasks(tasks);
-  renderTasks();
-}
-
-function deleteTask(id) {
-  if (!isAdmin()) return;
-
-  saveTasks(getTasks().filter(task => task.id !== id));
-  renderTasks();
-}
-
-function renderTasks() {
-  const list = document.getElementById("taskList");
-  if (!list) return;
-
-  if (!isAdmin()) {
-    list.innerHTML = '<p class="empty">Admin access required.</p>';
-    return;
-  }
-
-  const tasks = getTasks();
-  list.innerHTML = "";
-
-  if (tasks.length === 0) {
-    list.innerHTML = '<p class="empty">' +
-      (english ? "No tasks yet." : "هنوز وظیفه‌ای ثبت نشده.") +
-      "</p>";
-    return;
-  }
-
-  tasks.forEach(task => {
-    const row = document.createElement("div");
-    row.className = "task";
-
-    const label = document.createElement("span");
-    label.textContent = (task.done ? "✓ " : "○ ") + task.title;
-
-    if (task.done) label.style.textDecoration = "line-through";
-
-    const actions = document.createElement("div");
-    actions.className = "task-actions";
-
-    const done = document.createElement("button");
-    done.textContent = task.done
-      ? (english ? "Undo" : "بازگردانی")
-      : (english ? "Complete" : "انجام شد");
-
-    done.onclick = () => toggleTask(task.id);
-
-    const del = document.createElement("button");
-    del.textContent = english ? "Delete" : "حذف";
-    del.onclick = () => deleteTask(task.id);
-
-    actions.append(done, del);
-    row.append(label, actions);
-    list.appendChild(row);
-  });
-}
-
-/* NOTES */
-
-function saveNotes() {
-  if (!isAdmin()) return;
-
-  localStorage.setItem(
-    "msh_notes",
-    document.getElementById("adminNotes").value
+function updateAccess(){
+  const isAdmin = !!(
+    currentUser &&
+    currentUser.username &&
+    currentUser.username.toLowerCase() === ADMIN_USERNAME.toLowerCase()
   );
 
-  document.getElementById("notesMessage").textContent =
-    english ? "Saved locally." : "به‌صورت محلی ذخیره شد.";
+  const content = document.getElementById("adminContent");
+  const status = document.getElementById("adminStatus");
+
+  content.classList.toggle("hidden",!isAdmin);
+
+  status.textContent = isAdmin
+    ? "Administrator access granted."
+    : "Admin access requires the authorized Pi account.";
+
+  status.className = "status "+(isAdmin ? "success" : "warning");
 }
 
-function loadNotes() {
-  if (!isAdmin()) return;
 
-  document.getElementById("adminNotes").value =
-    localStorage.getItem("msh_notes") || "";
+/* =====================================================
+   PROJECT API
+===================================================== */
+
+async function projectRequest(path,method="GET",body=null){
+  const headers = {"Content-Type":"application/json"};
+
+  if(piAccessToken){
+    headers.Authorization = "Bearer "+piAccessToken;
+  }
+
+  const response = await fetch(AUTH_WORKER+path,{
+    method:method,
+    headers:headers,
+    body:body ? JSON.stringify(body) : undefined
+  });
+
+  const data = await response.json().catch(()=>({}));
+
+  if(!response.ok){
+    throw new Error(data.error || "Project request failed");
+  }
+
+  return data;
 }
 
-/* STARTUP */
+async function loadProjects(){
+  const list = document.getElementById("projectsList");
+  const status = document.getElementById("projectsStatus");
 
-updateAccess();
-renderTasks();
-renderProjects();
-handlePiCallback();
-loadProjects();
+  try{
+    const data = await projectRequest("/projects");
+    const projects = Array.isArray(data) ? data : (data.projects || []);
+
+    list.innerHTML = "";
+
+    if(projects.length === 0){
+      list.innerHTML = '<div class="card"><p class="muted">No projects have been added yet.</p></div>';
+    }
+
+    projects.forEach(project=>{
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const title = document.createElement("h3");
+      title.textContent = project.name || project.title || "Untitled Project";
+
+      const description = document.createElement("p");
+      description.textContent = project.description || "No description available.";
+
+      card.appendChild(title);
+      card.appendChild(description);
+
+      if(project.url){
+        const link = document.createElement("a");
+        link.href = project.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Open Project";
+        link.style.color = "var(--cyan)";
+        card.appendChild(link);
+      }
+
+      list.appendChild(card);
+    });
+
+    status.textContent = "Projects loaded.";
+    status.className = "status success";
+  }catch(error){
+    status.textContent = "Could not load projects: "+error.message;
+    status.className = "status error";
+    list.innerHTML = "";
+  }
+}
+
+async function createProject(){
+  const name = document.getElementById("newProjectName").value.trim();
+  const description = document.getElementById("newProjectDescription").value.trim();
+  const url = document.getElementById("newProjectUrl").value.trim();
+  const status = document.getElementById("adminProjectStatus");
+
+  if(!name){
+    status.textContent = "Project name is required.";
+    status.className = "status error";
+    return;
+  }
+
+  try{
+    await projectRequest("/projects","POST",{
+      name:name,
+      description:description,
+      url:url
+    });
+
+    status.textContent = "Project added successfully.";
+    status.className = "status success";
+
+    document.getElementById("newProjectName").value = "";
+    document.getElementById("newProjectDescription").value = "";
+    document.getElementById("newProjectUrl").value = "";
+
+    loadProjects();
+  }catch(error){
+    status.textContent = error.message;
+    status.className = "status error";
+  }
+}
+
+
+/* =====================================================
+   SOCIAL API HELPERS
+===================================================== */
+
+async function socialRequest(path,method="GET",body=null){
+  const headers = {"Content-Type":"application/json"};
+
+  if(socialToken){
+    headers.Authorization = "Bearer "+socialToken;
+  }
+
+  const response = await fetch(SOCIAL_API+path,{
+    method:method,
+    headers:headers,
+    body:body ? JSON.stringify(body) : undefined
+  });
+
+  const data = await response.json().catch(()=>({}));
+
+  if(!response.ok){
+    throw new Error(data.error || data.message || "SOCIAL request failed ("+response.status+")");
+  }
+
+  return data;
+}
+
+function socialMessage(message,type=""){
+  const el = document.getElementById("socialMessage");
+  el.textContent = message;
+  el.className = "status "+type;
+}
+
+function setSocialLoading(buttonId,isLoading,label){
+  const button = document.getElementById(buttonId);
+  if(!button) return;
+
+  if(isLoading){
+    button.dataset.originalText = button.textContent;
+    button.textContent = label || "Please wait...";
+    button.disabled = true;
+  }else{
+    button.textContent = button.dataset.originalText || button.textContent;
+    button.disabled = false;
+  }
+}
+
+
+/* =====================================================
+   SOCIAL LOGIN / REGISTER PANELS
+===================================================== */
+
+function showSocialForm(form){
+  const login = form === "login";
+
+  document.getElementById("socialLoginForm").classList.toggle("hidden",!login);
+  document.getElementById("socialRegisterForm").classList.toggle("hidden",login);
+
+  document.getElementById("socialLoginTab").classList.toggle("active",login);
+  document.getElementById("socialRegisterTab").classList.toggle("active",!login);
+}
+
+
+/* =====================================================
+   SOCIAL REGISTRATION
+===================================================== */
+
+async function socialRegister(){
+  const username = document.getElementById("socialRegisterUsername").value.trim();
+  const email = document.getElementById("socialRegisterEmail").value.trim();
+  const displayName = document.getElementById("socialRegisterDisplayName").value.trim();
+  const password = document.getElementById("socialRegisterPassword").value;
+
+  if(!username || !email || !password){
+    socialMessage("Username, email and password are required.","error");
+    return;
+  }
+
+  if(password.length < 8){
+    socialMessage("Password must contain at least 8 characters.","error");
+    return;
+  }
+
+  setSocialLoading("socialRegisterSubmit",true,"Creating account...");
+
+  try{
+    const data = await socialRequest("/register","POST",{
+      username:username,
+      email:email,
+      displayName:displayName,
+      password:password
+    });
+
+    if(data.token){
+      socialToken = data.token;
+      sessionStorage.setItem(SOCIAL_TOKEN_KEY,socialToken);
+    }
+
+    if(data.user){
+      socialUser = data.user;
+      renderSocialAccount();
+    }else if(socialToken){
+      await restoreSocialSession();
+    }else{
+      socialMessage("Account created. Please log in.","success");
+      showSocialForm("login");
+    }
+
+    document.getElementById("socialRegisterPassword").value = "";
+    socialMessage("Your SOCIAL account has been created.","success");
+  }catch(error){
+    socialMessage(error.message,"error");
+  }finally{
+    setSocialLoading("socialRegisterSubmit",false);
+  }
+}
+
+
+/* =====================================================
+   SOCIAL LOGIN
+===================================================== */
+
+async function socialLogin(){
+  const identifier = document.getElementById("socialLoginIdentifier").value.trim();
+  const password = document.getElementById("socialLoginPassword").value;
+
+  if(!identifier || !password){
+    socialMessage("Enter your email or username and password.","error");
+    return;
+  }
+
+  setSocialLoading("socialLoginSubmit",true,"Signing in...");
+
+  try{
+    const data = await socialRequest("/login","POST",{
+      identifier:identifier,
+      password:password
+    });
+
+    if(!data.token){
+      throw new Error("The server did not return a session token.");
+    }
+
+    socialToken = data.token;
+    sessionStorage.setItem(SOCIAL_TOKEN_KEY,socialToken);
+
+    socialUser = data.user || null;
+
+    if(!socialUser){
+      await restoreSocialSession();
+    }else{
+      renderSocialAccount();
+    }
+
+    document.getElementById("socialLoginPassword").value = "";
+    socialMessage("You are now logged in to SOCIAL.","success");
+  }catch(error){
+    socialMessage(error.message,"error");
+  }finally{
+    setSocialLoading("socialLoginSubmit",false);
+  }
+}
+
+
+/* =====================================================
+   RESTORE SOCIAL SESSION
+===================================================== */
+
+async function restoreSocialSession(){
+  if(!socialToken){
+    socialUser = null;
+    renderSocialAccount();
+    socialMessage("Log in or create a SOCIAL account to continue.");
+    return;
+  }
+
+  try{
+    const data = await socialRequest("/me","GET");
+    socialUser = data.user || data;
+    renderSocialAccount();
+    socialMessage("Your SOCIAL session is active.","success");
+  }catch(error){
+    socialToken = null;
+    socialUser = null;
+    sessionStorage.removeItem(SOCIAL_TOKEN_KEY);
+    renderSocialAccount();
+    socialMessage("Your session has expired. Please log in again.","warning");
+  }
+}
+
+
+/* =====================================================
+   RENDER SOCIAL PROFILE
+===================================================== */
+
+function renderSocialAccount(){
+  const loggedIn = !!socialUser;
+
+  document.getElementById("socialAuthArea").classList.toggle("hidden",loggedIn);
+  document.getElementById("socialProfileArea").classList.toggle("hidden",!loggedIn);
+
+  if(!loggedIn) return;
+
+  const displayName = socialUser.displayName || socialUser.display_name || socialUser.username || "SOCIAL User";
+  const username = socialUser.username || "unknown";
+  const email = socialUser.email || "Not available";
+  const verified = socialUser.emailVerified === true || socialUser.email_verified === 1;
+
+  document.getElementById("socialDisplayName").textContent = displayName;
+  document.getElementById("socialUsername").textContent = "@"+username;
+  document.getElementById("socialEmail").textContent = email;
+  document.getElementById("socialAvatar").textContent =
+    displayName.charAt(0).toUpperCase();
+
+  document.getElementById("socialEmailStatus").textContent =
+    verified ? "Email verified" : "Email not verified";
+
+  document.getElementById("socialPiUsername").textContent =
+    socialUser.piUsername || socialUser.pi_username || "Not connected";
+
+  document.getElementById("socialBio").textContent =
+    socialUser.bio || "No bio added yet.";
+}
+
+
+/* =====================================================
+   SOCIAL LOGOUT
+===================================================== */
+
+async function socialLogout(){
+  try{
+    if(socialToken){
+      await socialRequest("/logout","POST",{});
+    }
+  }catch(error){
+    console.warn("Logout request:",error);
+  }
+
+  socialToken = null;
+  socialUser = null;
+
+  sessionStorage.removeItem(SOCIAL_TOKEN_KEY);
+
+  renderSocialAccount();
+  socialMessage("You have been logged out.","success");
+}
+
+
+/* =====================================================
+   PERSONAL NOTES
+===================================================== */
+
+function saveNote(){
+  const note = document.getElementById("personalNote").value;
+  try{
+    localStorage.setItem("msh_personal_note",note);
+    document.getElementById("noteStatus").textContent = "Note saved in this browser.";
+    document.getElementById("noteStatus").className = "status success";
+  }catch(error){
+    document.getElementById("noteStatus").textContent = "Could not save note.";
+    document.getElementById("noteStatus").className = "status error";
+  }
+}
+
+function restoreNote(){
+  const note = localStorage.getItem("msh_personal_note");
+  if(note !== null){
+    document.getElementById("personalNote").value = note;
+  }
+}
+
+
+/* =====================================================
+   STARTUP
+===================================================== */
+
+async function startApp(){
+  initPi();
+  restoreNote();
+  updateAccess();
+
+  await handlePiCallback();
+
+  loadProjects();
+
+  if(socialToken){
+    await restoreSocialSession();
+  }else{
+    renderSocialAccount();
+    socialMessage("Create an account or log in to SOCIAL.");
+  }
+}
+
+startApp();
 
 </script>
-
 </body>
 </html>
