@@ -300,17 +300,14 @@ function toggleLanguage(){
   }
 }
 
+/* Generate an alphanumeric OAuth state */
 function createState(){
 
   if(!window.crypto || !crypto.getRandomValues){
     throw new Error("Secure random generator is unavailable.");
   }
 
-  if(crypto.randomUUID){
-    return crypto.randomUUID();
-  }
-
-  const bytes = new Uint8Array(24);
+  const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
 
   return Array.from(bytes)
