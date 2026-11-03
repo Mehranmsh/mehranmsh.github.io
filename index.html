@@ -8,6 +8,19 @@
 <title>MEHRAN MSH | Digital Ecosystem</title>
 
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+<script>
+let piSdkReady = false;
+
+try {
+  if (window.Pi && typeof Pi.init === "function") {
+    Pi.init({ version: "2.0" });
+    piSdkReady = true;
+    console.log("Pi SDK initialized");
+  }
+} catch (error) {
+  console.error("Pi SDK initialization error:", error);
+}
+</script>
 
 <style>
 *{box-sizing:border-box}
@@ -103,24 +116,28 @@ let english = true;
 const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const PI_REDIRECT_URI = "https://mehranmsh.github.io/";
 
-function showPiMessage(message){
+function showPiMessage(message) {
   document.getElementById("piMessage").textContent = message;
 }
 
-function toggleLanguage(){
+function toggleLanguage() {
   english = !english;
 
   document.documentElement.lang = english ? "en" : "fa";
   document.documentElement.dir = english ? "ltr" : "rtl";
 
-  document.getElementById("lang").textContent = english ? "فارسی" : "English";
+  document.getElementById("lang").textContent =
+    english ? "فارسی" : "English";
 
   document.getElementById("intro").textContent = english
     ? "A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem."
     : "مرکز اصلی پروژه‌های دیجیتال، فناوری، موسیقی، هوش مصنوعی و رباتیک در اکوسیستم پای نتورک.";
 
-  document.getElementById("explore").textContent = english ? "Explore Projects" : "مشاهده پروژه‌ها";
-  document.getElementById("heading").textContent = english ? "OUR ECOSYSTEM" : "اکوسیستم ما";
+  document.getElementById("explore").textContent =
+    english ? "Explore Projects" : "مشاهده پروژه‌ها";
+
+  document.getElementById("heading").textContent =
+    english ? "OUR ECOSYSTEM" : "اکوسیستم ما";
 
   document.getElementById("music").textContent = english
     ? "Music, creativity, songs and artist experiences."
@@ -138,39 +155,47 @@ function toggleLanguage(){
     ? "Technology projects and innovation across the ecosystem."
     : "پروژه‌های فناوری و نوآوری در سراسر اکوسیستم.";
 
-  document.getElementById("roboticsStatus").textContent = english ? "COMING SOON" : "به‌زودی";
-  document.getElementById("techStatus").textContent = english ? "COMING SOON" : "به‌زودی";
+  document.getElementById("roboticsStatus").textContent =
+    english ? "COMING SOON" : "به‌زودی";
 
-  document.getElementById("piLogin").textContent =
-    document.getElementById("piLogin").disabled
-      ? (english ? "Pi Connected" : "اتصال برقرار است")
-      : (english ? "Sign in with Pi" : "ورود با پای");
+  document.getElementById("techStatus").textContent =
+    english ? "COMING SOON" : "به‌زودی";
+
+  if (!document.getElementById("piLogin").disabled) {
+    document.getElementById("piLogin").textContent =
+      english ? "Sign in with Pi" : "ورود با پای";
+  }
 }
 
-function createState(){
+function createState() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
 
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2,"0"))
+    .map(b => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-function signInWithPi(){
-  try{
-    if(!window.isSecureContext){
+function signInWithPi() {
+  const button = document.getElementById("piLogin");
+
+  try {
+    if (!window.isSecureContext) {
       throw new Error("HTTPS connection required.");
     }
 
-    if(!window.Pi || typeof Pi.signIn !== "function"){
-      throw new Error("Pi SDK could not load. Refresh the page and try again.");
+    if (!window.Pi || typeof Pi.signIn !== "function") {
+      throw new Error("Pi Sign-In SDK is unavailable. Refresh the page.");
+    }
+
+    if (!piSdkReady) {
+      throw new Error("Pi SDK initialization failed. Please refresh.");
     }
 
     const state = createState();
 
     sessionStorage.setItem("pi_oauth_state", state);
 
-    const button = document.getElementById("piLogin");
     button.disabled = true;
 
     showPiMessage(
@@ -186,10 +211,10 @@ function signInWithPi(){
       state: state
     });
 
-  }catch(error){
+  } catch (error) {
     console.error("Pi Sign-In Error:", error);
 
-    document.getElementById("piLogin").disabled = false;
+    button.disabled = false;
 
     showPiMessage(
       (english ? "Sign-in error: " : "خطای ورود: ") +
@@ -198,15 +223,16 @@ function signInWithPi(){
   }
 }
 
-async function handlePiCallback(){
-
+async function handlePiCallback() {
   const params = new URLSearchParams(window.location.hash.slice(1));
 
   const accessToken = params.get("access_token");
   const error = params.get("error");
   const returnedState = params.get("state");
 
-  if(!accessToken && !error) return;
+  if (!accessToken && !error) {
+    return;
+  }
 
   const expectedState = sessionStorage.getItem("pi_oauth_state");
 
@@ -216,26 +242,32 @@ async function handlePiCallback(){
     window.location.pathname + window.location.search
   );
 
-  if(!expectedState || returnedState !== expectedState){
+  if (!expectedState || returnedState !== expectedState) {
     sessionStorage.removeItem("pi_oauth_state");
+
     showPiMessage(
       english
         ? "Sign-in verification failed. Please try again."
         : "تأیید ورود ناموفق بود. دوباره تلاش کن."
     );
+
     return;
   }
 
   sessionStorage.removeItem("pi_oauth_state");
 
-  if(error){
+  if (error) {
+    document.getElementById("piLogin").disabled = false;
+
     showPiMessage(
-      (english ? "Pi Sign-In failed: " : "ورود پای ناموفق بود: ") + error
+      (english ? "Pi Sign-In failed: " : "ورود پای ناموفق بود: ") +
+      error
     );
+
     return;
   }
 
-  try{
+  try {
     showPiMessage(
       english
         ? "Verifying Pi identity..."
@@ -249,17 +281,18 @@ async function handlePiCallback(){
       }
     });
 
-    if(!response.ok){
+    if (!response.ok) {
       throw new Error("Pi API returned HTTP " + response.status);
     }
 
     const user = await response.json();
 
-    if(!user.username || !user.uid){
+    if (!user.username || !user.uid) {
       throw new Error("Pi did not return the expected user information.");
     }
 
-    document.getElementById("piUser").textContent = "@" + user.username;
+    document.getElementById("piUser").textContent =
+      "@" + user.username;
 
     document.getElementById("piLogin").textContent =
       english ? "Pi Connected" : "اتصال برقرار است";
@@ -272,7 +305,7 @@ async function handlePiCallback(){
         : "خوش آمدی " + user.username + "!"
     );
 
-  }catch(error){
+  } catch (error) {
     console.error("Pi Verification Error:", error);
 
     document.getElementById("piLogin").disabled = false;
