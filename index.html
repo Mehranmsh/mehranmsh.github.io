@@ -231,12 +231,12 @@ Central control area for ecosystem operations and project planning.</p>
 <h3 class="form-title" id="projectFormTitle" data-en="Add New Project" data-fa="افزودن پروژه جدید">Add New Project</h3>
 
 <div class="field">
-<input id="projectName" maxlength="60" placeholder="Project name">
-<input id="projectLink" type="url" placeholder="Project URL (optional)">
+<input id="projectName" maxlength="100" placeholder="Project name">
+<input id="projectLink" type="url" maxlength="500" placeholder="Project URL (optional)">
 </div>
 
 <div class="field">
-<textarea id="projectDescription" rows="3" maxlength="300" placeholder="Project description"></textarea>
+<textarea id="projectDescription" rows="3" maxlength="3000" placeholder="Project description"></textarea>
 </div>
 
 <div class="field">
@@ -251,9 +251,10 @@ Central control area for ecosystem operations and project planning.</p>
 <button class="primary" id="saveProjectButton" onclick="saveProject()" data-en="Add Project" data-fa="افزودن پروژه">Add Project</button>
 <button id="cancelEditButton" class="hidden" onclick="cancelProjectEdit()" data-en="Cancel" data-fa="انصراف">Cancel</button>
 </div>
-<p class="form-hint" data-en="Project information is currently stored in this browser only."
-data-fa="اطلاعات پروژه‌ها فعلاً فقط در همین مرورگر ذخیره می‌شوند.">
-Project information is currently stored in this browser only.</p>
+
+<p class="form-hint" data-en="Projects are stored in the shared Cloudflare D1 database."
+data-fa="اطلاعات پروژه‌ها در پایگاه داده مشترک Cloudflare D1 ذخیره می‌شوند.">
+Projects are stored in the shared Cloudflare D1 database.</p>
 </div>
 
 <br>
@@ -270,9 +271,9 @@ Project information is currently stored in this browser only.</p>
 <button onclick="addTask()" data-en="Add Task" data-fa="افزودن وظیفه">Add Task</button>
 </div>
 <div id="taskList"></div>
-<p class="status" data-en="Local browser storage. A secure shared database is not connected yet."
-data-fa="ذخیره‌سازی فعلاً محلی است و هنوز پایگاه داده مشترک و امن متصل نشده است.">
-Local browser storage. A secure shared database is not connected yet.</p>
+<p class="status" data-en="Tasks are stored in this browser only."
+data-fa="وظایف فعلاً فقط در همین مرورگر ذخیره می‌شوند.">
+Tasks are stored in this browser only.</p>
 </div>
 </div>
 
@@ -293,12 +294,14 @@ Notes are stored in this browser only. Do not store sensitive information here.<
 <h2 class="section-title" data-en="System Information" data-fa="اطلاعات سیستم">System Information</h2>
 <div class="card">
 <h3>MEHRAN MSH</h3>
-<p>Version 2.2</p>
-<p data-en="Central ecosystem interface." data-fa="رابط مرکزی اکوسیستم.">Central ecosystem interface.</p>
+<p>Version 2.3</p>
+<p data-en="Central ecosystem interface connected to Cloudflare D1."
+data-fa="رابط مرکزی اکوسیستم متصل به پایگاه داده Cloudflare D1.">
+Central ecosystem interface connected to Cloudflare D1.</p>
 <br>
-<p class="status" data-en="Project management is available locally. Backend, database and secure shared management are future development tasks."
-data-fa="مدیریت پروژه به‌صورت محلی فعال است. بک‌اند، پایگاه داده و مدیریت مشترک امن در مراحل بعدی توسعه قرار دارند.">
-Project management is available locally. Backend, database and secure shared management are future development tasks.</p>
+<p class="status" data-en="Project data is managed through the secure Worker API. Tasks and notes remain local."
+data-fa="اطلاعات پروژه‌ها از طریق API امن Worker مدیریت می‌شوند. وظایف و یادداشت‌ها همچنان محلی هستند.">
+Project data is managed through the secure Worker API. Tasks and notes remain local.</p>
 </div>
 </div>
 </div>
@@ -357,9 +360,14 @@ A central space for digital services and future ecosystem integrations.</p>
 <script>
 "use strict";
 
+/* CORE STATE */
+
 let english = true;
 let currentUser = null;
+let piAccessToken = null;
 let editingProjectId = null;
+let projectsCache = [];
+let projectsLoading = false;
 
 const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const PI_REDIRECT_URI = "https://mehranmsh.github.io/";
@@ -368,715 +376,924 @@ const AUTH_WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
 const isPiBrowser = /PiBrowser/i.test(navigator.userAgent);
 
 try {
-if (window.Pi && typeof window.Pi.init === "function") {
-window.Pi.init({ version: "2.0" });
-}
+  if (window.Pi && typeof window.Pi.init === "function") {
+    window.Pi.init({ version: "2.0" });
+  }
 } catch (error) {
-console.error("Pi SDK initialization error:", error);
+  console.error("Pi SDK initialization error:", error);
 }
 
 function showPiMessage(message) {
-document.getElementById("piMessage").textContent = message;
+  document.getElementById("piMessage").textContent = message;
 }
 
 function isAdmin() {
-return currentUser !== null && currentUser.isAdmin === true;
+  return currentUser !== null && currentUser.isAdmin === true;
 }
 
 /* NAVIGATION */
 
 function showPage(page, button) {
-if (page === "admin" && !isAdmin()) {
-showPiMessage(english ? "Administrator access required." : "برای ورود به بخش مدیریت باید مدیر تأییدشده باشید.");
-return;
-}
+  if (page === "admin" && !isAdmin()) {
+    showPiMessage(english
+      ? "Administrator access required."
+      : "برای ورود به بخش مدیریت باید مدیر تأییدشده باشید.");
+    return;
+  }
 
-document.querySelectorAll(".page").forEach(item => item.classList.remove("active"));
-document.getElementById(page).classList.add("active");
+  document.querySelectorAll(".page").forEach(item =>
+    item.classList.remove("active")
+  );
 
-document.querySelectorAll(".nav button").forEach(item => item.classList.remove("active"));
-if (button) button.classList.add("active");
+  document.getElementById(page).classList.add("active");
 
-window.scrollTo({ top: 0, behavior: "smooth" });
+  document.querySelectorAll(".nav button").forEach(item =>
+    item.classList.remove("active")
+  );
+
+  if (button) button.classList.add("active");
+
+  window.scrollTo({ top: 0, behavior: "smooth" });
+
+  if (page === "projects" || page === "admin") {
+    loadProjects();
+  }
 }
 
 function showAdminSection(id, button) {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-document.querySelectorAll(".admin-section").forEach(item => item.classList.remove("active"));
-document.getElementById(id).classList.add("active");
+  document.querySelectorAll(".admin-section").forEach(item =>
+    item.classList.remove("active")
+  );
 
-document.querySelectorAll(".subnav button").forEach(item => item.classList.remove("active"));
-if (button) button.classList.add("active");
+  document.getElementById(id).classList.add("active");
 
-if (id === "projectControl") renderProjects();
+  document.querySelectorAll(".subnav button").forEach(item =>
+    item.classList.remove("active")
+  );
+
+  if (button) button.classList.add("active");
+
+  if (id === "projectControl") loadProjects();
 }
 
 /* ACCESS CONTROL */
 
 function updateAccess() {
-const adminNav = document.getElementById("adminNav");
-const status = document.getElementById("accountStatus");
+  const adminNav = document.getElementById("adminNav");
+  const status = document.getElementById("accountStatus");
 
-adminNav.classList.toggle("hidden", !isAdmin());
+  adminNav.classList.toggle("hidden", !isAdmin());
 
-if (isAdmin()) {
-status.textContent = "ADMIN ACCOUNT";
-} else {
-status.textContent = currentUser ? "PI USER" : "GUEST ACCESS";
+  if (isAdmin()) {
+    status.textContent = "ADMIN ACCOUNT";
+  } else {
+    status.textContent = currentUser ? "PI USER" : "GUEST ACCESS";
 
-if (document.getElementById("admin").classList.contains("active")) {
-showPage("dashboard", document.querySelector('.nav button'));
-}
-}
+    if (document.getElementById("admin").classList.contains("active")) {
+      showPage("dashboard", document.querySelector(".nav button"));
+    }
+  }
 }
 
 /* LANGUAGE */
 
 function toggleLanguage() {
-english = !english;
+  english = !english;
 
-document.documentElement.lang = english ? "en" : "fa";
-document.documentElement.dir = english ? "ltr" : "rtl";
+  document.documentElement.lang = english ? "en" : "fa";
+  document.documentElement.dir = english ? "ltr" : "rtl";
 
-document.getElementById("lang").textContent = english ? "فارسی" : "English";
+  document.getElementById("lang").textContent =
+    english ? "فارسی" : "English";
 
-document.querySelectorAll("[data-en]").forEach(element => {
-element.textContent = english ? element.dataset.en : element.dataset.fa;
-});
+  document.querySelectorAll("[data-en]").forEach(element => {
+    element.textContent = english
+      ? element.dataset.en
+      : element.dataset.fa;
+  });
 
-document.getElementById("intro").textContent = english
-? "The central hub for managing projects, services and ecosystem operations."
-: "مرکز اصلی مدیریت پروژه‌ها، خدمات و عملیات اکوسیستم.";
+  document.getElementById("intro").textContent = english
+    ? "The central hub for managing projects, services and ecosystem operations."
+    : "مرکز اصلی مدیریت پروژه‌ها، خدمات و عملیات اکوسیستم.";
 
-document.getElementById("piLogin").textContent = currentUser
-? (english ? "Pi Connected" : "اتصال پای برقرار است")
-: (english ? "Sign in with Pi" : "ورود با پای");
+  document.getElementById("piLogin").textContent = currentUser
+    ? (english ? "Pi Connected" : "اتصال پای برقرار است")
+    : (english ? "Sign in with Pi" : "ورود با پای");
 
-document.getElementById("taskInput").placeholder = english
-? "Enter a new task..." : "وظیفه جدید را وارد کن...";
+  document.getElementById("taskInput").placeholder = english
+    ? "Enter a new task..."
+    : "وظیفه جدید را وارد کن...";
 
-document.getElementById("adminNotes").placeholder = english
-? "Write your private notes..." : "یادداشت خود را بنویس...";
+  document.getElementById("adminNotes").placeholder = english
+    ? "Write your private notes..."
+    : "یادداشت خود را بنویس...";
 
-document.getElementById("projectName").placeholder = english
-? "Project name" : "نام پروژه";
+  document.getElementById("projectName").placeholder = english
+    ? "Project name"
+    : "نام پروژه";
 
-document.getElementById("projectLink").placeholder = english
-? "Project URL (optional)" : "لینک پروژه (اختیاری)";
+  document.getElementById("projectLink").placeholder = english
+    ? "Project URL (optional)"
+    : "لینک پروژه (اختیاری)";
 
-document.getElementById("projectDescription").placeholder = english
-? "Project description" : "توضیحات پروژه";
+  document.getElementById("projectDescription").placeholder = english
+    ? "Project description"
+    : "توضیحات پروژه";
 
-updateProjectFormLanguage();
-renderProjects();
-renderTasks();
+  updateProjectFormLanguage();
+  renderProjects();
+  renderTasks();
 }
 
-/* PROJECT MANAGEMENT */
+/* PROJECT DATABASE */
 
 const DEFAULT_PROJECTS = [
-{
-id:"music",
-name:"Music",
-description:"Music platform, creativity, songs and artist experiences.",
-faDescription:"پلتفرم موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.",
-link:"https://mehranmusicxx6898.pinet.com/",
-status:"Active"
-},
-{
-id:"ai",
-name:"AI",
-description:"Artificial intelligence and digital assistants.",
-faDescription:"هوش مصنوعی و دستیارهای دیجیتال.",
-link:"https://mehranmusicavmq2545.pinet.com/chatbot",
-status:"Active"
-},
-{
-id:"robotics",
-name:"Robotics",
-description:"Robotics, automation and future technologies.",
-faDescription:"رباتیک، اتوماسیون و فناوری‌های آینده.",
-link:"",
-status:"Planned"
-},
-{
-id:"technologies",
-name:"Technologies",
-description:"Technology projects, innovation and development.",
-faDescription:"پروژه‌های فناوری، نوآوری و توسعه.",
-link:"",
-status:"Planned"
-}
+  {
+    id: "music",
+    name: "Music",
+    description: "Music platform, creativity, songs and artist experiences.",
+    faDescription: "پلتفرم موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.",
+    url: "https://mehranmusicxx6898.pinet.com/",
+    status: "Active"
+  },
+  {
+    id: "ai",
+    name: "AI",
+    description: "Artificial intelligence and digital assistants.",
+    faDescription: "هوش مصنوعی و دستیارهای دیجیتال.",
+    url: "https://mehranmusicavmq2545.pinet.com/chatbot",
+    status: "Active"
+  },
+  {
+    id: "robotics",
+    name: "Robotics",
+    description: "Robotics, automation and future technologies.",
+    faDescription: "رباتیک، اتوماسیون و فناوری‌های آینده.",
+    url: "",
+    status: "Planned"
+  },
+  {
+    id: "technologies",
+    name: "Technologies",
+    description: "Technology projects, innovation and development.",
+    faDescription: "پروژه‌های فناوری، نوآوری و توسعه.",
+    url: "",
+    status: "Planned"
+  }
 ];
 
-function getProjects() {
-try {
-const saved = localStorage.getItem("msh_projects");
-if (!saved) {
-localStorage.setItem("msh_projects", JSON.stringify(DEFAULT_PROJECTS));
-return [...DEFAULT_PROJECTS];
-}
-const parsed = JSON.parse(saved);
-return Array.isArray(parsed) ? parsed : [...DEFAULT_PROJECTS];
-} catch (error) {
-console.error("Project storage error:", error);
-return [...DEFAULT_PROJECTS];
-}
+function normalizeProject(project) {
+  return {
+    id: String(project.id),
+    name: project.name || "",
+    description: project.description || "",
+    faDescription: project.faDescription || project.fa_description || "",
+    link: project.url || project.link || "",
+    status: project.status || "Planned"
+  };
 }
 
-function saveProjects(projects) {
-localStorage.setItem("msh_projects", JSON.stringify(projects));
-renderProjects();
+function getLegacyProjects() {
+  try {
+    const saved = localStorage.getItem("msh_projects");
+
+    if (!saved) return [...DEFAULT_PROJECTS];
+
+    const parsed = JSON.parse(saved);
+
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return [...DEFAULT_PROJECTS];
+    }
+
+    return parsed.map(normalizeProject);
+
+  } catch (error) {
+    console.error("Legacy project storage error:", error);
+    return [...DEFAULT_PROJECTS];
+  }
+}
+
+async function projectRequest(path, method = "GET", data = null) {
+  const options = {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    }
+  };
+
+  if (data !== null) {
+    options.body = JSON.stringify({
+      ...data,
+      accessToken: piAccessToken
+    });
+  }
+
+  const response = await fetch(AUTH_WORKER + path, options);
+
+  let result;
+
+  try {
+    result = await response.json();
+  } catch (error) {
+    throw new Error("Invalid response from project server.");
+  }
+
+  if (!response.ok || result.success !== true) {
+    throw new Error(result.error || "Project request failed.");
+  }
+
+  return result;
+}
+
+async function migrateLegacyProjects() {
+  const oldProjects = getLegacyProjects();
+
+  for (const oldProject of oldProjects) {
+    const project = {
+      id: oldProject.id,
+      name: oldProject.name,
+      description: oldProject.description || "",
+      faDescription: oldProject.faDescription || "",
+      url: oldProject.link || oldProject.url || "",
+      status: oldProject.status || "Planned"
+    };
+
+    await projectRequest("/projects", "POST", { project });
+  }
+}
+
+async function loadProjects() {
+  if (projectsLoading) return;
+
+  projectsLoading = true;
+
+  try {
+    let result = await projectRequest("/projects");
+
+    /*
+      First-time database setup:
+      If D1 is empty and the verified admin signs in,
+      transfer existing browser projects into D1.
+    */
+
+    if (result.projects.length === 0 && isAdmin() && piAccessToken) {
+      await migrateLegacyProjects();
+      result = await projectRequest("/projects");
+    }
+
+    projectsCache = result.projects.map(normalizeProject);
+    renderProjects();
+
+  } catch (error) {
+    console.error("Project database error:", error);
+
+    showPiMessage(
+      (english ? "Project database error: " : "خطای پایگاه داده پروژه‌ها: ")
+      + error.message
+    );
+
+  } finally {
+    projectsLoading = false;
+  }
 }
 
 function statusText(status) {
-if (english) return status;
-return {
-Active:"فعال",
-Planned:"برنامه‌ریزی‌شده",
-Paused:"متوقف"
-}[status] || status;
+  if (english) return status;
+
+  return {
+    Active: "فعال",
+    Planned: "برنامه‌ریزی‌شده",
+    Paused: "متوقف"
+  }[status] || status;
 }
+
+/* PROJECT CARDS */
 
 function createProjectCard(project, adminMode) {
-const card = document.createElement("div");
-card.className = "card project-card";
+  const card = document.createElement("div");
+  card.className = "card project-card";
 
-const title = document.createElement("h3");
-title.textContent = project.name;
+  const title = document.createElement("h3");
+  title.textContent = project.name;
 
-const description = document.createElement("p");
-description.textContent = (!english && project.faDescription)
-? project.faDescription
-: project.description;
+  const description = document.createElement("p");
+  description.textContent =
+    (!english && project.faDescription)
+      ? project.faDescription
+      : project.description;
 
-const tag = document.createElement("span");
-tag.className = "tag " + project.status.toLowerCase();
-tag.textContent = statusText(project.status);
+  const tag = document.createElement("span");
+  tag.className = "tag " + project.status.toLowerCase();
+  tag.textContent = statusText(project.status);
 
-card.append(title, description, tag);
+  card.append(title, description, tag);
 
-const bottom = document.createElement("div");
-bottom.className = "project-bottom";
+  const bottom = document.createElement("div");
+  bottom.className = "project-bottom";
 
-if (project.link) {
-try {
-const url = new URL(project.link);
-if (url.protocol === "https:" || url.protocol === "http:") {
-const link = document.createElement("a");
-link.href = url.href;
-link.target = "_blank";
-link.rel = "noopener noreferrer";
+  if (project.link) {
+    try {
+      const url = new URL(project.link);
 
-const openButton = document.createElement("button");
-openButton.textContent = english ? "Open Project" : "ورود به پروژه";
-link.appendChild(openButton);
-bottom.appendChild(link);
-}
-} catch (error) {
-console.warn("Invalid project URL:", project.link);
-}
-}
+      if (url.protocol === "https:" || url.protocol === "http:") {
+        const link = document.createElement("a");
+        link.href = url.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
 
-if (adminMode) {
-const actions = document.createElement("div");
-actions.className = "project-actions";
+        const openButton = document.createElement("button");
+        openButton.textContent = english
+          ? "Open Project"
+          : "ورود به پروژه";
 
-const edit = document.createElement("button");
-edit.textContent = english ? "Edit" : "ویرایش";
-edit.onclick = () => editProject(project.id);
+        link.appendChild(openButton);
+        bottom.appendChild(link);
+      }
+    } catch (error) {
+      console.warn("Invalid project URL:", project.link);
+    }
+  }
 
-const del = document.createElement("button");
-del.className = "danger";
-del.textContent = english ? "Delete" : "حذف";
-del.onclick = () => deleteProject(project.id);
+  if (adminMode) {
+    const actions = document.createElement("div");
+    actions.className = "project-actions";
 
-actions.append(edit, del);
-bottom.appendChild(actions);
-}
+    const edit = document.createElement("button");
+    edit.textContent = english ? "Edit" : "ویرایش";
+    edit.onclick = () => editProject(project.id);
 
-card.appendChild(bottom);
-return card;
+    const del = document.createElement("button");
+    del.className = "danger";
+    del.textContent = english ? "Delete" : "حذف";
+    del.onclick = () => deleteProject(project.id);
+
+    actions.append(edit, del);
+    bottom.appendChild(actions);
+  }
+
+  card.appendChild(bottom);
+  return card;
 }
 
 function renderProjects() {
-const projects = getProjects();
+  const publicList = document.getElementById("publicProjectList");
+  const adminList = document.getElementById("adminProjectList");
 
-const publicList = document.getElementById("publicProjectList");
-const adminList = document.getElementById("adminProjectList");
+  publicList.innerHTML = "";
+  adminList.innerHTML = "";
 
-publicList.innerHTML = "";
-adminList.innerHTML = "";
+  projectsCache.forEach(project => {
+    publicList.appendChild(createProjectCard(project, false));
 
-projects.forEach(project => {
-publicList.appendChild(createProjectCard(project, false));
-if (isAdmin()) {
-adminList.appendChild(createProjectCard(project, true));
-}
-});
+    if (isAdmin()) {
+      adminList.appendChild(createProjectCard(project, true));
+    }
+  });
 
-if (projects.length === 0) {
-publicList.innerHTML = '<p class="empty">' +
-(english ? "No projects registered yet." : "هنوز پروژه‌ای ثبت نشده است.") +
-"</p>";
-adminList.innerHTML = '<p class="empty">' +
-(english ? "No projects registered yet." : "هنوز پروژه‌ای ثبت نشده است.") +
-"</p>";
-}
+  if (projectsCache.length === 0) {
+    const message = english
+      ? "No projects registered yet."
+      : "هنوز پروژه‌ای ثبت نشده است.";
 
-document.getElementById("projectCount").textContent =
-String(projects.length).padStart(2, "0");
+    publicList.textContent = message;
+    adminList.textContent = message;
+  }
 
-document.getElementById("adminProjectCount").textContent =
-english
-? projects.length + " projects registered."
-: projects.length + " پروژه ثبت شده است.";
+  document.getElementById("projectCount").textContent =
+    String(projectsCache.length).padStart(2, "0");
 
-document.getElementById("adminProjectTag").textContent =
-projects.length + " PROJECTS";
-}
+  document.getElementById("adminProjectCount").textContent =
+    english
+      ? projectsCache.length + " projects registered."
+      : projectsCache.length + " پروژه ثبت شده است.";
 
-function saveProject() {
-if (!isAdmin()) return;
-
-const name = document.getElementById("projectName").value.trim();
-const description = document.getElementById("projectDescription").value.trim();
-const link = document.getElementById("projectLink").value.trim();
-const status = document.getElementById("projectStatus").value;
-
-if (!name || !description) {
-alert(english
-? "Please enter the project name and description."
-: "نام و توضیحات پروژه را وارد کن.");
-return;
+  document.getElementById("adminProjectTag").textContent =
+    projectsCache.length + " PROJECTS";
 }
 
-if (link) {
-try {
-const url = new URL(link);
-if (url.protocol !== "https:" && url.protocol !== "http:") {
-throw new Error("Invalid URL");
-}
-} catch (error) {
-alert(english
-? "Please enter a valid project URL beginning with https:// or http://"
-: "لطفاً یک لینک معتبر با https:// یا http:// وارد کن.");
-return;
-}
-}
+/* ADD AND EDIT PROJECT */
 
-const projects = getProjects();
+async function saveProject() {
+  if (!isAdmin() || !piAccessToken) {
+    showPiMessage(english
+      ? "Please sign in with the administrator Pi account."
+      : "ابتدا با حساب پای مدیر وارد شو.");
+    return;
+  }
 
-if (editingProjectId) {
-const index = projects.findIndex(p => p.id === editingProjectId);
-if (index === -1) return;
+  const name = document.getElementById("projectName").value.trim();
+  const description = document.getElementById("projectDescription").value.trim();
+  const link = document.getElementById("projectLink").value.trim();
+  const status = document.getElementById("projectStatus").value;
 
-projects[index] = {
-...projects[index],
-name,
-description,
-faDescription: description,
-link,
-status
-};
-} else {
-projects.push({
-id: "project-" + Date.now(),
-name,
-description,
-faDescription: description,
-link,
-status
-});
-}
+  if (!name || !description) {
+    alert(english
+      ? "Please enter the project name and description."
+      : "نام و توضیحات پروژه را وارد کن.");
+    return;
+  }
 
-saveProjects(projects);
-cancelProjectEdit();
+  if (name.length > 100 || description.length > 3000) {
+    alert(english
+      ? "Project information is too long."
+      : "اطلاعات پروژه بیش از حد طولانی است.");
+    return;
+  }
 
-showPiMessage(english
-? "Project information saved."
-: "اطلاعات پروژه ذخیره شد.");
+  if (link) {
+    try {
+      const url = new URL(link);
+
+      if (url.protocol !== "https:" && url.protocol !== "http:") {
+        throw new Error("Invalid URL");
+      }
+    } catch (error) {
+      alert(english
+        ? "Please enter a valid project URL beginning with https:// or http://"
+        : "لطفاً یک لینک معتبر با https:// یا http:// وارد کن.");
+      return;
+    }
+  }
+
+  const existing = editingProjectId
+    ? projectsCache.find(p => p.id === editingProjectId)
+    : null;
+
+  const project = {
+    id: editingProjectId || ("project-" + crypto.randomUUID()),
+    name,
+    description,
+    faDescription: existing ? existing.faDescription : "",
+    url: link,
+    status
+  };
+
+  const button = document.getElementById("saveProjectButton");
+  button.disabled = true;
+
+  try {
+    if (editingProjectId) {
+      await projectRequest(
+        "/projects/" + encodeURIComponent(editingProjectId),
+        "PUT",
+        { project }
+      );
+    } else {
+      await projectRequest(
+        "/projects",
+        "POST",
+        { project }
+      );
+    }
+
+    cancelProjectEdit();
+    await loadProjects();
+
+    showPiMessage(english
+      ? "Project saved to the shared database."
+      : "پروژه در پایگاه داده مشترک ذخیره شد.");
+
+  } catch (error) {
+    console.error("Save project error:", error);
+
+    showPiMessage(
+      (english ? "Save failed: " : "ذخیره ناموفق بود: ")
+      + error.message
+    );
+
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function editProject(id) {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-const project = getProjects().find(p => p.id === id);
-if (!project) return;
+  const project = projectsCache.find(p => p.id === id);
+  if (!project) return;
 
-editingProjectId = id;
+  editingProjectId = id;
 
-document.getElementById("projectName").value = project.name;
-document.getElementById("projectDescription").value = project.description;
-document.getElementById("projectLink").value = project.link || "";
-document.getElementById("projectStatus").value = project.status;
+  document.getElementById("projectName").value = project.name;
+  document.getElementById("projectDescription").value = project.description;
+  document.getElementById("projectLink").value = project.link || "";
+  document.getElementById("projectStatus").value = project.status;
 
-document.getElementById("projectFormTitle").textContent =
-english ? "Edit Project" : "ویرایش پروژه";
+  document.getElementById("cancelEditButton").classList.remove("hidden");
 
-document.getElementById("saveProjectButton").textContent =
-english ? "Save Changes" : "ذخیره تغییرات";
+  updateProjectFormLanguage();
 
-document.getElementById("cancelEditButton").classList.remove("hidden");
-
-document.getElementById("projectName").scrollIntoView({
-behavior:"smooth",
-block:"center"
-});
+  document.getElementById("projectName").scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
 }
 
 function cancelProjectEdit() {
-editingProjectId = null;
+  editingProjectId = null;
 
-document.getElementById("projectName").value = "";
-document.getElementById("projectDescription").value = "";
-document.getElementById("projectLink").value = "";
-document.getElementById("projectStatus").value = "Active";
+  document.getElementById("projectName").value = "";
+  document.getElementById("projectDescription").value = "";
+  document.getElementById("projectLink").value = "";
+  document.getElementById("projectStatus").value = "Active";
 
-updateProjectFormLanguage();
+  document.getElementById("cancelEditButton").classList.add("hidden");
 
-document.getElementById("cancelEditButton").classList.add("hidden");
+  updateProjectFormLanguage();
 }
 
 function updateProjectFormLanguage() {
-document.getElementById("projectFormTitle").textContent =
-editingProjectId
-? (english ? "Edit Project" : "ویرایش پروژه")
-: (english ? "Add New Project" : "افزودن پروژه جدید");
+  document.getElementById("projectFormTitle").textContent =
+    editingProjectId
+      ? (english ? "Edit Project" : "ویرایش پروژه")
+      : (english ? "Add New Project" : "افزودن پروژه جدید");
 
-document.getElementById("saveProjectButton").textContent =
-editingProjectId
-? (english ? "Save Changes" : "ذخیره تغییرات")
-: (english ? "Add Project" : "افزودن پروژه");
+  document.getElementById("saveProjectButton").textContent =
+    editingProjectId
+      ? (english ? "Save Changes" : "ذخیره تغییرات")
+      : (english ? "Add Project" : "افزودن پروژه");
 }
 
-function deleteProject(id) {
-if (!isAdmin()) return;
+/* DELETE PROJECT */
 
-const confirmed = confirm(english
-? "Are you sure you want to delete this project?"
-: "از حذف این پروژه مطمئنی؟");
+async function deleteProject(id) {
+  if (!isAdmin() || !piAccessToken) return;
 
-if (!confirmed) return;
+  const confirmed = confirm(english
+    ? "Are you sure you want to delete this project?"
+    : "از حذف این پروژه مطمئنی؟");
 
-saveProjects(getProjects().filter(p => p.id !== id));
+  if (!confirmed) return;
 
-if (editingProjectId === id) cancelProjectEdit();
+  try {
+    await projectRequest(
+      "/projects/" + encodeURIComponent(id),
+      "DELETE",
+      {}
+    );
 
-showPiMessage(english
-? "Project deleted."
-: "پروژه حذف شد.");
+    if (editingProjectId === id) {
+      cancelProjectEdit();
+    }
+
+    await loadProjects();
+
+    showPiMessage(english
+      ? "Project deleted from the shared database."
+      : "پروژه از پایگاه داده مشترک حذف شد.");
+
+  } catch (error) {
+    console.error("Delete project error:", error);
+
+    showPiMessage(
+      (english ? "Delete failed: " : "حذف ناموفق بود: ")
+      + error.message
+    );
+  }
 }
 
 /* RANDOM STATE FOR OAUTH */
 
 function createState() {
-const bytes = new Uint8Array(16);
-crypto.getRandomValues(bytes);
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
 
-return Array.from(bytes)
-.map(byte => byte.toString(16).padStart(2, "0"))
-.join("");
+  return Array.from(bytes)
+    .map(byte => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /* VERIFY TOKEN THROUGH WORKER */
 
 async function verifyWithWorker(accessToken) {
-const response = await fetch(AUTH_WORKER + "/auth", {
-method: "POST",
-headers: { "Content-Type": "application/json" },
-body: JSON.stringify({ accessToken })
-});
+  const response = await fetch(AUTH_WORKER + "/auth", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ accessToken })
+  });
 
-let result;
+  let result;
 
-try {
-result = await response.json();
-} catch (error) {
-throw new Error("Invalid response from authentication server.");
-}
+  try {
+    result = await response.json();
+  } catch (error) {
+    throw new Error("Invalid response from authentication server.");
+  }
 
-if (!response.ok || result.success !== true) {
-throw new Error(result.error || "Pi authentication failed.");
-}
+  if (!response.ok || result.success !== true) {
+    throw new Error(result.error || "Pi authentication failed.");
+  }
 
-if (typeof result.username !== "string" || typeof result.uid !== "string") {
-throw new Error("Invalid verified Pi user information.");
-}
+  if (
+    typeof result.username !== "string" ||
+    typeof result.uid !== "string"
+  ) {
+    throw new Error("Invalid verified Pi user information.");
+  }
 
-currentUser = {
-username: result.username,
-uid: result.uid,
-isAdmin: result.isAdmin === true
-};
+  // The access token stays in memory only.
+  piAccessToken = accessToken;
 
-document.getElementById("piUser").textContent = "@" + currentUser.username;
-document.getElementById("piLogin").textContent = english ? "Pi Connected" : "اتصال برقرار است";
-document.getElementById("piLogin").disabled = true;
+  currentUser = {
+    username: result.username,
+    uid: result.uid,
+    isAdmin: result.isAdmin === true
+  };
 
-updateAccess();
-renderTasks();
-renderProjects();
+  document.getElementById("piUser").textContent =
+    "@" + currentUser.username;
 
-if (isAdmin()) {
-loadNotes();
-showPiMessage(english
-? "Welcome, administrator! Your Pi identity is verified."
-: "خوش آمدی مدیر! هویت پای تو تأیید شد.");
-} else {
-showPiMessage(english
-? "Your Pi identity has been verified."
-: "هویت پای شما با موفقیت تأیید شد.");
-}
+  document.getElementById("piLogin").textContent =
+    english ? "Pi Connected" : "اتصال برقرار است";
+
+  document.getElementById("piLogin").disabled = true;
+
+  updateAccess();
+  renderTasks();
+
+  await loadProjects();
+
+  if (isAdmin()) {
+    loadNotes();
+
+    showPiMessage(english
+      ? "Welcome, administrator! Your Pi identity is verified."
+      : "خوش آمدی مدیر! هویت پای تو تأیید شد.");
+  } else {
+    showPiMessage(english
+      ? "Your Pi identity has been verified."
+      : "هویت پای شما با موفقیت تأیید شد.");
+  }
 }
 
 /* PI BROWSER LOGIN */
 
 async function signInWithPiBrowser() {
-if (!window.Pi || typeof window.Pi.authenticate !== "function") {
-throw new Error("Pi authentication is unavailable. Open this app in Pi Browser.");
-}
+  if (!window.Pi || typeof window.Pi.authenticate !== "function") {
+    throw new Error(
+      "Pi authentication is unavailable. Open this app in Pi Browser."
+    );
+  }
 
-const auth = await window.Pi.authenticate(
-["username"],
-function(payment) {
-console.warn("Incomplete Pi payment:", payment);
-}
-);
+  const auth = await window.Pi.authenticate(
+    ["username"],
+    function(payment) {
+      console.warn("Incomplete Pi payment:", payment);
+    }
+  );
 
-if (!auth || !auth.accessToken) {
-throw new Error("Pi did not return an access token.");
-}
+  if (!auth || !auth.accessToken) {
+    throw new Error("Pi did not return an access token.");
+  }
 
-await verifyWithWorker(auth.accessToken);
+  await verifyWithWorker(auth.accessToken);
 }
 
 /* CHROME LOGIN */
 
 function signInWithChrome() {
-const state = createState();
+  const state = createState();
 
-sessionStorage.setItem("pi_oauth_state", state);
+  sessionStorage.setItem("pi_oauth_state", state);
 
-const authorizeURL = new URL("https://accounts.pinet.com/oauth/authorize");
+  const authorizeURL =
+    new URL("https://accounts.pinet.com/oauth/authorize");
 
-authorizeURL.searchParams.set("response_type", "token");
-authorizeURL.searchParams.set("client_id", PI_CLIENT_ID);
-authorizeURL.searchParams.set("redirect_uri", PI_REDIRECT_URI);
-authorizeURL.searchParams.set("scope", "username");
-authorizeURL.searchParams.set("state", state);
+  authorizeURL.searchParams.set("response_type", "token");
+  authorizeURL.searchParams.set("client_id", PI_CLIENT_ID);
+  authorizeURL.searchParams.set("redirect_uri", PI_REDIRECT_URI);
+  authorizeURL.searchParams.set("scope", "username");
+  authorizeURL.searchParams.set("state", state);
 
-window.location.assign(authorizeURL.toString());
+  window.location.assign(authorizeURL.toString());
 }
 
 /* MAIN LOGIN BUTTON */
 
 async function signInWithPi() {
-const button = document.getElementById("piLogin");
+  const button = document.getElementById("piLogin");
 
-if (currentUser) return;
+  if (currentUser) return;
 
-button.disabled = true;
+  button.disabled = true;
 
-try {
-if (!window.isSecureContext) {
-throw new Error("HTTPS connection is required.");
-}
+  try {
+    if (!window.isSecureContext) {
+      throw new Error("HTTPS connection is required.");
+    }
 
-showPiMessage(english
-? "Connecting to Pi Network..."
-: "در حال اتصال به شبکه پای...");
+    showPiMessage(english
+      ? "Connecting to Pi Network..."
+      : "در حال اتصال به شبکه پای...");
 
-if (isPiBrowser) {
-await signInWithPiBrowser();
-} else {
-signInWithChrome();
-}
+    if (isPiBrowser) {
+      await signInWithPiBrowser();
+    } else {
+      signInWithChrome();
+    }
 
-} catch (error) {
-console.error("Pi sign-in error:", error);
-button.disabled = false;
+  } catch (error) {
+    console.error("Pi sign-in error:", error);
+    button.disabled = false;
 
-showPiMessage((english ? "Sign-in error: " : "خطای ورود: ") + error.message);
-}
+    showPiMessage(
+      (english ? "Sign-in error: " : "خطای ورود: ")
+      + error.message
+    );
+  }
 }
 
 /* HANDLE OAUTH RETURN */
 
 async function handlePiCallback() {
-const params = new URLSearchParams(window.location.hash.slice(1));
+  const params = new URLSearchParams(window.location.hash.slice(1));
 
-const accessToken = params.get("access_token");
-const oauthError = params.get("error");
+  const accessToken = params.get("access_token");
+  const oauthError = params.get("error");
 
-if (!accessToken && !oauthError) return;
+  if (!accessToken && !oauthError) return;
 
-const returnedState = params.get("state");
-const expectedState = sessionStorage.getItem("pi_oauth_state");
+  const returnedState = params.get("state");
+  const expectedState = sessionStorage.getItem("pi_oauth_state");
 
-history.replaceState(null, "", window.location.pathname + window.location.search);
+  history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search
+  );
 
-sessionStorage.removeItem("pi_oauth_state");
+  sessionStorage.removeItem("pi_oauth_state");
 
-if (!expectedState || returnedState !== expectedState) {
-showPiMessage(english
-? "Sign-in verification failed. Please try again."
-: "تأیید ورود ناموفق بود. دوباره تلاش کن.");
+  if (!expectedState || returnedState !== expectedState) {
+    showPiMessage(english
+      ? "Sign-in verification failed. Please try again."
+      : "تأیید ورود ناموفق بود. دوباره تلاش کن.");
 
-document.getElementById("piLogin").disabled = false;
-return;
-}
+    document.getElementById("piLogin").disabled = false;
+    return;
+  }
 
-if (oauthError) {
-document.getElementById("piLogin").disabled = false;
-showPiMessage("Pi Sign-In failed: " + oauthError);
-return;
-}
+  if (oauthError) {
+    document.getElementById("piLogin").disabled = false;
+    showPiMessage("Pi Sign-In failed: " + oauthError);
+    return;
+  }
 
-try {
-showPiMessage(english
-? "Verifying your Pi identity..."
-: "در حال بررسی هویت پای...");
+  try {
+    showPiMessage(english
+      ? "Verifying your Pi identity..."
+      : "در حال بررسی هویت پای...");
 
-await verifyWithWorker(accessToken);
+    await verifyWithWorker(accessToken);
 
-} catch (error) {
-console.error("Pi callback verification error:", error);
-document.getElementById("piLogin").disabled = false;
+  } catch (error) {
+    console.error("Pi callback verification error:", error);
+    document.getElementById("piLogin").disabled = false;
 
-showPiMessage((english ? "Verification error: " : "خطای تأیید هویت: ") + error.message);
-}
+    showPiMessage(
+      (english ? "Verification error: " : "خطای تأیید هویت: ")
+      + error.message
+    );
+  }
 }
 
 /* TASK MANAGER */
 
 function getTasks() {
-try {
-return JSON.parse(localStorage.getItem("msh_tasks") || "[]");
-} catch (error) {
-return [];
-}
+  try {
+    return JSON.parse(localStorage.getItem("msh_tasks") || "[]");
+  } catch (error) {
+    return [];
+  }
 }
 
 function saveTasks(tasks) {
-localStorage.setItem("msh_tasks", JSON.stringify(tasks));
+  localStorage.setItem("msh_tasks", JSON.stringify(tasks));
 }
 
 function addTask() {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-const input = document.getElementById("taskInput");
-const value = input.value.trim();
+  const input = document.getElementById("taskInput");
+  const value = input.value.trim();
 
-if (!value) {
-alert(english ? "Enter a task first." : "ابتدا یک وظیفه وارد کن.");
-return;
-}
+  if (!value) {
+    alert(english ? "Enter a task first." : "ابتدا یک وظیفه وارد کن.");
+    return;
+  }
 
-const tasks = getTasks();
+  const tasks = getTasks();
 
-tasks.push({
-id: Date.now(),
-title: value,
-done: false
-});
+  tasks.push({
+    id: Date.now(),
+    title: value,
+    done: false
+  });
 
-saveTasks(tasks);
-input.value = "";
-renderTasks();
+  saveTasks(tasks);
+  input.value = "";
+  renderTasks();
 }
 
 function toggleTask(id) {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-const tasks = getTasks().map(task => {
-if (task.id === id) task.done = !task.done;
-return task;
-});
+  const tasks = getTasks().map(task => {
+    if (task.id === id) task.done = !task.done;
+    return task;
+  });
 
-saveTasks(tasks);
-renderTasks();
+  saveTasks(tasks);
+  renderTasks();
 }
 
 function deleteTask(id) {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-saveTasks(getTasks().filter(task => task.id !== id));
-renderTasks();
+  saveTasks(getTasks().filter(task => task.id !== id));
+  renderTasks();
 }
 
 function renderTasks() {
-const list = document.getElementById("taskList");
-if (!list) return;
+  const list = document.getElementById("taskList");
+  if (!list) return;
 
-if (!isAdmin()) {
-list.innerHTML = '<p class="empty">Admin access required.</p>';
-return;
-}
+  if (!isAdmin()) {
+    list.innerHTML = '<p class="empty">Admin access required.</p>';
+    return;
+  }
 
-const tasks = getTasks();
-list.innerHTML = "";
+  const tasks = getTasks();
+  list.innerHTML = "";
 
-if (tasks.length === 0) {
-list.innerHTML = '<p class="empty">' +
-(english ? "No tasks yet." : "هنوز وظیفه‌ای ثبت نشده.") +
-"</p>";
-return;
-}
+  if (tasks.length === 0) {
+    list.innerHTML = '<p class="empty">' +
+      (english ? "No tasks yet." : "هنوز وظیفه‌ای ثبت نشده.") +
+      "</p>";
+    return;
+  }
 
-tasks.forEach(task => {
-const row = document.createElement("div");
-row.className = "task";
+  tasks.forEach(task => {
+    const row = document.createElement("div");
+    row.className = "task";
 
-const label = document.createElement("span");
-label.textContent = (task.done ? "✓ " : "○ ") + task.title;
+    const label = document.createElement("span");
+    label.textContent = (task.done ? "✓ " : "○ ") + task.title;
 
-if (task.done) label.style.textDecoration = "line-through";
+    if (task.done) label.style.textDecoration = "line-through";
 
-const actions = document.createElement("div");
-actions.className = "task-actions";
+    const actions = document.createElement("div");
+    actions.className = "task-actions";
 
-const done = document.createElement("button");
-done.textContent = task.done
-? (english ? "Undo" : "بازگردانی")
-: (english ? "Complete" : "انجام شد");
-done.onclick = () => toggleTask(task.id);
+    const done = document.createElement("button");
+    done.textContent = task.done
+      ? (english ? "Undo" : "بازگردانی")
+      : (english ? "Complete" : "انجام شد");
 
-const del = document.createElement("button");
-del.textContent = english ? "Delete" : "حذف";
-del.onclick = () => deleteTask(task.id);
+    done.onclick = () => toggleTask(task.id);
 
-actions.append(done, del);
-row.append(label, actions);
-list.appendChild(row);
-});
+    const del = document.createElement("button");
+    del.textContent = english ? "Delete" : "حذف";
+    del.onclick = () => deleteTask(task.id);
+
+    actions.append(done, del);
+    row.append(label, actions);
+    list.appendChild(row);
+  });
 }
 
 /* NOTES */
 
 function saveNotes() {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-localStorage.setItem("msh_notes", document.getElementById("adminNotes").value);
+  localStorage.setItem(
+    "msh_notes",
+    document.getElementById("adminNotes").value
+  );
 
-document.getElementById("notesMessage").textContent =
-english ? "Saved locally." : "به‌صورت محلی ذخیره شد.";
+  document.getElementById("notesMessage").textContent =
+    english ? "Saved locally." : "به‌صورت محلی ذخیره شد.";
 }
 
 function loadNotes() {
-if (!isAdmin()) return;
+  if (!isAdmin()) return;
 
-document.getElementById("adminNotes").value =
-localStorage.getItem("msh_notes") || "";
+  document.getElementById("adminNotes").value =
+    localStorage.getItem("msh_notes") || "";
 }
 
 /* STARTUP */
 
-handlePiCallback();
 updateAccess();
 renderTasks();
 renderProjects();
+handlePiCallback();
+loadProjects();
 
 </script>
 
