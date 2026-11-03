@@ -1,96 +1,247 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#050914">
 <title>MEHRAN MSH | Digital Ecosystem</title>
 
+<script src="https://sdk.minepi.com/pi-sdk.js" defer></script>
+
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#050914;color:#eef6ff;font-family:Arial,sans-serif}
-header{padding:22px 8%;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #142c48}
-.logo{font-size:23px;font-weight:bold;letter-spacing:3px;color:#35c9ff}
-button{background:#10243a;color:#56d4ff;border:1px solid #248cc0;padding:10px 17px;border-radius:9px;cursor:pointer}
-.hero{text-align:center;padding:90px 20px 75px;background:radial-gradient(ellipse at top,#12385a 0%,#050914 65%)}
-.hero h1{font-size:clamp(38px,8vw,68px);margin:0;color:#fff;letter-spacing:4px}
-.hero h1 span{color:#36caff}
-.hero p{color:#a9c4dc;line-height:1.9;max-width:650px;margin:22px auto}
-.section{padding:45px 8%;max-width:1200px;margin:auto}
-.section h2{text-align:center;color:#48caff;margin-bottom:30px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-.card{
-display:block;
-background:#0b1728;
-border:1px solid #163b5b;
-border-radius:15px;
-padding:25px;
-min-height:155px;
-text-decoration:none;
-color:inherit;
-transition:.25s;
+
+body{
+  margin:0;
+  background:#050914;
+  color:#eef6ff;
+  font-family:Arial,sans-serif
 }
-a.card:hover{border-color:#36caff;transform:translateY(-4px);box-shadow:0 0 18px #168ac044}
-.card h3{color:#48caff;margin-top:0}
-.card p{color:#a9bfd3;line-height:1.7;font-size:14px}
-.status{color:#6d91ad;font-size:12px;letter-spacing:1px}
-footer{text-align:center;padding:30px;color:#718da8;border-top:1px solid #142c48;font-size:13px}
-[dir="rtl"]{font-family:Tahoma,Arial,sans-serif}
-[dir="rtl"] header{flex-direction:row-reverse}
+
+header{
+  padding:22px 8%;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  flex-wrap:wrap;
+  border-bottom:1px solid #142c48
+}
+
+.logo{
+  font-size:23px;
+  font-weight:bold;
+  letter-spacing:3px;
+  color:#35c9ff
+}
+
+.header-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap
+}
+
+button{
+  background:#10243a;
+  color:#56d4ff;
+  border:1px solid #248cc0;
+  padding:10px 17px;
+  border-radius:9px;
+  cursor:pointer;
+  font-size:14px
+}
+
+button:hover{
+  background:#173653
+}
+
+#piUser{
+  color:#75e0a7;
+  font-size:13px
+}
+
+.hero{
+  text-align:center;
+  padding:90px 20px 75px;
+  background:radial-gradient(ellipse at top,#12385a 0%,#050914 65%)
+}
+
+.hero h1{
+  font-size:clamp(38px,8vw,68px);
+  margin:0;
+  color:#fff;
+  letter-spacing:4px
+}
+
+.hero h1 span{
+  color:#36caff
+}
+
+.hero p{
+  color:#a9c4dc;
+  line-height:1.9;
+  max-width:650px;
+  margin:22px auto
+}
+
+.section{
+  padding:45px 8%;
+  max-width:1200px;
+  margin:auto
+}
+
+.section h2{
+  text-align:center;
+  color:#48caff;
+  margin-bottom:30px
+}
+
+.cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:18px
+}
+
+.card{
+  display:block;
+  background:#0b1728;
+  border:1px solid #163b5b;
+  border-radius:15px;
+  padding:25px;
+  min-height:155px;
+  text-decoration:none;
+  color:inherit;
+  transition:.25s
+}
+
+a.card:hover{
+  border-color:#36caff;
+  transform:translateY(-4px);
+  box-shadow:0 0 18px #168ac044
+}
+
+.card h3{
+  color:#48caff;
+  margin-top:0
+}
+
+.card p{
+  color:#a9bfd3;
+  line-height:1.7;
+  font-size:14px
+}
+
+.status{
+  color:#6d91ad;
+  font-size:12px;
+  letter-spacing:1px
+}
+
+#piMessage{
+  text-align:center;
+  color:#a9c4dc;
+  font-size:13px;
+  margin-top:12px;
+  min-height:20px
+}
+
+footer{
+  text-align:center;
+  padding:30px;
+  color:#718da8;
+  border-top:1px solid #142c48;
+  font-size:13px
+}
+
+[dir="rtl"]{
+  font-family:Tahoma,Arial,sans-serif
+}
+
+[dir="rtl"] header{
+  flex-direction:row-reverse
+}
 </style>
 </head>
 
 <body>
 
 <header>
-<div class="logo">MEHRAN MSH</div>
-<button onclick="toggleLanguage()" id="lang">فارسی</button>
+  <div class="logo">MEHRAN MSH</div>
+
+  <div class="header-actions">
+    <span id="piUser"></span>
+    <button id="piLogin" onclick="signInWithPi()">Sign in with Pi</button>
+    <button onclick="toggleLanguage()" id="lang">فارسی</button>
+  </div>
 </header>
 
 <main>
 
 <section class="hero">
-<h1>MEHRAN <span>MSH</span></h1>
+  <h1>MEHRAN <span>MSH</span></h1>
 
-<p id="intro">
-A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.
-</p>
+  <p id="intro">
+    A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.
+  </p>
 
-<button onclick="document.getElementById('projects').scrollIntoView({behavior:'smooth'})" id="explore">
-Explore Projects
-</button>
+  <button
+    onclick="document.getElementById('projects').scrollIntoView({behavior:'smooth'})"
+    id="explore">
+    Explore Projects
+  </button>
+
+  <div id="piMessage" aria-live="polite"></div>
 </section>
 
 <section class="section" id="projects">
 
-<h2 id="heading">OUR ECOSYSTEM</h2>
+  <h2 id="heading">OUR ECOSYSTEM</h2>
 
-<div class="cards">
+  <div class="cards">
 
-<a class="card" href="https://mehranmusicxx6898.pinet.com/">
-<h3>MEHRAN MUSIC</h3>
-<p id="music">Music, creativity, songs and artist experiences.</p>
-</a>
+    <a
+      class="card"
+      href="https://mehranmusicxx6898.pinet.com/"
+      target="_blank"
+      rel="noopener noreferrer">
 
-<a class="card" href="https://mehranmusicavmq2545.pinet.com/chatbot">
-<h3>MEHRAN AI</h3>
-<p id="ai">Artificial intelligence and intelligent digital assistants.</p>
-</a>
+      <h3>MEHRAN MUSIC</h3>
+      <p id="music">
+        Music, creativity, songs and artist experiences.
+      </p>
+    </a>
 
-<div class="card">
-<h3>MEHRAN ROBOTICS</h3>
-<p id="robotics">Robotics, automation and future technologies.</p>
-<div class="status" id="roboticsStatus">COMING SOON</div>
-</div>
+    <a
+      class="card"
+      href="https://mehranmusicavmq2545.pinet.com/chatbot"
+      target="_blank"
+      rel="noopener noreferrer">
 
-<div class="card">
-<h3>MEHRAN TECHNOLOGIES</h3>
-<p id="tech">Technology projects and innovation across the ecosystem.</p>
-<div class="status" id="techStatus">COMING SOON</div>
-</div>
+      <h3>MEHRAN AI</h3>
+      <p id="ai">
+        Artificial intelligence and intelligent digital assistants.
+      </p>
+    </a>
 
-</div>
+    <div class="card">
+      <h3>MEHRAN ROBOTICS</h3>
+      <p id="robotics">
+        Robotics, automation and future technologies.
+      </p>
+      <div class="status" id="roboticsStatus">COMING SOON</div>
+    </div>
+
+    <div class="card">
+      <h3>MEHRAN TECHNOLOGIES</h3>
+      <p id="tech">
+        Technology projects and innovation across the ecosystem.
+      </p>
+      <div class="status" id="techStatus">COMING SOON</div>
+    </div>
+
+  </div>
 </section>
 
 </main>
@@ -98,47 +249,227 @@ Explore Projects
 <footer>© 2026 MEHRAN MSH | Building the Future</footer>
 
 <script>
-let english=true;
+let english = true;
+
+const PI_CLIENT_ID =
+  "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
+
+const PI_REDIRECT_URI =
+  "https://mehranmsh.github.io/";
+
+function showPiMessage(message){
+  document.getElementById("piMessage").textContent = message;
+}
 
 function toggleLanguage(){
 
-english=!english;
+  english = !english;
 
-document.documentElement.lang=english?"en":"fa";
-document.documentElement.dir=english?"ltr":"rtl";
+  document.documentElement.lang = english ? "en" : "fa";
+  document.documentElement.dir = english ? "ltr" : "rtl";
 
-document.getElementById("lang").textContent=english?"فارسی":"English";
+  document.getElementById("lang").textContent =
+    english ? "فارسی" : "English";
 
-document.getElementById("intro").textContent=english?
-"A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.":
-"مرکز اصلی پروژه‌های دیجیتال، فناوری، موسیقی، هوش مصنوعی و رباتیک در اکوسیستم پای نتورک.";
+  document.getElementById("intro").textContent = english
+    ? "A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem."
+    : "مرکز اصلی پروژه‌های دیجیتال، فناوری، موسیقی، هوش مصنوعی و رباتیک در اکوسیستم پای نتورک.";
 
-document.getElementById("explore").textContent=english?"Explore Projects":"مشاهده پروژه‌ها";
+  document.getElementById("explore").textContent =
+    english ? "Explore Projects" : "مشاهده پروژه‌ها";
 
-document.getElementById("heading").textContent=english?"OUR ECOSYSTEM":"اکوسیستم ما";
+  document.getElementById("heading").textContent =
+    english ? "OUR ECOSYSTEM" : "اکوسیستم ما";
 
-document.getElementById("music").textContent=english?
-"Music, creativity, songs and artist experiences.":
-"موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.";
+  document.getElementById("music").textContent = english
+    ? "Music, creativity, songs and artist experiences."
+    : "موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.";
 
-document.getElementById("ai").textContent=english?
-"Artificial intelligence and intelligent digital assistants.":
-"هوش مصنوعی و دستیارهای دیجیتال هوشمند.";
+  document.getElementById("ai").textContent = english
+    ? "Artificial intelligence and intelligent digital assistants."
+    : "هوش مصنوعی و دستیارهای دیجیتال هوشمند.";
 
-document.getElementById("robotics").textContent=english?
-"Robotics, automation and future technologies.":
-"رباتیک، اتوماسیون و فناوری‌های آینده.";
+  document.getElementById("robotics").textContent = english
+    ? "Robotics, automation and future technologies."
+    : "رباتیک، اتوماسیون و فناوری‌های آینده.";
 
-document.getElementById("tech").textContent=english?
-"Technology projects and innovation across the ecosystem.":
-"پروژه‌های فناوری و نوآوری در سراسر اکوسیستم.";
+  document.getElementById("tech").textContent = english
+    ? "Technology projects and innovation across the ecosystem."
+    : "پروژه‌های فناوری و نوآوری در سراسر اکوسیستم.";
 
-document.getElementById("roboticsStatus").textContent=english?"COMING SOON":"به‌زودی";
-document.getElementById("techStatus").textContent=english?"COMING SOON":"به‌زودی";
+  document.getElementById("roboticsStatus").textContent =
+    english ? "COMING SOON" : "به‌زودی";
+
+  document.getElementById("techStatus").textContent =
+    english ? "COMING SOON" : "به‌زودی";
+
+  const user = document.getElementById("piUser").textContent;
+
+  if(user){
+    document.getElementById("piLogin").textContent =
+      english ? "Pi Connected" : "اتصال به پای برقرار است";
+  }else{
+    document.getElementById("piLogin").textContent =
+      english ? "Sign in with Pi" : "ورود با پای";
+  }
 }
+
+function createState(){
+
+  if(window.crypto && crypto.randomUUID){
+    return crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2,"0"))
+    .join("");
+}
+
+async function signInWithPi(){
+
+  const button = document.getElementById("piLogin");
+
+  try{
+
+    if(!window.Pi || typeof window.Pi.signIn !== "function"){
+      throw new Error("Pi Sign-In SDK is not available. Open this app in Pi Browser.");
+    }
+
+    const state = createState();
+
+    sessionStorage.setItem("pi_oauth_state", state);
+
+    button.disabled = true;
+
+    showPiMessage(
+      english
+        ? "Connecting to Pi Network..."
+        : "در حال اتصال به پای نتورک..."
+    );
+
+    await window.Pi.init({version:"2.0"});
+
+    window.Pi.signIn({
+      clientId: PI_CLIENT_ID,
+      redirectUri: PI_REDIRECT_URI,
+      scopes: ["username"],
+      state: state
+    });
+
+  }catch(error){
+
+    sessionStorage.removeItem("pi_oauth_state");
+
+    showPiMessage(
+      (english ? "Sign-in error: " : "خطای ورود: ") +
+      error.message
+    );
+
+    button.disabled = false;
+  }
+}
+
+async function handlePiCallback(){
+
+  const params = new URLSearchParams(
+    window.location.hash.slice(1)
+  );
+
+  const accessToken = params.get("access_token");
+  const error = params.get("error");
+
+  if(!accessToken && !error){
+    return;
+  }
+
+  const returnedState = params.get("state");
+  const expectedState = sessionStorage.getItem("pi_oauth_state");
+
+  sessionStorage.removeItem("pi_oauth_state");
+
+  history.replaceState(
+    null,
+    "",
+    window.location.pathname + window.location.search
+  );
+
+  if(!expectedState || returnedState !== expectedState){
+
+    showPiMessage(
+      english
+        ? "Sign-in could not be verified. Please try again."
+        : "تأیید ورود انجام نشد. لطفاً دوباره تلاش کن."
+    );
+
+    return;
+  }
+
+  if(error){
+
+    showPiMessage(
+      (english ? "Pi Sign-In failed: " : "ورود پای ناموفق بود: ") +
+      error
+    );
+
+    return;
+  }
+
+  try{
+
+    showPiMessage(
+      english
+        ? "Verifying Pi identity..."
+        : "در حال بررسی هویت پای..."
+    );
+
+    const response = await fetch(
+      "https://api.minepi.com/v2/me",
+      {
+        method:"GET",
+        headers:{
+          "Authorization":"Bearer " + accessToken
+        }
+      }
+    );
+
+    if(!response.ok){
+      throw new Error("Pi identity verification failed. HTTP " + response.status);
+    }
+
+    const user = await response.json();
+
+    if(!user.username || !user.uid){
+      throw new Error("Pi did not return the expected user information.");
+    }
+
+    document.getElementById("piUser").textContent =
+      "@" + user.username;
+
+    document.getElementById("piLogin").textContent =
+      english ? "Pi Connected" : "اتصال به پای برقرار است";
+
+    document.getElementById("piLogin").disabled = true;
+
+    showPiMessage(
+      english
+        ? "Welcome, " + user.username + "!"
+        : "خوش آمدی " + user.username + "!"
+    );
+
+  }catch(error){
+
+    showPiMessage(
+      (english ? "Verification error: " : "خطای تأیید هویت: ") +
+      error.message
+    );
+  }
+}
+
+handlePiCallback();
 </script>
 
 </body>
 </html>
-<a class="card" href="https://mehranmusicxx6898.pinet.com/" target="_self">
-<a class="card" href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_self">
