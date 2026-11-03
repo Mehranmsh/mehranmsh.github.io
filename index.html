@@ -7,8 +7,6 @@
 <meta name="theme-color" content="#050914">
 <title>MEHRAN MSH | Digital Ecosystem</title>
 
-<script src="https://sdk.minepi.com/pi-sdk.js"></script>
-
 <style>
 *{box-sizing:border-box}
 
@@ -165,8 +163,12 @@ footer{
 
   <div class="header-actions">
     <span id="piUser"></span>
-    <button id="piLogin" type="button" onclick="signInWithPi()">Sign in with Pi</button>
-    <button type="button" onclick="toggleLanguage()" id="lang">فارسی</button>
+    <button id="piLogin" type="button" onclick="signInWithPi()">
+      Sign in with Pi
+    </button>
+    <button type="button" onclick="toggleLanguage()" id="lang">
+      فارسی
+    </button>
   </div>
 </header>
 
@@ -300,7 +302,11 @@ function toggleLanguage(){
 
 function createState(){
 
-  if(window.crypto && crypto.randomUUID){
+  if(!window.crypto || !crypto.getRandomValues){
+    throw new Error("Secure random generator is unavailable.");
+  }
+
+  if(crypto.randomUUID){
     return crypto.randomUUID();
   }
 
@@ -312,17 +318,13 @@ function createState(){
     .join("");
 }
 
-async function signInWithPi(){
+function signInWithPi(){
 
   const button = document.getElementById("piLogin");
 
   if(piSigningIn) return;
 
   try{
-
-    if(!window.Pi || typeof window.Pi.signIn !== "function"){
-      throw new Error("Pi Sign-In SDK is not available. Open this app in Pi Browser.");
-    }
 
     if(!window.isSecureContext){
       throw new Error("A secure HTTPS connection is required.");
@@ -337,22 +339,25 @@ async function signInWithPi(){
 
     showPiMessage(
       english
-        ? "Connecting to Pi Network..."
-        : "در حال اتصال به پای نتورک..."
+        ? "Redirecting to Pi Network..."
+        : "در حال انتقال به پای نتورک..."
     );
 
-    window.Pi.init({version:"2.0"});
+    const url = new URL(
+      "https://accounts.pinet.com/oauth/authorize"
+    );
 
-    await window.Pi.signIn({
-      clientId: PI_CLIENT_ID,
-      redirectUri: PI_REDIRECT_URI,
-      scopes: ["username"],
-      state: state
-    });
+    url.searchParams.set("response_type", "token");
+    url.searchParams.set("client_id", PI_CLIENT_ID);
+    url.searchParams.set("redirect_uri", PI_REDIRECT_URI);
+    url.searchParams.set("scope", "username");
+    url.searchParams.set("state", state);
+
+    window.location.assign(url.toString());
 
   }catch(error){
 
-    console.error("Pi Sign-In Error:", error);
+    console.error("Pi OAuth Error:", error);
 
     sessionStorage.removeItem("pi_oauth_state");
 
@@ -374,11 +379,12 @@ async function handlePiCallback(){
 
   const accessToken = params.get("access_token");
   const error = params.get("error");
+  const returnedState = params.get("state");
 
   if(!accessToken && !error) return;
 
-  const returnedState = params.get("state");
-  const expectedState = sessionStorage.getItem("pi_oauth_state");
+  const expectedState =
+    sessionStorage.getItem("pi_oauth_state");
 
   history.replaceState(
     null,
@@ -409,6 +415,17 @@ async function handlePiCallback(){
     return;
   }
 
+  if(!accessToken){
+
+    showPiMessage(
+      english
+        ? "No access token was returned by Pi."
+        : "توکن ورود از طرف پای دریافت نشد."
+    );
+
+    return;
+  }
+
   try{
 
     showPiMessage(
@@ -428,13 +445,17 @@ async function handlePiCallback(){
     );
 
     if(!response.ok){
-      throw new Error("Pi identity verification failed. HTTP " + response.status);
+      throw new Error(
+        "Pi identity verification failed. HTTP " + response.status
+      );
     }
 
     const user = await response.json();
 
     if(!user.username || !user.uid){
-      throw new Error("Pi did not return the expected user information.");
+      throw new Error(
+        "Pi did not return the expected user information."
+      );
     }
 
     document.getElementById("piUser").textContent =
@@ -454,6 +475,9 @@ async function handlePiCallback(){
   }catch(error){
 
     console.error("Pi Verification Error:", error);
+
+    piSigningIn = false;
+    document.getElementById("piLogin").disabled = false;
 
     showPiMessage(
       (english ? "Verification error: " : "خطای تأیید هویت: ") +
