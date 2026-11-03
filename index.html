@@ -8,46 +8,109 @@
 <title>MEHRAN MSH | Digital Ecosystem</title>
 
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
-<script>
-let piSdkReady = false;
-
-try {
-  if (window.Pi && typeof Pi.init === "function") {
-    Pi.init({ version: "2.0" });
-    piSdkReady = true;
-    console.log("Pi SDK initialized");
-  }
-} catch (error) {
-  console.error("Pi SDK initialization error:", error);
-}
-</script>
 
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#050914;color:#eef6ff;font-family:Arial,sans-serif}
-header{padding:22px 8%;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap;border-bottom:1px solid #142c48}
-.logo{font-size:23px;font-weight:bold;letter-spacing:3px;color:#35c9ff}
-.header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-button{background:#10243a;color:#56d4ff;border:1px solid #248cc0;padding:10px 17px;border-radius:9px;cursor:pointer;font-size:14px}
+body{
+  margin:0;background:#050914;color:#eef6ff;
+  font-family:Arial,sans-serif
+}
+button,input,textarea{font:inherit}
+button{
+  background:#10243a;color:#56d4ff;
+  border:1px solid #248cc0;padding:11px 17px;
+  border-radius:9px;cursor:pointer
+}
 button:hover{background:#173653}
 button:disabled{opacity:.6;cursor:wait}
+header{
+  padding:18px 6%;display:flex;
+  justify-content:space-between;align-items:center;
+  gap:15px;flex-wrap:wrap;border-bottom:1px solid #142c48;
+  position:sticky;top:0;background:#050914ee;
+  backdrop-filter:blur(12px);z-index:10
+}
+.logo{font-size:22px;font-weight:bold;letter-spacing:3px;color:#35c9ff}
+.header-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 #piUser{color:#75e0a7;font-size:13px}
-.hero{text-align:center;padding:90px 20px 75px;background:radial-gradient(ellipse at top,#12385a 0%,#050914 65%)}
-.hero h1{font-size:clamp(38px,8vw,68px);margin:0;color:#fff;letter-spacing:4px}
+.hero{
+  text-align:center;padding:65px 20px 45px;
+  background:radial-gradient(ellipse at top,#12385a 0%,#050914 70%)
+}
+.hero h1{font-size:clamp(36px,8vw,62px);margin:0;color:white;letter-spacing:4px}
 .hero h1 span{color:#36caff}
-.hero p{color:#a9c4dc;line-height:1.9;max-width:650px;margin:22px auto}
-.section{padding:45px 8%;max-width:1200px;margin:auto}
-.section h2{text-align:center;color:#48caff;margin-bottom:30px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-.card{display:block;background:#0b1728;border:1px solid #163b5b;border-radius:15px;padding:25px;min-height:155px;text-decoration:none;color:inherit;transition:.25s}
-a.card:hover{border-color:#36caff;transform:translateY(-4px);box-shadow:0 0 18px #168ac044}
-.card h3{color:#48caff;margin-top:0}
-.card p{color:#a9bfd3;line-height:1.7;font-size:14px}
-.status{color:#6d91ad;font-size:12px;letter-spacing:1px}
-#piMessage{text-align:center;color:#a9c4dc;font-size:13px;margin-top:15px;min-height:24px;overflow-wrap:anywhere}
-footer{text-align:center;padding:30px;color:#718da8;border-top:1px solid #142c48;font-size:13px}
+.hero p{color:#a9c4dc;line-height:1.9;max-width:680px;margin:18px auto}
+.container{max-width:1150px;margin:auto;padding:30px 6%}
+.section-title{color:#48caff;margin:0 0 22px;font-size:22px}
+.grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  gap:16px
+}
+.card{
+  background:linear-gradient(145deg,#0e2035,#091321);
+  border:1px solid #163b5b;border-radius:15px;
+  padding:22px;min-height:145px;transition:.2s
+}
+.card:hover{border-color:#36caff;transform:translateY(-3px)}
+.card h3{color:#48caff;margin:0 0 12px}
+.card p{color:#a9bfd3;line-height:1.7;font-size:14px;margin:0}
+.card .number{font-size:28px;color:#fff;font-weight:bold;margin:10px 0}
+.card-link{cursor:pointer}
+.nav{
+  display:flex;gap:9px;flex-wrap:wrap;
+  padding:15px 6%;border-bottom:1px solid #142c48;
+  background:#081321
+}
+.nav button{font-size:13px}
+.nav button.active{background:#12446a;border-color:#36caff;color:white}
+.page{display:none}
+.page.active{display:block}
+.welcome{
+  padding:22px;background:#0b1b2c;
+  border:1px solid #1b4668;border-radius:14px;margin-bottom:25px
+}
+.welcome h2{margin:0 0 8px;color:#4bcfff}
+.welcome p{margin:0;color:#a9bfd3;line-height:1.7}
+.tag{
+  display:inline-block;font-size:11px;
+  color:#75e0a7;border:1px solid #28664d;
+  border-radius:20px;padding:5px 9px;margin-top:12px
+}
+.field{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}
+.field input,.field textarea{
+  flex:1;min-width:180px;background:#071321;
+  color:white;border:1px solid #245071;
+  border-radius:9px;padding:12px;outline:none
+}
+.task{
+  background:#0b1728;border:1px solid #163b5b;
+  border-radius:10px;padding:13px;margin:9px 0;
+  display:flex;justify-content:space-between;
+  align-items:center;gap:10px;flex-wrap:wrap
+}
+.task small{color:#8ca9c1}
+.empty{color:#829bb0;font-size:14px;padding:15px 0}
+.status{color:#6d91ad;font-size:12px}
+#piMessage{
+  text-align:center;color:#a9c4dc;
+  font-size:13px;margin-top:15px;min-height:24px;
+  overflow-wrap:anywhere
+}
+.hidden{display:none!important}
+footer{
+  text-align:center;padding:30px;
+  color:#718da8;border-top:1px solid #142c48;font-size:13px
+}
 [dir="rtl"]{font-family:Tahoma,Arial,sans-serif}
 [dir="rtl"] header{flex-direction:row-reverse}
+[dir="rtl"] .nav{direction:rtl}
+[dir="rtl"] .task{direction:rtl}
+@media(max-width:600px){
+  header{padding:15px 4%}
+  .container{padding:25px 4%}
+  .nav{padding:12px 4%}
+  .nav button{flex:1}
+}
 </style>
 </head>
 
@@ -57,67 +120,288 @@ footer{text-align:center;padding:30px;color:#718da8;border-top:1px solid #142c48
   <div class="logo">MEHRAN MSH</div>
   <div class="header-actions">
     <span id="piUser"></span>
-    <button id="piLogin" type="button" onclick="signInWithPi()">Sign in with Pi</button>
-    <button type="button" onclick="toggleLanguage()" id="lang">فارسی</button>
+    <button id="piLogin" onclick="signInWithPi()">Sign in with Pi</button>
+    <button onclick="toggleLanguage()" id="lang">فارسی</button>
   </div>
 </header>
 
-<main>
 <section class="hero">
   <h1>MEHRAN <span>MSH</span></h1>
-
   <p id="intro">
-    A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.
+    The central management and service center of the Mehran ecosystem.
   </p>
-
-  <button type="button"
-    onclick="document.getElementById('projects').scrollIntoView({behavior:'smooth'})"
-    id="explore">Explore Projects</button>
-
   <div id="piMessage" aria-live="polite"></div>
 </section>
 
-<section class="section" id="projects">
-  <h2 id="heading">OUR ECOSYSTEM</h2>
+<nav class="nav">
+  <button class="active" onclick="showPage('dashboard',this)" data-en="Dashboard" data-fa="داشبورد">Dashboard</button>
+  <button onclick="showPage('user',this)" data-en="User Center" data-fa="مرکز کاربران">User Center</button>
+  <button id="adminNav" class="hidden" onclick="showPage('admin',this)" data-en="Admin Panel" data-fa="پنل مدیریت">Admin Panel</button>
+  <button onclick="showPage('projects',this)" data-en="Projects" data-fa="پروژه‌ها">Projects</button>
+</nav>
 
-  <div class="cards">
+<main>
 
-    <a class="card" href="https://mehranmusicxx6898.pinet.com/" target="_blank" rel="noopener noreferrer">
-      <h3>MEHRAN MUSIC</h3>
-      <p id="music">Music, creativity, songs and artist experiences.</p>
-    </a>
-
-    <a class="card" href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_blank" rel="noopener noreferrer">
-      <h3>MEHRAN AI</h3>
-      <p id="ai">Artificial intelligence and intelligent digital assistants.</p>
-    </a>
-
-    <div class="card">
-      <h3>MEHRAN ROBOTICS</h3>
-      <p id="robotics">Robotics, automation and future technologies.</p>
-      <div class="status" id="roboticsStatus">COMING SOON</div>
+<!-- DASHBOARD -->
+<section id="dashboard" class="page active">
+  <div class="container">
+    <div class="welcome">
+      <h2 data-en="Welcome to MEHRAN MSH" data-fa="به مهران ام اس اچ خوش آمدید">Welcome to MEHRAN MSH</h2>
+      <p data-en="One central place for managing projects, accessing services and exploring the Mehran ecosystem."
+         data-fa="یک مرکز واحد برای مدیریت پروژه‌ها، دسترسی به خدمات و ارتباط با اکوسیستم مهران.">
+        One central place for managing projects, accessing services and exploring the Mehran ecosystem.
+      </p>
+      <span class="tag" id="accountStatus">GUEST ACCESS</span>
     </div>
 
-    <div class="card">
-      <h3>MEHRAN TECHNOLOGIES</h3>
-      <p id="tech">Technology projects and innovation across the ecosystem.</p>
-      <div class="status" id="techStatus">COMING SOON</div>
-    </div>
+    <h2 class="section-title" data-en="Ecosystem Overview" data-fa="نمای کلی اکوسیستم">Ecosystem Overview</h2>
 
+    <div class="grid">
+      <div class="card">
+        <h3 data-en="Projects" data-fa="پروژه‌ها">Projects</h3>
+        <div class="number">4</div>
+        <p data-en="Ecosystem projects" data-fa="پروژه‌های اکوسیستم">Ecosystem projects</p>
+      </div>
+      <div class="card">
+        <h3 data-en="User Services" data-fa="خدمات کاربران">User Services</h3>
+        <div class="number">01</div>
+        <p data-en="Public service center" data-fa="مرکز خدمات عمومی">Public service center</p>
+      </div>
+      <div class="card">
+        <h3 data-en="Intelligence" data-fa="هوش مهران">Intelligence</h3>
+        <div class="number">AI</div>
+        <p data-en="Intelligent assistant development" data-fa="توسعه دستیار هوشمند">Intelligent assistant development</p>
+      </div>
+      <div class="card">
+        <h3 data-en="Management" data-fa="مدیریت">Management</h3>
+        <div class="number">MSH</div>
+        <p data-en="Central ecosystem management" data-fa="مدیریت مرکزی اکوسیستم">Central ecosystem management</p>
+      </div>
+    </div>
   </div>
 </section>
+
+<!-- USER CENTER -->
+<section id="user" class="page">
+  <div class="container">
+    <div class="welcome">
+      <h2 data-en="User Center" data-fa="مرکز کاربران">User Center</h2>
+      <p data-en="Welcome to the public services area of the Mehran ecosystem."
+         data-fa="به بخش خدمات عمومی اکوسیستم مهران خوش آمدید.">
+        Welcome to the public services area of the Mehran ecosystem.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>MEHRAN MUSIC</h3>
+        <p data-en="Discover music and artist experiences."
+           data-fa="موسیقی و تجربه‌های هنری را کشف کنید.">Discover music and artist experiences.</p>
+        <br>
+        <a href="https://mehranmusicxx6898.pinet.com/" target="_blank" rel="noopener noreferrer">
+          <button data-en="Open Music" data-fa="ورود به موسیقی">Open Music</button>
+        </a>
+      </div>
+
+      <div class="card">
+        <h3>MEHRAN AI</h3>
+        <p data-en="Explore artificial intelligence services."
+           data-fa="خدمات هوش مصنوعی را بررسی کنید.">Explore artificial intelligence services.</p>
+        <br>
+        <a href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_blank" rel="noopener noreferrer">
+          <button data-en="Open AI" data-fa="ورود به هوش مصنوعی">Open AI</button>
+        </a>
+      </div>
+
+      <div class="card">
+        <h3>MEHRAN INTELLIGENCE</h3>
+        <p data-en="An intelligent ecosystem assistant. In development."
+           data-fa="دستیار هوشمند اکوسیستم. در حال توسعه.">An intelligent ecosystem assistant. In development.</p>
+        <span class="tag" data-en="IN DEVELOPMENT" data-fa="در حال توسعه">IN DEVELOPMENT</span>
+      </div>
+
+      <div class="card">
+        <h3>MEHRAN SERVICES</h3>
+        <p data-en="More ecosystem services will be added here."
+           data-fa="خدمات بیشتر اکوسیستم در آینده به این بخش اضافه می‌شوند.">More ecosystem services will be added here.</p>
+        <span class="tag" data-en="COMING SOON" data-fa="به‌زودی">COMING SOON</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ADMIN PANEL -->
+<section id="admin" class="page">
+  <div class="container">
+    <div class="welcome">
+      <h2 data-en="Administrator Dashboard" data-fa="داشبورد مدیر کل">Administrator Dashboard</h2>
+      <p data-en="Private management workspace for the Mehran ecosystem."
+         data-fa="فضای مدیریتی اختصاصی اکوسیستم مهران.">
+        Private management workspace for the Mehran ecosystem.
+      </p>
+      <span class="tag">ADMIN: MEHRANMSH</span>
+    </div>
+
+    <h2 class="section-title" data-en="Project Management" data-fa="مدیریت پروژه‌ها">Project Management</h2>
+
+    <div class="grid">
+      <div class="card">
+        <h3>MEHRAN MUSIC</h3>
+        <p data-en="Music platform" data-fa="پلتفرم موسیقی">Music platform</p>
+        <span class="tag" data-en="ACTIVE PROJECT" data-fa="پروژه فعال">ACTIVE PROJECT</span>
+      </div>
+      <div class="card">
+        <h3>MEHRAN AI</h3>
+        <p data-en="AI services" data-fa="خدمات هوش مصنوعی">AI services</p>
+        <span class="tag" data-en="ACTIVE PROJECT" data-fa="پروژه فعال">ACTIVE PROJECT</span>
+      </div>
+      <div class="card">
+        <h3>MEHRAN ROBOTICS</h3>
+        <p data-en="Robotics and automation" data-fa="رباتیک و اتوماسیون">Robotics and automation</p>
+        <span class="tag" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
+      </div>
+      <div class="card">
+        <h3>MEHRAN TECHNOLOGIES</h3>
+        <p data-en="Technology development" data-fa="توسعه فناوری">Technology development</p>
+        <span class="tag" data-en="PLANNED" data-fa="برنامه‌ریزی‌شده">PLANNED</span>
+      </div>
+    </div>
+
+    <br>
+    <h2 class="section-title" data-en="Task Manager" data-fa="مدیریت وظایف">Task Manager</h2>
+
+    <div class="card">
+      <p data-en="Add a task to your local management list."
+         data-fa="یک وظیفه به فهرست مدیریت خود اضافه کن.">
+        Add a task to your local management list.
+      </p>
+
+      <div class="field">
+        <input id="taskInput" type="text" maxlength="120"
+          placeholder="Enter a new task...">
+        <button onclick="addTask()" data-en="Add Task" data-fa="افزودن وظیفه">Add Task</button>
+      </div>
+
+      <div id="taskList"></div>
+      <p class="status" data-en="Tasks are currently saved only in this browser."
+         data-fa="وظایف فعلاً فقط در همین مرورگر ذخیره می‌شوند.">
+        Tasks are currently saved only in this browser.
+      </p>
+    </div>
+
+    <br>
+    <h2 class="section-title" data-en="Management Notes" data-fa="یادداشت‌های مدیریتی">Management Notes</h2>
+
+    <div class="card">
+      <textarea id="adminNotes" rows="5"
+        style="width:100%;background:#071321;color:white;border:1px solid #245071;border-radius:9px;padding:12px"
+        placeholder="Write your private notes..."></textarea>
+      <br><br>
+      <button onclick="saveNotes()" data-en="Save Notes" data-fa="ذخیره یادداشت">Save Notes</button>
+      <span id="notesMessage" class="status"></span>
+      <p class="status" data-en="Notes are stored locally in this browser, not on a secure server."
+         data-fa="یادداشت‌ها محلی ذخیره می‌شوند و هنوز روی سرور امن نیستند.">
+        Notes are stored locally in this browser, not on a secure server.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- PROJECTS -->
+<section id="projects" class="page">
+  <div class="container">
+    <h2 class="section-title" data-en="MEHRAN Ecosystem Projects" data-fa="پروژه‌های اکوسیستم مهران">MEHRAN Ecosystem Projects</h2>
+
+    <div class="grid">
+      <a class="card" href="https://mehranmusicxx6898.pinet.com/" target="_blank" rel="noopener noreferrer">
+        <h3>MEHRAN MUSIC</h3>
+        <p data-en="Music, creativity, songs and artist experiences."
+           data-fa="موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.">Music, creativity, songs and artist experiences.</p>
+      </a>
+
+      <a class="card" href="https://mehranmusicavmq2545.pinet.com/chatbot" target="_blank" rel="noopener noreferrer">
+        <h3>MEHRAN AI</h3>
+        <p data-en="Artificial intelligence and digital assistants."
+           data-fa="هوش مصنوعی و دستیارهای دیجیتال.">Artificial intelligence and digital assistants.</p>
+      </a>
+
+      <div class="card">
+        <h3>MEHRAN ROBOTICS</h3>
+        <p data-en="Robotics, automation and future technologies."
+           data-fa="رباتیک، اتوماسیون و فناوری‌های آینده.">Robotics, automation and future technologies.</p>
+        <span class="tag" data-en="COMING SOON" data-fa="به‌زودی">COMING SOON</span>
+      </div>
+
+      <div class="card">
+        <h3>MEHRAN TECHNOLOGIES</h3>
+        <p data-en="Technology projects and innovation."
+           data-fa="پروژه‌های فناوری و نوآوری.">Technology projects and innovation.</p>
+        <span class="tag" data-en="COMING SOON" data-fa="به‌زودی">COMING SOON</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 </main>
 
 <footer>© 2026 MEHRAN MSH | Building the Future</footer>
 
 <script>
 let english = true;
+let piSdkReady = false;
+let currentUser = null;
 
 const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
+const ADMIN_USERNAME = "Mehranmsh";
 const PI_REDIRECT_URI = "https://mehranmsh.github.io/";
+
+try {
+  if (window.Pi && typeof Pi.init === "function") {
+    Pi.init({version:"2.0"});
+    piSdkReady = true;
+  }
+} catch(error) {
+  console.error("Pi SDK initialization error:",error);
+}
 
 function showPiMessage(message) {
   document.getElementById("piMessage").textContent = message;
+}
+
+function showPage(page,button) {
+  if(page === "admin" && !isAdmin()) {
+    showPiMessage(
+      english ? "Administrator access required." : "دسترسی مدیر لازم است."
+    );
+    return;
+  }
+
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(page).classList.add("active");
+
+  document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+  if(button) button.classList.add("active");
+
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function isAdmin() {
+  return currentUser &&
+    currentUser.username &&
+    currentUser.username.toLowerCase() === ADMIN_USERNAME.toLowerCase();
+}
+
+function updateAccess() {
+  const adminNav = document.getElementById("adminNav");
+  const status = document.getElementById("accountStatus");
+
+  if(isAdmin()) {
+    adminNav.classList.remove("hidden");
+    status.textContent = "ADMIN ACCOUNT";
+  } else {
+    adminNav.classList.add("hidden");
+    status.textContent = currentUser ? "PI USER" : "GUEST ACCESS";
+  }
 }
 
 function toggleLanguage() {
@@ -129,187 +413,141 @@ function toggleLanguage() {
   document.getElementById("lang").textContent =
     english ? "فارسی" : "English";
 
+  document.querySelectorAll("[data-en]").forEach(el=>{
+    el.textContent = english ? el.dataset.en : el.dataset.fa;
+  });
+
   document.getElementById("intro").textContent = english
-    ? "A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem."
-    : "مرکز اصلی پروژه‌های دیجیتال، فناوری، موسیقی، هوش مصنوعی و رباتیک در اکوسیستم پای نتورک.";
+    ? "The central management and service center of the Mehran ecosystem."
+    : "مرکز مدیریت و خدمات مرکزی اکوسیستم مهران.";
 
-  document.getElementById("explore").textContent =
-    english ? "Explore Projects" : "مشاهده پروژه‌ها";
+  document.getElementById("piLogin").textContent =
+    currentUser
+      ? (english ? "Pi Connected" : "اتصال پای برقرار است")
+      : (english ? "Sign in with Pi" : "ورود با پای");
 
-  document.getElementById("heading").textContent =
-    english ? "OUR ECOSYSTEM" : "اکوسیستم ما";
+  document.getElementById("taskInput").placeholder =
+    english ? "Enter a new task..." : "وظیفه جدید را وارد کن...";
 
-  document.getElementById("music").textContent = english
-    ? "Music, creativity, songs and artist experiences."
-    : "موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.";
+  document.getElementById("adminNotes").placeholder =
+    english ? "Write your private notes..." : "یادداشت خصوصی خود را بنویس...";
 
-  document.getElementById("ai").textContent = english
-    ? "Artificial intelligence and intelligent digital assistants."
-    : "هوش مصنوعی و دستیارهای دیجیتال هوشمند.";
-
-  document.getElementById("robotics").textContent = english
-    ? "Robotics, automation and future technologies."
-    : "رباتیک، اتوماسیون و فناوری‌های آینده.";
-
-  document.getElementById("tech").textContent = english
-    ? "Technology projects and innovation across the ecosystem."
-    : "پروژه‌های فناوری و نوآوری در سراسر اکوسیستم.";
-
-  document.getElementById("roboticsStatus").textContent =
-    english ? "COMING SOON" : "به‌زودی";
-
-  document.getElementById("techStatus").textContent =
-    english ? "COMING SOON" : "به‌زودی";
-
-  if (!document.getElementById("piLogin").disabled) {
-    document.getElementById("piLogin").textContent =
-      english ? "Sign in with Pi" : "ورود با پای";
-  }
+  renderTasks();
 }
 
 function createState() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
-
   return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, "0"))
-    .join("");
+    .map(b=>b.toString(16).padStart(2,"0")).join("");
 }
 
 function signInWithPi() {
   const button = document.getElementById("piLogin");
 
   try {
-    if (!window.isSecureContext) {
+    if(!window.isSecureContext)
       throw new Error("HTTPS connection required.");
-    }
 
-    if (!window.Pi || typeof Pi.signIn !== "function") {
-      throw new Error("Pi Sign-In SDK is unavailable. Refresh the page.");
-    }
+    if(!window.Pi || typeof Pi.signIn !== "function")
+      throw new Error("Pi Sign-In SDK is unavailable.");
 
-    if (!piSdkReady) {
-      throw new Error("Pi SDK initialization failed. Please refresh.");
-    }
+    if(!piSdkReady)
+      throw new Error("Pi SDK initialization failed.");
 
     const state = createState();
-
-    sessionStorage.setItem("pi_oauth_state", state);
+    sessionStorage.setItem("pi_oauth_state",state);
 
     button.disabled = true;
 
     showPiMessage(
-      english
-        ? "Connecting to Pi Network..."
-        : "در حال اتصال به شبکه پای..."
+      english ? "Connecting to Pi Network..." : "در حال اتصال به شبکه پای..."
     );
 
     Pi.signIn({
-      clientId: PI_CLIENT_ID,
-      redirectUri: PI_REDIRECT_URI,
-      scopes: ["username"],
-      state: state
+      clientId:PI_CLIENT_ID,
+      redirectUri:PI_REDIRECT_URI,
+      scopes:["username"],
+      state:state
     });
 
-  } catch (error) {
-    console.error("Pi Sign-In Error:", error);
-
+  } catch(error) {
+    console.error(error);
     button.disabled = false;
-
     showPiMessage(
-      (english ? "Sign-in error: " : "خطای ورود: ") +
-      (error.message || "Unknown error")
+      (english ? "Sign-in error: " : "خطای ورود: ") + error.message
     );
   }
 }
 
 async function handlePiCallback() {
   const params = new URLSearchParams(window.location.hash.slice(1));
-
   const accessToken = params.get("access_token");
   const error = params.get("error");
   const returnedState = params.get("state");
 
-  if (!accessToken && !error) {
-    return;
-  }
+  if(!accessToken && !error) return;
 
   const expectedState = sessionStorage.getItem("pi_oauth_state");
 
   history.replaceState(
-    null,
-    "",
-    window.location.pathname + window.location.search
+    null,"",window.location.pathname + window.location.search
   );
 
-  if (!expectedState || returnedState !== expectedState) {
+  if(!expectedState || returnedState !== expectedState) {
     sessionStorage.removeItem("pi_oauth_state");
-
     showPiMessage(
-      english
-        ? "Sign-in verification failed. Please try again."
-        : "تأیید ورود ناموفق بود. دوباره تلاش کن."
+      english ? "Sign-in verification failed." : "تأیید ورود ناموفق بود."
     );
-
+    document.getElementById("piLogin").disabled = false;
     return;
   }
 
   sessionStorage.removeItem("pi_oauth_state");
 
-  if (error) {
+  if(error) {
     document.getElementById("piLogin").disabled = false;
-
-    showPiMessage(
-      (english ? "Pi Sign-In failed: " : "ورود پای ناموفق بود: ") +
-      error
-    );
-
+    showPiMessage("Pi Sign-In failed: " + error);
     return;
   }
 
   try {
     showPiMessage(
-      english
-        ? "Verifying Pi identity..."
-        : "در حال بررسی هویت پای..."
+      english ? "Verifying Pi identity..." : "در حال بررسی هویت پای..."
     );
 
-    const response = await fetch("https://api.minepi.com/v2/me", {
-      method: "GET",
-      headers: {
-        "Authorization": "Bearer " + accessToken
-      }
+    const response = await fetch("https://api.minepi.com/v2/me",{
+      headers:{"Authorization":"Bearer " + accessToken}
     });
 
-    if (!response.ok) {
+    if(!response.ok)
       throw new Error("Pi API returned HTTP " + response.status);
-    }
 
     const user = await response.json();
 
-    if (!user.username || !user.uid) {
-      throw new Error("Pi did not return the expected user information.");
-    }
+    if(!user.username || !user.uid)
+      throw new Error("Unexpected Pi user information.");
 
-    document.getElementById("piUser").textContent =
-      "@" + user.username;
+    currentUser = {
+      username:user.username,
+      uid:user.uid
+    };
 
+    document.getElementById("piUser").textContent = "@" + user.username;
     document.getElementById("piLogin").textContent =
       english ? "Pi Connected" : "اتصال برقرار است";
-
     document.getElementById("piLogin").disabled = true;
 
+    updateAccess();
+
     showPiMessage(
-      english
-        ? "Welcome, " + user.username + "!"
-        : "خوش آمدی " + user.username + "!"
+      english ? "Welcome, " + user.username + "!" :
+      "خوش آمدی " + user.username + "!"
     );
 
-  } catch (error) {
-    console.error("Pi Verification Error:", error);
-
+  } catch(error) {
+    console.error("Pi verification error:",error);
     document.getElementById("piLogin").disabled = false;
-
     showPiMessage(
       (english ? "Verification error: " : "خطای تأیید هویت: ") +
       error.message
@@ -317,7 +555,129 @@ async function handlePiCallback() {
   }
 }
 
+/* LOCAL TASK MANAGER */
+
+function getTasks() {
+  try {
+    return JSON.parse(localStorage.getItem("mehran_admin_tasks") || "[]");
+  } catch(error) {
+    return [];
+  }
+}
+
+function saveTasks(tasks) {
+  localStorage.setItem("mehran_admin_tasks",JSON.stringify(tasks));
+}
+
+function addTask() {
+  if(!isAdmin()) return;
+
+  const input = document.getElementById("taskInput");
+  const value = input.value.trim();
+
+  if(!value) {
+    alert(english ? "Enter a task first." : "اول یک وظیفه وارد کن.");
+    return;
+  }
+
+  const tasks = getTasks();
+  tasks.push({
+    id:Date.now(),
+    title:value,
+    done:false
+  });
+
+  saveTasks(tasks);
+  input.value = "";
+  renderTasks();
+}
+
+function toggleTask(id) {
+  if(!isAdmin()) return;
+
+  const tasks = getTasks().map(task=>{
+    if(task.id === id) task.done = !task.done;
+    return task;
+  });
+
+  saveTasks(tasks);
+  renderTasks();
+}
+
+function deleteTask(id) {
+  if(!isAdmin()) return;
+  saveTasks(getTasks().filter(task=>task.id !== id));
+  renderTasks();
+}
+
+function renderTasks() {
+  const list = document.getElementById("taskList");
+  if(!list) return;
+
+  if(!isAdmin()) {
+    list.innerHTML = '<p class="empty">Admin access required.</p>';
+    return;
+  }
+
+  const tasks = getTasks();
+  list.innerHTML = "";
+
+  if(tasks.length === 0) {
+    list.innerHTML = '<p class="empty">' +
+      (english ? "No tasks yet." : "هنوز وظیفه‌ای ثبت نشده.") +
+      '</p>';
+    return;
+  }
+
+  tasks.forEach(task=>{
+    const row = document.createElement("div");
+    row.className = "task";
+
+    const label = document.createElement("span");
+    label.textContent = (task.done ? "✓ " : "○ ") + task.title;
+    if(task.done) label.style.textDecoration = "line-through";
+
+    const actions = document.createElement("div");
+
+    const doneButton = document.createElement("button");
+    doneButton.textContent = task.done
+      ? (english ? "Undo" : "بازگردانی")
+      : (english ? "Complete" : "انجام شد");
+    doneButton.onclick = ()=>toggleTask(task.id);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.textContent = english ? "Delete" : "حذف";
+    deleteButton.onclick = ()=>deleteTask(task.id);
+
+    actions.append(doneButton,deleteButton);
+    row.append(label,actions);
+    list.appendChild(row);
+  });
+}
+
+/* LOCAL NOTES */
+
+function saveNotes() {
+  if(!isAdmin()) return;
+
+  localStorage.setItem(
+    "mehran_admin_notes",
+    document.getElementById("adminNotes").value
+  );
+
+  document.getElementById("notesMessage").textContent =
+    english ? "Saved locally." : "به‌صورت محلی ذخیره شد.";
+}
+
+function loadNotes() {
+  document.getElementById("adminNotes").value =
+    localStorage.getItem("mehran_admin_notes") || "";
+}
+
 handlePiCallback();
+updateAccess();
+renderTasks();
+loadNotes();
 </script>
 
 </body>
