@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#050914">
 <title>MEHRAN MSH | Digital Ecosystem</title>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#050914;color:#eef6ff;font-family:Arial,sans-serif}
@@ -19,69 +20,123 @@ button{background:#10243a;color:#56d4ff;border:1px solid #248cc0;padding:10px 17
 .section{padding:45px 8%;max-width:1200px;margin:auto}
 .section h2{text-align:center;color:#48caff;margin-bottom:30px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
-.card{background:#0b1728;border:1px solid #163b5b;border-radius:15px;padding:25px;min-height:155px}
+.card{
+display:block;
+background:#0b1728;
+border:1px solid #163b5b;
+border-radius:15px;
+padding:25px;
+min-height:155px;
+text-decoration:none;
+color:inherit;
+transition:.25s;
+}
+a.card:hover{border-color:#36caff;transform:translateY(-4px);box-shadow:0 0 18px #168ac044}
 .card h3{color:#48caff;margin-top:0}
 .card p{color:#a9bfd3;line-height:1.7;font-size:14px}
+.status{color:#6d91ad;font-size:12px;letter-spacing:1px}
 footer{text-align:center;padding:30px;color:#718da8;border-top:1px solid #142c48;font-size:13px}
 [dir="rtl"]{font-family:Tahoma,Arial,sans-serif}
 [dir="rtl"] header{flex-direction:row-reverse}
 </style>
 </head>
+
 <body>
+
 <header>
 <div class="logo">MEHRAN MSH</div>
 <button onclick="toggleLanguage()" id="lang">فارسی</button>
 </header>
 
 <main>
+
 <section class="hero">
 <h1>MEHRAN <span>MSH</span></h1>
-<p id="intro">A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.</p>
-<button onclick="document.getElementById('projects').scrollIntoView({behavior:'smooth'})" id="explore">Explore Projects</button>
+
+<p id="intro">
+A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.
+</p>
+
+<button onclick="document.getElementById('projects').scrollIntoView({behavior:'smooth'})" id="explore">
+Explore Projects
+</button>
 </section>
 
 <section class="section" id="projects">
+
 <h2 id="heading">OUR ECOSYSTEM</h2>
+
 <div class="cards">
-<div class="card">
+
+<a class="card" href="https://mehranmusicxx6898.pinet.com/">
 <h3>MEHRAN MUSIC</h3>
 <p id="music">Music, creativity, songs and artist experiences.</p>
-</div>
-<div class="card">
+</a>
+
+<a class="card" href="https://mehranmusicavmq2545.pinet.com/chatbot">
 <h3>MEHRAN AI</h3>
 <p id="ai">Artificial intelligence and intelligent digital assistants.</p>
-</div>
+</a>
+
 <div class="card">
 <h3>MEHRAN ROBOTICS</h3>
 <p id="robotics">Robotics, automation and future technologies.</p>
+<div class="status" id="roboticsStatus">COMING SOON</div>
 </div>
+
 <div class="card">
 <h3>MEHRAN TECHNOLOGIES</h3>
 <p id="tech">Technology projects and innovation across the ecosystem.</p>
+<div class="status" id="techStatus">COMING SOON</div>
 </div>
+
 </div>
 </section>
+
 </main>
 
 <footer>© 2026 MEHRAN MSH | Building the Future</footer>
 
 <script>
 let english=true;
+
 function toggleLanguage(){
+
 english=!english;
+
 document.documentElement.lang=english?"en":"fa";
 document.documentElement.dir=english?"ltr":"rtl";
+
 document.getElementById("lang").textContent=english?"فارسی":"English";
+
 document.getElementById("intro").textContent=english?
 "A central hub for digital projects, technology, music, artificial intelligence and robotics in the Pi Network ecosystem.":
 "مرکز اصلی پروژه‌های دیجیتال، فناوری، موسیقی، هوش مصنوعی و رباتیک در اکوسیستم پای نتورک.";
+
 document.getElementById("explore").textContent=english?"Explore Projects":"مشاهده پروژه‌ها";
+
 document.getElementById("heading").textContent=english?"OUR ECOSYSTEM":"اکوسیستم ما";
-document.getElementById("music").textContent=english?"Music, creativity, songs and artist experiences.":"موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.";
-document.getElementById("ai").textContent=english?"Artificial intelligence and intelligent digital assistants.":"هوش مصنوعی و دستیارهای دیجیتال هوشمند.";
-document.getElementById("robotics").textContent=english?"Robotics, automation and future technologies.":"رباتیک، اتوماسیون و فناوری‌های آینده.";
-document.getElementById("tech").textContent=english?"Technology projects and innovation across the ecosystem.":"پروژه‌های فناوری و نوآوری در سراسر اکوسیستم.";
+
+document.getElementById("music").textContent=english?
+"Music, creativity, songs and artist experiences.":
+"موسیقی، خلاقیت، آهنگ‌ها و تجربه‌های هنری.";
+
+document.getElementById("ai").textContent=english?
+"Artificial intelligence and intelligent digital assistants.":
+"هوش مصنوعی و دستیارهای دیجیتال هوشمند.";
+
+document.getElementById("robotics").textContent=english?
+"Robotics, automation and future technologies.":
+"رباتیک، اتوماسیون و فناوری‌های آینده.";
+
+document.getElementById("tech").textContent=english?
+"Technology projects and innovation across the ecosystem.":
+"پروژه‌های فناوری و نوآوری در سراسر اکوسیستم.";
+
+document.getElementById("roboticsStatus").textContent=english?"COMING SOON":"به‌زودی";
+document.getElementById("techStatus").textContent=english?"COMING SOON":"به‌زودی";
 }
 </script>
+
 </body>
 </html>
