@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -60,7 +59,7 @@
 <section class="page active" id="page-dashboard">
 <div class="hero"><div class="eyebrow">WELCOME TO YOUR DIGITAL WORLD</div><h1 id="heroTitle">One Hub. Many Possibilities.</h1><p id="heroText">MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.</p><div class="hero-actions"><button class="btn" onclick="showPage('user')">Open User Center</button><button class="btn secondary" onclick="showPage('social')">Explore SOCIAL</button></div></div>
 <div class="grid"><div class="card"><div class="eyebrow">IDENTITY</div><div class="stat" id="dashIdentity">Guest</div><div class="stat-label">Current account</div></div><div class="card"><div class="eyebrow">SOCIAL</div><div class="stat" id="dashPosts">0</div><div class="stat-label">Your local posts</div></div><div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="dashProjects">0</div><div class="stat-label">Projects available</div></div></div>
-<div class="section-title"><h2>Explore your workspace</h2></div><div class="grid"><div class="card"><h3>◉ User Center</h3><p>Manage your account, profile and Pi Network connection.</p></div><div class="card"><h3>◎ SOCIAL</h3><p>Profiles, posts, reels, messages, groups, channels and bots.</p></div><div class="card"><h3>✧ Intelligence</h3><p>A dedicated space for intelligent tools and future AI services.</p></div></div>
+<div class="section-title"><h2>Explore your workspace</h2></div><div class="grid"><div class="card"><h3>◉ User Center</h3><p>Manage your account, profile and Pi Network connection.</p></div><div class="card"><h3>◎ SOCIAL</h3><p>Profiles, posts, reels, messages, groups, channels and discovery.</p></div><div class="card"><h3>✧ Intelligence</h3><p>A dedicated space for intelligent tools and future AI services.</p></div></div>
 </section>
 
 <section class="page" id="page-user">
@@ -72,7 +71,7 @@
 
 <section class="page" id="page-social">
 <div class="social-shell">
-<div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Messages" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="toast('Notifications will be added with the social backend.')">♡</button><button title="Sign in" id="socialTopAuth">⇥</button></div></div>
+<div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Messages" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="toast('Notifications will be added with the social backend.')">♡</button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
 <div class="social-tabs">
 <button class="social-tab active" data-social="feed">⌂ Home</button>
 <button class="social-tab" data-social="explore">⌕ Explore</button>
@@ -185,9 +184,16 @@
 <p class="small-text">Create an account or sign in to interact with SOCIAL.</p>
 <div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div>
 <div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div>
-<div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="current-password"></div>
+<div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
 <div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div>
-<div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div>
+<div class="hero-actions">
+<button class="btn" id="socialRegisterBtn">Create account</button>
+<button class="btn secondary" id="socialLoginBtn">Sign in</button>
+</div>
+<div class="small-text" style="margin-top:14px;text-align:center">
+<span id="authSwitchText">Don't have an account?</span>
+<button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button>
+</div>
 <div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div>
 <div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div>
 </div></div>
@@ -208,7 +214,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts";
-let piUser=null,socialUser=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="login",draftFiles=[];
+let piUser=null,socialUser=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
@@ -224,49 +230,401 @@ checkWorker();
 function updateAccountUI(){const signed=!!piUser;$("userStatus").textContent=signed?"Connected":"Guest";$("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";$("piStatus").textContent=signed?"Connected":"Not connected";$("piUsername").value=piUser?.username||"";$("piUid").value=piUser?.uid||"";$("piLoginBtn").classList.toggle("hidden",signed);$("piLogoutBtn").classList.toggle("hidden",!signed);$("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";$("adminSession").textContent=signed?"Pi connected":"Guest"}
 async function piLogin(){if(!window.Pi){$("piMessage").textContent="Pi SDK was not detected. Open this app inside Pi Browser and try again.";$("piMessage").className="notice warn";return}try{window.Pi.init({version:"2.0",sandbox:false});const auth=await window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment));const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});piUser=data.user||auth.user;$("piMessage").textContent="Pi authentication completed successfully.";$("piMessage").className="notice success";updateAccountUI();toast("Pi account connected")}catch(error){$("piMessage").textContent=error.message||"Pi authentication failed.";$("piMessage").className="notice error"}}
 $("piLoginBtn").addEventListener("click",piLogin);$("piLogoutBtn").addEventListener("click",()=>{piUser=null;updateAccountUI();$("piMessage").textContent="Pi session disconnected from this page.";$("piMessage").className="notice"});
-function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
+function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
+function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
 function setSocialAuthMessage(message,type="notice"){$("socialAuthMessage").textContent=message;$("socialAuthMessage").className=type}
-function openAuth(mode="login"){authMode=mode;$("authModal").classList.add("open");document.body.style.overflow="hidden";updateAuthMode();$("socialAuthMessage").textContent="Your SOCIAL account is separate from your Pi wallet."}
+function openAuth(mode="register"){
+authMode=mode;
+$("authModal").classList.add("open");
+document.body.style.overflow="hidden";
+updateAuthMode();
+setSocialAuthMessage("Your SOCIAL account is separate from your Pi wallet.","notice");
+}
 function closeAuth(){$("authModal").classList.remove("open");document.body.style.overflow=""}
-function updateAuthMode(){$("authTitle").textContent=authMode==="register"?"Create your SOCIAL account":"Welcome back";$("socialRegisterBtn").classList.toggle("hidden",authMode!=="register");$("socialLoginBtn").classList.toggle("hidden",authMode!=="login");$("emailField").classList.toggle("hidden",authMode!=="register");$("displayNameField").classList.toggle("hidden",authMode!=="register")}
-function requireAuth(action){if(socialUser)return true;openAuth("login");setSocialAuthMessage("Sign in to "+action.toLowerCase()+".","notice warn");return false}
-$("socialTopAuth").addEventListener("click",()=>socialUser?switchSocial("settings"):openAuth("login"));
-async function socialRegister(){const username=$("socialUsername").value.trim(),email=$("socialEmail").value.trim(),password=$("socialPassword").value,displayName=$("socialDisplayName").value.trim()||username;if(!username||!email||!password){setSocialAuthMessage("Please enter a username, email and password.","notice warn");return}if(password.length<8){setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");return}try{const response=await fetch(SOCIAL_API+"/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,email,password,displayName})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.message||result.error||"Registration failed");if(result.token)localStorage.setItem(SOCIAL_TOKEN_KEY,result.token);if(result.user)socialUser=result.user;setSocialAuthMessage("Account created successfully.","notice success");if(getSocialToken()){await socialMe();closeAuth();toast("Welcome to SOCIAL")}else{authMode="login";updateAuthMode();setSocialAuthMessage("Account created. Please sign in.","notice success")}}catch(error){setSocialAuthMessage(error.message,"notice error")}}
-async function socialLogin(){const username=$("socialUsername").value.trim(),email=$("socialEmail").value.trim(),password=$("socialPassword").value;if(!password||!username){setSocialAuthMessage("Enter your username and password.","notice warn");return}try{const response=await fetch(SOCIAL_API+"/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,email,password})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Login failed");if(!data.token)throw new Error("The server did not return a session token.");localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);socialUser=data.user||null;await socialMe();closeAuth();toast("Welcome to SOCIAL")}catch(error){setSocialAuthMessage(error.message,"notice error")}}
-async function socialMe(){const token=getSocialToken();if(!token){socialUser=null;renderSocial();return}try{const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||"Session expired");socialUser=data.user||data;$("settingsUsername").value=socialUser.username||"";$("socialStatus").textContent="Connected";renderSocial()}catch(error){localStorage.removeItem(SOCIAL_TOKEN_KEY);socialUser=null;$("socialStatus").textContent="Not registered";renderSocial();$("settingsMessage").textContent="Please sign in again. "+error.message}}
-async function socialLogout(){try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}localStorage.removeItem(SOCIAL_TOKEN_KEY);socialUser=null;$("settingsUsername").value="";$("socialStatus").textContent="Not registered";renderSocial();toast("Signed out")}
-$("socialRegisterBtn").addEventListener("click",socialRegister);$("socialLoginBtn").addEventListener("click",socialLogin);$("socialLogoutBtn").addEventListener("click",socialLogout);$("refreshSessionBtn").addEventListener("click",socialMe);
-function currentUsername(){return socialUser?.username||socialUser?.displayName||"Member"}function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
+function updateAuthMode(){
+const registering=authMode==="register";
+$("authTitle").textContent=registering?"Create your SOCIAL account":"Welcome back";
+$("socialRegisterBtn").classList.toggle("hidden",!registering);
+$("socialLoginBtn").classList.toggle("hidden",registering);
+$("emailField").classList.toggle("hidden",!registering);
+$("displayNameField").classList.toggle("hidden",!registering);
+$("socialPassword").setAttribute("autocomplete",registering?"new-password":"current-password");
+$("socialPassword").placeholder=registering?"At least 8 characters":"Your password";
+$("authSwitchText").textContent=registering?"Already have an account?":"Don't have an account?";
+$("authSwitchBtn").textContent=registering?"Sign in":"Create account";
+}
+function requireAuth(action){
+if(socialUser)return true;
+openAuth("register");
+setSocialAuthMessage("Create an account or sign in to "+action.toLowerCase()+".","notice warn");
+return false;
+}
+$("socialTopAuth").addEventListener("click",()=>socialUser?switchSocial("settings"):openAuth("register"));
+$("authSwitchBtn").addEventListener("click",()=>{
+authMode=authMode==="register"?"login":"register";
+updateAuthMode();
+setSocialAuthMessage(authMode==="register"?"Enter your details to create an account.":"Enter your username and password to sign in.","notice");
+});
+async function socialRegister(){
+const username=$("socialUsername").value.trim();
+const email=$("socialEmail").value.trim();
+const password=$("socialPassword").value;
+const displayName=$("socialDisplayName").value.trim()||username;
+if(!username||!email||!password){
+setSocialAuthMessage("Please enter a username, email and password.","notice warn");
+return;
+}
+if(password.length<8){
+setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");
+return;
+}
+try{
+const response=await fetch(SOCIAL_API+"/register",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({username,email,password,displayName})
+});
+const result=await response.json().catch(()=>({}));
+if(!response.ok)throw new Error(result.message||result.error||"Registration failed");
+if(result.token)localStorage.setItem(SOCIAL_TOKEN_KEY,result.token);
+if(result.user)socialUser=result.user;
+setSocialAuthMessage("Account created successfully.","notice success");
+if(getSocialToken()){
+await socialMe();
+closeAuth();
+toast("Welcome to SOCIAL");
+}else{
+authMode="login";
+updateAuthMode();
+setSocialAuthMessage("Account created. Please sign in.","notice success");
+}
+}catch(error){
+setSocialAuthMessage(error.message,"notice error");
+}
+}
+async function socialLogin(){
+const username=$("socialUsername").value.trim();
+const password=$("socialPassword").value;
+if(!password||!username){
+setSocialAuthMessage("Enter your username and password.","notice warn");
+return;
+}
+try{
+const response=await fetch(SOCIAL_API+"/login",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({username,password})
+});
+const data=await response.json().catch(()=>({}));
+if(!response.ok)throw new Error(data.message||data.error||"Login failed");
+if(!data.token)throw new Error("The server did not return a session token.");
+localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
+socialUser=data.user||null;
+await socialMe();
+closeAuth();
+toast("Welcome to SOCIAL");
+}catch(error){
+setSocialAuthMessage(error.message,"notice error");
+}
+}
+async function socialMe(){
+const token=getSocialToken();
+if(!token){socialUser=null;renderSocial();return}
+try{
+const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});
+const data=await response.json().catch(()=>({}));
+if(!response.ok)throw new Error(data.message||"Session expired");
+socialUser=data.user||data;
+$("settingsUsername").value=socialUser.username||"";
+$("socialStatus").textContent="Connected";
+renderSocial();
+}catch(error){
+localStorage.removeItem(SOCIAL_TOKEN_KEY);
+socialUser=null;
+$("socialStatus").textContent="Not registered";
+renderSocial();
+$("settingsMessage").textContent="Please sign in again. "+error.message;
+}
+}
+async function socialLogout(){
+try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}
+localStorage.removeItem(SOCIAL_TOKEN_KEY);
+socialUser=null;
+$("settingsUsername").value="";
+$("socialStatus").textContent="Not registered";
+renderSocial();
+toast("Signed out");
+}
+$("socialRegisterBtn").addEventListener("click",socialRegister);
+$("socialLoginBtn").addEventListener("click",socialLogin);
+$("socialLogoutBtn").addEventListener("click",socialLogout);
+$("refreshSessionBtn").addEventListener("click",socialMe);
+
+function currentUsername(){return socialUser?.username||socialUser?.displayName||"Member"}
+function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
 function renderAvatar(id){const el=$(id);if(!el)return;if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';else el.textContent=profileInitial()}
-function renderProfile(){const logged=!!socialUser;$("profileLoginNotice").classList.toggle("hidden",logged);$("profileEditor").classList.toggle("hidden",!logged);if(!logged)return;$("profileDisplayName").value=localProfile.displayName||socialUser.displayName||socialUser.username||"";$("profileBio").value=localProfile.bio||"";renderAvatar("sideAvatar")}
-function renderSocial(){const logged=!!socialUser;$("socialStatus").textContent=logged?"Connected":"Not registered";$("socialTopAuth").textContent=logged?"⚙":"⇥";$("dashPosts").textContent=posts.length;$("settingsUsername").value=logged?(socialUser.username||""):"";$("sideProfileName").textContent=logged?(localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile"):"Welcome to SOCIAL";$("sideProfileBio").textContent=logged?(localProfile.bio||"Welcome to your SOCIAL profile."):"Browse the feed or sign in to create your profile.";$("profilePostCount").textContent=logged?posts.filter(p=>p.author===currentUsername()).length:0;renderAvatar("sideAvatar");renderFeed();renderExplore();renderReels()}
+function renderProfile(){
+const logged=!!socialUser;
+$("profileLoginNotice").classList.toggle("hidden",logged);
+$("profileEditor").classList.toggle("hidden",!logged);
+if(!logged)return;
+$("profileDisplayName").value=localProfile.displayName||socialUser.displayName||socialUser.username||"";
+$("profileBio").value=localProfile.bio||"";
+renderAvatar("sideAvatar");
+}
+function renderSocial(){
+const logged=!!socialUser;
+$("socialStatus").textContent=logged?"Connected":"Not registered";
+$("socialTopAuth").textContent=logged?"⚙":"⇥";
+$("dashPosts").textContent=posts.length;
+$("settingsUsername").value=logged?(socialUser.username||""):"";
+$("sideProfileName").textContent=logged?(localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile"):"Welcome to SOCIAL";
+$("sideProfileBio").textContent=logged?(localProfile.bio||"Welcome to your SOCIAL profile."):"Browse the feed or sign in to create your profile.";
+$("profilePostCount").textContent=logged?posts.filter(p=>p.author===currentUsername()).length:0;
+renderAvatar("sideAvatar");
+renderFeed();
+renderExplore();
+renderReels();
+}
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
 function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
-function renderFeed(){const list=$("feedList");if(!list)return;$("feedCount").textContent=posts.length+" local posts";if(!posts.length){list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';return}list.innerHTML=posts.map(post=>{const liked=(post.likes||[]).includes(currentUsername()),comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(c.author)+':</strong> '+escapeHTML(c.text)+'</div>').join(""),media=getPostMedia(post),first=media[0];let mediaHTML="";if(first){mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>'}return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((post.author||"M").charAt(0).toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong><small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+escapeHTML(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+(post.likes||[]).length+' Likes</button><span class="small-text">'+(post.comments||[]).length+' comments</span></div><div class="comment-list">'+comments+'</div><div class="comment-form"><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>'}).join("")}
-function renderExplore(){const grid=$("exploreGrid");if(!grid)return;const q=($("exploreSearch")?.value||"").toLowerCase();const filtered=posts.filter(p=>(p.text||"").toLowerCase().includes(q)||(p.author||"").toLowerCase().includes(q));$("exploreEmpty").classList.toggle("hidden",filtered.length>0);grid.innerHTML=filtered.map(p=>{const m=getPostMedia(p)[0];if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>'}).join("")}
+function renderFeed(){
+const list=$("feedList");
+if(!list)return;
+$("feedCount").textContent=posts.length+" local posts";
+if(!posts.length){
+list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';
+return;
+}
+list.innerHTML=posts.map(post=>{
+const liked=(post.likes||[]).includes(currentUsername());
+const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(c.author)+':</strong> '+escapeHTML(c.text)+'</div>').join("");
+const media=getPostMedia(post),first=media[0];
+let mediaHTML="";
+if(first){
+mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
+}
+return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((post.author||"M").charAt(0).toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong><small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+escapeHTML(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+(post.likes||[]).length+' Likes</button><span class="small-text">'+(post.comments||[]).length+' comments</span></div><div class="comment-list">'+comments+'</div><div class="comment-form"><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
+}).join("");
+}
+function renderExplore(){
+const grid=$("exploreGrid");
+if(!grid)return;
+const q=($("exploreSearch")?.value||"").toLowerCase();
+const filtered=posts.filter(p=>(p.text||"").toLowerCase().includes(q)||(p.author||"").toLowerCase().includes(q));
+$("exploreEmpty").classList.toggle("hidden",filtered.length>0);
+grid.innerHTML=filtered.map(p=>{
+const m=getPostMedia(p)[0];
+if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';
+return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>';
+}).join("");
+}
 $("exploreSearch").addEventListener("input",renderExplore);
-function renderReels(){const box=$("reelsList");if(!box)return;const videos=posts.filter(p=>getPostMedia(p).some(m=>m.type==="video"));if(!videos.length){box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';return}box.innerHTML=videos.map(p=>{const m=getPostMedia(p).find(x=>x.type==="video");return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+m.data+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>'}).join("")}
-window.changePostMedia=function(id,delta){const post=posts.find(p=>p.id===id);if(!post)return;const media=getPostMedia(post);let index=post._viewIndex||0;index=(index+delta+media.length)%media.length;post._viewIndex=index;const stage=$("postmedia-"+id);if(!stage)return;stage.querySelector("img,video")?.remove();stage.insertAdjacentHTML("afterbegin",mediaMarkup(media[index]));stage.querySelector(".media-indicator").textContent=(index+1)+" / "+media.length}
-window.toggleLike=function(id){if(!requireAuth("Like a post"))return;const post=posts.find(p=>p.id===id);if(!post)return;post.likes=post.likes||[];const i=post.likes.indexOf(currentUsername());if(i>=0)post.likes.splice(i,1);else post.likes.push(currentUsername());saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed()}
-window.addComment=function(id){if(!requireAuth("Comment on a post"))return;const input=$("comment-"+id),text=input?.value.trim();if(!text)return;const post=posts.find(p=>p.id===id);if(!post)return;post.comments=post.comments||[];post.comments.push({author:currentUsername(),text});saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed()}
-window.deletePost=function(id){const post=posts.find(p=>p.id===id);if(!socialUser||!post||post.author!==currentUsername())return;if(!confirm("Delete this post?"))return;posts=posts.filter(p=>p.id!==id);saveJSON(SOCIAL_POSTS_KEY,posts);renderSocial()}
-function openCreate(){if(!requireAuth("Create a post"))return;draftFiles=[];$("postMediaInput").value="";$("postCaption").value="";$("captionCount").textContent="0 / 2200";$("uploadPreview").innerHTML="";$("createModal").classList.add("open");document.body.style.overflow="hidden"}
-function closeCreate(){ $("createModal").classList.remove("open");document.body.style.overflow="";draftFiles=[]}
-$("openCreatePost").addEventListener("click",openCreate);$("closeCreate").addEventListener("click",closeCreate);$("cancelPostBtn").addEventListener("click",closeCreate);
-$("postMediaInput").addEventListener("change",async e=>{const files=Array.from(e.target.files||[]);if(files.length>10){toast("Maximum 10 files per post.");return}let total=0;draftFiles=[];for(const file of files){if(!file.type.startsWith("image/")&&!file.type.startsWith("video/"))continue;if(file.size>700*1024){toast(file.name+" is larger than 700 KB.");continue}total+=file.size;if(total>2.5*1024*1024){toast("Total media size must stay under 2.5 MB.");break}try{const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name})}catch{toast("Could not read "+file.name)}}$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'">').join("")});
+function renderReels(){
+const box=$("reelsList");
+if(!box)return;
+const videos=posts.filter(p=>getPostMedia(p).some(m=>m.type==="video"));
+if(!videos.length){
+box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';
+return;
+}
+box.innerHTML=videos.map(p=>{
+const m=getPostMedia(p).find(x=>x.type==="video");
+return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+m.data+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
+}).join("");
+}
+window.changePostMedia=function(id,delta){
+const post=posts.find(p=>p.id===id);
+if(!post)return;
+const media=getPostMedia(post);
+let index=post._viewIndex||0;
+index=(index+delta+media.length)%media.length;
+post._viewIndex=index;
+const stage=$("postmedia-"+id);
+if(!stage)return;
+stage.querySelector("img,video")?.remove();
+stage.insertAdjacentHTML("afterbegin",mediaMarkup(media[index]));
+stage.querySelector(".media-indicator").textContent=(index+1)+" / "+media.length;
+}
+window.toggleLike=function(id){
+if(!requireAuth("Like a post"))return;
+const post=posts.find(p=>p.id===id);
+if(!post)return;
+post.likes=post.likes||[];
+const i=post.likes.indexOf(currentUsername());
+if(i>=0)post.likes.splice(i,1);else post.likes.push(currentUsername());
+saveJSON(SOCIAL_POSTS_KEY,posts);
+renderFeed();
+}
+window.addComment=function(id){
+if(!requireAuth("Comment on a post"))return;
+const input=$("comment-"+id),text=input?.value.trim();
+if(!text)return;
+const post=posts.find(p=>p.id===id);
+if(!post)return;
+post.comments=post.comments||[];
+post.comments.push({author:currentUsername(),text});
+saveJSON(SOCIAL_POSTS_KEY,posts);
+renderFeed();
+}
+window.deletePost=function(id){
+const post=posts.find(p=>p.id===id);
+if(!socialUser||!post||post.author!==currentUsername())return;
+if(!confirm("Delete this post?"))return;
+posts=posts.filter(p=>p.id!==id);
+saveJSON(SOCIAL_POSTS_KEY,posts);
+renderSocial();
+}
+function openCreate(){
+if(!requireAuth("Create a post"))return;
+draftFiles=[];
+$("postMediaInput").value="";
+$("postCaption").value="";
+$("captionCount").textContent="0 / 2200";
+$("uploadPreview").innerHTML="";
+$("createModal").classList.add("open");
+document.body.style.overflow="hidden";
+}
+function closeCreate(){
+$("createModal").classList.remove("open");
+document.body.style.overflow="";
+draftFiles=[];
+}
+$("openCreatePost").addEventListener("click",openCreate);
+$("closeCreate").addEventListener("click",closeCreate);
+$("cancelPostBtn").addEventListener("click",closeCreate);
+$("postMediaInput").addEventListener("change",async e=>{
+const files=Array.from(e.target.files||[]);
+if(files.length>10){toast("Maximum 10 files per post.");return}
+let total=0;
+draftFiles=[];
+for(const file of files){
+if(!file.type.startsWith("image/")&&!file.type.startsWith("video/"))continue;
+if(file.size>700*1024){toast(file.name+" is larger than 700 KB.");continue}
+total+=file.size;
+if(total>2.5*1024*1024){toast("Total media size must stay under 2.5 MB.");break}
+try{
+const data=await new Promise((resolve,reject)=>{
+const r=new FileReader();
+r.onload=()=>resolve(r.result);
+r.onerror=reject;
+r.readAsDataURL(file);
+});
+draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name});
+}catch{toast("Could not read "+file.name)}
+}
+$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'">').join("");
+});
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
-$("publishPostBtn").addEventListener("click",()=>{if(!socialUser){closeCreate();openAuth("login");return}const text=$("postCaption").value.trim();if(!text&&!draftFiles.length){toast("Add a caption or media.");return}try{const post={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),author:currentUsername(),displayName:localProfile.displayName||currentUsername(),text,media:draftFiles,date:new Date().toLocaleString(),likes:[],comments:[]};posts.unshift(post);saveJSON(SOCIAL_POSTS_KEY,posts);closeCreate();renderSocial();toast("Post saved on this device.")}catch(error){toast("Could not save post. Try fewer or smaller files.")}});
-async function readFileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read file"));reader.readAsDataURL(file)})}
-async function readImage(file,maxBytes){if(!file)return "";if(!file.type.startsWith("image/"))throw new Error("Please choose an image file.");if(file.size>maxBytes)throw new Error("Image must be smaller than "+Math.round(maxBytes/1024)+" KB.");return await readFileData(file)}
-$("saveProfileBtn").addEventListener("click",async()=>{if(!socialUser)return;try{localProfile.displayName=$("profileDisplayName").value.trim();localProfile.bio=$("profileBio").value.trim();const file=$("profilePhoto").files[0];if(file)localProfile.photo=await readImage(file,700*1024);saveJSON(SOCIAL_PROFILE_KEY,localProfile);$("profileMessage").textContent="Profile saved on this device.";$("profileMessage").className="notice success";renderSocial();renderProfile()}catch(error){$("profileMessage").textContent=error.message;$("profileMessage").className="notice error"}});
-$("removePhotoBtn").addEventListener("click",()=>{delete localProfile.photo;saveJSON(SOCIAL_PROFILE_KEY,localProfile);$("profilePhoto").value="";renderProfile();renderSocial();$("profileMessage").textContent="Profile photo removed."});
-async function loadProjects(){$("projectsMessage").textContent="Loading projects...";try{const data=await api("/projects");projects=Array.isArray(data)?data:(data.projects||[]);$("dashProjects").textContent=projects.length;renderProjects();$("projectsMessage").textContent=projects.length+" projects loaded.";$("projectsMessage").className="notice success"}catch(error){$("projectsMessage").textContent="Could not load projects: "+error.message;$("projectsMessage").className="notice warn";$("projectsList").innerHTML=""}}
-function renderProjects(){const el=$("projectsList");if(!projects.length){el.innerHTML='<div class="empty">No projects are available yet.</div>';return}el.innerHTML='<div class="grid">'+projects.map(p=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(p.name||p.title||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p></div>').join("")+'</div>'}
+$("publishPostBtn").addEventListener("click",()=>{
+if(!socialUser){closeCreate();openAuth("register");return}
+const text=$("postCaption").value.trim();
+if(!text&&!draftFiles.length){toast("Add a caption or media.");return}
+try{
+const post={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),author:currentUsername(),displayName:localProfile.displayName||currentUsername(),text,media:draftFiles,date:new Date().toLocaleString(),likes:[],comments:[]};
+posts.unshift(post);
+saveJSON(SOCIAL_POSTS_KEY,posts);
+closeCreate();
+renderSocial();
+toast("Post saved on this device.");
+}catch(error){toast("Could not save post. Try fewer or smaller files.")}
+});
+async function readFileData(file){
+return new Promise((resolve,reject)=>{
+const reader=new FileReader();
+reader.onload=()=>resolve(reader.result);
+reader.onerror=()=>reject(new Error("Could not read file"));
+reader.readAsDataURL(file);
+});
+}
+async function readImage(file,maxBytes){
+if(!file)return "";
+if(!file.type.startsWith("image/"))throw new Error("Please choose an image file.");
+if(file.size>maxBytes)throw new Error("Image must be smaller than "+Math.round(maxBytes/1024)+" KB.");
+return await readFileData(file);
+}
+$("saveProfileBtn").addEventListener("click",async()=>{
+if(!socialUser)return;
+try{
+localProfile.displayName=$("profileDisplayName").value.trim();
+localProfile.bio=$("profileBio").value.trim();
+const file=$("profilePhoto").files[0];
+if(file)localProfile.photo=await readImage(file,700*1024);
+saveJSON(SOCIAL_PROFILE_KEY,localProfile);
+$("profileMessage").textContent="Profile saved on this device.";
+$("profileMessage").className="notice success";
+renderSocial();
+renderProfile();
+}catch(error){
+$("profileMessage").textContent=error.message;
+$("profileMessage").className="notice error";
+}
+});
+$("removePhotoBtn").addEventListener("click",()=>{
+delete localProfile.photo;
+saveJSON(SOCIAL_PROFILE_KEY,localProfile);
+$("profilePhoto").value="";
+renderProfile();
+renderSocial();
+$("profileMessage").textContent="Profile photo removed.";
+});
+async function loadProjects(){
+$("projectsMessage").textContent="Loading projects...";
+try{
+const data=await api("/projects");
+projects=Array.isArray(data)?data:(data.projects||[]);
+$("dashProjects").textContent=projects.length;
+renderProjects();
+$("projectsMessage").textContent=projects.length+" projects loaded.";
+$("projectsMessage").className="notice success";
+}catch(error){
+$("projectsMessage").textContent="Could not load projects: "+error.message;
+$("projectsMessage").className="notice warn";
+$("projectsList").innerHTML="";
+}
+}
+function renderProjects(){
+const el=$("projectsList");
+if(!projects.length){
+el.innerHTML='<div class="empty">No projects are available yet.</div>';
+return;
+}
+el.innerHTML='<div class="grid">'+projects.map(p=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(p.name||p.title||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p></div>').join("")+'</div>';
+}
 $("refreshProjectsBtn").addEventListener("click",loadProjects);
-$("createProjectBtn").addEventListener("click",async()=>{const name=$("projectName").value.trim(),description=$("projectDescription").value.trim();if(!name){toast("Enter a project name");return}try{await api("/projects",{method:"POST",body:JSON.stringify({name,description})});$("projectName").value="";$("projectDescription").value="";toast("Project created");loadProjects()}catch(error){toast("Project creation failed: "+error.message)}});
-$("languageBtn").addEventListener("click",()=>{currentLanguage=currentLanguage==="en"?"fa":"en";if(currentLanguage==="fa"){document.documentElement.lang="fa";document.documentElement.dir="rtl";$("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";$("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";$("languageBtn").textContent="FA / EN"}else{document.documentElement.lang="en";document.documentElement.dir="ltr";$("heroTitle").textContent="One Hub. Many Possibilities.";$("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";$("languageBtn").textContent="EN / FA"}});
+$("createProjectBtn").addEventListener("click",async()=>{
+const name=$("projectName").value.trim(),description=$("projectDescription").value.trim();
+if(!name){toast("Enter a project name");return}
+try{
+await api("/projects",{method:"POST",body:JSON.stringify({name,description})});
+$("projectName").value="";
+$("projectDescription").value="";
+toast("Project created");
+loadProjects();
+}catch(error){toast("Project creation failed: "+error.message)}
+});
+$("languageBtn").addEventListener("click",()=>{
+currentLanguage=currentLanguage==="en"?"fa":"en";
+if(currentLanguage==="fa"){
+document.documentElement.lang="fa";
+document.documentElement.dir="rtl";
+$("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";
+$("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";
+$("languageBtn").textContent="FA / EN";
+}else{
+document.documentElement.lang="en";
+document.documentElement.dir="ltr";
+$("heroTitle").textContent="One Hub. Many Possibilities.";
+$("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";
+$("languageBtn").textContent="EN / FA";
+}
+});
 $("authModal").addEventListener("click",e=>{if(e.target===$("authModal"))closeAuth()});
-updateAccountUI();socialMe();renderSocial();loadProjects();
+updateAccountUI();
+socialMe();
+renderSocial();
+loadProjects();
+updateAuthMode();
 </script>
 </body>
 </html>
