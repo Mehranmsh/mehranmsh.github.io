@@ -6,14 +6,15 @@ const RAPIDFILE_API = "https://api.rapidfile.cc/v1";
 const SESSION_DAYS = 30;
 const PBKDF2_ITERATIONS = 310000;
 const LEGACY_PBKDF2_ITERATIONS = 100000;
-const MAX_BODY_BYTES = 20000;
+const MAX_BODY_BYTES = 100000;
 const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
+const MAX_POST_MEDIA = 10;
 
-// -------------------------
-// RESPONSE
-// -------------------------
+// =====================================================
+// RESPONSE AND REQUEST HELPERS
+// =====================================================
 
-function json(data, status = 200, extraHeaders = {}) {
+function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -25,8 +26,7 @@ function json(data, status = 200, extraHeaders = {}) {
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "no-referrer",
-      "X-Frame-Options": "DENY",
-      ...extraHeaders
+      "X-Frame-Options": "DENY"
     }
   });
 }
@@ -35,29 +35,13 @@ function error(message, status = 400) {
   return json({ success: false, error: message }, status);
 }
 
-// -------------------------
-// SAFE REQUEST BODY
-// -------------------------
-
 async function readBody(request) {
   try {
     const contentType = request.headers.get("Content-Type") || "";
+    if (!contentType.toLowerCase().includes("application/json")) return null;
 
-    if (!contentType.toLowerCase().includes("application/json")) {
-      return null;
-    }
-
-    const declaredLength = Number(
-      request.headers.get("Content-Length") || 0
-    );
-
-    if (
-      !Number.isFinite(declaredLength) ||
-      declaredLength > MAX_BODY_BYTES
-    ) {
-      return null;
-    }
-
+    const length = Number(request.headers.get("Content-Length") || 0);
+    if (!Number.isFinite(length) || length > MAX_BODY_BYTES) return null;
     if (!request.body) return null;
 
     const reader = request.body.getReader();
@@ -67,187 +51,297 @@ async function readBody(request) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       total += value.byteLength;
-
       if (total > MAX_BODY_BYTES) {
         await reader.cancel();
         return null;
       }
-
       chunks.push(value);
     }
 
-    const combined = new Uint8Array(total);
+    const bytes = new Uint8Array(total);
     let offset = 0;
-
     for (const chunk of chunks) {
-      combined.set(chunk, offset);
+      bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
 
-    const parsed = JSON.parse(
-      new TextDecoder().decode(combined)
-    );
-
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      Array.isArray(parsed)
-    ) {
-      return null;
-    }
-
-    return parsed;
+    const value = JSON.parse(new TextDecoder().decode(bytes));
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    return value;
   } catch {
     return null;
   }
 }
 
-// -------------------------
+function getBearer(request) {
+  const value = request.headers.get("Authorization") || "";
+  const match = value.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : "";
+}
+
+function cleanText(value, max = 5000) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, max);
+}
+
+function safeLimit(value, fallback = 30, max = 50) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) return fallback;
+  return Math.min(n, max);
+}
+
+function validHttpsUrl(value) {
+  if (typeof value !== "string" || value.length > 2048) return false;
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+// =====================================================
+// CRYPTO
+// =====================================================
+
+function toBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function fromBase64Url(value) {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+  return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+}
+
+async function sha256(value) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value)
+  );
+  return toBase64Url(new Uint8Array(digest));
+}
+
+async function hashPassword(password, iterations = PBKDF2_ITERATIONS) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    key,
+    256
+  );
+  return ["pbkdf2", iterations, toBase64Url(salt), toBase64Url(new Uint8Array(bits))].join("$");
+}
+
+async function verifyPassword(password, storedHash) {
+  try {
+    if (typeof storedHash !== "string") return { valid: false, needsUpgrade: false };
+    const parts = storedHash.split("$");
+    if (parts.length !== 4 || parts[0] !== "pbkdf2") {
+      return { valid: false, needsUpgrade: false };
+    }
+
+    const iterations = Number(parts[1]);
+    if (![LEGACY_PBKDF2_ITERATIONS, PBKDF2_ITERATIONS].includes(iterations)) {
+      return { valid: false, needsUpgrade: false };
+    }
+
+    const salt = fromBase64Url(parts[2]);
+    const expected = fromBase64Url(parts[3]);
+    if (salt.length !== 16 || expected.length !== 32) {
+      return { valid: false, needsUpgrade: false };
+    }
+
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]
+    );
+    const bits = await crypto.subtle.deriveBits(
+      { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+      key,
+      256
+    );
+
+    const actual = new Uint8Array(bits);
+    let difference = 0;
+    for (let i = 0; i < actual.length; i++) difference |= actual[i] ^ expected[i];
+
+    const valid = difference === 0;
+    return { valid, needsUpgrade: valid && iterations < PBKDF2_ITERATIONS };
+  } catch {
+    return { valid: false, needsUpgrade: false };
+  }
+}
+
+function createSessionToken() {
+  return toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+// =====================================================
 // RATE LIMITING
-// -------------------------
+// =====================================================
 
-async function checkRateLimit(
-  env,
-  request,
-  scope,
-  maxAttempts,
-  windowSeconds,
-  blockSeconds
-) {
-  const ip =
-    request.headers.get("CF-Connecting-IP") || "unknown";
-
-  const rateKey = await sha256(`${scope}:${ip}`);
+async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, blockSeconds) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const key = await sha256(`${scope}:${ip}`);
   const now = Math.floor(Date.now() / 1000);
   const windowStart = now - windowSeconds;
 
   const row = await env.DB.prepare(
     `INSERT INTO social_auth_limits
-       (rate_key, attempts, window_started_at, blocked_until)
+      (rate_key, attempts, window_started_at, blocked_until)
      VALUES (?, 1, ?, NULL)
      ON CONFLICT(rate_key) DO UPDATE SET
        attempts = CASE
-         WHEN social_auth_limits.window_started_at <= ?
-         THEN 1
+         WHEN social_auth_limits.window_started_at <= ? THEN 1
          ELSE social_auth_limits.attempts + 1
        END,
        window_started_at = CASE
-         WHEN social_auth_limits.window_started_at <= ?
-         THEN excluded.window_started_at
+         WHEN social_auth_limits.window_started_at <= ? THEN excluded.window_started_at
          ELSE social_auth_limits.window_started_at
        END,
        blocked_until = CASE
-         WHEN social_auth_limits.window_started_at <= ?
-         THEN NULL
+         WHEN social_auth_limits.window_started_at <= ? THEN NULL
          ELSE social_auth_limits.blocked_until
        END
      RETURNING attempts, blocked_until`
-  ).bind(
-    rateKey,
-    now,
-    windowStart,
-    windowStart,
-    windowStart
-  ).first();
+  ).bind(key, now, windowStart, windowStart, windowStart).first();
 
   if (!row) throw new Error("Rate limit check failed");
-
-  if (
-    row.blocked_until &&
-    Number(row.blocked_until) > now
-  ) {
-    return false;
-  }
+  if (row.blocked_until && Number(row.blocked_until) > now) return false;
 
   if (Number(row.attempts) > maxAttempts) {
     await env.DB.prepare(
-      `UPDATE social_auth_limits
-       SET blocked_until = ?
-       WHERE rate_key = ?`
-    ).bind(now + blockSeconds, rateKey).run();
-
+      "UPDATE social_auth_limits SET blocked_until = ? WHERE rate_key = ?"
+    ).bind(now + blockSeconds, key).run();
     return false;
   }
-
   return true;
 }
 
-// -------------------------
-// PROJECT HELPERS
-// -------------------------
+// =====================================================
+// DATABASE TABLES
+// Additive only. Existing tables and data are preserved.
+// =====================================================
 
-function normalizeStatus(status) {
-  const value = String(status || "Planned")
-    .trim()
-    .toLowerCase();
+async function ensureSocialTables(env) {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS social_uploads (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      mime_type TEXT NOT NULL,
+      acl TEXT NOT NULL DEFAULT 'private',
+      status TEXT NOT NULL DEFAULT 'uploading',
+      url TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_uploads_user
+      ON social_uploads(user_id, created_at)`,
+    `CREATE TABLE IF NOT EXISTS social_posts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      media_json TEXT NOT NULL DEFAULT '[]',
+      visibility TEXT NOT NULL DEFAULT 'public',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_posts_created
+      ON social_posts(created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_social_posts_user
+      ON social_posts(user_id, created_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS social_post_likes (
+      post_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(post_id, user_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_likes_post
+      ON social_post_likes(post_id)`,
+    `CREATE TABLE IF NOT EXISTS social_comments (
+      id TEXT PRIMARY KEY,
+      post_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_comments_post
+      ON social_comments(post_id, created_at)`,
+    `CREATE TABLE IF NOT EXISTS social_follows (
+      follower_id TEXT NOT NULL,
+      following_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(follower_id, following_id)
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_follows_following
+      ON social_follows(following_id)`
+  ];
 
-  if (value === "active") return "Active";
-  if (value === "planned") return "Planned";
-  if (value === "paused") return "Paused";
-
-  return null;
+  for (const sql of statements) await env.DB.prepare(sql).run();
 }
 
-function cleanProject(data) {
-  if (!data || typeof data !== "object") return null;
+// =====================================================
+// USER AND SESSION
+// =====================================================
 
-  const name = String(data.name || "").trim();
-  const description = String(data.description || "");
-  const faDescription = String(
-    data.faDescription || data.fa_description || ""
-  );
-  const url = String(data.url || "").trim();
-  const status = normalizeStatus(data.status);
+async function getSocialUser(request, env) {
+  const token = getBearer(request);
+  if (token.length < 20 || token.length > 200) return null;
 
-  if (!name || name.length > 100) return null;
-  if (description.length > 3000) return null;
-  if (faDescription.length > 3000) return null;
-  if (url.length > 500 || !status) return null;
+  const tokenHash = await sha256(token);
+  const row = await env.DB.prepare(
+    `SELECT u.id, u.username, u.email, u.display_name, u.bio,
+            u.avatar_url, u.pi_username, u.pi_verified,
+            u.email_verified, u.created_at,
+            s.id AS session_id, s.expires_at
+     FROM social_sessions s
+     JOIN social_users u ON u.id = s.user_id
+     WHERE s.token_hash = ? AND s.expires_at > ? AND u.is_active = 1
+     LIMIT 1`
+  ).bind(tokenHash, new Date().toISOString()).first();
 
-  if (url) {
-    try {
-      const parsed = new URL(url);
+  if (!row) return null;
 
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        return null;
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  const id = String(data.id || crypto.randomUUID()).trim();
-
-  if (!id || id.length > 100) return null;
-
-  return {
-    id,
-    name,
-    description,
-    faDescription,
-    url,
-    status
-  };
-}
-
-function formatProject(row) {
   return {
     id: row.id,
-    name: row.name,
-    description: row.description || "",
-    faDescription: row.fa_description || "",
-    url: row.url || "",
-    status: row.status,
+    username: row.username,
+    email: row.email,
+    displayName: row.display_name || "",
+    bio: row.bio || "",
+    avatarUrl: row.avatar_url || "",
+    piUsername: row.pi_username || "",
+    piVerified: Boolean(row.pi_verified),
+    emailVerified: Boolean(row.email_verified),
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    sessionId: row.session_id,
+    sessionExpiresAt: row.expires_at
   };
 }
 
-// -------------------------
-// VALIDATION HELPERS
-// -------------------------
+async function createSocialSession(env, userId) {
+  const token = createSessionToken();
+  const tokenHash = await sha256(token);
+  const id = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+
+  await env.DB.prepare(
+    `INSERT INTO social_sessions (id, user_id, token_hash, expires_at)
+     VALUES (?, ?, ?, ?)`
+  ).bind(id, userId, tokenHash, expiresAt).run();
+
+  return { token, expiresAt };
+}
+
+// =====================================================
+// REGISTRATION / LOGIN / LOGOUT
+// =====================================================
 
 function cleanUsername(value) {
   return String(value || "").trim().toLowerCase();
@@ -262,426 +356,34 @@ function validUsername(value) {
 }
 
 function validEmail(value) {
-  if (value.length > 254) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
-
-// -------------------------
-// CRYPTO HELPERS
-// -------------------------
-
-function toBase64Url(bytes) {
-  let binary = "";
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
-function fromBase64Url(value) {
-  const base64 = value
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
-
-  const padded = base64 + "=".repeat(
-    (4 - base64.length % 4) % 4
-  );
-
-  const binary = atob(padded);
-
-  return Uint8Array.from(
-    binary,
-    character => character.charCodeAt(0)
-  );
-}
-
-async function sha256(value) {
-  const data = new TextEncoder().encode(value);
-
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    data
-  );
-
-  return toBase64Url(new Uint8Array(digest));
-}
-
-// -------------------------
-// PASSWORD HASHING
-// -------------------------
-
-async function hashPassword(
-  password,
-  iterations = PBKDF2_ITERATIONS
-) {
-  const salt = crypto.getRandomValues(
-    new Uint8Array(16)
-  );
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"]
-  );
-
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations,
-      hash: "SHA-256"
-    },
-    key,
-    256
-  );
-
-  return [
-    "pbkdf2",
-    iterations,
-    toBase64Url(salt),
-    toBase64Url(new Uint8Array(bits))
-  ].join("$");
-}
-
-async function verifyPassword(password, storedHash) {
-  try {
-    if (typeof storedHash !== "string") {
-      return {
-        valid: false,
-        needsUpgrade: false
-      };
-    }
-
-    const parts = storedHash.split("$");
-
-    if (
-      parts.length !== 4 ||
-      parts[0] !== "pbkdf2"
-    ) {
-      return {
-        valid: false,
-        needsUpgrade: false
-      };
-    }
-
-    const iterations = Number(parts[1]);
-
-    const supportedIterations = [
-      LEGACY_PBKDF2_ITERATIONS,
-      PBKDF2_ITERATIONS
-    ];
-
-    if (
-      !Number.isInteger(iterations) ||
-      !supportedIterations.includes(iterations)
-    ) {
-      return {
-        valid: false,
-        needsUpgrade: false
-      };
-    }
-
-    const salt = fromBase64Url(parts[2]);
-    const expected = fromBase64Url(parts[3]);
-
-    if (
-      salt.length !== 16 ||
-      expected.length !== 32
-    ) {
-      return {
-        valid: false,
-        needsUpgrade: false
-      };
-    }
-
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(password),
-      "PBKDF2",
-      false,
-      ["deriveBits"]
-    );
-
-    const bits = await crypto.subtle.deriveBits(
-      {
-        name: "PBKDF2",
-        salt,
-        iterations,
-        hash: "SHA-256"
-      },
-      key,
-      256
-    );
-
-    const actual = new Uint8Array(bits);
-    let difference = 0;
-
-    for (let i = 0; i < actual.length; i++) {
-      difference |= actual[i] ^ expected[i];
-    }
-
-    const valid = difference === 0;
-
-    return {
-      valid,
-      needsUpgrade:
-        valid && iterations < PBKDF2_ITERATIONS
-    };
-  } catch {
-    return {
-      valid: false,
-      needsUpgrade: false
-    };
-  }
-}
-
-function createSessionToken() {
-  return toBase64Url(
-    crypto.getRandomValues(new Uint8Array(32))
-  );
-}
-
-// -------------------------
-// PI API
-// -------------------------
-
-async function fetchPiUser(accessToken) {
-  if (
-    typeof accessToken !== "string" ||
-    accessToken.length < 10 ||
-    accessToken.length > 4096
-  ) {
-    return null;
-  }
-
-  const controller = new AbortController();
-
-  const timeout = setTimeout(
-    () => controller.abort(),
-    8000
-  );
-
-  try {
-    const response = await fetch(PI_ME_URL, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: "application/json"
-      },
-      signal: controller.signal
-    });
-
-    if (!response.ok) return null;
-
-    const user = await response.json();
-
-    if (
-      typeof user.uid !== "string" ||
-      typeof user.username !== "string"
-    ) {
-      return null;
-    }
-
-    return user;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function verifyAdmin(accessToken) {
-  const user = await fetchPiUser(accessToken);
-
-  if (!user) return null;
-
-  if (
-    user.username.trim().toLowerCase() !== "mehranmsh"
-  ) {
-    return null;
-  }
-
-  return user;
-}
-
-// -------------------------
-// SOCIAL SESSION HELPERS
-// -------------------------
-
-function createSessionData(userId) {
-  const token = createSessionToken();
-
-  return {
-    token,
-    tokenHash: null,
-    sessionId: crypto.randomUUID(),
-    userId,
-    expiresAt: new Date(
-      Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
-    ).toISOString()
-  };
-}
-
-async function createSocialSession(env, userId) {
-  const session = createSessionData(userId);
-
-  session.tokenHash = await sha256(session.token);
-
-  await env.DB.prepare(
-    `INSERT INTO social_sessions
-     (id, user_id, token_hash, expires_at)
-     VALUES (?, ?, ?, ?)`
-  ).bind(
-    session.sessionId,
-    session.userId,
-    session.tokenHash,
-    session.expiresAt
-  ).run();
-
-  return {
-    token: session.token,
-    expiresAt: session.expiresAt
-  };
-}
-
-async function getSocialUser(request, env) {
-  const authorization = request.headers.get("Authorization");
-
-  if (!authorization) return null;
-
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
-
-  if (!match) return null;
-
-  const token = match[1].trim();
-
-  if (token.length < 20 || token.length > 200) {
-    return null;
-  }
-
-  const tokenHash = await sha256(token);
-
-  const result = await env.DB.prepare(
-    `SELECT
-       u.id,
-       u.username,
-       u.email,
-       u.display_name,
-       u.bio,
-       u.avatar_url,
-       u.pi_username,
-       u.pi_verified,
-       u.email_verified,
-       u.created_at,
-       s.id AS session_id,
-       s.expires_at
-     FROM social_sessions s
-     JOIN social_users u ON u.id = s.user_id
-     WHERE s.token_hash = ?
-       AND s.expires_at > ?
-       AND u.is_active = 1
-     LIMIT 1`
-  ).bind(
-    tokenHash,
-    new Date().toISOString()
-  ).first();
-
-  if (!result) return null;
-
-  return {
-    id: result.id,
-    username: result.username,
-    email: result.email,
-    displayName: result.display_name || "",
-    bio: result.bio || "",
-    avatarUrl: result.avatar_url || "",
-    piUsername: result.pi_username || "",
-    piVerified: Boolean(result.pi_verified),
-    emailVerified: Boolean(result.email_verified),
-    createdAt: result.created_at,
-    sessionId: result.session_id,
-    sessionExpiresAt: result.expires_at
-  };
-}
-
-// -------------------------
-// SOCIAL REGISTER
-// -------------------------
 
 async function socialRegister(request, env) {
-  const allowed = await checkRateLimit(
-    env, request, "register", 5, 3600, 3600
-  );
-
-  if (!allowed) {
-    return error(
-      "Too many registration attempts. Try again later.",
-      429
-    );
+  if (!await checkRateLimit(env, request, "register", 5, 3600, 3600)) {
+    return error("Too many registration attempts. Try again later.", 429);
   }
 
   const body = await readBody(request);
-
-  if (!body) return error("Invalid request body", 400);
+  if (!body) return error("Invalid request body");
 
   const username = cleanUsername(body.username);
   const email = cleanEmail(body.email);
   const password = String(body.password || "");
+  const displayName = cleanText(body.displayName || username, 60);
 
-  const displayName = String(
-    body.displayName || username
-  ).trim();
-
-  if (!validUsername(username)) {
-    return error(
-      "Username must contain 3 to 24 letters, numbers or underscores",
-      400
-    );
-  }
-
-  if (!validEmail(email)) {
-    return error("Invalid email address", 400);
-  }
-
-  if (password.length < 10 || password.length > 128) {
-    return error(
-      "Password must be between 10 and 128 characters",
-      400
-    );
-  }
-
-  if (displayName.length > 60) {
-    return error("Display name is too long", 400);
-  }
+  if (!validUsername(username)) return error("Username must contain 3 to 24 letters, numbers or underscores");
+  if (!validEmail(email)) return error("Invalid email address");
+  if (password.length < 10 || password.length > 128) return error("Password must be between 10 and 128 characters");
 
   const existing = await env.DB.prepare(
-    `SELECT id
-     FROM social_users
-     WHERE username = ? OR email = ?
-     LIMIT 1`
+    "SELECT id FROM social_users WHERE username = ? OR email = ? LIMIT 1"
   ).bind(username, email).first();
 
-  if (existing) {
-    return error(
-      "Username or email is already registered",
-      409
-    );
-  }
+  if (existing) return error("Username or email is already registered", 409);
 
-  const userId = crypto.randomUUID();
-
+  const id = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
-
-  const session = createSessionData(userId);
-
-  session.tokenHash = await sha256(session.token);
 
   try {
     await env.DB.batch([
@@ -689,151 +391,62 @@ async function socialRegister(request, env) {
         `INSERT INTO social_users
          (id, username, email, password_hash, display_name)
          VALUES (?, ?, ?, ?, ?)`
-      ).bind(
-        userId,
-        username,
-        email,
-        passwordHash,
-        displayName
-      ),
-
+      ).bind(id, username, email, passwordHash, displayName),
       env.DB.prepare(
-        `INSERT INTO social_user_settings (user_id)
-         VALUES (?)`
-      ).bind(userId),
-
-      env.DB.prepare(
-        `INSERT INTO social_sessions
-         (id, user_id, token_hash, expires_at)
-         VALUES (?, ?, ?, ?)`
-      ).bind(
-        session.sessionId,
-        userId,
-        session.tokenHash,
-        session.expiresAt
-      )
+        "INSERT INTO social_user_settings (user_id) VALUES (?)"
+      ).bind(id)
     ]);
+
+    const session = await createSocialSession(env, id);
 
     return json({
       success: true,
       message: "Account created successfully",
       token: session.token,
       expiresAt: session.expiresAt,
-      user: {
-        id: userId,
-        username,
-        email,
-        displayName,
-        emailVerified: false
-      }
+      user: { id, username, email, displayName, emailVerified: false }
     }, 201);
-
   } catch (err) {
-    console.error("SOCIAL registration error:", err);
-
-    if (
-      String(err.message || "")
-        .toLowerCase()
-        .includes("unique")
-    ) {
-      return error(
-        "Username or email is already registered",
-        409
-      );
+    console.error("Registration error:", err);
+    if (String(err.message || "").toLowerCase().includes("unique")) {
+      return error("Username or email is already registered", 409);
     }
-
     throw err;
   }
 }
 
-// -------------------------
-// SOCIAL LOGIN
-// -------------------------
-
 async function socialLogin(request, env) {
-  const allowed = await checkRateLimit(
-    env, request, "login", 10, 900, 900
-  );
-
-  if (!allowed) {
-    return error(
-      "Too many login attempts. Try again later.",
-      429
-    );
+  if (!await checkRateLimit(env, request, "login", 10, 900, 900)) {
+    return error("Too many login attempts. Try again later.", 429);
   }
 
   const body = await readBody(request);
+  if (!body) return error("Invalid request body");
 
-  if (!body) return error("Invalid request body", 400);
-
-  const identifier = String(
-    body.identifier || body.email || body.username || ""
-  ).trim().toLowerCase();
-
+  const identifier = String(body.identifier || body.email || body.username || "").trim().toLowerCase();
   const password = String(body.password || "");
 
-  if (
-    !identifier ||
-    identifier.length > 254 ||
-    !password ||
-    password.length > 128
-  ) {
-    return error(
-      "Invalid username/email or password",
-      400
-    );
+  if (!identifier || identifier.length > 254 || !password || password.length > 128) {
+    return error("Invalid username/email or password", 400);
   }
 
   const user = await env.DB.prepare(
-    `SELECT
-       id,
-       username,
-       email,
-       password_hash,
-       display_name,
-       email_verified,
-       is_active
+    `SELECT id, username, email, password_hash, display_name,
+            email_verified, is_active
      FROM social_users
-     WHERE email = ? OR username = ?
-     LIMIT 1`
+     WHERE email = ? OR username = ? LIMIT 1`
   ).bind(identifier, identifier).first();
 
-  if (!user || !user.is_active) {
-    return error(
-      "Invalid username/email or password",
-      401
-    );
-  }
+  if (!user || !user.is_active) return error("Invalid username/email or password", 401);
 
-  const passwordResult = await verifyPassword(
-    password,
-    user.password_hash
-  );
+  const result = await verifyPassword(password, user.password_hash);
+  if (!result.valid) return error("Invalid username/email or password", 401);
 
-  if (!passwordResult.valid) {
-    return error(
-      "Invalid username/email or password",
-      401
-    );
-  }
-
-  if (passwordResult.needsUpgrade) {
-    try {
-      const upgradedHash = await hashPassword(password);
-
-      await env.DB.prepare(
-        `UPDATE social_users
-         SET password_hash = ?
-         WHERE id = ? AND password_hash = ?`
-      ).bind(
-        upgradedHash,
-        user.id,
-        user.password_hash
-      ).run();
-
-    } catch (err) {
-      console.error("Password hash upgrade failed:", err);
-    }
+  if (result.needsUpgrade) {
+    const upgraded = await hashPassword(password);
+    await env.DB.prepare(
+      "UPDATE social_users SET password_hash = ? WHERE id = ? AND password_hash = ?"
+    ).bind(upgraded, user.id, user.password_hash).run();
   }
 
   const session = await createSocialSession(env, user.id);
@@ -853,68 +466,33 @@ async function socialLogin(request, env) {
   });
 }
 
-// -------------------------
-// SOCIAL LOGOUT
-// -------------------------
+async function socialMe(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  delete user.sessionId;
+  delete user.sessionExpiresAt;
+  return json({ success: true, user });
+}
 
 async function socialLogout(request, env) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
+  if (!user) return error("Authentication required", 401);
 
   await env.DB.prepare(
-    `DELETE FROM social_sessions
-     WHERE id = ? AND user_id = ?`
+    "DELETE FROM social_sessions WHERE id = ? AND user_id = ?"
   ).bind(user.sessionId, user.id).run();
 
-  return json({
-    success: true,
-    message: "Logged out successfully"
-  });
+  return json({ success: true, message: "Logged out successfully" });
 }
-
-// -------------------------
-// SOCIAL CURRENT USER
-// -------------------------
-
-async function socialMe(request, env) {
-  const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  delete user.sessionId;
-  delete user.sessionExpiresAt;
-
-  return json({
-    success: true,
-    user
-  });
-}
-
-// -------------------------
-// SOCIAL LIST ACTIVE SESSIONS
-// -------------------------
 
 async function socialListSessions(request, env) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  const now = new Date().toISOString();
+  if (!user) return error("Authentication required", 401);
 
   const result = await env.DB.prepare(
-    `SELECT id, expires_at
-     FROM social_sessions
-     WHERE user_id = ?
-       AND expires_at > ?
-     ORDER BY expires_at DESC`
-  ).bind(user.id, now).all();
+    `SELECT id, expires_at FROM social_sessions
+     WHERE user_id = ? AND expires_at > ? ORDER BY expires_at DESC`
+  ).bind(user.id, new Date().toISOString()).all();
 
   const sessions = (result.results || []).map(row => ({
     id: row.id,
@@ -922,228 +500,535 @@ async function socialListSessions(request, env) {
     current: row.id === user.sessionId
   }));
 
-  return json({
-    success: true,
-    sessions,
-    total: sessions.length
-  });
+  return json({ success: true, sessions, total: sessions.length });
 }
 
-// -------------------------
-// SOCIAL REVOKE ONE SESSION
-// -------------------------
-
-async function socialRevokeSession(request, env, sessionId) {
+async function socialRevokeSession(request, env, id) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  let id;
-
-  try {
-    id = decodeURIComponent(sessionId);
-  } catch {
-    return error("Invalid session ID", 400);
-  }
-
-  if (!id || id.length > 100) {
-    return error("Invalid session ID", 400);
-  }
+  if (!user) return error("Authentication required", 401);
 
   const result = await env.DB.prepare(
-    `DELETE FROM social_sessions
-     WHERE id = ? AND user_id = ?`
-  ).bind(id, user.id).run();
+    "DELETE FROM social_sessions WHERE id = ? AND user_id = ?"
+  ).bind(decodeURIComponent(id), user.id).run();
 
-  if (!result.meta || result.meta.changes === 0) {
-    return error("Session not found", 404);
-  }
-
-  return json({
-    success: true,
-    message: "Session revoked successfully",
-    revokedSessionId: id,
-    currentSessionRevoked: id === user.sessionId
-  });
+  if (!result.meta || result.meta.changes === 0) return error("Session not found", 404);
+  return json({ success: true, message: "Session revoked successfully" });
 }
-
-// -------------------------
-// SOCIAL LOGOUT ALL OTHER DEVICES
-// -------------------------
 
 async function socialLogoutAll(request, env) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
+  if (!user) return error("Authentication required", 401);
 
   const result = await env.DB.prepare(
-    `DELETE FROM social_sessions
-     WHERE user_id = ?
-       AND id != ?`
+    "DELETE FROM social_sessions WHERE user_id = ? AND id != ?"
   ).bind(user.id, user.sessionId).run();
 
   return json({
     success: true,
     message: "All other sessions have been logged out",
-    revokedCount: result.meta
-      ? result.meta.changes
-      : 0,
+    revokedCount: result.meta ? result.meta.changes : 0,
     currentSessionKept: true
   });
 }
 
 // =====================================================
-// RAPIDFILE UPLOAD SYSTEM
+// PROFILE
 // =====================================================
 
-// -------------------------
-// CREATE UPLOADS TABLE
-// -------------------------
+async function getProfileByUsername(username, viewerId, env) {
+  const profile = await env.DB.prepare(
+    `SELECT id, username, display_name, bio, avatar_url,
+            pi_username, pi_verified, created_at
+     FROM social_users WHERE username = ? AND is_active = 1 LIMIT 1`
+  ).bind(username).first();
 
-async function ensureUploadsTable(env) {
-  await env.DB.prepare(
-    `CREATE TABLE IF NOT EXISTS social_uploads (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      size INTEGER NOT NULL,
-      mime_type TEXT NOT NULL,
-      acl TEXT NOT NULL DEFAULT 'private',
-      status TEXT NOT NULL DEFAULT 'uploading',
-      url TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`
-  ).run();
+  if (!profile) return null;
 
-  await env.DB.prepare(
-    `CREATE INDEX IF NOT EXISTS idx_social_uploads_user
-     ON social_uploads(user_id, created_at)`
-  ).run();
+  const counts = await env.DB.prepare(
+    `SELECT
+      (SELECT COUNT(*) FROM social_follows WHERE following_id = ?) AS followers,
+      (SELECT COUNT(*) FROM social_follows WHERE follower_id = ?) AS following,
+      (SELECT COUNT(*) FROM social_posts WHERE user_id = ?) AS posts,
+      EXISTS(
+        SELECT 1 FROM social_follows
+        WHERE follower_id = ? AND following_id = ?
+      ) AS is_following`
+  ).bind(profile.id, profile.id, profile.id, viewerId || "", profile.id).first();
+
+  return {
+    id: profile.id,
+    username: profile.username,
+    displayName: profile.display_name || "",
+    bio: profile.bio || "",
+    avatarUrl: profile.avatar_url || "",
+    piUsername: profile.pi_username || "",
+    piVerified: Boolean(profile.pi_verified),
+    createdAt: profile.created_at,
+    counts: {
+      posts: Number(counts?.posts || 0),
+      followers: Number(counts?.followers || 0),
+      following: Number(counts?.following || 0)
+    },
+    isFollowing: Boolean(counts?.is_following)
+  };
 }
 
-// -------------------------
-// RAPIDFILE API REQUEST
-// -------------------------
+async function socialGetProfile(request, env, username) {
+  const viewer = await getSocialUser(request, env);
+  if (!viewer) return error("Authentication required", 401);
+
+  const profile = await getProfileByUsername(cleanUsername(username), viewer.id, env);
+  if (!profile) return error("User not found", 404);
+
+  return json({ success: true, profile });
+}
+
+async function socialUpdateProfile(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+
+  const displayName = cleanText(body.displayName, 60);
+  const bio = cleanText(body.bio, 500);
+  const avatarUrl = String(body.avatarUrl || "").trim();
+
+  if (avatarUrl && !validHttpsUrl(avatarUrl)) {
+    return error("Avatar must be a valid HTTPS URL");
+  }
+
+  await env.DB.prepare(
+    `UPDATE social_users
+     SET display_name = ?, bio = ?, avatar_url = ?
+     WHERE id = ?`
+  ).bind(displayName, bio, avatarUrl, user.id).run();
+
+  const profile = await getProfileByUsername(user.username, user.id, env);
+  return json({ success: true, profile });
+}
+
+// =====================================================
+// MEDIA VALIDATION FOR POSTS
+// Only files owned by the user and marked ready/public
+// can be attached to public posts.
+// =====================================================
+
+async function validatePostMedia(env, userId, media) {
+  if (media === undefined || media === null) return [];
+  if (!Array.isArray(media) || media.length > MAX_POST_MEDIA) return null;
+
+  const output = [];
+
+  for (const item of media) {
+    if (!item || typeof item !== "object") return null;
+    const id = String(item.id || "");
+    if (!id || id.length > 150) return null;
+
+    const row = await env.DB.prepare(
+      `SELECT id, name, mime_type, url, acl, status
+       FROM social_uploads WHERE id = ? AND user_id = ? LIMIT 1`
+    ).bind(id, userId).first();
+
+    if (!row || row.status !== "ready" || row.acl !== "public" || !row.url) {
+      return null;
+    }
+
+    output.push({
+      id: row.id,
+      name: row.name,
+      type: row.mime_type,
+      url: row.url
+    });
+  }
+
+  return output;
+}
+
+// =====================================================
+// POST FORMAT AND QUERIES
+// =====================================================
+
+async function formatPost(row, viewerId, env) {
+  const media = (() => {
+    try { return JSON.parse(row.media_json || "[]"); }
+    catch { return []; }
+  })();
+
+  const stats = await env.DB.prepare(
+    `SELECT
+      (SELECT COUNT(*) FROM social_post_likes WHERE post_id = ?) AS likes,
+      (SELECT COUNT(*) FROM social_comments WHERE post_id = ?) AS comments,
+      EXISTS(SELECT 1 FROM social_post_likes WHERE post_id = ? AND user_id = ?) AS liked`
+  ).bind(row.id, row.id, row.id, viewerId).first();
+
+  const author = await env.DB.prepare(
+    `SELECT username, display_name, avatar_url, pi_verified
+     FROM social_users WHERE id = ?`
+  ).bind(row.user_id).first();
+
+  return {
+    id: row.id,
+    content: row.content,
+    media,
+    visibility: row.visibility,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    author: {
+      username: author?.username || "",
+      displayName: author?.display_name || "",
+      avatarUrl: author?.avatar_url || "",
+      piVerified: Boolean(author?.pi_verified)
+    },
+    stats: {
+      likes: Number(stats?.likes || 0),
+      comments: Number(stats?.comments || 0),
+      liked: Boolean(stats?.liked)
+    },
+    isOwner: row.user_id === viewerId
+  };
+}
+
+async function socialCreatePost(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  if (!await checkRateLimit(env, request, "post-create", 20, 3600, 600)) {
+    return error("Too many posts. Try again later.", 429);
+  }
+
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+
+  const content = cleanText(body.content, 5000);
+  if (!content && (!Array.isArray(body.media) || body.media.length === 0)) {
+    return error("A post needs text or media");
+  }
+
+  const media = await validatePostMedia(env, user.id, body.media);
+  if (media === null) return error("One or more media files are invalid or not ready");
+
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO social_posts (id, user_id, content, media_json, visibility)
+     VALUES (?, ?, ?, ?, 'public')`
+  ).bind(id, user.id, content, JSON.stringify(media)).run();
+
+  const row = await env.DB.prepare(
+    "SELECT * FROM social_posts WHERE id = ?"
+  ).bind(id).first();
+
+  return json({ success: true, post: await formatPost(row, user.id, env) }, 201);
+}
+
+async function socialFeed(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const url = new URL(request.url);
+  const limit = safeLimit(url.searchParams.get("limit"), 30, 50);
+
+  const result = await env.DB.prepare(
+    `SELECT p.* FROM social_posts p
+     WHERE p.visibility = 'public' OR p.user_id = ?
+     ORDER BY p.created_at DESC, p.id DESC
+     LIMIT ?`
+  ).bind(user.id, limit).all();
+
+  const posts = [];
+  for (const row of result.results || []) {
+    posts.push(await formatPost(row, user.id, env));
+  }
+
+  return json({ success: true, posts, total: posts.length });
+}
+
+async function socialUserPosts(request, env, username) {
+  const viewer = await getSocialUser(request, env);
+  if (!viewer) return error("Authentication required", 401);
+
+  const target = await env.DB.prepare(
+    "SELECT id FROM social_users WHERE username = ? AND is_active = 1"
+  ).bind(cleanUsername(username)).first();
+
+  if (!target) return error("User not found", 404);
+
+  const result = await env.DB.prepare(
+    `SELECT * FROM social_posts
+     WHERE user_id = ? AND (visibility = 'public' OR user_id = ?)
+     ORDER BY created_at DESC LIMIT 50`
+  ).bind(target.id, viewer.id).all();
+
+  const posts = [];
+  for (const row of result.results || []) {
+    posts.push(await formatPost(row, viewer.id, env));
+  }
+
+  return json({ success: true, posts, total: posts.length });
+}
+
+async function socialDeletePost(request, env, postId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const row = await env.DB.prepare(
+    "SELECT id, user_id FROM social_posts WHERE id = ?"
+  ).bind(postId).first();
+
+  if (!row) return error("Post not found", 404);
+  if (row.user_id !== user.id) return error("You cannot delete this post", 403);
+
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM social_post_likes WHERE post_id = ?").bind(postId),
+    env.DB.prepare("DELETE FROM social_comments WHERE post_id = ?").bind(postId),
+    env.DB.prepare("DELETE FROM social_posts WHERE id = ? AND user_id = ?").bind(postId, user.id)
+  ]);
+
+  return json({ success: true, deleted: true, id: postId });
+}
+
+// =====================================================
+// LIKES
+// =====================================================
+
+async function socialLikePost(request, env, postId, shouldLike) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const post = await env.DB.prepare(
+    "SELECT id FROM social_posts WHERE id = ? AND visibility = 'public'"
+  ).bind(postId).first();
+
+  if (!post) return error("Post not found", 404);
+
+  if (shouldLike) {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO social_post_likes (post_id, user_id)
+       VALUES (?, ?)`
+    ).bind(postId, user.id).run();
+  } else {
+    await env.DB.prepare(
+      "DELETE FROM social_post_likes WHERE post_id = ? AND user_id = ?"
+    ).bind(postId, user.id).run();
+  }
+
+  const stats = await env.DB.prepare(
+    `SELECT COUNT(*) AS likes FROM social_post_likes WHERE post_id = ?`
+  ).bind(postId).first();
+
+  return json({
+    success: true,
+    liked: shouldLike,
+    likes: Number(stats?.likes || 0)
+  });
+}
+
+// =====================================================
+// COMMENTS
+// =====================================================
+
+async function socialListComments(request, env, postId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const post = await env.DB.prepare(
+    "SELECT id FROM social_posts WHERE id = ?"
+  ).bind(postId).first();
+
+  if (!post) return error("Post not found", 404);
+
+  const result = await env.DB.prepare(
+    `SELECT c.id, c.content, c.created_at,
+            u.username, u.display_name, u.avatar_url
+     FROM social_comments c
+     JOIN social_users u ON u.id = c.user_id
+     WHERE c.post_id = ?
+     ORDER BY c.created_at ASC LIMIT 100`
+  ).bind(postId).all();
+
+  const comments = (result.results || []).map(row => ({
+    id: row.id,
+    content: row.content,
+    createdAt: row.created_at,
+    author: {
+      username: row.username,
+      displayName: row.display_name || "",
+      avatarUrl: row.avatar_url || ""
+    }
+  }));
+
+  return json({ success: true, comments, total: comments.length });
+}
+
+async function socialCreateComment(request, env, postId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+
+  const content = cleanText(body.content, 1000);
+  if (!content) return error("Comment cannot be empty");
+
+  const post = await env.DB.prepare(
+    "SELECT id FROM social_posts WHERE id = ?"
+  ).bind(postId).first();
+
+  if (!post) return error("Post not found", 404);
+
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO social_comments (id, post_id, user_id, content) VALUES (?, ?, ?, ?)"
+  ).bind(id, postId, user.id, content).run();
+
+  return json({
+    success: true,
+    comment: {
+      id,
+      content,
+      createdAt: new Date().toISOString(),
+      author: {
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl
+      }
+    }
+  }, 201);
+}
+
+async function socialDeleteComment(request, env, commentId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const result = await env.DB.prepare(
+    "DELETE FROM social_comments WHERE id = ? AND user_id = ?"
+  ).bind(commentId, user.id).run();
+
+  if (!result.meta || result.meta.changes === 0) return error("Comment not found", 404);
+  return json({ success: true, deleted: true });
+}
+
+// =====================================================
+// FOLLOW / UNFOLLOW / FOLLOW LISTS
+// =====================================================
+
+async function socialFollow(request, env, username, follow) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const target = await env.DB.prepare(
+    "SELECT id, username FROM social_users WHERE username = ? AND is_active = 1"
+  ).bind(cleanUsername(username)).first();
+
+  if (!target) return error("User not found", 404);
+  if (target.id === user.id) return error("You cannot follow yourself", 400);
+
+  if (follow) {
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO social_follows (follower_id, following_id) VALUES (?, ?)"
+    ).bind(user.id, target.id).run();
+  } else {
+    await env.DB.prepare(
+      "DELETE FROM social_follows WHERE follower_id = ? AND following_id = ?"
+    ).bind(user.id, target.id).run();
+  }
+
+  const count = await env.DB.prepare(
+    "SELECT COUNT(*) AS total FROM social_follows WHERE following_id = ?"
+  ).bind(target.id).first();
+
+  return json({
+    success: true,
+    following: follow,
+    username: target.username,
+    followers: Number(count?.total || 0)
+  });
+}
+
+async function socialFollowList(request, env, username, kind) {
+  const viewer = await getSocialUser(request, env);
+  if (!viewer) return error("Authentication required", 401);
+
+  const target = await env.DB.prepare(
+    "SELECT id FROM social_users WHERE username = ? AND is_active = 1"
+  ).bind(cleanUsername(username)).first();
+
+  if (!target) return error("User not found", 404);
+
+  const column = kind === "followers" ? "following_id" : "follower_id";
+  const result = await env.DB.prepare(
+    `SELECT u.username, u.display_name, u.avatar_url, u.pi_verified
+     FROM social_follows f
+     JOIN social_users u
+       ON u.id = ${kind === "followers" ? "f.follower_id" : "f.following_id"}
+     WHERE f.${column} = ?
+     ORDER BY f.created_at DESC LIMIT 100`
+  ).bind(target.id).all();
+
+  const users = (result.results || []).map(row => ({
+    username: row.username,
+    displayName: row.display_name || "",
+    avatarUrl: row.avatar_url || "",
+    piVerified: Boolean(row.pi_verified)
+  }));
+
+  return json({ success: true, users, total: users.length });
+}
+
+// =====================================================
+// RAPIDFILE
+// =====================================================
 
 async function rapidfileRequest(env, endpoint, options = {}) {
-  const apiKey = env.RAPIDFILE_API_KEY;
-
-  if (
-    typeof apiKey !== "string" ||
-    apiKey.length < 10
-  ) {
+  const key = env.RAPIDFILE_API_KEY;
+  if (typeof key !== "string" || key.length < 10) {
     throw new Error("Rapidfile API secret is not configured");
   }
 
-  const response = await fetch(
-    `${RAPIDFILE_API}${endpoint}`,
-    {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-        ...(options.headers || {})
-      }
+  const response = await fetch(`${RAPIDFILE_API}${endpoint}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+      ...(options.headers || {})
     }
-  );
+  });
 
   let data = {};
-
-  try {
-    data = await response.json();
-  } catch {
-    data = {};
-  }
+  try { data = await response.json(); } catch {}
 
   if (!response.ok) {
-    console.error(
-      "Rapidfile API error:",
-      response.status,
-      data
-    );
-
-    const err = new Error(
-      data.message ||
-      data.error ||
-      "Rapidfile request failed"
-    );
-
+    const err = new Error(data.message || data.error || "Rapidfile request failed");
     err.status = response.status;
     throw err;
   }
-
   return data;
 }
 
-// -------------------------
-// UPLOAD VALIDATION
-// -------------------------
-
 function cleanUploadName(value) {
-  let name = String(value || "").trim();
-
-  name = name
+  const name = String(value || "").trim()
     .replace(/[\/\\]/g, "_")
     .replace(/[\u0000-\u001F\u007F]/g, "")
     .replace(/\s+/g, " ");
-
-  if (!name || name.length > 180) {
-    return null;
-  }
-
-  return name;
+  return name && name.length <= 180 ? name : null;
 }
 
 function validUploadType(type) {
-  const value = String(type || "")
-    .trim()
-    .toLowerCase();
-
+  const value = String(type || "").trim().toLowerCase();
   if (!value || value.length > 120) return false;
 
-  // Images, except SVG.
-  if (
-    value.startsWith("image/") &&
-    value !== "image/svg+xml"
-  ) {
-    return true;
-  }
+  if (value.startsWith("image/") && value !== "image/svg+xml") return true;
+  if (value.startsWith("video/") || value.startsWith("audio/")) return true;
 
-  // Video and audio.
-  if (
-    value.startsWith("video/") ||
-    value.startsWith("audio/")
-  ) {
-    return true;
-  }
-
-  // Common document formats.
-  const allowed = [
-    "application/pdf",
-    "text/plain",
-    "text/csv",
-    "application/rtf",
-    "application/zip",
+  return [
+    "application/pdf", "text/plain", "text/csv",
+    "application/rtf", "application/zip",
     "application/x-zip-compressed",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/msword",
-    "application/vnd.ms-excel",
-    "application/vnd.ms-powerpoint"
-  ];
-
-  return allowed.includes(value);
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  ].includes(value);
 }
-
-// -------------------------
-// SAFE UPLOAD RESPONSE
-// -------------------------
 
 function formatUpload(row) {
   return {
@@ -1159,106 +1044,42 @@ function formatUpload(row) {
   };
 }
 
-// -------------------------
-// CREATE UPLOAD
-// POST /social/uploads/create
-// -------------------------
-
 async function socialCreateUpload(request, env) {
   const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
 
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  const allowed = await checkRateLimit(
-    env, request, "upload-create", 30, 3600, 900
-  );
-
-  if (!allowed) {
-    return error(
-      "Too many upload requests. Try again later.",
-      429
-    );
+  if (!await checkRateLimit(env, request, "upload-create", 30, 3600, 900)) {
+    return error("Too many upload requests. Try again later.", 429);
   }
 
   const body = await readBody(request);
-
-  if (!body) {
-    return error("Invalid request body", 400);
-  }
+  if (!body) return error("Invalid request body");
 
   const name = cleanUploadName(body.name);
   const size = Number(body.size);
-  const type = String(body.type || "")
-    .trim()
-    .toLowerCase();
+  const type = String(body.type || "").trim().toLowerCase();
+  const visibility = String(body.visibility || "private").toLowerCase();
 
-  const visibility = String(
-    body.visibility || "private"
-  ).toLowerCase();
-
-  if (!name) {
-    return error("Invalid file name", 400);
+  if (!name) return error("Invalid file name");
+  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_UPLOAD_BYTES) {
+    return error("File size must be between 1 byte and 512 MB", 413);
   }
-
-  if (
-    !Number.isSafeInteger(size) ||
-    size < 1 ||
-    size > MAX_UPLOAD_BYTES
-  ) {
-    return error(
-      "File size must be between 1 byte and 512 MB",
-      413
-    );
-  }
-
-  if (!validUploadType(type)) {
-    return error(
-      "This file type is not allowed",
-      415
-    );
-  }
-
-  if (!["public", "private"].includes(visibility)) {
-    return error("Invalid file visibility", 400);
-  }
-
-  await ensureUploadsTable(env);
+  if (!validUploadType(type)) return error("This file type is not allowed", 415);
+  if (!["public", "private"].includes(visibility)) return error("Invalid file visibility");
 
   const fileId = crypto.randomUUID();
-  const acl = visibility;
 
   try {
-    const result = await rapidfileRequest(
-      env,
-      "/uploads",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name,
-          size,
-          type,
-          acl,
-          customId: fileId,
-          metadata: {
-            userId: user.id,
-            username: user.username,
-            application: "MEHRAN MSH"
-          }
-        })
-      }
-    );
+    const result = await rapidfileRequest(env, "/uploads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name, size, type, acl: visibility, customId: fileId,
+        metadata: { userId: user.id, username: user.username, application: "MEHRAN MSH" }
+      })
+    });
 
-    if (
-      !result.file ||
-      !result.file.id ||
-      !result.upload ||
-      !result.upload.url
-    ) {
+    if (!result.file?.id || !result.upload?.url) {
       throw new Error("Invalid Rapidfile upload response");
     }
 
@@ -1267,363 +1088,222 @@ async function socialCreateUpload(request, env) {
        (id, user_id, name, size, mime_type, acl, status, url)
        VALUES (?, ?, ?, ?, ?, ?, 'uploading', ?)`
     ).bind(
-      result.file.id,
-      user.id,
-      name,
-      size,
-      type,
-      acl,
-      acl === "public" ? (result.file.url || "") : null
+      result.file.id, user.id, name, size, type, visibility,
+      visibility === "public" ? (result.file.url || "") : null
     ).run();
 
     return json({
       success: true,
       file: {
-        id: result.file.id,
-        name,
-        size,
-        type,
-        visibility: acl,
-        status: "uploading",
-        url: acl === "public" ? (result.file.url || "") : ""
+        id: result.file.id, name, size, type,
+        visibility, status: "uploading",
+        url: visibility === "public" ? (result.file.url || "") : ""
       },
       upload: result.upload
     }, 201);
-
   } catch (err) {
     console.error("Upload creation failed:", err);
-
-    if (err.status === 401) {
-      return error("Rapidfile authentication failed", 502);
-    }
-
-    if (err.status === 429) {
-      return error("Rapidfile is temporarily rate limiting requests", 503);
-    }
-
-    return error(
-      "Could not create upload. Please try again.",
-      502
-    );
+    return error("Could not create upload. Please try again.", 502);
   }
 }
 
-// -------------------------
-// COMPLETE / VERIFY UPLOAD
-// POST /social/uploads/:id/complete
-// -------------------------
-
-async function socialCompleteUpload(request, env, fileId) {
+async function socialCompleteUpload(request, env, id) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  let id;
-
-  try {
-    id = decodeURIComponent(fileId);
-  } catch {
-    return error("Invalid file ID", 400);
-  }
-
-  if (!id || id.length > 150) {
-    return error("Invalid file ID", 400);
-  }
-
-  await ensureUploadsTable(env);
+  if (!user) return error("Authentication required", 401);
 
   const row = await env.DB.prepare(
-    `SELECT *
-     FROM social_uploads
-     WHERE id = ? AND user_id = ?
-     LIMIT 1`
+    "SELECT * FROM social_uploads WHERE id = ? AND user_id = ?"
   ).bind(id, user.id).first();
 
-  if (!row) {
-    return error("File not found", 404);
-  }
+  if (!row) return error("File not found", 404);
 
   try {
     const result = await rapidfileRequest(
-      env,
-      `/files/${encodeURIComponent(id)}`,
-      { method: "GET" }
+      env, `/files/${encodeURIComponent(id)}`, { method: "GET" }
     );
-
     const file = result.file;
 
-    if (!file || file.id !== id) {
-      return error("File verification failed", 502);
-    }
-
-    if (
-      !file.metadata ||
-      file.metadata.userId !== user.id
-    ) {
-      return error("File ownership verification failed", 403);
-    }
-
-    if (file.status !== "ready") {
-      return error(
-        "Upload is not finished yet",
-        409
-      );
-    }
+    if (!file || file.id !== id) return error("File verification failed", 502);
+    if (file.metadata?.userId !== user.id) return error("File ownership verification failed", 403);
+    if (file.status !== "ready") return error("Upload is not finished yet", 409);
 
     await env.DB.prepare(
-      `UPDATE social_uploads
-       SET status = 'ready',
-           url = ?,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND user_id = ?`
-    ).bind(
-      row.acl === "public" ? (file.url || null) : null,
-      id,
-      user.id
-    ).run();
+      `UPDATE social_uploads SET status = 'ready', url = ?,
+       updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
+    ).bind(row.acl === "public" ? (file.url || null) : null, id, user.id).run();
 
     const updated = await env.DB.prepare(
-      `SELECT *
-       FROM social_uploads
-       WHERE id = ? AND user_id = ?
-       LIMIT 1`
+      "SELECT * FROM social_uploads WHERE id = ? AND user_id = ?"
     ).bind(id, user.id).first();
 
-    return json({
-      success: true,
-      file: formatUpload(updated)
-    });
-
+    return json({ success: true, file: formatUpload(updated) });
   } catch (err) {
     console.error("Upload verification failed:", err);
-
-    if (err.status === 404) {
-      return error("File not found in storage", 404);
-    }
-
-    return error(
-      "Could not verify uploaded file",
-      502
-    );
+    return error("Could not verify uploaded file", 502);
   }
 }
-
-// -------------------------
-// LIST MY UPLOADS
-// GET /social/uploads
-// -------------------------
 
 async function socialListUploads(request, env) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  await ensureUploadsTable(env);
+  if (!user) return error("Authentication required", 401);
 
   const result = await env.DB.prepare(
-    `SELECT *
-     FROM social_uploads
-     WHERE user_id = ?
-     ORDER BY created_at DESC
-     LIMIT 100`
+    "SELECT * FROM social_uploads WHERE user_id = ? ORDER BY created_at DESC LIMIT 100"
   ).bind(user.id).all();
 
   const files = (result.results || []).map(formatUpload);
-
-  return json({
-    success: true,
-    files,
-    total: files.length
-  });
+  return json({ success: true, files, total: files.length });
 }
 
-// -------------------------
-// GET FILE URL
-// GET /social/uploads/:id/url
-// -------------------------
-
-async function socialGetUploadUrl(request, env, fileId) {
+async function socialGetUploadUrl(request, env, id) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  let id;
-
-  try {
-    id = decodeURIComponent(fileId);
-  } catch {
-    return error("Invalid file ID", 400);
-  }
-
-  if (!id || id.length > 150) {
-    return error("Invalid file ID", 400);
-  }
-
-  await ensureUploadsTable(env);
+  if (!user) return error("Authentication required", 401);
 
   const row = await env.DB.prepare(
-    `SELECT *
-     FROM social_uploads
-     WHERE id = ? AND user_id = ?
-     LIMIT 1`
+    "SELECT * FROM social_uploads WHERE id = ? AND user_id = ?"
   ).bind(id, user.id).first();
 
-  if (!row) {
-    return error("File not found", 404);
-  }
-
-  if (row.status !== "ready") {
-    return error("File is not ready", 409);
-  }
+  if (!row) return error("File not found", 404);
+  if (row.status !== "ready") return error("File is not ready", 409);
 
   if (row.acl === "public") {
-    if (!row.url) {
-      return error("Public file URL is unavailable", 404);
-    }
-
-    return json({
-      success: true,
-      url: row.url,
-      visibility: "public"
-    });
+    if (!row.url) return error("Public file URL is unavailable", 404);
+    return json({ success: true, url: row.url, visibility: "public" });
   }
 
   try {
     const result = await rapidfileRequest(
-      env,
-      `/files/${encodeURIComponent(id)}/signed-url`,
+      env, `/files/${encodeURIComponent(id)}/signed-url`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          expiresIn: 3600
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 3600 })
       }
     );
 
-    if (!result.url) {
-      throw new Error("Signed URL missing");
-    }
-
+    if (!result.url) throw new Error("Signed URL missing");
     return json({
       success: true,
       url: result.url,
       visibility: "private",
       expiresAt: result.expiresAt || null
     });
-
   } catch (err) {
-    console.error("Signed URL creation failed:", err);
-
-    return error(
-      "Could not create private file link",
-      502
-    );
+    console.error("Signed URL error:", err);
+    return error("Could not create private file link", 502);
   }
 }
 
-// -------------------------
-// DELETE MY UPLOAD
-// DELETE /social/uploads/:id
-// -------------------------
-
-async function socialDeleteUpload(request, env, fileId) {
+async function socialDeleteUpload(request, env, id) {
   const user = await getSocialUser(request, env);
-
-  if (!user) {
-    return error("Authentication required", 401);
-  }
-
-  let id;
-
-  try {
-    id = decodeURIComponent(fileId);
-  } catch {
-    return error("Invalid file ID", 400);
-  }
-
-  if (!id || id.length > 150) {
-    return error("Invalid file ID", 400);
-  }
-
-  await ensureUploadsTable(env);
+  if (!user) return error("Authentication required", 401);
 
   const row = await env.DB.prepare(
-    `SELECT id
-     FROM social_uploads
-     WHERE id = ? AND user_id = ?
-     LIMIT 1`
+    "SELECT id FROM social_uploads WHERE id = ? AND user_id = ?"
   ).bind(id, user.id).first();
 
-  if (!row) {
-    return error("File not found", 404);
-  }
+  if (!row) return error("File not found", 404);
 
   try {
-    await rapidfileRequest(
-      env,
-      `/files/${encodeURIComponent(id)}`,
-      { method: "DELETE" }
-    );
-
+    await rapidfileRequest(env, `/files/${encodeURIComponent(id)}`, { method: "DELETE" });
     await env.DB.prepare(
-      `DELETE FROM social_uploads
-       WHERE id = ? AND user_id = ?`
+      "DELETE FROM social_uploads WHERE id = ? AND user_id = ?"
     ).bind(id, user.id).run();
-
-    return json({
-      success: true,
-      deleted: true,
-      id
-    });
-
+    return json({ success: true, deleted: true, id });
   } catch (err) {
-    console.error("File deletion failed:", err);
-
-    if (err.status === 404) {
-      await env.DB.prepare(
-        `DELETE FROM social_uploads
-         WHERE id = ? AND user_id = ?`
-      ).bind(id, user.id).run();
-
-      return json({
-        success: true,
-        deleted: true,
-        id
-      });
-    }
-
-    return error(
-      "Could not delete file from storage",
-      502
-    );
+    console.error("Upload deletion failed:", err);
+    return error("Could not delete file from storage", 502);
   }
 }
 
-// -------------------------
+// =====================================================
+// PI AUTH AND PROJECT HELPERS
+// =====================================================
+
+async function fetchPiUser(accessToken) {
+  if (typeof accessToken !== "string" || accessToken.length < 10 || accessToken.length > 4096) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch(PI_ME_URL, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      signal: controller.signal
+    });
+    if (!response.ok) return null;
+
+    const user = await response.json();
+    if (typeof user.uid !== "string" || typeof user.username !== "string") return null;
+    return user;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function verifyAdmin(accessToken) {
+  const user = await fetchPiUser(accessToken);
+  if (!user || user.username.trim().toLowerCase() !== "mehranmsh") return null;
+  return user;
+}
+
+function normalizeStatus(status) {
+  const value = String(status || "Planned").trim().toLowerCase();
+  if (value === "active") return "Active";
+  if (value === "planned") return "Planned";
+  if (value === "paused") return "Paused";
+  return null;
+}
+
+function cleanProject(data) {
+  if (!data || typeof data !== "object") return null;
+
+  const name = String(data.name || "").trim();
+  const description = String(data.description || "");
+  const faDescription = String(data.faDescription || data.fa_description || "");
+  const url = String(data.url || "").trim();
+  const status = normalizeStatus(data.status);
+
+  if (!name || name.length > 100 || description.length > 3000 ||
+      faDescription.length > 3000 || url.length > 500 || !status) return null;
+
+  if (url) {
+    try {
+      if (!["http:", "https:"].includes(new URL(url).protocol)) return null;
+    } catch { return null; }
+  }
+
+  return {
+    id: String(data.id || crypto.randomUUID()).trim(),
+    name, description, faDescription, url, status
+  };
+}
+
+function formatProject(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || "",
+    faDescription: row.fa_description || "",
+    url: row.url || "",
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+// =====================================================
 // MAIN WORKER
-// -------------------------
+// =====================================================
 
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
 
     if (origin && origin !== ALLOWED_ORIGIN) {
-      return new Response("Forbidden", {
-        status: 403,
-        headers: {
-          "X-Content-Type-Options": "nosniff",
-          "Cache-Control": "no-store"
-        }
-      });
+      return new Response("Forbidden", { status: 403 });
     }
 
     if (request.method === "OPTIONS") {
@@ -1641,319 +1321,184 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+    const method = request.method;
 
     try {
-      // -------------------------
-      // DATABASE AVAILABILITY
-      // -------------------------
-
-      const databasePaths = [
-        "/auth",
-        "/social/register",
-        "/social/login",
-        "/social/logout",
-        "/social/me",
-        "/social/sessions",
-        "/social/logout-all"
-      ];
-
-      if (
+      const needsDB =
         path.startsWith("/projects") ||
-        path.startsWith("/social/sessions") ||
-        path.startsWith("/social/uploads") ||
-        databasePaths.includes(path)
-      ) {
-        if (!env.DB) {
-          return error("Database binding is missing", 503);
-        }
-      }
+        path.startsWith("/social") ||
+        path === "/auth";
 
-      // -------------------------
-      // HEALTH CHECK
-      // -------------------------
+      if (needsDB && !env.DB) return error("Database binding is missing", 503);
 
-      if (
-        path === "/health" &&
-        request.method === "GET"
-      ) {
+      // HEALTH
+      if (path === "/health" && method === "GET") {
         let database = false;
-
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
             database = true;
           }
-        } catch (err) {
-          console.error("Database health check:", err);
-        }
-
+        } catch {}
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "3.5",
+          version: "4.0",
           database
         });
       }
 
-      // -------------------------
-      // PI AUTHENTICATION
-      // -------------------------
-
-      if (
-        path === "/auth" &&
-        request.method === "POST"
-      ) {
-        const allowed = await checkRateLimit(
-          env, request, "pi-auth", 20, 900, 900
-        );
-
-        if (!allowed) {
-          return error(
-            "Too many Pi authentication attempts. Try again later.",
-            429
-          );
+      // PI AUTH
+      if (path === "/auth" && method === "POST") {
+        if (!await checkRateLimit(env, request, "pi-auth", 20, 900, 900)) {
+          return error("Too many Pi authentication attempts. Try again later.", 429);
         }
-
         const body = await readBody(request);
-
-        if (!body) {
-          return error("Invalid request body", 400);
-        }
-
-        const user = await fetchPiUser(body.accessToken);
-
-        if (!user) {
-          return error("Pi authentication failed", 401);
-        }
-
-        const isAdmin =
-          user.username.trim().toLowerCase() === "mehranmsh";
-
+        if (!body) return error("Invalid request body");
+        const piUser = await fetchPiUser(body.accessToken);
+        if (!piUser) return error("Pi authentication failed", 401);
         return json({
           success: true,
-          uid: user.uid,
-          username: user.username,
-          isAdmin
+          uid: piUser.uid,
+          username: piUser.username,
+          isAdmin: piUser.username.trim().toLowerCase() === "mehranmsh"
         });
       }
 
-      // -------------------------
-      // SOCIAL REGISTER
-      // -------------------------
-
-      if (
-        path === "/social/register" &&
-        request.method === "POST"
-      ) {
-        return await socialRegister(request, env);
+      // DATABASE TABLES FOR SOCIAL
+      if (path.startsWith("/social")) {
+        await ensureSocialTables(env);
       }
 
-      // -------------------------
-      // SOCIAL LOGIN
-      // -------------------------
+      // SOCIAL AUTH
+      if (path === "/social/register" && method === "POST") return await socialRegister(request, env);
+      if (path === "/social/login" && method === "POST") return await socialLogin(request, env);
+      if (path === "/social/me" && method === "GET") return await socialMe(request, env);
+      if (path === "/social/logout" && method === "POST") return await socialLogout(request, env);
+      if (path === "/social/sessions" && method === "GET") return await socialListSessions(request, env);
+      if (path === "/social/logout-all" && method === "POST") return await socialLogoutAll(request, env);
 
-      if (
-        path === "/social/login" &&
-        request.method === "POST"
-      ) {
-        return await socialLogin(request, env);
+      const sessionMatch = path.match(/^\/social\/sessions\/([^/]+)$/);
+      if (sessionMatch && method === "DELETE") {
+        return await socialRevokeSession(request, env, sessionMatch[1]);
       }
 
-      // -------------------------
-      // SOCIAL LOGOUT
-      // -------------------------
-
-      if (
-        path === "/social/logout" &&
-        request.method === "POST"
-      ) {
-        return await socialLogout(request, env);
+      // SOCIAL PROFILE
+      if (path === "/social/profile" && method === "PUT") {
+        return await socialUpdateProfile(request, env);
       }
 
-      // -------------------------
-      // SOCIAL CURRENT USER
-      // -------------------------
-
-      if (
-        path === "/social/me" &&
-        request.method === "GET"
-      ) {
-        return await socialMe(request, env);
+      const profileMatch = path.match(/^\/social\/profile\/([^/]+)$/);
+      if (profileMatch && method === "GET") {
+        return await socialGetProfile(request, env, decodeURIComponent(profileMatch[1]));
       }
 
-      // -------------------------
-      // SOCIAL LIST SESSIONS
-      // -------------------------
+      // SOCIAL POSTS
+      if (path === "/social/feed" && method === "GET") return await socialFeed(request, env);
+      if (path === "/social/posts" && method === "POST") return await socialCreatePost(request, env);
 
-      if (
-        path === "/social/sessions" &&
-        request.method === "GET"
-      ) {
-        return await socialListSessions(request, env);
+      const userPostsMatch = path.match(/^\/social\/users\/([^/]+)\/posts$/);
+      if (userPostsMatch && method === "GET") {
+        return await socialUserPosts(request, env, decodeURIComponent(userPostsMatch[1]));
       }
 
-      // -------------------------
-      // SOCIAL LOGOUT ALL OTHER DEVICES
-      // -------------------------
-
-      if (
-        path === "/social/logout-all" &&
-        request.method === "POST"
-      ) {
-        return await socialLogoutAll(request, env);
+      const postLikeMatch = path.match(/^\/social\/posts\/([^/]+)\/like$/);
+      if (postLikeMatch && method === "POST") {
+        return await socialLikePost(request, env, decodeURIComponent(postLikeMatch[1]), true);
+      }
+      if (postLikeMatch && method === "DELETE") {
+        return await socialLikePost(request, env, decodeURIComponent(postLikeMatch[1]), false);
       }
 
-      // -------------------------
-      // SOCIAL REVOKE ONE SESSION
-      // -------------------------
-
-      const sessionMatch = path.match(
-        /^\/social\/sessions\/([^/]+)$/
-      );
-
-      if (
-        sessionMatch &&
-        request.method === "DELETE"
-      ) {
-        return await socialRevokeSession(
-          request,
-          env,
-          sessionMatch[1]
-        );
+      const postCommentsMatch = path.match(/^\/social\/posts\/([^/]+)\/comments$/);
+      if (postCommentsMatch && method === "GET") {
+        return await socialListComments(request, env, decodeURIComponent(postCommentsMatch[1]));
+      }
+      if (postCommentsMatch && method === "POST") {
+        return await socialCreateComment(request, env, decodeURIComponent(postCommentsMatch[1]));
       }
 
-      // =================================================
-      // RAPIDFILE UPLOAD ROUTES
-      // =================================================
+      const postMatch = path.match(/^\/social\/posts\/([^/]+)$/);
+      if (postMatch && method === "DELETE") {
+        return await socialDeletePost(request, env, decodeURIComponent(postMatch[1]));
+      }
 
-      // CREATE UPLOAD
-      if (
-        path === "/social/uploads/create" &&
-        request.method === "POST"
-      ) {
+      const commentMatch = path.match(/^\/social\/comments\/([^/]+)$/);
+      if (commentMatch && method === "DELETE") {
+        return await socialDeleteComment(request, env, decodeURIComponent(commentMatch[1]));
+      }
+
+      // SOCIAL FOLLOW
+      const followMatch = path.match(/^\/social\/follow\/([^/]+)$/);
+      if (followMatch && method === "POST") {
+        return await socialFollow(request, env, decodeURIComponent(followMatch[1]), true);
+      }
+      if (followMatch && method === "DELETE") {
+        return await socialFollow(request, env, decodeURIComponent(followMatch[1]), false);
+      }
+
+      const followersMatch = path.match(/^\/social\/followers\/([^/]+)$/);
+      if (followersMatch && method === "GET") {
+        return await socialFollowList(request, env, decodeURIComponent(followersMatch[1]), "followers");
+      }
+
+      const followingMatch = path.match(/^\/social\/following\/([^/]+)$/);
+      if (followingMatch && method === "GET") {
+        return await socialFollowList(request, env, decodeURIComponent(followingMatch[1]), "following");
+      }
+
+      // RAPIDFILE UPLOADS
+      if (path === "/social/uploads/create" && method === "POST") {
         return await socialCreateUpload(request, env);
       }
-
-      // LIST MY UPLOADS
-      if (
-        path === "/social/uploads" &&
-        request.method === "GET"
-      ) {
+      if (path === "/social/uploads" && method === "GET") {
         return await socialListUploads(request, env);
       }
 
-      // COMPLETE, SIGNED URL OR DELETE ONE UPLOAD
-      const uploadMatch = path.match(
-        /^\/social\/uploads\/([^/]+)(?:\/(complete|url))?$/
-      );
-
+      const uploadMatch = path.match(/^\/social\/uploads\/([^/]+)(?:\/(complete|url))?$/);
       if (uploadMatch) {
-        const fileId = uploadMatch[1];
+        const id = decodeURIComponent(uploadMatch[1]);
         const action = uploadMatch[2] || "";
 
-        if (
-          action === "complete" &&
-          request.method === "POST"
-        ) {
-          return await socialCompleteUpload(
-            request,
-            env,
-            fileId
-          );
+        if (action === "complete" && method === "POST") {
+          return await socialCompleteUpload(request, env, id);
         }
-
-        if (
-          action === "url" &&
-          request.method === "GET"
-        ) {
-          return await socialGetUploadUrl(
-            request,
-            env,
-            fileId
-          );
+        if (action === "url" && method === "GET") {
+          return await socialGetUploadUrl(request, env, id);
         }
-
-        if (
-          action === "" &&
-          request.method === "DELETE"
-        ) {
-          return await socialDeleteUpload(
-            request,
-            env,
-            fileId
-          );
+        if (!action && method === "DELETE") {
+          return await socialDeleteUpload(request, env, id);
         }
       }
 
-      // -------------------------
-      // GET ALL PROJECTS
-      // -------------------------
-
-      if (
-        path === "/projects" &&
-        request.method === "GET"
-      ) {
+      // PROJECTS: READ
+      if (path === "/projects" && method === "GET") {
         const result = await env.DB.prepare(
-          `SELECT
-             id,
-             name,
-             description,
-             fa_description,
-             url,
-             status,
-             created_at,
-             updated_at
-           FROM projects
-           ORDER BY created_at DESC`
+          `SELECT id, name, description, fa_description, url, status,
+                  created_at, updated_at
+           FROM projects ORDER BY created_at DESC`
         ).all();
-
-        const projects = (result.results || [])
-          .map(formatProject);
-
         return json({
           success: true,
-          projects
+          projects: (result.results || []).map(formatProject)
         });
       }
 
-      // -------------------------
-      // CREATE PROJECT
-      // -------------------------
-
-      if (
-        path === "/projects" &&
-        request.method === "POST"
-      ) {
+      // PROJECTS: CREATE
+      if (path === "/projects" && method === "POST") {
         const body = await readBody(request);
+        if (!body) return error("Invalid request body");
 
-        if (!body) {
-          return error("Invalid request body", 400);
+        if (!await checkRateLimit(env, request, "project-write", 30, 3600, 900)) {
+          return error("Too many project changes. Try again later.", 429);
         }
 
-        const allowed = await checkRateLimit(
-          env, request, "project-write", 30, 3600, 900
-        );
-
-        if (!allowed) {
-          return error(
-            "Too many project changes. Try again later.",
-            429
-          );
-        }
-
-        const user = await verifyAdmin(body.accessToken);
-
-        if (!user) {
+        if (!await verifyAdmin(body.accessToken)) {
           return error("Admin authentication required", 403);
         }
 
-        const project = cleanProject(
-          body.project || body
-        );
-
-        if (!project) {
-          return error("Invalid project data", 400);
-        }
+        const project = cleanProject(body.project || body);
+        if (!project || !project.id || project.id.length > 100) return error("Invalid project data");
 
         await env.DB.prepare(
           `INSERT INTO projects
@@ -1967,173 +1512,62 @@ export default {
              status = excluded.status,
              updated_at = CURRENT_TIMESTAMP`
         ).bind(
-          project.id,
-          project.name,
-          project.description,
-          project.faDescription,
-          project.url,
-          project.status
+          project.id, project.name, project.description,
+          project.faDescription, project.url, project.status
         ).run();
 
         const saved = await env.DB.prepare(
-          `SELECT * FROM projects WHERE id = ?`
+          "SELECT * FROM projects WHERE id = ?"
         ).bind(project.id).first();
 
-        return json({
-          success: true,
-          project: formatProject(saved)
-        }, 201);
+        return json({ success: true, project: formatProject(saved) }, 201);
       }
 
-      // -------------------------
-      // UPDATE PROJECT
-      // -------------------------
-
-      const updateMatch = path.match(
-        /^\/projects\/([^/]+)$/
-      );
-
-      if (
-        updateMatch &&
-        request.method === "PUT"
-      ) {
+      // PROJECTS: UPDATE / DELETE
+      const projectMatch = path.match(/^\/projects\/([^/]+)$/);
+      if (projectMatch && ["PUT", "DELETE"].includes(method)) {
         const body = await readBody(request);
+        if (!body) return error("Invalid request body");
 
-        if (!body) {
-          return error("Invalid request body", 400);
+        if (!await checkRateLimit(env, request, "project-write", 30, 3600, 900)) {
+          return error("Too many project changes. Try again later.", 429);
         }
 
-        const allowed = await checkRateLimit(
-          env, request, "project-write", 30, 3600, 900
-        );
-
-        if (!allowed) {
-          return error(
-            "Too many project changes. Try again later.",
-            429
-          );
-        }
-
-        const user = await verifyAdmin(body.accessToken);
-
-        if (!user) {
+        if (!await verifyAdmin(body.accessToken)) {
           return error("Admin authentication required", 403);
         }
 
-        let id;
+        const id = decodeURIComponent(projectMatch[1]);
+        if (!id || id.length > 100) return error("Invalid project ID");
 
-        try {
-          id = decodeURIComponent(updateMatch[1]);
-        } catch {
-          return error("Invalid project ID", 400);
+        if (method === "DELETE") {
+          const result = await env.DB.prepare(
+            "DELETE FROM projects WHERE id = ?"
+          ).bind(id).run();
+
+          if (!result.meta || result.meta.changes === 0) return error("Project not found", 404);
+          return json({ success: true, deleted: true, id });
         }
 
-        if (!id || id.length > 100) {
-          return error("Invalid project ID", 400);
-        }
-
-        const project = cleanProject({
-          ...(body.project || {}),
-          id
-        });
-
-        if (!project) {
-          return error("Invalid project data", 400);
-        }
+        const project = cleanProject({ ...(body.project || {}), id });
+        if (!project) return error("Invalid project data");
 
         const result = await env.DB.prepare(
-          `UPDATE projects SET
-             name = ?,
-             description = ?,
-             fa_description = ?,
-             url = ?,
-             status = ?,
-             updated_at = CURRENT_TIMESTAMP
-           WHERE id = ?`
+          `UPDATE projects SET name = ?, description = ?, fa_description = ?,
+           url = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
         ).bind(
-          project.name,
-          project.description,
-          project.faDescription,
-          project.url,
-          project.status,
-          id
+          project.name, project.description, project.faDescription,
+          project.url, project.status, id
         ).run();
 
-        if (!result.meta || result.meta.changes === 0) {
-          return error("Project not found", 404);
-        }
+        if (!result.meta || result.meta.changes === 0) return error("Project not found", 404);
 
         const saved = await env.DB.prepare(
-          `SELECT * FROM projects WHERE id = ?`
+          "SELECT * FROM projects WHERE id = ?"
         ).bind(id).first();
 
-        return json({
-          success: true,
-          project: formatProject(saved)
-        });
+        return json({ success: true, project: formatProject(saved) });
       }
-
-      // -------------------------
-      // DELETE PROJECT
-      // -------------------------
-
-      if (
-        updateMatch &&
-        request.method === "DELETE"
-      ) {
-        const body = await readBody(request);
-
-        if (!body) {
-          return error("Invalid request body", 400);
-        }
-
-        const allowed = await checkRateLimit(
-          env, request, "project-write", 30, 3600, 900
-        );
-
-        if (!allowed) {
-          return error(
-            "Too many project changes. Try again later.",
-            429
-          );
-        }
-
-        const user = await verifyAdmin(body.accessToken);
-
-        if (!user) {
-          return error("Admin authentication required", 403);
-        }
-
-        let id;
-
-        try {
-          id = decodeURIComponent(updateMatch[1]);
-        } catch {
-          return error("Invalid project ID", 400);
-        }
-
-        if (!id || id.length > 100) {
-          return error("Invalid project ID", 400);
-        }
-
-        const result = await env.DB.prepare(
-          `DELETE FROM projects WHERE id = ?`
-        ).bind(id).run();
-
-        if (!result.meta || result.meta.changes === 0) {
-          return error("Project not found", 404);
-        }
-
-        return json({
-          success: true,
-          deleted: true,
-          id
-        });
-      }
-
-      // -------------------------
-      // NOT FOUND
-      // -------------------------
 
       return error("Not found", 404);
 
