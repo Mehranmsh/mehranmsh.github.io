@@ -45,10 +45,7 @@ async function readBody(request) {
       request.headers.get("Content-Length") || 0
     );
 
-    if (declaredLength > MAX_BODY_BYTES) {
-      return null;
-    }
-
+    if (declaredLength > MAX_BODY_BYTES) return null;
     if (!request.body) return null;
 
     const reader = request.body.getReader();
@@ -57,7 +54,6 @@ async function readBody(request) {
 
     while (true) {
       const { done, value } = await reader.read();
-
       if (done) break;
 
       total += value.byteLength;
@@ -78,8 +74,9 @@ async function readBody(request) {
       offset += chunk.byteLength;
     }
 
-    const text = new TextDecoder().decode(combined);
-    const parsed = JSON.parse(text);
+    const parsed = JSON.parse(
+      new TextDecoder().decode(combined)
+    );
 
     if (
       !parsed ||
@@ -143,9 +140,7 @@ async function checkRateLimit(
     windowStart
   ).first();
 
-  if (!row) {
-    throw new Error("Rate limit check failed");
-  }
+  if (!row) throw new Error("Rate limit check failed");
 
   if (
     row.blocked_until &&
@@ -159,10 +154,7 @@ async function checkRateLimit(
       `UPDATE social_auth_limits
        SET blocked_until = ?
        WHERE rate_key = ?`
-    ).bind(
-      now + blockSeconds,
-      rateKey
-    ).run();
+    ).bind(now + blockSeconds, rateKey).run();
 
     return false;
   }
@@ -171,7 +163,7 @@ async function checkRateLimit(
 }
 
 // -------------------------
-// GENERAL HELPERS
+// PROJECT HELPERS
 // -------------------------
 
 function normalizeStatus(status) {
@@ -205,7 +197,6 @@ function cleanProject(data) {
   if (url) {
     try {
       const parsed = new URL(url);
-
       if (!["http:", "https:"].includes(parsed.protocol)) {
         return null;
       }
@@ -215,7 +206,6 @@ function cleanProject(data) {
   }
 
   const id = String(data.id || crypto.randomUUID()).trim();
-
   if (!id || id.length > 100) return null;
 
   return {
@@ -240,6 +230,10 @@ function formatProject(row) {
     updatedAt: row.updated_at
   };
 }
+
+// -------------------------
+// VALIDATION HELPERS
+// -------------------------
 
 function cleanUsername(value) {
   return String(value || "").trim().toLowerCase();
@@ -341,8 +335,9 @@ async function verifyPassword(password, storedHash) {
 
     const parts = storedHash.split("$");
 
-    if (parts.length !== 4) return false;
-    if (parts[0] !== "pbkdf2") return false;
+    if (parts.length !== 4 || parts[0] !== "pbkdf2") {
+      return false;
+    }
 
     const iterations = Number(parts[1]);
 
@@ -380,7 +375,6 @@ async function verifyPassword(password, storedHash) {
     );
 
     const actual = new Uint8Array(bits);
-
     let difference = 0;
 
     for (let i = 0; i < actual.length; i++) {
@@ -400,7 +394,7 @@ function createSessionToken() {
 }
 
 // -------------------------
-// PI API REQUEST
+// PI API
 // -------------------------
 
 async function fetchPiUser(accessToken) {
@@ -413,7 +407,10 @@ async function fetchPiUser(accessToken) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    8000
+  );
 
   try {
     const response = await fetch(PI_ME_URL, {
@@ -443,10 +440,6 @@ async function fetchPiUser(accessToken) {
     clearTimeout(timeout);
   }
 }
-
-// -------------------------
-// PI ADMIN AUTHENTICATION
-// -------------------------
 
 async function verifyAdmin(accessToken) {
   const user = await fetchPiUser(accessToken);
@@ -507,7 +500,6 @@ async function getSocialUser(request, env) {
   if (!authorization) return null;
 
   const match = authorization.match(/^Bearer\s+(.+)$/i);
-
   if (!match) return null;
 
   const token = match[1].trim();
@@ -556,7 +548,8 @@ async function getSocialUser(request, env) {
     piVerified: Boolean(result.pi_verified),
     emailVerified: Boolean(result.email_verified),
     createdAt: result.created_at,
-    sessionId: result.session_id
+    sessionId: result.session_id,
+    sessionExpiresAt: result.expires_at
   };
 }
 
@@ -577,10 +570,7 @@ async function socialRegister(request, env) {
   }
 
   const body = await readBody(request);
-
-  if (!body) {
-    return error("Invalid request body", 400);
-  }
+  if (!body) return error("Invalid request body", 400);
 
   const username = cleanUsername(body.username);
   const email = cleanEmail(body.email);
@@ -709,10 +699,7 @@ async function socialLogin(request, env) {
   }
 
   const body = await readBody(request);
-
-  if (!body) {
-    return error("Invalid request body", 400);
-  }
+  if (!body) return error("Invalid request body", 400);
 
   const identifier = String(
     body.identifier || body.email || body.username || ""
@@ -744,10 +731,7 @@ async function socialLogin(request, env) {
      FROM social_users
      WHERE email = ? OR username = ?
      LIMIT 1`
-  ).bind(
-    identifier,
-    identifier
-  ).first();
+  ).bind(identifier, identifier).first();
 
   if (!user || !user.is_active) {
     return error(
@@ -768,10 +752,7 @@ async function socialLogin(request, env) {
     );
   }
 
-  const session = await createSocialSession(
-    env,
-    user.id
-  );
+  const session = await createSocialSession(env, user.id);
 
   return json({
     success: true,
@@ -793,30 +774,16 @@ async function socialLogin(request, env) {
 // -------------------------
 
 async function socialLogout(request, env) {
-  const authorization = request.headers.get("Authorization");
+  const user = await getSocialUser(request, env);
 
-  if (!authorization) {
+  if (!user) {
     return error("Authentication required", 401);
   }
 
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
-
-  if (!match) {
-    return error("Invalid session", 401);
-  }
-
-  const token = match[1].trim();
-
-  if (token.length < 20 || token.length > 200) {
-    return error("Invalid session", 401);
-  }
-
-  const tokenHash = await sha256(token);
-
   await env.DB.prepare(
     `DELETE FROM social_sessions
-     WHERE token_hash = ?`
-  ).bind(tokenHash).run();
+     WHERE id = ? AND user_id = ?`
+  ).bind(user.sessionId, user.id).run();
 
   return json({
     success: true,
@@ -836,10 +803,115 @@ async function socialMe(request, env) {
   }
 
   delete user.sessionId;
+  delete user.sessionExpiresAt;
 
   return json({
     success: true,
     user
+  });
+}
+
+// -------------------------
+// SOCIAL LIST ACTIVE SESSIONS
+// GET /social/sessions
+// -------------------------
+
+async function socialListSessions(request, env) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  const now = new Date().toISOString();
+
+  const result = await env.DB.prepare(
+    `SELECT id, expires_at
+     FROM social_sessions
+     WHERE user_id = ?
+       AND expires_at > ?
+     ORDER BY expires_at DESC`
+  ).bind(user.id, now).all();
+
+  const sessions = (result.results || []).map(row => ({
+    id: row.id,
+    expiresAt: row.expires_at,
+    current: row.id === user.sessionId
+  }));
+
+  return json({
+    success: true,
+    sessions,
+    total: sessions.length
+  });
+}
+
+// -------------------------
+// SOCIAL REVOKE ONE SESSION
+// DELETE /social/sessions/:id
+// -------------------------
+
+async function socialRevokeSession(request, env, sessionId) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  let id;
+
+  try {
+    id = decodeURIComponent(sessionId);
+  } catch {
+    return error("Invalid session ID", 400);
+  }
+
+  if (!id || id.length > 100) {
+    return error("Invalid session ID", 400);
+  }
+
+  const result = await env.DB.prepare(
+    `DELETE FROM social_sessions
+     WHERE id = ? AND user_id = ?`
+  ).bind(id, user.id).run();
+
+  if (!result.meta || result.meta.changes === 0) {
+    return error("Session not found", 404);
+  }
+
+  return json({
+    success: true,
+    message: "Session revoked successfully",
+    revokedSessionId: id,
+    currentSessionRevoked: id === user.sessionId
+  });
+}
+
+// -------------------------
+// SOCIAL LOGOUT ALL OTHER DEVICES
+// POST /social/logout-all
+// -------------------------
+
+async function socialLogoutAll(request, env) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  const result = await env.DB.prepare(
+    `DELETE FROM social_sessions
+     WHERE user_id = ?
+       AND id != ?`
+  ).bind(user.id, user.sessionId).run();
+
+  return json({
+    success: true,
+    message: "All other sessions have been logged out",
+    revokedCount: result.meta
+      ? result.meta.changes
+      : 0,
+    currentSessionKept: true
   });
 }
 
@@ -852,9 +924,7 @@ export default {
     const origin = request.headers.get("Origin");
 
     if (origin && origin !== ALLOWED_ORIGIN) {
-      return new Response("Forbidden", {
-        status: 403
-      });
+      return new Response("Forbidden", { status: 403 });
     }
 
     if (request.method === "OPTIONS") {
@@ -882,11 +952,14 @@ export default {
         "/social/register",
         "/social/login",
         "/social/logout",
-        "/social/me"
+        "/social/me",
+        "/social/sessions",
+        "/social/logout-all"
       ];
 
       if (
         path.startsWith("/projects") ||
+        path.startsWith("/social/sessions") ||
         databasePaths.includes(path)
       ) {
         if (!env.DB) {
@@ -916,7 +989,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "3.2",
+          version: "3.3",
           database
         });
       }
@@ -941,10 +1014,7 @@ export default {
         }
 
         const body = await readBody(request);
-
-        if (!body) {
-          return error("Invalid request body", 400);
-        }
+        if (!body) return error("Invalid request body", 400);
 
         const user = await fetchPiUser(body.accessToken);
 
@@ -1008,6 +1078,47 @@ export default {
       }
 
       // -------------------------
+      // SOCIAL LIST SESSIONS
+      // -------------------------
+
+      if (
+        path === "/social/sessions" &&
+        request.method === "GET"
+      ) {
+        return await socialListSessions(request, env);
+      }
+
+      // -------------------------
+      // SOCIAL LOGOUT ALL OTHER DEVICES
+      // -------------------------
+
+      if (
+        path === "/social/logout-all" &&
+        request.method === "POST"
+      ) {
+        return await socialLogoutAll(request, env);
+      }
+
+      // -------------------------
+      // SOCIAL REVOKE ONE SESSION
+      // -------------------------
+
+      const sessionMatch = path.match(
+        /^\/social\/sessions\/([^/]+)$/
+      );
+
+      if (
+        sessionMatch &&
+        request.method === "DELETE"
+      ) {
+        return await socialRevokeSession(
+          request,
+          env,
+          sessionMatch[1]
+        );
+      }
+
+      // -------------------------
       // GET ALL PROJECTS
       // -------------------------
 
@@ -1047,10 +1158,7 @@ export default {
         request.method === "POST"
       ) {
         const body = await readBody(request);
-
-        if (!body) {
-          return error("Invalid request body", 400);
-        }
+        if (!body) return error("Invalid request body", 400);
 
         const allowed = await checkRateLimit(
           env, request, "project-write", 30, 3600, 900
@@ -1066,10 +1174,7 @@ export default {
         const user = await verifyAdmin(body.accessToken);
 
         if (!user) {
-          return error(
-            "Admin authentication required",
-            403
-          );
+          return error("Admin authentication required", 403);
         }
 
         const project = cleanProject(
@@ -1123,10 +1228,7 @@ export default {
         request.method === "PUT"
       ) {
         const body = await readBody(request);
-
-        if (!body) {
-          return error("Invalid request body", 400);
-        }
+        if (!body) return error("Invalid request body", 400);
 
         const allowed = await checkRateLimit(
           env, request, "project-write", 30, 3600, 900
@@ -1142,10 +1244,7 @@ export default {
         const user = await verifyAdmin(body.accessToken);
 
         if (!user) {
-          return error(
-            "Admin authentication required",
-            403
-          );
+          return error("Admin authentication required", 403);
         }
 
         let id;
@@ -1187,10 +1286,7 @@ export default {
           id
         ).run();
 
-        if (
-          !result.meta ||
-          result.meta.changes === 0
-        ) {
+        if (!result.meta || result.meta.changes === 0) {
           return error("Project not found", 404);
         }
 
@@ -1213,10 +1309,7 @@ export default {
         request.method === "DELETE"
       ) {
         const body = await readBody(request);
-
-        if (!body) {
-          return error("Invalid request body", 400);
-        }
+        if (!body) return error("Invalid request body", 400);
 
         const allowed = await checkRateLimit(
           env, request, "project-write", 30, 3600, 900
@@ -1232,10 +1325,7 @@ export default {
         const user = await verifyAdmin(body.accessToken);
 
         if (!user) {
-          return error(
-            "Admin authentication required",
-            403
-          );
+          return error("Admin authentication required", 403);
         }
 
         let id;
@@ -1254,10 +1344,7 @@ export default {
           `DELETE FROM projects WHERE id = ?`
         ).bind(id).run();
 
-        if (
-          !result.meta ||
-          result.meta.changes === 0
-        ) {
+        if (!result.meta || result.meta.changes === 0) {
           return error("Project not found", 404);
         }
 
@@ -1276,7 +1363,6 @@ export default {
 
     } catch (err) {
       console.error("MEHRAN MSH Worker error:", err);
-
       return error("Internal service error", 500);
     }
   }
