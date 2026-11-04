@@ -1,11 +1,13 @@
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
+const RAPIDFILE_API = "https://api.rapidfile.cc/v1";
 
 const SESSION_DAYS = 30;
 const PBKDF2_ITERATIONS = 310000;
 const LEGACY_PBKDF2_ITERATIONS = 100000;
 const MAX_BODY_BYTES = 20000;
+const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
 // -------------------------
 // RESPONSE
@@ -815,7 +817,6 @@ async function socialLogin(request, env) {
     );
   }
 
-  // Upgrade legacy password hashes after successful login.
   if (passwordResult.needsUpgrade) {
     try {
       const upgradedHash = await hashPassword(password);
@@ -831,7 +832,6 @@ async function socialLogin(request, env) {
       ).run();
 
     } catch (err) {
-      // Do not prevent a valid login if hash upgrade fails.
       console.error("Password hash upgrade failed:", err);
     }
   }
@@ -897,7 +897,6 @@ async function socialMe(request, env) {
 
 // -------------------------
 // SOCIAL LIST ACTIVE SESSIONS
-// GET /social/sessions
 // -------------------------
 
 async function socialListSessions(request, env) {
@@ -932,7 +931,6 @@ async function socialListSessions(request, env) {
 
 // -------------------------
 // SOCIAL REVOKE ONE SESSION
-// DELETE /social/sessions/:id
 // -------------------------
 
 async function socialRevokeSession(request, env, sessionId) {
@@ -973,7 +971,6 @@ async function socialRevokeSession(request, env, sessionId) {
 
 // -------------------------
 // SOCIAL LOGOUT ALL OTHER DEVICES
-// POST /social/logout-all
 // -------------------------
 
 async function socialLogoutAll(request, env) {
@@ -997,6 +994,618 @@ async function socialLogoutAll(request, env) {
       : 0,
     currentSessionKept: true
   });
+}
+
+// =====================================================
+// RAPIDFILE UPLOAD SYSTEM
+// =====================================================
+
+// -------------------------
+// CREATE UPLOADS TABLE
+// -------------------------
+
+async function ensureUploadsTable(env) {
+  await env.DB.prepare(
+    `CREATE TABLE IF NOT EXISTS social_uploads (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      mime_type TEXT NOT NULL,
+      acl TEXT NOT NULL DEFAULT 'private',
+      status TEXT NOT NULL DEFAULT 'uploading',
+      url TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
+  ).run();
+
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_social_uploads_user
+     ON social_uploads(user_id, created_at)`
+  ).run();
+}
+
+// -------------------------
+// RAPIDFILE API REQUEST
+// -------------------------
+
+async function rapidfileRequest(env, endpoint, options = {}) {
+  const apiKey = env.RAPIDFILE_API_KEY;
+
+  if (
+    typeof apiKey !== "string" ||
+    apiKey.length < 10
+  ) {
+    throw new Error("Rapidfile API secret is not configured");
+  }
+
+  const response = await fetch(
+    `${RAPIDFILE_API}${endpoint}`,
+    {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        ...(options.headers || {})
+      }
+    }
+  );
+
+  let data = {};
+
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    console.error(
+      "Rapidfile API error:",
+      response.status,
+      data
+    );
+
+    const err = new Error(
+      data.message ||
+      data.error ||
+      "Rapidfile request failed"
+    );
+
+    err.status = response.status;
+    throw err;
+  }
+
+  return data;
+}
+
+// -------------------------
+// UPLOAD VALIDATION
+// -------------------------
+
+function cleanUploadName(value) {
+  let name = String(value || "").trim();
+
+  name = name
+    .replace(/[\/\\]/g, "_")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .replace(/\s+/g, " ");
+
+  if (!name || name.length > 180) {
+    return null;
+  }
+
+  return name;
+}
+
+function validUploadType(type) {
+  const value = String(type || "")
+    .trim()
+    .toLowerCase();
+
+  if (!value || value.length > 120) return false;
+
+  // Images, except SVG.
+  if (
+    value.startsWith("image/") &&
+    value !== "image/svg+xml"
+  ) {
+    return true;
+  }
+
+  // Video and audio.
+  if (
+    value.startsWith("video/") ||
+    value.startsWith("audio/")
+  ) {
+    return true;
+  }
+
+  // Common document formats.
+  const allowed = [
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/rtf",
+    "application/zip",
+    "application/x-zip-compressed",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/msword",
+    "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint"
+  ];
+
+  return allowed.includes(value);
+}
+
+// -------------------------
+// SAFE UPLOAD RESPONSE
+// -------------------------
+
+function formatUpload(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    size: Number(row.size),
+    type: row.mime_type,
+    visibility: row.acl,
+    status: row.status,
+    url: row.acl === "public" ? (row.url || "") : "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+// -------------------------
+// CREATE UPLOAD
+// POST /social/uploads/create
+// -------------------------
+
+async function socialCreateUpload(request, env) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  const allowed = await checkRateLimit(
+    env, request, "upload-create", 30, 3600, 900
+  );
+
+  if (!allowed) {
+    return error(
+      "Too many upload requests. Try again later.",
+      429
+    );
+  }
+
+  const body = await readBody(request);
+
+  if (!body) {
+    return error("Invalid request body", 400);
+  }
+
+  const name = cleanUploadName(body.name);
+  const size = Number(body.size);
+  const type = String(body.type || "")
+    .trim()
+    .toLowerCase();
+
+  const visibility = String(
+    body.visibility || "private"
+  ).toLowerCase();
+
+  if (!name) {
+    return error("Invalid file name", 400);
+  }
+
+  if (
+    !Number.isSafeInteger(size) ||
+    size < 1 ||
+    size > MAX_UPLOAD_BYTES
+  ) {
+    return error(
+      "File size must be between 1 byte and 512 MB",
+      413
+    );
+  }
+
+  if (!validUploadType(type)) {
+    return error(
+      "This file type is not allowed",
+      415
+    );
+  }
+
+  if (!["public", "private"].includes(visibility)) {
+    return error("Invalid file visibility", 400);
+  }
+
+  await ensureUploadsTable(env);
+
+  const fileId = crypto.randomUUID();
+  const acl = visibility;
+
+  try {
+    const result = await rapidfileRequest(
+      env,
+      "/uploads",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name,
+          size,
+          type,
+          acl,
+          customId: fileId,
+          metadata: {
+            userId: user.id,
+            username: user.username,
+            application: "MEHRAN MSH"
+          }
+        })
+      }
+    );
+
+    if (
+      !result.file ||
+      !result.file.id ||
+      !result.upload ||
+      !result.upload.url
+    ) {
+      throw new Error("Invalid Rapidfile upload response");
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO social_uploads
+       (id, user_id, name, size, mime_type, acl, status, url)
+       VALUES (?, ?, ?, ?, ?, ?, 'uploading', ?)`
+    ).bind(
+      result.file.id,
+      user.id,
+      name,
+      size,
+      type,
+      acl,
+      acl === "public" ? (result.file.url || "") : null
+    ).run();
+
+    return json({
+      success: true,
+      file: {
+        id: result.file.id,
+        name,
+        size,
+        type,
+        visibility: acl,
+        status: "uploading",
+        url: acl === "public" ? (result.file.url || "") : ""
+      },
+      upload: result.upload
+    }, 201);
+
+  } catch (err) {
+    console.error("Upload creation failed:", err);
+
+    if (err.status === 401) {
+      return error("Rapidfile authentication failed", 502);
+    }
+
+    if (err.status === 429) {
+      return error("Rapidfile is temporarily rate limiting requests", 503);
+    }
+
+    return error(
+      "Could not create upload. Please try again.",
+      502
+    );
+  }
+}
+
+// -------------------------
+// COMPLETE / VERIFY UPLOAD
+// POST /social/uploads/:id/complete
+// -------------------------
+
+async function socialCompleteUpload(request, env, fileId) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  let id;
+
+  try {
+    id = decodeURIComponent(fileId);
+  } catch {
+    return error("Invalid file ID", 400);
+  }
+
+  if (!id || id.length > 150) {
+    return error("Invalid file ID", 400);
+  }
+
+  await ensureUploadsTable(env);
+
+  const row = await env.DB.prepare(
+    `SELECT *
+     FROM social_uploads
+     WHERE id = ? AND user_id = ?
+     LIMIT 1`
+  ).bind(id, user.id).first();
+
+  if (!row) {
+    return error("File not found", 404);
+  }
+
+  try {
+    const result = await rapidfileRequest(
+      env,
+      `/files/${encodeURIComponent(id)}`,
+      { method: "GET" }
+    );
+
+    const file = result.file;
+
+    if (!file || file.id !== id) {
+      return error("File verification failed", 502);
+    }
+
+    if (
+      !file.metadata ||
+      file.metadata.userId !== user.id
+    ) {
+      return error("File ownership verification failed", 403);
+    }
+
+    if (file.status !== "ready") {
+      return error(
+        "Upload is not finished yet",
+        409
+      );
+    }
+
+    await env.DB.prepare(
+      `UPDATE social_uploads
+       SET status = 'ready',
+           url = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`
+    ).bind(
+      row.acl === "public" ? (file.url || null) : null,
+      id,
+      user.id
+    ).run();
+
+    const updated = await env.DB.prepare(
+      `SELECT *
+       FROM social_uploads
+       WHERE id = ? AND user_id = ?
+       LIMIT 1`
+    ).bind(id, user.id).first();
+
+    return json({
+      success: true,
+      file: formatUpload(updated)
+    });
+
+  } catch (err) {
+    console.error("Upload verification failed:", err);
+
+    if (err.status === 404) {
+      return error("File not found in storage", 404);
+    }
+
+    return error(
+      "Could not verify uploaded file",
+      502
+    );
+  }
+}
+
+// -------------------------
+// LIST MY UPLOADS
+// GET /social/uploads
+// -------------------------
+
+async function socialListUploads(request, env) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  await ensureUploadsTable(env);
+
+  const result = await env.DB.prepare(
+    `SELECT *
+     FROM social_uploads
+     WHERE user_id = ?
+     ORDER BY created_at DESC
+     LIMIT 100`
+  ).bind(user.id).all();
+
+  const files = (result.results || []).map(formatUpload);
+
+  return json({
+    success: true,
+    files,
+    total: files.length
+  });
+}
+
+// -------------------------
+// GET FILE URL
+// GET /social/uploads/:id/url
+// -------------------------
+
+async function socialGetUploadUrl(request, env, fileId) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  let id;
+
+  try {
+    id = decodeURIComponent(fileId);
+  } catch {
+    return error("Invalid file ID", 400);
+  }
+
+  if (!id || id.length > 150) {
+    return error("Invalid file ID", 400);
+  }
+
+  await ensureUploadsTable(env);
+
+  const row = await env.DB.prepare(
+    `SELECT *
+     FROM social_uploads
+     WHERE id = ? AND user_id = ?
+     LIMIT 1`
+  ).bind(id, user.id).first();
+
+  if (!row) {
+    return error("File not found", 404);
+  }
+
+  if (row.status !== "ready") {
+    return error("File is not ready", 409);
+  }
+
+  if (row.acl === "public") {
+    if (!row.url) {
+      return error("Public file URL is unavailable", 404);
+    }
+
+    return json({
+      success: true,
+      url: row.url,
+      visibility: "public"
+    });
+  }
+
+  try {
+    const result = await rapidfileRequest(
+      env,
+      `/files/${encodeURIComponent(id)}/signed-url`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          expiresIn: 3600
+        })
+      }
+    );
+
+    if (!result.url) {
+      throw new Error("Signed URL missing");
+    }
+
+    return json({
+      success: true,
+      url: result.url,
+      visibility: "private",
+      expiresAt: result.expiresAt || null
+    });
+
+  } catch (err) {
+    console.error("Signed URL creation failed:", err);
+
+    return error(
+      "Could not create private file link",
+      502
+    );
+  }
+}
+
+// -------------------------
+// DELETE MY UPLOAD
+// DELETE /social/uploads/:id
+// -------------------------
+
+async function socialDeleteUpload(request, env, fileId) {
+  const user = await getSocialUser(request, env);
+
+  if (!user) {
+    return error("Authentication required", 401);
+  }
+
+  let id;
+
+  try {
+    id = decodeURIComponent(fileId);
+  } catch {
+    return error("Invalid file ID", 400);
+  }
+
+  if (!id || id.length > 150) {
+    return error("Invalid file ID", 400);
+  }
+
+  await ensureUploadsTable(env);
+
+  const row = await env.DB.prepare(
+    `SELECT id
+     FROM social_uploads
+     WHERE id = ? AND user_id = ?
+     LIMIT 1`
+  ).bind(id, user.id).first();
+
+  if (!row) {
+    return error("File not found", 404);
+  }
+
+  try {
+    await rapidfileRequest(
+      env,
+      `/files/${encodeURIComponent(id)}`,
+      { method: "DELETE" }
+    );
+
+    await env.DB.prepare(
+      `DELETE FROM social_uploads
+       WHERE id = ? AND user_id = ?`
+    ).bind(id, user.id).run();
+
+    return json({
+      success: true,
+      deleted: true,
+      id
+    });
+
+  } catch (err) {
+    console.error("File deletion failed:", err);
+
+    if (err.status === 404) {
+      await env.DB.prepare(
+        `DELETE FROM social_uploads
+         WHERE id = ? AND user_id = ?`
+      ).bind(id, user.id).run();
+
+      return json({
+        success: true,
+        deleted: true,
+        id
+      });
+    }
+
+    return error(
+      "Could not delete file from storage",
+      502
+    );
+  }
 }
 
 // -------------------------
@@ -1051,6 +1660,7 @@ export default {
       if (
         path.startsWith("/projects") ||
         path.startsWith("/social/sessions") ||
+        path.startsWith("/social/uploads") ||
         databasePaths.includes(path)
       ) {
         if (!env.DB) {
@@ -1080,7 +1690,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "3.4",
+          version: "3.5",
           database
         });
       }
@@ -1210,6 +1820,69 @@ export default {
           env,
           sessionMatch[1]
         );
+      }
+
+      // =================================================
+      // RAPIDFILE UPLOAD ROUTES
+      // =================================================
+
+      // CREATE UPLOAD
+      if (
+        path === "/social/uploads/create" &&
+        request.method === "POST"
+      ) {
+        return await socialCreateUpload(request, env);
+      }
+
+      // LIST MY UPLOADS
+      if (
+        path === "/social/uploads" &&
+        request.method === "GET"
+      ) {
+        return await socialListUploads(request, env);
+      }
+
+      // COMPLETE, SIGNED URL OR DELETE ONE UPLOAD
+      const uploadMatch = path.match(
+        /^\/social\/uploads\/([^/]+)(?:\/(complete|url))?$/
+      );
+
+      if (uploadMatch) {
+        const fileId = uploadMatch[1];
+        const action = uploadMatch[2] || "";
+
+        if (
+          action === "complete" &&
+          request.method === "POST"
+        ) {
+          return await socialCompleteUpload(
+            request,
+            env,
+            fileId
+          );
+        }
+
+        if (
+          action === "url" &&
+          request.method === "GET"
+        ) {
+          return await socialGetUploadUrl(
+            request,
+            env,
+            fileId
+          );
+        }
+
+        if (
+          action === "" &&
+          request.method === "DELETE"
+        ) {
+          return await socialDeleteUpload(
+            request,
+            env,
+            fileId
+          );
+        }
       }
 
       // -------------------------
