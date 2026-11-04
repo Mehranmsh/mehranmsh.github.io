@@ -1,42 +1,173 @@
+
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 
 const SESSION_DAYS = 30;
 const PBKDF2_ITERATIONS = 100000;
+const MAX_BODY_BYTES = 20000;
 
 // -------------------------
 // RESPONSE
 // -------------------------
 
-function json(data, status = 200) {
+function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-      "Access-Control-Allow-Methods":
-        "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Vary": "Origin",
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-store",
+      ...extraHeaders
     }
   });
 }
 
 function error(message, status = 400) {
-  return json({
-    success: false,
-    error: message
-  }, status);
+  return json({ success: false, error: message }, status);
 }
+
+// -------------------------
+// SAFE REQUEST BODY
+// -------------------------
 
 async function readBody(request) {
   try {
-    return await request.json();
+    const contentType = request.headers.get("Content-Type") || "";
+
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return null;
+    }
+
+    const declaredLength = Number(
+      request.headers.get("Content-Length") || 0
+    );
+
+    if (declaredLength > MAX_BODY_BYTES) {
+      return null;
+    }
+
+    if (!request.body) return null;
+
+    const reader = request.body.getReader();
+    const chunks = [];
+    let total = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      total += value.byteLength;
+
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+
+      chunks.push(value);
+    }
+
+    const combined = new Uint8Array(total);
+    let offset = 0;
+
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    const text = new TextDecoder().decode(combined);
+    const parsed = JSON.parse(text);
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      return null;
+    }
+
+    return parsed;
   } catch {
     return null;
   }
+}
+
+// -------------------------
+// RATE LIMITING
+// -------------------------
+
+async function checkRateLimit(
+  env,
+  request,
+  scope,
+  maxAttempts,
+  windowSeconds,
+  blockSeconds
+) {
+  const ip =
+    request.headers.get("CF-Connecting-IP") || "unknown";
+
+  const rateKey = await sha256(`${scope}:${ip}`);
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = now - windowSeconds;
+
+  const row = await env.DB.prepare(
+    `INSERT INTO social_auth_limits
+       (rate_key, attempts, window_started_at, blocked_until)
+     VALUES (?, 1, ?, NULL)
+     ON CONFLICT(rate_key) DO UPDATE SET
+       attempts = CASE
+         WHEN social_auth_limits.window_started_at <= ?
+         THEN 1
+         ELSE social_auth_limits.attempts + 1
+       END,
+       window_started_at = CASE
+         WHEN social_auth_limits.window_started_at <= ?
+         THEN excluded.window_started_at
+         ELSE social_auth_limits.window_started_at
+       END,
+       blocked_until = CASE
+         WHEN social_auth_limits.window_started_at <= ?
+         THEN NULL
+         ELSE social_auth_limits.blocked_until
+       END
+     RETURNING attempts, blocked_until`
+  ).bind(
+    rateKey,
+    now,
+    windowStart,
+    windowStart,
+    windowStart
+  ).first();
+
+  if (!row) {
+    throw new Error("Rate limit check failed");
+  }
+
+  if (
+    row.blocked_until &&
+    Number(row.blocked_until) > now
+  ) {
+    return false;
+  }
+
+  if (Number(row.attempts) > maxAttempts) {
+    await env.DB.prepare(
+      `UPDATE social_auth_limits
+       SET blocked_until = ?
+       WHERE rate_key = ?`
+    ).bind(
+      now + blockSeconds,
+      rateKey
+    ).run();
+
+    return false;
+  }
+
+  return true;
 }
 
 // -------------------------
@@ -44,7 +175,9 @@ async function readBody(request) {
 // -------------------------
 
 function normalizeStatus(status) {
-  const value = String(status || "Planned").trim().toLowerCase();
+  const value = String(status || "Planned")
+    .trim()
+    .toLowerCase();
 
   if (value === "active") return "Active";
   if (value === "planned") return "Planned";
@@ -81,8 +214,12 @@ function cleanProject(data) {
     }
   }
 
+  const id = String(data.id || crypto.randomUUID()).trim();
+
+  if (!id || id.length > 100) return null;
+
   return {
-    id: String(data.id || crypto.randomUUID()).slice(0, 100),
+    id,
     name,
     description,
     faDescription,
@@ -118,7 +255,6 @@ function validUsername(value) {
 
 function validEmail(value) {
   if (value.length > 254) return false;
-
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
@@ -201,6 +337,8 @@ async function hashPassword(password) {
 
 async function verifyPassword(password, storedHash) {
   try {
+    if (typeof storedHash !== "string") return false;
+
     const parts = storedHash.split("$");
 
     if (parts.length !== 4) return false;
@@ -210,14 +348,17 @@ async function verifyPassword(password, storedHash) {
 
     if (
       !Number.isInteger(iterations) ||
-      iterations < 100000 ||
-      iterations > 100000
+      iterations !== PBKDF2_ITERATIONS
     ) {
       return false;
     }
 
     const salt = fromBase64Url(parts[2]);
     const expected = fromBase64Url(parts[3]);
+
+    if (salt.length !== 16 || expected.length !== 32) {
+      return false;
+    }
 
     const key = await crypto.subtle.importKey(
       "raw",
@@ -240,8 +381,6 @@ async function verifyPassword(password, storedHash) {
 
     const actual = new Uint8Array(bits);
 
-    if (actual.length !== expected.length) return false;
-
     let difference = 0;
 
     for (let i = 0; i < actual.length; i++) {
@@ -249,7 +388,6 @@ async function verifyPassword(password, storedHash) {
     }
 
     return difference === 0;
-
   } catch {
     return false;
   }
@@ -262,10 +400,10 @@ function createSessionToken() {
 }
 
 // -------------------------
-// PI ADMIN AUTHENTICATION
+// PI API REQUEST
 // -------------------------
 
-async function verifyAdmin(accessToken) {
+async function fetchPiUser(accessToken) {
   if (
     typeof accessToken !== "string" ||
     accessToken.length < 10 ||
@@ -274,24 +412,46 @@ async function verifyAdmin(accessToken) {
     return null;
   }
 
-  const response = await fetch(PI_ME_URL, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: "application/json"
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const response = await fetch(PI_ME_URL, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) return null;
+
+    const user = await response.json();
+
+    if (
+      typeof user.uid !== "string" ||
+      typeof user.username !== "string"
+    ) {
+      return null;
     }
-  });
 
-  if (!response.ok) return null;
-
-  const user = await response.json();
-
-  if (
-    typeof user.uid !== "string" ||
-    typeof user.username !== "string"
-  ) {
+    return user;
+  } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
+}
+
+// -------------------------
+// PI ADMIN AUTHENTICATION
+// -------------------------
+
+async function verifyAdmin(accessToken) {
+  const user = await fetchPiUser(accessToken);
+
+  if (!user) return null;
 
   if (
     user.username.trim().toLowerCase() !== "mehranmsh"
@@ -306,30 +466,38 @@ async function verifyAdmin(accessToken) {
 // SOCIAL SESSION HELPERS
 // -------------------------
 
-async function createSocialSession(env, userId) {
+function createSessionData(userId) {
   const token = createSessionToken();
-  const tokenHash = await sha256(token);
 
-  const expiresAt = new Date(
-    Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
-  ).toISOString();
+  return {
+    token,
+    tokenHash: null,
+    sessionId: crypto.randomUUID(),
+    userId,
+    expiresAt: new Date(
+      Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000
+    ).toISOString()
+  };
+}
 
-  const sessionId = crypto.randomUUID();
+async function createSocialSession(env, userId) {
+  const session = createSessionData(userId);
+  session.tokenHash = await sha256(session.token);
 
   await env.DB.prepare(
     `INSERT INTO social_sessions
      (id, user_id, token_hash, expires_at)
      VALUES (?, ?, ?, ?)`
   ).bind(
-    sessionId,
-    userId,
-    tokenHash,
-    expiresAt
+    session.sessionId,
+    session.userId,
+    session.tokenHash,
+    session.expiresAt
   ).run();
 
   return {
-    token,
-    expiresAt
+    token: session.token,
+    expiresAt: session.expiresAt
   };
 }
 
@@ -397,6 +565,17 @@ async function getSocialUser(request, env) {
 // -------------------------
 
 async function socialRegister(request, env) {
+  const allowed = await checkRateLimit(
+    env, request, "register", 5, 3600, 3600
+  );
+
+  if (!allowed) {
+    return error(
+      "Too many registration attempts. Try again later.",
+      429
+    );
+  }
+
   const body = await readBody(request);
 
   if (!body) {
@@ -449,34 +628,39 @@ async function socialRegister(request, env) {
   const userId = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
 
+  const session = createSessionData(userId);
+  session.tokenHash = await sha256(session.token);
+
   try {
-    await env.DB.prepare(
-      `INSERT INTO social_users
-       (
-         id,
-         username,
-         email,
-         password_hash,
-         display_name
-       )
-       VALUES (?, ?, ?, ?, ?)`
-    ).bind(
-      userId,
-      username,
-      email,
-      passwordHash,
-      displayName
-    ).run();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO social_users
+         (id, username, email, password_hash, display_name)
+         VALUES (?, ?, ?, ?, ?)`
+      ).bind(
+        userId,
+        username,
+        email,
+        passwordHash,
+        displayName
+      ),
 
-    await env.DB.prepare(
-      `INSERT INTO social_user_settings (user_id)
-       VALUES (?)`
-    ).bind(userId).run();
+      env.DB.prepare(
+        `INSERT INTO social_user_settings (user_id)
+         VALUES (?)`
+      ).bind(userId),
 
-    const session = await createSocialSession(
-      env,
-      userId
-    );
+      env.DB.prepare(
+        `INSERT INTO social_sessions
+         (id, user_id, token_hash, expires_at)
+         VALUES (?, ?, ?, ?)`
+      ).bind(
+        session.sessionId,
+        userId,
+        session.tokenHash,
+        session.expiresAt
+      )
+    ]);
 
     return json({
       success: true,
@@ -513,6 +697,17 @@ async function socialRegister(request, env) {
 // -------------------------
 
 async function socialLogin(request, env) {
+  const allowed = await checkRateLimit(
+    env, request, "login", 10, 900, 900
+  );
+
+  if (!allowed) {
+    return error(
+      "Too many login attempts. Try again later.",
+      429
+    );
+  }
+
   const body = await readBody(request);
 
   if (!body) {
@@ -531,7 +726,10 @@ async function socialLogin(request, env) {
     !password ||
     password.length > 128
   ) {
-    return error("Invalid username/email or password", 400);
+    return error(
+      "Invalid username/email or password",
+      400
+    );
   }
 
   const user = await env.DB.prepare(
@@ -551,11 +749,11 @@ async function socialLogin(request, env) {
     identifier
   ).first();
 
-  if (
-    !user ||
-    !user.is_active
-  ) {
-    return error("Invalid username/email or password", 401);
+  if (!user || !user.is_active) {
+    return error(
+      "Invalid username/email or password",
+      401
+    );
   }
 
   const valid = await verifyPassword(
@@ -564,7 +762,10 @@ async function socialLogin(request, env) {
   );
 
   if (!valid) {
-    return error("Invalid username/email or password", 401);
+    return error(
+      "Invalid username/email or password",
+      401
+    );
   }
 
   const session = await createSocialSession(
@@ -605,6 +806,11 @@ async function socialLogout(request, env) {
   }
 
   const token = match[1].trim();
+
+  if (token.length < 20 || token.length > 200) {
+    return error("Invalid session", 401);
+  }
+
   const tokenHash = await sha256(token);
 
   await env.DB.prepare(
@@ -656,10 +862,8 @@ export default {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-          "Access-Control-Allow-Methods":
-            "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers":
-            "Content-Type, Authorization",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
           "Vary": "Origin"
         }
       });
@@ -673,7 +877,8 @@ export default {
       // DATABASE AVAILABILITY
       // -------------------------
 
-      const socialPaths = [
+      const databasePaths = [
+        "/auth",
         "/social/register",
         "/social/login",
         "/social/logout",
@@ -682,13 +887,10 @@ export default {
 
       if (
         path.startsWith("/projects") ||
-        socialPaths.includes(path)
+        databasePaths.includes(path)
       ) {
         if (!env.DB) {
-          return error(
-            "Database binding is missing",
-            503
-          );
+          return error("Database binding is missing", 503);
         }
       }
 
@@ -704,10 +906,7 @@ export default {
 
         try {
           if (env.DB) {
-            await env.DB.prepare(
-              "SELECT 1 AS test"
-            ).first();
-
+            await env.DB.prepare("SELECT 1 AS test").first();
             database = true;
           }
         } catch (err) {
@@ -717,7 +916,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "3.1",
+          version: "3.2",
           database
         });
       }
@@ -730,39 +929,27 @@ export default {
         path === "/auth" &&
         request.method === "POST"
       ) {
-        const body = await readBody(request);
-        const accessToken = body?.accessToken;
+        const allowed = await checkRateLimit(
+          env, request, "pi-auth", 20, 900, 900
+        );
 
-        if (
-          typeof accessToken !== "string" ||
-          accessToken.length < 10 ||
-          accessToken.length > 4096
-        ) {
-          return error("Invalid access token", 400);
-        }
-
-        const piResponse = await fetch(PI_ME_URL, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: "application/json"
-          }
-        });
-
-        if (!piResponse.ok) {
+        if (!allowed) {
           return error(
-            "Pi authentication failed",
-            401
+            "Too many Pi authentication attempts. Try again later.",
+            429
           );
         }
 
-        const user = await piResponse.json();
+        const body = await readBody(request);
 
-        if (
-          typeof user.uid !== "string" ||
-          typeof user.username !== "string"
-        ) {
-          return error("Invalid Pi user data", 401);
+        if (!body) {
+          return error("Invalid request body", 400);
+        }
+
+        const user = await fetchPiUser(body.accessToken);
+
+        if (!user) {
+          return error("Pi authentication failed", 401);
         }
 
         const isAdmin =
@@ -865,9 +1052,18 @@ export default {
           return error("Invalid request body", 400);
         }
 
-        const user = await verifyAdmin(
-          body?.accessToken
+        const allowed = await checkRateLimit(
+          env, request, "project-write", 30, 3600, 900
         );
+
+        if (!allowed) {
+          return error(
+            "Too many project changes. Try again later.",
+            429
+          );
+        }
+
+        const user = await verifyAdmin(body.accessToken);
 
         if (!user) {
           return error(
@@ -881,22 +1077,12 @@ export default {
         );
 
         if (!project) {
-          return error(
-            "Invalid project data",
-            400
-          );
+          return error("Invalid project data", 400);
         }
 
         await env.DB.prepare(
           `INSERT INTO projects
-           (
-             id,
-             name,
-             description,
-             fa_description,
-             url,
-             status
-           )
+           (id, name, description, fa_description, url, status)
            VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              name = excluded.name,
@@ -915,9 +1101,7 @@ export default {
         ).run();
 
         const saved = await env.DB.prepare(
-          `SELECT *
-           FROM projects
-           WHERE id = ?`
+          `SELECT * FROM projects WHERE id = ?`
         ).bind(project.id).first();
 
         return json({
@@ -938,19 +1122,24 @@ export default {
         updateMatch &&
         request.method === "PUT"
       ) {
-        const id = decodeURIComponent(
-          updateMatch[1]
-        );
-
         const body = await readBody(request);
 
         if (!body) {
           return error("Invalid request body", 400);
         }
 
-        const user = await verifyAdmin(
-          body?.accessToken
+        const allowed = await checkRateLimit(
+          env, request, "project-write", 30, 3600, 900
         );
+
+        if (!allowed) {
+          return error(
+            "Too many project changes. Try again later.",
+            429
+          );
+        }
+
+        const user = await verifyAdmin(body.accessToken);
 
         if (!user) {
           return error(
@@ -959,16 +1148,25 @@ export default {
           );
         }
 
+        let id;
+
+        try {
+          id = decodeURIComponent(updateMatch[1]);
+        } catch {
+          return error("Invalid project ID", 400);
+        }
+
+        if (!id || id.length > 100) {
+          return error("Invalid project ID", 400);
+        }
+
         const project = cleanProject({
-          ...body.project,
+          ...(body.project || {}),
           id
         });
 
         if (!project) {
-          return error(
-            "Invalid project data",
-            400
-          );
+          return error("Invalid project data", 400);
         }
 
         const result = await env.DB.prepare(
@@ -997,9 +1195,7 @@ export default {
         }
 
         const saved = await env.DB.prepare(
-          `SELECT *
-           FROM projects
-           WHERE id = ?`
+          `SELECT * FROM projects WHERE id = ?`
         ).bind(id).first();
 
         return json({
@@ -1016,19 +1212,24 @@ export default {
         updateMatch &&
         request.method === "DELETE"
       ) {
-        const id = decodeURIComponent(
-          updateMatch[1]
-        );
-
         const body = await readBody(request);
 
         if (!body) {
           return error("Invalid request body", 400);
         }
 
-        const user = await verifyAdmin(
-          body?.accessToken
+        const allowed = await checkRateLimit(
+          env, request, "project-write", 30, 3600, 900
         );
+
+        if (!allowed) {
+          return error(
+            "Too many project changes. Try again later.",
+            429
+          );
+        }
+
+        const user = await verifyAdmin(body.accessToken);
 
         if (!user) {
           return error(
@@ -1037,9 +1238,20 @@ export default {
           );
         }
 
+        let id;
+
+        try {
+          id = decodeURIComponent(updateMatch[1]);
+        } catch {
+          return error("Invalid project ID", 400);
+        }
+
+        if (!id || id.length > 100) {
+          return error("Invalid project ID", 400);
+        }
+
         const result = await env.DB.prepare(
-          `DELETE FROM projects
-           WHERE id = ?`
+          `DELETE FROM projects WHERE id = ?`
         ).bind(id).run();
 
         if (
@@ -1063,15 +1275,9 @@ export default {
       return error("Not found", 404);
 
     } catch (err) {
-      console.error(
-        "MEHRAN MSH Worker error:",
-        err
-      );
+      console.error("MEHRAN MSH Worker error:", err);
 
-      return error(
-        "Internal service error",
-        500
-      );
+      return error("Internal service error", 500);
     }
   }
 };
