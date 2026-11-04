@@ -3,7 +3,8 @@ const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 
 const SESSION_DAYS = 30;
-const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_ITERATIONS = 310000;
+const LEGACY_PBKDF2_ITERATIONS = 100000;
 const MAX_BODY_BYTES = 20000;
 
 // -------------------------
@@ -20,6 +21,9 @@ function json(data, status = 200, extraHeaders = {}) {
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Vary": "Origin",
       "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+      "X-Frame-Options": "DENY",
       ...extraHeaders
     }
   });
@@ -45,7 +49,13 @@ async function readBody(request) {
       request.headers.get("Content-Length") || 0
     );
 
-    if (declaredLength > MAX_BODY_BYTES) return null;
+    if (
+      !Number.isFinite(declaredLength) ||
+      declaredLength > MAX_BODY_BYTES
+    ) {
+      return null;
+    }
+
     if (!request.body) return null;
 
     const reader = request.body.getReader();
@@ -197,6 +207,7 @@ function cleanProject(data) {
   if (url) {
     try {
       const parsed = new URL(url);
+
       if (!["http:", "https:"].includes(parsed.protocol)) {
         return null;
       }
@@ -206,6 +217,7 @@ function cleanProject(data) {
   }
 
   const id = String(data.id || crypto.randomUUID()).trim();
+
   if (!id || id.length > 100) return null;
 
   return {
@@ -297,7 +309,14 @@ async function sha256(value) {
   return toBase64Url(new Uint8Array(digest));
 }
 
-async function hashPassword(password) {
+// -------------------------
+// PASSWORD HASHING
+// -------------------------
+
+async function hashPassword(
+  password,
+  iterations = PBKDF2_ITERATIONS
+) {
   const salt = crypto.getRandomValues(
     new Uint8Array(16)
   );
@@ -314,7 +333,7 @@ async function hashPassword(password) {
     {
       name: "PBKDF2",
       salt,
-      iterations: PBKDF2_ITERATIONS,
+      iterations,
       hash: "SHA-256"
     },
     key,
@@ -323,7 +342,7 @@ async function hashPassword(password) {
 
   return [
     "pbkdf2",
-    PBKDF2_ITERATIONS,
+    iterations,
     toBase64Url(salt),
     toBase64Url(new Uint8Array(bits))
   ].join("$");
@@ -331,28 +350,53 @@ async function hashPassword(password) {
 
 async function verifyPassword(password, storedHash) {
   try {
-    if (typeof storedHash !== "string") return false;
+    if (typeof storedHash !== "string") {
+      return {
+        valid: false,
+        needsUpgrade: false
+      };
+    }
 
     const parts = storedHash.split("$");
 
-    if (parts.length !== 4 || parts[0] !== "pbkdf2") {
-      return false;
+    if (
+      parts.length !== 4 ||
+      parts[0] !== "pbkdf2"
+    ) {
+      return {
+        valid: false,
+        needsUpgrade: false
+      };
     }
 
     const iterations = Number(parts[1]);
 
+    const supportedIterations = [
+      LEGACY_PBKDF2_ITERATIONS,
+      PBKDF2_ITERATIONS
+    ];
+
     if (
       !Number.isInteger(iterations) ||
-      iterations !== PBKDF2_ITERATIONS
+      !supportedIterations.includes(iterations)
     ) {
-      return false;
+      return {
+        valid: false,
+        needsUpgrade: false
+      };
     }
 
     const salt = fromBase64Url(parts[2]);
     const expected = fromBase64Url(parts[3]);
 
-    if (salt.length !== 16 || expected.length !== 32) {
-      return false;
+    if (
+      salt.length !== 16 ||
+      expected.length !== 32
+    ) {
+      return {
+        valid: false,
+        needsUpgrade: false
+      };
     }
 
     const key = await crypto.subtle.importKey(
@@ -381,9 +425,18 @@ async function verifyPassword(password, storedHash) {
       difference |= actual[i] ^ expected[i];
     }
 
-    return difference === 0;
+    const valid = difference === 0;
+
+    return {
+      valid,
+      needsUpgrade:
+        valid && iterations < PBKDF2_ITERATIONS
+    };
   } catch {
-    return false;
+    return {
+      valid: false,
+      needsUpgrade: false
+    };
   }
 }
 
@@ -407,6 +460,7 @@ async function fetchPiUser(accessToken) {
   }
 
   const controller = new AbortController();
+
   const timeout = setTimeout(
     () => controller.abort(),
     8000
@@ -475,6 +529,7 @@ function createSessionData(userId) {
 
 async function createSocialSession(env, userId) {
   const session = createSessionData(userId);
+
   session.tokenHash = await sha256(session.token);
 
   await env.DB.prepare(
@@ -500,6 +555,7 @@ async function getSocialUser(request, env) {
   if (!authorization) return null;
 
   const match = authorization.match(/^Bearer\s+(.+)$/i);
+
   if (!match) return null;
 
   const token = match[1].trim();
@@ -570,11 +626,13 @@ async function socialRegister(request, env) {
   }
 
   const body = await readBody(request);
+
   if (!body) return error("Invalid request body", 400);
 
   const username = cleanUsername(body.username);
   const email = cleanEmail(body.email);
   const password = String(body.password || "");
+
   const displayName = String(
     body.displayName || username
   ).trim();
@@ -616,9 +674,11 @@ async function socialRegister(request, env) {
   }
 
   const userId = crypto.randomUUID();
+
   const passwordHash = await hashPassword(password);
 
   const session = createSessionData(userId);
+
   session.tokenHash = await sha256(session.token);
 
   try {
@@ -670,7 +730,9 @@ async function socialRegister(request, env) {
     console.error("SOCIAL registration error:", err);
 
     if (
-      String(err.message || "").toLowerCase().includes("unique")
+      String(err.message || "")
+        .toLowerCase()
+        .includes("unique")
     ) {
       return error(
         "Username or email is already registered",
@@ -699,6 +761,7 @@ async function socialLogin(request, env) {
   }
 
   const body = await readBody(request);
+
   if (!body) return error("Invalid request body", 400);
 
   const identifier = String(
@@ -740,16 +803,37 @@ async function socialLogin(request, env) {
     );
   }
 
-  const valid = await verifyPassword(
+  const passwordResult = await verifyPassword(
     password,
     user.password_hash
   );
 
-  if (!valid) {
+  if (!passwordResult.valid) {
     return error(
       "Invalid username/email or password",
       401
     );
+  }
+
+  // Upgrade legacy password hashes after successful login.
+  if (passwordResult.needsUpgrade) {
+    try {
+      const upgradedHash = await hashPassword(password);
+
+      await env.DB.prepare(
+        `UPDATE social_users
+         SET password_hash = ?
+         WHERE id = ? AND password_hash = ?`
+      ).bind(
+        upgradedHash,
+        user.id,
+        user.password_hash
+      ).run();
+
+    } catch (err) {
+      // Do not prevent a valid login if hash upgrade fails.
+      console.error("Password hash upgrade failed:", err);
+    }
   }
 
   const session = await createSocialSession(env, user.id);
@@ -924,7 +1008,13 @@ export default {
     const origin = request.headers.get("Origin");
 
     if (origin && origin !== ALLOWED_ORIGIN) {
-      return new Response("Forbidden", { status: 403 });
+      return new Response("Forbidden", {
+        status: 403,
+        headers: {
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "no-store"
+        }
+      });
     }
 
     if (request.method === "OPTIONS") {
@@ -934,7 +1024,8 @@ export default {
           "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Vary": "Origin"
+          "Vary": "Origin",
+          "Cache-Control": "no-store"
         }
       });
     }
@@ -989,7 +1080,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "3.3",
+          version: "3.4",
           database
         });
       }
@@ -1014,7 +1105,10 @@ export default {
         }
 
         const body = await readBody(request);
-        if (!body) return error("Invalid request body", 400);
+
+        if (!body) {
+          return error("Invalid request body", 400);
+        }
 
         const user = await fetchPiUser(body.accessToken);
 
@@ -1158,7 +1252,10 @@ export default {
         request.method === "POST"
       ) {
         const body = await readBody(request);
-        if (!body) return error("Invalid request body", 400);
+
+        if (!body) {
+          return error("Invalid request body", 400);
+        }
 
         const allowed = await checkRateLimit(
           env, request, "project-write", 30, 3600, 900
@@ -1228,7 +1325,10 @@ export default {
         request.method === "PUT"
       ) {
         const body = await readBody(request);
-        if (!body) return error("Invalid request body", 400);
+
+        if (!body) {
+          return error("Invalid request body", 400);
+        }
 
         const allowed = await checkRateLimit(
           env, request, "project-write", 30, 3600, 900
@@ -1309,7 +1409,10 @@ export default {
         request.method === "DELETE"
       ) {
         const body = await readBody(request);
-        if (!body) return error("Invalid request body", 400);
+
+        if (!body) {
+          return error("Invalid request body", 400);
+        }
 
         const allowed = await checkRateLimit(
           env, request, "project-write", 30, 3600, 900
