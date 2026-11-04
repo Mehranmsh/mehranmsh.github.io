@@ -196,29 +196,58 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
      VALUES (?, 1, ?, NULL)
      ON CONFLICT(rate_key) DO UPDATE SET
        attempts = CASE
-         WHEN social_auth_limits.window_started_at <= ? THEN 1
+         WHEN social_auth_limits.window_started_at <= ?
+           OR (
+             social_auth_limits.blocked_until IS NOT NULL
+             AND social_auth_limits.blocked_until <= ?
+           )
+         THEN 1
          ELSE social_auth_limits.attempts + 1
        END,
        window_started_at = CASE
-         WHEN social_auth_limits.window_started_at <= ? THEN excluded.window_started_at
+         WHEN social_auth_limits.window_started_at <= ?
+           OR (
+             social_auth_limits.blocked_until IS NOT NULL
+             AND social_auth_limits.blocked_until <= ?
+           )
+         THEN excluded.window_started_at
          ELSE social_auth_limits.window_started_at
        END,
        blocked_until = CASE
-         WHEN social_auth_limits.window_started_at <= ? THEN NULL
+         WHEN social_auth_limits.window_started_at <= ?
+           OR (
+             social_auth_limits.blocked_until IS NOT NULL
+             AND social_auth_limits.blocked_until <= ?
+           )
+         THEN NULL
          ELSE social_auth_limits.blocked_until
        END
      RETURNING attempts, blocked_until`
-  ).bind(key, now, windowStart, windowStart, windowStart).first();
+  ).bind(
+    key,
+    now,
+    windowStart,
+    now,
+    windowStart,
+    now,
+    windowStart,
+    now
+  ).first();
 
   if (!row) throw new Error("Rate limit check failed");
-  if (row.blocked_until && Number(row.blocked_until) > now) return false;
+
+  if (row.blocked_until && Number(row.blocked_until) > now) {
+    return false;
+  }
 
   if (Number(row.attempts) > maxAttempts) {
     await env.DB.prepare(
       "UPDATE social_auth_limits SET blocked_until = ? WHERE rate_key = ?"
     ).bind(now + blockSeconds, key).run();
+
     return false;
   }
+
   return true;
 }
 
@@ -229,7 +258,6 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
 
 async function ensureSocialTables(env) {
   const statements = [
-    // FIX: This table was missing and caused registration/login errors.
     `CREATE TABLE IF NOT EXISTS social_auth_limits (
       rate_key TEXT PRIMARY KEY,
       attempts INTEGER NOT NULL DEFAULT 0,
@@ -367,7 +395,9 @@ function validEmail(value) {
 }
 
 async function socialRegister(request, env) {
-  if (!await checkRateLimit(env, request, "register", 5, 3600, 3600)) {
+  // New rate-limit key: old registration blocks no longer apply.
+  // Limit: 20 attempts per hour, temporary block: 10 minutes.
+  if (!await checkRateLimit(env, request, "register-v2", 20, 3600, 600)) {
     return error("Too many registration attempts. Try again later.", 429);
   }
 
@@ -1348,7 +1378,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "4.0",
+          version: "4.1",
           database
         });
       }
