@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -8,774 +7,815 @@
 <title>MEHRAN MSH | Digital Ecosystem</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <style>
-:root{
- --bg:#070b14;--panel:#0e1523;--panel2:#131e30;
- --line:#203653;--gold:#c9a96e;--gold2:#e5cb96;
- --blue:#168cff;--blue2:#54c8ff;--cyan:#00e5ff;
- --text:#f4f7ff;--muted:#91a3bb;--green:#39c99a;--red:#f16b78;
- --glow:0 0 12px #168cff65,0 0 28px #00e5ff25;
-}
+:root{--bg:#070b14;--panel:#0e1728;--panel2:#111e32;--line:#20324c;--cyan:#28d9ff;--blue:#397bff;--gold:#f3c969;--text:#edf5ff;--muted:#91a4bd;--green:#39d99b;--red:#ff667d}
 *{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at 80% 0%,#10284955,transparent 40%),var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;min-height:100vh}
-button,input,textarea{font:inherit}
-button{cursor:pointer;border:1px solid var(--blue);background:linear-gradient(120deg,var(--blue),#0870d4);color:white;padding:10px 15px;border-radius:9px;font-weight:700;transition:.2s;box-shadow:0 0 10px #168cff30}
-button:hover{filter:brightness(1.2);transform:translateY(-1px);box-shadow:var(--glow)}
-button:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.secondary{background:#111c2c;color:var(--blue2);border-color:#28639a;box-shadow:inset 0 0 12px #168cff10}
-.danger{background:#51232b;color:#fff;border-color:#813a47}
+body{margin:0;background:radial-gradient(ellipse at 50% -20%,#14294a 0,transparent 50%),var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;min-height:100vh}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}
+a{color:var(--cyan);text-decoration:none}
+.app{display:grid;grid-template-columns:245px minmax(0,1fr);min-height:100vh}
+.sidebar{background:#09111f;border-right:1px solid var(--line);padding:25px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;z-index:5}
+.brand{display:flex;align-items:center;gap:12px;padding:5px 8px 27px}
+.brand-logo{width:43px;height:43px;border-radius:14px;background:linear-gradient(135deg,var(--cyan),#2865ff);display:grid;place-items:center;color:#04101d;font-size:21px;font-weight:900;box-shadow:0 0 24px #28d9ff35}
+.brand-name{font-weight:900;letter-spacing:1.5px;font-size:16px}
+.brand-sub{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:2px}
+.nav-label{font-size:10px;color:#61758f;letter-spacing:2px;padding:15px 12px 9px}
+.nav-btn{width:100%;border:1px solid transparent;background:transparent;color:#9eb0c8;padding:12px;border-radius:11px;text-align:left;display:flex;align-items:center;gap:12px;margin:3px 0;font-size:13px;transition:.2s}
+.nav-btn:hover,.nav-btn.active{background:linear-gradient(100deg,#12314b,#10213a);border-color:#245174;color:white}
+.nav-btn.active{box-shadow:inset 3px 0 var(--cyan)}
+.nav-icon{width:22px;text-align:center;font-size:17px}
+.sidebar-bottom{margin-top:auto;border-top:1px solid var(--line);padding:16px 8px 0;color:var(--muted);font-size:11px;line-height:1.7}
+.main{min-width:0;padding:25px clamp(15px,3vw,38px) 60px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}
+.breadcrumb{font-size:12px;color:var(--muted)}
+.top-actions{display:flex;gap:9px;align-items:center}
+.pill{border:1px solid var(--line);border-radius:30px;padding:8px 12px;background:#0c1727;color:#b9cbe0;font-size:11px}
+.btn{border:0;border-radius:10px;padding:11px 16px;background:linear-gradient(110deg,#20c9ef,#397bff);color:#04101b;font-weight:800;font-size:12px;transition:.2s}
+.btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
+.btn.secondary{background:#17263a;border:1px solid #29405e;color:#d8e8fa}
+.btn.gold{background:linear-gradient(110deg,#f5d987,#d6a63e);color:#201707}
+.btn.danger{background:#4a1d2b;border:1px solid #81354b;color:#ffc4ce}
+.btn.small{padding:8px 11px;font-size:11px}
+.page{display:none;animation:fade .25s ease}
+.page.active{display:block}
+@keyframes fade{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:none}}
+.page-heading{margin-bottom:22px}
+.page-heading h1{font-size:clamp(24px,3vw,34px);margin:0 0 8px;letter-spacing:-.7px}
+.page-heading p{color:var(--muted);font-size:13px;margin:0;line-height:1.7}
+.hero{border:1px solid #245174;border-radius:22px;padding:clamp(22px,4vw,38px);background:linear-gradient(120deg,#102b43,#101a31 60%,#172344);position:relative;overflow:hidden;margin-bottom:22px}
+.hero:after{content:"";position:absolute;width:250px;height:250px;border-radius:50%;border:1px solid #39d9ff22;right:-70px;top:-100px;box-shadow:0 0 0 30px #39d9ff08,0 0 0 60px #39d9ff05}
+.eyebrow{color:var(--cyan);font-size:10px;letter-spacing:3px;font-weight:800}
+.hero h1{font-size:clamp(28px,4vw,43px);margin:13px 0 10px;max-width:650px}
+.hero p{color:#a8bdd5;line-height:1.8;font-size:13px;max-width:580px}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.card{background:linear-gradient(145deg,#101c2e,#0c1524);border:1px solid var(--line);border-radius:16px;padding:19px;min-width:0}
+.card h3{font-size:14px;margin:0 0 9px}
+.card p{font-size:12px;color:var(--muted);line-height:1.7;margin:0}
+.stat{font-size:25px;font-weight:900;margin:10px 0 4px}
+.stat-label{font-size:11px;color:var(--muted)}
+.section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:25px 0 13px}
+.section-title h2{font-size:16px;margin:0}
+.muted{color:var(--muted)}
+.small-text{font-size:11px;color:var(--muted);line-height:1.6}
+.panel{background:#0d1727;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.field{display:flex;flex-direction:column;gap:7px;margin-bottom:13px}
+.field label{font-size:11px;color:#a9bdd4}
+.field input,.field textarea,.field select,.input{width:100%;background:#080f1b;border:1px solid #263b56;color:white;border-radius:10px;padding:12px;outline:none;font-size:12px}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #28d9ff12}
+.field textarea{min-height:100px;resize:vertical}
+.notice{padding:12px 14px;border:1px solid #284966;background:#102337;border-radius:11px;color:#a9cde4;font-size:11px;line-height:1.7;margin:12px 0}
+.notice.warn{border-color:#66532d;background:#2a2416;color:#e9d6a7}
+.notice.success{border-color:#236348;background:#10281f;color:#a5e8c9}
+.notice.error{border-color:#71344a;background:#2b1620;color:#ffc1ce}
 .hidden{display:none!important}
-.app-header{height:68px;position:sticky;top:0;z-index:30;display:flex;align-items:center;justify-content:space-between;padding:0 25px;background:#070b14ed;border-bottom:1px solid #168cff65;backdrop-filter:blur(15px);box-shadow:0 2px 22px #008cff16}
-.brand{font-size:21px;font-weight:900;letter-spacing:1.5px;text-shadow:0 0 14px #168cff35}
-.brand span,.social-brand span{color:var(--cyan);text-shadow:0 0 12px var(--cyan)}
-.header-right{display:flex;gap:9px;align-items:center}
-.header-right button{font-size:12px}
-.app-shell{display:grid;grid-template-columns:220px minmax(0,1fr);max-width:1500px;margin:auto;min-height:calc(100vh - 68px)}
-.sidebar{border-right:1px solid var(--line);padding:24px 14px;position:sticky;top:68px;height:calc(100vh - 68px);display:flex;flex-direction:column;background:#080e19}
-.side-label{font-size:10px;color:var(--muted);letter-spacing:2px;padding:10px 12px}
-.nav{display:flex;flex-direction:column;gap:5px}
-.nav button{text-align:left;background:transparent;color:#aebbd0;border:1px solid transparent;padding:13px 12px;border-radius:9px;font-weight:500;box-shadow:none}
-.nav button:hover{background:#10223a;color:white;border-color:#168cff66;box-shadow:var(--glow)}
-.nav button.active{background:linear-gradient(100deg,#102b49,#112039);color:var(--cyan);border-color:var(--blue);box-shadow:inset 0 0 15px #168cff20,var(--glow)}
-.sidebar-bottom{margin-top:auto;padding:12px;color:var(--muted);font-size:11px}
-main{min-width:0;padding:28px 34px 70px}
-.section{display:none}.section.active{display:block}
-.page-heading{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:24px;flex-wrap:wrap}
-.page-heading h1{font-size:25px;margin:0;font-weight:700}
-.page-heading p{margin:7px 0 0;color:var(--muted);font-size:13px}
-.gold{color:var(--gold)}
-.muted{color:var(--muted);line-height:1.7}
-.hero{padding:45px 38px;border:1px solid #168cff75;border-radius:16px;background:linear-gradient(115deg,#111d30,#0e1523 65%,#10233c);position:relative;overflow:hidden;box-shadow:inset 0 0 35px #168cff12,0 0 25px #168cff16}
-.hero:after{content:"";position:absolute;width:250px;height:250px;border:1px solid #00d9ff55;border-radius:50%;right:-90px;top:-100px;box-shadow:0 0 0 30px #168cff12,0 0 0 65px #168cff08,0 0 35px #00d9ff35}
-.hero h1{font-size:clamp(30px,5vw,48px);margin:0 0 13px}
-.hero h1 span{color:var(--cyan);text-shadow:0 0 20px #00d9ff55}
-.hero p{max-width:560px;color:#aabbd0;line-height:1.8;font-size:14px}
-.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:23px}
-.hero-actions button{position:relative;z-index:1}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:13px;margin-top:20px}
-.card,.form-box{background:linear-gradient(145deg,#111b2b,#0d1421);border:1px solid var(--line);border-radius:12px;padding:19px;min-width:0;box-shadow:0 4px 20px #0003}
-.card:hover{border-color:#168cff80;box-shadow:0 0 18px #168cff18}
-.card h3{margin:0 0 10px;font-size:15px}
-.card p{font-size:13px;color:var(--muted);line-height:1.7}
-.feature-card{min-height:145px;display:flex;flex-direction:column;justify-content:space-between}
-.feature-card button{align-self:flex-start;margin-top:10px}
-.feature-icon{width:38px;height:38px;border:1px solid #168cff;color:var(--cyan);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:15px;box-shadow:var(--glow);background:#0b1b30}
-.status{padding:12px 14px;background:#101b2b;border:1px solid var(--line);border-radius:9px;color:var(--muted);font-size:13px;line-height:1.6;overflow-wrap:anywhere;margin:12px 0}
-.status.success{border-color:#246b54;color:#78ddb8}
-.status.error{border-color:#803b47;color:#ff9da7}
-.status.warning{border-color:#80652f;color:#e9c985}
-.field{margin:13px 0}
-.field label{display:block;font-size:12px;color:#b9cbe0;margin-bottom:7px}
-.field input,.field textarea{width:100%;padding:12px;background:#080f1b;color:white;border:1px solid #29415f;border-radius:8px;outline:none}
-.field input:focus,.field textarea:focus,.comment-form input:focus{border-color:var(--cyan);box-shadow:0 0 0 2px #00d9ff25,0 0 15px #168cff30}
-.field textarea{min-height:90px;resize:vertical}
-.form-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:15px}
-.form-actions button{font-size:12px}
-.tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px}
-.tabs button{background:transparent;color:var(--muted);border-color:var(--line);font-size:12px;box-shadow:none}
-.tabs button.active{background:#102b49;color:var(--cyan);border-color:var(--blue);box-shadow:var(--glow)}
-.profile-head{display:flex;align-items:center;gap:15px}
-.avatar{width:68px;height:68px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#102d4b;color:var(--cyan);font-size:25px;font-weight:bold;overflow:hidden;flex-shrink:0;border:2px solid var(--blue);box-shadow:var(--glow)}
-.avatar img{width:100%;height:100%;object-fit:cover}
-.profile-meta h2{margin:0 0 6px;font-size:18px}
-.profile-meta p{margin:0;color:var(--muted);font-size:12px}
-.pill{display:inline-block;border:1px solid #2879b5;border-radius:30px;padding:5px 9px;color:var(--blue2);font-size:10px;margin:4px 3px 4px 0;background:#0c2036}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
-.notice{padding:12px 14px;border-left:3px solid var(--cyan);background:#10223a;color:#b8d9f5;border-radius:5px;font-size:12px;line-height:1.7;margin:13px 0}
-.item{padding:12px;background:#111b2b;border:1px solid var(--line);border-radius:8px;margin:8px 0;font-size:13px}
-.item small{display:block;color:var(--muted);margin-bottom:5px}
-.social-shell{max-width:1100px;margin:auto}
-.social-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-.social-brand{font-size:24px;font-weight:900;letter-spacing:1px}
-.social-tabs{display:flex;gap:5px;overflow-x:auto;border-bottom:1px solid #168cff65;padding-bottom:10px;margin-bottom:18px;scrollbar-width:thin}
-.social-tabs button{flex-shrink:0;background:transparent;color:var(--muted);border:1px solid transparent;border-radius:8px;padding:11px 13px;font-size:12px;box-shadow:none}
-.social-tabs button:hover{color:var(--cyan);border-color:#168cff66}
-.social-tabs button.active{background:#102b49;color:var(--cyan);border-color:var(--blue);box-shadow:0 0 14px #168cff30}
-.social-panel{display:none}.social-panel.active{display:block}
-.social-feed-layout{display:grid;grid-template-columns:minmax(0,650px) 260px;gap:18px;justify-content:center;align-items:start}
-.story-row{display:flex;gap:15px;overflow-x:auto;padding:13px 4px 17px;margin-bottom:12px}
-.story{flex-shrink:0;text-align:center;width:65px}
-.story-circle{width:57px;height:57px;border-radius:50%;margin:auto;border:2px solid var(--cyan);padding:3px;display:flex;align-items:center;justify-content:center;color:var(--cyan);font-weight:bold;background:#10223a;box-shadow:var(--glow)}
-.story small{display:block;color:var(--muted);font-size:10px;margin-top:7px}
-.post-card{padding:15px;background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:13px 0}
-.post-card:hover{border-color:#168cff70}
-.post-top{display:flex;align-items:center;gap:10px}
-.post-avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;background:#102d4b;display:flex;align-items:center;justify-content:center;color:var(--cyan);font-weight:bold;flex-shrink:0;border:1px solid var(--blue)}
-.post-avatar img{width:100%;height:100%;object-fit:cover}
-.post-author{font-weight:bold;font-size:13px}
-.post-date{font-size:10px;color:var(--muted);margin-top:4px}
-.post-text{line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;margin:15px 0;font-size:14px}
-.post-image{width:100%;max-height:500px;object-fit:contain;border-radius:9px;background:#08090d}
-.post-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.post-actions button{background:#102039;color:#c6d8ed;border-color:#285078;font-size:11px;box-shadow:none}
-.post-actions button.liked{color:#ff8091;border-color:#884453}
-.comment-area{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
-.comment{padding:8px 0;border-bottom:1px solid #292b3355;line-height:1.5;font-size:12px}
-.comment strong{color:var(--cyan);margin-right:5px}
+.avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#22d4ed,#345dff);display:grid;place-items:center;color:#06111d;font-weight:900;overflow:hidden;flex-shrink:0}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.social-shell{background:linear-gradient(145deg,#101d32,#0b1423);border:1px solid #29415e;border-radius:22px;padding:clamp(14px,2.5vw,25px);overflow:hidden}
+.social-banner{padding:24px;border-radius:17px;background:linear-gradient(115deg,#102d48,#15234a 65%,#24204a);border:1px solid #31547b;position:relative;overflow:hidden}
+.social-banner:after{content:"";position:absolute;width:170px;height:170px;border-radius:50%;border:1px solid #40dfff44;right:-30px;top:-75px;box-shadow:0 0 0 24px #40dfff0b,0 0 0 48px #40dfff08}
+.social-banner h1{font-size:clamp(24px,3vw,34px);margin:9px 0}
+.social-banner p{font-size:12px;color:#a9c6e1;line-height:1.7;max-width:560px;margin:0}
+.social-tabs{display:flex;gap:7px;overflow-x:auto;padding:16px 0;border-bottom:1px solid var(--line);scrollbar-width:none}
+.social-tabs::-webkit-scrollbar{display:none}
+.social-tab{white-space:nowrap;border:1px solid transparent;background:transparent;color:#8ea5c0;padding:10px 14px;border-radius:10px;font-size:11px}
+.social-tab.active{color:#eafaff;background:#123149;border-color:#286080}
+.social-view{display:none;padding-top:18px}
+.social-view.active{display:block}
+.social-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:17px;align-items:start}
+.social-main{min-width:0}
+.social-side{display:grid;gap:13px}
+.story-row{display:flex;gap:12px;overflow-x:auto;padding:4px 0 14px}
+.story{min-width:70px;text-align:center}
+.story-ring{width:58px;height:58px;padding:3px;border-radius:50%;background:linear-gradient(135deg,#27dfff,#5964ff,#e1a94a);margin:0 auto 7px}
+.story-ring .avatar{width:100%;height:100%;border:2px solid #101b2c}
+.story span{font-size:10px;color:#a9bad0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.social-card{background:#0d1829;border:1px solid #223b59;border-radius:16px;padding:16px;margin-bottom:13px;min-width:0}
+.post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.post-head .user-info{min-width:0;flex:1}
+.post-head strong{font-size:12px;display:block}
+.post-head small{font-size:10px;color:var(--muted)}
+.post-text{font-size:13px;line-height:1.8;color:#d9e7f6;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-image{width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin-top:12px;border:1px solid #263b56}
+.post-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;border-top:1px solid #20334b;margin-top:13px;padding-top:12px}
+.post-action{background:transparent;border:0;color:#9db2ca;font-size:11px;padding:6px 8px;border-radius:8px}
+.post-action:hover,.post-action.liked{background:#183148;color:var(--cyan)}
+.comment-list{margin-top:10px}
+.comment{font-size:11px;color:#bdcde0;padding:8px 10px;background:#111f31;border-radius:8px;margin-top:6px;overflow-wrap:anywhere}
 .comment-form{display:flex;gap:7px;margin-top:10px}
-.comment-form input{flex:1;min-width:0;background:#090f1a;border:1px solid #29415f;color:white;border-radius:8px;padding:10px;font-size:12px;outline:none}
-.comment-form button{font-size:11px}
-.preview-image{max-width:100%;max-height:220px;border-radius:9px;margin-top:10px}
-.empty-state{text-align:center;padding:30px 12px;color:var(--muted);font-size:13px}
-.explore-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-.explore-cell{min-height:100px;background:#111b2b;border:1px solid var(--line);border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;overflow:hidden}
-.explore-cell img{width:100%;height:100%;object-fit:cover}
-.coming-card{text-align:center;padding:45px 20px;background:var(--panel);border:1px solid #24527c;border-radius:12px;box-shadow:inset 0 0 25px #168cff10}
-.coming-icon{font-size:32px;color:var(--cyan);margin-bottom:14px;text-shadow:0 0 15px var(--cyan)}
-.coming-card h3{margin:0 0 10px}
-.coming-card p{max-width:420px;margin:0 auto;color:var(--muted);font-size:13px;line-height:1.8}
-.social-aside .card{margin-bottom:12px}
-footer{text-align:center;padding:25px;color:#777982;font-size:11px;border-top:1px solid var(--line)}
-a{color:var(--blue2)}
-@media(max-width:850px){
- .app-shell{grid-template-columns:1fr}
- .sidebar{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:40;height:auto;padding:5px 4px;border-right:0;border-top:1px solid var(--blue);background:#080e19f5;backdrop-filter:blur(14px);overflow:hidden}
- .side-label,.sidebar-bottom{display:none}
- .nav{flex-direction:row;justify-content:flex-start;gap:3px;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
- .nav button{flex:0 0 auto;text-align:center;padding:11px 13px;font-size:11px;white-space:nowrap}
- main{padding:22px 14px 95px}
- .social-feed-layout{grid-template-columns:1fr}
- .social-aside{display:none}
-}
-@media(max-width:500px){
- .app-header{height:58px;padding:0 13px}
- .brand{font-size:17px}
- .header-right button{padding:8px;font-size:10px}
- .hero{padding:27px 20px}
- .hero h1{font-size:30px}
- .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
- .card{padding:14px}
- .feature-card{min-height:140px}
- .page-heading h1{font-size:21px}
- .nav button{font-size:10px;padding:10px 12px}
-}
+.comment-form input{min-width:0;flex:1;background:#080f1b;border:1px solid #263b56;border-radius:9px;padding:10px;color:white;font-size:11px}
+.profile-cover{height:100px;border-radius:13px;background:linear-gradient(120deg,#15516b,#283b78,#513c76);margin-bottom:-32px}
+.profile-card{text-align:center}
+.profile-card .avatar{width:68px;height:68px;margin:0 auto 9px;border:3px solid #0d1829}
+.profile-card h3{margin:0 0 5px}
+.profile-card p{font-size:11px;color:var(--muted);line-height:1.6}
+.profile-stats{display:flex;justify-content:space-around;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.profile-stats strong{display:block;font-size:14px}
+.profile-stats span{font-size:10px;color:var(--muted)}
+.empty{padding:28px;text-align:center;border:1px dashed #304760;border-radius:13px;color:var(--muted);font-size:12px;line-height:1.8}
+.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.feature{background:#101d30;border:1px solid #263d5a;border-radius:13px;padding:16px}
+.feature .feature-icon{font-size:23px;margin-bottom:9px}
+.feature h3{font-size:13px;margin:0 0 6px}
+.feature p{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--green);margin-right:6px}
+.mobile-nav{display:none}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600}
+.toast{position:fixed;bottom:25px;right:25px;z-index:50;background:#14273b;border:1px solid #315878;border-radius:12px;padding:13px 17px;color:#e7f7ff;font-size:12px;box-shadow:0 10px 35px #0008;max-width:90vw;display:none}
+.toast.show{display:block;animation:fade .2s}
+@media(max-width:950px){.app{grid-template-columns:205px minmax(0,1fr)}.social-layout{grid-template-columns:minmax(0,1fr)}.social-side{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.app{display:block}.sidebar{display:none}.main{padding:17px 13px 85px}.topbar{margin-bottom:20px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#091321f5;border-top:1px solid var(--line);z-index:20;justify-content:space-around;padding:8px 3px calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(15px)}.mobile-nav button{background:none;border:0;color:#8da5c0;font-size:9px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px}.mobile-nav button.active{color:var(--cyan)}.mobile-nav span{font-size:18px}.social-side{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.hero{padding:22px}.top-actions .pill{display:none}}
+@media(max-width:420px){.grid{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.social-banner{padding:18px}.social-shell{padding:11px}.social-tab{padding:9px 11px}}
 </style>
 </head>
 <body>
-<header class="app-header">
- <div class="brand">MEHRAN <span>MSH</span></div>
- <div class="header-right">
-  <button class="secondary" id="languageButton" onclick="toggleLanguage()">فارسی</button>
-  <button id="piLoginButton" onclick="signInWithPi()">Sign in with Pi</button>
- </div>
+<div class="app">
+<aside class="sidebar">
+<div class="brand"><div class="brand-logo">M</div><div><div class="brand-name">MEHRAN MSH</div><div class="brand-sub">DIGITAL ECOSYSTEM</div></div></div>
+<div class="nav-label">WORKSPACE</div>
+<button class="nav-btn active" data-page="dashboard"><span class="nav-icon">⌂</span>Dashboard</button>
+<button class="nav-btn" data-page="user"><span class="nav-icon">◉</span>User Center</button>
+<button class="nav-btn" data-page="social"><span class="nav-icon">◎</span>SOCIAL</button>
+<button class="nav-btn" data-page="admin"><span class="nav-icon">⚙</span>Admin</button>
+<div class="nav-label">INTELLIGENCE</div>
+<button class="nav-btn" data-page="intelligence"><span class="nav-icon">✧</span>Intelligence</button>
+<div class="nav-label">ECOSYSTEM</div>
+<button class="nav-btn" data-page="projects"><span class="nav-icon">▦</span>Projects</button>
+<button class="nav-btn" data-page="services"><span class="nav-icon">◇</span>Services</button>
+<div class="sidebar-bottom">MEHRAN MSH<br><span class="status-dot"></span>Digital ecosystem interface<br><span id="sideUser">Guest session</span></div>
+</aside>
+<main class="main">
+<header class="topbar">
+<div class="breadcrumb">MEHRAN MSH <span style="color:#405875">/</span> <span id="crumb">Dashboard</span></div>
+<div class="top-actions"><span class="pill" id="connectionStatus">● Checking connection</span><button class="btn secondary small" id="languageBtn">EN / FA</button></div>
 </header>
 
-<div class="app-shell">
-<aside class="sidebar">
- <div class="side-label">MAIN MENU</div>
- <nav class="nav">
-  <button class="active" data-page="dashboard" onclick="showPage('dashboard',this)">⌂ Dashboard</button>
-  <button data-page="usercenter" onclick="showPage('usercenter',this)">◉ User Center</button>
-  <button data-page="social" onclick="openSocial(this)">◎ SOCIAL</button>
-  <button data-page="projects" onclick="showPage('projects',this)">◇ Projects</button>
-  <button data-page="services" onclick="showPage('services',this)">◈ Services</button>
-  <button data-page="intelligence" onclick="showPage('intelligence',this)">✧ Intelligence</button>
-  <button data-page="admin" onclick="showPage('admin',this)">⚙ ADMIN</button>
- </nav>
- <div class="sidebar-bottom">MEHRAN MSH<br><span class="gold">Digital Ecosystem</span></div>
-</aside>
-
-<main>
-<section id="dashboard" class="section active">
- <div class="hero">
-  <div class="pill">DIGITAL ECOSYSTEM</div>
-  <h1>Welcome to<br><span>MEHRAN MSH</span></h1>
-  <p>A connected space for technology, creativity, intelligent services and future businesses.</p>
-  <div class="hero-actions">
-   <button onclick="showPage('projects')">Explore Projects</button>
-   <button class="secondary" onclick="openSocial()">Open SOCIAL</button>
-  </div>
- </div>
- <div class="page-heading" style="margin-top:32px"><div><h1>Explore the Ecosystem</h1><p>Your digital workspace, all in one place.</p></div></div>
- <div class="grid">
-  <div class="card feature-card"><div><div class="feature-icon">◇</div><h3>Projects</h3><p>Explore connected projects.</p></div><button onclick="showPage('projects')">Explore</button></div>
-  <div class="card feature-card"><div><div class="feature-icon">◎</div><h3>SOCIAL</h3><p>Connect, share and communicate.</p></div><button onclick="openSocial()">Open SOCIAL</button></div>
-  <div class="card feature-card"><div><div class="feature-icon">✧</div><h3>Intelligence</h3><p>AI and intelligent experiences.</p></div><button onclick="showPage('intelligence')">Explore</button></div>
-  <div class="card feature-card"><div><div class="feature-icon">◈</div><h3>Services</h3><p>Discover ecosystem services.</p></div><button onclick="showPage('services')">Explore</button></div>
- </div>
- <div class="card" style="margin-top:20px"><h3>Personal Workspace</h3><div id="piStatus" class="status">Pi account not connected.</div><div id="welcomeUser" class="muted">Sign in with Pi to access account features.</div></div>
-</section>
-
-<section id="usercenter" class="section">
- <div class="page-heading"><div><h1>User Center</h1><p>Your personal workspace.</p></div></div>
- <div class="card"><h3>Account Information</h3><div id="userInfo" class="muted">Sign in with Pi to view your account information.</div></div>
- <div class="card" style="margin-top:14px"><h3>Personal Notes</h3><div class="field"><textarea id="personalNote" placeholder="Write your note..."></textarea></div><button onclick="saveNote()">Save Note</button><div id="noteStatus" class="status">Notes are stored locally.</div></div>
-</section>
-
-<section id="social" class="section">
-<div class="social-shell">
- <div class="social-top">
-  <div><div class="social-brand">SOCIAL<span>.</span></div><div class="muted" style="font-size:11px">Your world. Your connections.</div></div>
-  <div id="socialMessage" class="status" style="margin:0">Checking account...</div>
- </div>
- <div id="socialAuthArea">
-  <div class="card" style="max-width:460px;margin:35px auto">
-   <div style="text-align:center;margin-bottom:24px"><div class="social-brand">SOCIAL<span>.</span></div><p class="muted">Connect with your world.</p></div>
-   <div class="tabs">
-    <button id="socialLoginTab" class="active" onclick="showSocialForm('login')">Login</button>
-    <button id="socialRegisterTab" onclick="showSocialForm('register')">Create Account</button>
-   </div>
-   <div id="socialLoginForm">
-    <h3>Welcome Back</h3>
-    <div class="field"><label>Email or Username</label><input id="socialLoginIdentifier" autocomplete="username" placeholder="Email or username"></div>
-    <div class="field"><label>Password</label><input id="socialLoginPassword" type="password" autocomplete="current-password" placeholder="Your password"></div>
-    <button style="width:100%" onclick="socialLogin()">Login</button>
-   </div>
-   <div id="socialRegisterForm" class="hidden">
-    <h3>Create Your Account</h3>
-    <div class="field"><label>Username</label><input id="socialRegisterUsername" autocomplete="username" placeholder="Choose a username"></div>
-    <div class="field"><label>Email</label><input id="socialRegisterEmail" type="email" autocomplete="email" placeholder="Your email"></div>
-    <div class="field"><label>Display Name</label><input id="socialRegisterDisplayName" placeholder="Your display name"></div>
-    <div class="field"><label>Password</label><input id="socialRegisterPassword" type="password" autocomplete="new-password" placeholder="At least 10 characters"></div>
-    <button style="width:100%" onclick="socialRegister()">Create Account</button>
-    <p class="muted" style="font-size:11px">Do not reuse your Pi account password.</p>
-   </div>
-  </div>
- </div>
-
- <div id="socialProfileArea" class="hidden">
-  <div class="social-tabs">
-   <button class="active" data-social-tab="feed" onclick="showSocialPanel('feed',this)">⌂ Home</button>
-   <button data-social-tab="explore" onclick="showSocialPanel('explore',this)">⌕ Explore</button>
-   <button data-social-tab="create" onclick="showSocialPanel('create',this)">＋ Create</button>
-   <button data-social-tab="messages" onclick="showSocialPanel('messages',this)">✉ Messages</button>
-   <button data-social-tab="groups" onclick="showSocialPanel('groups',this)">♧ Groups</button>
-   <button data-social-tab="channels" onclick="showSocialPanel('channels',this)">▤ Channels</button>
-   <button data-social-tab="anonymous" onclick="showSocialPanel('anonymous',this)">◉ Anonymous</button>
-   <button data-social-tab="bots" onclick="showSocialPanel('bots',this)">✧ Bots</button>
-   <button data-social-tab="profile" onclick="showSocialPanel('profile',this)">♙ Profile</button>
-  </div>
-
-  <div id="socialFeedPanel" class="social-panel active">
-   <div class="social-feed-layout">
-    <div>
-     <div class="story-row">
-      <div class="story"><div class="story-circle">+</div><small>Your Story</small></div>
-      <div class="story"><div class="story-circle">S</div><small>SOCIAL</small></div>
-      <div class="story"><div class="story-circle">✧</div><small>Discover</small></div>
-     </div>
-     <div class="card">
-      <div class="profile-head"><div class="avatar" id="socialAvatar">S</div><div class="profile-meta"><h2 id="socialDisplayName">SOCIAL User</h2><p id="socialUsername">@username</p></div></div>
-      <div class="form-actions"><button onclick="showSocialPanel('profile')">Edit Profile</button><button class="secondary" onclick="socialLogout()">Logout</button></div>
-     </div>
-     <div style="margin-top:23px"><h3>Your Feed</h3><div class="notice">Posts are currently stored in this browser only. Public multi-user feed is not connected yet.</div><div id="socialFeed"></div></div>
-    </div>
-    <aside class="social-aside">
-     <div class="card"><h3>Your Account</h3><div class="item"><small>Username</small><div id="sideUsername"></div></div><div class="item"><small>Your Posts</small><div id="postCount">0</div></div><div class="item"><small>Account</small><div>Connected</div></div></div>
-     <div class="card"><h3>Discover SOCIAL</h3><p>Explore new people and communities when public discovery becomes available.</p><span class="pill">In development</span></div>
-    </aside>
-   </div>
-  </div>
-
-  <div id="socialExplorePanel" class="social-panel">
-   <div class="page-heading"><div><h1>Explore</h1><p>Discover people, photos and ideas.</p></div></div>
-   <div class="field"><input id="exploreSearch" placeholder="Search people and content..." oninput="searchExplore(this.value)"></div>
-   <div class="notice">Public discovery and search will become available after the shared SOCIAL feed API is implemented.</div>
-   <div id="exploreResults" class="explore-grid"></div><div id="exploreEmpty" class="empty-state">Public Explore is not connected yet.</div>
-  </div>
-
-  <div id="socialCreatePanel" class="social-panel">
-   <div class="page-heading"><div><h1>Create a Post</h1><p>Share a thought, photo or moment.</p></div></div>
-   <div class="card" style="max-width:700px">
-    <div class="field"><label>Your post</label><textarea id="newPostText" maxlength="3000" placeholder="What's happening?"></textarea></div>
-    <div class="field"><label>Add a photo</label><input id="newPostImage" type="file" accept="image/*" onchange="previewPostImage(this)"></div>
-    <img id="postPreview" class="preview-image hidden" alt="Post preview">
-    <div class="form-actions"><button onclick="createPost()">Publish</button><button class="secondary" onclick="clearPostForm()">Clear</button></div>
-   </div>
-  </div>
-
-  <div id="socialMessagesPanel" class="social-panel"><div class="coming-card"><div class="coming-icon">✉</div><h3>Messages</h3><p>Private conversations, voice messages and file sharing will live here. The messaging backend is not connected yet.</p><span class="pill">Backend development required</span></div></div>
-  <div id="socialGroupsPanel" class="social-panel"><div class="coming-card"><div class="coming-icon">♧</div><h3>Groups</h3><p>Create or join group conversations and communities. Group APIs are not connected yet.</p><span class="pill">In development</span></div></div>
-  <div id="socialChannelsPanel" class="social-panel"><div class="coming-card"><div class="coming-icon">▤</div><h3>Channels</h3><p>Follow channels and receive posts from creators and communities. Channel APIs are not connected yet.</p><span class="pill">In development</span></div></div>
-  <div id="socialAnonymousPanel" class="social-panel"><div class="coming-card"><div class="coming-icon">◉</div><h3>Anonymous Chat</h3><p>Meet new people through anonymous conversations. Matching, blocking, reporting and safety controls will be included.</p><span class="pill">In development</span></div></div>
-  <div id="socialBotsPanel" class="social-panel"><div class="coming-card"><div class="coming-icon">✧</div><h3>Bots</h3><p>Discover intelligent assistants, entertainment bots and useful tools. The bot platform is not connected yet.</p><span class="pill">In development</span></div></div>
-
-  <div id="socialProfilePanel" class="social-panel">
-   <div class="card" style="max-width:650px">
-    <h3>Your Profile</h3>
-    <div class="profile-head"><div class="avatar" id="profileAvatarLarge">S</div><div class="profile-meta"><h2 id="profileDisplayName">SOCIAL User</h2><p id="profileUsername">@username</p></div></div>
-    <hr>
-    <div id="profileBioText" class="muted">No bio added yet.</div>
-
-    <hr>
-    <h3>Session Management</h3>
-    <p class="muted">Manage devices connected to your SOCIAL account. You can log out individual devices or all other devices.</p>
-    <div class="form-actions">
-     <button class="secondary" onclick="loadSocialSessions()">Refresh Sessions</button>
-     <button class="danger" onclick="logoutAllOtherSessions()">Logout Other Devices</button>
-    </div>
-    <div id="socialSessionsStatus" class="status">Sessions have not been loaded yet.</div>
-    <div id="socialSessionsList"></div>
-
-    <hr>
-    <h3>Edit Profile</h3>
-    <div class="field"><label>Display Name</label><input id="editDisplayName" maxlength="50"></div>
-    <div class="field"><label>Bio</label><textarea id="editBio" maxlength="300" placeholder="Tell people about yourself..."></textarea></div>
-    <div class="field"><label>Profile Picture</label><input id="editAvatar" type="file" accept="image/*" onchange="previewAvatar(this)"></div>
-    <img id="avatarPreview" class="preview-image hidden" alt="Avatar preview">
-    <div class="form-actions"><button onclick="saveProfile()">Save Profile</button><button class="secondary" onclick="socialLogout()">Logout</button></div>
-   </div>
-  </div>
- </div>
+<section class="page active" id="page-dashboard">
+<div class="hero">
+<div class="eyebrow">WELCOME TO YOUR DIGITAL WORLD</div>
+<h1 id="heroTitle">One Hub. Many Possibilities.</h1>
+<p id="heroText">MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.</p>
+<div class="hero-actions"><button class="btn" onclick="showPage('user')">Open User Center</button><button class="btn secondary" onclick="showPage('social')">Explore SOCIAL</button></div>
+</div>
+<div class="grid">
+<div class="card"><div class="eyebrow">IDENTITY</div><div class="stat" id="dashIdentity">Guest</div><div class="stat-label">Current account</div></div>
+<div class="card"><div class="eyebrow">SOCIAL</div><div class="stat" id="dashPosts">0</div><div class="stat-label">Your local posts</div></div>
+<div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="dashProjects">0</div><div class="stat-label">Projects available</div></div>
+</div>
+<div class="section-title"><h2>Explore your workspace</h2></div>
+<div class="grid">
+<div class="card"><h3>◉ User Center</h3><p>Manage your account, profile and Pi Network connection.</p></div>
+<div class="card"><h3>◎ SOCIAL</h3><p>Your social space for profiles, posts, photos and community features.</p></div>
+<div class="card"><h3>✧ Intelligence</h3><p>A dedicated space for intelligent tools and future AI services.</p></div>
 </div>
 </section>
 
-<section id="admin" class="section">
- <div class="page-heading"><div><h1>Admin</h1><p>Ecosystem management.</p></div><span class="pill">Pi administrator</span></div>
- <div id="adminStatus" class="status warning">Admin access requires Pi authentication.</div>
- <div id="adminContent" class="hidden">
-  <div class="card">
-   <h3>Administrator Workspace</h3><p class="muted">Manage ecosystem projects.</p>
-   <div class="field"><label>Project Name</label><input id="newProjectName" placeholder="Project name"></div>
-   <div class="field"><label>Description</label><textarea id="newProjectDescription" placeholder="Project description"></textarea></div>
-   <div class="field"><label>Project URL</label><input id="newProjectUrl" placeholder="https://example.com"></div>
-   <button onclick="createProject()">Add Project</button><div id="adminProjectStatus" class="status"></div>
-  </div>
- </div>
+<section class="page" id="page-user">
+<div class="page-heading"><h1>User Center</h1><p>Your account, digital identity and connection settings.</p></div>
+<div class="grid">
+<div class="card"><div class="eyebrow">ACCOUNT</div><div class="stat" id="userStatus">Guest</div><div class="stat-label">MEHRAN MSH account status</div></div>
+<div class="card"><div class="eyebrow">PI NETWORK</div><div class="stat" id="piStatus">Not connected</div><div class="stat-label">Pi authentication status</div></div>
+<div class="card"><div class="eyebrow">SOCIAL ACCOUNT</div><div class="stat" id="socialStatus">Not registered</div><div class="stat-label">SOCIAL membership</div></div>
+</div>
+<div class="panel">
+<h3>Pi Network Authentication</h3>
+<p class="small-text">Connect using the official Pi authentication window. Never share your wallet passphrase or private keys.</p>
+<div id="piMessage" class="notice">Pi sign-in is available when opened in a supported Pi Browser environment.</div>
+<button class="btn" id="piLoginBtn">Sign in with Pi</button>
+<button class="btn secondary hidden" id="piLogoutBtn">Disconnect session</button>
+</div>
+<div class="panel">
+<h3>Account Information</h3>
+<div class="form-grid">
+<div class="field"><label>Pi Username</label><input id="piUsername" readonly placeholder="Not connected"></div>
+<div class="field"><label>Account UID</label><input id="piUid" readonly placeholder="Not available"></div>
+</div>
+</div>
 </section>
 
-<section id="intelligence" class="section">
- <div class="page-heading"><div><h1>Intelligence</h1><p>Intelligent products and experiences.</p></div></div>
- <div class="grid">
-  <div class="card"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Intelligent assistant tools.</p><span class="pill">Planned</span></div>
-  <div class="card"><div class="feature-icon">♫</div><h3>Creative Intelligence</h3><p>Music and creative workflows.</p><span class="pill">Planned</span></div>
-  <div class="card"><div class="feature-icon">◉</div><h3>Personal Agent</h3><p>A persistent assistant with identity and memory.</p><span class="pill">Planned</span></div>
- </div>
+<section class="page" id="page-social">
+<div class="social-shell">
+<div class="social-banner">
+<div class="eyebrow">CONNECT · CREATE · SHARE</div>
+<h1>SOCIAL</h1>
+<p>Your social space inside MEHRAN MSH. Create your profile, share moments, discover content and connect with people.</p>
+</div>
+<div class="social-tabs">
+<button class="social-tab active" data-social="feed">⌂ Feed</button>
+<button class="social-tab" data-social="profile">◉ Profile</button>
+<button class="social-tab" data-social="messages">✉ Messages</button>
+<button class="social-tab" data-social="groups">♧ Groups</button>
+<button class="social-tab" data-social="channels">▤ Channels</button>
+<button class="social-tab" data-social="explore">⌕ Explore</button>
+<button class="social-tab" data-social="settings">⚙ Settings</button>
+</div>
+
+<div class="social-view active" id="social-feed">
+<div id="socialAuthPanel" class="panel">
+<h3>Welcome to SOCIAL</h3>
+<p class="small-text">Create an account or sign in to start building your social profile.</p>
+<div class="form-grid">
+<div>
+<div class="field"><label>Username</label><input id="socialUsername" placeholder="Choose a username" autocomplete="username"></div>
+<div class="field"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div>
+</div>
+<div>
+<div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="current-password"></div>
+<div class="field"><label>Display name (for registration)</label><input id="socialDisplayName" placeholder="Your display name"></div>
+</div>
+</div>
+<div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div>
+<div id="socialAuthMessage" class="notice">You can register with email, username and password. Pi account linking is optional.</div>
+</div>
+<div id="socialApp" class="hidden">
+<div class="social-layout">
+<div class="social-main">
+<div class="story-row">
+<div class="story"><div class="story-ring"><div class="avatar">+</div></div><span>Your story</span></div>
+<div class="story"><div class="story-ring"><div class="avatar">M</div></div><span>Moments</span></div>
+<div class="story"><div class="story-ring"><div class="avatar">S</div></div><span>Community</span></div>
+<div class="story"><div class="story-ring"><div class="avatar">✧</div></div><span>Discover</span></div>
+</div>
+<div class="social-card">
+<div class="post-head"><div class="avatar" id="composerAvatar">M</div><div class="user-info"><strong id="composerName">Your profile</strong><small>Share something with your community</small></div></div>
+<div class="field"><textarea id="postText" placeholder="What's on your mind?"></textarea></div>
+<div class="field"><label>Add a photo (optional, max 700 KB)</label><input type="file" id="postImage" accept="image/*"></div>
+<button class="btn" id="publishPostBtn">Publish post</button>
+</div>
+<div class="section-title"><h2>Your Feed</h2><span class="small-text" id="feedCount">0 posts</span></div>
+<div id="feedList"></div>
+</div>
+<aside class="social-side">
+<div class="social-card profile-card">
+<div class="profile-cover"></div>
+<div class="avatar" id="sideAvatar">M</div>
+<h3 id="sideProfileName">Your profile</h3>
+<p id="sideProfileBio">Welcome to your SOCIAL profile.</p>
+<div class="profile-stats"><div><strong id="profilePostCount">0</strong><span>Posts</span></div><div><strong>0</strong><span>Followers</span></div><div><strong>0</strong><span>Following</span></div></div>
+<button class="btn secondary small" style="margin-top:14px" onclick="switchSocial('profile')">Edit profile</button>
+</div>
+<div class="social-card"><h3>Community spaces</h3><p class="small-text">Groups and channels are planned for the next development stages.</p><button class="btn secondary small" style="margin-top:12px" onclick="switchSocial('groups')">Explore groups</button></div>
+</aside>
+</div>
+</div>
+</div>
+
+<div class="social-view" id="social-profile">
+<div id="profileLoginNotice" class="empty">Sign in to view and edit your profile.</div>
+<div id="profileEditor" class="panel hidden">
+<h3>Your Profile</h3>
+<div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div>
+<div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div>
+<div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div>
+<div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div>
+<div id="profileMessage" class="notice">Your profile details are stored on this device.</div>
+</div>
+</div>
+
+<div class="social-view" id="social-messages">
+<div class="empty"><div style="font-size:30px;margin-bottom:10px">✉</div><strong>Messages</strong><br>Private messaging is part of the SOCIAL roadmap. The messaging backend is not connected yet.</div>
+</div>
+<div class="social-view" id="social-groups">
+<div class="empty"><div style="font-size:30px;margin-bottom:10px">♧</div><strong>Groups</strong><br>Community groups will be introduced in a future development stage. Group creation and messaging are not connected yet.</div>
+</div>
+<div class="social-view" id="social-channels">
+<div class="empty"><div style="font-size:30px;margin-bottom:10px">▤</div><strong>Channels</strong><br>Public channels and broadcasting are planned. This section is not connected to a backend yet.</div>
+</div>
+<div class="social-view" id="social-explore">
+<div class="section-title"><h2>Explore SOCIAL</h2></div>
+<div class="feature-grid">
+<div class="feature"><div class="feature-icon">📷</div><h3>Photos & Posts</h3><p>Share your moments and ideas with your community.</p></div>
+<div class="feature"><div class="feature-icon">✉</div><h3>Messaging</h3><p>Private conversations are planned for a future release.</p></div>
+<div class="feature"><div class="feature-icon">♧</div><h3>Communities</h3><p>Groups and channels are planned for future releases.</p></div>
+<div class="feature"><div class="feature-icon">✧</div><h3>Discovery</h3><p>Discover people and content as the community grows.</p></div>
+</div>
+</div>
+<div class="social-view" id="social-settings">
+<div class="panel">
+<h3>Account Settings</h3>
+<p class="small-text">Manage your SOCIAL account session.</p>
+<div class="field"><label>Signed in as</label><input id="settingsUsername" readonly placeholder="Not signed in"></div>
+<div class="hero-actions"><button class="btn secondary" id="refreshSessionBtn">Refresh session</button><button class="btn danger" id="socialLogoutBtn">Sign out</button></div>
+<div id="settingsMessage" class="notice">Your account session is managed by the MEHRAN MSH authentication service.</div>
+</div>
+</div>
+</div>
 </section>
 
-<section id="projects" class="section">
- <div class="page-heading"><div><h1>Projects</h1><p>Connected projects in the MEHRAN MSH ecosystem.</p></div></div>
- <div id="projectsStatus" class="status">Loading projects...</div><div id="projectsList" class="grid"></div>
+<section class="page" id="page-admin">
+<div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div>
+<div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div>
+<div class="panel">
+<h3>System Overview</h3>
+<div class="grid">
+<div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div>
+<div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div>
+<div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div>
+</div>
+</div>
 </section>
 
-<section id="services" class="section">
- <div class="page-heading"><div><h1>Services</h1><p>Explore ecosystem services.</p></div></div>
- <div class="grid">
-  <div class="card"><div class="feature-icon">♫</div><h3>Music</h3><p>Music publishing and creative services.</p><span class="pill">MEHRAN MUSIC</span></div>
-  <div class="card"><div class="feature-icon">◇</div><h3>Technology</h3><p>Digital products and technology services.</p><span class="pill">Planned</span></div>
-  <div class="card"><div class="feature-icon">◈</div><h3>Robotics</h3><p>Robotics and intelligent systems.</p><span class="pill">Planned</span></div>
-  <div class="card"><div class="feature-icon">✧</div><h3>AI</h3><p>Artificial intelligence products.</p><span class="pill">Planned</span></div>
- </div>
+<section class="page" id="page-intelligence">
+<div class="page-heading"><h1>Intelligence</h1><p>Intelligent tools and AI experiences inside the ecosystem.</p></div>
+<div class="hero"><div class="eyebrow">INTELLIGENCE LAYER</div><h1>Ideas into intelligence.</h1><p>A dedicated space for future AI assistants, creative tools, personal intelligence and connected services.</p></div>
+<div class="feature-grid">
+<div class="feature"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Personal intelligent assistant integration is planned.</p></div>
+<div class="feature"><div class="feature-icon">🎙</div><h3>Creative Studio</h3><p>Creative and music-related AI tools are planned.</p></div>
+<div class="feature"><div class="feature-icon">🧠</div><h3>Personal Intelligence</h3><p>A future space for personalized intelligent workflows.</p></div>
+<div class="feature"><div class="feature-icon">🔗</div><h3>Connected Services</h3><p>Integrations will be added as services become available.</p></div>
+</div>
+</section>
+
+<section class="page" id="page-projects">
+<div class="page-heading"><h1>Projects</h1><p>Manage and explore projects connected to MEHRAN MSH.</p></div>
+<div class="panel">
+<div class="section-title"><h2>Project Workspace</h2><button class="btn small" id="refreshProjectsBtn">Refresh</button></div>
+<div id="projectsMessage" class="notice">Loading projects...</div>
+<div id="projectsList"></div>
+</div>
+<div class="panel">
+<h3>Create Project</h3>
+<div class="field"><label>Project name</label><input id="projectName" placeholder="Project name"></div>
+<div class="field"><label>Description</label><textarea id="projectDescription" placeholder="Describe your project"></textarea></div>
+<button class="btn" id="createProjectBtn">Create project</button>
+</div>
+</section>
+
+<section class="page" id="page-services">
+<div class="page-heading"><h1>Services</h1><p>Services and utilities within the MEHRAN MSH ecosystem.</p></div>
+<div class="feature-grid">
+<div class="feature"><div class="feature-icon">◉</div><h3>Identity</h3><p>Account identity and authentication services.</p></div>
+<div class="feature"><div class="feature-icon">◎</div><h3>SOCIAL</h3><p>Social profiles and content sharing.</p></div>
+<div class="feature"><div class="feature-icon">✧</div><h3>Intelligence</h3><p>Future AI and intelligent services.</p></div>
+<div class="feature"><div class="feature-icon">▦</div><h3>Projects</h3><p>Project workspace and management.</p></div>
+</div>
 </section>
 </main>
 </div>
-<footer>MEHRAN MSH · Building connected digital experiences</footer>
+
+<nav class="mobile-nav">
+<button class="active" data-page="dashboard"><span>⌂</span>Home</button>
+<button data-page="user"><span>◉</span>Account</button>
+<button data-page="social"><span>◎</span>SOCIAL</button>
+<button data-page="projects"><span>▦</span>Projects</button>
+<button data-page="services"><span>◇</span>Services</button>
+</nav>
+<div class="toast" id="toast"></div>
 
 <script>
-const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
-const SOCIAL_API=AUTH_WORKER+"/social";
-const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
-const PI_REDIRECT_URI="https://mehranmsh.github.io/";
-const SOCIAL_TOKEN_KEY="msh_social_token";
-const SOCIAL_LOCAL_KEY="msh_social_local_profile";
-const POSTS_KEY="msh_social_local_posts";
-const ADMIN_USERNAME="mehranmsh";
+"use strict";
 
-let currentUser=null,piAccessToken=null,socialUser=null;
-let socialToken=localStorage.getItem(SOCIAL_TOKEN_KEY)||sessionStorage.getItem(SOCIAL_TOKEN_KEY)||null;
-let localAvatar="",pendingPostImage="",currentLanguage="en";
+const AUTH_WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
+const SOCIAL_API = AUTH_WORKER + "/social";
+const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 
-function showPage(page,button){
- document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
- const target=document.getElementById(page);if(target)target.classList.add("active");
- document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
- const navButton=button||document.querySelector('.nav button[data-page="'+page+'"]');
- if(navButton){navButton.classList.add("active");if(navButton.scrollIntoView&&window.innerWidth<=850)navButton.scrollIntoView({block:"nearest",inline:"nearest"});}
- if(page==="admin")updateAccess();
- if(page==="projects")loadProjects();
+const SOCIAL_TOKEN_KEY = "msh_social_token";
+const SOCIAL_PROFILE_KEY = "msh_social_local_profile";
+const SOCIAL_POSTS_KEY = "msh_social_local_posts";
+
+let piUser = null;
+let socialUser = null;
+let localProfile = readJSON(SOCIAL_PROFILE_KEY,{});
+let posts = readJSON(SOCIAL_POSTS_KEY,[]);
+let projects = [];
+let currentLanguage = "en";
+
+function $(id){return document.getElementById(id)}
+function readJSON(key,fallback){
+ try{return JSON.parse(localStorage.getItem(key)) ?? fallback}
+ catch{return fallback}
 }
-function openSocial(button){showPage("social",button);if(socialToken&&!socialUser)restoreSocialSession();}
-function showSocialPanel(name,button){
- document.querySelectorAll(".social-panel").forEach(p=>p.classList.remove("active"));
- const panel=document.getElementById("social"+name.charAt(0).toUpperCase()+name.slice(1)+"Panel");
- if(panel)panel.classList.add("active");
- document.querySelectorAll(".social-tabs button").forEach(b=>b.classList.remove("active"));
- if(button)button.classList.add("active");
- else{const b=document.querySelector('[data-social-tab="'+name+'"]');if(b)b.classList.add("active");}
- if(name==="profile"){renderProfileDetails();loadSocialSessions();}
- if(name==="explore")renderExplore();
+function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
+function escapeHTML(value){
+ return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))
 }
+function toast(message){
+ const el=$("toast");
+ el.textContent=message;
+ el.classList.add("show");
+ clearTimeout(toast.timer);
+ toast.timer=setTimeout(()=>el.classList.remove("show"),3200);
+}
+async function api(path,options={}){
+ const response=await fetch(AUTH_WORKER+path,{
+  ...options,
+  headers:{
+   "Content-Type":"application/json",
+   ...(options.headers||{})
+  }
+ });
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");
+ return data;
+}
+function showPage(name){
+ document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+ const page=$("page-"+name);
+ if(page)page.classList.add("active");
+ document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
+ $("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);
+ if(name==="projects")loadProjects();
+ if(name==="social")renderSocial();
+ window.scrollTo({top:0,behavior:"smooth"});
+}
+document.querySelectorAll("[data-page]").forEach(btn=>{
+ btn.addEventListener("click",()=>showPage(btn.dataset.page));
+});
 
-function toggleLanguage(){
- currentLanguage=currentLanguage==="en"?"fa":"en";
- document.documentElement.lang=currentLanguage;document.documentElement.dir=currentLanguage==="fa"?"rtl":"ltr";
- document.getElementById("languageButton").textContent=currentLanguage==="en"?"فارسی":"English";
- if(currentLanguage==="fa"){
-  document.querySelector("#dashboard .hero h1").innerHTML="به <span>MEHRAN MSH</span> خوش آمدید";
-  document.querySelector("#dashboard .hero p").textContent="یک فضای دیجیتال متصل برای فناوری، خلاقیت، خدمات هوشمند و کسب‌وکارهای آینده.";
- }else{
-  document.querySelector("#dashboard .hero h1").innerHTML="Welcome to<br><span>MEHRAN MSH</span>";
-  document.querySelector("#dashboard .hero p").textContent="A connected space for technology, creativity, intelligent services and future businesses.";
+function switchSocial(name){
+ document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
+ document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));
+ const view=$("social-"+name);
+ if(view)view.classList.add("active");
+ if(name==="profile")renderProfile();
+ if(name==="feed")renderSocial();
+}
+document.querySelectorAll("[data-social]").forEach(btn=>{
+ btn.addEventListener("click",()=>switchSocial(btn.dataset.social));
+});
+
+async function checkWorker(){
+ try{
+  const data=await api("/health");
+  $("connectionStatus").textContent="● Service online";
+  $("adminAuthStatus").textContent="Online";
+  $("adminDbStatus").textContent=data.database===false?"Unknown":"Connected";
+ }catch(error){
+  try{
+   const response=await fetch(AUTH_WORKER);
+   const data=await response.json();
+   $("connectionStatus").textContent=data.status==="online"?"● Service online":"● Service reachable";
+   $("adminAuthStatus").textContent=data.status==="online"?"Online":"Reachable";
+   $("adminDbStatus").textContent=data.database?"Connected":"Unknown";
+  }catch{
+   $("connectionStatus").textContent="● Service unavailable";
+   $("adminAuthStatus").textContent="Offline";
+   $("adminDbStatus").textContent="Unknown";
+  }
  }
 }
+checkWorker();
 
-function initPi(){try{if(window.Pi)Pi.init({version:"2.0",sandbox:false});}catch(e){console.error(e);}}
-async function signInWithPi(){
- if(!window.Pi){setPiStatus("Pi SDK unavailable. Open inside Pi Browser.",true);return;}
- try{
-  const auth=await Pi.authenticate(["username"],payment=>console.log("Incomplete payment:",payment));
-  if(auth&&auth.accessToken){await verifyWithWorker(auth.accessToken,auth.user);return;}
-  setPiStatus("Pi authentication could not be completed.",true);
- }catch(e){console.error(e);setPiStatus("Pi sign-in failed: "+e.message,true);}
-}
-async function verifyWithWorker(accessToken,user){
- try{
-  const r=await fetch(AUTH_WORKER+"/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accessToken})});
-  const d=await r.json();if(!r.ok||d.error)throw new Error(d.error||"Pi verification failed");
-  piAccessToken=accessToken;
-  currentUser={uid:d.uid,username:d.username||user?.username||"",isAdmin:d.isAdmin===true||String(d.username||user?.username||"").toLowerCase()===ADMIN_USERNAME};
-  setPiStatus("Connected as @"+(currentUser.username||"Pioneer"),false);
-  document.getElementById("welcomeUser").textContent="Welcome, @"+(currentUser.username||"Pioneer");
-  document.getElementById("userInfo").textContent="Pi username: @"+(currentUser.username||"Unknown");
-  updateAccess();
- }catch(e){console.error(e);setPiStatus(e.message,true);}
-}
-function setPiStatus(message,isError){
- const el=document.getElementById("piStatus");el.textContent=message;el.className="status "+(isError?"error":"success");
-}
-async function handlePiCallback(){
- const p=new URLSearchParams(location.search);if(!p.get("code"))return;
- setPiStatus("Please use Sign in with Pi inside Pi Browser.",true);
- history.replaceState({},document.title,PI_REDIRECT_URI);
+function updateAccountUI(){
+ const signed=!!piUser;
+ $("userStatus").textContent=signed?"Connected":"Guest";
+ $("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";
+ $("piStatus").textContent=signed?"Connected":"Not connected";
+ $("piUsername").value=piUser?.username||"";
+ $("piUid").value=piUser?.uid||"";
+ $("piLoginBtn").classList.toggle("hidden",signed);
+ $("piLogoutBtn").classList.toggle("hidden",!signed);
+ $("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";
+ $("adminSession").textContent=signed?"Pi connected":"Guest";
 }
 
-/* ADMIN: menu is always visible. Server remains responsible for authorization. */
-function updateAccess(){
- const username=String(currentUser?.username||"").toLowerCase();
- const isAdmin=!!(currentUser&&(currentUser.isAdmin===true||username===ADMIN_USERNAME));
- document.getElementById("adminContent").classList.toggle("hidden",!isAdmin);
- const s=document.getElementById("adminStatus");
- s.textContent=isAdmin?"Pi administrator recognized. Project actions are still verified by the Worker.":"Sign in with the authorized Pi account @"+ADMIN_USERNAME+" to access the administrator workspace.";
- s.className="status "+(isAdmin?"success":"warning");
-}
-
-async function projectRequest(path,method="GET",body=null){
- const headers={"Content-Type":"application/json"};
- const payload=body?{...body}:null;
- if(method!=="GET"&&payload&&piAccessToken)payload.accessToken=piAccessToken;
- const r=await fetch(AUTH_WORKER+path,{method,headers,body:payload?JSON.stringify(payload):undefined});
- const d=await r.json().catch(()=>({}));
- if(!r.ok)throw new Error(d.error||"Project request failed");return d;
-}
-async function loadProjects(){
- const list=document.getElementById("projectsList"),status=document.getElementById("projectsStatus");
+async function piLogin(){
+ if(!window.Pi){
+  $("piMessage").textContent="Pi SDK was not detected. Open this app inside Pi Browser and try again.";
+  $("piMessage").className="notice warn";
+  return;
+ }
  try{
-  const d=await projectRequest("/projects"),projects=Array.isArray(d)?d:(d.projects||[]);
-  list.innerHTML="";
-  if(!projects.length)list.innerHTML='<div class="card"><p class="muted">No projects added yet.</p></div>';
-  projects.forEach(p=>{
-   const card=document.createElement("div"),title=document.createElement("h3"),desc=document.createElement("p");
-   card.className="card";title.textContent=p.name||p.title||"Untitled Project";desc.textContent=p.description||"No description available.";card.append(title,desc);
-   if(p.url){const a=document.createElement("a");a.href=p.url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Open Project";card.append(a);}
-   list.append(card);
+  window.Pi.init({version:"2.0",sandbox:false});
+  const auth=await window.Pi.authenticate(["username","payments"],async function(payment){
+   console.log("Incomplete Pi payment:",payment);
   });
-  status.textContent="Projects loaded.";status.className="status success";
- }catch(e){status.textContent="Could not load projects: "+e.message;status.className="status error";list.innerHTML="";}
+  const data=await api("/auth",{
+   method:"POST",
+   body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})
+  });
+  piUser=data.user||auth.user;
+  $("piMessage").textContent="Pi authentication completed successfully.";
+  $("piMessage").className="notice success";
+  updateAccountUI();
+  toast("Pi account connected");
+ }catch(error){
+  $("piMessage").textContent=error.message||"Pi authentication failed.";
+  $("piMessage").className="notice error";
+ }
 }
-async function createProject(){
- const name=document.getElementById("newProjectName").value.trim(),description=document.getElementById("newProjectDescription").value.trim(),url=document.getElementById("newProjectUrl").value.trim(),s=document.getElementById("adminProjectStatus");
- if(!name){s.textContent="Project name is required.";s.className="status error";return;}
- if(!piAccessToken){s.textContent="Please sign in with Pi again before adding a project.";s.className="status warning";return;}
- try{
-  await projectRequest("/projects","POST",{name,description,url});
-  s.textContent="Project added successfully.";s.className="status success";
-  ["newProjectName","newProjectDescription","newProjectUrl"].forEach(id=>document.getElementById(id).value="");loadProjects();
- }catch(e){s.textContent=e.message;s.className="status error";}
-}
+$("piLoginBtn").addEventListener("click",piLogin);
+$("piLogoutBtn").addEventListener("click",()=>{
+ piUser=null;
+ updateAccountUI();
+ $("piMessage").textContent="Pi session disconnected from this page.";
+ $("piMessage").className="notice";
+});
 
-/* SOCIAL AUTH */
-function saveSocialToken(token){
- socialToken=token;
- if(token){localStorage.setItem(SOCIAL_TOKEN_KEY,token);sessionStorage.removeItem(SOCIAL_TOKEN_KEY);}
- else{localStorage.removeItem(SOCIAL_TOKEN_KEY);sessionStorage.removeItem(SOCIAL_TOKEN_KEY);}
+function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
+function socialHeaders(){
+ return {"Authorization":"Bearer "+getSocialToken()};
 }
-async function socialRequest(path,method="GET",body=null){
- const headers={"Content-Type":"application/json"};if(socialToken)headers.Authorization="Bearer "+socialToken;
- const r=await fetch(SOCIAL_API+path,{method,headers,body:body?JSON.stringify(body):undefined});
- const d=await r.json().catch(()=>({}));
- if(!r.ok)throw new Error(d.error||d.message||"SOCIAL request failed ("+r.status+")");return d;
-}
-function socialMessage(message,type=""){
- const e=document.getElementById("socialMessage");e.textContent=message;e.className="status "+type;
-}
-function showSocialForm(form){
- const login=form==="login";
- document.getElementById("socialLoginForm").classList.toggle("hidden",!login);
- document.getElementById("socialRegisterForm").classList.toggle("hidden",login);
- document.getElementById("socialLoginTab").classList.toggle("active",login);
- document.getElementById("socialRegisterTab").classList.toggle("active",!login);
+function setSocialAuthMessage(message,type="notice"){
+ $("socialAuthMessage").textContent=message;
+ $("socialAuthMessage").className=type;
 }
 async function socialRegister(){
- const username=document.getElementById("socialRegisterUsername").value.trim(),email=document.getElementById("socialRegisterEmail").value.trim(),displayName=document.getElementById("socialRegisterDisplayName").value.trim(),password=document.getElementById("socialRegisterPassword").value;
- if(!username||!email||!password){socialMessage("Username, email and password are required.","error");return;}
- if(password.length<10){socialMessage("Password must contain at least 10 characters.","error");return;}
+ const username=$("socialUsername").value.trim();
+ const email=$("socialEmail").value.trim();
+ const password=$("socialPassword").value;
+ const displayName=$("socialDisplayName").value.trim()||username;
+ if(!username||!email||!password){
+  setSocialAuthMessage("Please enter a username, email and password.","notice warn");
+  return;
+ }
+ if(password.length<8){
+  setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");
+  return;
+ }
  try{
-  const d=await socialRequest("/register","POST",{username,email,displayName,password});
-  if(d.token)saveSocialToken(d.token);
-  if(d.user){socialUser=d.user;renderSocialAccount();socialMessage("Account created. Your session will be remembered on this browser.","success");}
-  else if(socialToken)await restoreSocialSession();
-  else{socialMessage("Account created. Please log in.","success");showSocialForm("login");}
-  document.getElementById("socialRegisterPassword").value="";
- }catch(e){socialMessage(e.message,"error");}
+  const data=await fetch(SOCIAL_API+"/register",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({username,email,password,displayName})
+  });
+  const result=await data.json().catch(()=>({}));
+  if(!data.ok)throw new Error(result.message||result.error||"Registration failed");
+  if(result.token)localStorage.setItem(SOCIAL_TOKEN_KEY,result.token);
+  if(result.user)socialUser=result.user;
+  setSocialAuthMessage("Account created successfully. You can now sign in.","notice success");
+  if(getSocialToken())await socialMe();
+ }catch(error){
+  setSocialAuthMessage(error.message,"notice error");
+ }
 }
 async function socialLogin(){
- const identifier=document.getElementById("socialLoginIdentifier").value.trim(),password=document.getElementById("socialLoginPassword").value;
- if(!identifier||!password){socialMessage("Enter your email or username and password.","error");return;}
+ const username=$("socialUsername").value.trim();
+ const email=$("socialEmail").value.trim();
+ const password=$("socialPassword").value;
+ if(!password||(!username&&!email)){
+  setSocialAuthMessage("Enter your username or email and password.","notice warn");
+  return;
+ }
  try{
-  const d=await socialRequest("/login","POST",{identifier,password});
-  if(!d.token)throw new Error("The server did not return a session token.");
-  saveSocialToken(d.token);socialUser=d.user||null;
-  if(!socialUser)await restoreSocialSession();else renderSocialAccount();
-  document.getElementById("socialLoginPassword").value="";
-  socialMessage("You are now logged in. This browser will remember your session.","success");
- }catch(e){socialMessage(e.message,"error");}
+  const response=await fetch(SOCIAL_API+"/login",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({username,email,password})
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.message||data.error||"Login failed");
+  if(!data.token)throw new Error("The server did not return a session token.");
+  localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
+  socialUser=data.user||null;
+  await socialMe();
+  setSocialAuthMessage("You are signed in.","notice success");
+  toast("Welcome to SOCIAL");
+ }catch(error){
+  setSocialAuthMessage(error.message,"notice error");
+ }
 }
-async function restoreSocialSession(){
- if(!socialToken){socialUser=null;renderSocialAccount();socialMessage("Create an account or log in to SOCIAL.");return;}
- socialMessage("Restoring your SOCIAL session...");
+async function socialMe(){
+ const token=getSocialToken();
+ if(!token){socialUser=null;renderSocial();return}
  try{
-  const d=await socialRequest("/me");socialUser=d.user||d;renderSocialAccount();socialMessage("Welcome back. Your SOCIAL session is active.","success");
- }catch(e){
-  saveSocialToken(null);socialUser=null;renderSocialAccount();
-  socialMessage("Your session has expired or ended. Please log in again.","warning");
+  const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(data.message||"Session expired");
+  socialUser=data.user||data;
+  $("socialAuthPanel").classList.add("hidden");
+  $("socialApp").classList.remove("hidden");
+  $("settingsUsername").value=socialUser.username||"";
+  $("socialStatus").textContent="Connected";
+  renderSocial();
+ }catch(error){
+  localStorage.removeItem(SOCIAL_TOKEN_KEY);
+  socialUser=null;
+  $("socialAuthPanel").classList.remove("hidden");
+  $("socialApp").classList.add("hidden");
+  $("socialStatus").textContent="Not registered";
+  setSocialAuthMessage("Please sign in again. "+error.message,"notice warn");
  }
 }
 async function socialLogout(){
- try{if(socialToken)await socialRequest("/logout","POST",{});}catch(e){console.warn(e);}
- saveSocialToken(null);socialUser=null;renderSocialAccount();
- const sessionsList=document.getElementById("socialSessionsList");
- const sessionsStatus=document.getElementById("socialSessionsStatus");
- if(sessionsList)sessionsList.innerHTML="";
- if(sessionsStatus){sessionsStatus.textContent="Please log in to manage sessions.";sessionsStatus.className="status warning";}
- socialMessage("You have been logged out.","success");
-}
-
-/* SOCIAL SESSION MANAGEMENT */
-async function loadSocialSessions(){
- const status=document.getElementById("socialSessionsStatus");
- const list=document.getElementById("socialSessionsList");
- if(!status||!list)return;
-
- if(!socialToken||!socialUser){
-  status.textContent="Please log in to manage sessions.";
-  status.className="status warning";
-  list.innerHTML="";
-  return;
- }
-
- status.textContent="Loading active sessions...";
- status.className="status";
- list.innerHTML="";
-
  try{
-  const data=await socialRequest("/sessions");
-  const sessions=Array.isArray(data.sessions)?data.sessions:[];
-
-  status.textContent="Active sessions: "+sessions.length;
-  status.className="status success";
-
-  if(!sessions.length){
-   list.textContent="No active sessions found.";
-   return;
+  if(getSocialToken()){
+   await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()});
   }
+ }catch(error){console.warn(error)}
+ localStorage.removeItem(SOCIAL_TOKEN_KEY);
+ socialUser=null;
+ $("socialAuthPanel").classList.remove("hidden");
+ $("socialApp").classList.add("hidden");
+ $("socialStatus").textContent="Not registered";
+ $("settingsUsername").value="";
+ renderSocial();
+ toast("Signed out");
+}
+$("socialRegisterBtn").addEventListener("click",socialRegister);
+$("socialLoginBtn").addEventListener("click",socialLogin);
+$("socialLogoutBtn").addEventListener("click",socialLogout);
+$("refreshSessionBtn").addEventListener("click",socialMe);
 
-  sessions.forEach(session=>{
-   const item=document.createElement("div");
-   item.className="item";
-
-   const title=document.createElement("strong");
-   title.textContent=session.current?"This device (current session)":"Other device";
-
-   const expiry=document.createElement("small");
-   expiry.textContent="Expires: "+formatDate(session.expiresAt);
-
-   item.append(title,expiry);
-
-   if(!session.current){
-    const revoke=document.createElement("button");
-    revoke.className="danger";
-    revoke.textContent="Log out this device";
-    revoke.onclick=()=>revokeSocialSession(session.id);
-    item.append(revoke);
-   }
-
-   list.append(item);
-  });
- }catch(e){
-  status.textContent=e.message||"Could not load sessions.";
-  status.className="status error";
+function currentUsername(){
+ return socialUser?.username||socialUser?.displayName||"Member";
+}
+function profileInitial(){
+ return (localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M";
+}
+function renderAvatar(elementId){
+ const el=$(elementId);
+ if(!el)return;
+ if(localProfile.photo){
+  el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
+ }else{
+  el.textContent=profileInitial();
  }
 }
-
-async function revokeSocialSession(id){
- if(!id||!confirm("Log out this device?"))return;
-
- try{
-  await socialRequest("/sessions/"+encodeURIComponent(id),"DELETE");
-  socialMessage("Selected session revoked.","success");
-  await loadSocialSessions();
- }catch(e){
-  socialMessage(e.message,"error");
- }
+function renderProfile(){
+ const logged=!!socialUser;
+ $("profileLoginNotice").classList.toggle("hidden",logged);
+ $("profileEditor").classList.toggle("hidden",!logged);
+ if(!logged)return;
+ $("profileDisplayName").value=localProfile.displayName||socialUser.displayName||socialUser.username||"";
+ $("profileBio").value=localProfile.bio||"";
+ renderAvatar("sideAvatar");
 }
-
-async function logoutAllOtherSessions(){
- if(!socialToken||!socialUser){
-  socialMessage("Please log in first.","warning");
+function renderSocial(){
+ const logged=!!socialUser;
+ $("socialAuthPanel").classList.toggle("hidden",logged);
+ $("socialApp").classList.toggle("hidden",!logged);
+ $("socialStatus").textContent=logged?"Connected":"Not registered";
+ $("dashPosts").textContent=posts.length;
+ if(!logged)return;
+ $("sideProfileName").textContent=localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile";
+ $("sideProfileBio").textContent=localProfile.bio||"Welcome to your SOCIAL profile.";
+ $("composerName").textContent=localProfile.displayName||currentUsername();
+ $("sideProfileBio").title=$("sideProfileBio").textContent;
+ renderAvatar("sideAvatar");
+ renderAvatar("composerAvatar");
+ $("profilePostCount").textContent=posts.filter(p=>p.author===currentUsername()).length;
+ $("feedCount").textContent=posts.length+" posts";
+ renderFeed();
+}
+function renderFeed(){
+ const list=$("feedList");
+ if(!list)return;
+ if(!posts.length){
+  list.innerHTML='<div class="empty">Your feed is waiting for its first post.<br>Share a thought, a photo or a moment.</div>';
   return;
  }
-
- if(!confirm("Log out of all other devices? This device will stay connected."))return;
-
+ list.innerHTML=posts.map(post=>{
+  const liked=(post.likes||[]).includes(currentUsername());
+  const comments=(post.comments||[]).map(comment=>'<div class="comment"><strong>'+escapeHTML(comment.author)+':</strong> '+escapeHTML(comment.text)+'</div>').join("");
+  return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((post.author||"M").charAt(0).toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong><small>'+escapeHTML(post.date||"")+'</small></div>'+(post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div><div class="post-text">'+escapeHTML(post.text||"")+'</div>'+(post.image?'<img class="post-image" src="'+post.image+'" alt="Post image">':'')+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+(post.likes||[]).length+' Likes</button><span class="small-text">'+(post.comments||[]).length+' comments</span></div><div class="comment-list">'+comments+'</div><div class="comment-form"><input id="comment-'+post.id+'" placeholder="Write a comment..."><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
+ }).join("");
+}
+function readImage(file,maxBytes){
+ return new Promise((resolve,reject)=>{
+  if(!file){resolve("");return}
+  if(!file.type.startsWith("image/")){reject(new Error("Please choose an image file."));return}
+  if(file.size>maxBytes){reject(new Error("Image must be smaller than "+Math.round(maxBytes/1024)+" KB."));return}
+  const reader=new FileReader();
+  reader.onload=()=>resolve(reader.result);
+  reader.onerror=()=>reject(new Error("Could not read image."));
+  reader.readAsDataURL(file);
+ });
+}
+$("publishPostBtn").addEventListener("click",async()=>{
+ if(!socialUser){toast("Sign in first");return}
+ const text=$("postText").value.trim();
+ const file=$("postImage").files[0];
+ if(!text&&!file){toast("Write something or choose a photo");return}
  try{
-  const data=await socialRequest("/logout-all","POST",{});
-  socialMessage("Other devices logged out: "+(data.revokedCount||0),"success");
-  await loadSocialSessions();
- }catch(e){
-  socialMessage(e.message,"error");
+  const image=await readImage(file,700*1024);
+  posts.unshift({
+   id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+   author:currentUsername(),
+   displayName:localProfile.displayName||currentUsername(),
+   text,image,date:new Date().toLocaleString(),
+   likes:[],comments:[]
+  });
+  saveJSON(SOCIAL_POSTS_KEY,posts);
+  $("postText").value="";
+  $("postImage").value="";
+  renderSocial();
+  toast("Post published on this device");
+ }catch(error){toast(error.message)}
+});
+window.toggleLike=function(id){
+ const post=posts.find(p=>p.id===id);
+ if(!post)return;
+ post.likes=post.likes||[];
+ const index=post.likes.indexOf(currentUsername());
+ if(index>=0)post.likes.splice(index,1);
+ else post.likes.push(currentUsername());
+ saveJSON(SOCIAL_POSTS_KEY,posts);
+ renderFeed();
+};
+window.addComment=function(id){
+ const input=$("comment-"+id);
+ const text=input?.value.trim();
+ if(!text)return;
+ const post=posts.find(p=>p.id===id);
+ if(!post)return;
+ post.comments=post.comments||[];
+ post.comments.push({author:currentUsername(),text});
+ saveJSON(SOCIAL_POSTS_KEY,posts);
+ renderFeed();
+};
+window.deletePost=function(id){
+ const post=posts.find(p=>p.id===id);
+ if(!post||post.author!==currentUsername())return;
+ if(!confirm("Delete this post?"))return;
+ posts=posts.filter(p=>p.id!==id);
+ saveJSON(SOCIAL_POSTS_KEY,posts);
+ renderSocial();
+};
+$("saveProfileBtn").addEventListener("click",async()=>{
+ if(!socialUser)return;
+ try{
+  localProfile.displayName=$("profileDisplayName").value.trim();
+  localProfile.bio=$("profileBio").value.trim();
+  const file=$("profilePhoto").files[0];
+  if(file)localProfile.photo=await readImage(file,700*1024);
+  saveJSON(SOCIAL_PROFILE_KEY,localProfile);
+  $("profileMessage").textContent="Profile saved on this device.";
+  $("profileMessage").className="notice success";
+  renderSocial();
+  renderProfile();
+ }catch(error){
+  $("profileMessage").textContent=error.message;
+  $("profileMessage").className="notice error";
+ }
+});
+$("removePhotoBtn").addEventListener("click",()=>{
+ delete localProfile.photo;
+ saveJSON(SOCIAL_PROFILE_KEY,localProfile);
+ $("profilePhoto").value="";
+ renderProfile();
+ renderSocial();
+ $("profileMessage").textContent="Profile photo removed.";
+});
+
+async function loadProjects(){
+ $("projectsMessage").textContent="Loading projects...";
+ try{
+  const data=await api("/projects");
+  projects=Array.isArray(data)?data:(data.projects||[]);
+  $("dashProjects").textContent=projects.length;
+  renderProjects();
+  $("projectsMessage").textContent=projects.length+" projects loaded.";
+  $("projectsMessage").className="notice success";
+ }catch(error){
+  $("projectsMessage").textContent="Could not load projects: "+error.message;
+  $("projectsMessage").className="notice warn";
+  $("projectsList").innerHTML="";
  }
 }
+function renderProjects(){
+ const el=$("projectsList");
+ if(!projects.length){
+  el.innerHTML='<div class="empty">No projects are available yet.</div>';
+  return;
+ }
+ el.innerHTML='<div class="grid">'+projects.map(project=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(project.name||project.title||"Untitled project")+'</h3><p>'+escapeHTML(project.description||"No description provided.")+'</p></div>').join("")+'</div>';
+}
+$("refreshProjectsBtn").addEventListener("click",loadProjects);
+$("createProjectBtn").addEventListener("click",async()=>{
+ const name=$("projectName").value.trim();
+ const description=$("projectDescription").value.trim();
+ if(!name){toast("Enter a project name");return}
+ try{
+  const data=await api("/projects",{
+   method:"POST",
+   body:JSON.stringify({name,description})
+  });
+  $("projectName").value="";
+  $("projectDescription").value="";
+  toast("Project created");
+  loadProjects();
+ }catch(error){
+  toast("Project creation failed: "+error.message);
+ }
+});
 
-/* LOCAL PROFILE */
-function getLocalProfile(){try{return JSON.parse(localStorage.getItem(SOCIAL_LOCAL_KEY)||"{}");}catch(e){return {};}}
-function saveLocalProfile(data){try{localStorage.setItem(SOCIAL_LOCAL_KEY,JSON.stringify(data));return true;}catch(e){socialMessage("Browser storage is full. Try a smaller image.","error");return false;}}
-function getActiveProfile(){
- const saved=getLocalProfile();
- return {displayName:saved.displayName||socialUser?.displayName||socialUser?.display_name||socialUser?.username||"SOCIAL User",bio:saved.bio!==undefined?saved.bio:(socialUser?.bio||""),avatar:saved.avatar||""};
-}
-function setAvatar(element,avatar,name){
- element.innerHTML="";
- if(avatar){const img=document.createElement("img");img.src=avatar;img.alt="Profile";element.append(img);}
- else element.textContent=(name||"S").charAt(0).toUpperCase();
-}
-function renderSocialAccount(){
- const logged=!!socialUser;
- document.getElementById("socialAuthArea").classList.toggle("hidden",logged);
- document.getElementById("socialProfileArea").classList.toggle("hidden",!logged);
- if(!logged)return;
- const p=getActiveProfile(),username=socialUser.username||"unknown";
- document.getElementById("socialDisplayName").textContent=p.displayName;
- document.getElementById("socialUsername").textContent="@"+username;
- document.getElementById("sideUsername").textContent="@"+username;
- setAvatar(document.getElementById("socialAvatar"),p.avatar,p.displayName);
- renderProfileDetails();renderFeed();
-}
-function renderProfileDetails(){
- if(!socialUser)return;
- const p=getActiveProfile(),username=socialUser.username||"unknown";
- document.getElementById("profileDisplayName").textContent=p.displayName;
- document.getElementById("profileUsername").textContent="@"+username;
- document.getElementById("profileBioText").textContent=p.bio||"No bio added yet.";
- setAvatar(document.getElementById("profileAvatarLarge"),p.avatar,p.displayName);
- document.getElementById("editDisplayName").value=p.displayName;
- document.getElementById("editBio").value=p.bio;
- const preview=document.getElementById("avatarPreview");preview.classList.toggle("hidden",!p.avatar);if(p.avatar)preview.src=p.avatar;
-}
-function readImage(file,maxBytes=700000){
- return new Promise((resolve,reject)=>{
-  if(!file||!file.type.startsWith("image/"))return reject(new Error("Please select an image."));
-  if(file.size>maxBytes)return reject(new Error("Image is too large. Please choose an image under 700 KB."));
-  const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read image."));reader.readAsDataURL(file);
- });
-}
-async function previewAvatar(input){
- const file=input.files[0];if(!file)return;
- try{localAvatar=await readImage(file);const img=document.getElementById("avatarPreview");img.src=localAvatar;img.classList.remove("hidden");}
- catch(e){socialMessage(e.message,"error");input.value="";}
-}
-async function saveProfile(){
- const old=getLocalProfile(),displayName=document.getElementById("editDisplayName").value.trim(),bio=document.getElementById("editBio").value.trim();
- if(!displayName){socialMessage("Display name cannot be empty.","error");return;}
- const data={...old,displayName,bio,avatar:localAvatar||old.avatar||""};if(!saveLocalProfile(data))return;
- localAvatar="";document.getElementById("editAvatar").value="";renderSocialAccount();socialMessage("Profile updated in this browser.","success");
-}
+$("languageBtn").addEventListener("click",()=>{
+ currentLanguage=currentLanguage==="en"?"fa":"en";
+ if(currentLanguage==="fa"){
+  document.documentElement.lang="fa";
+  document.documentElement.dir="rtl";
+  $("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";
+  $("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";
+  $("languageBtn").textContent="FA / EN";
+ }else{
+  document.documentElement.lang="en";
+  document.documentElement.dir="ltr";
+  $("heroTitle").textContent="One Hub. Many Possibilities.";
+  $("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";
+  $("languageBtn").textContent="EN / FA";
+ }
+});
 
-/* LOCAL POSTS */
-function getPosts(){try{return JSON.parse(localStorage.getItem(POSTS_KEY)||"[]");}catch(e){return [];}}
-function savePosts(posts){try{localStorage.setItem(POSTS_KEY,JSON.stringify(posts));return true;}catch(e){socialMessage("Browser storage is full. Remove some posts or use smaller images.","error");return false;}}
-async function previewPostImage(input){
- const file=input.files[0];if(!file)return;
- try{pendingPostImage=await readImage(file);const img=document.getElementById("postPreview");img.src=pendingPostImage;img.classList.remove("hidden");}
- catch(e){socialMessage(e.message,"error");input.value="";}
-}
-function clearPostForm(){
- document.getElementById("newPostText").value="";document.getElementById("newPostImage").value="";
- document.getElementById("postPreview").classList.add("hidden");pendingPostImage="";
-}
-function createPost(){
- if(!socialUser){socialMessage("Please log in first.","warning");return;}
- const text=document.getElementById("newPostText").value.trim();
- if(!text&&!pendingPostImage){socialMessage("Write something or add a photo first.","error");return;}
- const p=getActiveProfile(),posts=getPosts();
- posts.unshift({id:Date.now().toString()+"_"+Math.random().toString(36).slice(2,8),username:socialUser.username||"user",displayName:p.displayName,avatar:p.avatar,text,image:pendingPostImage,createdAt:new Date().toISOString(),likes:[],comments:[]});
- if(!savePosts(posts))return;
- clearPostForm();renderFeed();socialMessage("Post saved in this browser.","success");showSocialPanel("feed");
-}
-function formatDate(value){try{return new Date(value).toLocaleString();}catch(e){return "";}}
-function renderFeed(){
- const feed=document.getElementById("socialFeed");if(!feed)return;
- const posts=getPosts();document.getElementById("postCount").textContent=posts.filter(p=>p.username===socialUser?.username).length;feed.innerHTML="";
- if(!posts.length){feed.innerHTML='<div class="empty-state">No posts yet. Be the first to share something!</div>';return;}
- posts.forEach(post=>{
-  const card=document.createElement("article");card.className="post-card";
-  const top=document.createElement("div");top.className="post-top";
-  const av=document.createElement("div");av.className="post-avatar";
-  if(post.avatar){const img=document.createElement("img");img.src=post.avatar;img.alt="";av.append(img);}else av.textContent=(post.displayName||post.username||"U").charAt(0).toUpperCase();
-  const authorWrap=document.createElement("div"),author=document.createElement("div"),date=document.createElement("div");
-  author.className="post-author";author.textContent=post.displayName||post.username;
-  date.className="post-date";date.textContent="@"+post.username+" · "+formatDate(post.createdAt);
-  authorWrap.append(author,date);top.append(av,authorWrap);card.append(top);
-  if(post.text){const txt=document.createElement("div");txt.className="post-text";txt.textContent=post.text;card.append(txt);}
-  if(post.image){const img=document.createElement("img");img.className="post-image";img.src=post.image;img.alt="Post image";card.append(img);}
-  const actions=document.createElement("div");actions.className="post-actions";
-  const liked=(post.likes||[]).includes(socialUser?.username);
-  const like=document.createElement("button");like.className=liked?"liked":"";like.textContent=(liked?"♥":"♡")+" "+(post.likes||[]).length;like.onclick=()=>toggleLike(post.id);actions.append(like);
-  const commentBtn=document.createElement("button");commentBtn.textContent="Comment · "+(post.comments||[]).length;commentBtn.onclick=()=>{const input=card.querySelector(".comment-input");if(input)input.focus();};actions.append(commentBtn);
-  if(post.username===socialUser?.username){const del=document.createElement("button");del.className="danger";del.textContent="Delete";del.onclick=()=>deletePost(post.id);actions.append(del);}
-  card.append(actions);
-  const comments=document.createElement("div");comments.className="comment-area";
-  (post.comments||[]).forEach(c=>{const row=document.createElement("div");row.className="comment";const strong=document.createElement("strong"),span=document.createElement("span");strong.textContent="@"+c.username;span.textContent=c.text;row.append(strong,span);comments.append(row);});
-  const form=document.createElement("div");form.className="comment-form";const input=document.createElement("input");input.className="comment-input";input.placeholder="Write a comment...";
-  const send=document.createElement("button");send.textContent="Send";send.onclick=()=>addComment(post.id,input.value);
-  input.addEventListener("keydown",e=>{if(e.key==="Enter")addComment(post.id,input.value);});
-  form.append(input,send);comments.append(form);card.append(comments);feed.append(card);
- });
-}
-function toggleLike(id){
- const posts=getPosts(),post=posts.find(p=>p.id===id);if(!post)return;
- post.likes=post.likes||[];const username=socialUser.username,index=post.likes.indexOf(username);
- if(index>=0)post.likes.splice(index,1);else post.likes.push(username);
- if(savePosts(posts))renderFeed();
-}
-function addComment(id,value){
- if(!socialUser)return;const text=value.trim();if(!text)return;
- const posts=getPosts(),post=posts.find(p=>p.id===id);if(!post)return;
- post.comments=post.comments||[];post.comments.push({username:socialUser.username,text,createdAt:new Date().toISOString()});
- if(savePosts(posts))renderFeed();
-}
-function deletePost(id){
- if(!confirm("Delete this post?"))return;
- const posts=getPosts().filter(p=>p.id!==id);if(savePosts(posts)){renderFeed();socialMessage("Post deleted.","success");}
-}
-function renderExplore(){
- const results=document.getElementById("exploreResults"),empty=document.getElementById("exploreEmpty");
- if(!results||!empty)return;results.innerHTML="";empty.classList.remove("hidden");
-}
-function searchExplore(value){renderExplore();}
-
-/* NOTES */
-function saveNote(){
- try{localStorage.setItem("msh_personal_note",document.getElementById("personalNote").value);document.getElementById("noteStatus").textContent="Note saved in this browser.";document.getElementById("noteStatus").className="status success";}
- catch(e){document.getElementById("noteStatus").textContent="Could not save note.";}
-}
-function restoreNote(){const n=localStorage.getItem("msh_personal_note");if(n!==null)document.getElementById("personalNote").value=n;}
-
-/* STARTUP */
-async function startApp(){
- initPi();restoreNote();updateAccess();await handlePiCallback();loadProjects();
- if(socialToken)await restoreSocialSession();
- else{renderSocialAccount();socialMessage("Create an account or log in to SOCIAL.");}
-}
-startApp();
+updateAccountUI();
+socialMe();
+renderSocial();
+loadProjects();
 </script>
 </body>
 </html>
