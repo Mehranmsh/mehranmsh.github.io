@@ -293,7 +293,20 @@ a{color:var(--blue2)}
    <div class="card" style="max-width:650px">
     <h3>Your Profile</h3>
     <div class="profile-head"><div class="avatar" id="profileAvatarLarge">S</div><div class="profile-meta"><h2 id="profileDisplayName">SOCIAL User</h2><p id="profileUsername">@username</p></div></div>
-    <hr><div id="profileBioText" class="muted">No bio added yet.</div><hr>
+    <hr>
+    <div id="profileBioText" class="muted">No bio added yet.</div>
+
+    <hr>
+    <h3>Session Management</h3>
+    <p class="muted">Manage devices connected to your SOCIAL account. You can log out individual devices or all other devices.</p>
+    <div class="form-actions">
+     <button class="secondary" onclick="loadSocialSessions()">Refresh Sessions</button>
+     <button class="danger" onclick="logoutAllOtherSessions()">Logout Other Devices</button>
+    </div>
+    <div id="socialSessionsStatus" class="status">Sessions have not been loaded yet.</div>
+    <div id="socialSessionsList"></div>
+
+    <hr>
     <h3>Edit Profile</h3>
     <div class="field"><label>Display Name</label><input id="editDisplayName" maxlength="50"></div>
     <div class="field"><label>Bio</label><textarea id="editBio" maxlength="300" placeholder="Tell people about yourself..."></textarea></div>
@@ -378,7 +391,7 @@ function showSocialPanel(name,button){
  document.querySelectorAll(".social-tabs button").forEach(b=>b.classList.remove("active"));
  if(button)button.classList.add("active");
  else{const b=document.querySelector('[data-social-tab="'+name+'"]');if(b)b.classList.add("active");}
- if(name==="profile")renderProfileDetails();
+ if(name==="profile"){renderProfileDetails();loadSocialSessions();}
  if(name==="explore")renderExplore();
 }
 
@@ -528,7 +541,98 @@ async function restoreSocialSession(){
 }
 async function socialLogout(){
  try{if(socialToken)await socialRequest("/logout","POST",{});}catch(e){console.warn(e);}
- saveSocialToken(null);socialUser=null;renderSocialAccount();socialMessage("You have been logged out.","success");
+ saveSocialToken(null);socialUser=null;renderSocialAccount();
+ const sessionsList=document.getElementById("socialSessionsList");
+ const sessionsStatus=document.getElementById("socialSessionsStatus");
+ if(sessionsList)sessionsList.innerHTML="";
+ if(sessionsStatus){sessionsStatus.textContent="Please log in to manage sessions.";sessionsStatus.className="status warning";}
+ socialMessage("You have been logged out.","success");
+}
+
+/* SOCIAL SESSION MANAGEMENT */
+async function loadSocialSessions(){
+ const status=document.getElementById("socialSessionsStatus");
+ const list=document.getElementById("socialSessionsList");
+ if(!status||!list)return;
+
+ if(!socialToken||!socialUser){
+  status.textContent="Please log in to manage sessions.";
+  status.className="status warning";
+  list.innerHTML="";
+  return;
+ }
+
+ status.textContent="Loading active sessions...";
+ status.className="status";
+ list.innerHTML="";
+
+ try{
+  const data=await socialRequest("/sessions");
+  const sessions=Array.isArray(data.sessions)?data.sessions:[];
+
+  status.textContent="Active sessions: "+sessions.length;
+  status.className="status success";
+
+  if(!sessions.length){
+   list.textContent="No active sessions found.";
+   return;
+  }
+
+  sessions.forEach(session=>{
+   const item=document.createElement("div");
+   item.className="item";
+
+   const title=document.createElement("strong");
+   title.textContent=session.current?"This device (current session)":"Other device";
+
+   const expiry=document.createElement("small");
+   expiry.textContent="Expires: "+formatDate(session.expiresAt);
+
+   item.append(title,expiry);
+
+   if(!session.current){
+    const revoke=document.createElement("button");
+    revoke.className="danger";
+    revoke.textContent="Log out this device";
+    revoke.onclick=()=>revokeSocialSession(session.id);
+    item.append(revoke);
+   }
+
+   list.append(item);
+  });
+ }catch(e){
+  status.textContent=e.message||"Could not load sessions.";
+  status.className="status error";
+ }
+}
+
+async function revokeSocialSession(id){
+ if(!id||!confirm("Log out this device?"))return;
+
+ try{
+  await socialRequest("/sessions/"+encodeURIComponent(id),"DELETE");
+  socialMessage("Selected session revoked.","success");
+  await loadSocialSessions();
+ }catch(e){
+  socialMessage(e.message,"error");
+ }
+}
+
+async function logoutAllOtherSessions(){
+ if(!socialToken||!socialUser){
+  socialMessage("Please log in first.","warning");
+  return;
+ }
+
+ if(!confirm("Log out of all other devices? This device will stay connected."))return;
+
+ try{
+  const data=await socialRequest("/logout-all","POST",{});
+  socialMessage("Other devices logged out: "+(data.revokedCount||0),"success");
+  await loadSocialSessions();
+ }catch(e){
+  socialMessage(e.message,"error");
+ }
 }
 
 /* LOCAL PROFILE */
