@@ -2,134 +2,40 @@
 <html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#070b14">
 <title>MEHRAN MSH | Digital Ecosystem</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <style>
 :root{--bg:#070b14;--panel:#0e1728;--panel2:#111e32;--line:#20324c;--cyan:#28d9ff;--blue:#397bff;--gold:#f3c969;--text:#edf5ff;--muted:#91a4bd;--green:#39d99b;--red:#ff667d}
-*{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at 50% -20%,#14294a 0,transparent 50%),var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;min-height:100vh}
-button,input,textarea,select{font:inherit}
-button{cursor:pointer}
-a{color:var(--cyan);text-decoration:none}
-.app{display:grid;grid-template-columns:245px minmax(0,1fr);min-height:100vh}
-.sidebar{background:#09111f;border-right:1px solid var(--line);padding:25px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;z-index:5}
-.brand{display:flex;align-items:center;gap:12px;padding:5px 8px 27px}
-.brand-logo{width:43px;height:43px;border-radius:14px;background:linear-gradient(135deg,var(--cyan),#2865ff);display:grid;place-items:center;color:#04101d;font-size:21px;font-weight:900;box-shadow:0 0 24px #28d9ff35}
-.brand-name{font-weight:900;letter-spacing:1.5px;font-size:16px}
-.brand-sub{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:2px}
-.nav-label{font-size:10px;color:#61758f;letter-spacing:2px;padding:15px 12px 9px}
-.nav-btn{width:100%;border:1px solid transparent;background:transparent;color:#9eb0c8;padding:12px;border-radius:11px;text-align:left;display:flex;align-items:center;gap:12px;margin:3px 0;font-size:13px;transition:.2s}
-.nav-btn:hover,.nav-btn.active{background:linear-gradient(100deg,#12314b,#10213a);border-color:#245174;color:white}
-.nav-btn.active{box-shadow:inset 3px 0 var(--cyan)}
-.nav-icon{width:22px;text-align:center;font-size:17px}
-.sidebar-bottom{margin-top:auto;border-top:1px solid var(--line);padding:16px 8px 0;color:var(--muted);font-size:11px;line-height:1.7}
-.main{min-width:0;padding:25px clamp(15px,3vw,38px) 60px}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}
-.breadcrumb{font-size:12px;color:var(--muted)}
-.top-actions{display:flex;gap:9px;align-items:center}
-.pill{border:1px solid var(--line);border-radius:30px;padding:8px 12px;background:#0c1727;color:#b9cbe0;font-size:11px}
-.btn{border:0;border-radius:10px;padding:11px 16px;background:linear-gradient(110deg,#20c9ef,#397bff);color:#04101b;font-weight:800;font-size:12px;transition:.2s}
-.btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
-.btn.secondary{background:#17263a;border:1px solid #29405e;color:#d8e8fa}
-.btn.gold{background:linear-gradient(110deg,#f5d987,#d6a63e);color:#201707}
-.btn.danger{background:#4a1d2b;border:1px solid #81354b;color:#ffc4ce}
-.btn.small{padding:8px 11px;font-size:11px}
-.page{display:none;animation:fade .25s ease}
-.page.active{display:block}
-@keyframes fade{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:none}}
-.page-heading{margin-bottom:22px}
-.page-heading h1{font-size:clamp(24px,3vw,34px);margin:0 0 8px;letter-spacing:-.7px}
-.page-heading p{color:var(--muted);font-size:13px;margin:0;line-height:1.7}
-.hero{border:1px solid #245174;border-radius:22px;padding:clamp(22px,4vw,38px);background:linear-gradient(120deg,#102b43,#101a31 60%,#172344);position:relative;overflow:hidden;margin-bottom:22px}
-.hero:after{content:"";position:absolute;width:250px;height:250px;border-radius:50%;border:1px solid #39d9ff22;right:-70px;top:-100px;box-shadow:0 0 0 30px #39d9ff08,0 0 0 60px #39d9ff05}
-.eyebrow{color:var(--cyan);font-size:10px;letter-spacing:3px;font-weight:800}
-.hero h1{font-size:clamp(28px,4vw,43px);margin:13px 0 10px;max-width:650px}
-.hero p{color:#a8bdd5;line-height:1.8;font-size:13px;max-width:580px}
-.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
-.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
-.card{background:linear-gradient(145deg,#101c2e,#0c1524);border:1px solid var(--line);border-radius:16px;padding:19px;min-width:0}
-.card h3{font-size:14px;margin:0 0 9px}
-.card p{font-size:12px;color:var(--muted);line-height:1.7;margin:0}
-.stat{font-size:25px;font-weight:900;margin:10px 0 4px}
-.stat-label{font-size:11px;color:var(--muted)}
-.section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:25px 0 13px}
-.section-title h2{font-size:16px;margin:0}
-.muted{color:var(--muted)}
-.small-text{font-size:11px;color:var(--muted);line-height:1.6}
-.panel{background:#0d1727;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
-.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
-.field{display:flex;flex-direction:column;gap:7px;margin-bottom:13px}
-.field label{font-size:11px;color:#a9bdd4}
-.field input,.field textarea,.field select,.input{width:100%;background:#080f1b;border:1px solid #263b56;color:white;border-radius:10px;padding:12px;outline:none;font-size:12px}
-.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #28d9ff12}
-.field textarea{min-height:100px;resize:vertical}
-.notice{padding:12px 14px;border:1px solid #284966;background:#102337;border-radius:11px;color:#a9cde4;font-size:11px;line-height:1.7;margin:12px 0}
-.notice.warn{border-color:#66532d;background:#2a2416;color:#e9d6a7}
-.notice.success{border-color:#236348;background:#10281f;color:#a5e8c9}
-.notice.error{border-color:#71344a;background:#2b1620;color:#ffc1ce}
-.hidden{display:none!important}
-hr{border:0;border-top:1px solid var(--line);margin:18px 0}
-.avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#22d4ed,#345dff);display:grid;place-items:center;color:#06111d;font-weight:900;overflow:hidden;flex-shrink:0}
-.avatar img{width:100%;height:100%;object-fit:cover}
-.social-shell{background:linear-gradient(145deg,#101d32,#0b1423);border:1px solid #29415e;border-radius:22px;padding:clamp(14px,2.5vw,25px);overflow:hidden}
-.social-banner{padding:24px;border-radius:17px;background:linear-gradient(115deg,#102d48,#15234a 65%,#24204a);border:1px solid #31547b;position:relative;overflow:hidden}
-.social-banner:after{content:"";position:absolute;width:170px;height:170px;border-radius:50%;border:1px solid #40dfff44;right:-30px;top:-75px;box-shadow:0 0 0 24px #40dfff0b,0 0 0 48px #40dfff08}
-.social-banner h1{font-size:clamp(24px,3vw,34px);margin:9px 0}
-.social-banner p{font-size:12px;color:#a9c6e1;line-height:1.7;max-width:560px;margin:0}
-.social-tabs{display:flex;gap:7px;overflow-x:auto;padding:16px 0;border-bottom:1px solid var(--line);scrollbar-width:none}
-.social-tabs::-webkit-scrollbar{display:none}
-.social-tab{white-space:nowrap;border:1px solid transparent;background:transparent;color:#8ea5c0;padding:10px 14px;border-radius:10px;font-size:11px}
-.social-tab.active{color:#eafaff;background:#123149;border-color:#286080}
-.social-view{display:none;padding-top:18px}
-.social-view.active{display:block}
-.social-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:17px;align-items:start}
-.social-main{min-width:0}
-.social-side{display:grid;gap:13px}
-.story-row{display:flex;gap:12px;overflow-x:auto;padding:4px 0 14px}
-.story{min-width:70px;text-align:center}
-.story-ring{width:58px;height:58px;padding:3px;border-radius:50%;background:linear-gradient(135deg,#27dfff,#5964ff,#e1a94a);margin:0 auto 7px}
-.story-ring .avatar{width:100%;height:100%;border:2px solid #101b2c}
-.story span{font-size:10px;color:#a9bad0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.social-card{background:#0d1829;border:1px solid #223b59;border-radius:16px;padding:16px;margin-bottom:13px;min-width:0}
-.post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.post-head .user-info{min-width:0;flex:1}
-.post-head strong{font-size:12px;display:block}
-.post-head small{font-size:10px;color:var(--muted)}
-.post-text{font-size:13px;line-height:1.8;color:#d9e7f6;white-space:pre-wrap;overflow-wrap:anywhere}
-.post-image{width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin-top:12px;border:1px solid #263b56}
-.post-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;border-top:1px solid #20334b;margin-top:13px;padding-top:12px}
-.post-action{background:transparent;border:0;color:#9db2ca;font-size:11px;padding:6px 8px;border-radius:8px}
-.post-action:hover,.post-action.liked{background:#183148;color:var(--cyan)}
-.comment-list{margin-top:10px}
-.comment{font-size:11px;color:#bdcde0;padding:8px 10px;background:#111f31;border-radius:8px;margin-top:6px;overflow-wrap:anywhere}
-.comment-form{display:flex;gap:7px;margin-top:10px}
-.comment-form input{min-width:0;flex:1;background:#080f1b;border:1px solid #263b56;border-radius:9px;padding:10px;color:white;font-size:11px}
-.profile-cover{height:100px;border-radius:13px;background:linear-gradient(120deg,#15516b,#283b78,#513c76);margin-bottom:-32px}
-.profile-card{text-align:center}
-.profile-card .avatar{width:68px;height:68px;margin:0 auto 9px;border:3px solid #0d1829}
-.profile-card h3{margin:0 0 5px}
-.profile-card p{font-size:11px;color:var(--muted);line-height:1.6}
-.profile-stats{display:flex;justify-content:space-around;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
-.profile-stats strong{display:block;font-size:14px}
-.profile-stats span{font-size:10px;color:var(--muted)}
-.empty{padding:28px;text-align:center;border:1px dashed #304760;border-radius:13px;color:var(--muted);font-size:12px;line-height:1.8}
-.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.feature{background:#101d30;border:1px solid #263d5a;border-radius:13px;padding:16px}
-.feature .feature-icon{font-size:23px;margin-bottom:9px}
-.feature h3{font-size:13px;margin:0 0 6px}
-.feature p{font-size:11px;color:var(--muted);line-height:1.6;margin:0}
-.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--green);margin-right:6px}
-.mobile-nav{display:none}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:11px}
-th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}
-th{color:var(--muted);font-weight:600}
-.toast{position:fixed;bottom:25px;right:25px;z-index:50;background:#14273b;border:1px solid #315878;border-radius:12px;padding:13px 17px;color:#e7f7ff;font-size:12px;box-shadow:0 10px 35px #0008;max-width:90vw;display:none}
-.toast.show{display:block;animation:fade .2s}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#14294a 0,transparent 50%),var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;min-height:100vh}button,input,textarea,select{font:inherit}button{cursor:pointer}a{color:var(--cyan);text-decoration:none}
+.app{display:grid;grid-template-columns:245px minmax(0,1fr);min-height:100vh}.sidebar{background:#09111f;border-right:1px solid var(--line);padding:25px 16px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;z-index:5}
+.brand{display:flex;align-items:center;gap:12px;padding:5px 8px 27px}.brand-logo{width:43px;height:43px;border-radius:14px;background:linear-gradient(135deg,var(--cyan),#2865ff);display:grid;place-items:center;color:#04101d;font-size:21px;font-weight:900;box-shadow:0 0 24px #28d9ff35}.brand-name{font-weight:900;letter-spacing:1.5px;font-size:16px}.brand-sub{font-size:10px;color:var(--muted);margin-top:4px;letter-spacing:2px}
+.nav-label{font-size:10px;color:#61758f;letter-spacing:2px;padding:15px 12px 9px}.nav-btn{width:100%;border:1px solid transparent;background:transparent;color:#9eb0c8;padding:12px;border-radius:11px;text-align:left;display:flex;align-items:center;gap:12px;margin:3px 0;font-size:13px}.nav-btn:hover,.nav-btn.active{background:linear-gradient(100deg,#12314b,#10213a);border-color:#245174;color:white}.nav-btn.active{box-shadow:inset 3px 0 var(--cyan)}.nav-icon{width:22px;text-align:center;font-size:17px}.sidebar-bottom{margin-top:auto;border-top:1px solid var(--line);padding:16px 8px 0;color:var(--muted);font-size:11px;line-height:1.7}
+.main{min-width:0;padding:25px clamp(15px,3vw,38px) 60px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}.breadcrumb{font-size:12px;color:var(--muted)}.top-actions{display:flex;gap:9px;align-items:center}.pill{border:1px solid var(--line);border-radius:30px;padding:8px 12px;background:#0c1727;color:#b9cbe0;font-size:11px}
+.btn{border:0;border-radius:10px;padding:11px 16px;background:linear-gradient(110deg,#20c9ef,#397bff);color:#04101b;font-weight:800;font-size:12px;transition:.2s}.btn:hover{filter:brightness(1.12);transform:translateY(-1px)}.btn.secondary{background:#17263a;border:1px solid #29405e;color:#d8e8fa}.btn.gold{background:linear-gradient(110deg,#f5d987,#d6a63e);color:#201707}.btn.danger{background:#4a1d2b;border:1px solid #81354b;color:#ffc4ce}.btn.small{padding:8px 11px;font-size:11px}
+.page{display:none;animation:fade .25s ease}.page.active{display:block}@keyframes fade{from{opacity:.5;transform:translateY(5px)}to{opacity:1;transform:none}}.page-heading{margin-bottom:22px}.page-heading h1{font-size:clamp(24px,3vw,34px);margin:0 0 8px}.page-heading p{color:var(--muted);font-size:13px;margin:0;line-height:1.7}
+.hero{border:1px solid #245174;border-radius:22px;padding:clamp(22px,4vw,38px);background:linear-gradient(120deg,#102b43,#101a31 60%,#172344);position:relative;overflow:hidden;margin-bottom:22px}.hero:after{content:"";position:absolute;width:250px;height:250px;border-radius:50%;border:1px solid #39d9ff22;right:-70px;top:-100px;box-shadow:0 0 0 30px #39d9ff08,0 0 0 60px #39d9ff05}.eyebrow{color:var(--cyan);font-size:10px;letter-spacing:3px;font-weight:800}.hero h1{font-size:clamp(28px,4vw,43px);margin:13px 0 10px;max-width:650px}.hero p{color:#a8bdd5;line-height:1.8;font-size:13px;max-width:580px}.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.card{background:linear-gradient(145deg,#101c2e,#0c1524);border:1px solid var(--line);border-radius:16px;padding:19px;min-width:0}.card h3{font-size:14px;margin:0 0 9px}.card p{font-size:12px;color:var(--muted);line-height:1.7;margin:0}.stat{font-size:25px;font-weight:900;margin:10px 0 4px}.stat-label{font-size:11px;color:var(--muted)}.section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:25px 0 13px}.section-title h2{font-size:16px;margin:0}.muted{color:var(--muted)}.small-text{font-size:11px;color:var(--muted);line-height:1.6}.panel{background:#0d1727;border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.field{display:flex;flex-direction:column;gap:7px;margin-bottom:13px}.field label{font-size:11px;color:#a9bdd4}.field input,.field textarea,.field select,.input{width:100%;background:#080f1b;border:1px solid #263b56;color:white;border-radius:10px;padding:12px;outline:none;font-size:12px}.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #28d9ff12}.field textarea{min-height:100px;resize:vertical}.notice{padding:12px 14px;border:1px solid #284966;background:#102337;border-radius:11px;color:#a9cde4;font-size:11px;line-height:1.7;margin:12px 0}.notice.warn{border-color:#66532d;background:#2a2416;color:#e9d6a7}.notice.success{border-color:#236348;background:#10281f;color:#a5e8c9}.notice.error{border-color:#71344a;background:#2b1620;color:#ffc1ce}.hidden{display:none!important}hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+.avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#22d4ed,#345dff);display:grid;place-items:center;color:#06111d;font-weight:900;overflow:hidden;flex-shrink:0}.avatar img{width:100%;height:100%;object-fit:cover}
+.social-shell{background:linear-gradient(145deg,#101d32,#0b1423);border:1px solid #29415e;border-radius:22px;padding:clamp(14px,2.5vw,25px);overflow:hidden}.social-banner{padding:24px;border-radius:17px;background:linear-gradient(115deg,#102d48,#15234a 65%,#24204a);border:1px solid #31547b;position:relative;overflow:hidden}.social-banner:after{content:"";position:absolute;width:170px;height:170px;border-radius:50%;border:1px solid #40dfff44;right:-30px;top:-75px;box-shadow:0 0 0 24px #40dfff0b,0 0 0 48px #40dfff08}.social-banner h1{font-size:clamp(24px,3vw,34px);margin:9px 0}.social-banner p{font-size:12px;color:#a9c6e1;line-height:1.7;max-width:560px;margin:0}
+.social-tabs{display:flex;gap:7px;overflow-x:auto;padding:16px 0;border-bottom:1px solid var(--line);scrollbar-width:none}.social-tabs::-webkit-scrollbar{display:none}.social-tab{white-space:nowrap;border:1px solid transparent;background:transparent;color:#8ea5c0;padding:10px 14px;border-radius:10px;font-size:11px}.social-tab.active{color:#eafaff;background:#123149;border-color:#286080}.social-view{display:none;padding-top:18px}.social-view.active{display:block}.social-layout{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:17px;align-items:start}.social-main{min-width:0}.social-side{display:grid;gap:13px}
+.story-row{display:flex;gap:12px;overflow-x:auto;padding:4px 0 14px}.story{min-width:70px;text-align:center}.story-ring{width:58px;height:58px;padding:3px;border-radius:50%;background:linear-gradient(135deg,#27dfff,#5964ff,#e1a94a);margin:0 auto 7px}.story-ring .avatar{width:100%;height:100%;border:2px solid #101b2c}.story span{font-size:10px;color:#a9bad0;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.social-card{background:#0d1829;border:1px solid #223b59;border-radius:16px;padding:16px;margin-bottom:13px;min-width:0}.post-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}.post-head .user-info{min-width:0;flex:1}.post-head strong{font-size:12px;display:block}.post-head small{font-size:10px;color:var(--muted)}.post-text{font-size:13px;line-height:1.8;color:#d9e7f6;white-space:pre-wrap;overflow-wrap:anywhere}
+.post-image{width:100%;max-height:520px;object-fit:cover;border-radius:12px;margin-top:12px;border:1px solid #263b56}.post-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;border-top:1px solid #20334b;margin-top:13px;padding-top:12px}.post-action{background:transparent;border:0;color:#9db2ca;font-size:11px;padding:6px 8px;border-radius:8px}.post-action:hover,.post-action.liked{background:#183148;color:var(--cyan)}.comment-list{margin-top:10px}.comment{font-size:11px;color:#bdcde0;padding:8px 10px;background:#111f31;border-radius:8px;margin-top:6px;overflow-wrap:anywhere}.comment-form{display:flex;gap:7px;margin-top:10px}.comment-form input{min-width:0;flex:1;background:#080f1b;border:1px solid #263b56;border-radius:9px;padding:10px;color:white;font-size:11px}
+.profile-cover{height:100px;border-radius:13px;background:linear-gradient(120deg,#15516b,#283b78,#513c76);margin-bottom:-32px}.profile-card{text-align:center}.profile-card .avatar{width:68px;height:68px;margin:0 auto 9px;border:3px solid #0d1829}.profile-card h3{margin:0 0 5px}.profile-card p{font-size:11px;color:var(--muted);line-height:1.6}.profile-stats{display:flex;justify-content:space-around;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}.profile-stats strong{display:block;font-size:14px}.profile-stats span{font-size:10px;color:var(--muted)}
+.feature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.feature{background:#101d30;border:1px solid #263d5a;border-radius:13px;padding:16px}.feature .feature-icon{font-size:23px;margin-bottom:9px}.feature h3{font-size:13px;margin:0 0 6px}.feature p{font-size:11px;color:var(--muted);line-height:1.6;margin:0}.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--green);margin-right:6px}.mobile-nav{display:none}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:11px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:600}.empty{padding:28px;text-align:center;border:1px dashed #304760;border-radius:13px;color:var(--muted);font-size:12px;line-height:1.8}.toast{position:fixed;bottom:25px;right:25px;z-index:100;background:#14273b;border:1px solid #315878;border-radius:12px;padding:13px 17px;color:#e7f7ff;font-size:12px;box-shadow:0 10px 35px #0008;max-width:90vw;display:none}.toast.show{display:block;animation:fade .2s}
+
+/* Instagram-style create flow */
+.create-trigger{width:100%;display:flex;align-items:center;gap:13px;padding:14px;background:#101e31;border:1px solid #2a4664;border-radius:15px;color:#cbdced;text-align:left;margin-bottom:15px}.create-trigger:hover{border-color:var(--cyan);background:#12253b}.create-trigger .plus{width:43px;height:43px;border-radius:13px;background:linear-gradient(135deg,#24d7f6,#416dff);display:grid;place-items:center;color:#06101d;font-size:27px;font-weight:400}.create-trigger strong{display:block;font-size:13px}.create-trigger small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+.create-modal{position:fixed;inset:0;background:#020711dc;z-index:80;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(9px)}.create-modal.open{display:flex}.create-window{width:min(900px,100%);max-height:92vh;overflow:auto;background:#0c1727;border:1px solid #31506e;border-radius:19px;box-shadow:0 25px 90px #000b}.create-header{height:58px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 17px;position:sticky;top:0;background:#0c1727;z-index:3}.create-header strong{font-size:13px}.icon-btn{width:34px;height:34px;border-radius:9px;background:#17263a;border:1px solid #2c425e;color:#d9eaff;font-size:18px}.create-steps{display:flex;justify-content:center;gap:8px;padding:15px;border-bottom:1px solid #1b2c43}.step-dot{font-size:10px;color:#71869f;padding:7px 12px;border-radius:20px;background:#111f32}.step-dot.active{background:#12364d;color:var(--cyan);border:1px solid #286080}.create-body{padding:19px}.create-step{display:none}.create-step.active{display:block}.upload-drop{min-height:280px;border:1px dashed #3a5c7b;border-radius:15px;background:radial-gradient(ellipse at center,#142b43,#0b1524);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px}.upload-icon{font-size:48px;margin-bottom:12px}.upload-drop h3{margin:0 0 8px;font-size:17px}.upload-drop p{font-size:11px;color:var(--muted);line-height:1.7;max-width:350px}.upload-actions{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:12px}.file-hidden{display:none!important}
+.media-editor{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(220px,.7fr);gap:17px}.media-preview-wrap{min-width:0}.media-preview{position:relative;width:100%;aspect-ratio:1/1;max-height:520px;background:#050a12;border-radius:13px;overflow:hidden;display:grid;place-items:center;border:1px solid #263b56}.media-preview img,.media-preview video{width:100%;height:100%;object-fit:cover}.media-preview.ratio-portrait{aspect-ratio:4/5}.media-preview.ratio-landscape{aspect-ratio:16/9}.media-preview.ratio-square{aspect-ratio:1/1}.media-preview video{background:#000}.media-count{position:absolute;right:10px;top:10px;background:#0009;color:white;padding:6px 9px;border-radius:20px;font-size:10px}
+.media-thumbs{display:flex;gap:8px;overflow-x:auto;padding:10px 2px}.media-thumb{width:62px;height:62px;flex:0 0 62px;border-radius:9px;overflow:hidden;border:2px solid transparent;position:relative;background:#17263a}.media-thumb.active{border-color:var(--cyan)}.media-thumb img,.media-thumb video{width:100%;height:100%;object-fit:cover}.media-thumb button{position:absolute;right:2px;top:2px;width:18px;height:18px;padding:0;border:0;border-radius:50%;background:#08101cdd;color:white;font-size:12px}
+.editor-side h3{font-size:14px;margin:0 0 12px}.ratio-options{display:flex;gap:7px;flex-wrap:wrap}.ratio-btn{padding:8px 10px;border:1px solid #2b425d;border-radius:8px;background:#111f31;color:#a9bdd4;font-size:10px}.ratio-btn.active{border-color:var(--cyan);color:var(--cyan);background:#123149}.caption-area{min-height:140px!important}.editor-note{font-size:10px;color:var(--muted);line-height:1.7;margin-top:12px}.create-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 19px;border-top:1px solid var(--line);position:sticky;bottom:0;background:#0c1727}.create-footer .left{font-size:10px;color:var(--muted)}.create-footer .right{display:flex;gap:8px}
+.post-media-stage{position:relative;margin-top:12px;border-radius:12px;overflow:hidden;background:#050a12}.post-media-stage img,.post-media-stage video{display:block;width:100%;max-height:520px;object-fit:cover}.media-nav{position:absolute;top:50%;transform:translateY(-50%);border:0;border-radius:50%;background:#0009;color:white;width:31px;height:31px;font-size:18px}.media-nav.prev{left:9px}.media-nav.next{right:9px}.media-indicator{position:absolute;right:10px;top:10px;padding:5px 8px;background:#0009;color:white;border-radius:20px;font-size:10px}
 @media(max-width:950px){.app{grid-template-columns:205px minmax(0,1fr)}.social-layout{grid-template-columns:minmax(0,1fr)}.social-side{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.app{display:block}.sidebar{display:none}.main{padding:17px 13px 85px}.topbar{margin-bottom:20px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#091321f5;border-top:1px solid var(--line);z-index:20;justify-content:space-around;padding:8px 3px calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(15px)}.mobile-nav button{background:none;border:0;color:#8da5c0;font-size:9px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px}.mobile-nav button.active{color:var(--cyan)}.mobile-nav span{font-size:18px}.social-side{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.hero{padding:22px}.top-actions .pill{display:none}}
+@media(max-width:700px){.app{display:block}.sidebar{display:none}.main{padding:17px 13px 85px}.topbar{margin-bottom:20px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#091321f5;border-top:1px solid var(--line);z-index:20;justify-content:space-around;padding:8px 3px calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(15px)}.mobile-nav button{background:none;border:0;color:#8da5c0;font-size:9px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px}.mobile-nav button.active{color:var(--cyan)}.mobile-nav span{font-size:18px}.social-side{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.hero{padding:22px}.top-actions .pill{display:none}.media-editor{grid-template-columns:1fr}.create-modal{padding:7px}.create-window{max-height:95vh}.create-body{padding:13px}.media-preview{max-height:360px}.create-footer{padding:11px}.create-footer .left{max-width:120px}}
 @media(max-width:420px){.grid{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.social-banner{padding:18px}.social-shell{padding:11px}.social-tab{padding:9px 11px}}
 </style>
 </head>
@@ -142,680 +48,162 @@ th{color:var(--muted);font-weight:600}
 <button class="nav-btn" data-page="user"><span class="nav-icon">◉</span>User Center</button>
 <button class="nav-btn" data-page="social"><span class="nav-icon">◎</span>SOCIAL</button>
 <button class="nav-btn" data-page="admin"><span class="nav-icon">⚙</span>Admin</button>
-<div class="nav-label">INTELLIGENCE</div>
-<button class="nav-btn" data-page="intelligence"><span class="nav-icon">✧</span>Intelligence</button>
-<div class="nav-label">ECOSYSTEM</div>
-<button class="nav-btn" data-page="projects"><span class="nav-icon">▦</span>Projects</button>
-<button class="nav-btn" data-page="services"><span class="nav-icon">◇</span>Services</button>
+<div class="nav-label">INTELLIGENCE</div><button class="nav-btn" data-page="intelligence"><span class="nav-icon">✧</span>Intelligence</button>
+<div class="nav-label">ECOSYSTEM</div><button class="nav-btn" data-page="projects"><span class="nav-icon">▦</span>Projects</button><button class="nav-btn" data-page="services"><span class="nav-icon">◇</span>Services</button>
 <div class="sidebar-bottom">MEHRAN MSH<br><span class="status-dot"></span>Digital ecosystem interface<br><span id="sideUser">Guest session</span></div>
 </aside>
 <main class="main">
-<header class="topbar">
-<div class="breadcrumb">MEHRAN MSH <span style="color:#405875">/</span> <span id="crumb">Dashboard</span></div>
-<div class="top-actions"><span class="pill" id="connectionStatus">● Checking connection</span><button class="btn secondary small" id="languageBtn">EN / FA</button></div>
-</header>
+<header class="topbar"><div class="breadcrumb">MEHRAN MSH <span style="color:#405875">/</span> <span id="crumb">Dashboard</span></div><div class="top-actions"><span class="pill" id="connectionStatus">● Checking connection</span><button class="btn secondary small" id="languageBtn">EN / FA</button></div></header>
 
 <section class="page active" id="page-dashboard">
-<div class="hero">
-<div class="eyebrow">WELCOME TO YOUR DIGITAL WORLD</div>
-<h1 id="heroTitle">One Hub. Many Possibilities.</h1>
-<p id="heroText">MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.</p>
-<div class="hero-actions"><button class="btn" onclick="showPage('user')">Open User Center</button><button class="btn secondary" onclick="showPage('social')">Explore SOCIAL</button></div>
-</div>
-<div class="grid">
-<div class="card"><div class="eyebrow">IDENTITY</div><div class="stat" id="dashIdentity">Guest</div><div class="stat-label">Current account</div></div>
-<div class="card"><div class="eyebrow">SOCIAL</div><div class="stat" id="dashPosts">0</div><div class="stat-label">Your local posts</div></div>
-<div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="dashProjects">0</div><div class="stat-label">Projects available</div></div>
-</div>
-<div class="section-title"><h2>Explore your workspace</h2></div>
-<div class="grid">
-<div class="card"><h3>◉ User Center</h3><p>Manage your account, profile and Pi Network connection.</p></div>
-<div class="card"><h3>◎ SOCIAL</h3><p>Your social space for profiles, posts, photos and community features.</p></div>
-<div class="card"><h3>✧ Intelligence</h3><p>A dedicated space for intelligent tools and future AI services.</p></div>
-</div>
+<div class="hero"><div class="eyebrow">WELCOME TO YOUR DIGITAL WORLD</div><h1 id="heroTitle">One Hub. Many Possibilities.</h1><p id="heroText">MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.</p><div class="hero-actions"><button class="btn" onclick="showPage('user')">Open User Center</button><button class="btn secondary" onclick="showPage('social')">Explore SOCIAL</button></div></div>
+<div class="grid"><div class="card"><div class="eyebrow">IDENTITY</div><div class="stat" id="dashIdentity">Guest</div><div class="stat-label">Current account</div></div><div class="card"><div class="eyebrow">SOCIAL</div><div class="stat" id="dashPosts">0</div><div class="stat-label">Your local posts</div></div><div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="dashProjects">0</div><div class="stat-label">Projects available</div></div></div>
+<div class="section-title"><h2>Explore your workspace</h2></div><div class="grid"><div class="card"><h3>◉ User Center</h3><p>Manage your account, profile and Pi Network connection.</p></div><div class="card"><h3>◎ SOCIAL</h3><p>Your social space for profiles, posts, photos and community features.</p></div><div class="card"><h3>✧ Intelligence</h3><p>A dedicated space for intelligent tools and future AI services.</p></div></div>
 </section>
 
 <section class="page" id="page-user">
 <div class="page-heading"><h1>User Center</h1><p>Your account, digital identity and connection settings.</p></div>
-<div class="grid">
-<div class="card"><div class="eyebrow">ACCOUNT</div><div class="stat" id="userStatus">Guest</div><div class="stat-label">MEHRAN MSH account status</div></div>
-<div class="card"><div class="eyebrow">PI NETWORK</div><div class="stat" id="piStatus">Not connected</div><div class="stat-label">Pi authentication status</div></div>
-<div class="card"><div class="eyebrow">SOCIAL ACCOUNT</div><div class="stat" id="socialStatus">Not registered</div><div class="stat-label">SOCIAL membership</div></div>
-</div>
-<div class="panel">
-<h3>Pi Network Authentication</h3>
-<p class="small-text">Connect using the official Pi authentication window. Never share your wallet passphrase or private keys.</p>
-<div id="piMessage" class="notice">Pi sign-in is available when opened in a supported Pi Browser environment.</div>
-<button class="btn" id="piLoginBtn">Sign in with Pi</button>
-<button class="btn secondary hidden" id="piLogoutBtn">Disconnect session</button>
-</div>
-<div class="panel">
-<h3>Account Information</h3>
-<div class="form-grid">
-<div class="field"><label>Pi Username</label><input id="piUsername" readonly placeholder="Not connected"></div>
-<div class="field"><label>Account UID</label><input id="piUid" readonly placeholder="Not available"></div>
-</div>
-</div>
+<div class="grid"><div class="card"><div class="eyebrow">ACCOUNT</div><div class="stat" id="userStatus">Guest</div><div class="stat-label">MEHRAN MSH account status</div></div><div class="card"><div class="eyebrow">PI NETWORK</div><div class="stat" id="piStatus">Not connected</div><div class="stat-label">Pi authentication status</div></div><div class="card"><div class="eyebrow">SOCIAL ACCOUNT</div><div class="stat" id="socialStatus">Not registered</div><div class="stat-label">SOCIAL membership</div></div></div>
+<div class="panel"><h3>Pi Network Authentication</h3><p class="small-text">Connect using the official Pi authentication window. Never share your wallet passphrase or private keys.</p><div id="piMessage" class="notice">Pi sign-in is available when opened in a supported Pi Browser environment.</div><button class="btn" id="piLoginBtn">Sign in with Pi</button><button class="btn secondary hidden" id="piLogoutBtn">Disconnect session</button></div>
+<div class="panel"><h3>Account Information</h3><div class="form-grid"><div class="field"><label>Pi Username</label><input id="piUsername" readonly placeholder="Not connected"></div><div class="field"><label>Account UID</label><input id="piUid" readonly placeholder="Not available"></div></div></div>
 </section>
 
 <section class="page" id="page-social">
 <div class="social-shell">
-<div class="social-banner">
-<div class="eyebrow">CONNECT · CREATE · SHARE</div>
-<h1>SOCIAL</h1>
-<p>Your social space inside MEHRAN MSH. Create your profile, share moments, discover content and connect with people.</p>
-</div>
+<div class="social-banner"><div class="eyebrow">CONNECT · CREATE · SHARE</div><h1>SOCIAL</h1><p>Your social space inside MEHRAN MSH. Create your profile, share moments, discover content and connect with people.</p></div>
 <div class="social-tabs">
-<button class="social-tab active" data-social="feed">⌂ Feed</button>
-<button class="social-tab" data-social="profile">◉ Profile</button>
-<button class="social-tab" data-social="messages">✉ Messages</button>
-<button class="social-tab" data-social="groups">♧ Groups</button>
-<button class="social-tab" data-social="channels">▤ Channels</button>
-<button class="social-tab" data-social="explore">⌕ Explore</button>
-<button class="social-tab" data-social="settings">⚙ Settings</button>
+<button class="social-tab active" data-social="feed">⌂ Feed</button><button class="social-tab" data-social="profile">◉ Profile</button><button class="social-tab" data-social="messages">✉ Messages</button><button class="social-tab" data-social="groups">♧ Groups</button><button class="social-tab" data-social="channels">▤ Channels</button><button class="social-tab" data-social="explore">⌕ Explore</button><button class="social-tab" data-social="settings">⚙ Settings</button>
 </div>
-
 <div class="social-view active" id="social-feed">
-<div id="socialAuthPanel" class="panel">
-<h3>Welcome to SOCIAL</h3>
-<p class="small-text">Create an account or sign in to start building your social profile.</p>
-<div class="form-grid">
-<div>
-<div class="field"><label>Username</label><input id="socialUsername" placeholder="Choose a username" autocomplete="username"></div>
-<div class="field"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div>
+<div id="socialAuthPanel" class="panel"><h3>Welcome to SOCIAL</h3><p class="small-text">Create an account or sign in to start building your social profile.</p>
+<div class="form-grid"><div><div class="field"><label>Username</label><input id="socialUsername" placeholder="Choose a username" autocomplete="username"></div><div class="field"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div></div><div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="current-password"></div><div class="field"><label>Display name (for registration)</label><input id="socialDisplayName" placeholder="Your display name"></div></div></div>
+<div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div id="socialAuthMessage" class="notice">You can register with email, username and password. Pi account linking is optional.</div></div>
+<div id="socialApp" class="hidden"><div class="social-layout"><div class="social-main">
+<div class="story-row"><div class="story"><div class="story-ring"><div class="avatar">+</div></div><span>Your story</span></div><div class="story"><div class="story-ring"><div class="avatar">M</div></div><span>Moments</span></div><div class="story"><div class="story-ring"><div class="avatar">S</div></div><span>Community</span></div><div class="story"><div class="story-ring"><div class="avatar">✧</div></div><span>Discover</span></div></div>
+
+<button class="create-trigger" id="openCreatePost"><span class="plus">+</span><span><strong>Create a post</strong><small>Share photos, videos and moments with your community</small></span></button>
+
+<div class="section-title"><h2>Your Feed</h2><span class="small-text" id="feedCount">0 posts</span></div><div id="feedList"></div>
 </div>
-<div>
-<div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="current-password"></div>
-<div class="field"><label>Display name (for registration)</label><input id="socialDisplayName" placeholder="Your display name"></div>
-</div>
-</div>
-<div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div>
-<div id="socialAuthMessage" class="notice">You can register with email, username and password. Pi account linking is optional.</div>
-</div>
-<div id="socialApp" class="hidden">
-<div class="social-layout">
-<div class="social-main">
-<div class="story-row">
-<div class="story"><div class="story-ring"><div class="avatar">+</div></div><span>Your story</span></div>
-<div class="story"><div class="story-ring"><div class="avatar">M</div></div><span>Moments</span></div>
-<div class="story"><div class="story-ring"><div class="avatar">S</div></div><span>Community</span></div>
-<div class="story"><div class="story-ring"><div class="avatar">✧</div></div><span>Discover</span></div>
-</div>
-<div class="social-card">
-<div class="post-head"><div class="avatar" id="composerAvatar">M</div><div class="user-info"><strong id="composerName">Your profile</strong><small>Share something with your community</small></div></div>
-<div class="field"><textarea id="postText" placeholder="What's on your mind?"></textarea></div>
-<div class="field"><label>Add a photo (optional, max 700 KB)</label><input type="file" id="postImage" accept="image/*"></div>
-<button class="btn" id="publishPostBtn">Publish post</button>
-</div>
-<div class="section-title"><h2>Your Feed</h2><span class="small-text" id="feedCount">0 posts</span></div>
-<div id="feedList"></div>
-</div>
-<aside class="social-side">
-<div class="social-card profile-card">
-<div class="profile-cover"></div>
-<div class="avatar" id="sideAvatar">M</div>
-<h3 id="sideProfileName">Your profile</h3>
-<p id="sideProfileBio">Welcome to your SOCIAL profile.</p>
-<div class="profile-stats"><div><strong id="profilePostCount">0</strong><span>Posts</span></div><div><strong>0</strong><span>Followers</span></div><div><strong>0</strong><span>Following</span></div></div>
-<button class="btn secondary small" style="margin-top:14px" onclick="switchSocial('profile')">Edit profile</button>
-</div>
-<div class="social-card"><h3>Community spaces</h3><p class="small-text">Groups and channels are planned for the next development stages.</p><button class="btn secondary small" style="margin-top:12px" onclick="switchSocial('groups')">Explore groups</button></div>
-</aside>
-</div>
-</div>
+<aside class="social-side"><div class="social-card profile-card"><div class="profile-cover"></div><div class="avatar" id="sideAvatar">M</div><h3 id="sideProfileName">Your profile</h3><p id="sideProfileBio">Welcome to your SOCIAL profile.</p><div class="profile-stats"><div><strong id="profilePostCount">0</strong><span>Posts</span></div><div><strong>0</strong><span>Followers</span></div><div><strong>0</strong><span>Following</span></div></div><button class="btn secondary small" style="margin-top:14px" onclick="switchSocial('profile')">Edit profile</button></div>
+<div class="social-card"><h3>Community spaces</h3><p class="small-text">Groups and channels are planned for the next development stages.</p><button class="btn secondary small" style="margin-top:12px" onclick="switchSocial('groups')">Explore groups</button></div></aside></div></div>
 </div>
 
-<div class="social-view" id="social-profile">
-<div id="profileLoginNotice" class="empty">Sign in to view and edit your profile.</div>
-<div id="profileEditor" class="panel hidden">
-<h3>Your Profile</h3>
-<div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div>
-<div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div>
-<div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div>
-<div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div>
-<div id="profileMessage" class="notice">Your profile details are stored on this device.</div>
-</div>
-</div>
-
-<div class="social-view" id="social-messages">
-<div class="empty"><div style="font-size:30px;margin-bottom:10px">✉</div><strong>Messages</strong><br>Private messaging is part of the SOCIAL roadmap. The messaging backend is not connected yet.</div>
-</div>
-<div class="social-view" id="social-groups">
-<div class="empty"><div style="font-size:30px;margin-bottom:10px">♧</div><strong>Groups</strong><br>Community groups will be introduced in a future development stage. Group creation and messaging are not connected yet.</div>
-</div>
-<div class="social-view" id="social-channels">
-<div class="empty"><div style="font-size:30px;margin-bottom:10px">▤</div><strong>Channels</strong><br>Public channels and broadcasting are planned. This section is not connected to a backend yet.</div>
-</div>
-<div class="social-view" id="social-explore">
-<div class="section-title"><h2>Explore SOCIAL</h2></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">📷</div><h3>Photos & Posts</h3><p>Share your moments and ideas with your community.</p></div>
-<div class="feature"><div class="feature-icon">✉</div><h3>Messaging</h3><p>Private conversations are planned for a future release.</p></div>
-<div class="feature"><div class="feature-icon">♧</div><h3>Communities</h3><p>Groups and channels are planned for future releases.</p></div>
-<div class="feature"><div class="feature-icon">✧</div><h3>Discovery</h3><p>Discover people and content as the community grows.</p></div>
-</div>
-</div>
-<div class="social-view" id="social-settings">
-<div class="panel">
-<h3>Account Settings</h3>
-<p class="small-text">Manage your SOCIAL account session.</p>
-<div class="field"><label>Signed in as</label><input id="settingsUsername" readonly placeholder="Not signed in"></div>
-<div class="hero-actions"><button class="btn secondary" id="refreshSessionBtn">Refresh session</button><button class="btn danger" id="socialLogoutBtn">Sign out</button></div>
-<div id="settingsMessage" class="notice">Your account session is managed by the MEHRAN MSH authentication service.</div>
-</div>
-</div>
+<div class="social-view" id="social-profile"><div id="profileLoginNotice" class="empty">Sign in to view and edit your profile.</div><div id="profileEditor" class="panel hidden"><h3>Your Profile</h3><div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div><div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div><div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div><div id="profileMessage" class="notice">Your profile details are stored on this device.</div></div></div>
+<div class="social-view" id="social-messages"><div class="empty"><div style="font-size:30px;margin-bottom:10px">✉</div><strong>Messages</strong><br>Private messaging is part of the SOCIAL roadmap. The messaging backend is not connected yet.</div></div>
+<div class="social-view" id="social-groups"><div class="empty"><div style="font-size:30px;margin-bottom:10px">♧</div><strong>Groups</strong><br>Community groups will be introduced in a future development stage. Group creation and messaging are not connected yet.</div></div>
+<div class="social-view" id="social-channels"><div class="empty"><div style="font-size:30px;margin-bottom:10px">▤</div><strong>Channels</strong><br>Public channels and broadcasting are planned. This section is not connected to a backend yet.</div></div>
+<div class="social-view" id="social-explore"><div class="section-title"><h2>Explore SOCIAL</h2></div><div class="feature-grid"><div class="feature"><div class="feature-icon">📷</div><h3>Photos & Posts</h3><p>Share your moments and ideas with your community.</p></div><div class="feature"><div class="feature-icon">✉</div><h3>Messaging</h3><p>Private conversations are planned for a future release.</p></div><div class="feature"><div class="feature-icon">♧</div><h3>Communities</h3><p>Groups and channels are planned for future releases.</p></div><div class="feature"><div class="feature-icon">✧</div><h3>Discovery</h3><p>Discover people and content as the community grows.</p></div></div></div>
+<div class="social-view" id="social-settings"><div class="panel"><h3>Account Settings</h3><p class="small-text">Manage your SOCIAL account session.</p><div class="field"><label>Signed in as</label><input id="settingsUsername" readonly placeholder="Not signed in"></div><div class="hero-actions"><button class="btn secondary" id="refreshSessionBtn">Refresh session</button><button class="btn danger" id="socialLogoutBtn">Sign out</button></div><div id="settingsMessage" class="notice">Your account session is managed by the MEHRAN MSH authentication service.</div></div></div>
 </div>
 </section>
 
-<section class="page" id="page-admin">
-<div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div>
-<div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div>
-<div class="panel">
-<h3>System Overview</h3>
-<div class="grid">
-<div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div>
-<div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div>
-<div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div>
-</div>
-</div>
-</section>
+<section class="page" id="page-admin"><div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div><div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div><div class="panel"><h3>System Overview</h3><div class="grid"><div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div><div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div><div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div></div></div></section>
 
-<section class="page" id="page-intelligence">
-<div class="page-heading"><h1>Intelligence</h1><p>Intelligent tools and AI experiences inside the ecosystem.</p></div>
-<div class="hero"><div class="eyebrow">INTELLIGENCE LAYER</div><h1>Ideas into intelligence.</h1><p>A dedicated space for future AI assistants, creative tools, personal intelligence and connected services.</p></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Personal intelligent assistant integration is planned.</p></div>
-<div class="feature"><div class="feature-icon">🎙</div><h3>Creative Studio</h3><p>Creative and music-related AI tools are planned.</p></div>
-<div class="feature"><div class="feature-icon">🧠</div><h3>Personal Intelligence</h3><p>A future space for personalized intelligent workflows.</p></div>
-<div class="feature"><div class="feature-icon">🔗</div><h3>Connected Services</h3><p>Integrations will be added as services become available.</p></div>
-</div>
-</section>
+<section class="page" id="page-intelligence"><div class="page-heading"><h1>Intelligence</h1><p>Intelligent tools and AI experiences inside the ecosystem.</p></div><div class="hero"><div class="eyebrow">INTELLIGENCE LAYER</div><h1>Ideas into intelligence.</h1><p>A dedicated space for future AI assistants, creative tools, personal intelligence and connected services.</p></div><div class="feature-grid"><div class="feature"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Personal intelligent assistant integration is planned.</p></div><div class="feature"><div class="feature-icon">🎙</div><h3>Creative Studio</h3><p>Creative and music-related AI tools are planned.</p></div><div class="feature"><div class="feature-icon">🧠</div><h3>Personal Intelligence</h3><p>A future space for personalized intelligent workflows.</p></div><div class="feature"><div class="feature-icon">🔗</div><h3>Connected Services</h3><p>Integrations will be added as services become available.</p></div></div></section>
 
-<section class="page" id="page-projects">
-<div class="page-heading"><h1>Projects</h1><p>Manage and explore projects connected to MEHRAN MSH.</p></div>
-<div class="panel">
-<div class="section-title"><h2>Project Workspace</h2><button class="btn small" id="refreshProjectsBtn">Refresh</button></div>
-<div id="projectsMessage" class="notice">Loading projects...</div>
-<div id="projectsList"></div>
-</div>
-<div class="panel">
-<h3>Create Project</h3>
-<div class="field"><label>Project name</label><input id="projectName" placeholder="Project name"></div>
-<div class="field"><label>Description</label><textarea id="projectDescription" placeholder="Describe your project"></textarea></div>
-<button class="btn" id="createProjectBtn">Create project</button>
-</div>
-</section>
+<section class="page" id="page-projects"><div class="page-heading"><h1>Projects</h1><p>Manage and explore projects connected to MEHRAN MSH.</p></div><div class="panel"><div class="section-title"><h2>Project Workspace</h2><button class="btn small" id="refreshProjectsBtn">Refresh</button></div><div id="projectsMessage" class="notice">Loading projects...</div><div id="projectsList"></div></div><div class="panel"><h3>Create Project</h3><div class="field"><label>Project name</label><input id="projectName" placeholder="Project name"></div><div class="field"><label>Description</label><textarea id="projectDescription" placeholder="Describe your project"></textarea></div><button class="btn" id="createProjectBtn">Create project</button></div></section>
 
-<section class="page" id="page-services">
-<div class="page-heading"><h1>Services</h1><p>Services and utilities within the MEHRAN MSH ecosystem.</p></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">◉</div><h3>Identity</h3><p>Account identity and authentication services.</p></div>
-<div class="feature"><div class="feature-icon">◎</div><h3>SOCIAL</h3><p>Social profiles and content sharing.</p></div>
-<div class="feature"><div class="feature-icon">✧</div><h3>Intelligence</h3><p>Future AI and intelligent services.</p></div>
-<div class="feature"><div class="feature-icon">▦</div><h3>Projects</h3><p>Project workspace and management.</p></div>
-</div>
-</section>
-</main>
-</div>
+<section class="page" id="page-services"><div class="page-heading"><h1>Services</h1><p>Services and utilities within the MEHRAN MSH ecosystem.</p></div><div class="feature-grid"><div class="feature"><div class="feature-icon">◉</div><h3>Identity</h3><p>Account identity and authentication services.</p></div><div class="feature"><div class="feature-icon">◎</div><h3>SOCIAL</h3><p>Social profiles and content sharing.</p></div><div class="feature"><div class="feature-icon">✧</div><h3>Intelligence</h3><p>Future AI and intelligent services.</p></div><div class="feature"><div class="feature-icon">▦</div><h3>Projects</h3><p>Project workspace and management.</p></div></div></section>
+</main></div>
 
-<nav class="mobile-nav">
-<button class="active" data-page="dashboard"><span>⌂</span>Home</button>
-<button data-page="user"><span>◉</span>Account</button>
-<button data-page="social"><span>◎</span>SOCIAL</button>
-<button data-page="projects"><span>▦</span>Projects</button>
-<button data-page="services"><span>◇</span>Services</button>
-</nav>
+<nav class="mobile-nav"><button class="active" data-page="dashboard"><span>⌂</span>Home</button><button data-page="user"><span>◉</span>Account</button><button data-page="social"><span>◎</span>SOCIAL</button><button data-page="projects"><span>▦</span>Projects</button><button data-page="services"><span>◇</span>Services</button></nav>
 <div class="toast" id="toast"></div>
+
+<!-- Create Post Modal -->
+<div class="create-modal" id="createModal">
+<div class="create-window">
+<div class="create-header"><button class="icon-btn" id="closeCreate" aria-label="Close">×</button><strong id="createTitle">Create new post</strong><button class="btn small" id="modalNext">Next</button></div>
+<div class="create-steps"><span class="step-dot active" id="stepDot1">1 · Select</span><span class="step-dot" id="stepDot2">2 · Preview</span><span class="step-dot" id="stepDot3">3 · Caption</span></div>
+<div class="create-body">
+<div class="create-step active" id="createStep1">
+<div class="upload-drop"><div class="upload-icon">▧</div><h3>Select photos or videos</h3><p>Choose one or more images or videos from your device. You can preview and arrange your media before publishing.</p><div class="upload-actions"><label for="postMediaInput" class="btn">＋ Select from gallery</label></div><input class="file-hidden" id="postMediaInput" type="file" accept="image/*,video/*" multiple></div>
+<div class="notice" id="selectionNotice">You can select multiple files. For this local preview version, keep each file under 700 KB and total media under 2.5 MB.</div>
+</div>
+<div class="create-step" id="createStep2">
+<div class="media-editor"><div class="media-preview-wrap"><div class="media-preview ratio-square" id="mediaPreview"><div class="small-text">Your preview will appear here</div></div><div class="media-thumbs" id="mediaThumbs"></div></div><div class="editor-side"><h3>Adjust your post</h3><div class="field"><label>Preview layout</label><div class="ratio-options"><button class="ratio-btn active" data-ratio="square">Square 1:1</button><button class="ratio-btn" data-ratio="portrait">Portrait 4:5</button><button class="ratio-btn" data-ratio="landscape">Landscape 16:9</button></div></div><div class="field"><label>Selected media</label><div id="mediaInfo" class="small-text">No media selected.</div></div><div class="editor-note">Tap a thumbnail to preview it. Use the × button to remove an item. The preview layout controls how images are framed in the post.</div><div class="field" style="margin-top:15px"><label for="addMoreMedia">Add more media</label><label for="addMoreMedia" class="btn secondary small" style="display:inline-block;width:max-content">＋ Add files</label><input class="file-hidden" id="addMoreMedia" type="file" accept="image/*,video/*" multiple></div></div></div>
+</div>
+<div class="create-step" id="createStep3">
+<div class="media-editor"><div class="media-preview-wrap"><div class="media-preview ratio-square" id="captionPreview"><div class="small-text">Post preview</div></div><div class="media-thumbs" id="captionThumbs"></div></div><div class="editor-side"><h3>Write a caption</h3><div class="field"><label for="postCaption">Caption</label><textarea id="postCaption" class="caption-area" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" style="text-align:right" id="captionCount">0 / 2200</div></div><div class="editor-note">Your post will be saved in this browser on this device. Shared online feed storage is not connected yet.</div></div></div>
+</div>
+</div>
+<div class="create-footer"><div class="left" id="createFooterNote">Choose media to get started.</div><div class="right"><button class="btn secondary small hidden" id="modalBack">Back</button><button class="btn small" id="publishPostBtn" disabled>Share post</button></div></div>
+</div></div>
 
 <script>
 "use strict";
-
-const AUTH_WORKER = "https://mehran-msh-auth.mehran79mehran.workers.dev";
-const SOCIAL_API = AUTH_WORKER + "/social";
-const PI_CLIENT_ID = "4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
-
-const SOCIAL_TOKEN_KEY = "msh_social_token";
-const SOCIAL_PROFILE_KEY = "msh_social_local_profile";
-const SOCIAL_POSTS_KEY = "msh_social_local_posts";
-
-let piUser = null;
-let socialUser = null;
-let localProfile = readJSON(SOCIAL_PROFILE_KEY,{});
-let posts = readJSON(SOCIAL_POSTS_KEY,[]);
-let projects = [];
-let currentLanguage = "en";
-
+const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
+const SOCIAL_API=AUTH_WORKER+"/social";
+const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
+const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts";
+let piUser=null,socialUser=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en";
+let draftMedia=[],activeMedia=0,draftRatio="square",createStep=1;
 function $(id){return document.getElementById(id)}
-function readJSON(key,fallback){
- try{return JSON.parse(localStorage.getItem(key)) ?? fallback}
- catch{return fallback}
-}
+function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
-function escapeHTML(value){
- return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))
-}
-function toast(message){
- const el=$("toast");
- el.textContent=message;
- el.classList.add("show");
- clearTimeout(toast.timer);
- toast.timer=setTimeout(()=>el.classList.remove("show"),3200);
-}
-async function api(path,options={}){
- const response=await fetch(AUTH_WORKER+path,{
-  ...options,
-  headers:{
-   "Content-Type":"application/json",
-   ...(options.headers||{})
-  }
- });
- const data=await response.json().catch(()=>({}));
- if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");
- return data;
-}
-function showPage(name){
- document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
- const page=$("page-"+name);
- if(page)page.classList.add("active");
- document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
- $("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);
- if(name==="projects")loadProjects();
- if(name==="social")renderSocial();
- window.scrollTo({top:0,behavior:"smooth"});
-}
-document.querySelectorAll("[data-page]").forEach(btn=>{
- btn.addEventListener("click",()=>showPage(btn.dataset.page));
-});
+function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),3200)}
+async function api(path,options={}){const response=await fetch(AUTH_WORKER+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
+document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
+function showPage(name){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));const page=$("page-"+name);if(page)page.classList.add("active");document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));$("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);if(name==="projects")loadProjects();if(name==="social")renderSocial();window.scrollTo({top:0,behavior:"smooth"})}
+function switchSocial(name){document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));const view=$("social-"+name);if(view)view.classList.add("active");if(name==="profile")renderProfile();if(name==="feed")renderSocial()}
+document.querySelectorAll("[data-social]").forEach(btn=>btn.addEventListener("click",()=>switchSocial(btn.dataset.social)));
 
-function switchSocial(name){
- document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
- document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));
- const view=$("social-"+name);
- if(view)view.classList.add("active");
- if(name==="profile")renderProfile();
- if(name==="feed")renderSocial();
-}
-document.querySelectorAll("[data-social]").forEach(btn=>{
- btn.addEventListener("click",()=>switchSocial(btn.dataset.social));
-});
-
-async function checkWorker(){
- try{
-  const data=await api("/health");
-  $("connectionStatus").textContent="● Service online";
-  $("adminAuthStatus").textContent="Online";
-  $("adminDbStatus").textContent=data.database===false?"Unknown":"Connected";
- }catch(error){
-  try{
-   const response=await fetch(AUTH_WORKER);
-   const data=await response.json();
-   $("connectionStatus").textContent=data.status==="online"?"● Service online":"● Service reachable";
-   $("adminAuthStatus").textContent=data.status==="online"?"Online":"Reachable";
-   $("adminDbStatus").textContent=data.database?"Connected":"Unknown";
-  }catch{
-   $("connectionStatus").textContent="● Service unavailable";
-   $("adminAuthStatus").textContent="Offline";
-   $("adminDbStatus").textContent="Unknown";
-  }
- }
-}
+async function checkWorker(){try{const response=await fetch(AUTH_WORKER);const data=await response.json();$("connectionStatus").textContent=data.status==="online"?"● Service online":"● Service reachable";$("adminAuthStatus").textContent=data.status==="online"?"Online":"Reachable";$("adminDbStatus").textContent=data.database?"Connected":"Unknown"}catch{$("connectionStatus").textContent="● Service unavailable";$("adminAuthStatus").textContent="Offline";$("adminDbStatus").textContent="Unknown"}}
 checkWorker();
+function updateAccountUI(){const signed=!!piUser;$("userStatus").textContent=signed?"Connected":"Guest";$("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";$("piStatus").textContent=signed?"Connected":"Not connected";$("piUsername").value=piUser?.username||"";$("piUid").value=piUser?.uid||"";$("piLoginBtn").classList.toggle("hidden",signed);$("piLogoutBtn").classList.toggle("hidden",!signed);$("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";$("adminSession").textContent=signed?"Pi connected":"Guest"}
+async function piLogin(){if(!window.Pi){$("piMessage").textContent="Pi SDK was not detected. Open this app inside Pi Browser and try again.";$("piMessage").className="notice warn";return}try{window.Pi.init({version:"2.0",sandbox:false});const auth=await window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment));const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});piUser=data.user||auth.user;$("piMessage").textContent="Pi authentication completed successfully.";$("piMessage").className="notice success";updateAccountUI();toast("Pi account connected")}catch(error){$("piMessage").textContent=error.message||"Pi authentication failed.";$("piMessage").className="notice error"}}
+$("piLoginBtn").addEventListener("click",piLogin);$("piLogoutBtn").addEventListener("click",()=>{piUser=null;updateAccountUI();$("piMessage").textContent="Pi session disconnected from this page.";$("piMessage").className="notice"});
+function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
+function setSocialAuthMessage(message,type="notice"){$("socialAuthMessage").textContent=message;$("socialAuthMessage").className=type}
+async function socialRegister(){const username=$("socialUsername").value.trim(),email=$("socialEmail").value.trim(),password=$("socialPassword").value,displayName=$("socialDisplayName").value.trim()||username;if(!username||!email||!password){setSocialAuthMessage("Please enter a username, email and password.","notice warn");return}if(password.length<8){setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");return}try{const response=await fetch(SOCIAL_API+"/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,email,password,displayName})});const result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.message||result.error||"Registration failed");if(result.token)localStorage.setItem(SOCIAL_TOKEN_KEY,result.token);if(result.user)socialUser=result.user;setSocialAuthMessage("Account created successfully. You can now sign in.","notice success");if(getSocialToken())await socialMe()}catch(error){setSocialAuthMessage(error.message,"notice error")}}
+async function socialLogin(){const username=$("socialUsername").value.trim(),email=$("socialEmail").value.trim(),password=$("socialPassword").value;if(!password||(!username&&!email)){setSocialAuthMessage("Enter your username or email and password.","notice warn");return}try{const response=await fetch(SOCIAL_API+"/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,email,password})});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Login failed");if(!data.token)throw new Error("The server did not return a session token.");localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);socialUser=data.user||null;await socialMe();setSocialAuthMessage("You are signed in.","notice success");toast("Welcome to SOCIAL")}catch(error){setSocialAuthMessage(error.message,"notice error")}}
+async function socialMe(){const token=getSocialToken();if(!token){socialUser=null;renderSocial();return}try{const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||"Session expired");socialUser=data.user||data;$("socialAuthPanel").classList.add("hidden");$("socialApp").classList.remove("hidden");$("settingsUsername").value=socialUser.username||"";$("socialStatus").textContent="Connected";renderSocial()}catch(error){localStorage.removeItem(SOCIAL_TOKEN_KEY);socialUser=null;$("socialAuthPanel").classList.remove("hidden");$("socialApp").classList.add("hidden");$("socialStatus").textContent="Not registered";setSocialAuthMessage("Please sign in again. "+error.message,"notice warn")}}
+async function socialLogout(){try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}localStorage.removeItem(SOCIAL_TOKEN_KEY);socialUser=null;$("socialAuthPanel").classList.remove("hidden");$("socialApp").classList.add("hidden");$("socialStatus").textContent="Not registered";$("settingsUsername").value="";renderSocial();toast("Signed out")}
+$("socialRegisterBtn").addEventListener("click",socialRegister);$("socialLoginBtn").addEventListener("click",socialLogin);$("socialLogoutBtn").addEventListener("click",socialLogout);$("refreshSessionBtn").addEventListener("click",socialMe);
+function currentUsername(){return socialUser?.username||socialUser?.displayName||"Member"}function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
+function renderAvatar(id){const el=$(id);if(!el)return;if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';else el.textContent=profileInitial()}
+function renderProfile(){const logged=!!socialUser;$("profileLoginNotice").classList.toggle("hidden",logged);$("profileEditor").classList.toggle("hidden",!logged);if(!logged)return;$("profileDisplayName").value=localProfile.displayName||socialUser.displayName||socialUser.username||"";$("profileBio").value=localProfile.bio||"";renderAvatar("sideAvatar")}
+function renderSocial(){const logged=!!socialUser;$("socialAuthPanel").classList.toggle("hidden",logged);$("socialApp").classList.toggle("hidden",!logged);$("socialStatus").textContent=logged?"Connected":"Not registered";$("dashPosts").textContent=posts.length;if(!logged)return;$("sideProfileName").textContent=localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile";$("sideProfileBio").textContent=localProfile.bio||"Welcome to your SOCIAL profile.";$("profilePostCount").textContent=posts.filter(p=>p.author===currentUsername()).length;renderAvatar("sideAvatar");renderFeed()}
+function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
+function renderFeed(){const list=$("feedList");if(!list)return;if(!posts.length){list.innerHTML='<div class="empty">Your feed is waiting for its first post.<br>Share a thought, a photo or a moment.</div>';return}
+list.innerHTML=posts.map(post=>{const liked=(post.likes||[]).includes(currentUsername()),comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(c.author)+':</strong> '+escapeHTML(c.text)+'</div>').join(""),media=getPostMedia(post),first=media[0];let mediaHTML="";if(first){mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>'}
+return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((post.author||"M").charAt(0).toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong><small>'+escapeHTML(post.date||"")+'</small></div>'+(post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+escapeHTML(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+(post.likes||[]).length+' Likes</button><span class="small-text">'+(post.comments||[]).length+' comments</span></div><div class="comment-list">'+comments+'</div><div class="comment-form"><input id="comment-'+post.id+'" placeholder="Write a comment..."><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>'}).join("")}
+function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
+window.changePostMedia=function(id,delta){const post=posts.find(p=>p.id===id);if(!post)return;const media=getPostMedia(post);let index=post._viewIndex||0;index=(index+delta+media.length)%media.length;post._viewIndex=index;const stage=$("postmedia-"+id);if(!stage)return;stage.querySelector("img,video")?.remove();stage.insertAdjacentHTML("afterbegin",mediaMarkup(media[index]));stage.querySelector(".media-indicator").textContent=(index+1)+" / "+media.length}
+window.toggleLike=function(id){const post=posts.find(p=>p.id===id);if(!post)return;post.likes=post.likes||[];const i=post.likes.indexOf(currentUsername());if(i>=0)post.likes.splice(i,1);else post.likes.push(currentUsername());saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed()}
+window.addComment=function(id){const input=$("comment-"+id),text=input?.value.trim();if(!text)return;const post=posts.find(p=>p.id===id);if(!post)return;post.comments=post.comments||[];post.comments.push({author:currentUsername(),text});saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed()}
+window.deletePost=function(id){const post=posts.find(p=>p.id===id);if(!post||post.author!==currentUsername())return;if(!confirm("Delete this post?"))return;posts=posts.filter(p=>p.id!==id);saveJSON(SOCIAL_POSTS_KEY,posts);renderSocial()};
 
-function updateAccountUI(){
- const signed=!!piUser;
- $("userStatus").textContent=signed?"Connected":"Guest";
- $("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";
- $("piStatus").textContent=signed?"Connected":"Not connected";
- $("piUsername").value=piUser?.username||"";
- $("piUid").value=piUser?.uid||"";
- $("piLoginBtn").classList.toggle("hidden",signed);
- $("piLogoutBtn").classList.toggle("hidden",!signed);
- $("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";
- $("adminSession").textContent=signed?"Pi connected":"Guest";
-}
-
-async function piLogin(){
- if(!window.Pi){
-  $("piMessage").textContent="Pi SDK was not detected. Open this app inside Pi Browser and try again.";
-  $("piMessage").className="notice warn";
-  return;
- }
- try{
-  window.Pi.init({version:"2.0",sandbox:false});
-  const auth=await window.Pi.authenticate(["username","payments"],async function(payment){
-   console.log("Incomplete Pi payment:",payment);
-  });
-  const data=await api("/auth",{
-   method:"POST",
-   body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})
-  });
-  piUser=data.user||auth.user;
-  $("piMessage").textContent="Pi authentication completed successfully.";
-  $("piMessage").className="notice success";
-  updateAccountUI();
-  toast("Pi account connected");
- }catch(error){
-  $("piMessage").textContent=error.message||"Pi authentication failed.";
-  $("piMessage").className="notice error";
- }
-}
-$("piLoginBtn").addEventListener("click",piLogin);
-$("piLogoutBtn").addEventListener("click",()=>{
- piUser=null;
- updateAccountUI();
- $("piMessage").textContent="Pi session disconnected from this page.";
- $("piMessage").className="notice";
-});
-
-function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
-function socialHeaders(){
- return {"Authorization":"Bearer "+getSocialToken()};
-}
-function setSocialAuthMessage(message,type="notice"){
- $("socialAuthMessage").textContent=message;
- $("socialAuthMessage").className=type;
-}
-async function socialRegister(){
- const username=$("socialUsername").value.trim();
- const email=$("socialEmail").value.trim();
- const password=$("socialPassword").value;
- const displayName=$("socialDisplayName").value.trim()||username;
- if(!username||!email||!password){
-  setSocialAuthMessage("Please enter a username, email and password.","notice warn");
-  return;
- }
- if(password.length<8){
-  setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");
-  return;
- }
- try{
-  const data=await fetch(SOCIAL_API+"/register",{
-   method:"POST",
-   headers:{"Content-Type":"application/json"},
-   body:JSON.stringify({username,email,password,displayName})
-  });
-  const result=await data.json().catch(()=>({}));
-  if(!data.ok)throw new Error(result.message||result.error||"Registration failed");
-  if(result.token)localStorage.setItem(SOCIAL_TOKEN_KEY,result.token);
-  if(result.user)socialUser=result.user;
-  setSocialAuthMessage("Account created successfully. You can now sign in.","notice success");
-  if(getSocialToken())await socialMe();
- }catch(error){
-  setSocialAuthMessage(error.message,"notice error");
- }
-}
-async function socialLogin(){
- const username=$("socialUsername").value.trim();
- const email=$("socialEmail").value.trim();
- const password=$("socialPassword").value;
- if(!password||(!username&&!email)){
-  setSocialAuthMessage("Enter your username or email and password.","notice warn");
-  return;
- }
- try{
-  const response=await fetch(SOCIAL_API+"/login",{
-   method:"POST",
-   headers:{"Content-Type":"application/json"},
-   body:JSON.stringify({username,email,password})
-  });
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data.message||data.error||"Login failed");
-  if(!data.token)throw new Error("The server did not return a session token.");
-  localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
-  socialUser=data.user||null;
-  await socialMe();
-  setSocialAuthMessage("You are signed in.","notice success");
-  toast("Welcome to SOCIAL");
- }catch(error){
-  setSocialAuthMessage(error.message,"notice error");
- }
-}
-async function socialMe(){
- const token=getSocialToken();
- if(!token){socialUser=null;renderSocial();return}
- try{
-  const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data.message||"Session expired");
-  socialUser=data.user||data;
-  $("socialAuthPanel").classList.add("hidden");
-  $("socialApp").classList.remove("hidden");
-  $("settingsUsername").value=socialUser.username||"";
-  $("socialStatus").textContent="Connected";
-  renderSocial();
- }catch(error){
-  localStorage.removeItem(SOCIAL_TOKEN_KEY);
-  socialUser=null;
-  $("socialAuthPanel").classList.remove("hidden");
-  $("socialApp").classList.add("hidden");
-  $("socialStatus").textContent="Not registered";
-  setSocialAuthMessage("Please sign in again. "+error.message,"notice warn");
- }
-}
-async function socialLogout(){
- try{
-  if(getSocialToken()){
-   await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()});
-  }
- }catch(error){console.warn(error)}
- localStorage.removeItem(SOCIAL_TOKEN_KEY);
- socialUser=null;
- $("socialAuthPanel").classList.remove("hidden");
- $("socialApp").classList.add("hidden");
- $("socialStatus").textContent="Not registered";
- $("settingsUsername").value="";
- renderSocial();
- toast("Signed out");
-}
-$("socialRegisterBtn").addEventListener("click",socialRegister);
-$("socialLoginBtn").addEventListener("click",socialLogin);
-$("socialLogoutBtn").addEventListener("click",socialLogout);
-$("refreshSessionBtn").addEventListener("click",socialMe);
-
-function currentUsername(){
- return socialUser?.username||socialUser?.displayName||"Member";
-}
-function profileInitial(){
- return (localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M";
-}
-function renderAvatar(elementId){
- const el=$(elementId);
- if(!el)return;
- if(localProfile.photo){
-  el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
- }else{
-  el.textContent=profileInitial();
- }
-}
-function renderProfile(){
- const logged=!!socialUser;
- $("profileLoginNotice").classList.toggle("hidden",logged);
- $("profileEditor").classList.toggle("hidden",!logged);
- if(!logged)return;
- $("profileDisplayName").value=localProfile.displayName||socialUser.displayName||socialUser.username||"";
- $("profileBio").value=localProfile.bio||"";
- renderAvatar("sideAvatar");
-}
-function renderSocial(){
- const logged=!!socialUser;
- $("socialAuthPanel").classList.toggle("hidden",logged);
- $("socialApp").classList.toggle("hidden",!logged);
- $("socialStatus").textContent=logged?"Connected":"Not registered";
- $("dashPosts").textContent=posts.length;
- if(!logged)return;
- $("sideProfileName").textContent=localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile";
- $("sideProfileBio").textContent=localProfile.bio||"Welcome to your SOCIAL profile.";
- $("composerName").textContent=localProfile.displayName||currentUsername();
- $("sideProfileBio").title=$("sideProfileBio").textContent;
- renderAvatar("sideAvatar");
- renderAvatar("composerAvatar");
- $("profilePostCount").textContent=posts.filter(p=>p.author===currentUsername()).length;
- $("feedCount").textContent=posts.length+" posts";
- renderFeed();
-}
-function renderFeed(){
- const list=$("feedList");
- if(!list)return;
- if(!posts.length){
-  list.innerHTML='<div class="empty">Your feed is waiting for its first post.<br>Share a thought, a photo or a moment.</div>';
-  return;
- }
- list.innerHTML=posts.map(post=>{
-  const liked=(post.likes||[]).includes(currentUsername());
-  const comments=(post.comments||[]).map(comment=>'<div class="comment"><strong>'+escapeHTML(comment.author)+':</strong> '+escapeHTML(comment.text)+'</div>').join("");
-  return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((post.author||"M").charAt(0).toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong><small>'+escapeHTML(post.date||"")+'</small></div>'+(post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div><div class="post-text">'+escapeHTML(post.text||"")+'</div>'+(post.image?'<img class="post-image" src="'+post.image+'" alt="Post image">':'')+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+(post.likes||[]).length+' Likes</button><span class="small-text">'+(post.comments||[]).length+' comments</span></div><div class="comment-list">'+comments+'</div><div class="comment-form"><input id="comment-'+post.id+'" placeholder="Write a comment..."><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
- }).join("");
-}
-function readImage(file,maxBytes){
- return new Promise((resolve,reject)=>{
-  if(!file){resolve("");return}
-  if(!file.type.startsWith("image/")){reject(new Error("Please choose an image file."));return}
-  if(file.size>maxBytes){reject(new Error("Image must be smaller than "+Math.round(maxBytes/1024)+" KB."));return}
-  const reader=new FileReader();
-  reader.onload=()=>resolve(reader.result);
-  reader.onerror=()=>reject(new Error("Could not read image."));
-  reader.readAsDataURL(file);
- });
-}
-$("publishPostBtn").addEventListener("click",async()=>{
- if(!socialUser){toast("Sign in first");return}
- const text=$("postText").value.trim();
- const file=$("postImage").files[0];
- if(!text&&!file){toast("Write something or choose a photo");return}
- try{
-  const image=await readImage(file,700*1024);
-  posts.unshift({
-   id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),
-   author:currentUsername(),
-   displayName:localProfile.displayName||currentUsername(),
-   text,image,date:new Date().toLocaleString(),
-   likes:[],comments:[]
-  });
-  saveJSON(SOCIAL_POSTS_KEY,posts);
-  $("postText").value="";
-  $("postImage").value="";
-  renderSocial();
-  toast("Post published on this device");
- }catch(error){toast(error.message)}
-});
-window.toggleLike=function(id){
- const post=posts.find(p=>p.id===id);
- if(!post)return;
- post.likes=post.likes||[];
- const index=post.likes.indexOf(currentUsername());
- if(index>=0)post.likes.splice(index,1);
- else post.likes.push(currentUsername());
- saveJSON(SOCIAL_POSTS_KEY,posts);
- renderFeed();
-};
-window.addComment=function(id){
- const input=$("comment-"+id);
- const text=input?.value.trim();
- if(!text)return;
- const post=posts.find(p=>p.id===id);
- if(!post)return;
- post.comments=post.comments||[];
- post.comments.push({author:currentUsername(),text});
- saveJSON(SOCIAL_POSTS_KEY,posts);
- renderFeed();
-};
-window.deletePost=function(id){
- const post=posts.find(p=>p.id===id);
- if(!post||post.author!==currentUsername())return;
- if(!confirm("Delete this post?"))return;
- posts=posts.filter(p=>p.id!==id);
- saveJSON(SOCIAL_POSTS_KEY,posts);
- renderSocial();
-};
-$("saveProfileBtn").addEventListener("click",async()=>{
- if(!socialUser)return;
- try{
-  localProfile.displayName=$("profileDisplayName").value.trim();
-  localProfile.bio=$("profileBio").value.trim();
-  const file=$("profilePhoto").files[0];
-  if(file)localProfile.photo=await readImage(file,700*1024);
-  saveJSON(SOCIAL_PROFILE_KEY,localProfile);
-  $("profileMessage").textContent="Profile saved on this device.";
-  $("profileMessage").className="notice success";
-  renderSocial();
-  renderProfile();
- }catch(error){
-  $("profileMessage").textContent=error.message;
-  $("profileMessage").className="notice error";
- }
-});
-$("removePhotoBtn").addEventListener("click",()=>{
- delete localProfile.photo;
- saveJSON(SOCIAL_PROFILE_KEY,localProfile);
- $("profilePhoto").value="";
- renderProfile();
- renderSocial();
- $("profileMessage").textContent="Profile photo removed.";
-});
-
-async function loadProjects(){
- $("projectsMessage").textContent="Loading projects...";
- try{
-  const data=await api("/projects");
-  projects=Array.isArray(data)?data:(data.projects||[]);
-  $("dashProjects").textContent=projects.length;
-  renderProjects();
-  $("projectsMessage").textContent=projects.length+" projects loaded.";
-  $("projectsMessage").className="notice success";
- }catch(error){
-  $("projectsMessage").textContent="Could not load projects: "+error.message;
-  $("projectsMessage").className="notice warn";
-  $("projectsList").innerHTML="";
- }
-}
-function renderProjects(){
- const el=$("projectsList");
- if(!projects.length){
-  el.innerHTML='<div class="empty">No projects are available yet.</div>';
-  return;
- }
- el.innerHTML='<div class="grid">'+projects.map(project=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(project.name||project.title||"Untitled project")+'</h3><p>'+escapeHTML(project.description||"No description provided.")+'</p></div>').join("")+'</div>';
-}
+/* Create post workflow */
+function openCreate(){if(!socialUser){toast("Sign in first");return}resetComposer();$("createModal").classList.add("open");document.body.style.overflow="hidden"}
+function closeCreate(){if(draftMedia.length&&!confirm("Discard this post draft?"))return;clearDraft();$("createModal").classList.remove("open");document.body.style.overflow=""}
+function clearDraft(){draftMedia.forEach(m=>{if(m.url)URL.revokeObjectURL(m.url)});draftMedia=[];activeMedia=0;draftRatio="square";createStep=1}
+function resetComposer(){clearDraft();$("postMediaInput").value="";$("addMoreMedia").value="";$("postCaption").value="";$("captionCount").textContent="0 / 2200";document.querySelectorAll("[data-ratio]").forEach(b=>b.classList.toggle("active",b.dataset.ratio==="square"));setCreateStep(1);renderDraft()}
+$("openCreatePost").addEventListener("click",openCreate);$("closeCreate").addEventListener("click",closeCreate);
+$("createModal").addEventListener("click",e=>{if(e.target===$("createModal"))closeCreate()});
+function setCreateStep(step){createStep=step;document.querySelectorAll(".create-step").forEach(el=>el.classList.remove("active"));$("createStep"+step).classList.add("active");[1,2,3].forEach(n=>$("stepDot"+n).classList.toggle("active",n===step));$("modalBack").classList.toggle("hidden",step===1);$("modalNext").classList.toggle("hidden",step===3);$("publishPostBtn").classList.toggle("hidden",step!==3);$("createTitle").textContent=step===1?"Create new post":step===2?"Preview your media":"Write a caption";$("createFooterNote").textContent=step===1?"Choose photos or videos.":step===2?draftMedia.length+" media item(s) selected.":"Almost ready to share."}
+function validateDraft(){if(!draftMedia.length){toast("Choose at least one photo or video");return false}return true}
+$("modalNext").addEventListener("click",()=>{if(createStep===1){if(!validateDraft())return;setCreateStep(2);renderDraft()}else if(createStep===2){setCreateStep(3);renderDraft()}});
+$("modalBack").addEventListener("click",()=>{if(createStep>1)setCreateStep(createStep-1)});
+document.querySelectorAll("[data-ratio]").forEach(btn=>btn.addEventListener("click",()=>{draftRatio=btn.dataset.ratio;document.querySelectorAll("[data-ratio]").forEach(b=>b.classList.toggle("active",b===btn));renderDraft()}));
+$("postMediaInput").addEventListener("change",e=>addDraftFiles(e.target.files));
+$("addMoreMedia").addEventListener("change",e=>addDraftFiles(e.target.files));
+async function addDraftFiles(files){if(!files||!files.length)return;const incoming=Array.from(files);if(draftMedia.length+incoming.length>10){toast("You can add up to 10 media items.");return}let total=draftMedia.reduce((sum,m)=>sum+m.size,0);for(const file of incoming){if(!file.type.startsWith("image/")&&!file.type.startsWith("video/")){toast("Unsupported file: "+file.name);continue}if(file.size>700*1024){toast(file.name+" is larger than 700 KB.");continue}if(total+file.size>2.5*1024*1024){toast("Total media size must stay under 2.5 MB for this local version.");break}try{const data=await readFileData(file);const url=URL.createObjectURL(file);draftMedia.push({type:file.type.startsWith("video/")?"video":"image",data,url,name:file.name,size:file.size});total+=file.size}catch(err){toast(err.message)}}activeMedia=Math.max(0,draftMedia.length-1);renderDraft();$("postMediaInput").value="";$("addMoreMedia").value=""}
+function readFileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read "+file.name));reader.readAsDataURL(file)})}
+function renderDraft(){const media=draftMedia[activeMedia];const preview=$("mediaPreview"),captionPreview=$("captionPreview");[preview,captionPreview].forEach(el=>{el.className="media-preview ratio-"+draftRatio;if(media){el.innerHTML=media.type==="video"?'<video src="'+media.url+'" controls playsinline></video>':'<img src="'+media.url+'" alt="Selected media">'}else el.innerHTML='<div class="small-text">Your preview will appear here</div>'});$("mediaInfo").textContent=draftMedia.length?draftMedia.length+" selected · "+(draftMedia.reduce((s,m)=>s+m.size,0)/1024).toFixed(0)+" KB total":"No media selected.";const makeThumbs=id=>{const box=$(id);box.innerHTML=draftMedia.map((m,i)=>'<div class="media-thumb '+(i===activeMedia?"active":"")+'" data-thumb="'+i+'">'+(m.type==="video"?'<video src="'+m.url+'"></video>':'<img src="'+m.url+'">')+'<button type="button" data-remove="'+i+'" aria-label="Remove">×</button></div>').join("");box.querySelectorAll("[data-thumb]").forEach(el=>el.addEventListener("click",e=>{if(e.target.closest("[data-remove]"))return;activeMedia=Number(el.dataset.thumb);renderDraft()}));box.querySelectorAll("[data-remove]").forEach(btn=>btn.addEventListener("click",e=>{e.stopPropagation();removeDraft(Number(btn.dataset.remove))}))};makeThumbs("mediaThumbs");makeThumbs("captionThumbs");$("publishPostBtn").disabled=!draftMedia.length}
+function removeDraft(index){const item=draftMedia[index];if(item?.url)URL.revokeObjectURL(item.url);draftMedia.splice(index,1);activeMedia=Math.max(0,Math.min(activeMedia,draftMedia.length-1));renderDraft()}
+$("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
+$("publishPostBtn").addEventListener("click",()=>{if(!socialUser||!validateDraft())return;const text=$("postCaption").value.trim();if(!text&&!draftMedia.length)return;try{const media=draftMedia.map(m=>({type:m.type,data:m.data,name:m.name}));const post={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),author:currentUsername(),displayName:localProfile.displayName||currentUsername(),text,media,ratio:draftRatio,date:new Date().toLocaleString(),likes:[],comments:[]};posts.unshift(post);saveJSON(SOCIAL_POSTS_KEY,posts);clearDraft();$("createModal").classList.remove("open");document.body.style.overflow="";renderSocial();toast("Your post has been published on this device.")}catch(error){toast("Could not save post. Try fewer or smaller files.")}});
+async function readImage(file,maxBytes){if(!file)return "";if(!file.type.startsWith("image/"))throw new Error("Please choose an image file.");if(file.size>maxBytes)throw new Error("Image must be smaller than "+Math.round(maxBytes/1024)+" KB.");return await readFileData(file)}
+$("saveProfileBtn").addEventListener("click",async()=>{if(!socialUser)return;try{localProfile.displayName=$("profileDisplayName").value.trim();localProfile.bio=$("profileBio").value.trim();const file=$("profilePhoto").files[0];if(file)localProfile.photo=await readImage(file,700*1024);saveJSON(SOCIAL_PROFILE_KEY,localProfile);$("profileMessage").textContent="Profile saved on this device.";$("profileMessage").className="notice success";renderSocial();renderProfile()}catch(error){$("profileMessage").textContent=error.message;$("profileMessage").className="notice error"}});
+$("removePhotoBtn").addEventListener("click",()=>{delete localProfile.photo;saveJSON(SOCIAL_PROFILE_KEY,localProfile);$("profilePhoto").value="";renderProfile();renderSocial();$("profileMessage").textContent="Profile photo removed."});
+async function loadProjects(){$("projectsMessage").textContent="Loading projects...";try{const data=await api("/projects");projects=Array.isArray(data)?data:(data.projects||[]);$("dashProjects").textContent=projects.length;renderProjects();$("projectsMessage").textContent=projects.length+" projects loaded.";$("projectsMessage").className="notice success"}catch(error){$("projectsMessage").textContent="Could not load projects: "+error.message;$("projectsMessage").className="notice warn";$("projectsList").innerHTML=""}}
+function renderProjects(){const el=$("projectsList");if(!projects.length){el.innerHTML='<div class="empty">No projects are available yet.</div>';return}el.innerHTML='<div class="grid">'+projects.map(p=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(p.name||p.title||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p></div>').join("")+'</div>'}
 $("refreshProjectsBtn").addEventListener("click",loadProjects);
-$("createProjectBtn").addEventListener("click",async()=>{
- const name=$("projectName").value.trim();
- const description=$("projectDescription").value.trim();
- if(!name){toast("Enter a project name");return}
- try{
-  const data=await api("/projects",{
-   method:"POST",
-   body:JSON.stringify({name,description})
-  });
-  $("projectName").value="";
-  $("projectDescription").value="";
-  toast("Project created");
-  loadProjects();
- }catch(error){
-  toast("Project creation failed: "+error.message);
- }
-});
-
-$("languageBtn").addEventListener("click",()=>{
- currentLanguage=currentLanguage==="en"?"fa":"en";
- if(currentLanguage==="fa"){
-  document.documentElement.lang="fa";
-  document.documentElement.dir="rtl";
-  $("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";
-  $("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";
-  $("languageBtn").textContent="FA / EN";
- }else{
-  document.documentElement.lang="en";
-  document.documentElement.dir="ltr";
-  $("heroTitle").textContent="One Hub. Many Possibilities.";
-  $("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";
-  $("languageBtn").textContent="EN / FA";
- }
-});
-
-updateAccountUI();
-socialMe();
-renderSocial();
-loadProjects();
+$("createProjectBtn").addEventListener("click",async()=>{const name=$("projectName").value.trim(),description=$("projectDescription").value.trim();if(!name){toast("Enter a project name");return}try{await api("/projects",{method:"POST",body:JSON.stringify({name,description})});$("projectName").value="";$("projectDescription").value="";toast("Project created");loadProjects()}catch(error){toast("Project creation failed: "+error.message)}});
+$("languageBtn").addEventListener("click",()=>{currentLanguage=currentLanguage==="en"?"fa":"en";if(currentLanguage==="fa"){document.documentElement.lang="fa";document.documentElement.dir="rtl";$("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";$("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";$("languageBtn").textContent="FA / EN"}else{document.documentElement.lang="en";document.documentElement.dir="ltr";$("heroTitle").textContent="One Hub. Many Possibilities.";$("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";$("languageBtn").textContent="EN / FA"}});
+updateAccountUI();socialMe();renderSocial();loadProjects();
 </script>
 </body>
 </html>
