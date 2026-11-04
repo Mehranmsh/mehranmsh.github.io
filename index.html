@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -74,25 +73,12 @@
 <div class="social-shell">
 <div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Messages" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="toast('Notifications will be added with the social backend.')">♡</button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
 <div class="social-tabs">
-<button class="social-tab active" data-social="feed">⌂ Home</button>
-<button class="social-tab" data-social="explore">⌕ Explore</button>
-<button class="social-tab" data-social="reels">▣ Reels</button>
-<button class="social-tab" data-social="messages">✉ Messages</button>
-<button class="social-tab" data-social="groups">♧ Groups</button>
-<button class="social-tab" data-social="channels">▤ Channels</button>
-<button class="social-tab" data-social="bots">🤖 Bots</button>
-<button class="social-tab" data-social="profile">◉ Profile</button>
-<button class="social-tab" data-social="settings">⚙ Settings</button>
+<button class="social-tab active" data-social="feed">⌂ Home</button><button class="social-tab" data-social="explore">⌕ Explore</button><button class="social-tab" data-social="reels">▣ Reels</button><button class="social-tab" data-social="messages">✉ Messages</button><button class="social-tab" data-social="groups">♧ Groups</button><button class="social-tab" data-social="channels">▤ Channels</button><button class="social-tab" data-social="bots">🤖 Bots</button><button class="social-tab" data-social="profile">◉ Profile</button><button class="social-tab" data-social="settings">⚙ Settings</button>
 </div>
 
 <div class="social-view active" id="social-feed">
 <div class="social-layout"><div class="social-main">
-<div class="story-row">
-<div class="story"><button class="story-ring" style="border:0;padding:3px" onclick="requireAuth('Add a story')"><div class="avatar">+</div></button><span>Your story</span></div>
-<div class="story"><div class="story-ring"><div class="avatar">M</div></div><span>Moments</span></div>
-<div class="story"><div class="story-ring"><div class="avatar">S</div></div><span>Community</span></div>
-<div class="story"><div class="story-ring"><div class="avatar">✧</div></div><span>Discover</span></div>
-</div>
+<div class="story-row"><div class="story"><button class="story-ring" style="border:0;padding:3px" onclick="requireAuth('Add a story')"><div class="avatar">+</div></button><span>Your story</span></div><div class="story"><div class="story-ring"><div class="avatar">M</div></div><span>Moments</span></div><div class="story"><div class="story-ring"><div class="avatar">S</div></div><span>Community</span></div><div class="story"><div class="story-ring"><div class="avatar">✧</div></div><span>Discover</span></div></div>
 <button class="create-trigger" id="openCreatePost"><span class="plus">+</span><span><strong>Create a post</strong><small>Share photos, videos and moments with your community</small></span></button>
 <div class="section-title"><h2>Your Feed</h2><span class="small-text" id="feedCount">0 posts</span></div><div id="feedList"></div>
 </div>
@@ -100,70 +86,23 @@
 <div class="social-card profile-card"><div class="profile-cover"></div><div class="avatar" id="sideAvatar">M</div><h3 id="sideProfileName">Your profile</h3><p id="sideProfileBio">Sign in to personalize your profile.</p><div class="profile-stats"><div><strong id="profilePostCount">0</strong><span>Posts</span></div><div><strong>0</strong><span>Followers</span></div><div><strong>0</strong><span>Following</span></div></div><button class="btn secondary small" style="margin-top:14px" onclick="switchSocial('profile')">View profile</button></div>
 <div class="social-card"><h3>Your communities</h3><p class="small-text">Discover dedicated spaces for conversations and shared interests.</p><button class="btn secondary small" style="margin-top:12px" onclick="switchSocial('groups')">Explore groups</button></div>
 <div class="social-card"><h3>Channels</h3><p class="small-text">Follow public updates and community broadcasts.</p><button class="btn secondary small" style="margin-top:12px" onclick="switchSocial('channels')">Explore channels</button></div>
-</aside></div>
-</div>
+</aside></div></div>
 
-<div class="social-view" id="social-explore">
-<div class="section-title"><h2>Explore</h2><span class="small-text">Discover posts on this device</span></div>
-<input class="search-box" id="exploreSearch" placeholder="Search captions and creators...">
-<div id="exploreGrid" class="explore-grid"></div>
-<div id="exploreEmpty" class="empty">There are no local posts to explore yet. Create a post to see it here.</div>
-</div>
+<div class="social-view" id="social-explore"><div class="section-title"><h2>Explore</h2><span class="small-text">Discover posts on this device</span></div><input class="search-box" id="exploreSearch" placeholder="Search captions and creators..."><div id="exploreGrid" class="explore-grid"></div><div id="exploreEmpty" class="empty">There are no local posts to explore yet. Create a post to see it here.</div></div>
 
-<div class="social-view" id="social-reels">
-<div class="section-title"><h2>Reels</h2><span class="small-text">Short video discovery</span></div>
-<div class="notice warn">Reels currently displays video posts saved locally on this device. Public video discovery and upload storage are not connected yet.</div>
-<div id="reelsList"></div>
-</div>
+<div class="social-view" id="social-reels"><div class="section-title"><h2>Reels</h2><span class="small-text">Short video discovery</span></div><div class="notice warn">Reels currently displays video posts saved locally on this device. Public video discovery and upload storage are not connected yet.</div><div id="reelsList"></div></div>
 
-<div class="social-view" id="social-profile">
-<div id="profileLoginNotice" class="empty">Sign in to edit your profile. You can still browse the SOCIAL feed as a guest.</div>
-<div id="profileEditor" class="panel hidden"><h3>Your Profile</h3><div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div><div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div><div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div><div id="profileMessage" class="notice">Your profile details are stored on this device.</div></div>
-</div>
+<div class="social-view" id="social-profile"><div id="profileLoginNotice" class="empty">Sign in to edit your profile. You can still browse the SOCIAL feed as a guest.</div><div id="profileEditor" class="panel hidden"><h3>Your Profile</h3><div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div><div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div><div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div><div id="profileMessage" class="notice">Your profile details are stored on this device.</div></div></div>
 
-<div class="social-view" id="social-messages">
-<div class="panel"><h2>Messages</h2><p class="small-text">Private conversations, direct messages and future group chats.</p><div class="notice warn">Messaging interface is planned. Real-time delivery, inbox storage and notifications are not connected to the backend yet.</div><button class="btn" onclick="requireAuth('Start a conversation')">Sign in to continue</button></div>
-</div>
+<div class="social-view" id="social-messages"><div class="panel"><h2>Messages</h2><p class="small-text">Private conversations, direct messages and future group chats.</p><div class="notice warn">Messaging interface is planned. Real-time delivery, inbox storage and notifications are not connected to the backend yet.</div><button class="btn" onclick="requireAuth('Start a conversation')">Sign in to continue</button></div></div>
 
-<div class="social-view" id="social-groups">
-<div class="section-title"><h2>Groups</h2><button class="btn small" onclick="requireAuth('Create a group')">＋ Create group</button></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">🌐</div><h3>Public Groups</h3><p>Discover open communities, join discussions and meet people with shared interests.</p></div>
-<div class="feature"><div class="feature-icon">🔒</div><h3>Private Groups</h3><p>Invite-only spaces with membership approval and private conversations.</p></div>
-<div class="feature"><div class="feature-icon">🛡️</div><h3>Group Administration</h3><p>Owners and moderators will manage members, permissions and community rules.</p></div>
-<div class="feature"><div class="feature-icon">💬</div><h3>Group Conversations</h3><p>Text, media, replies and member interaction in one shared space.</p></div>
-</div>
-<div class="notice warn">Groups are a dedicated SOCIAL module. Group creation, membership, moderation and group messaging still require backend implementation.</div>
-<div class="empty">No groups are connected yet. This area is ready for the Groups backend.</div>
-</div>
+<div class="social-view" id="social-groups"><div class="section-title"><h2>Groups</h2><button class="btn small" onclick="requireAuth('Create a group')">＋ Create group</button></div><div class="feature-grid"><div class="feature"><div class="feature-icon">🌐</div><h3>Public Groups</h3><p>Discover open communities, join discussions and meet people with shared interests.</p></div><div class="feature"><div class="feature-icon">🔒</div><h3>Private Groups</h3><p>Invite-only spaces with membership approval and private conversations.</p></div><div class="feature"><div class="feature-icon">🛡️</div><h3>Group Administration</h3><p>Owners and moderators will manage members, permissions and community rules.</p></div><div class="feature"><div class="feature-icon">💬</div><h3>Group Conversations</h3><p>Text, media, replies and member interaction in one shared space.</p></div></div><div class="notice warn">Groups are a dedicated SOCIAL module. Group creation, membership, moderation and group messaging still require backend implementation.</div><div class="empty">No groups are connected yet. This area is ready for the Groups backend.</div></div>
 
-<div class="social-view" id="social-channels">
-<div class="section-title"><h2>Channels</h2><button class="btn small" onclick="requireAuth('Create a channel')">＋ Create channel</button></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">📢</div><h3>Public Channels</h3><p>Publish updates and let anyone discover and follow your channel.</p></div>
-<div class="feature"><div class="feature-icon">🔐</div><h3>Private Channels</h3><p>Share updates with invited subscribers and controlled access.</p></div>
-<div class="feature"><div class="feature-icon">📈</div><h3>Channel Insights</h3><p>Future subscriber, reach and engagement statistics for channel owners.</p></div>
-<div class="feature"><div class="feature-icon">👑</div><h3>Channel Admins</h3><p>Assign administrators and control publishing permissions.</p></div>
-</div>
-<div class="notice warn">Channels are separate from Groups. Broadcasting, subscribers, admin roles and channel posts are not connected to a backend yet.</div>
-<div class="empty">No channels are connected yet. This area is ready for the Channels backend.</div>
-</div>
+<div class="social-view" id="social-channels"><div class="section-title"><h2>Channels</h2><button class="btn small" onclick="requireAuth('Create a channel')">＋ Create channel</button></div><div class="feature-grid"><div class="feature"><div class="feature-icon">📢</div><h3>Public Channels</h3><p>Publish updates and let anyone discover and follow your channel.</p></div><div class="feature"><div class="feature-icon">🔐</div><h3>Private Channels</h3><p>Share updates with invited subscribers and controlled access.</p></div><div class="feature"><div class="feature-icon">📈</div><h3>Channel Insights</h3><p>Future subscriber, reach and engagement statistics for channel owners.</p></div><div class="feature"><div class="feature-icon">👑</div><h3>Channel Admins</h3><p>Assign administrators and control publishing permissions.</p></div></div><div class="notice warn">Channels are separate from Groups. Broadcasting, subscribers, admin roles and channel posts are not connected to a backend yet.</div><div class="empty">No channels are connected yet. This area is ready for the Channels backend.</div></div>
 
-<div class="social-view" id="social-bots">
-<div class="section-title"><h2>Bots</h2><button class="btn small" onclick="requireAuth('Create a bot')">＋ Create bot</button></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">🤖</div><h3>Bot Directory</h3><p>Discover bots created for community tools, productivity and entertainment.</p></div>
-<div class="feature"><div class="feature-icon">⚡</div><h3>Commands & Actions</h3><p>Interact with bots using commands, menus and automated actions.</p></div>
-<div class="feature"><div class="feature-icon">🧩</div><h3>Bot Developer Tools</h3><p>Future developer workspace for configuring bot identity, commands and integrations.</p></div>
-<div class="feature"><div class="feature-icon">🔗</div><h3>Group & Channel Bots</h3><p>Connect bots to groups and channels for moderation, support and automation.</p></div>
-</div>
-<div class="notice warn">Bots are an independent SOCIAL module. Bot accounts, API, command processing and integrations still need to be implemented.</div>
-<div class="empty">No active bots yet. The bot directory will appear here when its backend is ready.</div>
-</div>
+<div class="social-view" id="social-bots"><div class="section-title"><h2>Bots</h2><button class="btn small" onclick="requireAuth('Create a bot')">＋ Create bot</button></div><div class="feature-grid"><div class="feature"><div class="feature-icon">🤖</div><h3>Bot Directory</h3><p>Discover bots created for community tools, productivity and entertainment.</p></div><div class="feature"><div class="feature-icon">⚡</div><h3>Commands & Actions</h3><p>Interact with bots using commands, menus and automated actions.</p></div><div class="feature"><div class="feature-icon">🧩</div><h3>Bot Developer Tools</h3><p>Future developer workspace for configuring bot identity, commands and integrations.</p></div><div class="feature"><div class="feature-icon">🔗</div><h3>Group & Channel Bots</h3><p>Connect bots to groups and channels for moderation, support and automation.</p></div></div><div class="notice warn">Bots are an independent SOCIAL module. Bot accounts, API, command processing and integrations still need to be implemented.</div><div class="empty">No active bots yet. The bot directory will appear here when its backend is ready.</div></div>
 
-<div class="social-view" id="social-settings">
-<div class="panel"><h3>Account Settings</h3><p class="small-text">Manage your SOCIAL account session.</p><div class="field"><label>Signed in as</label><input id="settingsUsername" readonly placeholder="Not signed in"></div><div class="hero-actions"><button class="btn secondary" id="refreshSessionBtn">Refresh session</button><button class="btn danger" id="socialLogoutBtn">Sign out</button></div><div id="settingsMessage" class="notice">Your account session is managed by the MEHRAN MSH authentication service.</div></div>
-</div>
+<div class="social-view" id="social-settings"><div class="panel"><h3>Account Settings</h3><p class="small-text">Manage your SOCIAL account session.</p><div class="field"><label>Signed in as</label><input id="settingsUsername" readonly placeholder="Not signed in"></div><div class="hero-actions"><button class="btn secondary" id="refreshSessionBtn">Refresh session</button><button class="btn danger" id="socialLogoutBtn">Sign out</button></div><div id="settingsMessage" class="notice">Your account session is managed by the MEHRAN MSH authentication service.</div></div></div>
 </div>
 </section>
 
@@ -179,35 +118,9 @@
 <nav class="mobile-nav"><button class="active" data-page="dashboard"><span>⌂</span>Home</button><button data-page="user"><span>◉</span>Account</button><button data-page="social"><span>◎</span>SOCIAL</button><button data-page="projects"><span>▦</span>Projects</button><button data-page="services"><span>◇</span>Services</button></nav>
 <div class="toast" id="toast"></div>
 
-<div class="modal" id="authModal">
-<div class="modal-box">
-<div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div>
-<p class="small-text">Create an account or sign in to interact with SOCIAL.</p>
-<div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div>
-<div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div>
-<div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
-<div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div>
-<div class="hero-actions">
-<button class="btn" id="socialRegisterBtn">Create account</button>
-<button class="btn secondary" id="socialLoginBtn">Sign in</button>
-</div>
-<div class="small-text" style="margin-top:14px;text-align:center">
-<span id="authSwitchText">Don't have an account?</span>
-<button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button>
-</div>
-<div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div>
-<div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div>
-</div></div>
+<div class="modal" id="authModal"><div class="modal-box"><div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div><p class="small-text">Create an account or sign in to interact with SOCIAL.</p><div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div><div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div><div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div><div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div class="small-text" style="margin-top:14px;text-align:center"><span id="authSwitchText">Don't have an account?</span><button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button></div><div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div><div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div></div></div>
 
-<div class="modal" id="createModal">
-<div class="modal-box">
-<div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div>
-<div class="field"><label>Photos and videos (up to 10 files)</label><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></div>
-<div id="uploadPreview" class="upload-preview"></div>
-<div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div>
-<div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div>
-<div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div>
-</div></div>
+<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><div class="field"><label>Photos and videos (up to 10 files)</label><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></div><div id="uploadPreview" class="upload-preview"></div><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
 
 <script>
 "use strict";
@@ -222,15 +135,84 @@ function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),3200)}
 async function api(path,options={}){const response=await fetch(AUTH_WORKER+path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
+
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
-function showPage(name){document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));const page=$("page-"+name);if(page)page.classList.add("active");document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));$("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);if(name==="projects")loadProjects();if(name==="social")renderSocial();window.scrollTo({top:0,behavior:"smooth"})}
-function switchSocial(name){document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));const view=$("social-"+name);if(view)view.classList.add("active");if(name==="profile")renderProfile();if(name==="feed")renderSocial();if(name==="explore")renderExplore();if(name==="reels")renderReels()}
+function showPage(name){
+document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+const page=$("page-"+name);
+if(page)page.classList.add("active");
+document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
+$("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);
+if(name==="projects")loadProjects();
+if(name==="social")renderSocial();
+window.scrollTo({top:0,behavior:"smooth"});
+}
 document.querySelectorAll("[data-social]").forEach(btn=>btn.addEventListener("click",()=>switchSocial(btn.dataset.social)));
-async function checkWorker(){try{const response=await fetch(AUTH_WORKER);const data=await response.json();$("connectionStatus").textContent=data.status==="online"?"● Service online":"● Service reachable";$("adminAuthStatus").textContent=data.status==="online"?"Online":"Reachable";$("adminDbStatus").textContent=data.database?"Connected":"Unknown"}catch{$("connectionStatus").textContent="● Service unavailable";$("adminAuthStatus").textContent="Offline";$("adminDbStatus").textContent="Unknown"}}
+function switchSocial(name){
+document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
+document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));
+const view=$("social-"+name);
+if(view)view.classList.add("active");
+if(name==="profile")renderProfile();
+if(name==="feed")renderSocial();
+if(name==="explore")renderExplore();
+if(name==="reels")renderReels();
+}
+
+async function checkWorker(){
+try{
+const response=await fetch(AUTH_WORKER);
+const data=await response.json();
+$("connectionStatus").textContent=data.status==="online"?"● Service online":"● Service reachable";
+$("adminAuthStatus").textContent=data.status==="online"?"Online":"Reachable";
+$("adminDbStatus").textContent=data.database?"Connected":"Unknown";
+}catch{
+$("connectionStatus").textContent="● Service unavailable";
+$("adminAuthStatus").textContent="Offline";
+$("adminDbStatus").textContent="Unknown";
+}
+}
 checkWorker();
-function updateAccountUI(){const signed=!!piUser;$("userStatus").textContent=signed?"Connected":"Guest";$("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";$("piStatus").textContent=signed?"Connected":"Not connected";$("piUsername").value=piUser?.username||"";$("piUid").value=piUser?.uid||"";$("piLoginBtn").classList.toggle("hidden",signed);$("piLogoutBtn").classList.toggle("hidden",!signed);$("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";$("adminSession").textContent=signed?"Pi connected":"Guest"}
-async function piLogin(){if(!window.Pi){$("piMessage").textContent="Pi SDK was not detected. Open this app inside Pi Browser and try again.";$("piMessage").className="notice warn";return}try{window.Pi.init({version:"2.0",sandbox:false});const auth=await window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment));const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});piUser=data.user||auth.user;$("piMessage").textContent="Pi authentication completed successfully.";$("piMessage").className="notice success";updateAccountUI();toast("Pi account connected")}catch(error){$("piMessage").textContent=error.message||"Pi authentication failed.";$("piMessage").className="notice error"}}
-$("piLoginBtn").addEventListener("click",piLogin);$("piLogoutBtn").addEventListener("click",()=>{piUser=null;updateAccountUI();$("piMessage").textContent="Pi session disconnected from this page.";$("piMessage").className="notice"});
+
+function updateAccountUI(){
+const signed=!!piUser;
+$("userStatus").textContent=signed?"Connected":"Guest";
+$("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";
+$("piStatus").textContent=signed?"Connected":"Not connected";
+$("piUsername").value=piUser?.username||"";
+$("piUid").value=piUser?.uid||"";
+$("piLoginBtn").classList.toggle("hidden",signed);
+$("piLogoutBtn").classList.toggle("hidden",!signed);
+$("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";
+$("adminSession").textContent=signed?"Pi connected":"Guest";
+}
+async function piLogin(){
+if(!window.Pi){
+$("piMessage").textContent="Pi SDK was not detected. Open this app inside Pi Browser and try again.";
+$("piMessage").className="notice warn";
+return;
+}
+try{
+window.Pi.init({version:"2.0",sandbox:false});
+const auth=await window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment));
+const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});
+piUser=data.user||auth.user;
+$("piMessage").textContent="Pi authentication completed successfully.";
+$("piMessage").className="notice success";
+updateAccountUI();
+toast("Pi account connected");
+}catch(error){
+$("piMessage").textContent=error.message||"Pi authentication failed.";
+$("piMessage").className="notice error";
+}
+}
+$("piLoginBtn").addEventListener("click",piLogin);
+$("piLogoutBtn").addEventListener("click",()=>{
+piUser=null;updateAccountUI();
+$("piMessage").textContent="Pi session disconnected from this page.";
+$("piMessage").className="notice";
+});
+
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
 function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
 function setSocialAuthMessage(message,type="notice"){$("socialAuthMessage").textContent=message;$("socialAuthMessage").className=type}
@@ -245,8 +227,8 @@ function closeAuth(){$("authModal").classList.remove("open");document.body.style
 function updateAuthMode(){
 const registering=authMode==="register";
 $("authTitle").textContent=registering?"Create your SOCIAL account":"Welcome back";
-$("socialRegisterBtn").classList.remove("hidden");
-$("socialLoginBtn").classList.remove("hidden");
+$("socialRegisterBtn").classList.toggle("hidden",!registering);
+$("socialLoginBtn").classList.toggle("hidden",registering);
 $("emailField").classList.toggle("hidden",!registering);
 $("displayNameField").classList.toggle("hidden",!registering);
 $("socialPassword").setAttribute("autocomplete",registering?"new-password":"current-password");
@@ -266,23 +248,20 @@ authMode=authMode==="register"?"login":"register";
 updateAuthMode();
 setSocialAuthMessage(authMode==="register"?"Enter your details to create an account.":"Enter your username and password to sign in.","notice");
 });
+
 async function socialRegister(){
 const username=$("socialUsername").value.trim();
 const email=$("socialEmail").value.trim();
 const password=$("socialPassword").value;
 const displayName=$("socialDisplayName").value.trim()||username;
-if(!username||!email||!password){
-setSocialAuthMessage("Please enter a username, email and password.","notice warn");
-return;
-}
-if(password.length<8){
-setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");
-return;
-}
+if(!username||!email||!password){setSocialAuthMessage("Please enter a username, email and password.","notice warn");return}
+if(password.length<8){setSocialAuthMessage("Password must contain at least 8 characters.","notice warn");return}
+const button=$("socialRegisterBtn");
+button.disabled=true;
+button.textContent="Creating account...";
 try{
 const response=await fetch(SOCIAL_API+"/register",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
+method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({username,email,password,displayName})
 });
 const result=await response.json().catch(()=>({}));
@@ -299,21 +278,19 @@ authMode="login";
 updateAuthMode();
 setSocialAuthMessage("Account created. Please sign in.","notice success");
 }
-}catch(error){
-setSocialAuthMessage(error.message,"notice error");
-}
+}catch(error){setSocialAuthMessage(error.message,"notice error")}
+finally{button.disabled=false;button.textContent="Create account"}
 }
 async function socialLogin(){
 const username=$("socialUsername").value.trim();
 const password=$("socialPassword").value;
-if(!password||!username){
-setSocialAuthMessage("Enter your username and password.","notice warn");
-return;
-}
+if(!password||!username){setSocialAuthMessage("Enter your username and password.","notice warn");return}
+const button=$("socialLoginBtn");
+button.disabled=true;
+button.textContent="Signing in...";
 try{
 const response=await fetch(SOCIAL_API+"/login",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
+method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({username,password})
 });
 const data=await response.json().catch(()=>({}));
@@ -324,9 +301,8 @@ socialUser=data.user||null;
 await socialMe();
 closeAuth();
 toast("Welcome to SOCIAL");
-}catch(error){
-setSocialAuthMessage(error.message,"notice error");
-}
+}catch(error){setSocialAuthMessage(error.message,"notice error")}
+finally{button.disabled=false;button.textContent="Sign in"}
 }
 async function socialMe(){
 const token=getSocialToken();
@@ -357,13 +333,11 @@ renderSocial();
 toast("Signed out");
 }
 $("socialRegisterBtn").addEventListener("click",()=>{
-authMode="register";
-updateAuthMode();
+if(authMode!=="register")return;
 socialRegister();
 });
 $("socialLoginBtn").addEventListener("click",()=>{
-authMode="login";
-updateAuthMode();
+if(authMode!=="login")return;
 socialLogin();
 });
 $("socialLogoutBtn").addEventListener("click",socialLogout);
@@ -371,7 +345,11 @@ $("refreshSessionBtn").addEventListener("click",socialMe);
 
 function currentUsername(){return socialUser?.username||socialUser?.displayName||"Member"}
 function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
-function renderAvatar(id){const el=$(id);if(!el)return;if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';else el.textContent=profileInitial()}
+function renderAvatar(id){
+const el=$(id);if(!el)return;
+if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
+else el.textContent=profileInitial();
+}
 function renderProfile(){
 const logged=!!socialUser;
 $("profileLoginNotice").classList.toggle("hidden",logged);
@@ -391,34 +369,24 @@ $("sideProfileName").textContent=logged?(localProfile.displayName||socialUser.di
 $("sideProfileBio").textContent=logged?(localProfile.bio||"Welcome to your SOCIAL profile."):"Browse the feed or sign in to create your profile.";
 $("profilePostCount").textContent=logged?posts.filter(p=>p.author===currentUsername()).length:0;
 renderAvatar("sideAvatar");
-renderFeed();
-renderExplore();
-renderReels();
+renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
 function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
 function renderFeed(){
-const list=$("feedList");
-if(!list)return;
+const list=$("feedList");if(!list)return;
 $("feedCount").textContent=posts.length+" local posts";
-if(!posts.length){
-list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';
-return;
-}
+if(!posts.length){list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';return}
 list.innerHTML=posts.map(post=>{
 const liked=(post.likes||[]).includes(currentUsername());
 const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(c.author)+':</strong> '+escapeHTML(c.text)+'</div>').join("");
-const media=getPostMedia(post),first=media[0];
-let mediaHTML="";
-if(first){
-mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
-}
+const media=getPostMedia(post),first=media[0];let mediaHTML="";
+if(first)mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
 return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((post.author||"M").charAt(0).toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong><small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+escapeHTML(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+(post.likes||[]).length+' Likes</button><span class="small-text">'+(post.comments||[]).length+' comments</span></div><div class="comment-list">'+comments+'</div><div class="comment-form"><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
 }).join("");
 }
 function renderExplore(){
-const grid=$("exploreGrid");
-if(!grid)return;
+const grid=$("exploreGrid");if(!grid)return;
 const q=($("exploreSearch")?.value||"").toLowerCase();
 const filtered=posts.filter(p=>(p.text||"").toLowerCase().includes(q)||(p.author||"").toLowerCase().includes(q));
 $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
@@ -430,74 +398,54 @@ return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.
 }
 $("exploreSearch").addEventListener("input",renderExplore);
 function renderReels(){
-const box=$("reelsList");
-if(!box)return;
+const box=$("reelsList");if(!box)return;
 const videos=posts.filter(p=>getPostMedia(p).some(m=>m.type==="video"));
-if(!videos.length){
-box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';
-return;
-}
+if(!videos.length){box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';return}
 box.innerHTML=videos.map(p=>{
 const m=getPostMedia(p).find(x=>x.type==="video");
 return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+m.data+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
 }).join("");
 }
 window.changePostMedia=function(id,delta){
-const post=posts.find(p=>p.id===id);
-if(!post)return;
-const media=getPostMedia(post);
-let index=post._viewIndex||0;
-index=(index+delta+media.length)%media.length;
-post._viewIndex=index;
-const stage=$("postmedia-"+id);
-if(!stage)return;
+const post=posts.find(p=>p.id===id);if(!post)return;
+const media=getPostMedia(post);let index=post._viewIndex||0;
+index=(index+delta+media.length)%media.length;post._viewIndex=index;
+const stage=$("postmedia-"+id);if(!stage)return;
 stage.querySelector("img,video")?.remove();
 stage.insertAdjacentHTML("afterbegin",mediaMarkup(media[index]));
 stage.querySelector(".media-indicator").textContent=(index+1)+" / "+media.length;
-}
+};
 window.toggleLike=function(id){
 if(!requireAuth("Like a post"))return;
-const post=posts.find(p=>p.id===id);
-if(!post)return;
+const post=posts.find(p=>p.id===id);if(!post)return;
 post.likes=post.likes||[];
 const i=post.likes.indexOf(currentUsername());
 if(i>=0)post.likes.splice(i,1);else post.likes.push(currentUsername());
-saveJSON(SOCIAL_POSTS_KEY,posts);
-renderFeed();
-}
+saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed();
+};
 window.addComment=function(id){
 if(!requireAuth("Comment on a post"))return;
-const input=$("comment-"+id),text=input?.value.trim();
-if(!text)return;
-const post=posts.find(p=>p.id===id);
-if(!post)return;
+const input=$("comment-"+id),text=input?.value.trim();if(!text)return;
+const post=posts.find(p=>p.id===id);if(!post)return;
 post.comments=post.comments||[];
 post.comments.push({author:currentUsername(),text});
-saveJSON(SOCIAL_POSTS_KEY,posts);
-renderFeed();
-}
+saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed();
+};
 window.deletePost=function(id){
 const post=posts.find(p=>p.id===id);
 if(!socialUser||!post||post.author!==currentUsername())return;
 if(!confirm("Delete this post?"))return;
 posts=posts.filter(p=>p.id!==id);
-saveJSON(SOCIAL_POSTS_KEY,posts);
-renderSocial();
-}
+saveJSON(SOCIAL_POSTS_KEY,posts);renderSocial();
+};
 function openCreate(){
 if(!requireAuth("Create a post"))return;
-draftFiles=[];
-$("postMediaInput").value="";
-$("postCaption").value="";
-$("captionCount").textContent="0 / 2200";
-$("uploadPreview").innerHTML="";
-$("createModal").classList.add("open");
-document.body.style.overflow="hidden";
+draftFiles=[];$("postMediaInput").value="";$("postCaption").value="";
+$("captionCount").textContent="0 / 2200";$("uploadPreview").innerHTML="";
+$("createModal").classList.add("open");document.body.style.overflow="hidden";
 }
 function closeCreate(){
-$("createModal").classList.remove("open");
-document.body.style.overflow="";
-draftFiles=[];
+$("createModal").classList.remove("open");document.body.style.overflow="";draftFiles=[];
 }
 $("openCreatePost").addEventListener("click",openCreate);
 $("closeCreate").addEventListener("click",closeCreate);
@@ -505,8 +453,7 @@ $("cancelPostBtn").addEventListener("click",closeCreate);
 $("postMediaInput").addEventListener("change",async e=>{
 const files=Array.from(e.target.files||[]);
 if(files.length>10){toast("Maximum 10 files per post.");return}
-let total=0;
-draftFiles=[];
+let total=0;draftFiles=[];
 for(const file of files){
 if(!file.type.startsWith("image/")&&!file.type.startsWith("video/"))continue;
 if(file.size>700*1024){toast(file.name+" is larger than 700 KB.");continue}
@@ -514,10 +461,7 @@ total+=file.size;
 if(total>2.5*1024*1024){toast("Total media size must stay under 2.5 MB.");break}
 try{
 const data=await new Promise((resolve,reject)=>{
-const r=new FileReader();
-r.onload=()=>resolve(r.result);
-r.onerror=reject;
-r.readAsDataURL(file);
+const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file);
 });
 draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name});
 }catch{toast("Could not read "+file.name)}
@@ -531,19 +475,13 @@ const text=$("postCaption").value.trim();
 if(!text&&!draftFiles.length){toast("Add a caption or media.");return}
 try{
 const post={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),author:currentUsername(),displayName:localProfile.displayName||currentUsername(),text,media:draftFiles,date:new Date().toLocaleString(),likes:[],comments:[]};
-posts.unshift(post);
-saveJSON(SOCIAL_POSTS_KEY,posts);
-closeCreate();
-renderSocial();
-toast("Post saved on this device.");
+posts.unshift(post);saveJSON(SOCIAL_POSTS_KEY,posts);
+closeCreate();renderSocial();toast("Post saved on this device.");
 }catch(error){toast("Could not save post. Try fewer or smaller files.")}
 });
 async function readFileData(file){
 return new Promise((resolve,reject)=>{
-const reader=new FileReader();
-reader.onload=()=>resolve(reader.result);
-reader.onerror=()=>reject(new Error("Could not read file"));
-reader.readAsDataURL(file);
+const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error("Could not read file"));reader.readAsDataURL(file);
 });
 }
 async function readImage(file,maxBytes){
@@ -562,21 +500,18 @@ if(file)localProfile.photo=await readImage(file,700*1024);
 saveJSON(SOCIAL_PROFILE_KEY,localProfile);
 $("profileMessage").textContent="Profile saved on this device.";
 $("profileMessage").className="notice success";
-renderSocial();
-renderProfile();
+renderSocial();renderProfile();
 }catch(error){
 $("profileMessage").textContent=error.message;
 $("profileMessage").className="notice error";
 }
 });
 $("removePhotoBtn").addEventListener("click",()=>{
-delete localProfile.photo;
-saveJSON(SOCIAL_PROFILE_KEY,localProfile);
-$("profilePhoto").value="";
-renderProfile();
-renderSocial();
+delete localProfile.photo;saveJSON(SOCIAL_PROFILE_KEY,localProfile);
+$("profilePhoto").value="";renderProfile();renderSocial();
 $("profileMessage").textContent="Profile photo removed.";
 });
+
 async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";
 try{
@@ -594,10 +529,7 @@ $("projectsList").innerHTML="";
 }
 function renderProjects(){
 const el=$("projectsList");
-if(!projects.length){
-el.innerHTML='<div class="empty">No projects are available yet.</div>';
-return;
-}
+if(!projects.length){el.innerHTML='<div class="empty">No projects are available yet.</div>';return}
 el.innerHTML='<div class="grid">'+projects.map(p=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(p.name||p.title||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p></div>').join("")+'</div>';
 }
 $("refreshProjectsBtn").addEventListener("click",loadProjects);
@@ -606,23 +538,19 @@ const name=$("projectName").value.trim(),description=$("projectDescription").val
 if(!name){toast("Enter a project name");return}
 try{
 await api("/projects",{method:"POST",body:JSON.stringify({name,description})});
-$("projectName").value="";
-$("projectDescription").value="";
-toast("Project created");
-loadProjects();
+$("projectName").value="";$("projectDescription").value="";
+toast("Project created");loadProjects();
 }catch(error){toast("Project creation failed: "+error.message)}
 });
 $("languageBtn").addEventListener("click",()=>{
 currentLanguage=currentLanguage==="en"?"fa":"en";
 if(currentLanguage==="fa"){
-document.documentElement.lang="fa";
-document.documentElement.dir="rtl";
+document.documentElement.lang="fa";document.documentElement.dir="rtl";
 $("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";
 $("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";
 $("languageBtn").textContent="FA / EN";
 }else{
-document.documentElement.lang="en";
-document.documentElement.dir="ltr";
+document.documentElement.lang="en";document.documentElement.dir="ltr";
 $("heroTitle").textContent="One Hub. Many Possibilities.";
 $("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";
 $("languageBtn").textContent="EN / FA";
