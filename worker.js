@@ -1,4 +1,3 @@
-
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const RAPIDFILE_API = "https://api.rapidfile.cc/v1";
@@ -230,6 +229,14 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
 
 async function ensureSocialTables(env) {
   const statements = [
+    // FIX: This table was missing and caused registration/login errors.
+    `CREATE TABLE IF NOT EXISTS social_auth_limits (
+      rate_key TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      window_started_at INTEGER NOT NULL,
+      blocked_until INTEGER
+    )`,
+
     `CREATE TABLE IF NOT EXISTS social_uploads (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -610,8 +617,6 @@ async function socialUpdateProfile(request, env) {
 
 // =====================================================
 // MEDIA VALIDATION FOR POSTS
-// Only files owned by the user and marked ready/public
-// can be attached to public posts.
 // =====================================================
 
 async function validatePostMedia(env, userId, media) {
