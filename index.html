@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -244,8 +245,8 @@ function closeAuth(){$("authModal").classList.remove("open");document.body.style
 function updateAuthMode(){
 const registering=authMode==="register";
 $("authTitle").textContent=registering?"Create your SOCIAL account":"Welcome back";
-$("socialRegisterBtn").classList.toggle("hidden",!registering);
-$("socialLoginBtn").classList.toggle("hidden",registering);
+$("socialRegisterBtn").classList.remove("hidden");
+$("socialLoginBtn").classList.remove("hidden");
 $("emailField").classList.toggle("hidden",!registering);
 $("displayNameField").classList.toggle("hidden",!registering);
 $("socialPassword").setAttribute("autocomplete",registering?"new-password":"current-password");
@@ -355,8 +356,16 @@ $("socialStatus").textContent="Not registered";
 renderSocial();
 toast("Signed out");
 }
-$("socialRegisterBtn").addEventListener("click",socialRegister);
-$("socialLoginBtn").addEventListener("click",socialLogin);
+$("socialRegisterBtn").addEventListener("click",()=>{
+authMode="register";
+updateAuthMode();
+socialRegister();
+});
+$("socialLoginBtn").addEventListener("click",()=>{
+authMode="login";
+updateAuthMode();
+socialLogin();
+});
 $("socialLogoutBtn").addEventListener("click",socialLogout);
 $("refreshSessionBtn").addEventListener("click",socialMe);
 
@@ -513,7 +522,7 @@ r.readAsDataURL(file);
 draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name});
 }catch{toast("Could not read "+file.name)}
 }
-$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'">').join("");
+$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'" alt="Preview">').join("");
 });
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
 $("publishPostBtn").addEventListener("click",()=>{
