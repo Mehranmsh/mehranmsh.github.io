@@ -2,7 +2,7 @@ const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 
 const SESSION_DAYS = 30;
-const PBKDF2_ITERATIONS = 310000;
+const PBKDF2_ITERATIONS = 100000;
 
 // -------------------------
 // RESPONSE
@@ -211,7 +211,7 @@ async function verifyPassword(password, storedHash) {
     if (
       !Number.isInteger(iterations) ||
       iterations < 100000 ||
-      iterations > 1000000
+      iterations > 100000
     ) {
       return false;
     }
@@ -717,7 +717,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "3.0",
+          version: "3.1",
           database
         });
       }
