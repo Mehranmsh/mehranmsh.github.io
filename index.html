@@ -469,12 +469,20 @@ post.comments=post.comments||[];
 post.comments.push({author:currentUsername(),text});
 saveJSON(SOCIAL_POSTS_KEY,posts);renderFeed();
 };
-window.deletePost=function(id){
-const post=posts.find(p=>p.id===id);
+window.deletePost=async function(id){
+const post=posts.find(p=>String(p.id)===String(id));
 if(!socialUser||!post||post.author!==currentUsername())return;
 if(!confirm("Delete this post?"))return;
-posts=posts.filter(p=>p.id!==id);
-saveJSON(SOCIAL_POSTS_KEY,posts);renderSocial();
+try{
+const result=await socialRequest("/posts/"+encodeURIComponent(id),{method:"DELETE"});
+if(!result.deleted)throw new Error("The server did not confirm deletion.");
+posts=posts.filter(p=>String(p.id)!==String(id));
+saveJSON(SOCIAL_POSTS_KEY,posts);
+renderSocial();
+toast("Post deleted");
+}catch(error){
+toast("Delete failed: "+error.message);
+}
 };
 function openCreate(){
 if(!requireAuth("Create a post"))return;
