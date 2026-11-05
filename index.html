@@ -718,7 +718,7 @@ const action=active?"reactivate":"suspend";
 if(!confirm("Are you sure you want to "+action+" @"+user.username+"?"))return;
 button.disabled=true;
 try{
-await api("/admin/users/"+encodeURIComponent(id)+"/status",{method:"PATCH",body:JSON.stringify({active})});
+await api("/admin/users/"+encodeURIComponent(id)+"/status",{method:"PUT",body:JSON.stringify({active})});
 toast("Account "+(active?"reactivated":"suspended"));
 await loadAdminUsers();
 }catch(error){toast("Account update failed: "+error.message);button.disabled=false}
