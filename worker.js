@@ -1250,13 +1250,26 @@ async function socialDeletePost(request, env, postId) {
   if (!row) return error("Post not found", 404);
   if (row.user_id !== user.id) return error("You cannot delete this post", 403);
 
+  const deletion = await env.DB.prepare(
+    "DELETE FROM social_posts WHERE id=? AND user_id=?"
+  ).bind(postId, user.id).run();
+
+  if (!deletion.meta || deletion.meta.changes !== 1) {
+    return error("Post could not be deleted", 409);
+  }
+
   await env.DB.batch([
     env.DB.prepare("DELETE FROM social_post_likes WHERE post_id=?").bind(postId),
     env.DB.prepare("DELETE FROM social_comments WHERE post_id=?").bind(postId),
     env.DB.prepare("DELETE FROM social_bookmarks WHERE post_id=?").bind(postId),
-    env.DB.prepare("DELETE FROM social_post_views WHERE post_id=?").bind(postId),
-    env.DB.prepare("DELETE FROM social_posts WHERE id=? AND user_id=?").bind(postId, user.id)
+    env.DB.prepare("DELETE FROM social_post_views WHERE post_id=?").bind(postId)
   ]);
+
+  const stillExists = await env.DB.prepare(
+    "SELECT id FROM social_posts WHERE id=?"
+  ).bind(postId).first();
+
+  if (stillExists) return error("Post deletion was not confirmed", 500);
 
   return json({ success: true, deleted: true, id: postId });
 }
