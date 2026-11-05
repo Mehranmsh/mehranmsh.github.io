@@ -114,7 +114,7 @@
 </div>
 </section>
 
-<section class="page" id="page-admin"><div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div><div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div><div class="panel"><h3>System Overview</h3><div class="grid"><div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div><div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div><div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div></div></div></section>
+<section class="page" id="page-admin"><div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div><div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div><div class="panel"><h3>System Overview</h3><div class="grid"><div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div><div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div><div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div></div></div><div class="panel"><div class="section-title"><h2>User Management</h2><button class="btn secondary small" id="refreshAdminUsers">Refresh</button></div><div class="form-grid"><div class="field"><label>Search users</label><input id="adminUserSearch" placeholder="Username, name or email"></div><div class="field"><label>Account status</label><select id="adminUserStatusFilter"><option value="all">All accounts</option><option value="active">Active</option><option value="suspended">Suspended</option></select></div></div><div class="hero-actions" style="margin-top:0"><button class="btn small" id="searchAdminUsers">Search</button></div><div id="adminUsersMessage" class="notice">User list has not been loaded yet.</div><div id="adminUsersList"></div></div></section>
 
 <section class="page" id="page-intelligence"><div class="page-heading"><h1>Intelligence</h1><p>Intelligent tools and AI experiences inside the ecosystem.</p></div><div class="hero"><div class="eyebrow">INTELLIGENCE LAYER</div><h1>Ideas into intelligence.</h1><p>A dedicated space for future AI assistants, creative tools, personal intelligence and connected services.</p></div><div class="feature-grid"><div class="feature"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Personal intelligent assistant integration is planned.</p></div><div class="feature"><div class="feature-icon">🎙</div><h3>Creative Studio</h3><p>Creative and music-related AI tools are planned.</p></div><div class="feature"><div class="feature-icon">🧠</div><h3>Personal Intelligence</h3><p>A future space for personalized intelligent workflows.</p></div><div class="feature"><div class="feature-icon">🔗</div><h3>Connected Services</h3><p>Integrations will be added as services become available.</p></div></div></section>
 
@@ -142,7 +142,7 @@ function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),3200)}
-async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if(path.startsWith("/projects")&&method!=="GET"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
+async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
@@ -152,6 +152,7 @@ if(page)page.classList.add("active");
 document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
 $("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);
 if(name==="projects")loadProjects();
+if(name==="admin")loadAdminUsers();
 if(name==="social")renderSocial();
 window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -677,6 +678,50 @@ $("removePhotoBtn").addEventListener("click",()=>{
 delete localProfile.photo;saveJSON(SOCIAL_PROFILE_KEY,localProfile);
 $("profilePhoto").value="";renderProfile();renderSocial();
 $("profileMessage").textContent="Profile photo removed.";
+});
+
+let adminUsers=[];
+async function loadAdminUsers(){
+const message=$("adminUsersMessage"),list=$("adminUsersList");
+message.textContent="Loading user accounts...";
+message.className="notice";
+list.innerHTML="";
+try{
+const query=encodeURIComponent(($("adminUserSearch").value||"").trim());
+const status=encodeURIComponent($("adminUserStatusFilter").value||"all");
+const data=await api("/admin/users?q="+query+"&status="+status+"&limit=100");
+adminUsers=Array.isArray(data.users)?data.users:[];
+renderAdminUsers();
+message.textContent=adminUsers.length+" of "+Number(data.total||0)+" accounts loaded.";
+message.className="notice success";
+}catch(error){
+message.textContent="Could not load users: "+error.message;
+message.className="notice error";
+}
+}
+function renderAdminUsers(){
+const list=$("adminUsersList");
+if(!adminUsers.length){list.innerHTML='<div class="empty">No accounts match this search.</div>';return}
+list.innerHTML='<div class="table-wrap"><table><thead><tr><th>USER</th><th>EMAIL</th><th>STATUS</th><th>PI</th><th>JOINED</th><th>ACTION</th></tr></thead><tbody>'+adminUsers.map(user=>'<tr><td><strong>'+escapeHTML(user.displayName||user.username)+'</strong><br><span class="small-text">@'+escapeHTML(user.username)+'</span></td><td>'+escapeHTML(user.email)+'</td><td>'+(user.active?'<span style="color:var(--green)">Active</span>':'<span style="color:var(--red)">Suspended</span>')+'</td><td>'+(user.piVerified?'Verified':'Not linked')+'</td><td>'+escapeHTML(user.createdAt||"")+'</td><td>'+(String(user.username).toLowerCase()==="mehranmsh"?'Protected':('<button class="btn small '+(user.active?'danger':'secondary')+'" data-user-toggle="'+escapeHTML(user.id)+'" data-next-active="'+(!user.active)+'">'+(user.active?'Suspend':'Reactivate')+'</button>'))+'</td></tr>').join("")+'</tbody></table></div>';
+}
+$("refreshAdminUsers").addEventListener("click",loadAdminUsers);
+$("searchAdminUsers").addEventListener("click",loadAdminUsers);
+$("adminUserStatusFilter").addEventListener("change",loadAdminUsers);
+$("adminUsersList").addEventListener("click",async event=>{
+const button=event.target.closest("[data-user-toggle]");
+if(!button)return;
+const id=button.getAttribute("data-user-toggle");
+const active=button.getAttribute("data-next-active")==="true";
+const user=adminUsers.find(item=>String(item.id)===String(id));
+if(!user)return;
+const action=active?"reactivate":"suspend";
+if(!confirm("Are you sure you want to "+action+" @"+user.username+"?"))return;
+button.disabled=true;
+try{
+await api("/admin/users/"+encodeURIComponent(id)+"/status",{method:"PATCH",body:JSON.stringify({active})});
+toast("Account "+(active?"reactivated":"suspended"));
+await loadAdminUsers();
+}catch(error){toast("Account update failed: "+error.message);button.disabled=false}
 });
 
 async function loadProjects(){
