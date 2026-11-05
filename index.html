@@ -697,8 +697,36 @@ $("projectsList").innerHTML="";
 function renderProjects(){
 const el=$("projectsList");
 if(!projects.length){el.innerHTML='<div class="empty">No projects are available yet.</div>';return}
-el.innerHTML='<div class="grid">'+projects.map(p=>'<div class="card"><div class="eyebrow">PROJECT</div><h3>'+escapeHTML(p.name||p.title||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p></div>').join("")+'</div>';
+el.innerHTML='<div class="grid">'+projects.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||p.title||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="project-actions"><button class="btn small secondary" data-project-edit="'+escapeHTML(p.id)+'">Edit</button> <button class="btn small" data-project-delete="'+escapeHTML(p.id)+'">Delete</button></div></div>').join("")+'</div>';
 }
+$("projectsList").addEventListener("click",async event=>{
+const editButton=event.target.closest("[data-project-edit]");
+const deleteButton=event.target.closest("[data-project-delete]");
+if(!editButton&&!deleteButton)return;
+const id=(editButton||deleteButton).getAttribute(editButton?"data-project-edit":"data-project-delete");
+const project=projects.find(item=>String(item.id)===String(id));
+if(!project){toast("Project not found. Refresh and try again.");return}
+if(editButton){
+ const name=prompt("Project name:",project.name||"");
+ if(name===null)return;
+ const description=prompt("Project description:",project.description||"");
+ if(description===null)return;
+ if(!name.trim()){toast("Project name is required");return}
+ try{
+  await api("/projects/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify({project:{...project,name:name.trim(),description}})});
+  toast("Project updated");
+  await loadProjects();
+ }catch(error){toast("Project update failed: "+error.message)}
+ return;
+}
+if(deleteButton&&confirm('Delete "'+(project.name||"this project")+'"? This action cannot be undone.')){
+ try{
+  await api("/projects/"+encodeURIComponent(id),{method:"DELETE",body:JSON.stringify({})});
+  toast("Project deleted");
+  await loadProjects();
+ }catch(error){toast("Project deletion failed: "+error.message)}
+}
+});
 $("refreshProjectsBtn").addEventListener("click",loadProjects);
 $("createProjectBtn").addEventListener("click",async()=>{
 const name=$("projectName").value.trim(),description=$("projectDescription").value.trim();
