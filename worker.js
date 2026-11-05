@@ -1,3 +1,4 @@
+
 const ALLOWED_ORIGIN="https://mehranmsh.github.io";
 const PI_ME_URL="https://api.minepi.com/v2/me";
 const RAPIDFILE_API="https://api.rapidfile.cc/v1";
@@ -69,7 +70,12 @@ env.DB.prepare("INSERT INTO social_user_settings(user_id) VALUES(?)").bind(id),
 env.DB.prepare("INSERT INTO social_sessions(id,user_id,token_hash,expires_at) VALUES(?,?,?,?)").bind(session.id,id,session.tokenHash,session.expiresAt)
 ]);
 return json({success:true,message:"Account created successfully",token:session.token,expiresAt:session.expiresAt,user:{id,username,email,displayName,emailVerified:false}},201);
-}catch(err){console.error("SOCIAL_REGISTER_FAILURE",{stage,name:err?.name||"Error",message:String(err?.message||err).slice(0,300)});if(String(err?.message||"").toLowerCase().includes("unique"))return error("Username or email is already registered",409);return error("Registration failed. Please try again.",500)}
+}catch(err){
+const detail=String(err?.message||err).slice(0,500);
+console.error("SOCIAL_REGISTER_FAILURE",{stage,name:err?.name||"Error",message:detail,stack:err?.stack||""});
+if(detail.toLowerCase().includes("unique"))return error("Username or email is already registered",409);
+return json({success:false,error:"Registration diagnostic",stage,detail},500);
+}
 }
 
 async function socialLogin(request,env){if(!await checkRateLimit(env,request,"login",10,900,900))return error("Too many login attempts. Try again later.",429);const body=await readBody(request);if(!body)return error("Invalid request body");const identifier=String(body.identifier||body.email||body.username||"").trim().toLowerCase(),password=String(body.password||"");if(!identifier||identifier.length>254||!password||password.length>128)return error("Invalid username/email or password",400);const user=await env.DB.prepare(`SELECT id,username,email,password_hash,display_name,email_verified,is_active FROM social_users WHERE email=? OR username=? LIMIT 1`).bind(identifier,identifier).first();if(!user||!user.is_active)return error("Invalid username/email or password",401);const result=await verifyPassword(password,user.password_hash);if(!result.valid)return error("Invalid username/email or password",401);if(result.needsUpgrade){const upgraded=await hashPassword(password);await env.DB.prepare("UPDATE social_users SET password_hash=? WHERE id=? AND password_hash=?").bind(upgraded,user.id,user.password_hash).run()}const session=await createSocialSession(env,user.id);return json({success:true,message:"Login successful",token:session.token,expiresAt:session.expiresAt,user:{id:user.id,username:user.username,email:user.email,displayName:user.display_name||"",emailVerified:Boolean(user.email_verified)}})}
@@ -152,6 +158,13 @@ if(path==="/projects"&&method==="GET"){const result=await env.DB.prepare("SELECT
 if(path==="/projects"&&method==="POST"){const body=await readBody(request);if(!body)return error("Invalid request body");if(!await checkRateLimit(env,request,"project-write",30,3600,900))return error("Too many project changes. Try again later.",429);if(!await verifyAdmin(body.accessToken))return error("Admin authentication required",403);const project=cleanProject(body.project||body);if(!project||!project.id||project.id.length>100)return error("Invalid project data");await env.DB.prepare(`INSERT INTO projects(id,name,description,fa_description,url,status) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,fa_description=excluded.fa_description,url=excluded.url,status=excluded.status,updated_at=CURRENT_TIMESTAMP`).bind(project.id,project.name,project.description,project.faDescription,project.url,project.status).run();const saved=await env.DB.prepare("SELECT * FROM projects WHERE id=?").bind(project.id).first();return json({success:true,project:formatProject(saved)},201)}
 const projectMatch=path.match(/^\/projects\/([^/]+)$/);if(projectMatch&&["PUT","DELETE"].includes(method)){const body=await readBody(request);if(!body)return error("Invalid request body");if(!await checkRateLimit(env,request,"project-write",30,3600,900))return error("Too many project changes. Try again later.",429);if(!await verifyAdmin(body.accessToken))return error("Admin authentication required",403);const id=decodeURIComponent(projectMatch[1]);if(!id||id.length>100)return error("Invalid project ID");if(method==="DELETE"){const result=await env.DB.prepare("DELETE FROM projects WHERE id=?").bind(id).run();if(!result.meta||result.meta.changes===0)return error("Project not found",404);return json({success:true,deleted:true,id})}const project=cleanProject({...body.project||{},id});if(!project)return error("Invalid project data");const result=await env.DB.prepare("UPDATE projects SET name=?,description=?,fa_description=?,url=?,status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(project.name,project.description,project.faDescription,project.url,project.status,id).run();if(!result.meta||result.meta.changes===0)return error("Project not found",404);const saved=await env.DB.prepare("SELECT * FROM projects WHERE id=?").bind(id).first();return json({success:true,project:formatProject(saved)})}
 return error("Not found",404);
-}catch(err){console.error("MEHRAN MSH Worker error:",err);return error("Internal service error",500)}
+}catch(err){
+const detail=String(err?.message||err).slice(0,500);
+console.error("MEHRAN MSH Worker error:",{path,name:err?.name||"Error",message:detail,stack:err?.stack||""});
+if(path==="/social/register"){
+return json({success:false,error:"Worker diagnostic",stage:"ensureSocialTables_or_route",detail},500);
+}
+return error("Internal service error",500);
+}
 }
 };
