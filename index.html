@@ -71,7 +71,7 @@
 
 <section class="page" id="page-social">
 <div class="social-shell">
-<div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Messages" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="toast('Notifications will be added with the social backend.')">♡</button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
+<div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Messages" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
 <div class="social-tabs">
 <button class="social-tab active" data-social="feed">⌂ Home</button><button class="social-tab" data-social="explore">⌕ Explore</button><button class="social-tab" data-social="reels">▣ Reels</button><button class="social-tab" data-social="messages">✉ Messages</button><button class="social-tab" data-social="groups">♧ Groups</button><button class="social-tab" data-social="channels">▤ Channels</button><button class="social-tab" data-social="bots">🤖 Bots</button><button class="social-tab" data-social="profile">◉ Profile</button><button class="social-tab" data-social="settings">⚙ Settings</button>
 </div>
@@ -101,6 +101,14 @@
 <div class="social-view" id="social-channels"><div class="section-title"><h2>Channels</h2><button class="btn small" onclick="requireAuth('Create a channel')">＋ Create channel</button></div><div class="feature-grid"><div class="feature"><div class="feature-icon">📢</div><h3>Public Channels</h3><p>Publish updates and let anyone discover and follow your channel.</p></div><div class="feature"><div class="feature-icon">🔐</div><h3>Private Channels</h3><p>Share updates with invited subscribers and controlled access.</p></div><div class="feature"><div class="feature-icon">📈</div><h3>Channel Insights</h3><p>Future subscriber, reach and engagement statistics for channel owners.</p></div><div class="feature"><div class="feature-icon">👑</div><h3>Channel Admins</h3><p>Assign administrators and control publishing permissions.</p></div></div><div class="notice warn">Channels are separate from Groups. Broadcasting, subscribers, admin roles and channel posts are not connected to a backend yet.</div><div class="empty">No channels are connected yet. This area is ready for the Channels backend.</div></div>
 
 <div class="social-view" id="social-bots"><div class="section-title"><h2>Bots</h2><button class="btn small" onclick="requireAuth('Create a bot')">＋ Create bot</button></div><div class="feature-grid"><div class="feature"><div class="feature-icon">🤖</div><h3>Bot Directory</h3><p>Discover bots created for community tools, productivity and entertainment.</p></div><div class="feature"><div class="feature-icon">⚡</div><h3>Commands & Actions</h3><p>Interact with bots using commands, menus and automated actions.</p></div><div class="feature"><div class="feature-icon">🧩</div><h3>Bot Developer Tools</h3><p>Future developer workspace for configuring bot identity, commands and integrations.</p></div><div class="feature"><div class="feature-icon">🔗</div><h3>Group & Channel Bots</h3><p>Connect bots to groups and channels for moderation, support and automation.</p></div></div><div class="notice warn">Bots are an independent SOCIAL module. Bot accounts, API, command processing and integrations still need to be implemented.</div><div class="empty">No active bots yet. The bot directory will appear here when its backend is ready.</div></div>
+
+<div class="social-view" id="social-notifications">
+<div class="panel">
+<div class="section-title" style="margin-top:0"><h2>Notifications</h2><button class="btn secondary small" id="markAllNotificationsRead" onclick="markAllNotificationsRead()">Mark all as read</button></div>
+<p class="small-text" id="notificationStatus">Your recent activity will appear here.</p>
+<div id="notificationsList"><div class="empty">Loading notifications...</div></div>
+</div>
+</div>
 
 <div class="social-view" id="social-settings"><div class="panel"><h3>Account Settings</h3><p class="small-text">Manage your SOCIAL account session.</p><div class="field"><label>Signed in as</label><input id="settingsUsername" readonly placeholder="Not signed in"></div><div class="hero-actions"><button class="btn secondary" id="refreshSessionBtn">Refresh session</button><button class="btn danger" id="socialLogoutBtn">Sign out</button></div><div id="settingsMessage" class="notice">Your account session is managed by the MEHRAN MSH authentication service.</div></div></div>
 </div>
@@ -157,6 +165,7 @@ if(name==="profile")renderProfile();
 if(name==="feed")renderSocial();
 if(name==="explore")renderExplore();
 if(name==="reels")renderReels();
+if(name==="notifications")loadNotifications();
 }
 
 async function checkWorker(){
@@ -226,6 +235,71 @@ return data;
 function normalizeSocialPost(p){
 const author=p.author||{},stats=p.stats||{};
 return {id:String(p.id),text:p.content??p.text??"",author:author.username||p.username||"Member",displayName:author.displayName||author.display_name||author.username||"Member",date:p.createdAt?new Date(p.createdAt).toLocaleString():(p.date||""),media:(p.media||[]).map(m=>({type:(m.type||"").startsWith("video")?"video":"image",data:m.url||m.data||"",name:m.name||""})),likesCount:Number(stats.likes??p.likesCount??(Array.isArray(p.likes)?p.likes.length:0)),liked:!!stats.liked,commentsCount:Number(stats.comments??p.commentsCount??(Array.isArray(p.comments)?p.comments.length:0)),comments:Array.isArray(p.comments)?p.comments:[],server:true};
+}
+let socialNotifications=[];
+function updateNotificationBadge(){
+const badge=$("notificationBadge");
+if(!badge)return;
+const unread=socialNotifications.filter(item=>!item.isRead).length;
+badge.textContent=unread>99?"99+":String(unread);
+badge.style.display=unread?"inline-block":"none";
+}
+function renderNotifications(){
+const list=$("notificationsList");
+if(!list)return;
+const markAll=$("markAllNotificationsRead");
+if(markAll)markAll.disabled=!socialNotifications.some(item=>!item.isRead);
+if(!socialNotifications.length){
+list.innerHTML='<div class="empty">You are all caught up. New likes, comments and follow activity will appear here.</div>';
+return;
+}
+list.innerHTML=socialNotifications.map(item=>{
+const actor=item.actor?.displayName||item.actor?.username||"Someone";
+const message=item.message||({like:"liked your post",comment:"commented on your post",follow:"started following you",follow_request:"requested to follow you",story_reaction:"reacted to your story"}[item.type]||"interacted with you");
+const date=item.createdAt?new Date(item.createdAt).toLocaleString():"";
+return '<article class="social-card" style="display:flex;align-items:flex-start;gap:12px;'+(item.isRead?'opacity:.72':'border-color:#286080')+'"><div class="avatar">'+escapeHTML(actor.charAt(0).toUpperCase())+'</div><div style="flex:1;min-width:0"><div class="post-text"><strong>'+escapeHTML(actor)+'</strong> '+escapeHTML(message)+'</div><small class="muted">'+escapeHTML(date)+'</small></div>'+(item.isRead?'<span class="small-text">Read</span>':'<button class="btn secondary small" onclick="markNotificationRead(\''+escapeHTML(item.id)+'\')">Mark read</button>')+'</article>';
+}).join("");
+}
+async function loadNotifications(){
+if(!socialUser){
+$("notificationStatus").textContent="Sign in to view your notifications.";
+$("notificationsList").innerHTML='<div class="empty">Please sign in or create a SOCIAL account to view notifications.</div>';
+$("markAllNotificationsRead").disabled=true;
+socialNotifications=[];
+updateNotificationBadge();
+return;
+}
+$("notificationStatus").textContent="Loading your latest activity...";
+$("notificationsList").innerHTML='<div class="empty">Loading notifications...</div>';
+try{
+const data=await socialRequest("/notifications?limit=100");
+socialNotifications=Array.isArray(data.notifications)?data.notifications:[];
+$("notificationStatus").textContent=socialNotifications.length+" notifications";
+renderNotifications();
+updateNotificationBadge();
+}catch(error){
+$("notificationStatus").textContent="Could not load notifications.";
+$("notificationsList").innerHTML='<div class="notice error">'+escapeHTML(error.message)+'</div>';
+}
+}
+async function markNotificationRead(id){
+try{
+await socialRequest("/notifications/"+encodeURIComponent(id)+"/read",{method:"POST"});
+const item=socialNotifications.find(entry=>String(entry.id)===String(id));
+if(item)item.isRead=true;
+renderNotifications();
+updateNotificationBadge();
+}catch(error){toast("Could not update notification: "+error.message)}
+}
+async function markAllNotificationsRead(){
+if(!socialUser)return;
+try{
+await socialRequest("/notifications/read-all",{method:"POST"});
+socialNotifications=socialNotifications.map(item=>({...item,isRead:true}));
+renderNotifications();
+updateNotificationBadge();
+toast("All notifications marked as read");
+}catch(error){toast("Could not update notifications: "+error.message)}
 }
 async function loadSocialFeed(){
 if(!socialUser)return;
