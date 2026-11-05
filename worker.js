@@ -3608,7 +3608,7 @@ export default {
       }
 
       const adminUserStatusMatch = path.match(new RegExp("^/admin/users/([^/]+)/status$"));
-      if (adminUserStatusMatch && method === "PATCH") {
+      if (adminUserStatusMatch && method === "PUT") {
         if (!await verifyAdmin(request, env)) {
           return error("Admin authentication required", 403);
         }
