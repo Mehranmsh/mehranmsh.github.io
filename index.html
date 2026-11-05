@@ -135,7 +135,7 @@
 const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
-const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts";
+const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
 let piUser=null,socialUser=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -182,6 +182,7 @@ $("adminDbStatus").textContent="Unknown";
 }
 }
 checkWorker();
+restoreAdminSession();
 
 function updateAccountUI(){
 const signed=!!piUser;
@@ -193,7 +194,7 @@ $("piUid").value=piUser?.uid||"";
 $("piLoginBtn").classList.toggle("hidden",signed);
 $("piLogoutBtn").classList.toggle("hidden",!signed);
 $("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";
-$("adminSession").textContent=signed?"Pi connected":"Guest";
+$("adminSession").textContent=signed?(piUser?.adminSession?"Persistent admin session":"Pi connected"):"Guest";
 }
 async function piLogin(){
 if(!window.Pi){
@@ -205,8 +206,13 @@ try{
 window.Pi.init({version:"2.0",sandbox:false});
 const auth=await window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment));
 const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});
-piUser=data.user||auth.user;
-$("piMessage").textContent="Pi authentication completed successfully.";
+piUser={...(auth.user||{}),uid:data.uid||auth.user?.uid,username:data.username||auth.user?.username,isAdmin:!!data.isAdmin};
+if(piUser.isAdmin){
+ const session=await api("/admin/session",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})});
+ localStorage.setItem(ADMIN_SESSION_KEY,session.token);
+ piUser={...piUser,adminSession:true};
+}
+$("piMessage").textContent=piUser.isAdmin?"Admin recognized. This device will remember you.":"Pi authentication completed successfully.";
 $("piMessage").className="notice success";
 updateAccountUI();
 toast("Pi account connected");
@@ -216,13 +222,29 @@ $("piMessage").className="notice error";
 }
 }
 $("piLoginBtn").addEventListener("click",piLogin);
-$("piLogoutBtn").addEventListener("click",()=>{
+$("piLogoutBtn").addEventListener("click",async()=>{
+const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+if(token){try{await api("/admin/session",{method:"DELETE",headers:{"Authorization":"Bearer "+token}})}catch{}}
+localStorage.removeItem(ADMIN_SESSION_KEY);
 piUser=null;updateAccountUI();
 $("piMessage").textContent="Pi session disconnected from this page.";
 $("piMessage").className="notice";
 });
 
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
+async function restoreAdminSession(){
+ const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+ if(!token)return;
+ try{
+  const data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
+  piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
+  $("piMessage").textContent="Persistent admin session restored.";
+  $("piMessage").className="notice success";
+ }catch(error){
+  localStorage.removeItem(ADMIN_SESSION_KEY);
+ }
+ updateAccountUI();
+}
 function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
 async function socialRequest(path,options={}){
 const headers={"Authorization":"Bearer "+getSocialToken(),...(options.headers||{})};
