@@ -1,4 +1,3 @@
-
 const ALLOWED_ORIGIN="https://mehranmsh.github.io";
 const PI_ME_URL="https://api.minepi.com/v2/me";
 const RAPIDFILE_API="https://api.rapidfile.cc/v1";
@@ -74,7 +73,7 @@ return json({success:true,message:"Account created successfully",token:session.t
 const detail=String(err?.message||err).slice(0,500);
 console.error("SOCIAL_REGISTER_FAILURE",{stage,name:err?.name||"Error",message:detail,stack:err?.stack||""});
 if(detail.toLowerCase().includes("unique"))return error("Username or email is already registered",409);
-return json({success:false,error:"Registration diagnostic",stage,detail},500);
+return error("Registration diagnostic ["+stage+"]: "+detail,500);
 }
 }
 
@@ -162,7 +161,7 @@ return error("Not found",404);
 const detail=String(err?.message||err).slice(0,500);
 console.error("MEHRAN MSH Worker error:",{path,name:err?.name||"Error",message:detail,stack:err?.stack||""});
 if(path==="/social/register"){
-return json({success:false,error:"Worker diagnostic",stage:"ensureSocialTables_or_route",detail},500);
+return error("Worker diagnostic [ensureSocialTables_or_route]: "+detail,500);
 }
 return error("Internal service error",500);
 }
