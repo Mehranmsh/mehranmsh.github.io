@@ -3555,6 +3555,93 @@ export default {
         }
       }
 
+      if (path === "/admin/users" && method === "GET") {
+        if (!await verifyAdmin(request, env)) {
+          return error("Admin authentication required", 403);
+        }
+
+        const url = new URL(request.url);
+        const query = String(url.searchParams.get("q") || "").trim().slice(0, 80);
+        const status = String(url.searchParams.get("status") || "all");
+        const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit") || 50)));
+        const conditions = [];
+        const values = [];
+
+        if (query) {
+          conditions.push("(username LIKE ? OR display_name LIKE ? OR email LIKE ?)");
+          const term = "%" + query.replace(/[%_]/g, "") + "%";
+          values.push(term, term, term);
+        }
+        if (status === "active") conditions.push("is_active=1");
+        if (status === "suspended") conditions.push("is_active=0");
+
+        const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+        const result = await env.DB.prepare(`
+          SELECT id,username,email,display_name,pi_username,pi_verified,
+                 is_active,email_verified,created_at,updated_at
+          FROM social_users ${where}
+          ORDER BY created_at DESC
+          LIMIT ?
+        `).bind(...values, limit).all();
+
+        const count = await env.DB.prepare(`
+          SELECT COUNT(*) AS total FROM social_users ${where}
+        `).bind(...values).first();
+
+        return json({
+          success: true,
+          users: (result.results || []).map(row => ({
+            id: row.id,
+            username: row.username,
+            email: row.email,
+            displayName: row.display_name || "",
+            piUsername: row.pi_username || "",
+            piVerified: Boolean(row.pi_verified),
+            active: Boolean(row.is_active),
+            emailVerified: Boolean(row.email_verified),
+            createdAt: row.created_at,
+            updatedAt: row.updated_at
+          })),
+          total: Number(count?.total || 0),
+          limit
+        });
+      }
+
+      const adminUserStatusMatch = path.match(/^\\/admin\\/users\\/([^/]+)\\/status$/);
+      if (adminUserStatusMatch && method === "PATCH") {
+        if (!await verifyAdmin(request, env)) {
+          return error("Admin authentication required", 403);
+        }
+        if (!await checkRateLimit(env, request, "admin-user-status", 20, 3600, 900)) {
+          return error("Too many account status changes. Try again later.", 429);
+        }
+
+        const body = await readBody(request);
+        if (!body || typeof body.active !== "boolean") {
+          return error("A valid active status is required");
+        }
+
+        const id = decodeURIComponent(adminUserStatusMatch[1]);
+        if (!id || id.length > 100) return error("Invalid user ID");
+
+        const target = await env.DB.prepare(
+          "SELECT id,username,is_active FROM social_users WHERE id=? LIMIT 1"
+        ).bind(id).first();
+        if (!target) return error("User not found", 404);
+        if (String(target.username).trim().toLowerCase() === "mehranmsh") {
+          return error("The primary administrator account cannot be suspended", 403);
+        }
+
+        await env.DB.prepare(
+          "UPDATE social_users SET is_active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+        ).bind(body.active ? 1 : 0, id).run();
+
+        return json({
+          success: true,
+          user: { id: target.id, username: target.username, active: body.active }
+        });
+      }
+
       if (path === "/projects" && method === "GET") {
         const result = await env.DB.prepare(`
           SELECT id,name,description,fa_description,url,status,created_at,updated_at
