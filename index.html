@@ -215,6 +215,43 @@ $("piMessage").className="notice";
 
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
 function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
+async function socialRequest(path,options={}){
+const headers={"Authorization":"Bearer "+getSocialToken(),...(options.headers||{})};
+if(options.body&&!headers["Content-Type"])headers["Content-Type"]="application/json";
+const response=await fetch(SOCIAL_API+path,{...options,headers});
+const data=await response.json().catch(()=>({}));
+if(!response.ok||data.success===false)throw new Error(data.message||data.error||("Request failed ("+response.status+")"));
+return data;
+}
+function normalizeSocialPost(p){
+const author=p.author||{},stats=p.stats||{};
+return {id:String(p.id),text:p.content??p.text??"",author:author.username||p.username||"Member",displayName:author.displayName||author.display_name||author.username||"Member",date:p.createdAt?new Date(p.createdAt).toLocaleString():(p.date||""),media:(p.media||[]).map(m=>({type:(m.type||"").startsWith("video")?"video":"image",data:m.url||m.data||"",name:m.name||""})),likesCount:Number(stats.likes??p.likesCount??(Array.isArray(p.likes)?p.likes.length:0)),liked:!!stats.liked,commentsCount:Number(stats.comments??p.commentsCount??(Array.isArray(p.comments)?p.comments.length:0)),comments:Array.isArray(p.comments)?p.comments:[],server:true};
+}
+async function loadSocialFeed(){
+if(!socialUser)return;
+try{const data=await socialRequest("/feed?limit=50");posts=(data.posts||[]).map(normalizeSocialPost);saveJSON(SOCIAL_POSTS_KEY,posts);renderSocial();}
+catch(error){console.warn("SOCIAL feed:",error);toast("Could not refresh feed: "+error.message)}
+}
+async function toggleLike(id){
+if(!requireAuth("like posts"))return;
+const post=posts.find(p=>String(p.id)===String(id));if(!post)return;
+const next=!post.liked;
+try{const data=await socialRequest("/posts/"+encodeURIComponent(id)+"/like",{method:next?"POST":"DELETE"});post.liked=next;post.likesCount=Number(data.likes??(post.likesCount||0)+(next?1:-1));renderSocial();}
+catch(error){toast("Like failed: "+error.message)}
+}
+async function addComment(id){
+if(!requireAuth("comment"))return;
+const field=$("comment-"+id),content=field?.value.trim();if(!content)return;
+try{await socialRequest("/posts/"+encodeURIComponent(id)+"/comments",{method:"POST",body:JSON.stringify({content})});if(field)field.value="";const data=await socialRequest("/posts/"+encodeURIComponent(id)+"/comments");const post=posts.find(p=>String(p.id)===String(id));if(post){post.comments=(data.comments||[]).map(c=>({author:c.author?.displayName||c.author?.username||"Member",text:c.content}));post.commentsCount=Number(data.total??post.comments.length)}renderSocial();}
+catch(error){toast("Comment failed: "+error.message)}
+}
+async function deletePost(id){
+if(!requireAuth("delete posts"))return;
+if(!confirm("Delete this post?"))return;
+try{await socialRequest("/posts/"+encodeURIComponent(id),{method:"DELETE"});posts=posts.filter(p=>String(p.id)!==String(id));saveJSON(SOCIAL_POSTS_KEY,posts);renderSocial();toast("Post deleted");}
+catch(error){toast("Delete failed: "+error.message)}
+}
+
 function setSocialAuthMessage(message,type="notice"){$("socialAuthMessage").textContent=message;$("socialAuthMessage").className=type}
 function openAuth(mode="register"){
 authMode=mode;
@@ -314,6 +351,7 @@ if(!response.ok)throw new Error(data.message||"Session expired");
 socialUser=data.user||data;
 $("settingsUsername").value=socialUser.username||"";
 $("socialStatus").textContent="Connected";
+await loadSocialFeed();
 renderSocial();
 }catch(error){
 localStorage.removeItem(SOCIAL_TOKEN_KEY);
@@ -375,10 +413,10 @@ function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)retu
 function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
 function renderFeed(){
 const list=$("feedList");if(!list)return;
-$("feedCount").textContent=posts.length+" local posts";
+$("feedCount").textContent=posts.length+" posts";
 if(!posts.length){list.innerHTML='<div class="empty">Your feed is ready.<br>There are no posts stored on this device yet.<br><button class="btn" style="margin-top:12px" onclick="openCreate()">Create the first post</button></div>';return}
 list.innerHTML=posts.map(post=>{
-const liked=(post.likes||[]).includes(currentUsername());
+const liked=!!post.liked||(post.likes||[]).includes(currentUsername());
 const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(c.author)+':</strong> '+escapeHTML(c.text)+'</div>').join("");
 const media=getPostMedia(post),first=media[0];let mediaHTML="";
 if(first)mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
@@ -469,15 +507,19 @@ draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:f
 $("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'" alt="Preview">').join("");
 });
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
-$("publishPostBtn").addEventListener("click",()=>{
+$("publishPostBtn").addEventListener("click",async()=>{
 if(!socialUser){closeCreate();openAuth("register");return}
-const text=$("postCaption").value.trim();
-if(!text&&!draftFiles.length){toast("Add a caption or media.");return}
+const content=$("postCaption").value.trim();
+if(!content&&!draftFiles.length){toast("Add a caption or media.");return}
+if(draftFiles.length){toast("Cloud media upload is being connected. For now, publish a text-only post.");return}
+const button=$("publishPostBtn");button.disabled=true;
 try{
-const post={id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),author:currentUsername(),displayName:localProfile.displayName||currentUsername(),text,media:draftFiles,date:new Date().toLocaleString(),likes:[],comments:[]};
+const data=await socialRequest("/posts",{method:"POST",body:JSON.stringify({content,media:[],visibility:"public"})});
+const post=normalizeSocialPost(data.post||{...data,content,author:{username:currentUsername(),displayName:localProfile.displayName||currentUsername()},createdAt:new Date().toISOString(),stats:{likes:0,comments:0,views:0}});
 posts.unshift(post);saveJSON(SOCIAL_POSTS_KEY,posts);
-closeCreate();renderSocial();toast("Post saved on this device.");
-}catch(error){toast("Could not save post. Try fewer or smaller files.")}
+closeCreate();renderSocial();toast("Post published.");
+}catch(error){toast("Could not publish post: "+error.message)}
+finally{button.disabled=false}
 });
 async function readFileData(file){
 return new Promise((resolve,reject)=>{
