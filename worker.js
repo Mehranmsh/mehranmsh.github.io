@@ -2874,10 +2874,28 @@ async function fetchPiUser(accessToken) {
   }
 }
 
-async function verifyAdmin(accessToken) {
-  const user = await fetchPiUser(accessToken);
-  if (!user || user.username.trim().toLowerCase() !== "mehranmsh") return null;
-  return user;
+async function ensureAdminSessionTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS admin_sessions(
+      id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE,
+      uid TEXT NOT NULL, username TEXT NOT NULL COLLATE NOCASE,
+      created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER
+    )
+  `).run();
+}
+
+async function verifyAdmin(request, env) {
+  const token = getBearer(request);
+  if (!token || token.length < 40 || token.length > 200) return null;
+  const tokenHash = await sha256(token);
+  const now = Math.floor(Date.now() / 1000);
+  const session = await env.DB.prepare(`
+    SELECT uid,username,expires_at FROM admin_sessions
+    WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?
+    LIMIT 1
+  `).bind(tokenHash, now).first();
+  if (!session || String(session.username).trim().toLowerCase() !== "mehranmsh") return null;
+  return { uid: session.uid, username: session.username, expiresAt: session.expires_at };
 }
 
 function normalizeStatus(status) {
@@ -2995,6 +3013,7 @@ export default {
       const needsDB =
         path.startsWith("/projects") ||
         path.startsWith("/social") ||
+        path.startsWith("/admin/session") ||
         path === "/auth";
 
       if (needsDB && !env.DB) {
@@ -3016,6 +3035,44 @@ export default {
           version: "5.0",
           database
         });
+      }
+
+      if (path.startsWith("/admin/session")) {
+        await ensureAdminSessionTable(env);
+        if (path === "/admin/session" && method === "POST") {
+          if (!await checkRateLimit(env, request, "admin-session-create", 10, 3600, 1800)) {
+            return error("Too many admin sign-in attempts. Try again later.", 429);
+          }
+          const body = await readBody(request);
+          if (!body) return error("Invalid request body");
+          const piUser = await fetchPiUser(body.accessToken);
+          if (!piUser || piUser.username.trim().toLowerCase() !== "mehranmsh") {
+            return error("Verified admin Pi account required", 403);
+          }
+          const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+          const tokenHash = await sha256(token);
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = 4102444800;
+          await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL").bind(now).run();
+          await env.DB.prepare(`
+            INSERT INTO admin_sessions(id,token_hash,uid,username,created_at,expires_at)
+            VALUES(?,?,?,?,?,?)
+          `).bind(crypto.randomUUID(),tokenHash,piUser.uid,piUser.username,now,expiresAt).run();
+          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt,persistent:true});
+        }
+        if (path === "/admin/session" && method === "GET") {
+          const admin = await verifyAdmin(request, env);
+          if (!admin) return error("Admin session is invalid. Sign in again.", 401);
+          return json({success:true,username:admin.username,uid:admin.uid,expiresAt:admin.expiresAt});
+        }
+        if (path === "/admin/session" && method === "DELETE") {
+          const token = getBearer(request);
+          if (token) await env.DB.prepare(
+            "UPDATE admin_sessions SET revoked_at=? WHERE token_hash=? AND revoked_at IS NULL"
+          ).bind(Math.floor(Date.now()/1000),await sha256(token)).run();
+          return json({success:true,revoked:true});
+        }
+        return error("Not found",404);
       }
 
       if (path === "/auth" && method === "POST") {
@@ -3518,7 +3575,7 @@ export default {
           return error("Too many project changes. Try again later.", 429);
         }
 
-        if (!await verifyAdmin(body.accessToken)) {
+        if (!await verifyAdmin(request, env)) {
           return error("Admin authentication required", 403);
         }
 
@@ -3563,7 +3620,7 @@ export default {
           return error("Too many project changes. Try again later.", 429);
         }
 
-        if (!await verifyAdmin(body.accessToken)) {
+        if (!await verifyAdmin(request, env)) {
           return error("Admin authentication required", 403);
         }
 
