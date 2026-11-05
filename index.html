@@ -260,7 +260,7 @@ const date=item.createdAt?new Date(item.createdAt).toLocaleString():"";
 return '<article class="social-card" style="display:flex;align-items:flex-start;gap:12px;'+(item.isRead?'opacity:.72':'border-color:#286080')+'"><div class="avatar">'+escapeHTML(actor.charAt(0).toUpperCase())+'</div><div style="flex:1;min-width:0"><div class="post-text"><strong>'+escapeHTML(actor)+'</strong> '+escapeHTML(message)+'</div><small class="muted">'+escapeHTML(date)+'</small></div>'+(item.isRead?'<span class="small-text">Read</span>':'<button class="btn secondary small" onclick="markNotificationRead(\''+escapeHTML(item.id)+'\')">Mark read</button>')+'</article>';
 }).join("");
 }
-async function loadNotifications{
+async function loadNotifications(){
 if(!socialUser){
 $("notificationStatus").textContent="Sign in to view your notifications.";
 $("notificationsList").innerHTML='<div class="empty">Please sign in or create a SOCIAL account to view notifications.</div>';
