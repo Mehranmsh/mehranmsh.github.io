@@ -539,6 +539,8 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
   <div class="profile-editor-footer"><div class="profile-editor-actions"><button class="btn" id="saveProfileBtn">Save changes</button><button class="btn secondary" id="removePhotoBtn">Remove main photo</button><button class="btn secondary" id="verifyCreatorBtn">✦ Verify with Pi</button></div><div id="profileMessage" class="notice">Your profile changes will be saved to your SOCIAL account.</div></div>
  </div>
 
+</div>
+
 <div class="social-view" id="social-messages"><div class="panel"><h2>Messages</h2><div class="field"><label>Start chat with username</label><div class="comment-form"><input id="dmUsername"><button class="btn small" id="startDmBtn">Start</button></div></div><div class="social-layout"><div><h3>Inbox</h3><div id="conversationList" class="empty"></div></div><div><h3 id="chatTitle">Select a conversation</h3><div id="chatMessages" class="empty">Messages appear here.</div><div class="comment-form"><input id="chatInput" placeholder="Write a message..." disabled><button class="btn small" id="sendChatBtn" disabled>Send</button></div></div></div></div></div>
 
 <div class="social-view" id="social-groups"><h2>Groups</h2><div class="form-grid"><div class="field"><label>Group name</label><input id="newGroupName"></div><div class="field"><label>Invite usernames, comma separated</label><input id="newGroupMembers"></div></div><button class="btn" id="submitGroupBtn">Create group</button><div class="form-grid"><div class="field"><label>Invite code</label><input id="groupInviteCode"></div><div class="field"><button class="btn secondary" id="joinGroupBtn">Join group</button></div></div><div id="groupsList" class="empty"></div></div>
@@ -1612,39 +1614,7 @@ document.addEventListener("click",e=>{const tab=e.target.closest("[data-settings
 $("chatInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")socialSendChat()});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-invite-group]");if(b)socialGroupInvite(b.dataset.inviteGroup)});
 $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer);socialSearchTimer=setTimeout(()=>socialSearch(e.target.value),300)});
-/* Settings activation: use CSS classes only so other views remain switchable. */
-document.addEventListener("click",e=>{
- const button=e.target instanceof Element?e.target.closest('.social-tab[data-social="settings"]'):null;
- if(!button)return;
- const view=document.getElementById("social-settings");
- if(!view)return;
- document.querySelectorAll(".social-view").forEach(v=>v.classList.toggle("active",v===view));
- document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b===button));
- const panels=[...view.querySelectorAll("[data-settings-panel]")];
- panels.forEach(p=>p.classList.toggle("active",p.dataset.settingsPanel==="account"));
- view.querySelectorAll("[data-settings-tab]").forEach(b=>b.classList.toggle("active",b.dataset.settingsTab==="account"));
-},true);
 const prevSwitch=window.switchSocial;
-function socialRevealSettings(){
- const view=document.getElementById("social-settings");
- if(!view)return;
- view.classList.add("active");
- view.style.setProperty("display","block","important");
- view.style.setProperty("visibility","visible","important");
- const layout=view.querySelector(".settings-layout");
- const nav=view.querySelector(".settings-nav");
- const content=view.querySelector(".settings-content");
- if(layout)layout.style.setProperty("display","grid","important");
- if(nav){nav.style.setProperty("display","grid","important");nav.style.setProperty("visibility","visible","important");}
- if(content){content.style.setProperty("display","block","important");content.style.setProperty("visibility","visible","important");}
- view.querySelectorAll(".settings-panel").forEach(panel=>{
-  const active=panel.dataset.settingsPanel==="account";
-  panel.classList.toggle("active",active);
-  panel.style.setProperty("display",active?"block":"none","important");
-  panel.style.setProperty("visibility",active?"visible":"hidden","important");
- });
- view.querySelectorAll("[data-settings-tab]").forEach(tab=>tab.classList.toggle("active",tab.dataset.settingsTab==="account"));
-}
 window.switchSocial=function(name){
  prevSwitch(name);
  if(name==="feed")socialLoadStories();
@@ -1652,7 +1622,7 @@ window.switchSocial=function(name){
  if(name==="channels")socialLoadChannels();
  if(name==="bots")socialLoadBots();
  if(name==="settings"){
-  socialRevealSettings();
+  socialSettingsTab("account");
   socialLoadPrivacy();socialLoadRequests();socialLoadSessions();socialLoadExtendedSettings();socialLoadStorage();
  }
 };
