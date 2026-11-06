@@ -912,7 +912,7 @@ async function notify(env, userId, actorId, type, targetId, message = "") {
   let prefs = {};
   try { prefs = JSON.parse(row?.preferences_json || "{}"); } catch {}
   const t = String(type || "").toLowerCase();
-  const key = /like|comment|mention|post/.test(t) ? "likesComments"
+  const key = /like|comment|mention|post|story_reaction/.test(t) ? "likesComments"
     : /follow|request/.test(t) ? "followers"
     : /message|chat/.test(t) ? "messages"
     : /group|channel|invite/.test(t) ? "groups"
