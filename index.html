@@ -41,6 +41,42 @@
 .creator-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:5px;border-radius:50%;background:#168cff;color:#fff;font-size:12px;font-weight:800;vertical-align:middle;box-shadow:0 0 0 2px rgba(22,140,255,.16)}.admin-stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.admin-stats .card{min-width:0}
 
 #storiesRow{min-height:88px}#conversationList .social-card{cursor:pointer}.social-result{padding:13px;border:1px solid var(--line);border-radius:12px;margin:8px 0;background:#0d1829}.chat-bubble{max-width:85%;padding:10px 13px;border-radius:13px;background:#15273d;margin:7px 0;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.chat-bubble.mine{margin-left:auto;background:#123d55}.chat-meta{font-size:9px;color:var(--muted);margin-top:4px}
+
+/* SOCIAL visual refresh: warm, expressive composer and form surfaces */
+#page-social{--social-card:rgba(17,29,48,.88);--social-line:rgba(111,157,205,.2)}
+#page-social input:not([type=file]),#page-social textarea,#page-social select{
+ width:100%;min-height:48px;padding:13px 16px;border:1px solid var(--social-line);
+ border-radius:16px;background:linear-gradient(145deg,#101e31,#0b1626);color:var(--text);
+ outline:none;transition:border-color .2s,box-shadow .2s,background .2s;
+}
+#page-social textarea{min-height:112px;resize:vertical;line-height:1.7}
+#page-social input::placeholder,#page-social textarea::placeholder{color:#7187a2}
+#page-social input:focus,#page-social textarea:focus,#page-social select:focus{
+ border-color:rgba(40,217,255,.75);box-shadow:0 0 0 4px rgba(40,217,255,.09),0 8px 28px rgba(0,0,0,.16);background:#102238
+}
+#page-social .field{margin:17px 0}
+#page-social .field label{display:block;margin:0 0 9px 3px;color:#b8cbe2;font-size:12px;font-weight:700;letter-spacing:.25px}
+#page-social .panel,#page-social .social-card{border:1px solid var(--social-line);border-radius:22px;background:linear-gradient(155deg,rgba(19,34,55,.96),rgba(10,19,33,.96));box-shadow:0 18px 50px rgba(0,0,0,.2)}
+#page-social .btn{border-radius:14px;min-height:43px;font-weight:700;letter-spacing:.1px;transition:transform .18s,filter .18s,box-shadow .18s}
+#page-social .btn:hover{transform:translateY(-2px);filter:brightness(1.1);box-shadow:0 9px 24px rgba(40,160,255,.16)}
+#page-social .btn.secondary{border:1px solid rgba(112,160,210,.24);background:rgba(31,53,78,.68);color:#dcecff}
+#page-social .form-grid{gap:18px}
+#page-social .comment-form input{border-radius:999px;padding-left:19px}
+#page-social .create-trigger{border:1px solid rgba(40,217,255,.2);border-radius:20px;background:linear-gradient(110deg,rgba(18,49,72,.9),rgba(17,29,48,.95));padding:18px 20px}
+#page-social #social-profile{max-width:940px;margin:0 auto}
+#page-social #profileEditor{position:relative;overflow:hidden;padding:clamp(20px,4vw,34px);border-radius:26px}
+#page-social #profileEditor:before{content:"";position:absolute;inset:0 0 auto;height:5px;background:linear-gradient(90deg,#28d9ff,#397bff,#9b7bff)}
+#page-social #profileEditor h3{font-size:23px;margin:2px 0 24px;letter-spacing:-.4px}
+#page-social #profileEditor .field{margin:20px 0}
+#page-social #profilePhoto{display:block;width:100%;padding:14px;border:1px dashed rgba(40,217,255,.35);border-radius:16px;background:rgba(10,24,40,.7);color:#b9cde5}
+#page-social #profileEditor .hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+#page-social #profileMessage{border-radius:14px;padding:12px 15px;margin-top:18px}
+@media(max-width:640px){
+ #page-social #profileEditor{padding:19px;border-radius:20px}
+ #page-social #profileEditor .hero-actions>*{flex:1 1 100%}
+ #page-social .form-grid{grid-template-columns:1fr}
+ #page-social .panel{padding:17px}
+}
 </style>
 </head>
 <body>
