@@ -520,6 +520,9 @@ async function ensureSocialTables(env) {
   }
   try { await env.DB.prepare("ALTER TABLE social_users ADD COLUMN firebase_uid TEXT").run(); } catch {}
   await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
+  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_by TEXT").run(); } catch {}
 }
 
 function cleanUsername(value) {
@@ -3663,8 +3666,8 @@ export default {
       }
 
       if (path.startsWith("/admin/")) {
-        await ensureAdminSessionTable(env);
         await ensureSocialTables(env);
+        await ensureAdminSessionTable(env);
       }
 
       if (path === "/admin/overview" && method === "GET") {
@@ -3707,7 +3710,7 @@ export default {
         }))});
       }
 
-      const adminReportMatch = path.match(/^\\/admin\\/reports\\/([^/]+)$/);
+      const adminReportMatch = path.match(/^\/admin\/reports\/([^/]+)$/);
       if (adminReportMatch && method === "PUT") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
@@ -3740,6 +3743,20 @@ export default {
           id:s.id,uid:s.uid,username:s.username,createdAt:s.created_at,
           expiresAt:s.expires_at,revoked:Boolean(s.revoked_at)
         }))});
+      }
+
+      const adminSecurityMatch = path.match(/^\/admin\/security\/([^/]+)$/);
+      if (adminSecurityMatch && method === "DELETE") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const token = getBearer(request);
+        const currentHash = await sha256(token);
+        const sessionId = decodeURIComponent(adminSecurityMatch[1]);
+        const result = await env.DB.prepare("UPDATE admin_sessions SET revoked_at=? WHERE id=? AND token_hash!=? AND revoked_at IS NULL")
+          .bind(Math.floor(Date.now()/1000),sessionId,currentHash).run();
+        if (!result.meta || result.meta.changes===0) return error("Session not found or current session cannot be revoked here",404);
+        await writeAdminAudit(env,admin,"admin_session_revoked","admin_session",sessionId,"Another admin session was revoked");
+        return json({success:true,revoked:true});
       }
 
       if (path === "/admin/settings" && method === "GET") {
