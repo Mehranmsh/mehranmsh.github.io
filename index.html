@@ -817,8 +817,7 @@ async function loadAdminSettings(){
   $("adminSettingsMessage").className="notice error";
  }
 }
-async function loadAdminUsers(){
-const message=$("adminUsersMessage"),list=$("adminUsersList");
+$("refreshAdminOverview").addEventListener("click",loadAdminOverview);
 $("adminReportFilter").addEventListener("change",loadAdminReports);
 $("adminReportsList").addEventListener("click",async e=>{
 const b=e.target.closest("[data-report-status]");if(!b)return;b.disabled=true;
