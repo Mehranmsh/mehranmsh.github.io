@@ -1231,7 +1231,7 @@ stage="Pi Browser authorization";
 const auth=await window.Pi.authenticate(["username"],async()=>{});
 if(!auth?.accessToken)throw new Error("Pi did not return an access token.");
 stage="SOCIAL server verification";
-const result=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:{...socialHeaders(),"Content-Type":"application/json","Accept":"application/json","Cache-Control":"no-cache"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
+const result=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:{...socialHeaders(),"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
 const responseText=await result.text();
 let data={};try{data=JSON.parse(responseText)}catch{}
 if(!result.ok)throw new Error((data.message||data.error||responseText.trim().slice(0,300)||"Empty server response")+" (HTTP "+result.status+", "+(result.headers.get("content-type")||"unknown content type")+")");
