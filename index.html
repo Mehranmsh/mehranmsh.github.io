@@ -948,6 +948,29 @@ $("languageBtn").textContent="EN / FA";
 }
 });
 $("authModal").addEventListener("click",e=>{if(e.target===$("authModal"))closeAuth()});
+/* MEHRAN_GLOBAL_CLICK_RECOVERY */
+document.addEventListener("click",event=>{
+ const target=event.target instanceof Element?event.target:null;
+ if(!target)return;
+ const pageButton=target.closest("[data-page]");
+ const languageButton=target.closest("#languageBtn");
+ const socialButton=target.closest("[data-social]");
+ if(!pageButton&&!languageButton&&!socialButton)return;
+ event.preventDefault();
+ event.stopImmediatePropagation();
+ if(pageButton){showPage(pageButton.dataset.page);return}
+ if(languageButton){
+  currentLanguage=currentLanguage==="en"?"fa":"en";
+  const isFa=currentLanguage==="fa";
+  document.documentElement.lang=isFa?"fa":"en";
+  document.documentElement.dir=isFa?"rtl":"ltr";
+  $("heroTitle").textContent=isFa?"یک مرکز، امکانات بی‌نهایت":"One Hub. Many Possibilities.";
+  $("heroText").textContent=isFa?"MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.":"MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";
+  $("languageBtn").textContent=isFa?"FA / EN":"EN / FA";
+  return;
+ }
+ if(socialButton)switchSocial(socialButton.dataset.social);
+},true);
 updateAccountUI();
 socialMe();
 renderSocial();
