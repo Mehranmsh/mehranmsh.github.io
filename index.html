@@ -246,15 +246,7 @@
  #page-social .file-pick-cta{padding:9px 10px!important;font-size:10px!important}
 }
 
-/* Accessible picker: keep the native input focusable; JS forwards a trusted card tap. */
-#page-social label.file-dropzone{position:relative!important;cursor:pointer!important}
-#page-social label.file-dropzone input[type=file]{
- position:absolute!important;width:1px!important;height:1px!important;
- padding:0!important;margin:-1px!important;overflow:hidden!important;
- clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;
- white-space:nowrap!important;border:0!important;opacity:0!important;
-}
-#page-social .file-dropzone *{pointer-events:none!important}
+/* Keep focus styling; the full-card native input overlay is defined below. */
 #page-social label.file-dropzone:focus-within{outline:3px solid rgba(50,210,255,.2)!important}
 </style>
 </head>
