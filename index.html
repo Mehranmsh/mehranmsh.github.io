@@ -303,6 +303,36 @@
  #page-social #profileEditor .profile-live-preview{gap:11px!important;padding:13px!important}
  #socialAvatarLightbox .avatar-lightbox-close{width:48px!important;height:48px!important;top:max(12px,env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}
 }
+
+/* Final SOCIAL editor hierarchy: stronger, unmistakable panel treatment. */
+html body #page-social #profileEditor.profile-editor-panel:not(.hidden){
+ display:block!important;position:relative!important;isolation:isolate!important;
+ padding:clamp(20px,4vw,32px)!important;margin:24px 0!important;
+ border:1px solid rgba(65,211,255,.48)!important;border-radius:28px!important;
+ background:linear-gradient(145deg,#142b46 0%,#0c1b30 52%,#10172d 100%)!important;
+ box-shadow:0 24px 70px rgba(0,0,0,.42),0 0 34px rgba(24,174,231,.12),inset 0 1px rgba(255,255,255,.08)!important;
+}
+html body #page-social #profileEditor .profile-editor-grid>.field{
+ padding:19px!important;border-radius:20px!important;
+ background:linear-gradient(145deg,rgba(25,48,74,.98),rgba(12,27,46,.98))!important;
+ border:1px solid rgba(117,192,231,.24)!important;
+ box-shadow:0 10px 26px rgba(0,0,0,.18)!important;
+}
+html body #page-social #profileEditor .profile-live-preview{
+ display:flex!important;align-items:center!important;gap:16px!important;
+ border-radius:22px!important;padding:20px!important;
+ background:linear-gradient(110deg,rgba(20,132,173,.24),rgba(74,85,170,.2))!important;
+ border:1px solid rgba(91,216,255,.32)!important;
+}
+html body #page-social #profileEditor input:not([type=file]),
+html body #page-social #profileEditor textarea{
+ border-radius:15px!important;background:#071426!important;
+ border:1px solid rgba(104,190,235,.34)!important;min-height:50px!important;
+}
+html body #page-social #profileEditor .profile-editor-actions .btn{
+ min-height:48px!important;border-radius:15px!important;font-weight:800!important;
+}
+#socialAvatarLightbox .avatar-lightbox-close{z-index:2147483647!important;pointer-events:auto!important}
 </style>
 </head>
 <body>
@@ -1333,7 +1363,7 @@ $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer)
 const prevSwitch=window.switchSocial;window.switchSocial=function(name){prevSwitch(name);if(name==="feed")socialLoadStories();if(name==="messages"||name==="groups")socialLoadConversations();if(name==="channels")socialLoadChannels();if(name==="bots")socialLoadBots();if(name==="settings"){socialLoadPrivacy();socialLoadRequests();}};
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(socialUser)socialLoadStories();};
 
-</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div><script>
+</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img id="socialAvatarLightboxImage" class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div><script>
 /* SOCIAL media and avatar controls: explicit delegated activation for mobile WebViews. */
 (()=>{
  const lightbox=document.getElementById("socialAvatarLightbox");
