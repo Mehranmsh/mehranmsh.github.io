@@ -1009,14 +1009,23 @@ $("profilePreviewName").textContent=name;$("profilePreviewHandle").textContent="
 $("profilePreviewBio").textContent=bio||"Your bio will appear here...";
 $("profileBioCount").textContent=String(bio.length);
 }
+function syncPiVerificationUI(){
+const button=$("verifyCreatorBtn");
+if(!button)return;
+const verified=!!(socialUser?.piVerified||profileData?.piVerified);
+button.disabled=verified;
+button.textContent=verified?"✓ Pi identity verified":"✦ Verify with Pi";
+button.title=verified?"Your Pi identity is already verified for this SOCIAL account.":"Verify your Pi identity once to enable the Creator badge.";
+}
 async function renderProfile(){
 const logged=!!socialUser;
 $("profileLoginNotice").classList.toggle("hidden",logged);
 $("ownProfileView").classList.toggle("hidden",!logged);
 $("publicProfile").classList.add("hidden");
 $("profileEditor").classList.add("hidden");
-if(!logged)return;
+if(!logged){syncPiVerificationUI();return}
 try{const d=await socialRequest("/profile/"+encodeURIComponent(socialUser.username));profileData=d.profile||null;if(profileData){socialUser={...socialUser,...profileData};localProfile={...localProfile,displayName:profileData.displayName||"",bio:profileData.bio||"",photo:profileData.avatarUrl||""};saveJSON(SOCIAL_PROFILE_KEY,localProfile);}}catch(e){console.warn("Profile refresh:",e.message);profileData={...socialUser,counts:{posts:0,followers:0,following:0}}}
+syncPiVerificationUI();
 const p=profileData||socialUser,name=p.displayName||p.username||"Your name",bio=p.bio||"",avatar=p.avatarUrl||localProfile.photo||"";socialProfileGallery=Array.isArray(p.gallery)?p.gallery.map(x=>({id:x.id,url:x.url})):[];
 $("profileHeroName").textContent=name;$("profileHeroHandle").textContent="@"+(p.username||socialUser.username);
 $("profileHeroBio").textContent=bio||"A little mystery, a lot of possibility. Add a bio to tell your story.";
@@ -1209,10 +1218,12 @@ const result=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:socialHead
 const data=await result.json().catch(()=>({}));
 if(!result.ok)throw new Error(data.message||"Pi verification failed");
 await socialMe();
+await renderProfile();
+syncPiVerificationUI();
 message.textContent="Creator identity verified. Your Creator badge is now active.";
 message.className="notice success";
 }catch(error){message.textContent=error.message||"Pi verification failed.";message.className="notice error"}
-finally{button.disabled=false}
+finally{syncPiVerificationUI();if(!socialUser?.piVerified&&!profileData?.piVerified)button.disabled=false}
 });
 $("removePhotoBtn").addEventListener("click",async()=>{
 if(!socialUser)return;
