@@ -93,7 +93,7 @@
 
 <div class="social-view" id="social-reels"><div class="section-title"><h2>Reels</h2><span class="small-text">Short video discovery</span></div><div class="notice warn">Reels currently displays video posts saved locally on this device. Public video discovery and upload storage are not connected yet.</div><div id="reelsList"></div></div>
 
-<div class="social-view" id="social-profile"><div id="profileLoginNotice" class="empty">Sign in to edit your profile. You can still browse the SOCIAL feed as a guest.</div><div id="profileEditor" class="panel hidden"><h3>Your Profile</h3><div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div><div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div><div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div><div id="profileMessage" class="notice">Your profile details are stored on this device.</div></div></div>
+<div class="social-view" id="social-profile"><div id="profileLoginNotice" class="empty">Sign in to edit your profile. You can still browse the SOCIAL feed as a guest.</div><div id="profileEditor" class="panel hidden"><h3>Your Profile</h3><div class="field"><label>Display name</label><input id="profileDisplayName" maxlength="50"></div><div class="field"><label>Bio</label><textarea id="profileBio" maxlength="250" placeholder="Tell people a little about yourself"></textarea></div><div class="field"><label>Profile photo (max 700 KB)</label><input type="file" id="profilePhoto" accept="image/*"></div><div class="hero-actions"><button class="btn" id="saveProfileBtn">Save profile</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button></div><div class="hero-actions"><button class="btn secondary" id="verifyCreatorBtn">Verify Creator badge with Pi</button></div><div id="profileMessage" class="notice">Your profile details are stored on this device.</div></div></div>
 
 <div class="social-view" id="social-messages"><div class="panel"><h2>Messages</h2><p class="small-text">Private conversations, direct messages and future group chats.</p><div class="notice warn">Messaging interface is planned. Real-time delivery, inbox storage and notifications are not connected to the backend yet.</div><button class="btn" onclick="requireAuth('Start a conversation')">Sign in to continue</button></div></div>
 
@@ -742,6 +742,23 @@ renderSocial();renderProfile();
 $("profileMessage").textContent=error.message;
 $("profileMessage").className="notice error";
 }
+});
+$("verifyCreatorBtn").addEventListener("click",async()=>{
+const message=$("profileMessage"),button=$("verifyCreatorBtn");
+if(!socialUser){message.textContent="Sign in to SOCIAL first.";message.className="notice warn";return}
+if(!window.Pi){message.textContent="Open SOCIAL in Pi Browser to verify your Pi identity.";message.className="notice warn";return}
+button.disabled=true;message.textContent="Verifying your Pi identity...";
+try{
+window.Pi.init({version:"2.0",sandbox:false});
+const auth=await window.Pi.authenticate(["username"],async()=>{});
+const result=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:socialHeaders(),body:JSON.stringify({accessToken:auth.accessToken})});
+const data=await result.json().catch(()=>({}));
+if(!result.ok)throw new Error(data.message||"Pi verification failed");
+await socialMe();
+message.textContent="Creator identity verified. Your Creator badge is now active.";
+message.className="notice success";
+}catch(error){message.textContent=error.message||"Pi verification failed.";message.className="notice error"}
+finally{button.disabled=false}
 });
 $("removePhotoBtn").addEventListener("click",()=>{
 delete localProfile.photo;saveJSON(SOCIAL_PROFILE_KEY,localProfile);
