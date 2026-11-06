@@ -941,7 +941,7 @@ async function getProfileByUsername(username, viewerId, env) {
   ).bind(profile.id).first();
 
   const galleryResult = await env.DB.prepare(
-    "SELECT id,photo_url,sort_order,created_at FROM social_profile_photos WHERE user_id=? ORDER BY sort_order ASC,created_at ASC LIMIT 12"
+    "SELECT id,photo_url,sort_order,created_at FROM social_profile_photos WHERE user_id=? ORDER BY sort_order ASC,created_at ASC"
   ).bind(profile.id).all();
   const gallery = (galleryResult.results || []).map(row => ({
     id: row.id,
@@ -1009,7 +1009,7 @@ async function socialUpdateProfile(request, env) {
   const displayName = cleanText(body.displayName, 60);
   const bio = cleanText(body.bio, 500);
   const avatarUrl = String(body.avatarUrl || "").trim();
-  const galleryInput = Array.isArray(body.gallery) ? body.gallery.slice(0,12) : null;
+  const galleryInput = Array.isArray(body.gallery) ? body.gallery : null;
 
   if (avatarUrl && !validHttpsUrl(avatarUrl)) {
     return error("Avatar must be a valid HTTPS URL");
