@@ -1199,7 +1199,7 @@ $("createModal").classList.add("open");document.body.style.overflow="hidden";
 function closeCreate(){
 $("createModal").classList.remove("open");document.body.style.overflow="";draftFiles=[];
 }
-$("openCreatePost").addEventListener("click",openCreate);
+$("openCreatePost")?.addEventListener("click",openCreate);
 $("closeCreate").addEventListener("click",closeCreate);
 $("cancelPostBtn").addEventListener("click",closeCreate);
 $("postMediaInput").addEventListener("change",async e=>{
