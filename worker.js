@@ -918,6 +918,8 @@ async function notify(env, userId, actorId, type, targetId, message = "") {
     : /group|channel|invite/.test(t) ? "groups"
     : null;
   if (key && prefs.notifications && prefs.notifications[key] === false) return;
+  if (/group.*invite|invite.*group/.test(t) && prefs.community?.groupInvites === false) return;
+  if (/channel.*invite|invite.*channel/.test(t) && prefs.community?.channelInvites === false) return;
 
   await env.DB.prepare(`
     INSERT INTO social_notifications(id,user_id,actor_id,type,target_id,message)
