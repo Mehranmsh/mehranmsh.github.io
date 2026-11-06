@@ -1,4 +1,5 @@
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
+const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const RAPIDFILE_API = "https://api.rapidfile.cc/v1";
 
@@ -249,7 +250,8 @@ async function ensureSocialTables(env) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       email_verified INTEGER NOT NULL DEFAULT 0,
-      email_verified_at TEXT
+      email_verified_at TEXT,
+      firebase_uid TEXT
     )`,
 
     `CREATE TABLE IF NOT EXISTS social_sessions(
@@ -516,6 +518,8 @@ async function ensureSocialTables(env) {
   for (const statement of statements) {
     await env.DB.prepare(statement).run();
   }
+  try { await env.DB.prepare("ALTER TABLE social_users ADD COLUMN firebase_uid TEXT").run(); } catch {}
+  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
 }
 
 function cleanUsername(value) {
@@ -658,6 +662,85 @@ async function socialRegister(request, env) {
       emailVerified: false
     }
   }, 201);
+}
+
+async function socialFirebaseSession(request, env) {
+  if (!await checkRateLimit(env, request, "firebase-session", 20, 900, 900)) {
+    return error("Too many sign-in attempts. Try again later.", 429);
+  }
+  const body = await readBody(request);
+  if (!body || typeof body.idToken !== "string" || body.idToken.length < 100 || body.idToken.length > 10000) {
+    return error("A valid Firebase sign-in token is required.", 400);
+  }
+  let lookup;
+  try {
+    const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken: body.idToken })
+    });
+    lookup = await response.json();
+    if (!response.ok) return error("Firebase authentication failed.", 401);
+  } catch {
+    return error("Could not verify your Firebase session. Please try again.", 503);
+  }
+  const identity = lookup && Array.isArray(lookup.users) ? lookup.users[0] : null;
+  if (!identity || identity.disabled || identity.emailVerified !== true || !identity.localId || !validEmail(cleanEmail(identity.email || ""))) {
+    return error("Please verify your email address before signing in.", 403);
+  }
+  const email = cleanEmail(identity.email);
+  let user = await env.DB.prepare(
+    "SELECT id,username,email,display_name,is_active,firebase_uid FROM social_users WHERE firebase_uid=? LIMIT 1"
+  ).bind(identity.localId).first();
+  if (!user) {
+    user = await env.DB.prepare(
+      "SELECT id,username,email,display_name,is_active,firebase_uid FROM social_users WHERE email=? LIMIT 1"
+    ).bind(email).first();
+    if (user && user.firebase_uid && user.firebase_uid !== identity.localId) {
+      return error("This email is already linked to another sign-in identity. Contact support.", 409);
+    }
+    if (user) {
+      await env.DB.prepare(
+        "UPDATE social_users SET firebase_uid=?,email_verified=1,email_verified_at=COALESCE(email_verified_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE id=?"
+      ).bind(identity.localId, user.id).run();
+    }
+  }
+  if (!user) {
+    const username = cleanUsername(body.username);
+    const displayName = cleanText(body.displayName || username, 60);
+    if (!validUsername(username)) return error("Choose a username with 3 to 24 letters, numbers or underscores.", 400);
+    const conflict = await env.DB.prepare("SELECT id FROM social_users WHERE username=? LIMIT 1").bind(username).first();
+    if (conflict) return error("That username is already taken. Please choose another.", 409);
+    const id = crypto.randomUUID();
+    const randomPassword = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+    const passwordHash = await hashPassword(randomPassword);
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO social_users(id,username,email,password_hash,display_name,email_verified,email_verified_at,firebase_uid)
+          VALUES(?,?,?,?,?,1,CURRENT_TIMESTAMP,?)`).bind(id, username, email, passwordHash, displayName, identity.localId),
+        env.DB.prepare("INSERT INTO social_user_settings(user_id) VALUES(?)").bind(id)
+      ]);
+    } catch (err) {
+      console.error("SOCIAL_FIREBASE_USER_CREATE_FAILURE", err);
+      return error("Could not finish creating your SOCIAL profile. Please try again.", 500);
+    }
+    user = { id, username, email, display_name: displayName, is_active: 1, firebase_uid: identity.localId };
+  }
+  if (!user.is_active) return error("This SOCIAL account is disabled.", 403);
+  const session = await createSocialSession(env, user.id);
+  return json({
+    success: true,
+    message: "Signed in successfully.",
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      displayName: user.display_name || "",
+      emailVerified: true
+    }
+  });
 }
 
 async function socialLogin(request, env) {
@@ -3099,6 +3182,10 @@ export default {
 
         if (path === "/social/register" && method === "POST") {
           return await socialRegister(request, env);
+        }
+
+        if (path === "/social/firebase/session" && method === "POST") {
+          return await socialFirebaseSession(request, env);
         }
 
         if (path === "/social/login" && method === "POST") {
