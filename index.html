@@ -418,6 +418,31 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  #createModal .modal-box>.field:not(.post-media-field),#createModal .modal-box>.notice,#createModal .modal-box>.hero-actions{margin-left:18px!important;margin-right:18px!important}
 }
 </style>
+
+<style id="social-source-chooser-styles">
+.social-source-overlay{position:fixed;inset:0;z-index:2147483000;display:none;align-items:flex-end;justify-content:center;padding:16px;background:rgba(1,7,16,.72);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+.social-source-overlay.open{display:flex}
+.social-source-sheet{width:min(440px,100%);padding:12px 18px 18px;border:1px solid rgba(105,198,237,.24);border-radius:25px;background:linear-gradient(155deg,#142b43,#091626 78%);box-shadow:0 24px 90px rgba(0,0,0,.55),0 0 36px rgba(32,174,220,.09);animation:socialSourceRise .2s ease-out}
+@keyframes socialSourceRise{from{transform:translateY(18px);opacity:.5}to{transform:translateY(0);opacity:1}}
+.social-source-grabber{width:38px;height:4px;margin:0 auto 18px;border-radius:9px;background:#57718b}
+.social-source-heading{display:flex;align-items:center;gap:12px;margin-bottom:17px}
+.social-source-mark{display:grid;place-items:center;width:43px;height:43px;flex:none;border-radius:14px;background:linear-gradient(145deg,rgba(41,205,244,.2),rgba(91,107,233,.2));border:1px solid rgba(100,214,245,.25);color:#8beaff;font-size:25px}
+.social-source-heading>div{min-width:0;flex:1}
+.social-source-heading h3{margin:0;color:#f0f8ff;font-size:16px;font-weight:850}
+.social-source-heading p{margin:4px 0 0;color:#91aac2;font-size:11px}
+.social-source-close{width:34px;height:34px;border:1px solid rgba(180,215,240,.13);border-radius:11px;background:rgba(255,255,255,.06);color:#e8f5ff;font-size:23px}
+.social-source-option{display:flex;align-items:center;gap:13px;width:100%;padding:14px 13px;margin-top:9px;text-align:left;border:1px solid rgba(120,180,215,.15);border-radius:16px;background:rgba(255,255,255,.035);color:#edf7ff}
+.social-source-option:active{background:rgba(42,175,220,.13);border-color:rgba(88,210,244,.45)}
+.social-source-option-icon{display:grid;place-items:center;width:43px;height:43px;flex:none;border-radius:13px;font-size:21px}
+.social-source-option-icon.camera{background:rgba(49,192,222,.13);color:#78e7f6}
+.social-source-option-icon.files{background:rgba(112,127,235,.15);color:#b4c1ff}
+.social-source-option>span:nth-child(2){display:grid;gap:4px;flex:1}
+.social-source-option strong{font-size:13px;font-weight:850}
+.social-source-option small{font-size:10px;color:#94abc2}
+.social-source-option>b{font-size:23px;font-weight:400;color:#7294ae}
+.social-source-footnote{margin:15px 2px 0;text-align:center;color:#6f89a3;font-size:10px;line-height:1.5}
+@media(min-width:700px){.social-source-overlay{align-items:center}.social-source-sheet{border-radius:25px}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1588,5 +1613,47 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(
 
 
 
+
+<div id="socialMediaSourceChooser" class="social-source-overlay" aria-hidden="true">
+ <div class="social-source-sheet" role="dialog" aria-modal="true" aria-labelledby="socialSourceTitle">
+  <div class="social-source-grabber"></div>
+  <div class="social-source-heading"><span class="social-source-mark">＋</span><div><h3 id="socialSourceTitle">Add a photo or video</h3><p>Choose where you want to select media from</p></div><button type="button" class="social-source-close" aria-label="Close">×</button></div>
+  <button type="button" class="social-source-option" data-social-source="camera"><span class="social-source-option-icon camera">◉</span><span><strong>Camera</strong><small>Take a new photo or video</small></span><b>›</b></button>
+  <button type="button" class="social-source-option" data-social-source="files"><span class="social-source-option-icon files">▤</span><span><strong>Files</strong><small>Choose from your device</small></span><b>›</b></button>
+  <p class="social-source-footnote">Your media stays under your control until you choose to share it.</p>
+ </div>
+</div>
+
+<script>
+(()=>{
+ const overlay=document.getElementById("socialMediaSourceChooser");
+ if(!overlay)return;
+ let activeInput=null;
+ const close=()=>{overlay.classList.remove("open");overlay.setAttribute("aria-hidden","true");activeInput=null;};
+ const show=input=>{activeInput=input;const title=document.getElementById("socialSourceTitle");if(title)title.textContent=input.id==="postMediaInput"?"Add photos or videos":input.id==="profileGalleryInput"?"Add photos to your gallery":"Choose a profile photo";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");};
+ document.addEventListener("click",e=>{
+  const el=e.target instanceof Element?e.target:null;if(!el)return;
+  const label=el.closest('label[for="profilePhoto"],label[for="profileGalleryInput"],label[for="postMediaInput"]');
+  if(!label)return;
+  const input=document.getElementById(label.getAttribute("for"));if(!input)return;
+  e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();show(input);
+ },true);
+ overlay.addEventListener("click",e=>{if(e.target===overlay||e.target.closest(".social-source-close"))close();});
+ overlay.querySelector('[data-social-source="files"]').addEventListener("click",()=>{
+  const target=activeInput;close();if(target)target.click();
+ });
+ overlay.querySelector('[data-social-source="camera"]').addEventListener("click",()=>{
+  const target=activeInput;if(!target){close();return;}
+  const camera=document.createElement("input");camera.type="file";camera.accept=target.id==="postMediaInput"?"image/*,video/*":"image/*";camera.setAttribute("capture","environment");
+  camera.addEventListener("change",()=>{
+   if(!camera.files||!camera.files.length)return;
+   try{const transfer=new DataTransfer();Array.from(camera.files).forEach(file=>transfer.items.add(file));target.files=transfer.files;target.dispatchEvent(new Event("change",{bubbles:true}));}
+   catch(err){console.error("SOCIAL camera file transfer failed",err);target.click();}
+  },{once:true});
+  close();camera.click();
+ });
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&overlay.classList.contains("open"))close();});
+})();
+</script>
 </body>
 </html>
