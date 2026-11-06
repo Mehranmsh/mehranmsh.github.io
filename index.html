@@ -807,7 +807,17 @@ list.innerHTML=events.length?'<div class="table-wrap"><table><thead><tr><th>TIME
 }catch(e){message.textContent="Audit log unavailable: "+e.message;message.className="notice error"}
 }
 async function loadAdminSettings(){
-try{const data=await api("/admin/settings");const s=data.settings||{};$("adminSettingsMessage").textContent=Object.entries(s).map(([k,v])=>k.replace(/[A-Z]/g," async function loadAdminUsers(){
+ try{
+  const data=await api("/admin/settings");
+  const s=data.settings||{};
+  $("adminSettingsMessage").textContent=Object.entries(s).map(([k,v])=>k.replace(/[A-Z]/g," $&")+": "+v).join(" · ");
+  $("adminSettingsMessage").className="notice success";
+ }catch(e){
+  $("adminSettingsMessage").textContent="Settings unavailable: "+e.message;
+  $("adminSettingsMessage").className="notice error";
+ }
+}
+async function loadAdminUsers(){
 const message=$("adminUsersMessage"),list=$("adminUsersList");")+": "+v).join(" · ");$("adminSettingsMessage").className="notice success"}
 catch(e){$("adminSettingsMessage").textContent="Settings unavailable: "+e.message;$("adminSettingsMessage").className="notice error"}
 }
