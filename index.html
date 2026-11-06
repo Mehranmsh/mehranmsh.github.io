@@ -1628,27 +1628,29 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(
 (()=>{
  const overlay=document.getElementById("socialMediaSourceChooser");
  if(!overlay)return;
- let activeInput=null;
+ let activeInput=null,bypassInput=null;
  const close=()=>{overlay.classList.remove("open");overlay.setAttribute("aria-hidden","true");activeInput=null;};
- const show=input=>{activeInput=input;const title=document.getElementById("socialSourceTitle");if(title)title.textContent=input.id==="postMediaInput"?"Add photos or videos":input.id==="profileGalleryInput"?"Add photos to your gallery":"Choose a profile photo";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");};
+ const show=input=>{activeInput=input;const title=document.getElementById("socialSourceTitle");if(title)title.textContent=input.id==="postMediaInput"?"Add photos or videos":input.id==="profileGalleryInput"?"Add photos to your gallery":input.id==="profilePhoto"?"Choose a profile photo":input.accept?.includes("video")?"Add a story":"Choose media";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");};
+ /* Intercept the actual file-input click, not only its label. This also covers
+    dynamically-created inputs such as the Story uploader in Android WebViews. */
  document.addEventListener("click",e=>{
-  const el=e.target instanceof Element?e.target:null;if(!el)return;
-  const label=el.closest('label[for="profilePhoto"],label[for="profileGalleryInput"],label[for="postMediaInput"]');
-  if(!label)return;
-  const input=document.getElementById(label.getAttribute("for"));if(!input)return;
-  e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();show(input);
+  const el=e.target instanceof Element?e.target:null;
+  const input=el?.closest('input[type="file"]');
+  if(!input||!document.getElementById("page-social")?.contains(input))return;
+  if(bypassInput===input){bypassInput=null;return;}
+  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();show(input);
  },true);
  overlay.addEventListener("click",e=>{if(e.target===overlay||e.target.closest(".social-source-close"))close();});
  overlay.querySelector('[data-social-source="files"]').addEventListener("click",()=>{
-  const target=activeInput;close();if(target)target.click();
+  const target=activeInput;close();if(target){bypassInput=target;target.click();}
  });
  overlay.querySelector('[data-social-source="camera"]').addEventListener("click",()=>{
   const target=activeInput;if(!target){close();return;}
-  const camera=document.createElement("input");camera.type="file";camera.accept=target.id==="postMediaInput"?"image/*,video/*":"image/*";camera.setAttribute("capture","environment");
+  const camera=document.createElement("input");camera.type="file";camera.accept=target.accept||"image/*";camera.setAttribute("capture","environment");
   camera.addEventListener("change",()=>{
    if(!camera.files||!camera.files.length)return;
    try{const transfer=new DataTransfer();Array.from(camera.files).forEach(file=>transfer.items.add(file));target.files=transfer.files;target.dispatchEvent(new Event("change",{bubbles:true}));}
-   catch(err){console.error("SOCIAL camera file transfer failed",err);target.click();}
+   catch(err){console.error("SOCIAL camera file transfer failed",err);bypassInput=target;target.click();}
   },{once:true});
   close();camera.click();
  });
