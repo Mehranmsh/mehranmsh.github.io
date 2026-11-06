@@ -249,6 +249,59 @@
 /* Keep focus styling; the full-card native input overlay is defined below. */
 #page-social label.file-dropzone:focus-within{outline:3px solid rgba(50,210,255,.2)!important}
 </style>
+<style id="social-profile-editor-refresh">
+/* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
+#page-social #profileEditor.profile-editor-panel{
+ display:block;position:relative;isolation:isolate;overflow:hidden;
+ padding:clamp(18px,3.8vw,30px)!important;margin:22px 0!important;
+ border:1px solid rgba(74,205,255,.34)!important;border-radius:26px!important;
+ background:radial-gradient(ellipse at 8% 0%,rgba(27,163,211,.18),transparent 42%),linear-gradient(155deg,#101f35 0%,#0a1425 58%,#101b30 100%)!important;
+ box-shadow:0 22px 65px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.05)!important;
+}
+#page-social #profileEditor .profile-editor-heading{align-items:center!important;padding-bottom:18px!important;border-bottom:1px solid rgba(150,205,235,.13)!important}
+#page-social #profileEditor .profile-editor-heading h2{font-size:clamp(23px,4vw,30px)!important;letter-spacing:-.8px!important;color:#f3faff!important}
+#page-social #profileEditor .profile-kicker{color:#61dcff!important;letter-spacing:2px!important;font-size:10px!important;font-weight:900!important}
+#page-social #profileEditor .profile-close-btn{width:42px!important;height:42px!important;border-radius:14px!important;background:rgba(255,255,255,.07)!important;border:1px solid rgba(255,255,255,.16)!important;color:#fff!important;font-size:25px!important}
+#page-social #profileEditor .profile-live-preview{padding:18px!important;margin:18px 0 22px!important;border-radius:20px!important;background:linear-gradient(115deg,rgba(22,94,125,.3),rgba(28,42,72,.52))!important;border:1px solid rgba(77,201,244,.24)!important}
+#page-social #profileEditor .profile-preview-avatar{width:62px!important;height:62px!important;flex:0 0 62px!important;border-radius:19px!important;overflow:hidden!important;border:2px solid rgba(96,220,255,.55)!important;box-shadow:0 8px 24px rgba(0,0,0,.25)!important}
+#page-social #profileEditor .profile-editor-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:15px!important;align-items:stretch!important}
+#page-social #profileEditor .profile-editor-grid>.field{min-width:0!important;margin:0!important;padding:17px!important;border:1px solid rgba(132,185,220,.16)!important;border-radius:19px!important;background:linear-gradient(145deg,rgba(22,43,67,.92),rgba(13,27,46,.94))!important}
+#page-social #profileEditor .profile-editor-grid>.field:nth-child(2),
+#page-social #profileEditor .profile-editor-grid>.profile-photo-field,
+#page-social #profileEditor .profile-editor-grid>.profile-gallery-field{grid-column:1/-1!important}
+#page-social #profileEditor .profile-editor-grid label:not(.profile-file-drop):not(.profile-gallery-add),
+#page-social #profileEditor .file-field-label{display:block!important;margin:0 0 10px!important;color:#d9edff!important;font-size:12px!important;font-weight:800!important;letter-spacing:.2px!important}
+#page-social #profileEditor input:not([type=file]),#page-social #profileEditor textarea{
+ display:block!important;width:100%!important;min-height:48px!important;padding:13px 15px!important;
+ border:1px solid rgba(119,176,215,.24)!important;border-radius:13px!important;
+ background:#091729!important;color:#f2f8ff!important;font-size:14px!important;box-shadow:inset 0 2px 8px rgba(0,0,0,.16)!important;
+}
+#page-social #profileEditor textarea{min-height:112px!important;resize:vertical!important}
+#page-social #profileEditor .profile-photo-field,#page-social #profileEditor .profile-gallery-field{padding:18px!important;border:1px solid rgba(67,196,239,.26)!important;border-radius:20px!important;background:linear-gradient(140deg,rgba(19,57,78,.62),rgba(12,25,43,.95))!important}
+#page-social #profileEditor label.profile-file-drop,#page-social #profileEditor label.profile-gallery-add{min-height:108px!important;border-radius:16px!important}
+#page-social #profileEditor .profile-gallery-add{border:1px dashed rgba(83,210,250,.58)!important;background:rgba(32,142,181,.13)!important}
+#page-social #profileEditor .profile-editor-actions{display:flex!important;flex-wrap:wrap!important;gap:10px!important;margin-top:20px!important;padding-top:18px!important;border-top:1px solid rgba(150,205,235,.13)!important}
+#page-social #profileEditor .profile-editor-actions .btn{min-height:45px!important;border-radius:13px!important;padding:11px 18px!important}
+#socialAvatarLightbox{z-index:2147483000!important}
+#socialAvatarLightbox .avatar-lightbox-close{
+ position:fixed!important;top:max(16px,env(safe-area-inset-top))!important;right:max(16px,env(safe-area-inset-right))!important;
+ z-index:2147483001!important;display:grid!important;place-items:center!important;
+ width:52px!important;height:52px!important;padding:0!important;border-radius:50%!important;
+ border:2px solid rgba(255,255,255,.75)!important;background:rgba(12,24,40,.94)!important;
+ color:#fff!important;font-size:34px!important;line-height:1!important;font-weight:400!important;
+ box-shadow:0 6px 28px rgba(0,0,0,.55)!important;cursor:pointer!important;pointer-events:auto!important;
+}
+#socialAvatarLightbox .avatar-lightbox-hint{bottom:max(18px,env(safe-area-inset-bottom))!important}
+@media(max-width:700px){
+ #page-social #profileEditor .profile-editor-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
+ #page-social #profileEditor .profile-editor-grid>.field,
+ #page-social #profileEditor .profile-editor-grid>.field:nth-child(2),
+ #page-social #profileEditor .profile-editor-grid>.profile-photo-field,
+ #page-social #profileEditor .profile-editor-grid>.profile-gallery-field{grid-column:1!important}
+ #page-social #profileEditor .profile-live-preview{gap:11px!important;padding:13px!important}
+ #socialAvatarLightbox .avatar-lightbox-close{width:48px!important;height:48px!important;top:max(12px,env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}
+}
+</style>
 </head>
 <body>
 <div class="app">
@@ -1399,59 +1452,7 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(
 @media(max-width:700px){#page-social label.profile-file-drop{display:grid!important;grid-template-columns:44px minmax(0,1fr)!important;gap:10px!important;padding:13px!important}#page-social .profile-file-drop .file-drop-icon{width:44px!important;height:44px!important}#page-social .profile-file-drop .file-pick-cta{grid-column:2;justify-self:start}}
 </style>
 
-<style id="social-profile-editor-refresh">
-/* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
-#page-social #profileEditor.profile-editor-panel{
- display:block;position:relative;isolation:isolate;overflow:hidden;
- padding:clamp(18px,3.8vw,30px)!important;margin:22px 0!important;
- border:1px solid rgba(74,205,255,.34)!important;border-radius:26px!important;
- background:radial-gradient(ellipse at 8% 0%,rgba(27,163,211,.18),transparent 42%),linear-gradient(155deg,#101f35 0%,#0a1425 58%,#101b30 100%)!important;
- box-shadow:0 22px 65px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.05)!important;
-}
-#page-social #profileEditor .profile-editor-heading{align-items:center!important;padding-bottom:18px!important;border-bottom:1px solid rgba(150,205,235,.13)!important}
-#page-social #profileEditor .profile-editor-heading h2{font-size:clamp(23px,4vw,30px)!important;letter-spacing:-.8px!important;color:#f3faff!important}
-#page-social #profileEditor .profile-kicker{color:#61dcff!important;letter-spacing:2px!important;font-size:10px!important;font-weight:900!important}
-#page-social #profileEditor .profile-close-btn{width:42px!important;height:42px!important;border-radius:14px!important;background:rgba(255,255,255,.07)!important;border:1px solid rgba(255,255,255,.16)!important;color:#fff!important;font-size:25px!important}
-#page-social #profileEditor .profile-live-preview{padding:18px!important;margin:18px 0 22px!important;border-radius:20px!important;background:linear-gradient(115deg,rgba(22,94,125,.3),rgba(28,42,72,.52))!important;border:1px solid rgba(77,201,244,.24)!important}
-#page-social #profileEditor .profile-preview-avatar{width:62px!important;height:62px!important;flex:0 0 62px!important;border-radius:19px!important;overflow:hidden!important;border:2px solid rgba(96,220,255,.55)!important;box-shadow:0 8px 24px rgba(0,0,0,.25)!important}
-#page-social #profileEditor .profile-editor-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:15px!important;align-items:stretch!important}
-#page-social #profileEditor .profile-editor-grid>.field{min-width:0!important;margin:0!important;padding:17px!important;border:1px solid rgba(132,185,220,.16)!important;border-radius:19px!important;background:linear-gradient(145deg,rgba(22,43,67,.92),rgba(13,27,46,.94))!important}
-#page-social #profileEditor .profile-editor-grid>.field:nth-child(2),
-#page-social #profileEditor .profile-editor-grid>.profile-photo-field,
-#page-social #profileEditor .profile-editor-grid>.profile-gallery-field{grid-column:1/-1!important}
-#page-social #profileEditor .profile-editor-grid label:not(.profile-file-drop):not(.profile-gallery-add),
-#page-social #profileEditor .file-field-label{display:block!important;margin:0 0 10px!important;color:#d9edff!important;font-size:12px!important;font-weight:800!important;letter-spacing:.2px!important}
-#page-social #profileEditor input:not([type=file]),#page-social #profileEditor textarea{
- display:block!important;width:100%!important;min-height:48px!important;padding:13px 15px!important;
- border:1px solid rgba(119,176,215,.24)!important;border-radius:13px!important;
- background:#091729!important;color:#f2f8ff!important;font-size:14px!important;box-shadow:inset 0 2px 8px rgba(0,0,0,.16)!important;
-}
-#page-social #profileEditor textarea{min-height:112px!important;resize:vertical!important}
-#page-social #profileEditor .profile-photo-field,#page-social #profileEditor .profile-gallery-field{padding:18px!important;border:1px solid rgba(67,196,239,.26)!important;border-radius:20px!important;background:linear-gradient(140deg,rgba(19,57,78,.62),rgba(12,25,43,.95))!important}
-#page-social #profileEditor label.profile-file-drop,#page-social #profileEditor label.profile-gallery-add{min-height:108px!important;border-radius:16px!important}
-#page-social #profileEditor .profile-gallery-add{border:1px dashed rgba(83,210,250,.58)!important;background:rgba(32,142,181,.13)!important}
-#page-social #profileEditor .profile-editor-actions{display:flex!important;flex-wrap:wrap!important;gap:10px!important;margin-top:20px!important;padding-top:18px!important;border-top:1px solid rgba(150,205,235,.13)!important}
-#page-social #profileEditor .profile-editor-actions .btn{min-height:45px!important;border-radius:13px!important;padding:11px 18px!important}
-#socialAvatarLightbox{z-index:2147483000!important}
-#socialAvatarLightbox .avatar-lightbox-close{
- position:fixed!important;top:max(16px,env(safe-area-inset-top))!important;right:max(16px,env(safe-area-inset-right))!important;
- z-index:2147483001!important;display:grid!important;place-items:center!important;
- width:52px!important;height:52px!important;padding:0!important;border-radius:50%!important;
- border:2px solid rgba(255,255,255,.75)!important;background:rgba(12,24,40,.94)!important;
- color:#fff!important;font-size:34px!important;line-height:1!important;font-weight:400!important;
- box-shadow:0 6px 28px rgba(0,0,0,.55)!important;cursor:pointer!important;pointer-events:auto!important;
-}
-#socialAvatarLightbox .avatar-lightbox-hint{bottom:max(18px,env(safe-area-inset-bottom))!important}
-@media(max-width:700px){
- #page-social #profileEditor .profile-editor-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px!important}
- #page-social #profileEditor .profile-editor-grid>.field,
- #page-social #profileEditor .profile-editor-grid>.field:nth-child(2),
- #page-social #profileEditor .profile-editor-grid>.profile-photo-field,
- #page-social #profileEditor .profile-editor-grid>.profile-gallery-field{grid-column:1!important}
- #page-social #profileEditor .profile-live-preview{gap:11px!important;padding:13px!important}
- #socialAvatarLightbox .avatar-lightbox-close{width:48px!important;height:48px!important;top:max(12px,env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}
-}
-</style>
+
 
 </body>
 </html>
