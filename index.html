@@ -199,6 +199,46 @@
 #socialAvatarLightbox .avatar-lightbox-close{position:absolute;top:20px;right:20px;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(20,35,55,.85);color:#fff;font-size:28px;cursor:pointer}
 #socialAvatarLightbox .avatar-lightbox-hint{position:absolute;bottom:20px;color:#a8bfd8;font-size:12px}
 
+
+/* SOCIAL media picker refresh: polished creator-style upload panels */
+#page-social .profile-file-drop,#page-social .post-file-drop{
+ min-height:116px!important;gap:16px!important;padding:18px 20px!important;
+ border:1px solid rgba(100,190,255,.2)!important;border-radius:22px!important;
+ background:radial-gradient(ellipse at 12% 0%,rgba(43,195,255,.16),transparent 48%),linear-gradient(145deg,#132b45 0%,#0b192b 100%)!important;
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 12px 30px rgba(0,0,0,.14)!important;
+}
+#page-social .profile-file-drop:hover,#page-social .post-file-drop:hover{
+ border-color:rgba(65,215,255,.65)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 15px 36px rgba(0,0,0,.22),0 0 0 3px rgba(48,194,255,.06)!important;
+}
+#page-social .profile-upload-icon,#page-social .post-upload-icon{
+ width:56px!important;height:56px!important;flex-basis:56px!important;border-radius:18px!important;
+ font-size:31px!important;background:linear-gradient(145deg,rgba(38,211,255,.2),rgba(85,103,255,.2))!important;
+ color:#83eaff!important;border:1px solid rgba(111,218,255,.28)!important;
+}
+#page-social .file-drop-copy{gap:6px!important}
+#page-social .file-drop-copy strong{font-size:14px!important;letter-spacing:-.2px}
+#page-social .file-drop-copy small{font-size:11px!important;color:#a0b8d1!important}
+#page-social .file-picker-note{font-size:10px;font-style:normal;color:#69d9f5;letter-spacing:.1px}
+#page-social .file-pick-cta{
+ display:flex!important;align-items:center;gap:7px;padding:11px 14px!important;
+ border:1px solid rgba(77,213,255,.3)!important;border-radius:14px!important;
+ background:linear-gradient(135deg,rgba(33,157,207,.22),rgba(69,105,224,.16))!important;
+ color:#a0efff!important;font-size:11px!important;font-weight:850!important;
+}
+#page-social .file-pick-cta b{font-size:17px;line-height:10px}
+#page-social .file-selection-status{margin:10px 4px 2px!important;padding:8px 11px;border-radius:11px;background:rgba(255,255,255,.025);font-size:11px!important}
+#page-social .file-selection-status.has-files{background:rgba(44,190,145,.08);color:#8aefc8!important}
+#page-social #uploadPreview{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:10px!important;padding:12px 0!important}
+#page-social #uploadPreview img,#page-social #uploadPreview video{width:100%!important;height:112px!important;border-radius:16px!important;border:1px solid rgba(111,201,245,.25)!important;object-fit:cover}
+@media(max-width:560px){
+ #page-social .profile-file-drop,#page-social .post-file-drop{min-height:104px!important;padding:14px!important;gap:11px!important;border-radius:18px!important}
+ #page-social .profile-upload-icon,#page-social .post-upload-icon{width:46px!important;height:46px!important;flex-basis:46px!important;border-radius:15px!important;font-size:26px!important}
+ #page-social .file-drop-copy strong{font-size:12px!important}
+ #page-social .file-drop-copy small{font-size:10px!important}
+ #page-social .file-picker-note{font-size:9px}
+ #page-social .file-pick-cta{padding:9px 10px!important;font-size:10px!important}
+}
+
 </style>
 </head>
 <body>
@@ -271,7 +311,7 @@
 <div id="profileEditor" class="profile-editor-panel hidden">
  <div class="profile-editor-heading"><div><span class="profile-kicker">MAKE IT YOURS</span><h2>Edit your profile</h2><p>Let people know the person behind the posts.</p></div><button class="profile-close-btn" id="closeProfileEditor" aria-label="Close">×</button></div>
  <div class="profile-live-preview"><div class="profile-preview-avatar" id="profilePreviewAvatar">M</div><div><strong id="profilePreviewName">Your name</strong><span id="profilePreviewHandle">@username</span><p id="profilePreviewBio">Your bio will appear here...</p></div><span class="preview-live-tag">LIVE PREVIEW</span></div>
- <div class="profile-editor-grid"><div class="field"><label for="profileDisplayName">Display name</label><input id="profileDisplayName" maxlength="60" placeholder="What should people call you?"></div><div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="500" placeholder="A few words that feel like you..."></textarea><div class="profile-char-count"><span id="profileBioCount">0</span>/500</div></div><div class="field profile-photo-field"><span class="file-field-label">Profile photo</span><label class="file-dropzone profile-file-drop" for="profilePhoto"><span class="file-drop-icon">✦</span><span class="file-drop-copy"><strong>Choose a profile photo</strong><small>JPG, PNG or WEBP · up to 700 KB</small></span><span class="file-pick-cta">Browse</span><input type="file" id="profilePhoto" accept="image/*"></label><div class="file-selection-status" id="profileFileStatus">No photo selected yet</div></div></div>
+ <div class="profile-editor-grid"><div class="field"><label for="profileDisplayName">Display name</label><input id="profileDisplayName" maxlength="60" placeholder="What should people call you?"></div><div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="500" placeholder="A few words that feel like you..."></textarea><div class="profile-char-count"><span id="profileBioCount">0</span>/500</div></div><div class="field profile-photo-field"><span class="file-field-label">Profile photo</span><label class="file-dropzone profile-file-drop" for="profilePhoto"><span class="file-drop-icon profile-upload-icon">◎</span><span class="file-drop-copy"><strong>Update your profile photo</strong><small>Make it easy for people to recognize you · JPG, PNG or WEBP</small><em class="file-picker-note">Tap to choose from your gallery</em></span><span class="file-pick-cta">Choose photo <b>＋</b></span><input type="file" id="profilePhoto" accept="image/*"></label><div class="file-selection-status" id="profileFileStatus">No photo selected yet</div></div></div>
  <div class="profile-editor-actions"><button class="btn" id="saveProfileBtn">Save changes</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button><button class="btn secondary" id="verifyCreatorBtn">✦ Verify with Pi</button></div><div id="profileMessage" class="notice">Your profile changes will be saved to your SOCIAL account.</div>
 </div>
 </div>
@@ -315,7 +355,7 @@
 
 <div class="modal" id="authModal"><div class="modal-box"><div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div><p class="small-text">Create an account or sign in to interact with SOCIAL.</p><div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div><div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 10 characters" autocomplete="new-password"></div><div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div><div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div class="small-text" style="margin-top:14px;text-align:center"><span id="authSwitchText">Don't have an account?</span><button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button></div><div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div><div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div></div></div>
 
-<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><div class="field post-media-field"><span class="file-field-label">Add photos or videos</span><label class="file-dropzone post-file-drop" for="postMediaInput"><span class="file-drop-icon">＋</span><span class="file-drop-copy"><strong>Choose photos or videos</strong><small>Up to 10 files · images and videos · 700 KB each</small></span><span class="file-pick-cta">Browse files</span><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></label><div class="file-selection-status" id="postFileStatus">Your selected media will appear below</div></div><div id="uploadPreview" class="upload-preview"></div><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
+<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><div class="field post-media-field"><span class="file-field-label">Add photos or videos</span><label class="file-dropzone post-file-drop" for="postMediaInput"><span class="file-drop-icon post-upload-icon">▧</span><span class="file-drop-copy"><strong>Add photos and videos to your post</strong><small>Share moments with your followers · Up to 10 files</small><em class="file-picker-note">Choose images or videos from your device</em></span><span class="file-pick-cta">Add media <b>＋</b></span><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></label><div class="file-selection-status" id="postFileStatus">Your selected media will appear below</div></div><div id="uploadPreview" class="upload-preview"></div><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
 
 
 <script type="module">
