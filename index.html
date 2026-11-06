@@ -1612,14 +1612,13 @@ document.addEventListener("click",e=>{const tab=e.target.closest("[data-settings
 $("chatInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")socialSendChat()});
 document.addEventListener("click",e=>{const b=e.target.closest("[data-invite-group]");if(b)socialGroupInvite(b.dataset.inviteGroup)});
 $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer);socialSearchTimer=setTimeout(()=>socialSearch(e.target.value),300)});
-/* Reliable Settings view activation for mobile WebViews */
+/* Settings activation: use CSS classes only so other views remain switchable. */
 document.addEventListener("click",e=>{
  const button=e.target instanceof Element?e.target.closest('.social-tab[data-social="settings"]'):null;
  if(!button)return;
  const view=document.getElementById("social-settings");
  if(!view)return;
- document.querySelectorAll(".social-view").forEach(v=>{v.classList.remove("active");v.style.display="none";});
- view.classList.add("active");view.style.display="block";
+ document.querySelectorAll(".social-view").forEach(v=>v.classList.toggle("active",v===view));
  document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b===button));
  const panels=[...view.querySelectorAll("[data-settings-panel]")];
  panels.forEach(p=>p.classList.toggle("active",p.dataset.settingsPanel==="account"));
