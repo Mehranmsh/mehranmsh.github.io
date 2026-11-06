@@ -251,8 +251,10 @@
 </style>
 <style id="social-profile-editor-refresh">
 /* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
-#page-social #profileEditor.profile-editor-panel{
- display:block;position:relative;isolation:isolate;overflow:hidden;
+#profileEditor.profile-editor-panel.hidden{display:none!important}
+#profileEditor.profile-editor-panel:not(.hidden){display:block!important}
+#profileEditor.profile-editor-panel{
+ position:relative;isolation:isolate;overflow:hidden;
  padding:clamp(18px,3.8vw,30px)!important;margin:22px 0!important;
  border:1px solid rgba(74,205,255,.34)!important;border-radius:26px!important;
  background:radial-gradient(ellipse at 8% 0%,rgba(27,163,211,.18),transparent 42%),linear-gradient(155deg,#101f35 0%,#0a1425 58%,#101b30 100%)!important;
@@ -1348,11 +1350,23 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(
  }
  document.addEventListener("click",e=>{
   const target=e.target instanceof Element?e.target:null;
-  if(!target)return;
+  if(!target||!lightbox||!large)return;
+  /* Every profile gallery image, including other members' public galleries,
+     opens in the same lightbox so the same close control is always available. */
+  const galleryPhoto=target.closest(".profile-gallery-view");
+  if(galleryPhoto){
+   const photo=galleryPhoto.querySelector("img");
+   const photoSrc=photo&&(photo.currentSrc||photo.src);
+   if(photoSrc){
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    large.src=photoSrc;lightbox.classList.add("open");document.body.style.overflow="hidden";
+    return;
+   }
+  }
   /* Native label-to-input activation is more reliable in Android WebViews.
      Do not call input.click() here: it can double-trigger the system picker. */
   const avatar=target.closest("#profileAvatarLarge,.profile-avatar-large,.profile-preview-avatar,#sideAvatar,.avatar,.public-profile-view .profile-avatar-large");
-  if(!avatar||!lightbox||!large||lightbox.contains(avatar))return;
+  if(!avatar||lightbox.contains(avatar))return;
   const img=avatar.matches("img")?avatar:avatar.querySelector("img");
   let src=img?(img.currentSrc||img.src):"";
   if(!src){
