@@ -778,7 +778,7 @@ const message=$("adminSecurityMessage"),list=$("adminSecurityList");
 try{
 const data=await api("/admin/security");const sessions=data.sessions||[];
 message.textContent=sessions.length+" admin sessions recorded. Revoked sessions cannot be reused.";message.className="notice success";
-list.innerHTML='<div class="table-wrap"><table><thead><tr><th>IDENTITY</th><th>CREATED</th><th>STATUS</th></tr></thead><tbody>'+sessions.map(s=>'<tr><td>'+escapeHTML(s.username)+' · '+escapeHTML(s.uid)+'</td><td>'+escapeHTML(new Date(s.createdAt*1000).toLocaleString())+'</td><td>'+(s.revoked?'Revoked':'Active')+'</td></tr>').join("")+'</tbody></table></div>';
+list.innerHTML='<div class="table-wrap"><table><thead><tr><th>IDENTITY</th><th>CREATED</th><th>STATUS</th><th>ACTION</th></tr></thead><tbody>'+sessions.map(s=>'<tr><td>'+escapeHTML(s.username)+' · '+escapeHTML(s.uid)+'</td><td>'+escapeHTML(new Date(s.createdAt*1000).toLocaleString())+'</td><td>'+(s.revoked?'Revoked':'Active')+'</td><td>'+(!s.revoked?'<button class="btn small danger" data-admin-session-revoke="'+escapeHTML(s.id)+'">Revoke</button>':'')+'</td></tr>').join("")+'</tbody></table></div>';
 }catch(e){message.textContent="Security data unavailable: "+e.message;message.className="notice error"}
 }
 async function loadAdminAudit(){
@@ -800,6 +800,12 @@ $("adminReportsList").addEventListener("click",async e=>{
 const b=e.target.closest("[data-report-status]");if(!b)return;b.disabled=true;
 try{await api("/admin/reports/"+encodeURIComponent(b.dataset.reportId),{method:"PUT",body:JSON.stringify({status:b.dataset.reportStatus})});toast("Report updated");await loadAdminReports();await loadAdminOverview();await loadAdminAudit()}
 catch(err){toast("Report update failed: "+err.message);b.disabled=false}
+});
+$("adminSecurityList").addEventListener("click",async e=>{
+const b=e.target.closest("[data-admin-session-revoke]");if(!b)return;
+if(!confirm("Revoke this admin session?"))return;b.disabled=true;
+try{await api("/admin/security/"+encodeURIComponent(b.dataset.adminSessionRevoke),{method:"DELETE"});toast("Admin session revoked");await loadAdminSecurity();await loadAdminAudit()}
+catch(err){toast("Could not revoke session: "+err.message);b.disabled=false}
 });
 $("refreshAdminSecurity").addEventListener("click",loadAdminSecurity);
 $("refreshAdminAudit").addEventListener("click",loadAdminAudit);
