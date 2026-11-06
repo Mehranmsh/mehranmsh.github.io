@@ -7,11 +7,16 @@
 <title>MEHRAN MSH | Digital Ecosystem</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <script>
-window.__piInitPromise=(async()=>{
- if(!window.Pi)throw new Error("Pi SDK did not load. Open this app in Pi Browser and check your connection.");
+/* Initialize the Pi bridge only after the page and native-browser bridge have had time to become ready. */
+window.__piInitPromise=new Promise(resolve=>{
+ const start=()=>setTimeout(resolve,500);
+ if(document.readyState==="complete")start();
+ else window.addEventListener("load",start,{once:true});
+}).then(async()=>{
+ if(!window.Pi)throw new Error("Pi SDK did not load. Open this app inside Pi Browser and check your connection.");
  await window.Pi.init({version:"2.0",sandbox:false});
  return true;
-})();
+});
 window.__piInitPromise.catch(error=>console.error("Pi SDK initialization failed:",error));
 </script>
 <style>
