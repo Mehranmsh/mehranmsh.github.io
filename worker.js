@@ -289,6 +289,23 @@ async function ensureSocialTables(env) {
       CHECK(allow_comments IN ('everyone','followers','none'))
     )`,
 
+    `CREATE TABLE IF NOT EXISTS social_extended_settings(
+      user_id TEXT PRIMARY KEY,
+      preferences_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES social_users(id)
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS social_support_tickets(
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+
     `CREATE TABLE IF NOT EXISTS social_uploads(
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -889,18 +906,94 @@ async function isBlocked(env, firstId, secondId) {
 
 async function notify(env, userId, actorId, type, targetId, message = "") {
   if (!userId || userId === actorId) return;
+  const row = await env.DB.prepare(
+    "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+  ).bind(userId).first();
+  let prefs = {};
+  try { prefs = JSON.parse(row?.preferences_json || "{}"); } catch {}
+  const t = String(type || "").toLowerCase();
+  const key = /like|comment|mention|post/.test(t) ? "likesComments"
+    : /follow|request/.test(t) ? "followers"
+    : /message|chat/.test(t) ? "messages"
+    : /group|channel|invite/.test(t) ? "groups"
+    : null;
+  if (key && prefs.notifications && prefs.notifications[key] === false) return;
 
   await env.DB.prepare(`
     INSERT INTO social_notifications(id,user_id,actor_id,type,target_id,message)
     VALUES(?,?,?,?,?,?)
   `).bind(
-    crypto.randomUUID(),
-    userId,
-    actorId || null,
-    type,
-    targetId || null,
+    crypto.randomUUID(), userId, actorId || null, type, targetId || null,
     cleanText(message, 300)
   ).run();
+}
+
+async function socialExtendedSettings(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  if (request.method === "GET") {
+    const row = await env.DB.prepare(
+      "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+    ).bind(user.id).first();
+    let preferences = {};
+    try { preferences = JSON.parse(row?.preferences_json || "{}"); } catch {}
+    return json({success:true,preferences});
+  }
+  const body = await readBody(request);
+  if (!body || !body.preferences || typeof body.preferences !== "object") return error("Invalid preferences");
+  const allowed = {
+    notifications: ["likesComments","followers","messages","groups"],
+    chat: ["readReceipts","messagePreviews","autoDownload"],
+    community: ["groupInvites","channelInvites"]
+  };
+  const clean = {};
+  for (const [section, keys] of Object.entries(allowed)) {
+    const source = body.preferences[section] || {};
+    clean[section] = {};
+    for (const key of keys) clean[section][key] = source[key] !== false;
+  }
+  await env.DB.prepare(`
+    INSERT INTO social_extended_settings(user_id,preferences_json,updated_at)
+    VALUES(?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(user_id) DO UPDATE SET
+      preferences_json=excluded.preferences_json,updated_at=CURRENT_TIMESTAMP
+  `).bind(user.id, JSON.stringify(clean)).run();
+  return json({success:true,preferences:clean});
+}
+
+async function socialStorageSummary(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const row = await env.DB.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM social_posts WHERE user_id=?) AS posts,
+      (SELECT COUNT(*) FROM social_uploads WHERE user_id=? AND status='ready') AS files,
+      (SELECT COALESCE(SUM(size),0) FROM social_uploads WHERE user_id=? AND status='ready') AS bytes,
+      (SELECT COUNT(*) FROM social_stories WHERE user_id=? AND expires_at>CURRENT_TIMESTAMP) AS active_stories
+  `).bind(user.id,user.id,user.id,user.id).first();
+  return json({success:true,storage:{
+    posts:Number(row?.posts||0),files:Number(row?.files||0),
+    bytes:Number(row?.bytes||0),activeStories:Number(row?.active_stories||0)
+  }});
+}
+
+async function socialCreateSupportTicket(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+  const category = cleanText(body.category,50);
+  const subject = cleanText(body.subject,120);
+  const message = cleanText(body.message,3000);
+  if (!["account","bug","safety","other"].includes(category) || subject.length<3 || message.length<10) {
+    return error("Choose a category and provide a subject and message (at least 10 characters).");
+  }
+  const id=crypto.randomUUID();
+  await env.DB.prepare(`
+    INSERT INTO social_support_tickets(id,user_id,category,subject,message)
+    VALUES(?,?,?,?,?)
+  `).bind(id,user.id,category,subject,message).run();
+  return json({success:true,ticket:{id,category,subject,status:"open"}},201);
 }
 
 async function getProfileByUsername(username, viewerId, env) {
@@ -3294,6 +3387,16 @@ export default {
 
         if (path === "/social/username" && method === "PUT") {
           return await socialChangeUsername(request, env);
+        }
+
+        if (path === "/social/settings/extended" && (method === "GET" || method === "PUT")) {
+          return await socialExtendedSettings(request, env);
+        }
+        if (path === "/social/storage" && method === "GET") {
+          return await socialStorageSummary(request, env);
+        }
+        if (path === "/social/support" && method === "POST") {
+          return await socialCreateSupportTicket(request, env);
         }
 
         if (path === "/social/privacy" && method === "GET") {
