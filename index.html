@@ -367,6 +367,57 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 #page-social #profileEditor #profileMessage{margin-top:12px!important}
 @media(max-width:640px){#page-social #profileEditor.profile-editor-panel:not(.hidden){padding:15px!important;border-radius:20px!important}#page-social #profileEditor .profile-editor-section{padding:13px!important;margin:13px 0!important}#page-social #profileEditor .profile-editor-grid{grid-template-columns:minmax(0,1fr)!important;gap:11px!important}#page-social #profileEditor .profile-editor-grid>.field,#page-social #profileEditor .profile-editor-grid>.profile-photo-field,#page-social #profileEditor .profile-editor-grid>.profile-gallery-field{grid-column:1!important}#page-social #profileEditor .profile-live-preview{padding:13px!important;gap:11px!important}#page-social #profileEditor .profile-editor-actions .btn{flex:1 1 100%!important}}
 </style>
+
+<style id="social-post-media-panel-v3">
+#page-social .modal# createModal{z-index:120}
+#createModal .modal-box{width:min(620px,100%)!important;max-height:min(92dvh,900px)!important;padding:0!important;overflow:auto!important;border:1px solid rgba(88,195,238,.28)!important;border-radius:26px!important;background:linear-gradient(160deg,#0c1d31 0%,#091525 72%)!important;box-shadow:0 30px 100px rgba(0,0,0,.62),0 0 45px rgba(24,167,220,.08)!important}
+#createModal .modal-head{position:sticky!important;top:0!important;z-index:8!important;display:flex!important;align-items:center!important;justify-content:space-between!important;padding:22px 24px!important;margin:0!important;border-bottom:1px solid rgba(145,195,225,.13)!important;background:rgba(10,24,41,.96)!important;backdrop-filter:blur(16px)!important}
+#createModal .modal-head h2{margin:0!important;color:#f3f9ff!important;font-size:21px!important;letter-spacing:-.5px!important}
+#createModal .modal-head .close-btn{width:40px!important;height:40px!important;border-radius:13px!important;background:#1a3048!important;color:#eaf7ff!important;font-size:25px!important}
+#createModal .media-composer-panel{display:block!important;margin:0!important;padding:22px 24px 18px!important;border:0!important;background:transparent!important}
+#createModal .media-composer-heading{display:flex!important;align-items:center!important;gap:13px!important;margin:0 0 19px!important}
+#createModal .media-heading-icon{display:grid!important;place-items:center!important;flex:0 0 48px!important;width:48px!important;height:48px!important;border-radius:16px!important;background:linear-gradient(145deg,rgba(40,204,246,.2),rgba(89,107,235,.2))!important;border:1px solid rgba(96,207,244,.28)!important;color:#80eaff!important;font-size:25px!important}
+#createModal .media-composer-heading>div:nth-child(2){min-width:0!important;flex:1!important}
+#createModal .media-panel-eyebrow{display:block!important;margin-bottom:4px!important;color:#63d8f6!important;font-size:9px!important;font-weight:900!important;letter-spacing:1.7px!important}
+#createModal .media-composer-heading h3{margin:0!important;color:#f2f8ff!important;font-size:17px!important}
+#createModal .media-composer-heading p{margin:4px 0 0!important;color:#91abc4!important;font-size:11px!important}
+#createModal .media-count-pill{flex:none!important;padding:7px 9px!important;border:1px solid rgba(87,201,237,.22)!important;border-radius:10px!important;background:rgba(36,157,194,.1)!important;color:#9ceaff!important;font-size:9px!important;font-weight:900!important;letter-spacing:.5px!important}
+#createModal label.file-dropzone.post-file-drop.media-dropzone{display:grid!important;grid-template-columns:54px minmax(0,1fr)!important;grid-template-rows:auto auto!important;align-items:center!important;gap:12px 14px!important;min-height:0!important;padding:19px!important;border:1px dashed rgba(75,197,235,.48)!important;border-radius:19px!important;background:radial-gradient(ellipse at 0 0,rgba(34,173,220,.15),transparent 58%),linear-gradient(145deg,#112b43,#0c1c30)!important;box-shadow:inset 0 1px rgba(255,255,255,.035)!important}
+#createModal .media-dropzone .post-upload-icon{grid-column:1!important;grid-row:1!important;width:54px!important;height:54px!important;flex:none!important;border-radius:16px!important}
+#createModal .media-dropzone .file-drop-copy{grid-column:2!important;grid-row:1!important;gap:5px!important}
+#createModal .media-dropzone .file-drop-copy strong{font-size:14px!important;color:#effaff!important}
+#createModal .media-dropzone .file-drop-copy small{font-size:11px!important;line-height:1.55!important;color:#a0b9d0!important}
+#createModal .media-dropzone .file-picker-note{font-size:10px!important;color:#68d9f7!important}
+#createModal .media-dropzone .file-pick-cta{grid-column:2!important;grid-row:2!important;justify-self:start!important;display:inline-flex!important;align-items:center!important;gap:8px!important;padding:10px 14px!important;border-radius:11px!important;background:linear-gradient(120deg,rgba(28,157,203,.25),rgba(71,98,202,.2))!important;border:1px solid rgba(76,205,241,.32)!important;color:#b3f0ff!important;font-size:11px!important}
+#createModal .media-selection-row{display:flex!important;align-items:center!important;gap:9px!important;margin:12px 2px 19px!important;padding:9px 11px!important;border-radius:11px!important;background:rgba(255,255,255,.025)!important}
+#createModal .media-selection-dot{width:7px!important;height:7px!important;flex:none!important;border-radius:50%!important;background:#6c8ba5!important}
+#createModal .media-selection-row .file-selection-status{min-height:0!important;margin:0!important;padding:0!important;background:none!important;color:#9bb2c9!important;font-size:11px!important}
+#createModal .media-selection-row .file-selection-status.has-files{color:#8beac5!important}
+#createModal .media-selection-row:has(.has-files) .media-selection-dot{background:#63e4b4!important;box-shadow:0 0 10px rgba(99,228,180,.55)!important}
+#createModal .media-preview-heading{display:flex!important;align-items:center!important;justify-content:space-between!important;margin:0 1px 10px!important}
+#createModal .media-preview-heading strong{color:#dceeff!important;font-size:12px!important}
+#createModal .media-preview-heading span{color:#66849f!important;font-size:9px!important;font-weight:900!important;letter-spacing:1.4px!important}
+#createModal #uploadPreview.media-preview-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(105px,1fr))!important;gap:10px!important;min-height:12px!important;padding:0!important}
+#createModal #uploadPreview:empty{display:none!important}
+#createModal #uploadPreview img,#createModal #uploadPreview video{width:100%!important;height:120px!important;object-fit:cover!important;border-radius:14px!important;border:1px solid rgba(100,195,230,.25)!important;background:#06101d!important}
+#createModal .modal-box>.field:not(.post-media-field),#createModal .modal-box>.notice,#createModal .modal-box>.hero-actions{margin-left:24px!important;margin-right:24px!important}
+#createModal .modal-box>#postCaption{width:calc(100% - 48px)!important}
+#createModal .modal-box>.field:not(.post-media-field){margin-top:8px!important}
+#createModal .modal-box>.notice{margin-top:14px!important;margin-bottom:14px!important}
+#createModal .modal-box>.hero-actions{padding:0 0 22px!important}
+@media(max-width:600px){
+ #createModal{align-items:flex-end!important;padding:0!important}
+ #createModal .modal-box{width:100%!important;max-height:94dvh!important;border-radius:24px 24px 0 0!important;padding-bottom:env(safe-area-inset-bottom)!important}
+ #createModal .modal-head{padding:17px 18px!important}
+ #createModal .media-composer-panel{padding:17px 18px 14px!important}
+ #createModal label.file-dropzone.post-file-drop.media-dropzone{grid-template-columns:44px minmax(0,1fr)!important;padding:14px!important;gap:10px 11px!important}
+ #createModal .media-dropzone .post-upload-icon{width:44px!important;height:44px!important}
+ #createModal .media-dropzone .file-drop-copy strong{font-size:12px!important}
+ #createModal .media-dropzone .file-drop-copy small{font-size:10px!important}
+ #createModal .media-dropzone .file-pick-cta{font-size:10px!important;padding:9px 11px!important}
+ #createModal .modal-box>.field:not(.post-media-field),#createModal .modal-box>.notice,#createModal .modal-box>.hero-actions{margin-left:18px!important;margin-right:18px!important}
+}
+</style>
 </head>
 <body>
 <div class="app">
@@ -489,7 +540,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 
 <div class="modal" id="authModal"><div class="modal-box"><div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div><p class="small-text">Create an account or sign in to interact with SOCIAL.</p><div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div><div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 10 characters" autocomplete="new-password"></div><div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div><div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div class="small-text" style="margin-top:14px;text-align:center"><span id="authSwitchText">Don't have an account?</span><button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button></div><div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div><div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div></div></div>
 
-<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><div class="field post-media-field"><span class="file-field-label">Add photos or videos</span><label class="file-dropzone post-file-drop" for="postMediaInput"><span class="file-drop-icon post-upload-icon">▧</span><span class="file-drop-copy"><strong>Add photos and videos to your post</strong><small>Share moments with your followers · Up to 10 files</small><em class="file-picker-note">Choose images or videos from your device</em></span><span class="file-pick-cta">Add media <b>＋</b></span><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></label><div class="file-selection-status" id="postFileStatus">Your selected media will appear below</div></div><div id="uploadPreview" class="upload-preview"></div><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
+<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><section class="field post-media-field media-composer-panel"><div class="media-composer-heading"><div class="media-heading-icon">▧</div><div><span class="media-panel-eyebrow">POST ATTACHMENTS</span><h3>Bring your post to life</h3><p>Add photos and videos from your device</p></div><span class="media-count-pill">UP TO 10</span></div><label class="file-dropzone post-file-drop media-dropzone" for="postMediaInput"><span class="file-drop-icon post-upload-icon">＋</span><span class="file-drop-copy"><strong>Choose photos or videos</strong><small>Select multiple files together. Your previews will appear below.</small><em class="file-picker-note">Images & videos · Up to 700 KB per file</em></span><span class="file-pick-cta">Browse files <b>↗</b></span><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></label><div class="media-selection-row"><span class="media-selection-dot"></span><div class="file-selection-status" id="postFileStatus">No media selected yet</div></div><div class="media-preview-heading"><strong>Selected media</strong><span>PREVIEW</span></div><div id="uploadPreview" class="upload-preview media-preview-grid"></div></section><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
 
 
 <script type="module">
