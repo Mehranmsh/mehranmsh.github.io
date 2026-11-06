@@ -185,6 +185,20 @@
 #page-social #uploadPreview img,#page-social #uploadPreview video{width:92px;height:92px;border-radius:15px;border:1px solid rgba(88,190,235,.3);object-fit:cover;background:#07111e}
 @media(max-width:560px){#page-social .file-dropzone{gap:10px;padding:13px;min-height:86px}#page-social .file-drop-icon{width:42px;height:42px;flex-basis:42px;border-radius:13px}#page-social .file-drop-copy strong{font-size:12px}#page-social .file-drop-copy small{font-size:10px}#page-social .file-pick-cta{padding:8px 10px;font-size:10px}}
 
+
+/* Robust custom file controls: visually hide native chooser, keep the whole card clickable */
+#page-social label.file-dropzone{position:relative!important;display:flex!important;align-items:center!important;min-height:96px!important;padding:16px 18px!important;border:1px dashed rgba(65,205,255,.55)!important;border-radius:20px!important;background:linear-gradient(125deg,rgba(18,48,75,.98),rgba(10,22,39,.98))!important;cursor:pointer!important}
+#page-social label.file-dropzone input[type=file]{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;opacity:0!important}
+#page-social label.file-dropzone:focus-within{outline:3px solid rgba(50,210,255,.2)!important;border-color:#42dcff!important}
+#page-social .file-pick-cta{pointer-events:none}
+#page-social .file-dropzone *{pointer-events:none}
+#page-social .profile-avatar-large,#page-social .avatar,#page-social .profile-preview-avatar{cursor:zoom-in}
+#socialAvatarLightbox{position:fixed;inset:0;z-index:100000;display:none;align-items:center;justify-content:center;padding:24px;background:rgba(2,7,15,.92);backdrop-filter:blur(12px)}
+#socialAvatarLightbox.open{display:flex}
+#socialAvatarLightbox .avatar-lightbox-image{display:block;max-width:min(88vw,720px);max-height:82vh;width:auto;height:auto;object-fit:contain;border-radius:22px;border:1px solid rgba(130,210,255,.28);box-shadow:0 25px 90px rgba(0,0,0,.6)}
+#socialAvatarLightbox .avatar-lightbox-close{position:absolute;top:20px;right:20px;width:46px;height:46px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(20,35,55,.85);color:#fff;font-size:28px;cursor:pointer}
+#socialAvatarLightbox .avatar-lightbox-hint{position:absolute;bottom:20px;color:#a8bfd8;font-size:12px}
+
 </style>
 </head>
 <body>
@@ -1204,5 +1218,26 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-invite-gro
 $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer);socialSearchTimer=setTimeout(()=>socialSearch(e.target.value),300)});
 const prevSwitch=window.switchSocial;window.switchSocial=function(name){prevSwitch(name);if(name==="feed")socialLoadStories();if(name==="messages"||name==="groups")socialLoadConversations();if(name==="channels")socialLoadChannels();if(name==="bots")socialLoadBots();if(name==="settings"){socialLoadPrivacy();socialLoadRequests();}};
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(socialUser)socialLoadStories();};
-</script></body>
+
+/* Tap any visible SOCIAL avatar to view the original-sized profile photo */
+(()=>{
+ const lightbox=document.getElementById("socialAvatarLightbox");
+ if(!lightbox||lightbox.dataset.ready)return;
+ lightbox.dataset.ready="1";
+ const large=lightbox.querySelector(".avatar-lightbox-image");
+ const close=()=>{lightbox.classList.remove("open");large.removeAttribute("src");document.body.style.overflow="";};
+ lightbox.querySelector(".avatar-lightbox-close").addEventListener("click",close);
+ lightbox.addEventListener("click",e=>{if(e.target===lightbox)close();});
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&lightbox.classList.contains("open"))close();});
+ document.getElementById("page-social")?.addEventListener("click",e=>{
+  const avatar=e.target.closest(".profile-avatar-large,.avatar,.profile-preview-avatar");
+  if(!avatar)return;
+  const img=avatar.querySelector("img");
+  if(!img||!img.src)return;
+  large.src=img.src;lightbox.classList.add("open");document.body.style.overflow="hidden";
+ });
+})();
+
+</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div>
+</body>
 </html>
