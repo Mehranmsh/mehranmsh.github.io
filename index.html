@@ -239,16 +239,16 @@
  #page-social .file-pick-cta{padding:9px 10px!important;font-size:10px!important}
 }
 
-/* Final mobile-safe controls: the real file input receives the tap. */
-#page-social label.file-dropzone{isolation:isolate;position:relative!important}
+/* Accessible picker: keep the native input focusable; JS forwards a trusted card tap. */
+#page-social label.file-dropzone{position:relative!important;cursor:pointer!important}
 #page-social label.file-dropzone input[type=file]{
- position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
- margin:0!important;padding:0!important;opacity:0!important;clip:auto!important;
- clip-path:none!important;overflow:hidden!important;z-index:5!important;
- cursor:pointer!important;pointer-events:auto!important;
+ position:absolute!important;width:1px!important;height:1px!important;
+ padding:0!important;margin:-1px!important;overflow:hidden!important;
+ clip:rect(0,0,0,0)!important;clip-path:inset(50%)!important;
+ white-space:nowrap!important;border:0!important;opacity:0!important;
 }
 #page-social .file-dropzone *{pointer-events:none!important}
-#page-social label.file-dropzone input[type=file]{pointer-events:auto!important}
+#page-social label.file-dropzone:focus-within{outline:3px solid rgba(50,210,255,.2)!important}
 </style>
 </head>
 <body>
@@ -1270,30 +1270,40 @@ const prevSwitch=window.switchSocial;window.switchSocial=function(name){prevSwit
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(socialUser)socialLoadStories();};
 
 </script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div><script>
-/* Avatar preview: markup exists before listeners are attached. */
+/* SOCIAL media and avatar controls: explicit delegated activation for mobile WebViews. */
 (()=>{
  const lightbox=document.getElementById("socialAvatarLightbox");
- if(!lightbox)return;
- const large=lightbox.querySelector(".avatar-lightbox-image");
+ const large=lightbox?.querySelector(".avatar-lightbox-image");
  const close=()=>{
-  lightbox.classList.remove("open");
-  large.removeAttribute("src");
+  if(!lightbox||!large)return;
+  lightbox.classList.remove("open");large.removeAttribute("src");
   document.body.style.overflow="";
  };
- lightbox.querySelector(".avatar-lightbox-close").addEventListener("click",close);
- lightbox.addEventListener("click",e=>{if(e.target===lightbox)close();});
- document.addEventListener("keydown",e=>{if(e.key==="Escape"&&lightbox.classList.contains("open"))close();});
+ if(lightbox&&large){
+  lightbox.querySelector(".avatar-lightbox-close")?.addEventListener("click",close);
+  lightbox.addEventListener("click",e=>{if(e.target===lightbox)close();});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&lightbox.classList.contains("open"))close();});
+ }
  document.addEventListener("click",e=>{
   const target=e.target instanceof Element?e.target:null;
-  const avatar=target?.closest("#page-social .profile-avatar-large,#page-social .profile-preview-avatar,#page-social .avatar,.public-profile-view .profile-avatar-large");
-  if(!avatar||lightbox.contains(avatar))return;
+  if(!target)return;
+  const label=target.closest("#page-social label.file-dropzone");
+  if(label){
+   const input=label.querySelector('input[type="file"]');
+   if(input){e.preventDefault();e.stopPropagation();input.click();return;}
+  }
+  const avatar=target.closest("#page-social .profile-avatar-large,#page-social .profile-preview-avatar,#page-social #sideAvatar,#page-social .avatar,.public-profile-view .profile-avatar-large");
+  if(!avatar||!lightbox||!large||lightbox.contains(avatar))return;
   const img=avatar.matches("img")?avatar:avatar.querySelector("img");
-  if(!img)return;
-  const src=img.currentSrc||img.src;
+  let src=img?(img.currentSrc||img.src):"";
+  if(!src){
+   const bg=getComputedStyle(avatar).backgroundImage;
+   const match=bg&&bg.match(/^url\(["']?(.*?)["']?\)$/);
+   if(match)src=match[1];
+  }
   if(!src)return;
-  large.src=src;
-  lightbox.classList.add("open");
-  document.body.style.overflow="hidden";
+  e.preventDefault();e.stopPropagation();
+  large.src=src;lightbox.classList.add("open");document.body.style.overflow="hidden";
  },true);
 })();
 </body>
