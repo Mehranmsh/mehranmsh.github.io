@@ -818,10 +818,7 @@ async function loadAdminSettings(){
  }
 }
 async function loadAdminUsers(){
-const message=$("adminUsersMessage"),list=$("adminUsersList");")+": "+v).join(" · ");$("adminSettingsMessage").className="notice success"}
-catch(e){$("adminSettingsMessage").textContent="Settings unavailable: "+e.message;$("adminSettingsMessage").className="notice error"}
-}
-$("refreshAdminOverview").addEventListener("click",loadAdminOverview);
+const message=$("adminUsersMessage"),list=$("adminUsersList");
 $("adminReportFilter").addEventListener("change",loadAdminReports);
 $("adminReportsList").addEventListener("click",async e=>{
 const b=e.target.closest("[data-report-status]");if(!b)return;b.disabled=true;
