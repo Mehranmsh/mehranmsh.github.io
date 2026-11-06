@@ -266,7 +266,10 @@ async function createSocialTables(db) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       email_verified INTEGER NOT NULL DEFAULT 0,
       email_verified_at TEXT,
-      firebase_uid TEXT
+      firebase_uid TEXT,
+      account_type TEXT NOT NULL DEFAULT 'human',
+      business_category TEXT NOT NULL DEFAULT '',
+      business_website TEXT NOT NULL DEFAULT ''
     )`,
 
     `CREATE TABLE IF NOT EXISTS social_profile_photos(
@@ -572,6 +575,9 @@ async function createSocialTables(db) {
     await db.prepare(statement).run();
   }
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN firebase_uid TEXT").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'human'").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_users ADD COLUMN business_category TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_users ADD COLUMN business_website TEXT NOT NULL DEFAULT ''").run(); } catch {}
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
@@ -602,7 +608,7 @@ async function getSocialUser(request, env) {
   const row = await env.DB.prepare(`
     SELECT
       u.id,u.username,u.email,u.display_name,u.bio,u.avatar_url,
-      u.pi_username,u.pi_verified,u.email_verified,u.created_at,
+      u.pi_username,u.pi_verified,u.email_verified,u.created_at,u.account_type,u.business_category,u.business_website,
       s.id AS session_id,s.expires_at
     FROM social_sessions s
     JOIN social_users u ON u.id=s.user_id
@@ -617,6 +623,9 @@ async function getSocialUser(request, env) {
     username: row.username,
     email: row.email,
     displayName: row.display_name || "",
+    accountType: row.account_type === "business" ? "business" : "human",
+    businessCategory: row.business_category || "",
+    businessWebsite: row.business_website || "",
     bio: row.bio || "",
     avatarUrl: row.avatar_url || "",
     piUsername: row.pi_username || "",
@@ -747,12 +756,13 @@ async function socialFirebaseSession(request, env) {
     return error("Please verify your email address before signing in.", 403);
   }
   const email = cleanEmail(identity.email);
+  const requestedAccountType = body.accountType === "business" ? "business" : "human";
   let user = await env.DB.prepare(
-    "SELECT id,username,email,display_name,is_active,firebase_uid FROM social_users WHERE firebase_uid=? LIMIT 1"
+    "SELECT id,username,email,display_name,is_active,firebase_uid,account_type FROM social_users WHERE firebase_uid=? LIMIT 1"
   ).bind(identity.localId).first();
   if (!user) {
     user = await env.DB.prepare(
-      "SELECT id,username,email,display_name,is_active,firebase_uid FROM social_users WHERE email=? LIMIT 1"
+      "SELECT id,username,email,display_name,is_active,firebase_uid,account_type FROM social_users WHERE email=? LIMIT 1"
     ).bind(email).first();
     if (user && user.firebase_uid && user.firebase_uid !== identity.localId) {
       return error("This email is already linked to another sign-in identity. Contact support.", 409);
@@ -774,15 +784,15 @@ async function socialFirebaseSession(request, env) {
     const passwordHash = await hashPassword(randomPassword);
     try {
       await env.DB.batch([
-        env.DB.prepare(`INSERT INTO social_users(id,username,email,password_hash,display_name,email_verified,email_verified_at,firebase_uid)
-          VALUES(?,?,?,?,?,1,CURRENT_TIMESTAMP,?)`).bind(id, username, email, passwordHash, displayName, identity.localId),
+        env.DB.prepare(`INSERT INTO social_users(id,username,email,password_hash,display_name,email_verified,email_verified_at,firebase_uid,account_type)
+          VALUES(?,?,?,?,?,1,CURRENT_TIMESTAMP,?,?)`).bind(id, username, email, passwordHash, displayName, identity.localId, requestedAccountType),
         env.DB.prepare("INSERT INTO social_user_settings(user_id) VALUES(?)").bind(id)
       ]);
     } catch (err) {
       console.error("SOCIAL_FIREBASE_USER_CREATE_FAILURE", err);
       return error("Could not finish creating your SOCIAL profile. Please try again.", 500);
     }
-    user = { id, username, email, display_name: displayName, is_active: 1, firebase_uid: identity.localId };
+    user = { id, username, email, display_name: displayName, is_active: 1, firebase_uid: identity.localId, account_type: requestedAccountType };
   }
   if (!user.is_active) return error("This SOCIAL account is disabled.", 403);
   const session = await createSocialSession(env, user.id);
@@ -796,6 +806,7 @@ async function socialFirebaseSession(request, env) {
       username: user.username,
       email: user.email,
       displayName: user.display_name || "",
+      accountType: user.account_type === "business" ? "business" : "human",
       emailVerified: true
     }
   });
@@ -1026,7 +1037,7 @@ async function socialCreateSupportTicket(request, env) {
 
 async function getProfileByUsername(username, viewerId, env) {
   const profile = await env.DB.prepare(`
-    SELECT id,username,display_name,bio,avatar_url,pi_username,pi_verified,created_at
+    SELECT id,username,display_name,bio,avatar_url,pi_username,pi_verified,created_at,account_type,business_category,business_website
     FROM social_users
     WHERE username=? AND is_active=1
     LIMIT 1
@@ -1075,6 +1086,9 @@ async function getProfileByUsername(username, viewerId, env) {
     id: profile.id,
     username: profile.username,
     displayName: profile.display_name || "",
+    accountType: profile.account_type === "business" ? "business" : "human",
+    businessCategory: profile.business_category || "",
+    businessWebsite: profile.business_website || "",
     bio: profile.bio || "",
     avatarUrl: profile.avatar_url || "",
     gallery,
@@ -1207,7 +1221,7 @@ async function socialSearch(request, env) {
 
   if (type === "all" || type === "users") {
     const result = await env.DB.prepare(`
-      SELECT id,username,display_name,avatar_url,pi_verified
+      SELECT id,username,display_name,avatar_url,pi_verified,account_type
       FROM social_users
       WHERE is_active=1 AND id!=?
         AND (username LIKE ? OR display_name LIKE ?)
@@ -1222,6 +1236,7 @@ async function socialSearch(request, env) {
       username: row.username,
       displayName: row.display_name || "",
       avatarUrl: row.avatar_url || "",
+      accountType: row.account_type === "business" ? "business" : "human",
       piVerified: Boolean(row.pi_verified)
     }));
   }
