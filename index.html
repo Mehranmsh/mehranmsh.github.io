@@ -38,6 +38,7 @@
 @media(max-width:950px){.app{grid-template-columns:205px minmax(0,1fr)}.social-layout{grid-template-columns:1fr}.social-side{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.app{display:block}.sidebar{display:none}.main{padding:17px 13px 85px}.topbar{margin-bottom:17px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:#091321f5;border-top:1px solid var(--line);z-index:20;justify-content:flex-start;gap:2px;overflow-x:auto;overflow-y:hidden;padding:8px 3px calc(8px + env(safe-area-inset-bottom));backdrop-filter:blur(15px);-webkit-overflow-scrolling:touch;scrollbar-width:none}.mobile-nav::-webkit-scrollbar{display:none}.mobile-nav button{flex:0 0 52px;background:none;border:0;color:#8da5c0;font-size:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:5px 2px}.mobile-nav button.active{color:var(--cyan)}.mobile-nav span{font-size:18px}.social-side{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.top-actions .pill{display:none}.modal{padding:7px}.modal-box{max-height:95vh}.explore-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:420px){.grid{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.social-shell{padding:11px}.social-tab{padding:9px 10px}}
+.creator-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:5px;border-radius:50%;background:#168cff;color:#fff;font-size:12px;font-weight:800;vertical-align:middle;box-shadow:0 0 0 2px rgba(22,140,255,.16)}.admin-stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.admin-stats .card{min-width:0}
 </style>
 </head>
 <body>
@@ -114,7 +115,12 @@
 </div>
 </section>
 
-<section class="page" id="page-admin"><div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div><div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div><div class="panel"><h3>System Overview</h3><div class="grid"><div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div><div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div><div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div></div></div><div class="panel"><div class="section-title"><h2>User Management</h2><button class="btn secondary small" id="refreshAdminUsers">Refresh</button></div><div class="form-grid"><div class="field"><label>Search users</label><input id="adminUserSearch" placeholder="Username, name or email"></div><div class="field"><label>Account status</label><select id="adminUserStatusFilter"><option value="all">All accounts</option><option value="active">Active</option><option value="suspended">Suspended</option></select></div></div><div class="hero-actions" style="margin-top:0"><button class="btn small" id="searchAdminUsers">Search</button></div><div id="adminUsersMessage" class="notice">User list has not been loaded yet.</div><div id="adminUsersList"></div></div></section>
+<section class="page" id="page-admin"><div class="page-heading"><h1>Admin</h1><p>Account and ecosystem administration.</p></div><div class="notice warn">Administrative tools are restricted to authorized accounts. Access is determined by the authentication service, not by this page's interface.</div><div class="panel"><h3>System Overview</h3><div class="grid"><div class="card"><div class="eyebrow">AUTH SERVICE</div><div class="stat" id="adminAuthStatus">Checking</div><div class="stat-label">Worker connection</div></div><div class="card"><div class="eyebrow">DATABASE</div><div class="stat" id="adminDbStatus">Checking</div><div class="stat-label">Database response</div></div><div class="card"><div class="eyebrow">SESSION</div><div class="stat" id="adminSession">Guest</div><div class="stat-label">Current session</div></div></div></div><div class="panel"><div class="section-title"><h2>Dashboard</h2><button class="btn secondary small" id="refreshAdminOverview">Refresh</button></div><div class="grid admin-stats"><div class="card"><div class="eyebrow">TOTAL USERS</div><div class="stat" id="admTotalUsers">—</div></div><div class="card"><div class="eyebrow">ACTIVE USERS</div><div class="stat" id="admActiveUsers">—</div></div><div class="card"><div class="eyebrow">NEW USERS · 7 DAYS</div><div class="stat" id="admNewUsers">—</div></div><div class="card"><div class="eyebrow">POSTS</div><div class="stat" id="admPosts">—</div></div><div class="card"><div class="eyebrow">OPEN REPORTS</div><div class="stat" id="admOpenReports">—</div></div><div class="card"><div class="eyebrow">ACTIVE SESSIONS</div><div class="stat" id="admSessions">—</div></div></div><div id="adminOverviewMessage" class="notice">Dashboard data has not been loaded.</div></div>
+<div class="panel"><div class="section-title"><h2>User Management</h2><button class="btn secondary small" id="refreshAdminUsers">Refresh</button></div><div class="form-grid"><div class="field"><label>Search users</label><input id="adminUserSearch" placeholder="Username, name or email"></div><div class="field"><label>Account status</label><select id="adminUserStatusFilter"><option value="all">All accounts</option><option value="active">Active</option><option value="suspended">Suspended</option></select></div></div><div class="hero-actions" style="margin-top:0"><button class="btn small" id="searchAdminUsers">Search</button></div><div id="adminUsersMessage" class="notice">User list has not been loaded yet.</div><div id="adminUsersList"></div></div>
+<div class="panel"><div class="section-title"><h2>Content Moderation · Reports</h2><select id="adminReportFilter"><option value="open">Open</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option><option value="all">All</option></select></div><div id="adminReportsMessage" class="notice">Reports have not been loaded.</div><div id="adminReportsList"></div></div>
+<div class="panel"><div class="section-title"><h2>Security · Admin Sessions</h2><button class="btn secondary small" id="refreshAdminSecurity">Refresh</button></div><div id="adminSecurityMessage" class="notice">Session information has not been loaded.</div><div id="adminSecurityList"></div></div>
+<div class="panel"><div class="section-title"><h2>Activity Log</h2><button class="btn secondary small" id="refreshAdminAudit">Refresh</button></div><div id="adminAuditMessage" class="notice">No activity loaded.</div><div id="adminAuditList"></div></div>
+<div class="panel"><h2>Admin Settings</h2><div id="adminSettingsMessage" class="notice">Loading protected administration settings...</div></div></section>
 
 <section class="page" id="page-intelligence"><div class="page-heading"><h1>Intelligence</h1><p>Intelligent tools and AI experiences inside the ecosystem.</p></div><div class="hero"><div class="eyebrow">INTELLIGENCE LAYER</div><h1>Ideas into intelligence.</h1><p>A dedicated space for future AI assistants, creative tools, personal intelligence and connected services.</p></div><div class="feature-grid"><div class="feature"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Personal intelligent assistant integration is planned.</p></div><div class="feature"><div class="feature-icon">🎙</div><h3>Creative Studio</h3><p>Creative and music-related AI tools are planned.</p></div><div class="feature"><div class="feature-icon">🧠</div><h3>Personal Intelligence</h3><p>A future space for personalized intelligent workflows.</p></div><div class="feature"><div class="feature-icon">🔗</div><h3>Connected Services</h3><p>Integrations will be added as services become available.</p></div></div></section>
 
@@ -199,7 +205,7 @@ if(page)page.classList.add("active");
 document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
 $("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);
 if(name==="projects")loadProjects();
-if(name==="admin")loadAdminUsers();
+if(name==="admin"){loadAdminOverview();loadAdminUsers();loadAdminReports();loadAdminSecurity();loadAdminAudit();loadAdminSettings();}
 if(name==="social")renderSocial();
 window.scrollTo({top:0,behavior:"smooth"});
 }
@@ -563,7 +569,7 @@ $("socialStatus").textContent=logged?"Connected":"Not registered";
 $("socialTopAuth").textContent=logged?"⚙":"⇥";
 $("dashPosts").textContent=posts.length;
 $("settingsUsername").value=logged?(socialUser.username||""):"";
-$("sideProfileName").textContent=logged?(localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile"):"Welcome to SOCIAL";
+$("sideProfileName").innerHTML=logged?escapeHTML(localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile")+(socialUser.isCreator?' <span class="creator-badge" title="Verified creator">✓</span>'):"Welcome to SOCIAL";
 $("sideProfileBio").textContent=logged?(localProfile.bio||"Welcome to your SOCIAL profile."):"Browse the feed or sign in to create your profile.";
 $("profilePostCount").textContent=logged?posts.filter(p=>p.author===currentUsername()).length:0;
 renderAvatar("sideAvatar");
@@ -744,6 +750,59 @@ $("profileMessage").textContent="Profile photo removed.";
 });
 
 let adminUsers=[];
+async function loadAdminOverview(){
+const message=$("adminOverviewMessage");
+try{
+const data=await api("/admin/overview");const s=data.stats||{};
+$("admTotalUsers").textContent=Number(s.users||0).toLocaleString();
+$("admActiveUsers").textContent=Number(s.activeUsers||0).toLocaleString();
+$("admNewUsers").textContent=Number(s.newUsers7d||0).toLocaleString();
+$("admPosts").textContent=Number(s.posts||0).toLocaleString();
+$("admOpenReports").textContent=Number(s.openReports||0).toLocaleString();
+$("admSessions").textContent=Number(s.activeSessions||0).toLocaleString();
+message.textContent="Live statistics loaded from the SOCIAL database.";message.className="notice success";
+}catch(e){message.textContent="Dashboard unavailable: "+e.message;message.className="notice error"}
+}
+async function loadAdminReports(){
+const message=$("adminReportsMessage"),list=$("adminReportsList");
+try{
+const data=await api("/admin/reports?status="+encodeURIComponent($("adminReportFilter").value));
+const reports=data.reports||[];
+message.textContent=reports.length+" reports loaded.";message.className="notice";
+if(!reports.length){list.innerHTML='<div class="empty">No reports in this view.</div>';return}
+list.innerHTML='<div class="table-wrap"><table><thead><tr><th>REPORT</th><th>REASON</th><th>STATUS</th><th>DATE</th><th>ACTION</th></tr></thead><tbody>'+reports.map(r=>'<tr><td><strong>'+escapeHTML(r.targetType)+' · '+escapeHTML(r.targetId)+'</strong><br><span class="small-text">By @'+escapeHTML(r.reporter)+'</span></td><td>'+escapeHTML(r.reason)+'</td><td>'+escapeHTML(r.status)+'</td><td>'+escapeHTML(r.createdAt)+'</td><td>'+(r.status==="open"?'<button class="btn small" data-report-status="resolved" data-report-id="'+escapeHTML(r.id)+'">Resolve</button> <button class="btn small secondary" data-report-status="dismissed" data-report-id="'+escapeHTML(r.id)+'">Dismiss</button>':(r.status!=="open"?'<button class="btn small secondary" data-report-status="open" data-report-id="'+escapeHTML(r.id)+'">Reopen</button>':''))+'</td></tr>').join("")+'</tbody></table></div>';
+}catch(e){message.textContent="Could not load reports: "+e.message;message.className="notice error"}
+}
+async function loadAdminSecurity(){
+const message=$("adminSecurityMessage"),list=$("adminSecurityList");
+try{
+const data=await api("/admin/security");const sessions=data.sessions||[];
+message.textContent=sessions.length+" admin sessions recorded. Revoked sessions cannot be reused.";message.className="notice success";
+list.innerHTML='<div class="table-wrap"><table><thead><tr><th>IDENTITY</th><th>CREATED</th><th>STATUS</th></tr></thead><tbody>'+sessions.map(s=>'<tr><td>'+escapeHTML(s.username)+' · '+escapeHTML(s.uid)+'</td><td>'+escapeHTML(new Date(s.createdAt*1000).toLocaleString())+'</td><td>'+(s.revoked?'Revoked':'Active')+'</td></tr>').join("")+'</tbody></table></div>';
+}catch(e){message.textContent="Security data unavailable: "+e.message;message.className="notice error"}
+}
+async function loadAdminAudit(){
+const message=$("adminAuditMessage"),list=$("adminAuditList");
+try{
+const data=await api("/admin/audit");const events=data.events||[];
+message.textContent=events.length+" recent administrative events.";message.className="notice";
+list.innerHTML=events.length?'<div class="table-wrap"><table><thead><tr><th>TIME</th><th>EVENT</th><th>TARGET</th><th>DETAILS</th></tr></thead><tbody>'+events.map(x=>'<tr><td>'+escapeHTML(x.createdAt)+'</td><td>'+escapeHTML(x.action)+'</td><td>'+escapeHTML(x.targetType)+' '+escapeHTML(x.targetId)+'</td><td>'+escapeHTML(x.details)+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No administrative actions recorded yet.</div>';
+}catch(e){message.textContent="Audit log unavailable: "+e.message;message.className="notice error"}
+}
+async function loadAdminSettings(){
+try{const data=await api("/admin/settings");const s=data.settings||{};$("adminSettingsMessage").textContent=Object.entries(s).map(([k,v])=>k.replace(/[A-Z]/g," async function loadAdminUsers(){
+const message=$("adminUsersMessage"),list=$("adminUsersList");")+": "+v).join(" · ");$("adminSettingsMessage").className="notice success"}
+catch(e){$("adminSettingsMessage").textContent="Settings unavailable: "+e.message;$("adminSettingsMessage").className="notice error"}
+}
+$("refreshAdminOverview").addEventListener("click",loadAdminOverview);
+$("adminReportFilter").addEventListener("change",loadAdminReports);
+$("adminReportsList").addEventListener("click",async e=>{
+const b=e.target.closest("[data-report-status]");if(!b)return;b.disabled=true;
+try{await api("/admin/reports/"+encodeURIComponent(b.dataset.reportId),{method:"PUT",body:JSON.stringify({status:b.dataset.reportStatus})});toast("Report updated");await loadAdminReports();await loadAdminOverview();await loadAdminAudit()}
+catch(err){toast("Report update failed: "+err.message);b.disabled=false}
+});
+$("refreshAdminSecurity").addEventListener("click",loadAdminSecurity);
+$("refreshAdminAudit").addEventListener("click",loadAdminAudit);
 async function loadAdminUsers(){
 const message=$("adminUsersMessage"),list=$("adminUsersList");
 message.textContent="Loading user accounts...";
