@@ -566,6 +566,8 @@ async function getSocialUser(request, env) {
     piUsername: row.pi_username || "",
     piVerified: Boolean(row.pi_verified),
     emailVerified: Boolean(row.email_verified),
+    isCreator: Boolean(row.pi_verified && String(row.pi_username || "").trim().toLowerCase() === "mehranmsh"),
+    creatorLabel: Boolean(row.pi_verified && String(row.pi_username || "").trim().toLowerCase() === "mehranmsh") ? "Creator" : "",
     createdAt: row.created_at,
     sessionId: row.session_id,
     sessionExpiresAt: row.expires_at
@@ -2965,6 +2967,24 @@ async function ensureAdminSessionTable(env) {
       created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, revoked_at INTEGER
     )
   `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS admin_audit_log(
+      id TEXT PRIMARY KEY, admin_uid TEXT NOT NULL, admin_username TEXT NOT NULL,
+      action TEXT NOT NULL, target_type TEXT NOT NULL DEFAULT '',
+      target_id TEXT NOT NULL DEFAULT '', details TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_by TEXT").run(); } catch {}
+}
+
+async function writeAdminAudit(env, admin, action, targetType = "", targetId = "", details = "") {
+  await env.DB.prepare(`
+    INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details)
+    VALUES(?,?,?,?,?,?,?)
+  `).bind(crypto.randomUUID(), admin.uid, admin.username, action, targetType, String(targetId || "").slice(0,150), String(details || "").slice(0,1000)).run();
 }
 
 async function verifyAdmin(request, env) {
@@ -3096,7 +3116,7 @@ export default {
       const needsDB =
         path.startsWith("/projects") ||
         path.startsWith("/social") ||
-        path.startsWith("/admin/session") ||
+        path.startsWith("/admin/") ||
         path === "/auth";
 
       if (needsDB && !env.DB) {
@@ -3642,6 +3662,98 @@ export default {
         }
       }
 
+      if (path.startsWith("/admin/")) {
+        await ensureAdminSessionTable(env);
+        await ensureSocialTables(env);
+      }
+
+      if (path === "/admin/overview" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const queries = await Promise.all([
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=0").first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports").first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_sessions WHERE expires_at>?").bind(new Date().toISOString()).first(),
+          env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE created_at>=datetime('now','-7 days')").first()
+        ]);
+        return json({success:true,stats:{
+          users:Number(queries[0]?.total||0),activeUsers:Number(queries[1]?.total||0),
+          suspendedUsers:Number(queries[2]?.total||0),posts:Number(queries[3]?.total||0),
+          openReports:Number(queries[4]?.total||0),allReports:Number(queries[5]?.total||0),
+          activeSessions:Number(queries[6]?.total||0),newUsers7d:Number(queries[7]?.total||0)
+        }});
+      }
+
+      if (path === "/admin/reports" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const status = String(new URL(request.url).searchParams.get("status") || "open");
+        const filter = ["open","resolved","dismissed","all"].includes(status) ? status : "open";
+        const where = filter === "all" ? "" : "WHERE r.status=?";
+        const result = await env.DB.prepare(`
+          SELECT r.id,r.target_type,r.target_id,r.reason,r.status,r.created_at,r.resolved_at,
+                 u.username AS reporter_username
+          FROM social_reports r LEFT JOIN social_users u ON u.id=r.reporter_id
+          ${where} ORDER BY r.created_at DESC LIMIT 100
+        `).bind(...(filter === "all" ? [] : [filter])).all();
+        return json({success:true,reports:(result.results||[]).map(r=>({
+          id:r.id,targetType:r.target_type,targetId:r.target_id,reason:r.reason,
+          status:r.status||"open",createdAt:r.created_at,resolvedAt:r.resolved_at||"",
+          reporter:r.reporter_username||"Deleted account"
+        }))});
+      }
+
+      const adminReportMatch = path.match(/^\\/admin\\/reports\\/([^/]+)$/);
+      if (adminReportMatch && method === "PUT") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const body = await readBody(request);
+        const status = String(body?.status || "");
+        if (!["resolved","dismissed","open"].includes(status)) return error("Invalid report status");
+        const id = decodeURIComponent(adminReportMatch[1]);
+        const result = await env.DB.prepare("UPDATE social_reports SET status=?,resolved_at=?,resolved_by=? WHERE id=?")
+          .bind(status,status==="open"?null:new Date().toISOString(),status==="open"?null:admin.username,id).run();
+        if (!result.meta || result.meta.changes===0) return error("Report not found",404);
+        await writeAdminAudit(env,admin,"report_"+status,"report",id,"Report status changed");
+        return json({success:true,id,status});
+      }
+
+      if (path === "/admin/audit" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const result = await env.DB.prepare("SELECT id,admin_username,action,target_type,target_id,details,created_at FROM admin_audit_log ORDER BY created_at DESC LIMIT 100").all();
+        return json({success:true,events:(result.results||[]).map(x=>({
+          id:x.id,admin:x.admin_username,action:x.action,targetType:x.target_type,
+          targetId:x.target_id,details:x.details,createdAt:x.created_at
+        }))});
+      }
+
+      if (path === "/admin/security" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const result = await env.DB.prepare("SELECT id,uid,username,created_at,expires_at,revoked_at FROM admin_sessions ORDER BY created_at DESC LIMIT 50").all();
+        return json({success:true,sessions:(result.results||[]).map(s=>({
+          id:s.id,uid:s.uid,username:s.username,createdAt:s.created_at,
+          expiresAt:s.expires_at,revoked:Boolean(s.revoked_at)
+        }))});
+      }
+
+      if (path === "/admin/settings" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        return json({success:true,settings:{
+          adminIdentity:"Pi username: mehranmsh",
+          authorization:"Server-verified Pi identity and revocable admin session",
+          emailVerification:"Required for SOCIAL email/password accounts",
+          creatorBadge:"Granted only to a SOCIAL account linked to the verified Pi account mehranmsh",
+          destructiveActions:"Protected by server-side authorization"
+        }});
+      }
+
       if (path === "/admin/users" && method === "GET") {
         if (!await verifyAdmin(request, env)) {
           return error("Admin authentication required", 403);
@@ -3722,6 +3834,7 @@ export default {
         await env.DB.prepare(
           "UPDATE social_users SET is_active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
         ).bind(body.active ? 1 : 0, id).run();
+        await writeAdminAudit(env, await verifyAdmin(request, env), body.active ? "user_reactivated" : "user_suspended", "user", id, "Account status changed");
 
         return json({
           success: true,
