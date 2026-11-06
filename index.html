@@ -163,10 +163,16 @@ window.socialFirebaseLogin = async (email, password) => {
   const response = await fetch("https://mehran-msh-auth.mehran79mehran.workers.dev/social/firebase/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken })
+    body: JSON.stringify({
+      idToken,
+      username: localStorage.getItem("msh_pending_social_username") || "",
+      displayName: localStorage.getItem("msh_pending_social_display_name") || ""
+    })
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.token) throw new Error(data.error || data.message || "Could not create SOCIAL session.");
+  localStorage.removeItem("msh_pending_social_username");
+  localStorage.removeItem("msh_pending_social_display_name");
   return data;
 };
 </script>
@@ -435,9 +441,11 @@ const button=$("socialRegisterBtn");
 button.disabled=true;
 button.textContent="Creating account...";
 try{
+localStorage.setItem("msh_pending_social_username",username);
+localStorage.setItem("msh_pending_social_display_name",$("socialDisplayName").value.trim()||username);
 await window.socialFirebaseRegister(email,password);
 setSocialAuthMessage("Verification email sent. Open the link in your inbox, then return here and sign in with your email and password.","notice success");
-$("socialUsername").value=username;
+$("socialUsername").value=email;
 $("socialPassword").value="";
 }catch(error){
 const messages={
