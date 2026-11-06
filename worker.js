@@ -254,6 +254,16 @@ async function ensureSocialTables(env) {
       firebase_uid TEXT
     )`,
 
+    `CREATE TABLE IF NOT EXISTS social_profile_photos(
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      photo_url TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_profile_photos_user
+      ON social_profile_photos(user_id,sort_order,created_at)`,
+
     `CREATE TABLE IF NOT EXISTS social_sessions(
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -930,12 +940,23 @@ async function getProfileByUsername(username, viewerId, env) {
     "SELECT is_private FROM social_user_settings WHERE user_id=?"
   ).bind(profile.id).first();
 
+  const galleryResult = await env.DB.prepare(
+    "SELECT id,photo_url,sort_order,created_at FROM social_profile_photos WHERE user_id=? ORDER BY sort_order ASC,created_at ASC LIMIT 12"
+  ).bind(profile.id).all();
+  const gallery = (galleryResult.results || []).map(row => ({
+    id: row.id,
+    url: row.photo_url,
+    sortOrder: Number(row.sort_order || 0),
+    createdAt: row.created_at
+  }));
+
   return {
     id: profile.id,
     username: profile.username,
     displayName: profile.display_name || "",
     bio: profile.bio || "",
     avatarUrl: profile.avatar_url || "",
+    gallery,
     piUsername: profile.pi_username || "",
     piVerified: Boolean(profile.pi_verified),
     createdAt: profile.created_at,
@@ -988,9 +1009,13 @@ async function socialUpdateProfile(request, env) {
   const displayName = cleanText(body.displayName, 60);
   const bio = cleanText(body.bio, 500);
   const avatarUrl = String(body.avatarUrl || "").trim();
+  const galleryInput = Array.isArray(body.gallery) ? body.gallery.slice(0,12) : null;
 
   if (avatarUrl && !validHttpsUrl(avatarUrl)) {
     return error("Avatar must be a valid HTTPS URL");
+  }
+  if (galleryInput && galleryInput.some(url => typeof url !== "string" || !validHttpsUrl(url))) {
+    return error("Every gallery photo must be a valid HTTPS URL");
   }
 
   await env.DB.prepare(`
@@ -998,6 +1023,15 @@ async function socialUpdateProfile(request, env) {
     SET display_name=?,bio=?,avatar_url=?,updated_at=CURRENT_TIMESTAMP
     WHERE id=?
   `).bind(displayName, bio, avatarUrl, user.id).run();
+
+  if (galleryInput) {
+    await env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(user.id).run();
+    for (let i=0;i<galleryInput.length;i++) {
+      await env.DB.prepare(
+        "INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order) VALUES(?,?,?,?)"
+      ).bind(crypto.randomUUID(),user.id,galleryInput[i],i).run();
+    }
+  }
 
   const profile = await getProfileByUsername(user.username, user.id, env);
   return json({ success: true, profile });
