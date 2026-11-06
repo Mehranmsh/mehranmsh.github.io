@@ -995,22 +995,30 @@ setSocialAuthMessage(messages[error.code]||error.message||"Login failed","notice
 }
 async function socialMe(){
 const token=getSocialToken();
-if(!token){socialUser=null;renderSocial();return}
+if(!token){socialUser=null;renderSocial();return false}
 try{
 const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});
 const data=await response.json().catch(()=>({}));
-if(!response.ok)throw new Error(data.message||"Session expired");
+if(response.status===401){
+localStorage.removeItem(SOCIAL_TOKEN_KEY);
+socialUser=null;
+$("socialStatus").textContent="Session expired";
+$("settingsMessage").textContent="Your session expired. Please sign in again.";
+renderSocial();
+return false;
+}
+if(!response.ok)throw new Error(data.message||("Server unavailable ("+response.status+")"));
 socialUser=data.user||data;
 $("settingsUsername").value=socialUser.username||"";
 $("socialStatus").textContent="Connected";
-await loadSocialFeed();
 renderSocial();
+loadSocialFeed().catch(error=>console.warn("SOCIAL feed:",error));
+return true;
 }catch(error){
-localStorage.removeItem(SOCIAL_TOKEN_KEY);
-socialUser=null;
-$("socialStatus").textContent="Not registered";
+$("socialStatus").textContent="Connection issue";
+$("settingsMessage").textContent="Connection problem. Your saved session was kept. Try again when the connection is stable. "+error.message;
 renderSocial();
-$("settingsMessage").textContent="Please sign in again. "+error.message;
+return false;
 }
 }
 async function socialLogout(){
