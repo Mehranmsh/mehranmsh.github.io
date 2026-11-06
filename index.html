@@ -239,6 +239,16 @@
  #page-social .file-pick-cta{padding:9px 10px!important;font-size:10px!important}
 }
 
+/* Final mobile-safe controls: the real file input receives the tap. */
+#page-social label.file-dropzone{isolation:isolate;position:relative!important}
+#page-social label.file-dropzone input[type=file]{
+ position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
+ margin:0!important;padding:0!important;opacity:0!important;clip:auto!important;
+ clip-path:none!important;overflow:hidden!important;z-index:5!important;
+ cursor:pointer!important;pointer-events:auto!important;
+}
+#page-social .file-dropzone *{pointer-events:none!important}
+#page-social label.file-dropzone input[type=file]{pointer-events:auto!important}
 </style>
 </head>
 <body>
@@ -1259,37 +1269,32 @@ $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer)
 const prevSwitch=window.switchSocial;window.switchSocial=function(name){prevSwitch(name);if(name==="feed")socialLoadStories();if(name==="messages"||name==="groups")socialLoadConversations();if(name==="channels")socialLoadChannels();if(name==="bots")socialLoadBots();if(name==="settings"){socialLoadPrivacy();socialLoadRequests();}};
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(socialUser)socialLoadStories();};
 
-/* Reliable avatar lightbox: delegate at document level so profile, sidebar,
-   preview and dynamically rendered public-profile avatars all work. */
+</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div><script>
+/* Avatar preview: markup exists before listeners are attached. */
 (()=>{
- const init=()=>{
-  const lightbox=document.getElementById("socialAvatarLightbox");
-  if(!lightbox||lightbox.dataset.ready==="1")return;
-  lightbox.dataset.ready="1";
-  const large=lightbox.querySelector(".avatar-lightbox-image");
-  if(!large)return;
-  const close=()=>{
-   lightbox.classList.remove("open");
-   large.removeAttribute("src");
-   document.body.style.overflow="";
-  };
-  lightbox.querySelector(".avatar-lightbox-close")?.addEventListener("click",close);
-  lightbox.addEventListener("click",e=>{if(e.target===lightbox)close();});
-  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&lightbox.classList.contains("open"))close();});
-  document.addEventListener("click",e=>{
-   const avatar=e.target instanceof Element?e.target.closest(".profile-avatar-large,.profile-preview-avatar,.avatar"):null;
-   if(!avatar||lightbox.contains(avatar))return;
-   const img=avatar.matches("img")?avatar:avatar.querySelector("img");
-   if(!img)return;
-   const src=img.currentSrc||img.src;
-   if(!src)return;
-   large.src=src;
-   lightbox.classList.add("open");
-   document.body.style.overflow="hidden";
-  },true);
+ const lightbox=document.getElementById("socialAvatarLightbox");
+ if(!lightbox)return;
+ const large=lightbox.querySelector(".avatar-lightbox-image");
+ const close=()=>{
+  lightbox.classList.remove("open");
+  large.removeAttribute("src");
+  document.body.style.overflow="";
  };
- if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
- else init();
-})();</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div>
+ lightbox.querySelector(".avatar-lightbox-close").addEventListener("click",close);
+ lightbox.addEventListener("click",e=>{if(e.target===lightbox)close();});
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&lightbox.classList.contains("open"))close();});
+ document.addEventListener("click",e=>{
+  const target=e.target instanceof Element?e.target:null;
+  const avatar=target?.closest("#page-social .profile-avatar-large,#page-social .profile-preview-avatar,#page-social .avatar,.public-profile-view .profile-avatar-large");
+  if(!avatar||lightbox.contains(avatar))return;
+  const img=avatar.matches("img")?avatar:avatar.querySelector("img");
+  if(!img)return;
+  const src=img.currentSrc||img.src;
+  if(!src)return;
+  large.src=src;
+  lightbox.classList.add("open");
+  document.body.style.overflow="hidden";
+ },true);
+})();
 </body>
 </html>
