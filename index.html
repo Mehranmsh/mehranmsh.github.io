@@ -166,6 +166,25 @@
  #page-social .profile-live-preview{align-items:flex-start}
  #page-social .profile-live-preview .preview-live-tag{display:none}
 }
+
+/* Friendly media picker: replace the browser's raw upload control with a social-style drop card */
+#page-social .file-field-label{display:block;margin:0 0 10px 3px;color:#c5d8ee;font-size:12px;font-weight:800;letter-spacing:.35px}
+#page-social .file-dropzone{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:94px;padding:17px 18px;margin:0;border:1px dashed rgba(65,205,255,.42);border-radius:19px;background:radial-gradient(ellipse at 0 0,rgba(39,185,255,.13),transparent 58%),linear-gradient(135deg,rgba(17,39,62,.96),rgba(11,23,40,.98));cursor:pointer;overflow:hidden;transition:border-color .2s,background .2s,transform .2s,box-shadow .2s}
+#page-social .file-dropzone:hover{border-color:rgba(65,220,255,.85);background:radial-gradient(ellipse at 0 0,rgba(39,185,255,.2),transparent 60%),linear-gradient(135deg,#142e49,#101f35);box-shadow:0 10px 28px rgba(0,0,0,.18);transform:translateY(-1px)}
+#page-social .file-dropzone:focus-within{outline:3px solid rgba(40,217,255,.15);border-color:#36d7ff}
+#page-social .file-dropzone input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0}
+#page-social .file-drop-icon{flex:0 0 48px;width:48px;height:48px;display:grid;place-items:center;border-radius:15px;background:linear-gradient(145deg,rgba(39,217,255,.2),rgba(73,111,255,.2));border:1px solid rgba(85,207,255,.22);color:#66e5ff;font-size:25px;font-weight:500}
+#page-social .file-drop-copy{display:grid;gap:5px;min-width:0;flex:1}
+#page-social .file-drop-copy strong{color:#edf7ff;font-size:13px;font-weight:800}
+#page-social .file-drop-copy small{color:#8fa9c5;font-size:11px;line-height:1.5}
+#page-social .file-pick-cta{flex:0 0 auto;padding:9px 13px;border:1px solid rgba(61,210,255,.3);border-radius:12px;background:rgba(37,153,206,.13);color:#83e8ff;font-size:11px;font-weight:800;white-space:nowrap}
+#page-social .file-selection-status{min-height:20px;margin:8px 3px 0;color:#829ab5;font-size:11px;line-height:1.6}
+#page-social .file-selection-status.has-files{color:#77e4bd}
+#page-social #uploadPreview{display:flex;gap:10px;flex-wrap:wrap;padding:4px 0}
+#page-social #uploadPreview:empty{display:none}
+#page-social #uploadPreview img,#page-social #uploadPreview video{width:92px;height:92px;border-radius:15px;border:1px solid rgba(88,190,235,.3);object-fit:cover;background:#07111e}
+@media(max-width:560px){#page-social .file-dropzone{gap:10px;padding:13px;min-height:86px}#page-social .file-drop-icon{width:42px;height:42px;flex-basis:42px;border-radius:13px}#page-social .file-drop-copy strong{font-size:12px}#page-social .file-drop-copy small{font-size:10px}#page-social .file-pick-cta{padding:8px 10px;font-size:10px}}
+
 </style>
 </head>
 <body>
@@ -238,7 +257,7 @@
 <div id="profileEditor" class="profile-editor-panel hidden">
  <div class="profile-editor-heading"><div><span class="profile-kicker">MAKE IT YOURS</span><h2>Edit your profile</h2><p>Let people know the person behind the posts.</p></div><button class="profile-close-btn" id="closeProfileEditor" aria-label="Close">×</button></div>
  <div class="profile-live-preview"><div class="profile-preview-avatar" id="profilePreviewAvatar">M</div><div><strong id="profilePreviewName">Your name</strong><span id="profilePreviewHandle">@username</span><p id="profilePreviewBio">Your bio will appear here...</p></div><span class="preview-live-tag">LIVE PREVIEW</span></div>
- <div class="profile-editor-grid"><div class="field"><label for="profileDisplayName">Display name</label><input id="profileDisplayName" maxlength="60" placeholder="What should people call you?"></div><div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="500" placeholder="A few words that feel like you..."></textarea><div class="profile-char-count"><span id="profileBioCount">0</span>/500</div></div><div class="field profile-photo-field"><label for="profilePhoto">Profile photo</label><input type="file" id="profilePhoto" accept="image/*"><small>Choose a clear photo, up to 700 KB.</small></div></div>
+ <div class="profile-editor-grid"><div class="field"><label for="profileDisplayName">Display name</label><input id="profileDisplayName" maxlength="60" placeholder="What should people call you?"></div><div class="field"><label for="profileBio">Bio</label><textarea id="profileBio" maxlength="500" placeholder="A few words that feel like you..."></textarea><div class="profile-char-count"><span id="profileBioCount">0</span>/500</div></div><div class="field profile-photo-field"><span class="file-field-label">Profile photo</span><label class="file-dropzone profile-file-drop" for="profilePhoto"><span class="file-drop-icon">✦</span><span class="file-drop-copy"><strong>Choose a profile photo</strong><small>JPG, PNG or WEBP · up to 700 KB</small></span><span class="file-pick-cta">Browse</span><input type="file" id="profilePhoto" accept="image/*"></label><div class="file-selection-status" id="profileFileStatus">No photo selected yet</div></div></div>
  <div class="profile-editor-actions"><button class="btn" id="saveProfileBtn">Save changes</button><button class="btn secondary" id="removePhotoBtn">Remove photo</button><button class="btn secondary" id="verifyCreatorBtn">✦ Verify with Pi</button></div><div id="profileMessage" class="notice">Your profile changes will be saved to your SOCIAL account.</div>
 </div>
 </div>
@@ -282,7 +301,7 @@
 
 <div class="modal" id="authModal"><div class="modal-box"><div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div><p class="small-text">Create an account or sign in to interact with SOCIAL.</p><div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div><div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 10 characters" autocomplete="new-password"></div><div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div><div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div class="small-text" style="margin-top:14px;text-align:center"><span id="authSwitchText">Don't have an account?</span><button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button></div><div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div><div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div></div></div>
 
-<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><div class="field"><label>Photos and videos (up to 10 files)</label><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></div><div id="uploadPreview" class="upload-preview"></div><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
+<div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><div class="field post-media-field"><span class="file-field-label">Add photos or videos</span><label class="file-dropzone post-file-drop" for="postMediaInput"><span class="file-drop-icon">＋</span><span class="file-drop-copy"><strong>Choose photos or videos</strong><small>Up to 10 files · images and videos · 700 KB each</small></span><span class="file-pick-cta">Browse files</span><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></label><div class="file-selection-status" id="postFileStatus">Your selected media will appear below</div></div><div id="uploadPreview" class="upload-preview"></div><div class="field"><label>Caption</label><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
 
 
 <script type="module">
@@ -828,7 +847,7 @@ toast("Delete failed: "+error.message);
 };
 function openCreate(){
 if(!requireAuth("Create a post"))return;
-draftFiles=[];$("postMediaInput").value="";$("postCaption").value="";
+draftFiles=[];$("postMediaInput").value="";$("postFileStatus").textContent="Your selected media will appear below";$("postFileStatus").classList.remove("has-files");$("postCaption").value="";
 $("captionCount").textContent="0 / 2200";$("uploadPreview").innerHTML="";
 $("createModal").classList.add("open");document.body.style.overflow="hidden";
 }
@@ -840,6 +859,7 @@ $("closeCreate").addEventListener("click",closeCreate);
 $("cancelPostBtn").addEventListener("click",closeCreate);
 $("postMediaInput").addEventListener("change",async e=>{
 const files=Array.from(e.target.files||[]);
+$("postFileStatus").textContent=files.length?files.length+" file"+(files.length===1?"":"s")+" selected · preparing previews…":"Your selected media will appear below";$("postFileStatus").classList.toggle("has-files",files.length>0);
 if(files.length>10){toast("Maximum 10 files per post.");return}
 let total=0;draftFiles=[];
 for(const file of files){
@@ -855,6 +875,7 @@ draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:f
 }catch{toast("Could not read "+file.name)}
 }
 $("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'" alt="Preview">').join("");
+$("postFileStatus").textContent=draftFiles.length?draftFiles.length+" ready to share · "+draftFiles.map(m=>m.name).join(", "):"No supported files selected. Try an image or video under 700 KB each.";$("postFileStatus").classList.toggle("has-files",draftFiles.length>0);
 });
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
 $("publishPostBtn").addEventListener("click",async()=>{
@@ -1172,7 +1193,7 @@ $("openProfileEditor")?.addEventListener("click",()=>{$("profileEditor").classLi
 $("closeProfileEditor")?.addEventListener("click",()=>$("profileEditor").classList.add("hidden"));
 $("profileDisplayName")?.addEventListener("input",updateProfilePreview);
 $("profileBio")?.addEventListener("input",updateProfilePreview);
-$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>700*1024){e.target.value="";$("profileMessage").textContent="Photo must be smaller than 700 KB.";$("profileMessage").className="notice error";return;}try{const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+data+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
+$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No photo selected yet";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>700*1024){e.target.value="";$("profileFileStatus").textContent="File is too large. Choose an image under 700 KB.";$("profileFileStatus").classList.remove("has-files");$("profileMessage").textContent="Photo must be smaller than 700 KB.";$("profileMessage").className="notice error";return;}try{$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+data+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
 $("profileShareBtn")?.addEventListener("click",async()=>{const url=location.origin+location.pathname+"#social-profile";try{if(navigator.share)await navigator.share({title:"SOCIAL profile",url});else{await navigator.clipboard.writeText(url);toast("Profile link copied");}}catch(e){}});
 document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.addEventListener("click",()=>{profileTab=btn.dataset.profileTab;document.querySelectorAll("[data-profile-tab]").forEach(b=>b.classList.toggle("active",b===btn));$("profilePostsPanel").classList.toggle("hidden",profileTab!=="posts");$("profileAboutPanel").classList.toggle("hidden",profileTab!=="about");}));
 $("saveProfileBtn")?.addEventListener("click",async()=>{if(!socialUser)return;const button=$("saveProfileBtn"),label=button.textContent;button.disabled=true;button.textContent="Saving...";try{let avatarUrl=socialUser.avatarUrl||"";const file=$("profilePhoto").files?.[0];if(file){if(file.size>700*1024)throw Error("Photo must be smaller than 700 KB.");avatarUrl=await socialUploadFile(file);}const d=await socialRequest("/profile",{method:"PUT",body:JSON.stringify({displayName:$("profileDisplayName").value.trim(),bio:$("profileBio").value.trim(),avatarUrl})});socialUser={...socialUser,...(d.profile||{})};localProfile={displayName:socialUser.displayName||"",bio:socialUser.bio||"",photo:socialUser.avatarUrl||""};saveJSON(SOCIAL_PROFILE_KEY,localProfile);$("profilePhoto").value="";$("profileMessage").textContent="Your profile is saved. The community can now see your updates.";$("profileMessage").className="notice success";await renderProfile();renderSocial();$("profileEditor").classList.add("hidden");}catch(e){$("profileMessage").textContent="Could not save profile: "+e.message;$("profileMessage").className="notice error";}finally{button.disabled=false;button.textContent=label}});
