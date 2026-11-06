@@ -1308,5 +1308,14 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(
   large.src=src;lightbox.classList.add("open");document.body.style.overflow="hidden";
  },true);
 })();
+</script>
+<style>
+@media(max-width:700px){
+ #page-social label.file-dropzone.profile-file-drop,#page-social label.file-dropzone.post-file-drop{display:grid!important;grid-template-columns:48px minmax(0,1fr)!important;grid-template-rows:auto auto!important;align-items:center!important;gap:12px!important;padding:16px!important;min-height:0!important;}
+ #page-social .file-dropzone .file-drop-icon{grid-column:1!important;grid-row:1!important;width:48px!important;height:48px!important;}
+ #page-social .file-dropzone .file-drop-copy{grid-column:2!important;grid-row:1!important;width:100%!important;min-width:0!important;flex:none!important;}
+ #page-social .file-dropzone .file-pick-cta{grid-column:2!important;grid-row:2!important;justify-self:start!important;width:max-content!important;max-width:100%!important;}
+}
+</style>
 </body>
 </html>
