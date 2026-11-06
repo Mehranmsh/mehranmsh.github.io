@@ -1259,32 +1259,37 @@ $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer)
 const prevSwitch=window.switchSocial;window.switchSocial=function(name){prevSwitch(name);if(name==="feed")socialLoadStories();if(name==="messages"||name==="groups")socialLoadConversations();if(name==="channels")socialLoadChannels();if(name==="bots")socialLoadBots();if(name==="settings"){socialLoadPrivacy();socialLoadRequests();}};
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(socialUser)socialLoadStories();};
 
-/* Tap any visible SOCIAL avatar to view the original-sized profile photo.
-   The lightbox markup follows this script, so initialize after DOMContentLoaded. */
+/* Reliable avatar lightbox: delegate at document level so profile, sidebar,
+   preview and dynamically rendered public-profile avatars all work. */
 (()=>{
  const init=()=>{
   const lightbox=document.getElementById("socialAvatarLightbox");
-  if(!lightbox||lightbox.dataset.ready)return;
+  if(!lightbox||lightbox.dataset.ready==="1")return;
   lightbox.dataset.ready="1";
   const large=lightbox.querySelector(".avatar-lightbox-image");
-  const close=()=>{lightbox.classList.remove("open");large.removeAttribute("src");document.body.style.overflow="";};
+  if(!large)return;
+  const close=()=>{
+   lightbox.classList.remove("open");
+   large.removeAttribute("src");
+   document.body.style.overflow="";
+  };
   lightbox.querySelector(".avatar-lightbox-close")?.addEventListener("click",close);
   lightbox.addEventListener("click",e=>{if(e.target===lightbox)close();});
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&lightbox.classList.contains("open"))close();});
-  document.getElementById("page-social")?.addEventListener("click",e=>{
-   const avatar=e.target.closest(".profile-avatar-large,.avatar,.profile-preview-avatar");
-   if(!avatar)return;
-   const img=avatar.querySelector("img");
-   if(!img||!img.src)return;
-   large.src=img.currentSrc||img.src;
+  document.addEventListener("click",e=>{
+   const avatar=e.target instanceof Element?e.target.closest(".profile-avatar-large,.profile-preview-avatar,.avatar"):null;
+   if(!avatar||lightbox.contains(avatar))return;
+   const img=avatar.matches("img")?avatar:avatar.querySelector("img");
+   if(!img)return;
+   const src=img.currentSrc||img.src;
+   if(!src)return;
+   large.src=src;
    lightbox.classList.add("open");
    document.body.style.overflow="hidden";
-  });
+  },true);
  };
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
  else init();
-})();
-
-</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div>
+})();</script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div>
 </body>
 </html>
