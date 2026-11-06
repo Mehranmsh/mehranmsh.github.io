@@ -183,7 +183,12 @@
 #page-social #uploadPreview{display:flex;gap:10px;flex-wrap:wrap;padding:4px 0}
 #page-social #uploadPreview:empty{display:none}
 #page-social #uploadPreview img,#page-social #uploadPreview video{width:92px;height:92px;border-radius:15px;border:1px solid rgba(88,190,235,.3);object-fit:cover;background:#07111e}
-@media(max-width:560px){#page-social .file-dropzone{gap:10px;padding:13px;min-height:86px}#page-social .file-drop-icon{width:42px;height:42px;flex-basis:42px;border-radius:13px}#page-social .file-drop-copy strong{font-size:12px}#page-social .file-drop-copy small{font-size:10px}#page-social .file-pick-cta{padding:8px 10px;font-size:10px}}
+@media(max-width:640px){
+#page-social label.file-dropzone{display:grid!important;grid-template-columns:44px minmax(0,1fr)!important;grid-template-rows:auto auto;align-items:center;column-gap:12px!important;row-gap:12px!important;padding:16px!important;min-height:0!important}
+#page-social .file-drop-icon{grid-column:1;grid-row:1;width:44px;height:44px;flex:none}
+#page-social .file-drop-copy{grid-column:2;grid-row:1;min-width:0;width:100%}
+#page-social .file-pick-cta{grid-column:2;grid-row:2;justify-self:start;width:auto!important;max-width:100%;white-space:nowrap;padding:10px 14px!important;font-size:12px!important}
+}
 
 
 /* Robust custom file controls: visually hide native chooser, keep the whole card clickable */
@@ -1287,12 +1292,9 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(
  document.addEventListener("click",e=>{
   const target=e.target instanceof Element?e.target:null;
   if(!target)return;
-  const label=target.closest("#page-social label.file-dropzone");
-  if(label){
-   const input=label.querySelector('input[type="file"]');
-   if(input){e.preventDefault();e.stopPropagation();input.click();return;}
-  }
-  const avatar=target.closest("#page-social .profile-avatar-large,#page-social .profile-preview-avatar,#page-social #sideAvatar,#page-social .avatar,.public-profile-view .profile-avatar-large");
+  /* Native label-to-input activation is more reliable in Android WebViews.
+     Do not call input.click() here: it can double-trigger the system picker. */
+  const avatar=target.closest("#profileAvatarLarge,.profile-avatar-large,.profile-preview-avatar,#sideAvatar,.avatar,.public-profile-view .profile-avatar-large");
   if(!avatar||!lightbox||!large||lightbox.contains(avatar))return;
   const img=avatar.matches("img")?avatar:avatar.querySelector("img");
   let src=img?(img.currentSrc||img.src):"";
