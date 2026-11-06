@@ -911,11 +911,16 @@ $("authSwitchBtn").textContent=registering?"Sign in":"Create account";
 }
 function requireAuth(action){
 if(socialUser)return true;
+if(getSocialToken()){
+toast("Your saved session is reconnecting. Please try again in a moment.");
+socialMe();
+return false;
+}
 openAuth("register");
 setSocialAuthMessage("Create an account or sign in to "+action.toLowerCase()+".","notice warn");
 return false;
 }
-$("socialTopAuth").addEventListener("click",()=>socialUser?switchSocial("settings"):openAuth("register"));
+$("socialTopAuth").addEventListener("click",()=>{if(socialUser){switchSocial("settings");return}if(getSocialToken()){toast("Restoring your saved session...");socialMe();return}openAuth("register")});
 $("authSwitchBtn").addEventListener("click",()=>{
 authMode=authMode==="register"?"login":"register";
 updateAuthMode();
