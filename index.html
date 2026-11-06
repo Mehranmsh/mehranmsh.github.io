@@ -5,7 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#070b14">
 <title>MEHRAN MSH | Digital Ecosystem</title>
-<script src="https://sdk.minepi.com/pi-sdk.js" defer></script>
+<script src="https://sdk.minepi.com/pi-sdk.js"></script>
+<script>
+window.__piInitPromise=(async()=>{
+ if(!window.Pi)throw new Error("Pi SDK did not load. Open this app in Pi Browser and check your connection.");
+ await window.Pi.init({version:"2.0",sandbox:false});
+ return true;
+})();
+window.__piInitPromise.catch(error=>console.error("Pi SDK initialization failed:",error));
+</script>
 <style>
 :root{--bg:#070b14;--panel:#0e1728;--panel2:#111e32;--line:#20324c;--cyan:#28d9ff;--blue:#397bff;--gold:#f3c969;--text:#edf5ff;--muted:#91a4bd;--green:#39d99b;--red:#ff667d}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#14294a 0,transparent 50%),var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;min-height:100vh}button,input,textarea,select{font:inherit}button{cursor:pointer}a{color:var(--cyan);text-decoration:none}
@@ -688,7 +696,7 @@ $("piMessage").className="notice warn";
 return;
 }
 try{
-window.Pi.init({version:"2.0",sandbox:false});
+await window.__piInitPromise;
 const auth=await window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment));
 const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});
 piUser={...(auth.user||{}),uid:data.uid||auth.user?.uid,username:data.username||auth.user?.username,isAdmin:!!data.isAdmin};
@@ -1210,19 +1218,23 @@ $("verifyCreatorBtn").addEventListener("click",async()=>{
 const message=$("profileMessage"),button=$("verifyCreatorBtn");
 if(!socialUser){message.textContent="Sign in to SOCIAL first.";message.className="notice warn";return}
 if(!window.Pi){message.textContent="Open SOCIAL in Pi Browser to verify your Pi identity.";message.className="notice warn";return}
-button.disabled=true;message.textContent="Verifying your Pi identity...";
+button.disabled=true;message.textContent="Connecting to Pi Browser...";
+let stage="Pi SDK initialization";
 try{
-window.Pi.init({version:"2.0",sandbox:false});
+await window.__piInitPromise;
+stage="Pi Browser authorization";
 const auth=await window.Pi.authenticate(["username"],async()=>{});
+if(!auth?.accessToken)throw new Error("Pi did not return an access token.");
+stage="SOCIAL server verification";
 const result=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:socialHeaders(),body:JSON.stringify({accessToken:auth.accessToken})});
 const data=await result.json().catch(()=>({}));
-if(!result.ok)throw new Error(data.message||"Pi verification failed");
+if(!result.ok)throw new Error(data.message||("Server returned HTTP "+result.status));
 await socialMe();
 await renderProfile();
 syncPiVerificationUI();
 message.textContent="Creator identity verified. Your Creator badge is now active.";
 message.className="notice success";
-}catch(error){message.textContent=error.message||"Pi verification failed.";message.className="notice error"}
+}catch(error){message.textContent=stage+": "+(error.message||"Unknown error");message.className="notice error"}
 finally{syncPiVerificationUI();if(!socialUser?.piVerified&&!profileData?.piVerified)button.disabled=false}
 });
 $("removePhotoBtn").addEventListener("click",async()=>{
