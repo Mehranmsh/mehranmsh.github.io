@@ -227,7 +227,22 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
   return true;
 }
 
+const socialSchemaInit = new WeakMap();
+
 async function ensureSocialTables(env) {
+  const db = env.DB;
+  let pending = socialSchemaInit.get(db);
+  if (!pending) {
+    pending = createSocialTables(db);
+    socialSchemaInit.set(db, pending);
+    pending.catch(() => {
+      if (socialSchemaInit.get(db) === pending) socialSchemaInit.delete(db);
+    });
+  }
+  return pending;
+}
+
+async function createSocialTables(db) {
   const statements = [
     `CREATE TABLE IF NOT EXISTS social_auth_limits(
       rate_key TEXT PRIMARY KEY,
@@ -543,13 +558,13 @@ async function ensureSocialTables(env) {
   ];
 
   for (const statement of statements) {
-    await env.DB.prepare(statement).run();
+    await db.prepare(statement).run();
   }
-  try { await env.DB.prepare("ALTER TABLE social_users ADD COLUMN firebase_uid TEXT").run(); } catch {}
-  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
-  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
-  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
-  try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_by TEXT").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_users ADD COLUMN firebase_uid TEXT").run(); } catch {}
+  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
+  try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_by TEXT").run(); } catch {}
 }
 
 function cleanUsername(value) {
