@@ -1620,7 +1620,7 @@ window.switchSocial=function(name){
   socialLoadPrivacy();socialLoadRequests();socialLoadSessions();socialLoadExtendedSettings();socialLoadStorage();
  }
 };
-const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();if(socialUser)socialLoadStories();};
+const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();socialLoadStories();};socialLoadStories();
 
 </script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img id="socialAvatarLightboxImage" class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div><script>
 /* SOCIAL media and avatar controls: explicit delegated activation for mobile WebViews. */
