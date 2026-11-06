@@ -3219,6 +3219,20 @@ export default {
           return await socialMe(request, env);
         }
 
+        if (path === "/social/link-pi" && method === "POST") {
+          const user = await getSocialUser(request, env);
+          if (!user) return error("SOCIAL authentication required", 401);
+          const body = await readBody(request);
+          if (!body || !body.accessToken) return error("Pi access token is required");
+          const piUser = await fetchPiUser(body.accessToken);
+          if (!piUser || String(piUser.username || "").trim().toLowerCase() !== "mehranmsh") {
+            return error("Only the verified Pi account mehranmsh can receive the Creator badge", 403);
+          }
+          await env.DB.prepare("UPDATE social_users SET pi_username=?,pi_verified=1,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+            .bind(piUser.username,user.id).run();
+          return json({success:true,creatorVerified:true,creatorLabel:"Creator"});
+        }
+
         if (path === "/social/logout" && method === "POST") {
           return await socialLogout(request, env);
         }
