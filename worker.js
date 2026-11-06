@@ -554,7 +554,18 @@ async function createSocialTables(db) {
       token_hash TEXT NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS social_ai_messages(
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('user','assistant')),
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE INDEX IF NOT EXISTS idx_social_ai_messages_user
+      ON social_ai_messages(user_id,created_at DESC)`
   ];
 
   for (const statement of statements) {
@@ -2787,6 +2798,74 @@ async function socialListBots(request, env) {
   return json({ success: true, bots: result.results || [] });
 }
 
+async function socialAssistantStatus(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  return json({ success: true, enabled: typeof env.OPENAI_API_KEY === "string" && env.OPENAI_API_KEY.length > 20 });
+}
+
+async function socialAssistantHistory(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const result = await env.DB.prepare(`
+    SELECT id,role,content,created_at FROM social_ai_messages
+    WHERE user_id=? ORDER BY created_at DESC LIMIT 40
+  `).bind(user.id).all();
+  return json({ success: true, messages: (result.results || []).reverse() });
+}
+
+async function socialAssistantChat(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  if (typeof env.OPENAI_API_KEY !== "string" || env.OPENAI_API_KEY.length < 20) {
+    return error("AI connection is not configured on the server yet.", 503);
+  }
+  if (!await checkRateLimit(env, request, "social-ai-chat", 30, 60, 120)) {
+    return error("Too many messages. Please wait a moment.", 429);
+  }
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+  const content = cleanText(body.content, 4000);
+  if (!content) return error("Write a message first.");
+  const recent = await env.DB.prepare(`
+    SELECT role,content FROM social_ai_messages
+    WHERE user_id=? ORDER BY created_at DESC LIMIT 19
+  `).bind(user.id).all();
+  const input = (recent.results || []).reverse().map(row => ({ role: row.role, content: row.content }));
+  input.push({ role: "user", content });
+  let response;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + env.OPENAI_API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: cleanText(env.OPENAI_MODEL, 80) || "gpt-6-astra",
+        store: false,
+        instructions: "You are ChatGPT, the helpful AI assistant inside SOCIAL, an international social network. Be friendly, clear, safe, and concise. Reply in the language used by the user unless they ask otherwise. Never claim to have performed actions you did not perform. Do not ask for passwords, API keys, private tokens, or wallet recovery phrases.",
+        input,
+        max_output_tokens: 900
+      })
+    });
+  } catch {
+    return error("Could not reach the AI service. Please try again.", 502);
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return error(response.status === 401 ? "The server AI key is invalid." :
+      response.status === 429 ? "The AI service is busy or its quota is exhausted." :
+      "The AI service returned an error. Please try again.", 502);
+  }
+  const answer = (data.output || []).filter(item => item.type === "message")
+    .flatMap(item => item.content || []).filter(item => item.type === "output_text")
+    .map(item => item.text || "").join("\n").trim();
+  if (!answer) return error("The AI service returned an empty reply.", 502);
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO social_ai_messages(id,user_id,role,content) VALUES(?,?,?,?)").bind(crypto.randomUUID(), user.id, "user", content),
+    env.DB.prepare("INSERT INTO social_ai_messages(id,user_id,role,content) VALUES(?,?,?,?)").bind(crypto.randomUUID(), user.id, "assistant", answer)
+  ]);
+  return json({ success: true, reply: answer });
+}
+
 async function rapidfileRequest(env, endpoint, options = {}) {
   const key = env.RAPIDFILE_API_KEY;
 
@@ -3794,6 +3873,10 @@ export default {
             false
           );
         }
+
+        if (path === "/social/assistant/status" && method === "GET") return await socialAssistantStatus(request, env);
+        if (path === "/social/assistant/history" && method === "GET") return await socialAssistantHistory(request, env);
+        if (path === "/social/assistant/chat" && method === "POST") return await socialAssistantChat(request, env);
 
         if (path === "/social/bots" && method === "GET") {
           return await socialListBots(request, env);
