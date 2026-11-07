@@ -607,6 +607,17 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <input class="assistant-hidden-file" id="assistantDocumentFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple onchange="socialPickAssistantFiles(event,'file')">
 <p class="assistant-attach-note">Media preview is ready. AI media analysis will be enabled after the secure upload and model-processing connection is completed.</p></div></div></div>
 
+<div class="panel" id="imageStudioPanel" style="margin-top:18px">
+<div class="section-title" style="margin-top:0"><div><h3>✦ Image Studio</h3><span class="small-text">Generate a new image with an optional photo reference</span></div><span class="badge-soon">FLUX.2 AI</span></div>
+<p class="small-text">Upload a reference photo to guide the result, then describe the scene. The model can use the reference, but exact facial identity is not guaranteed. Reference photos are uploaded privately and accessed only for generation.</p>
+<div class="form-grid">
+<div class="field"><label for="imageStudioReference">Reference photo (optional)</label><input id="imageStudioReference" type="file" accept="image/jpeg,image/png,image/webp" onchange="socialChooseImageReference(event)"><small class="small-text">JPG, PNG or WEBP. The image is resized before secure upload.</small><div id="imageStudioReferencePreview" class="small-text"></div></div>
+<div class="field"><label for="imageStudioSize">Image format</label><select id="imageStudioSize"><option value="1024x1024">Square · 1:1</option><option value="1024x768">Landscape · 4:3</option><option value="768x1024">Portrait · 3:4</option><option value="1280x720">Wide · 16:9</option></select><small class="small-text">Output size is selected before generation.</small></div>
+</div>
+<div class="field"><label for="imageStudioPrompt">Describe the image you want</label><textarea id="imageStudioPrompt" maxlength="1800" placeholder="Example: Create a natural cinematic portrait of the person in the reference photo, wearing a sky-blue shirt, standing in a sunlit modern city street. Preserve the person's recognizable facial features."></textarea></div>
+<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn" id="imageStudioGenerateBtn" type="button" onclick="socialGenerateImage()">Generate image</button><span id="imageStudioStatus" class="small-text" role="status"></span></div>
+<div id="imageStudioResult" class="hidden" style="margin-top:16px"><img id="imageStudioOutput" alt="AI-generated image" style="display:block;width:100%;max-height:620px;object-fit:contain;border-radius:14px;background:#050a12;border:1px solid var(--line)"><div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:11px"><button class="btn secondary small" type="button" onclick="socialDownloadGeneratedImage()">Download image</button><button class="btn secondary small" type="button" id="imageStudioSaveBtn" onclick="socialSaveGeneratedImage()">Save to your SOCIAL uploads</button></div><p id="imageStudioSaveStatus" class="small-text"></p></div>
+</div>
 <div class="social-view" id="social-prompt-creator">
 <div class="section-title"><h2>✦ PROMPT CREATOR</h2><span class="small-text">Prompt writing only · no AI execution here</span></div>
 <div class="panel prompt-hero"><div class="prompt-kicker">PREPARE THE REQUEST · THEN RUN IT IN SOCIAL AI</div><h3>Tell us what you want the AI to do.</h3><p class="small-text">Prompt Creator turns your instructions into a clear, detailed text prompt. It does not analyze or generate images and does not run an AI model. When ready, send the prompt to SOCIAL AI for execution by an available model.</p></div>
@@ -2020,7 +2031,7 @@ async function socialPublishChannel(){const content=$("channelPostInput").value.
 let socialAIProvidersCache=[];
 function socialSelectedAIProvider(){return $("assistantProviderSelect")?.value||"central";}
 function socialAIProviderName(key){return ({central:"Central Assistant",openai:"OpenAI",gemini:"Google Gemini",cloudflare:"Cloudflare AI",groq:"Groq"})[key]||key;}
-async function socialLoadAssistant(){
+async async function socialLoadAssistant(){
  const status=$("assistantStatus"),box=$("assistantMessages"),send=$("assistantSendBtn"),provider=socialSelectedAIProvider();
  if(!socialUser){status.textContent="Sign in to use SOCIAL AI.";send.disabled=true;box.innerHTML='<div class="empty">Sign in to start your private AI conversations.</div>';return;}
  send.disabled=true;status.textContent="Checking AI providers...";
@@ -2045,6 +2056,64 @@ async function socialUploadAssistantImage(file){
  const completed=await socialRequest("/uploads/"+encodeURIComponent(id)+"/complete",{method:"POST",body:JSON.stringify({})});
  if(completed.file?.status!=="ready")throw new Error("Image is not ready yet.");
  return {id,name:file.name,type:file.type};
+}
+let socialImageReferenceAttachment=null,socialGeneratedImageBlob=null,socialGeneratedImageUrl="",socialGeneratedImageFile=null;
+async function socialChooseImageReference(event){
+ const file=event.target.files?.[0];event.target.value="";
+ if(!file)return;
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)){toast("Choose a JPG, PNG or WEBP reference photo.");return;}
+ if(file.size>15*1024*1024){toast("Reference photo must be smaller than 15 MB.");return;}
+ const preview=$("imageStudioReferencePreview"),status=$("imageStudioStatus");
+ try{
+  status.textContent="Preparing reference photo...";
+  let bitmap;
+  try{bitmap=await createImageBitmap(file);}catch{throw new Error("This image could not be opened. Try another JPG or PNG.");}
+  const scale=Math.min(1,480/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));
+  const ctx=canvas.getContext("2d");ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",0.88));
+  if(!blob)throw new Error("Could not prepare the reference photo.");
+  const safeFile=new File([blob],"social-reference.jpg",{type:"image/jpeg"});
+  status.textContent="Uploading private reference...";
+  socialImageReferenceAttachment=await socialUploadAssistantImage(safeFile);
+  preview.textContent="Reference ready: "+file.name+" (private upload)";
+  status.textContent="Reference photo ready.";
+ }catch(e){socialImageReferenceAttachment=null;preview.textContent="";status.textContent=e.message||"Reference upload failed.";socialShowAssistantError(e);}
+}
+async function socialGenerateImage(){
+ const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn"),status=$("imageStudioStatus");
+ if(!socialUser){toast("Sign in to generate images.");return;}
+ if(!prompt){toast("Write a description for your image first.");return;}
+ if(prompt.length>1800)return;
+ const size=($("imageStudioSize").value||"1024x1024").split("x").map(Number);
+ button.disabled=true;button.textContent="Generating...";status.textContent="Preparing your image request. This can take a little while.";
+ $("imageStudioResult").classList.add("hidden");
+ try{
+  const result=await socialRequest("/assistant/image/generate",{method:"POST",body:JSON.stringify({prompt,reference:socialImageReferenceAttachment?.id||"",width:size[0],height:size[1]})});
+  if(!result.image||typeof result.image!=="string")throw new Error("The image model returned no image data.");
+  const binary=atob(result.image.replace(/^data:image\\/[^;]+;base64,/,""));
+  const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+  socialGeneratedImageBlob=new Blob([bytes],{type:result.mimeType||"image/png"});
+  socialGeneratedImageFile=new File([socialGeneratedImageBlob],"social-ai-"+Date.now()+".png",{type:socialGeneratedImageBlob.type});
+  if(socialGeneratedImageUrl)URL.revokeObjectURL(socialGeneratedImageUrl);
+  socialGeneratedImageUrl=URL.createObjectURL(socialGeneratedImageBlob);
+  $("imageStudioOutput").src=socialGeneratedImageUrl;
+  $("imageStudioResult").classList.remove("hidden");
+  $("imageStudioSaveStatus").textContent="";
+  status.textContent="Image generated successfully.";
+ }catch(e){status.textContent=e.message||"Image generation failed.";socialShowAssistantError(e);}
+ finally{button.disabled=false;button.textContent="Generate image";}
+}
+function socialDownloadGeneratedImage(){
+ if(!socialGeneratedImageUrl)return;
+ const a=document.createElement("a");a.href=socialGeneratedImageUrl;a.download=socialGeneratedImageFile?.name||"social-ai-image.png";document.body.appendChild(a);a.click();a.remove();
+}
+async function socialSaveGeneratedImage(){
+ if(!socialGeneratedImageFile)return;
+ const button=$("imageStudioSaveBtn"),status=$("imageStudioSaveStatus");button.disabled=true;status.textContent="Saving to your uploads...";
+ try{const url=await socialUploadFile(socialGeneratedImageFile);status.innerHTML='Saved successfully. <a href="'+sx(url)+'" target="_blank" rel="noopener">Open saved image</a>'; }
+ catch(e){status.textContent=e.message||"Could not save image.";}
+ finally{button.disabled=false;}
 }
 function socialShowAssistantError(error){
  const message=String(error?.message||error||"Unknown error").slice(0,6000);
