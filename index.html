@@ -2114,19 +2114,6 @@ async function socialCallCleanup(sendLeave=true){
  socialRefreshActiveCall();
 }
 
-async function socialOpenConversation(id){socialActiveConversation=id;const c=socialConversations.find(x=>x.id===id);$("chatTitle").textContent=c?.title||"Conversation";$("chatInput").disabled=false;$("sendChatBtn").disabled=false;$("voiceChatBtn").disabled=false;$("chatAttachBtn").disabled=false;if($("chatEmojiBtn"))$("chatEmojiBtn").disabled=false;socialCallControls(true,c?.type==="group");try{if(window.socialExtendedSettingsUser!==socialUser?.id)await socialLoadExtendedSettings();const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");$("chatMessages").innerHTML=(d.messages||[]).map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';await socialRefreshActiveCall();}catch(e){$("chatMessages").textContent=e.message}}
-async function socialStartDM(username){try{const d=await socialRequest("/conversations",{method:"POST",body:JSON.stringify({username})});switchSocial("messages");await socialLoadConversations();socialOpenConversation(d.conversationId);}catch(e){toast(e.message)}}
-async function socialSendChatMedia(file){
- if(!file||!socialActiveConversation)return;
- const btn=$("chatAttachBtn");if(btn){btn.disabled=true;btn.textContent="…";}
- try{
-  const url=await socialUploadFile(file);
-  await socialRequest("/conversations/"+encodeURIComponent(socialActiveConversation)+"/messages",{method:"POST",body:JSON.stringify({content:"",media:[{url,type:file.type||"application/octet-stream",name:file.name}]})});
-  await socialOpenConversation(socialActiveConversation);await socialLoadConversations();toast("Attachment sent");
- }catch(e){toast("Could not send attachment: "+e.message);}
- finally{if(btn){btn.disabled=false;btn.textContent="＋";}if($("chatFileInput"))$("chatFileInput").value="";}
-}
-async function socialSendChat(){const content=$("chatInput").value.trim();if(!content||!socialActiveConversation)return;try{await socialRequest("/conversations/"+encodeURIComponent(socialActiveConversation)+"/messages",{method:"POST",body:JSON.stringify({content})});$("chatInput").value="";await socialOpenConversation(socialActiveConversation);await socialLoadConversations();}catch(e){toast(e.message)}}
 async function socialCreateGroup(){const title=$("newGroupName").value.trim();if(!title)return toast("Enter a group name");const members=$("newGroupMembers").value.split(",").map(x=>x.trim()).filter(Boolean);try{const d=await socialRequest("/groups",{method:"POST",body:JSON.stringify({title,members})});toast("Group created");await socialLoadConversations();if(d.group?.id)socialOpenConversation(d.group.id);}catch(e){toast(e.message)}}
 async function socialJoinGroup(){const code=$("groupInviteCode").value.trim();if(!code)return;try{const d=await socialRequest("/groups/join/"+encodeURIComponent(code),{method:"POST"});toast("Joined group");await socialLoadConversations();if(d.conversationId)socialOpenConversation(d.conversationId);}catch(e){toast(e.message)}}
 async function socialLoadChannels(){if(!socialUser){$("channelsList").textContent="Sign in to manage channels.";return}try{const d=await socialRequest("/channels");$("channelsList").innerHTML=(d.channels||[]).map(c=>'<div class="social-result"><strong>'+sx(c.title)+'</strong><p>'+sx(c.description||"")+' · '+c.members+' members</p><button class="btn secondary small" data-channel="'+sx(c.id)+'">Open channel</button></div>').join("")||'<div class="empty">No channels yet.</div>';}catch(e){$("channelsList").textContent=e.message}}
