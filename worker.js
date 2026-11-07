@@ -2771,30 +2771,57 @@ async function socialSendMessage(request, env, conversationId) {
     if (!reply) return error("Reply message not found", 404);
   }
   const id = crypto.randomUUID();
-  await env.DB.batch([
-    env.DB.prepare(`
-      INSERT INTO social_messages(id,conversation_id,sender_id,content,media_json,reply_to)
-      VALUES(?,?,?,?,?,?)
-    `).bind(id, conversationId, user.id, content, JSON.stringify(media), replyTo),
-    env.DB.prepare("UPDATE social_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(conversationId)
-  ]);
-  const conversation = await env.DB.prepare(
-    "SELECT type FROM social_conversations WHERE id=?"
-  ).bind(conversationId).first();
-  const members = await env.DB.prepare(
-    "SELECT user_id FROM social_conversation_members WHERE conversation_id=? AND user_id!=?"
-  ).bind(conversationId, user.id).all();
-  const notificationType = conversation?.type === "group" ? "group_message" : "message";
-  for (const row of members.results || []) {
-    await notify(env, row.user_id, user.id, notificationType, conversationId,
-      conversation?.type === "group" ? "new activity in your group" : "sent you a message");
+  let sendStage = "message_schema";
+  try {
+    // Adapt inserts to legacy D1 table columns without weakening access checks.
+    const schema = await env.DB.prepare("PRAGMA table_info(social_messages)").all();
+    const columns = schema.results || [];
+    const values = {
+      id, conversation_id: conversationId, sender_id: user.id,
+      content, message: content, body: content, text: content,
+      media_json: JSON.stringify(media), reply_to: replyTo, forwarded_from: null,
+      message_type: "text", type: "text", sender: user.id, user_id: user.id, chat_id: conversationId
+    };
+    const insertColumns = [], insertValues = [];
+    for (const column of columns) {
+      if (Object.prototype.hasOwnProperty.call(values, column.name)) {
+        insertColumns.push(column.name); insertValues.push(values[column.name]);
+      } else if (column.notnull && column.dflt_value == null && !column.pk) {
+        throw new Error("Unsupported required column: " + column.name);
+      }
+    }
+    if (!insertColumns.includes("id") || !insertColumns.includes("conversation_id") || !insertColumns.includes("sender_id")) {
+      throw new Error("The message table is missing a required core column.");
+    }
+    sendStage = "message_insert";
+    await env.DB.prepare(
+      "INSERT INTO social_messages(" + insertColumns.join(",") + ") VALUES(" + insertColumns.map(() => "?").join(",") + ")"
+    ).bind(...insertValues).run();
+    sendStage = "conversation_update";
+    await env.DB.prepare("UPDATE social_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(conversationId).run();
+    // Notification delivery is best-effort and cannot invalidate a saved message.
+    try {
+      const conversation = await env.DB.prepare("SELECT type FROM social_conversations WHERE id=?").bind(conversationId).first();
+      const members = await env.DB.prepare("SELECT user_id FROM social_conversation_members WHERE conversation_id=? AND user_id!=?").bind(conversationId, user.id).all();
+      const notificationType = conversation?.type === "group" ? "group_message" : "message";
+      for (const row of members.results || []) {
+        try {
+          await notify(env, row.user_id, user.id, notificationType, conversationId,
+            conversation?.type === "group" ? "new activity in your group" : "sent you a message");
+        } catch (notificationError) {
+          console.error("SOCIAL_MESSAGE_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+        }
+      }
+    } catch (notificationError) {
+      console.error("SOCIAL_MESSAGE_NOTIFICATION_LOOKUP_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+    }
+  } catch (err) {
+    console.error("SOCIAL_MESSAGE_SEND_FAILURE", { stage: sendStage, message: String(err?.message || err).slice(0, 300) });
+    return json({ success: false, error: "Could not send this message.", code: "CHAT_SEND_" + sendStage.toUpperCase(), detail: String(err?.message || err).slice(0, 220) }, 500);
   }
   return json({
     success: true,
-    message: {
-      id, conversationId, senderId: user.id, content, media, replyTo,
-      createdAt: new Date().toISOString()
-    }
+    message: { id, conversationId, senderId: user.id, content, media, replyTo, createdAt: new Date().toISOString() }
   }, 201);
 }
 async function socialEditMessage(request, env, messageId) {
