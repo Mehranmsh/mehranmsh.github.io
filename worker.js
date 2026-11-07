@@ -2913,19 +2913,32 @@ async function socialCreateGroup(request, env) {
   }
 
   const id = crypto.randomUUID();
-  await env.DB.prepare(`
-    INSERT INTO social_conversations(id,type,title,owner_id)
-    VALUES(?,'group',?,?)
-  `).bind(id, title, user.id).run();
-  await env.DB.prepare(`
-    INSERT INTO social_conversation_members(conversation_id,user_id,role)
-    VALUES(?,?,'owner')
-  `).bind(id, user.id).run();
+  // Create the group and all memberships in one D1 batch. D1 batches are
+  // transactional, so a failed membership insert cannot leave an orphan group.
+  const statements = [
+    env.DB.prepare(`
+      INSERT INTO social_conversations(id,type,title,owner_id)
+      VALUES(?,'group',?,?)
+    `).bind(id, title, user.id),
+    env.DB.prepare(`
+      INSERT INTO social_conversation_members(conversation_id,user_id,role)
+      VALUES(?,?,'owner')
+    `).bind(id, user.id)
+  ];
   for (const target of targets) {
-    await env.DB.prepare(`
+    statements.push(env.DB.prepare(`
       INSERT OR IGNORE INTO social_conversation_members(conversation_id,user_id,role)
       VALUES(?,?,'member')
-    `).bind(id, target.id).run();
+    `).bind(id, target.id));
+  }
+  try {
+    await env.DB.batch(statements);
+  } catch (err) {
+    console.error("SOCIAL group creation failed:", {
+      name: err?.name || "Error",
+      message: String(err?.message || err).slice(0, 500)
+    });
+    return error("Could not create the group. Please try again. [GROUP_CREATE_FAILED]", 500);
   }
   return json({ success: true, group: { id, title } }, 201);
 }
@@ -3007,8 +3020,16 @@ async function socialCreateChannel(request, env) {
         VALUES(?,?,'owner')
       `).bind(id, user.id)
     ]);
-  } catch {
-    return error("Channel username is already taken", 409);
+  } catch (err) {
+    const detail = String(err?.message || err);
+    console.error("SOCIAL channel creation failed:", {
+      name: err?.name || "Error",
+      message: detail.slice(0, 500)
+    });
+    if (username && /unique constraint failed:\s*social_channels\.username/i.test(detail)) {
+      return error("Channel username is already taken", 409);
+    }
+    return error("Could not create the channel. Please try again. [CHANNEL_CREATE_FAILED]", 500);
   }
 
   return json({
