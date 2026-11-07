@@ -463,7 +463,7 @@ async function createSocialTables(db) {
 
     `CREATE TABLE IF NOT EXISTS social_conversations(
       id TEXT PRIMARY KEY,
-      type TEXT NOT NULL DEFAULT 'private',
+      type TEXT NOT NULL DEFAULT 'direct',
       title TEXT NOT NULL DEFAULT '',
       owner_id TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -630,7 +630,7 @@ async function createSocialTables(db) {
       }
     }
   };
-  await ensureColumn("social_conversations", "type", "TEXT NOT NULL DEFAULT 'private'");
+  await ensureColumn("social_conversations", "type", "TEXT NOT NULL DEFAULT 'direct'");
   await ensureColumn("social_conversations", "title", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_conversations", "owner_id", "TEXT");
   await ensureColumn("social_conversations", "created_at", "TEXT NOT NULL DEFAULT ''");
@@ -2504,7 +2504,7 @@ async function socialStartConversation(request, env) {
     FROM social_conversations c
     JOIN social_conversation_members a ON a.conversation_id=c.id
     JOIN social_conversation_members b ON b.conversation_id=c.id
-    WHERE c.type='private'
+    WHERE c.type IN ('direct','private')
       AND a.user_id=? AND b.user_id=?
     LIMIT 1
   `).bind(user.id, target.id).first();
@@ -2521,7 +2521,7 @@ async function socialStartConversation(request, env) {
     const schema = await env.DB.prepare("PRAGMA table_info(social_conversations)").all();
     const available = new Set((schema.results || []).map(column => column.name));
     const insertColumns = ["id", "type", "owner_id"];
-    const insertValues = [id, "private", user.id];
+    const insertValues = [id, "direct", user.id];
     for (const legacyOwnerColumn of ["created_by", "creator_id"]) {
       if (available.has(legacyOwnerColumn)) {
         insertColumns.push(legacyOwnerColumn);
