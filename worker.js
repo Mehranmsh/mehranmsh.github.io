@@ -626,7 +626,7 @@ async function getSocialUser(request, env) {
     username: row.username,
     email: row.email,
     displayName: row.display_name || "",
-    accountType: row.account_type === "business" ? "business" : "human",
+    accountType: ["human", "business", "ai"].includes(row.account_type) ? row.account_type : "human",
     businessCategory: row.business_category || "",
     businessWebsite: row.business_website || "",
     bio: row.bio || "",
