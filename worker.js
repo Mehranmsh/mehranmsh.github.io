@@ -2844,13 +2844,45 @@ function socialAIProviderList(env) {
   return Object.entries(SOCIAL_AI_PROVIDERS).map(([key, item]) => ({
     key, name: item.label,
     model: cleanText(env["SOCIAL_AI_MODEL_" + key.toUpperCase()], 120) || item.model,
-    configured: socialAIProviderReady(key, env)
+    configured: socialAIProviderReady(key, env),
+    vision: (key === "openai" && (cleanText(env.SOCIAL_AI_MODEL_OPENAI, 120) || item.model) === "gpt-4.1-mini") ||
+      (key === "gemini" && (cleanText(env.SOCIAL_AI_MODEL_GEMINI, 120) || item.model) === "gemini-2.5-flash")
   }));
 }
+function socialAIImageModelSupported(provider, model) {
+  return (provider === "openai" && model === "gpt-4.1-mini") || (provider === "gemini" && model === "gemini-2.5-flash");
+}
+function socialBytesToBase64(bytes) {
+  let binary = "";
+  for (let i=0;i<bytes.length;i+=0x8000) binary += String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(binary);
+}
+async function socialResolveAssistantImages(env,userId,attachments) {
+  if(!Array.isArray(attachments)||attachments.length>5) throw new Error("Attach up to 5 images.");
+  const images=[];
+  for(const item of attachments){
+    const id=String(item?.id||"");
+    if(!id||id.length>150) throw new Error("Invalid image attachment.");
+    const row=await env.DB.prepare("SELECT id,name,size,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1").bind(id,userId).first();
+    if(!row||row.status!=="ready"||row.acl!=="private") throw new Error("An attached image is unavailable or not private.");
+    if(!["image/jpeg","image/png","image/webp","image/gif"].includes(row.mime_type)||Number(row.size)>20*1024*1024) throw new Error("Use JPG, PNG, WEBP or GIF images up to 20 MB.");
+    const signed=await rapidfileRequest(env,`/files/${encodeURIComponent(id)}/signed-url`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({expiresIn:300})});
+    if(!signed.url||!validHttpsUrl(signed.url)) throw new Error("Could not securely access an attached image.");
+    const response=await fetch(signed.url);
+    if(!response.ok) throw new Error("Could not read an attached image.");
+    const mime=(response.headers.get("content-type")||row.mime_type).split(";")[0].toLowerCase();
+    if(!["image/jpeg","image/png","image/webp","image/gif"].includes(mime)) throw new Error("Unsupported image type.");
+    const buffer=await response.arrayBuffer();
+    if(!buffer.byteLength||buffer.byteLength>20*1024*1024) throw new Error("Image is empty or exceeds 20 MB.");
+    images.push({name:row.name,mime,data:socialBytesToBase64(new Uint8Array(buffer))});
+  }
+  return images;
+}
 
-async function socialAIRequest(provider, model, messages, env) {
+async function socialAIRequest(provider, model, messages, env, images = []) {
   const system = "You are an assistant inside SOCIAL, an international social network. Be helpful, safe, clear and concise. Reply in the user's language. Never claim actions you did not perform. Never request passwords, private keys, API keys or wallet recovery phrases.";
   const userMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
+  if(images.length&&!socialAIImageModelSupported(provider,model)) throw new Error("Image analysis requires a compatible vision model.");
   if (provider === "cloudflare") {
     const result = await env.AI.run(model, { messages: [{ role: "system", content: system }, ...userMessages], max_tokens: 900 });
     const answer = result?.response || result?.result?.response || "";
@@ -2861,12 +2893,14 @@ async function socialAIRequest(provider, model, messages, env) {
   if (provider === "gemini") {
     key = env.GEMINI_API_KEY;
     url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(key);
-    const contents = userMessages.map(m => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+    const contents = userMessages.map((m,index) => ({ role:m.role==="assistant"?"model":"user", parts:[{text:m.content},...(m.role==="user"&&index===userMessages.length-1?images.map(image=>({inlineData:{mimeType:image.mime,data:image.data}})):[])] }));
     payload = { systemInstruction: { parts: [{ text: system }] }, contents, generationConfig: { maxOutputTokens: 900 } };
   } else {
     key = provider === "openai" ? env.OPENAI_API_KEY : env.GROQ_API_KEY;
     url = provider === "openai" ? "https://api.openai.com/v1/chat/completions" : "https://api.groq.com/openai/v1/chat/completions";
-    payload = { model, messages: [{ role: "system", content: system }, ...userMessages], max_tokens: 900 };
+    const apiMessages=[{role:"system",content:system},...userMessages];
+    if(images.length){const last=apiMessages[apiMessages.length-1];last.content=[{type:"text",text:last.content},...images.map(image=>({type:"image_url",image_url:{url:`data:${image.mime};base64,${image.data}`}}))];}
+    payload = { model, messages: apiMessages, max_tokens: 900 };
   }
   const headers = { "Content-Type": "application/json" };
   if (provider !== "gemini") headers.Authorization = "Bearer " + key;
@@ -2909,26 +2943,34 @@ async function socialAssistantChat(request, env) {
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const content = cleanText(body.content, 4000);
-  if (!content) return error("Write a message first.");
+  const attachmentItems = Array.isArray(body.attachments) ? body.attachments : [];
+  if (!content && !attachmentItems.length) return error("Write a message or attach an image.");
+  if (attachmentItems.length > 5) return error("Attach up to 5 images.");
   const requestedProvider = cleanText(body.provider || "central", 32).toLowerCase();
   if (requestedProvider !== "central" && !SOCIAL_AI_PROVIDERS[requestedProvider]) return error("Unknown AI provider.");
   const preferred = cleanText(env.SOCIAL_AI_DEFAULT_PROVIDER, 32).toLowerCase();
   const order = [preferred, "openai", "gemini", "groq", "cloudflare"].filter((v, i, a) => SOCIAL_AI_PROVIDERS[v] && a.indexOf(v) === i);
+  let images=[];
+  if(attachmentItems.length){try{images=await socialResolveAssistantImages(env,user.id,attachmentItems);}catch(e){return error(e.message||"Could not process image attachments.",400);}}
   const candidates = requestedProvider === "central"
-    ? order.filter(key => socialAIProviderReady(key, env))
-    : (socialAIProviderReady(requestedProvider, env) ? [requestedProvider] : []);
-  if (!candidates.length) return error("This AI provider is not configured on the server.", 503);
+    ? order.filter(key => socialAIProviderReady(key, env) && (!images.length || ["openai","gemini"].includes(key)))
+    : (socialAIProviderReady(requestedProvider, env) && (!images.length || ["openai","gemini"].includes(requestedProvider)) ? [requestedProvider] : []);
+  if (!candidates.length) return error(images.length
+    ? "Image analysis needs a configured OpenAI GPT-4.1 mini or Gemini 2.5 Flash provider."
+    : "This AI provider is not configured on the server.", 503);
   const conversationId = requestedProvider === "central" ? "central" : requestedProvider;
   const recent = await env.DB.prepare(
     "SELECT role,content FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC, rowid DESC LIMIT 19"
   ).bind(user.id, conversationId).all();
   const input = (recent.results || []).reverse().map(row => ({ role: row.role, content: row.content }));
-  input.push({ role: "user", content });
+  const storedContent=(content||"Please analyze the attached image(s).")+(attachmentItems.length?"\\n[Attached image(s): "+attachmentItems.map(x=>cleanText(x.name||"image",120)).join(", ")+"]":"");
+  input.push({ role: "user", content: storedContent });
   let answer, provider, model, lastError;
   for (const candidate of candidates) {
     const candidateModel = cleanText(body.model, 120) || cleanText(env["SOCIAL_AI_MODEL_" + candidate.toUpperCase()], 120) || SOCIAL_AI_PROVIDERS[candidate].model;
     try {
-      answer = await socialAIRequest(candidate, candidateModel, input, env);
+      if(images.length&&!socialAIImageModelSupported(candidate,candidateModel)) throw new Error("The configured model does not support image analysis.");
+      answer = await socialAIRequest(candidate, candidateModel, input, env, images);
       provider = candidate;
       model = candidateModel;
       break;
