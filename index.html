@@ -2176,14 +2176,21 @@ async function socialLoadPrivacy(){
 async function socialLoadSessions(){const box=$("settingsSessionsList");if(!box)return;box.textContent="Loading active sessions...";try{const d=await socialRequest("/sessions");const sessions=Array.isArray(d.sessions)?d.sessions:[];box.innerHTML=sessions.length?sessions.map(s=>'<div class="social-result settings-session"><div><strong>'+(s.current?'This device':'Signed-in device')+'</strong><p>'+sx(s.expiresAt||'')+'</p></div>'+(s.current?'<span class="badge-soon">Current</span>':'<button class="btn danger small" data-revoke-session="'+sx(s.id)+'">Revoke</button>')+'</div>').join(""):'<div class="empty">No active sessions found.</div>';}catch(e){box.textContent="Could not load sessions: "+e.message;}}
 async function socialRevokeSession(id){if(!confirm("Sign out this device?"))return;try{await socialRequest("/sessions/"+encodeURIComponent(id),{method:"DELETE"});await socialLoadSessions();toast("Session revoked");}catch(e){toast(e.message)}}
 async function socialLogoutOtherSessions(){if(!confirm("Sign out all other devices?"))return;try{await socialRequest("/logout-all",{method:"POST"});await socialLoadSessions();toast("Other sessions signed out");}catch(e){toast(e.message)}}
+window.socialExtendedSettingsLoadGeneration=window.socialExtendedSettingsLoadGeneration||0;
+window.socialExtendedSettingsEditVersion=window.socialExtendedSettingsEditVersion||0;
 async function socialLoadExtendedSettings(){
- window.socialExtendedSettingsCache=null;
- window.socialExtendedSettingsUser="";
+ const generation=++window.socialExtendedSettingsLoadGeneration;
+ const editVersion=window.socialExtendedSettingsEditVersion;
+ const requestedUser=socialUser?.id||"";
  try{
   const d=await socialRequest("/settings/extended");
+  // A late GET must never overwrite a control the user has already changed.
+  if(generation!==window.socialExtendedSettingsLoadGeneration ||
+     editVersion!==window.socialExtendedSettingsEditVersion ||
+     requestedUser!==(socialUser?.id||""))return;
   const p=d.preferences||{};
   window.socialExtendedSettingsCache=p;
-  window.socialExtendedSettingsUser=socialUser?.id||"";
+  window.socialExtendedSettingsUser=requestedUser;
   const set=(id,v)=>{const el=$(id);if(el)el.checked=v!==false;};
   set("prefNotifLikes",p.notifications?.likesComments);
   set("prefNotifFollowers",p.notifications?.followers);
@@ -2197,7 +2204,12 @@ async function socialLoadExtendedSettings(){
   if($("privacyProfileVisibility"))$("privacyProfileVisibility").value=p.privacy?.profileVisibility||"everyone";
   if($("privacyWhoCanAddGroups"))$("privacyWhoCanAddGroups").value=p.privacy?.whoCanAddToGroups||"everyone";
   if($("privacyWhoCanAddChannels"))$("privacyWhoCanAddChannels").value=p.privacy?.whoCanAddToChannels||"everyone";
- }catch(e){$("settingsMessage").textContent="Could not load extended preferences: "+e.message;$("settingsMessage").className="notice error";}
+ }catch(e){
+  if(generation===window.socialExtendedSettingsLoadGeneration){
+   $("settingsMessage").textContent="Could not load extended preferences: "+e.message;
+   $("settingsMessage").className="notice error";
+  }
+ }
 }
 async function socialSaveExtendedSettings(){
  const button=document.activeElement?.id?.startsWith("saveExtendedSettings")?document.activeElement:null;
@@ -2251,11 +2263,11 @@ async function socialSubmitSupport(){
 document.querySelectorAll("#privacyPrivate,#privacyMessages,#privacyComments,#privacyOnline,#privacyActivity,#settingsTheme,#settingsLanguage").forEach(el=>{
  el.addEventListener("change",()=>socialSavePrivacy());
 });
-document.querySelectorAll("#privacyProfileVisibility,#privacyWhoCanAddGroups,#privacyWhoCanAddChannels").forEach(el=>{
- el.addEventListener("change",()=>socialSaveExtendedSettings());
-});
-document.querySelectorAll("#prefNotifLikes,#prefNotifFollowers,#prefNotifMessages,#prefNotifGroups,#prefReadReceipts,#prefMessagePreviews,#prefAutoDownload,#prefGroupInvites,#prefChannelInvites").forEach(el=>{
- el.addEventListener("change",()=>socialSaveExtendedSettings());
+document.querySelectorAll("#privacyProfileVisibility,#privacyWhoCanAddGroups,#privacyWhoCanAddChannels,#prefNotifLikes,#prefNotifFollowers,#prefNotifMessages,#prefNotifGroups,#prefReadReceipts,#prefMessagePreviews,#prefAutoDownload,#prefGroupInvites,#prefChannelInvites").forEach(el=>{
+ el.addEventListener("change",()=>{
+  window.socialExtendedSettingsEditVersion=(window.socialExtendedSettingsEditVersion||0)+1;
+  socialSaveExtendedSettings();
+ });
 });
 function socialSettingsTab(name){document.querySelectorAll("[data-settings-tab]").forEach(b=>b.classList.toggle("active",b.dataset.settingsTab===name));document.querySelectorAll("[data-settings-panel]").forEach(p=>p.classList.toggle("active",p.dataset.settingsPanel===name));if(name==="privacy"){socialLoadPrivacy();socialLoadSessions();socialLoadRequests();}if(name==="notifications"||name==="chat"||name==="community")socialLoadExtendedSettings();if(name==="appearance"||name==="language")socialLoadPrivacy();if(name==="data")socialLoadStorage();}
 $("openProfileEditor")?.addEventListener("click",()=>{$("profileEditor").classList.remove("hidden");$("profileEditor").scrollIntoView({behavior:"smooth",block:"center"});});
