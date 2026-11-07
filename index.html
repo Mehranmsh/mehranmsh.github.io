@@ -2375,7 +2375,12 @@ async function socialGenerateImage(){
  }
  if(!prompt){toast("Write a description for your image first.");return;}
  if(prompt.length>1800)return;
- button.disabled=true;button.textContent="Generating...";status.textContent=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation...":"Generating from your prompt using the free daily AI allocation...";
+ button.disabled=true;button.textContent="Generating...";
+ const generationStatus=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation":"Generating from your prompt using the free daily AI allocation";
+ const generationStartedAt=Date.now();
+ const formatGenerationElapsed=()=>{const totalSeconds=Math.floor((Date.now()-generationStartedAt)/1000);const minutes=String(Math.floor(totalSeconds/60)).padStart(2,"0");const seconds=String(totalSeconds%60).padStart(2,"0");status.textContent=generationStatus+" · Elapsed "+minutes+":"+seconds;};
+ formatGenerationElapsed();
+ const generationTimer=setInterval(formatGenerationElapsed,1000);
  $("imageStudioResult").classList.add("hidden");
  try{
   const requestBody={prompt};
@@ -2394,7 +2399,7 @@ async function socialGenerateImage(){
   $("imageStudioSaveStatus").textContent="";
   status.textContent="Image generated successfully.";
  }catch(e){status.textContent=e.message||"Image generation failed.";socialShowAssistantError(e);}
- finally{button.disabled=false;button.textContent="Generate image";}
+ finally{clearInterval(generationTimer);button.disabled=false;button.textContent="Generate image";}
 }
 function socialDownloadGeneratedImage(){
  if(!socialGeneratedImageUrl)return;
