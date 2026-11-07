@@ -2031,7 +2031,7 @@ async function socialPublishChannel(){const content=$("channelPostInput").value.
 let socialAIProvidersCache=[];
 function socialSelectedAIProvider(){return $("assistantProviderSelect")?.value||"central";}
 function socialAIProviderName(key){return ({central:"Central Assistant",openai:"OpenAI",gemini:"Google Gemini",cloudflare:"Cloudflare AI",groq:"Groq"})[key]||key;}
-async async function socialLoadAssistant(){
+async function socialLoadAssistant(){
  const status=$("assistantStatus"),box=$("assistantMessages"),send=$("assistantSendBtn"),provider=socialSelectedAIProvider();
  if(!socialUser){status.textContent="Sign in to use SOCIAL AI.";send.disabled=true;box.innerHTML='<div class="empty">Sign in to start your private AI conversations.</div>';return;}
  send.disabled=true;status.textContent="Checking AI providers...";
