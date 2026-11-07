@@ -582,7 +582,25 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 
 </div>
 
-<div class="social-view" id="social-messages"><div class="panel"><div id="chatErrorPanel" class="notice hidden" role="alert" aria-live="assertive" style="margin:0 0 14px;border-color:#a94c59;background:#351923;color:#ffe5e8"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><strong>Chat error</strong><div id="chatErrorText" style="margin-top:6px;overflow-wrap:anywhere;user-select:text"></div><div class="small-text" style="margin-top:6px;color:#ffc4cc">This message stays here until you dismiss it.</div></div><div style="display:flex;gap:6px"><button type="button" class="btn secondary small" id="copyChatErrorBtn">Copy</button><button type="button" class="btn secondary small" id="dismissChatErrorBtn">Dismiss</button></div></div></div><div class="section-title"><div><h2>Chat</h2><p class="small-text">Your private conversations and group chats.</p></div><button type="button" class="btn" id="openContactsBtn">＋ New chat</button></div><div class="social-layout"><div><h3>Chats</h3><div id="conversationList" class="empty">Loading chats...</div></div><div><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><h3 id="chatTitle">Select a chat</h3><div id="chatCallControls" style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn secondary small" data-call-kind="audio" disabled>☎ Audio</button><button type="button" class="btn secondary small" data-call-kind="video" disabled>▣ Video</button><button type="button" class="btn secondary small" data-call-kind="live" disabled>🔴 Live</button><button type="button" class="btn secondary small hidden" data-call-kind="group_voice" disabled>🎙 Group voice</button></div></div><div id="activeCallNotice" class="notice hidden" style="margin:8px 0"></div><div id="chatMessages" class="empty">Choose a person from New chat or open an existing conversation.</div><div class="comment-form" style="align-items:center;gap:7px"><button type="button" class="btn secondary small" id="chatEmojiBtn" title="Add emoji" aria-label="Add emoji" disabled>☺</button><button type="button" class="btn secondary small" id="chatAttachBtn" title="Attach photo, video, audio or file" disabled>＋</button><input type="file" id="chatFileInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.rtf,.zip,.xls,.xlsx,.ppt,.pptx" hidden><input id="chatInput" placeholder="Write a message..." disabled><button type="button" class="btn secondary small" id="voiceChatBtn" disabled>🎤</button><button class="btn small" id="sendChatBtn" disabled>Send</button></div><div id="voiceRecordingStatus" class="small-text hidden" style="margin-top:7px;color:#ff9a9a">● Recording voice message... Tap Stop to finish.</div></div></div></div><div id="contactsModal" class="panel hidden" role="dialog" aria-modal="true" aria-labelledby="contactsTitle" style="margin-top:12px"><div class="section-title"><div><h3 id="contactsTitle">New chat</h3><p class="small-text">People you follow and people who follow you.</p></div><button type="button" class="btn secondary small" id="closeContactsBtn">Close</button></div><input id="contactsSearchInput" placeholder="Filter your contacts..." autocomplete="off" style="margin:10px 0"><div id="contactsResults" class="empty" style="margin-top:12px">Loading contacts...</div></div></div>
+<div class="social-view" id="social-messages">
+ <div class="social-chat-app" id="socialChatApp">
+  <div id="chatErrorPanel" class="notice hidden" role="alert" aria-live="assertive" style="margin:0 0 12px;border-color:#a94c59;background:#351923;color:#ffe5e8"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><strong>Chat error</strong><div id="chatErrorText" style="margin-top:6px;overflow-wrap:anywhere;user-select:text"></div><div class="small-text" style="margin-top:6px;color:#ffc4cc">This message stays here until you dismiss it.</div></div><div style="display:flex;gap:6px"><button type="button" class="btn secondary small" id="copyChatErrorBtn">Copy</button><button type="button" class="btn secondary small" id="dismissChatErrorBtn">Dismiss</button></div></div></div>
+  <section class="chat-inbox-view" id="chatInboxView">
+   <header class="chat-inbox-header"><div><div class="chat-brand-mark">S</div><div><h2>Chats</h2><p>Messages and conversations</p></div></div><div class="chat-header-actions"><button type="button" class="chat-icon-btn" id="chatSearchToggle" aria-label="Search chats">⌕</button><button type="button" class="chat-icon-btn" id="openContactsBtn" aria-label="New chat">＋</button></div></header>
+   <div class="chat-search-wrap" id="chatSearchWrap"><input id="chatSearchInput" type="search" placeholder="Search people or messages..." autocomplete="off"></div>
+   <nav class="chat-filter-tabs" aria-label="Chat filters"><button type="button" class="active" data-chat-filter="all">All</button><button type="button" data-chat-filter="private">Private</button><button type="button" data-chat-filter="group">Groups</button></nav>
+   <div id="conversationList" class="chat-conversation-list"><div class="empty">Loading chats...</div></div>
+  </section>
+  <section class="chat-thread-view hidden" id="chatThreadView">
+   <header class="chat-thread-header"><button type="button" class="chat-icon-btn chat-back-btn" id="chatBackBtn" aria-label="Back to chats">‹</button><div class="chat-thread-person"><div class="chat-thread-avatar" id="chatThreadAvatar">S</div><div><h3 id="chatTitle">Conversation</h3><p id="chatThreadStatus">SOCIAL chat</p></div></div><div id="chatCallControls" class="chat-header-actions"><button type="button" class="chat-icon-btn" data-call-kind="audio" aria-label="Audio call" disabled>☎</button><button type="button" class="chat-icon-btn" data-call-kind="video" aria-label="Video call" disabled>▣</button><button type="button" class="chat-icon-btn" data-call-kind="live" aria-label="Live" disabled>●</button><button type="button" class="chat-icon-btn hidden" data-call-kind="group_voice" disabled>🎙</button></div></header>
+   <div id="activeCallNotice" class="notice hidden" style="margin:8px 0"></div>
+   <div id="chatMessages" class="chat-message-list empty">Choose a conversation.</div>
+   <div class="chat-composer"><button type="button" class="chat-icon-btn" id="chatEmojiBtn" title="Add emoji" aria-label="Add emoji" disabled>☺</button><button type="button" class="chat-icon-btn" id="chatAttachBtn" title="Attach photo, video, audio or file" disabled>＋</button><input type="file" id="chatFileInput" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.rtf,.zip,.xls,.xlsx,.ppt,.pptx" hidden><input id="chatInput" placeholder="Message..." disabled><button type="button" class="chat-icon-btn" id="voiceChatBtn" aria-label="Voice message" disabled>🎤</button><button type="button" class="chat-send-btn" id="sendChatBtn" disabled>➤</button></div>
+   <div id="voiceRecordingStatus" class="small-text hidden" style="margin-top:7px;color:#ff9a9a">● Recording voice message... Tap Stop to finish.</div>
+  </section>
+ </div>
+ <div id="contactsModal" class="panel hidden" role="dialog" aria-modal="true" aria-labelledby="contactsTitle" style="margin-top:12px"><div class="section-title"><div><h3 id="contactsTitle">New chat</h3><p class="small-text">People you follow and people who follow you.</p></div><button type="button" class="btn secondary small" id="closeContactsBtn">Close</button></div><input id="contactsSearchInput" placeholder="Filter your contacts..." autocomplete="off" style="margin:10px 0"><div id="contactsResults" class="empty" style="margin-top:12px">Loading contacts...</div></div>
+</div>
 
 <div class="social-view" id="social-groups"><h2>Groups</h2><div class="form-grid"><div class="field"><label>Group name</label><input id="newGroupName"></div><div class="field"><label>Invite usernames, comma separated</label><input id="newGroupMembers"></div></div><button class="btn" id="submitGroupBtn">Create group</button><div class="form-grid"><div class="field"><label>Invite code</label><input id="groupInviteCode"></div><div class="field"><button class="btn secondary" id="joinGroupBtn">Join group</button></div></div><div id="groupsList" class="empty"></div></div>
 
@@ -2686,6 +2704,58 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 #page-social .profile-gallery-view{aspect-ratio:1;padding:0;overflow:hidden;border:1px solid rgba(117,190,230,.18);border-radius:14px;background:#10243a;cursor:zoom-in}
 #page-social .profile-gallery-empty{grid-column:1/-1;padding:18px;border:1px dashed rgba(116,165,200,.2);border-radius:14px;color:#8da8c0;font-size:12px;text-align:center}
 @media(max-width:700px){#page-social label.profile-file-drop{display:grid!important;grid-template-columns:44px minmax(0,1fr)!important;gap:10px!important;padding:13px!important}#page-social .profile-file-drop .file-drop-icon{width:44px!important;height:44px!important}#page-social .profile-file-drop .file-pick-cta{grid-column:2;justify-self:start}}
+
+/* Telegram-inspired single-screen chat inbox and full-screen conversation */
+#page-social #social-messages{padding-top:0}
+#page-social #social-messages>.social-chat-app{height:min(760px,calc(100dvh - 190px));min-height:490px;display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(122,161,201,.13);border-radius:22px;background:#1b2836;box-shadow:0 18px 50px #0003}
+#page-social .chat-inbox-view,#page-social .chat-thread-view{height:100%;min-height:0;display:flex;flex-direction:column}
+#page-social .chat-inbox-header,#page-social .chat-thread-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 19px;background:#202f3e;border-bottom:1px solid #ffffff0d}
+#page-social .chat-inbox-header>div:first-child{display:flex;align-items:center;gap:12px}
+#page-social .chat-brand-mark{width:43px;height:43px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#35b7f5,#1978c9);font-weight:900;font-size:22px;color:white}
+#page-social .chat-inbox-header h2{margin:0;font-size:20px;color:#f3f7fc}
+#page-social .chat-inbox-header p,#page-social .chat-thread-header p{margin:3px 0 0;color:#91a3b4;font-size:12px}
+#page-social .chat-header-actions{display:flex;align-items:center;gap:7px}
+#page-social .chat-icon-btn{width:42px;height:42px;flex:0 0 42px;border:0;border-radius:50%;background:transparent;color:#dce8f3;font-size:23px;display:grid;place-items:center;cursor:pointer}
+#page-social .chat-icon-btn:disabled{opacity:.35}
+#page-social .chat-icon-btn:hover{background:#ffffff12}
+#page-social .chat-search-wrap{padding:12px 16px 4px;background:#202f3e}
+#page-social .chat-search-wrap input{width:100%;border:0;border-radius:22px;background:#2a3a4b;color:#f3f7fc;padding:12px 17px;outline:none}
+#page-social .chat-filter-tabs{display:flex;gap:8px;overflow-x:auto;padding:12px 16px;background:#202f3e;scrollbar-width:none}
+#page-social .chat-filter-tabs button{border:0;border-radius:22px;padding:8px 17px;background:#2a3a4b;color:#a9bac9;white-space:nowrap;font-weight:650}
+#page-social .chat-filter-tabs button.active{background:#254c70;color:#70c5ff}
+#page-social .chat-conversation-list{flex:1;min-height:0;overflow-y:auto;padding:4px 8px 18px}
+#page-social .chat-conversation-row{width:100%;display:flex;align-items:center;gap:13px;padding:13px 10px;border:0;border-bottom:1px solid #ffffff0b;border-radius:0;background:transparent;color:#f1f5f9;text-align:inherit;cursor:pointer}
+#page-social .chat-conversation-row:hover{background:#ffffff08}
+#page-social .chat-row-avatar,.chat-thread-avatar{width:56px;height:56px;flex:0 0 56px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:#3298d8;color:#fff;font-size:22px;font-weight:700}
+#page-social .chat-row-avatar img,.chat-thread-avatar img{width:100%;height:100%;object-fit:cover}
+#page-social .chat-row-content{min-width:0;flex:1}
+#page-social .chat-row-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#page-social .chat-row-top strong{font-size:15px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-social .chat-row-time{font-size:10px;color:#91a3b4;white-space:nowrap}
+#page-social .chat-row-preview{margin-top:5px;color:#91a3b4;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-social .chat-thread-view{background:#172432}
+#page-social .chat-thread-header{background:#202f3e}
+#page-social .chat-thread-person{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+#page-social .chat-thread-person h3{margin:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-social .chat-thread-person p{font-size:11px}
+#page-social .chat-thread-avatar{width:42px;height:42px;flex-basis:42px;font-size:17px}
+#page-social .chat-back-btn{font-size:30px}
+#page-social .chat-message-list{flex:1;min-height:0;overflow-y:auto;padding:17px 14px;background:radial-gradient(ellipse at top,#203345,#172432 70%)}
+#page-social .chat-bubble{max-width:min(82%,520px);width:max-content;margin:8px auto 8px 0;padding:10px 13px;border-radius:15px 15px 15px 4px;background:#26394a;color:#eaf1f7;overflow-wrap:anywhere}
+#page-social .chat-bubble.mine{margin:8px 0 8px auto;background:#24577a;border-radius:15px 15px 4px 15px}
+#page-social .chat-bubble>strong{font-size:11px;color:#86caff}
+#page-social .chat-bubble .chat-meta{font-size:10px;color:#a7b7c5;text-align:right;margin-top:5px}
+#page-social .chat-composer{display:flex;align-items:center;gap:5px;padding:9px 10px;background:#202f3e;border-top:1px solid #ffffff0d}
+#page-social .chat-composer input:not([type=file]){min-width:0;flex:1;border:0;border-radius:22px;background:#2b3b4b;color:#fff;padding:12px 15px;outline:none}
+#page-social .chat-send-btn{width:42px;height:42px;border:0;border-radius:50%;background:#2798df;color:white;font-size:20px}
+#page-social .chat-thread-view.hidden{display:none!important}
+@media(max-width:640px){
+ #page-social #social-messages>.social-chat-app{height:calc(100dvh - 210px);min-height:420px;border-radius:0;border-left:0;border-right:0}
+ #page-social .chat-inbox-header,#page-social .chat-thread-header{padding:12px 13px}
+ #page-social .chat-row-avatar{width:54px;height:54px;flex-basis:54px}
+ #page-social .chat-conversation-row{padding:12px 8px}
+ #page-social .chat-composer{padding:7px}
+}
 </style>
 
 
