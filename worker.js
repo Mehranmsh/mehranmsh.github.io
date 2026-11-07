@@ -2949,6 +2949,10 @@ async function socialCreateGroup(request, env) {
       name: err?.name || "Error",
       message: String(err?.message || err).slice(0, 500)
     });
+    const detail = String(err?.message || err).slice(0, 700);
+    if (user.username === "mehranmsh") {
+      return json({ success: false, error: "Could not create the group. [GROUP_CREATE_FAILED]", detail }, 500);
+    }
     return error("Could not create the group. Please try again. [GROUP_CREATE_FAILED]", 500);
   }
   return json({ success: true, group: { id, title } }, 201);
@@ -3042,6 +3046,9 @@ async function socialCreateChannel(request, env) {
     });
     if (username && /unique constraint failed:\s*social_channels\.username/i.test(detail)) {
       return error("Channel username is already taken", 409);
+    }
+    if (user.username === "mehranmsh") {
+      return json({ success: false, error: "Could not create the channel. [CHANNEL_CREATE_FAILED]", detail: detail.slice(0, 700) }, 500);
     }
     return error("Could not create the channel. Please try again. [CHANNEL_CREATE_FAILED]", 500);
   }
