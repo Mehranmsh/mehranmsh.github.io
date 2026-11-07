@@ -1835,8 +1835,12 @@ async function socialToggleVoiceRecording(){
 function socialRenderChatMessage(m){
  const media=(m.media||[]).map(item=>{
   const url=sx(item.url||"");const type=String(item.type||"").toLowerCase();
+  if(window.socialExtendedSettingsCache?.chat?.autoDownload===false){
+   const label=type.startsWith("image")?"View image":type.startsWith("video")?"Open video":(type.startsWith("audio")||type.includes("voice"))?"Play voice message":"Open attachment";
+   return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text" style="display:inline-block;margin-top:8px">⬇ '+label+'</a>';
+  }
   if(type.startsWith("audio")||type.includes("voice"))return '<div style="margin-top:8px;max-width:min(100%,340px)"><audio controls preload="metadata" src="'+url+'" style="width:100%"></audio><div class="chat-meta">🎤 Voice message</div></div>';
-  if(type.startsWith("video"))return '<video controls playsinline src="'+url+'" style="display:block;max-width:100%;max-height:260px;border-radius:10px;margin-top:8px"></video>';
+  if(type.startsWith("video"))return '<video controls playsinline preload="metadata" src="'+url+'" style="display:block;max-width:100%;max-height:260px;border-radius:10px;margin-top:8px"></video>';
   if(type.startsWith("image"))return '<img src="'+url+'" alt="Chat attachment" loading="lazy" style="display:block;max-width:100%;max-height:260px;border-radius:10px;margin-top:8px">';
   return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text">Open attachment</a>';
  }).join("");
@@ -1960,7 +1964,7 @@ async function socialCallCleanup(sendLeave=true){
  socialRefreshActiveCall();
 }
 
-async function socialOpenConversation(id){socialActiveConversation=id;const c=socialConversations.find(x=>x.id===id);$("chatTitle").textContent=c?.title||"Conversation";$("chatInput").disabled=false;$("sendChatBtn").disabled=false;$("voiceChatBtn").disabled=false;document.querySelector('[data-emoji-target="chatInput"]')?.removeAttribute("disabled");socialCallControls(true,c?.type==="group");try{const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");$("chatMessages").innerHTML=(d.messages||[]).map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';await socialRefreshActiveCall();}catch(e){$("chatMessages").textContent=e.message}}
+async function socialOpenConversation(id){socialActiveConversation=id;const c=socialConversations.find(x=>x.id===id);$("chatTitle").textContent=c?.title||"Conversation";$("chatInput").disabled=false;$("sendChatBtn").disabled=false;$("voiceChatBtn").disabled=false;document.querySelector('[data-emoji-target="chatInput"]')?.removeAttribute("disabled");socialCallControls(true,c?.type==="group");try{if(window.socialExtendedSettingsUser!==socialUser?.id)await socialLoadExtendedSettings();const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");$("chatMessages").innerHTML=(d.messages||[]).map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';await socialRefreshActiveCall();}catch(e){$("chatMessages").textContent=e.message}}
 async function socialStartDM(username){try{const d=await socialRequest("/conversations",{method:"POST",body:JSON.stringify({username})});switchSocial("messages");await socialLoadConversations();socialOpenConversation(d.conversationId);}catch(e){toast(e.message)}}
 async function socialSendChat(){const content=$("chatInput").value.trim();if(!content||!socialActiveConversation)return;try{await socialRequest("/conversations/"+encodeURIComponent(socialActiveConversation)+"/messages",{method:"POST",body:JSON.stringify({content})});$("chatInput").value="";await socialOpenConversation(socialActiveConversation);await socialLoadConversations();}catch(e){toast(e.message)}}
 async function socialCreateGroup(){const title=$("newGroupName").value.trim();if(!title)return toast("Enter a group name");const members=$("newGroupMembers").value.split(",").map(x=>x.trim()).filter(Boolean);try{const d=await socialRequest("/groups",{method:"POST",body:JSON.stringify({title,members})});toast("Group created");await socialLoadConversations();if(d.group?.id)socialOpenConversation(d.group.id);}catch(e){toast(e.message)}}
@@ -2112,8 +2116,56 @@ function socialApplyTheme(theme,persist=true){
  if(persist){try{localStorage.setItem("msh_social_theme",chosen);}catch(e){console.warn("Theme preference could not be cached",e);}}
  return chosen;
 }
-async function socialSavePrivacy(){try{const theme=$("settingsTheme").value,language=$("settingsLanguage").value;await socialRequest("/privacy",{method:"PUT",body:JSON.stringify({isPrivate:$("privacyPrivate").value==="true",allowMessages:$("privacyMessages").value,allowComments:$("privacyComments").value,showOnlineStatus:$("privacyOnline").value==="true",showActivityStatus:$("privacyActivity").value==="true",theme,language})});socialApplyTheme(theme);$("settingsMessage").textContent="Account preferences saved successfully.";$("settingsMessage").className="notice success";}catch(e){$("settingsMessage").textContent="Could not save settings: "+e.message;$("settingsMessage").className="notice error";}}
-async function socialLoadPrivacy(){try{const d=await socialRequest("/privacy");const s=d.settings||d;$("privacyPrivate").value=String(!!(s.isPrivate??s.is_private));$("privacyMessages").value=s.allowMessages||s.allow_messages||"everyone";$("privacyComments").value=s.allowComments||s.allow_comments||"everyone";$("privacyOnline").value=String(!!(s.showOnlineStatus??s.show_online_status??true));$("privacyActivity").value=String(!!(s.showActivityStatus??s.show_activity_status??true));$("settingsTheme").value=s.theme||localStorage.getItem("msh_social_theme")||"dark";$("settingsLanguage").value=s.language||"en";document.documentElement.lang=$("settingsLanguage").value;document.documentElement.dir=$("settingsLanguage").value==="fa"?"rtl":"ltr";socialApplyTheme($("settingsTheme").value);}catch(e){$("settingsMessage").textContent="Could not load account settings: "+e.message;$("settingsMessage").className="notice error";}}
+async function socialSavePrivacy(){
+ const buttonId=document.activeElement?.id;
+ const button=$(buttonId);
+ const oldLabel=button?.textContent;
+ if(button){button.disabled=true;button.textContent="Saving...";}
+ try{
+  if(!socialUser||!socialSessionVerified)throw new Error("Please sign in again before saving settings.");
+  const theme=$("settingsTheme")?.value||"dark";
+  const language=$("settingsLanguage")?.value==="fa"?"fa":"en";
+  const payload={
+   isPrivate:$("privacyPrivate")?.value==="true",
+   allowMessages:$("privacyMessages")?.value||"everyone",
+   allowComments:$("privacyComments")?.value||"everyone",
+   showOnlineStatus:$("privacyOnline")?.value==="true",
+   showActivityStatus:$("privacyActivity")?.value==="true",
+   theme,language
+  };
+  const d=await socialRequest("/privacy",{method:"PUT",body:JSON.stringify(payload)});
+  if(!d?.success)throw new Error("The server did not confirm the settings update.");
+  socialApplyTheme(theme);
+  document.documentElement.lang=language;
+  document.documentElement.dir=language==="fa"?"rtl":"ltr";
+  $("settingsMessage").textContent="Account, privacy, appearance and language settings saved successfully.";
+  $("settingsMessage").className="notice success";
+ }catch(e){
+  $("settingsMessage").textContent="Could not save settings: "+(e.message||"Please try again.");
+  $("settingsMessage").className="notice error";
+ }finally{if(button){button.disabled=false;button.textContent=oldLabel||"Save";}}
+}
+async function socialLoadPrivacy(){
+ try{
+  const d=await socialRequest("/privacy");
+  const s=d.settings||d;
+  const boolValue=v=>v===true||v===1||v==="1"||v==="true";
+  if($("privacyPrivate"))$("privacyPrivate").value=String(boolValue(s.isPrivate??s.is_private));
+  if($("privacyMessages"))$("privacyMessages").value=s.allowMessages||s.allow_messages||"everyone";
+  if($("privacyComments"))$("privacyComments").value=s.allowComments||s.allow_comments||"everyone";
+  if($("privacyOnline"))$("privacyOnline").value=String(s.showOnlineStatus===undefined&&s.show_online_status===undefined?true:boolValue(s.showOnlineStatus??s.show_online_status));
+  if($("privacyActivity"))$("privacyActivity").value=String(s.showActivityStatus===undefined&&s.show_activity_status===undefined?true:boolValue(s.showActivityStatus??s.show_activity_status));
+  if($("settingsTheme"))$("settingsTheme").value=s.theme||localStorage.getItem("msh_social_theme")||"dark";
+  if($("settingsLanguage"))$("settingsLanguage").value=s.language||"en";
+  const lang=$("settingsLanguage")?.value||"en";
+  document.documentElement.lang=lang;
+  document.documentElement.dir=lang==="fa"?"rtl":"ltr";
+  socialApplyTheme($("settingsTheme")?.value||"dark");
+ }catch(e){
+  $("settingsMessage").textContent="Could not load account settings: "+e.message;
+  $("settingsMessage").className="notice error";
+ }
+}
 async function socialLoadSessions(){const box=$("settingsSessionsList");if(!box)return;box.textContent="Loading active sessions...";try{const d=await socialRequest("/sessions");const sessions=Array.isArray(d.sessions)?d.sessions:[];box.innerHTML=sessions.length?sessions.map(s=>'<div class="social-result settings-session"><div><strong>'+(s.current?'This device':'Signed-in device')+'</strong><p>'+sx(s.expiresAt||'')+'</p></div>'+(s.current?'<span class="badge-soon">Current</span>':'<button class="btn danger small" data-revoke-session="'+sx(s.id)+'">Revoke</button>')+'</div>').join(""):'<div class="empty">No active sessions found.</div>';}catch(e){box.textContent="Could not load sessions: "+e.message;}}
 async function socialRevokeSession(id){if(!confirm("Sign out this device?"))return;try{await socialRequest("/sessions/"+encodeURIComponent(id),{method:"DELETE"});await socialLoadSessions();toast("Session revoked");}catch(e){toast(e.message)}}
 async function socialLogoutOtherSessions(){if(!confirm("Sign out all other devices?"))return;try{await socialRequest("/logout-all",{method:"POST"});await socialLoadSessions();toast("Other sessions signed out");}catch(e){toast(e.message)}}
@@ -2121,6 +2173,8 @@ async function socialLoadExtendedSettings(){
  try{
   const d=await socialRequest("/settings/extended");
   const p=d.preferences||{};
+  window.socialExtendedSettingsCache=p;
+  window.socialExtendedSettingsUser=socialUser?.id||"";
   const set=(id,v)=>{const el=$(id);if(el)el.checked=v!==false;};
   set("prefNotifLikes",p.notifications?.likesComments);
   set("prefNotifFollowers",p.notifications?.followers);
@@ -2134,6 +2188,9 @@ async function socialLoadExtendedSettings(){
  }catch(e){$("settingsMessage").textContent="Could not load extended preferences: "+e.message;$("settingsMessage").className="notice error";}
 }
 async function socialSaveExtendedSettings(){
+ const button=document.activeElement?.id?.startsWith("saveExtendedSettings")?document.activeElement:null;
+ const oldLabel=button?.textContent;
+ if(button){button.disabled=true;button.textContent="Saving...";}
  const checked=id=>!!$(id)?.checked;
  const preferences={
   notifications:{likesComments:checked("prefNotifLikes"),followers:checked("prefNotifFollowers"),messages:checked("prefNotifMessages"),groups:checked("prefNotifGroups")},
@@ -2141,10 +2198,17 @@ async function socialSaveExtendedSettings(){
   community:{groupInvites:checked("prefGroupInvites"),channelInvites:checked("prefChannelInvites")}
  };
  try{
-  await socialRequest("/settings/extended",{method:"PUT",body:JSON.stringify({preferences})});
-  $("settingsMessage").textContent="Preferences saved to your account.";
+  if(!socialUser||!socialSessionVerified)throw new Error("Please sign in again before saving preferences.");
+  const d=await socialRequest("/settings/extended",{method:"PUT",body:JSON.stringify({preferences})});
+  if(!d?.success)throw new Error("The server did not confirm the preferences update.");
+  window.socialExtendedSettingsCache=d.preferences||preferences;
+  window.socialExtendedSettingsUser=socialUser.id;
+  $("settingsMessage").textContent="Notification, chat and community preferences saved to your account.";
   $("settingsMessage").className="notice success";
- }catch(e){$("settingsMessage").textContent="Could not save preferences: "+e.message;$("settingsMessage").className="notice error";}
+ }catch(e){
+  $("settingsMessage").textContent="Could not save preferences: "+(e.message||"Please try again.");
+  $("settingsMessage").className="notice error";
+ }finally{if(button){button.disabled=false;button.textContent=oldLabel||"Save preferences";}}
 }
 async function socialLoadStorage(){
  try{
