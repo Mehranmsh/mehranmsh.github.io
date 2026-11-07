@@ -536,7 +536,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="social-shell">
 <div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Chat" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
 <div class="social-tabs">
-<button class="social-tab active" data-social="feed">⌂ Home</button><button class="social-tab" data-social="prompt-creator">✦ Prompt Creator</button><button class="social-tab" data-social="explore">⌕ Explore</button><button class="social-tab" data-social="reels">▣ Reels</button><button class="social-tab" data-social="messages">✉ Chat</button><button class="social-tab" data-social="groups">♧ Groups</button><button class="social-tab" data-social="channels">▤ Channels</button><button class="social-tab" data-social="bots">🤖 بات</button><button class="social-tab" data-social="ai">✧ SOCIAL AI</button><button class="social-tab" data-social="profile">◉ Profile</button><button class="social-tab" data-social="settings">⚙ Settings</button>
+<button type="button" class="social-tab active" data-social="feed" onclick="window.switchSocial('feed');return false;">⌂ Home</button><button type="button" class="social-tab" data-social="prompt-creator" onclick="window.switchSocial('prompt-creator');return false;">✦ Prompt Creator</button><button type="button" class="social-tab" data-social="explore" onclick="window.switchSocial('explore');return false;">⌕ Explore</button><button type="button" class="social-tab" data-social="reels" onclick="window.switchSocial('reels');return false;">▣ Reels</button><button type="button" class="social-tab" data-social="messages" onclick="window.switchSocial('messages');return false;">✉ Chat</button><button type="button" class="social-tab" data-social="groups" onclick="window.switchSocial('groups');return false;">♧ Groups</button><button type="button" class="social-tab" data-social="channels" onclick="window.switchSocial('channels');return false;">▤ Channels</button><button type="button" class="social-tab" data-social="bots" onclick="window.switchSocial('bots');return false;">🤖 بات</button><button type="button" class="social-tab" data-social="ai" onclick="window.switchSocial('ai');return false;">✧ SOCIAL AI</button><button type="button" class="social-tab" data-social="profile" onclick="window.switchSocial('profile');return false;">◉ Profile</button><button type="button" class="social-tab" data-social="settings" onclick="window.switchSocial('settings');return false;">⚙ Settings</button>
 </div>
 
 <div class="social-view active" id="social-feed">
@@ -2789,7 +2789,9 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 }
 
 /* Chat mode becomes a dedicated messenger screen, not a tab inside the SOCIAL dashboard */
-#page-social.chat-mode .social-top,#page-social.chat-mode>.social-shell>.social-tabs{display:none!important}
+/* Keep SOCIAL navigation visible in chat mode so users can always switch sections. */
+#page-social.chat-mode .social-top{display:flex!important}
+#page-social.chat-mode>.social-shell>.social-tabs{display:flex!important}
 #page-social.chat-mode .social-shell{padding-top:0}
 #page-social.chat-mode #social-messages{padding-top:0;margin:0}
 #page-social.chat-mode #social-messages>.social-chat-app{height:calc(100dvh - 118px);min-height:0;max-height:none;border-radius:0;border:0;box-shadow:none}
