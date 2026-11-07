@@ -1543,7 +1543,7 @@ await loadAdminUsers();
 }catch(error){toast("Account update failed: "+error.message);button.disabled=false}
 });
 
-async async function loadProjects(){
+async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";
 try{
 const data=await api("/projects");
