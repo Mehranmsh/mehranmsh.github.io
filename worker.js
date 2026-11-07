@@ -3179,8 +3179,30 @@ async function socialEnsureCloudflareVisionLicense(env, model) {
     "SELECT model FROM social_ai_model_licenses WHERE model=? LIMIT 1"
   ).bind(model).first();
   if (accepted) return;
-  // The account owner explicitly approved Meta's Llama 3.2 license in this conversation.
-  await env.AI.run(model, { prompt: "agree" });
+
+  // Cloudflare may signal successful first-time license acceptance using
+  // error code 5016 and a confirmation message. Treat only that exact
+  // confirmation as success; propagate all unrelated failures.
+  try {
+    const result = await env.AI.run(model, { prompt: "agree" });
+    const resultText = JSON.stringify(result || {});
+    const resultErrors = Array.isArray(result?.errors) ? result.errors : [];
+    const hasUnexpectedError = resultErrors.some(item => Number(item?.code) !== 5016);
+    if (hasUnexpectedError) throw new Error("Cloudflare Vision license acceptance failed.");
+    if (resultErrors.length && !resultErrors.some(item => Number(item?.code) === 5016)) {
+      throw new Error("Cloudflare Vision license acceptance failed.");
+    }
+    if (/5016/.test(resultText) && !/thank you for agreeing to this model's terms/i.test(resultText)) {
+      throw new Error("Cloudflare Vision license acceptance failed.");
+    }
+  } catch (e) {
+    const message = String(e?.message || e || "");
+    const isAcceptanceConfirmation =
+      /5016/.test(message) &&
+      /thank you for agreeing to this model's terms|you may now use the model/i.test(message);
+    if (!isAcceptanceConfirmation) throw e;
+  }
+
   await env.DB.prepare(
     "INSERT OR IGNORE INTO social_ai_model_licenses(model,accepted_at) VALUES(?,?)"
   ).bind(model, new Date().toISOString()).run();
