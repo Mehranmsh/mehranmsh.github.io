@@ -2116,9 +2116,16 @@ function socialApplyTheme(theme,persist=true){
  if(persist){try{localStorage.setItem("msh_social_theme",chosen);}catch(e){console.warn("Theme preference could not be cached",e);}}
  return chosen;
 }
+// Serialize settings writes so an older, slower request cannot overwrite a newer choice.
+window.socialSettingsWriteQueue=window.socialSettingsWriteQueue||Promise.resolve();
+function socialQueueSettingsWrite(task){
+ const next=window.socialSettingsWriteQueue.catch(()=>{}).then(task);
+ window.socialSettingsWriteQueue=next.catch(()=>{});
+ return next;
+}
 async function socialSavePrivacy(){
- const buttonId=document.activeElement?.id;
- const button=$(buttonId);
+ const active=document.activeElement;
+ const button=active?.tagName==="BUTTON"?active:null;
  const oldLabel=button?.textContent;
  if(button){button.disabled=true;button.textContent="Saving...";}
  try{
@@ -2133,7 +2140,7 @@ async function socialSavePrivacy(){
    showActivityStatus:$("privacyActivity")?.value==="true",
    theme,language
   };
-  const d=await socialRequest("/privacy",{method:"PUT",body:JSON.stringify(payload)});
+  const d=await socialQueueSettingsWrite(()=>socialRequest("/privacy",{method:"PUT",body:JSON.stringify(payload)}));
   if(!d?.success)throw new Error("The server did not confirm the settings update.");
   socialApplyTheme(theme);
   document.documentElement.lang=language;
@@ -2209,7 +2216,7 @@ async function socialSaveExtendedSettings(){
  };
  try{
   if(!socialUser||!socialSessionVerified)throw new Error("Please sign in again before saving preferences.");
-  const d=await socialRequest("/settings/extended",{method:"PUT",body:JSON.stringify({preferences})});
+  const d=await socialQueueSettingsWrite(()=>socialRequest("/settings/extended",{method:"PUT",body:JSON.stringify({preferences})}));
   if(!d?.success)throw new Error("The server did not confirm the preferences update.");
   window.socialExtendedSettingsCache=d.preferences||preferences;
   window.socialExtendedSettingsUser=socialUser.id;
@@ -2307,8 +2314,9 @@ window.switchSocial=function(name){
  if(name==="bots"){socialLoadBots();}
   if(name==="ai"){socialLoadAssistant();}
  if(name==="settings"){
+  // prevSwitch already loads settings data. Avoid duplicate GETs that can finish
+  // after a user's change and restore stale values over the controls.
   socialSettingsTab("account");
-  socialLoadPrivacy();socialLoadRequests();socialLoadSessions();socialLoadExtendedSettings();socialLoadStorage();
  }
 };
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();socialLoadStories();};socialLoadStories();
