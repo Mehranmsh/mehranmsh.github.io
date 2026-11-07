@@ -2602,13 +2602,10 @@ async function isConversationMember(env, conversationId, userId) {
 async function socialConversationMessages(request, env, conversationId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-
   const member = await isConversationMember(env, conversationId, user.id);
   if (!member) return error("Conversation not found", 404);
-
   const url = new URL(request.url);
   const limit = safeLimit(url.searchParams.get("limit"), 50, 100);
-
   const result = await env.DB.prepare(`
     SELECT m.id,m.sender_id,m.content,m.media_json,m.reply_to,
       m.forwarded_from,m.edited_at,m.deleted_at,m.created_at,
@@ -2618,25 +2615,51 @@ async function socialConversationMessages(request, env, conversationId) {
     WHERE m.conversation_id=?
     ORDER BY m.created_at DESC LIMIT ?
   `).bind(conversationId, limit).all();
-
-  const messages = (result.results || []).reverse().map(row => ({
-    id: row.id,
-    senderId: row.sender_id,
-    content: row.deleted_at ? "Message deleted" : row.content,
-    media: row.deleted_at ? [] : JSON.parse(row.media_json || "[]"),
-    replyTo: row.reply_to,
-    forwardedFrom: row.forwarded_from,
-    editedAt: row.edited_at,
-    deleted: Boolean(row.deleted_at),
-    createdAt: row.created_at,
-    author: {
-      username: row.username,
-      displayName: row.display_name || "",
-      avatarUrl: row.avatar_url || ""
-    },
-    isMine: row.sender_id === user.id
-  }));
-
+  const messages = [];
+  for (const row of (result.results || []).reverse()) {
+    let media = [];
+    if (!row.deleted_at) {
+      try { media = JSON.parse(row.media_json || "[]"); } catch { media = []; }
+      media = await Promise.all(media.map(async item => {
+        if (!item?.uploadId) return item;
+        try {
+          const upload = await env.DB.prepare(
+            "SELECT id,name,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+          ).bind(item.uploadId, row.sender_id).first();
+          if (!upload || upload.status !== "ready" || upload.acl !== "private") {
+            return { type: item.type || upload?.mime_type || "", name: item.name || upload?.name || "Attachment", unavailable: true };
+          }
+          const signed = await rapidfileRequest(env, `/files/${encodeURIComponent(upload.id)}/signed-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expiresIn: 900 })
+          });
+          if (!signed.url || !validHttpsUrl(signed.url)) throw new Error("Invalid signed media URL");
+          return { url: signed.url, type: item.type || upload.mime_type, name: item.name || upload.name };
+        } catch (e) {
+          console.warn("Private chat attachment URL unavailable:", e?.message || e);
+          return { type: item.type || "", name: item.name || "Attachment", unavailable: true };
+        }
+      }));
+    }
+    messages.push({
+      id: row.id,
+      senderId: row.sender_id,
+      content: row.deleted_at ? "Message deleted" : row.content,
+      media,
+      replyTo: row.reply_to,
+      forwardedFrom: row.forwarded_from,
+      editedAt: row.edited_at,
+      deleted: Boolean(row.deleted_at),
+      createdAt: row.created_at,
+      author: {
+        username: row.username,
+        displayName: row.display_name || "",
+        avatarUrl: row.avatar_url || ""
+      },
+      isMine: row.sender_id === user.id
+    });
+  }
   const viewerPrefsRow = await env.DB.prepare(
     "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
   ).bind(user.id).first();
@@ -2649,83 +2672,79 @@ async function socialConversationMessages(request, env, conversationId) {
       WHERE conversation_id=? AND user_id=?
     `).bind(conversationId, user.id).run();
   }
-
   return json({ success: true, messages });
 }
 
 async function socialSendMessage(request, env, conversationId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-
   const member = await isConversationMember(env, conversationId, user.id);
   if (!member) return error("Conversation not found", 404);
-
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
-
   const content = cleanText(body.content, 10000);
-  const media = Array.isArray(body.media) ? body.media.slice(0, 10) : [];
-
-  if (!content && media.length === 0) return error("Message cannot be empty");
-
-  for (const item of media) {
-    if (!item || !validHttpsUrl(item.url)) return error("Invalid message attachment");
+  const rawMedia = Array.isArray(body.media) ? body.media.slice(0, 10) : [];
+  if (!content && rawMedia.length === 0) return error("Message cannot be empty");
+  const media = [];
+  for (const item of rawMedia) {
+    if (item?.uploadId) {
+      const uploadId = String(item.uploadId).slice(0, 150);
+      const upload = await env.DB.prepare(
+        "SELECT id,name,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+      ).bind(uploadId, user.id).first();
+      if (!upload || upload.status !== "ready" || upload.acl !== "private") {
+        return error("Private attachment is unavailable or does not belong to your account.", 400);
+      }
+      media.push({
+        uploadId: upload.id,
+        type: cleanText(item.type || upload.mime_type, 100),
+        name: cleanText(item.name || upload.name, 180)
+      });
+    } else if (item && validHttpsUrl(item.url)) {
+      // Backward compatibility for existing public attachments.
+      media.push({
+        url: item.url,
+        type: cleanText(item.type || "", 100),
+        name: cleanText(item.name || "", 180)
+      });
+    } else {
+      return error("Invalid message attachment");
+    }
   }
-
   const replyTo = body.replyTo ? cleanText(body.replyTo, 150) : null;
   if (replyTo) {
-    const reply = await env.DB.prepare(`
-      SELECT id FROM social_messages
-      WHERE id=? AND conversation_id=?
-    `).bind(replyTo, conversationId).first();
-
+    const reply = await env.DB.prepare(
+      "SELECT id FROM social_messages WHERE id=? AND conversation_id=?"
+    ).bind(replyTo, conversationId).first();
     if (!reply) return error("Reply message not found", 404);
   }
-
   const id = crypto.randomUUID();
-
   await env.DB.batch([
     env.DB.prepare(`
-      INSERT INTO social_messages(
-        id,conversation_id,sender_id,content,media_json,reply_to
-      )
+      INSERT INTO social_messages(id,conversation_id,sender_id,content,media_json,reply_to)
       VALUES(?,?,?,?,?,?)
     `).bind(id, conversationId, user.id, content, JSON.stringify(media), replyTo),
-
-    env.DB.prepare(`
-      UPDATE social_conversations SET updated_at=CURRENT_TIMESTAMP
-      WHERE id=?
-    `).bind(conversationId)
+    env.DB.prepare("UPDATE social_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(conversationId)
   ]);
-
   const conversation = await env.DB.prepare(
     "SELECT type FROM social_conversations WHERE id=?"
   ).bind(conversationId).first();
-  const members = await env.DB.prepare(`
-    SELECT user_id FROM social_conversation_members
-    WHERE conversation_id=? AND user_id!=?
-  `).bind(conversationId, user.id).all();
-
+  const members = await env.DB.prepare(
+    "SELECT user_id FROM social_conversation_members WHERE conversation_id=? AND user_id!=?"
+  ).bind(conversationId, user.id).all();
   const notificationType = conversation?.type === "group" ? "group_message" : "message";
   for (const row of members.results || []) {
     await notify(env, row.user_id, user.id, notificationType, conversationId,
       conversation?.type === "group" ? "new activity in your group" : "sent you a message");
   }
-
   return json({
     success: true,
     message: {
-      id,
-      conversationId,
-      senderId: user.id,
-      content,
-      media,
-      replyTo,
+      id, conversationId, senderId: user.id, content, media, replyTo,
       createdAt: new Date().toISOString()
     }
   }, 201);
 }
-
 async function socialEditMessage(request, env, messageId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
