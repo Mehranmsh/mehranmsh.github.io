@@ -3265,27 +3265,49 @@ async function socialGenerateAssistantImage(request, env) {
   if (!body) return error("Invalid request body");
   const prompt = cleanText(body.prompt, 1800);
   if (!prompt) return error("Write an image prompt first.");
-  if (body.reference) return error("The free image model currently supports text-to-image only. Reference-photo editing is not available in free mode.", 400);
+  const hasReference = !!body.reference;
   try {
-    // FLUX.1 schnell uses Cloudflare Workers AI's free daily neuron allocation.
-    // It accepts prompt + steps only; no paid fallback is configured.
-    const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
-      prompt,
-      steps: 4
-    });
+    let result, model, mimeType;
+    if (hasReference) {
+      // Verify that the reference belongs to this user and is stored privately.
+      const refs = await socialResolveAssistantImages(env, user.id, [body.reference]);
+      if (!refs.length) return error("Reference photo is unavailable.", 400);
+      const reference = refs[0];
+      const binary = atob(reference.data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const form = new FormData();
+      form.append("prompt",
+        "Use the supplied reference photo as the identity anchor for the person. Preserve the person's recognizable facial identity, facial structure, proportions, skin tone, eyes, nose, lips, jawline and distinctive features. Change only the pose, expression, clothing, hairstyle, lighting, camera angle and background as requested. Do not redesign the face. User's creative instruction: " + prompt
+      );
+      form.append("input_image_0", new Blob([bytes], { type: reference.mime }), reference.name || "reference.jpg");
+      const multipartRequest = new Request("https://social-image-generation.invalid/", { method: "POST", body: form });
+      model = "@cf/black-forest-labs/flux-2-klein-4b";
+      result = await env.AI.run(model, {
+        multipart: {
+          body: multipartRequest.body,
+          contentType: multipartRequest.headers.get("content-type")
+        }
+      });
+      mimeType = "image/png";
+    } else {
+      // Prompt-only requests use FLUX.1 schnell. No paid model fallback is configured.
+      model = "@cf/black-forest-labs/flux-1-schnell";
+      result = await env.AI.run(model, { prompt, steps: 4 });
+      mimeType = "image/jpeg";
+    }
     const image = result?.image;
     if (typeof image !== "string" || !image.length) {
-      console.error("Free image model returned an unexpected payload shape", Object.keys(result || {}));
-      return error("The free image model returned an unsupported response. Please try again.", 502);
+      console.error("Cloudflare image model returned an unexpected payload shape", Object.keys(result || {}));
+      return error("The image model returned an unsupported response. Please try again.", 502);
     }
-    return json({ success: true, model: "@cf/black-forest-labs/flux-1-schnell", image, mimeType: "image/jpeg" });
+    return json({ success: true, model, image, mimeType });
   } catch (e) {
-    console.error("SOCIAL_FREE_IMAGE_GENERATION_FAILED", e);
-    const message = String(e?.message || e || "Free image generation failed").slice(0, 220);
+    console.error("SOCIAL_IMAGE_GENERATION_FAILED", e);
+    const message = String(e?.message || e || "Image generation failed").slice(0, 220);
     return error(message, 502);
   }
 }
-
 async function socialAssistantStatus(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
