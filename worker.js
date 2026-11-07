@@ -503,6 +503,37 @@ async function createSocialTables(db) {
       PRIMARY KEY(message_id,user_id)
     )`,
 
+    `CREATE TABLE IF NOT EXISTS social_call_sessions(
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      host_id TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('audio','video','live','group_voice')),
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ended_at TEXT
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_call_active
+      ON social_call_sessions(conversation_id,status,created_at DESC)`,
+    `CREATE TABLE IF NOT EXISTS social_call_participants(
+      call_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      joined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      left_at TEXT,
+      PRIMARY KEY(call_id,user_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS social_call_signals(
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      call_id TEXT NOT NULL,
+      from_user_id TEXT NOT NULL,
+      to_user_id TEXT NOT NULL,
+      signal_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_social_call_signals
+      ON social_call_signals(call_id,to_user_id,seq)`,
+
     `CREATE TABLE IF NOT EXISTS social_channels(
       id TEXT PRIMARY KEY,
       owner_id TEXT NOT NULL,
@@ -2210,6 +2241,132 @@ async function socialReactStory(request, env, id) {
   return json({ success: true, reaction });
 }
 
+
+async function socialCallStart(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+  const conversationId = cleanText(body.conversationId, 150);
+  const kind = ["audio","video","live","group_voice"].includes(body.kind) ? body.kind : null;
+  if (!conversationId || !kind) return error("A conversation and valid call type are required");
+  const member = await isConversationMember(env, conversationId, user.id);
+  if (!member) return error("Conversation not found", 404);
+  const conversation = await env.DB.prepare(
+    "SELECT id,type,title FROM social_conversations WHERE id=?"
+  ).bind(conversationId).first();
+  if (!conversation) return error("Conversation not found", 404);
+  if (kind === "group_voice" && conversation.type !== "group") return error("Group voice chat is only available in groups");
+  const active = await env.DB.prepare(
+    "SELECT id,kind FROM social_call_sessions WHERE conversation_id=? AND status='active' ORDER BY created_at DESC LIMIT 1"
+  ).bind(conversationId).first();
+  if (active) return json({success:true,callId:active.id,kind:active.kind,alreadyActive:true});
+  const id = crypto.randomUUID();
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO social_call_sessions(id,conversation_id,host_id,kind,status) VALUES(?,?,?,?,'active')").bind(id,conversationId,user.id,kind),
+    env.DB.prepare("INSERT INTO social_call_participants(call_id,user_id) VALUES(?,?)").bind(id,user.id)
+  ]);
+  return json({success:true,callId:id,kind,conversationId},201);
+}
+
+async function socialCallActive(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const url = new URL(request.url);
+  const conversationId = cleanText(url.searchParams.get("conversationId"),150);
+  if (!conversationId || !await isConversationMember(env,conversationId,user.id)) return error("Conversation not found",404);
+  const call = await env.DB.prepare(
+    "SELECT id,kind,host_id,created_at FROM social_call_sessions WHERE conversation_id=? AND status='active' ORDER BY created_at DESC LIMIT 1"
+  ).bind(conversationId).first();
+  if (!call) return json({success:true,call:null});
+  const participants = await env.DB.prepare(`
+    SELECT p.user_id,u.username,u.display_name,u.avatar_url
+    FROM social_call_participants p JOIN social_users u ON u.id=p.user_id
+    WHERE p.call_id=? AND p.left_at IS NULL AND p.last_seen_at>=datetime('now','-25 seconds')
+    ORDER BY p.joined_at
+  `).bind(call.id).all();
+  return json({success:true,call:{id:call.id,kind:call.kind,hostId:call.host_id,createdAt:call.created_at,participants:participants.results||[]}});
+}
+
+async function socialCallJoin(request, env, callId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required",401);
+  const call = await env.DB.prepare("SELECT id,conversation_id,kind,status FROM social_call_sessions WHERE id=?").bind(callId).first();
+  if (!call || call.status!=="active") return error("This call has ended",404);
+  if (!await isConversationMember(env,call.conversation_id,user.id)) return error("You are not a member of this conversation",403);
+  const count = await env.DB.prepare("SELECT COUNT(*) AS total FROM social_call_participants WHERE call_id=? AND left_at IS NULL AND last_seen_at>=datetime('now','-25 seconds')").bind(callId).first();
+  const cap = call.kind==="live" ? 12 : 8;
+  const existing = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=?").bind(callId,user.id).first();
+  if (!existing && Number(count?.total||0)>=cap) return error("This room is full. Maximum participants: "+cap,409);
+  await env.DB.prepare(`
+    INSERT INTO social_call_participants(call_id,user_id,joined_at,last_seen_at,left_at)
+    VALUES(?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
+    ON CONFLICT(call_id,user_id) DO UPDATE SET last_seen_at=CURRENT_TIMESTAMP,left_at=NULL
+  `).bind(callId,user.id).run();
+  return json({success:true,callId,kind:call.kind,userId:user.id});
+}
+
+async function socialCallPoll(request, env, callId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required",401);
+  const call = await env.DB.prepare("SELECT id,conversation_id,host_id,kind,status,created_at FROM social_call_sessions WHERE id=?").bind(callId).first();
+  if (!call || call.status!=="active") return error("This call has ended",404);
+  const member = await isConversationMember(env,call.conversation_id,user.id);
+  if (!member) return error("You are not allowed in this call",403);
+  const participant = await env.DB.prepare("SELECT left_at FROM social_call_participants WHERE call_id=? AND user_id=?").bind(callId,user.id).first();
+  if (!participant || participant.left_at) return error("Join the call first",403);
+  await env.DB.prepare("UPDATE social_call_participants SET last_seen_at=CURRENT_TIMESTAMP WHERE call_id=? AND user_id=?").bind(callId,user.id).run();
+  const participants = await env.DB.prepare(`
+    SELECT p.user_id,u.username,u.display_name,u.avatar_url
+    FROM social_call_participants p JOIN social_users u ON u.id=p.user_id
+    WHERE p.call_id=? AND p.left_at IS NULL AND p.last_seen_at>=datetime('now','-25 seconds')
+    ORDER BY p.joined_at
+  `).bind(callId).all();
+  const url = new URL(request.url);
+  const after = Math.max(0,Number(url.searchParams.get("after")||0));
+  const signals = await env.DB.prepare(`
+    SELECT seq,from_user_id,signal_type,payload_json
+    FROM social_call_signals WHERE call_id=? AND to_user_id=? AND seq>?
+    ORDER BY seq LIMIT 100
+  `).bind(callId,user.id,Number.isFinite(after)?after:0).all();
+  const items=(signals.results||[]).map(row=>({seq:row.seq,fromUserId:row.from_user_id,type:row.signal_type,payload:JSON.parse(row.payload_json||"{}")}));
+  return json({success:true,call:{id:call.id,kind:call.kind,hostId:call.host_id,status:call.status,createdAt:call.created_at},userId:user.id,participants:participants.results||[],signals:items,nextAfter:items.length?items[items.length-1].seq:after});
+}
+
+async function socialCallSignal(request, env, callId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required",401);
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+  const type = ["offer","answer","candidate"].includes(body.type) ? body.type : null;
+  const toUserId = cleanText(body.toUserId,150);
+  if (!type || !toUserId || !body.payload || typeof body.payload!=="object") return error("Invalid call signal");
+  const call = await env.DB.prepare("SELECT conversation_id,status FROM social_call_sessions WHERE id=?").bind(callId).first();
+  if (!call || call.status!=="active") return error("Call has ended",404);
+  const sender = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=? AND left_at IS NULL").bind(callId,user.id).first();
+  const target = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=? AND left_at IS NULL").bind(callId,toUserId).first();
+  if (!sender || !target) return error("Both users must be in the call",403);
+  const payload = JSON.stringify(body.payload);
+  if (payload.length>20000) return error("Call signal is too large");
+  await env.DB.prepare("INSERT INTO social_call_signals(call_id,from_user_id,to_user_id,signal_type,payload_json) VALUES(?,?,?,?,?)").bind(callId,user.id,toUserId,type,payload).run();
+  return json({success:true});
+}
+
+async function socialCallLeave(request, env, callId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required",401);
+  const call = await env.DB.prepare("SELECT id,host_id FROM social_call_sessions WHERE id=? AND status='active'").bind(callId).first();
+  if (!call) return json({success:true,ended:true});
+  await env.DB.prepare("UPDATE social_call_participants SET left_at=CURRENT_TIMESTAMP WHERE call_id=? AND user_id=?").bind(callId,user.id).run();
+  if (call.host_id===user.id) {
+    await env.DB.prepare("UPDATE social_call_sessions SET status='ended',ended_at=CURRENT_TIMESTAMP WHERE id=?").bind(callId).run();
+  } else {
+    const remaining=await env.DB.prepare("SELECT COUNT(*) AS total FROM social_call_participants WHERE call_id=? AND left_at IS NULL AND last_seen_at>=datetime('now','-25 seconds')").bind(callId).first();
+    if (!Number(remaining?.total||0)) await env.DB.prepare("UPDATE social_call_sessions SET status='ended',ended_at=CURRENT_TIMESTAMP WHERE id=?").bind(callId).run();
+  }
+  return json({success:true,ended:call.host_id===user.id});
+}
+
 async function socialStartConversation(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -3897,6 +4054,22 @@ export default {
             env,
             decodeURIComponent(storyReactMatch[1])
           );
+        }
+
+        if (path === "/social/calls" && method === "POST") {
+          return await socialCallStart(request, env);
+        }
+        if (path === "/social/calls/active" && method === "GET") {
+          return await socialCallActive(request, env);
+        }
+        const callRouteMatch = path.match(/^\/social\/calls\/([^/]+)\/(join|poll|signal|leave)$/);
+        if (callRouteMatch) {
+          const callId = decodeURIComponent(callRouteMatch[1]);
+          const action = callRouteMatch[2];
+          if (action === "join" && method === "POST") return await socialCallJoin(request, env, callId);
+          if (action === "poll" && method === "GET") return await socialCallPoll(request, env, callId);
+          if (action === "signal" && method === "POST") return await socialCallSignal(request, env, callId);
+          if (action === "leave" && method === "POST") return await socialCallLeave(request, env, callId);
         }
 
         if (path === "/social/conversations" && method === "GET") {
