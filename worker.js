@@ -2516,10 +2516,22 @@ async function socialStartConversation(request, env) {
   let createStage = "conversation_insert";
 
   try {
-    await env.DB.prepare(`
-      INSERT INTO social_conversations(id,type,owner_id)
-      VALUES(?,'private',?)
-    `).bind(id, user.id).run();
+    // Support both the current schema and legacy schemas where creator_id
+    // or created_by is still a NOT NULL column.
+    const schema = await env.DB.prepare("PRAGMA table_info(social_conversations)").all();
+    const available = new Set((schema.results || []).map(column => column.name));
+    const insertColumns = ["id", "type", "owner_id"];
+    const insertValues = [id, "private", user.id];
+    for (const legacyOwnerColumn of ["created_by", "creator_id"]) {
+      if (available.has(legacyOwnerColumn)) {
+        insertColumns.push(legacyOwnerColumn);
+        insertValues.push(user.id);
+      }
+    }
+    const placeholders = insertColumns.map(() => "?").join(",");
+    await env.DB.prepare(
+      "INSERT INTO social_conversations(" + insertColumns.join(",") + ") VALUES(" + placeholders + ")"
+    ).bind(...insertValues).run();
     conversationCreated = true;
 
     createStage = "first_member_insert";
@@ -2562,7 +2574,8 @@ async function socialStartConversation(request, env) {
     return json({
       success: false,
       error: "Could not create this chat. Please try again.",
-      code: "CHAT_CREATE_" + createStage.toUpperCase()
+      code: "CHAT_CREATE_" + createStage.toUpperCase(),
+      detail: String(err?.message || err).slice(0, 220)
     }, 500);
   }
 
