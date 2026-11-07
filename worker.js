@@ -566,8 +566,7 @@ async function createSocialTables(db) {
       content TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
-    `ALTER TABLE social_ai_messages ADD COLUMN provider_key TEXT NOT NULL DEFAULT 'central'`,
-    `ALTER TABLE social_ai_messages ADD COLUMN conversation_id TEXT NOT NULL DEFAULT 'central'`,
+
 
     `CREATE INDEX IF NOT EXISTS idx_social_ai_messages_user
       ON social_ai_messages(user_id,created_at DESC)`
@@ -576,6 +575,8 @@ async function createSocialTables(db) {
   for (const statement of statements) {
     await db.prepare(statement).run();
   }
+  try { await db.prepare("ALTER TABLE social_ai_messages ADD COLUMN provider_key TEXT NOT NULL DEFAULT 'central'").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_ai_messages ADD COLUMN conversation_id TEXT NOT NULL DEFAULT 'central'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN firebase_uid TEXT").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'human'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN business_category TEXT NOT NULL DEFAULT ''").run(); } catch {}
