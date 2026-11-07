@@ -791,6 +791,9 @@ if(name==="feed")renderSocial();
 if(name==="explore")renderExplore();
 if(name==="reels")renderReels();
 if(name==="notifications")loadNotifications();
+if(name==="messages")socialLoadConversations();
+if(name==="groups")socialLoadConversations();
+if(name==="channels")socialLoadChannels();
 if(name==="prompt-creator"){$("pcGoal")?.focus({preventScroll:true});}
 }
 
