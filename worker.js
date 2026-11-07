@@ -2464,6 +2464,13 @@ async function socialListConversations(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
+  const preferenceRow = await env.DB.prepare(
+    "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+  ).bind(user.id).first();
+  let conversationPrefs = {};
+  try { conversationPrefs = JSON.parse(preferenceRow?.preferences_json || "{}"); } catch {}
+  const showMessagePreviews = conversationPrefs.chat?.messagePreviews !== false;
+
   const result = await env.DB.prepare(`
     SELECT c.id,c.type,c.title,c.updated_at,
       (
@@ -2498,7 +2505,7 @@ async function socialListConversations(request, env) {
       id: row.id,
       type: row.type,
       title: row.title,
-      lastMessage: row.last_message || "",
+      lastMessage: showMessagePreviews ? (row.last_message || "") : "",
       lastMessageAt: row.last_message_at || row.updated_at,
       members: (members.results || []).map(member => ({
         id: member.id,
