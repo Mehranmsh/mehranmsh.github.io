@@ -1065,13 +1065,23 @@ async function socialExtendedSettings(request, env) {
       } else clean[section][key] = source[key] !== false;
     }
   }
+  const serialized = JSON.stringify(clean);
   await env.DB.prepare(`
     INSERT INTO social_extended_settings(user_id,preferences_json,updated_at)
     VALUES(?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(user_id) DO UPDATE SET
       preferences_json=excluded.preferences_json,updated_at=CURRENT_TIMESTAMP
-  `).bind(user.id, JSON.stringify(clean)).run();
-  return json({success:true,preferences:clean});
+  `).bind(user.id, serialized).run();
+
+  // Read the row back before reporting success. This catches a write that
+  // appears successful to the UI but did not persist for this account.
+  const savedRow = await env.DB.prepare(
+    "SELECT preferences_json,updated_at FROM social_extended_settings WHERE user_id=?"
+  ).bind(user.id).first();
+  if (!savedRow || savedRow.preferences_json !== serialized) {
+    return error("Settings were not persisted. Please retry.", 500);
+  }
+  return json({success:true,preferences:clean,savedAt:savedRow.updated_at});
 }
 
 async function socialStorageSummary(request, env) {
