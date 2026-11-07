@@ -2482,18 +2482,50 @@ async function socialStartConversation(request, env) {
   if (existing) return json({ success: true, conversationId: existing.id });
 
   const id = crypto.randomUUID();
+  let conversationCreated = false;
 
-  await env.DB.batch([
-    env.DB.prepare(`
+  try {
+    // Keep creation steps explicit so a failed membership write cannot be
+    // hidden inside a multi-statement batch.
+    await env.DB.prepare(`
       INSERT INTO social_conversations(id,type,owner_id)
       VALUES(?,'private',?)
-    `).bind(id, user.id),
+    `).bind(id, user.id).run();
+    conversationCreated = true;
 
-    env.DB.prepare(`
+    await env.DB.prepare(`
       INSERT INTO social_conversation_members(conversation_id,user_id,role)
-      VALUES(?,?,'member'),(?,?,'member')
-    `).bind(id, user.id, id, target.id)
-  ]);
+      VALUES(?,?,'member')
+    `).bind(id, user.id).run();
+
+    await env.DB.prepare(`
+      INSERT INTO social_conversation_members(conversation_id,user_id,role)
+      VALUES(?,?,'member')
+    `).bind(id, target.id).run();
+
+    const verified = await env.DB.prepare(`
+      SELECT COUNT(*) AS member_count
+      FROM social_conversation_members
+      WHERE conversation_id=?
+    `).bind(id).first();
+
+    if (Number(verified?.member_count || 0) !== 2) {
+      throw new Error("Conversation membership verification failed");
+    }
+  } catch (err) {
+    console.error("SOCIAL_DIRECT_CHAT_CREATE_FAILURE", {
+      stage: conversationCreated ? "members" : "conversation",
+      message: String(err?.message || err).slice(0, 300)
+    });
+    if (conversationCreated) {
+      try {
+        await env.DB.prepare("DELETE FROM social_conversations WHERE id=?").bind(id).run();
+      } catch (cleanupError) {
+        console.error("SOCIAL_DIRECT_CHAT_CLEANUP_FAILURE", String(cleanupError?.message || cleanupError).slice(0, 200));
+      }
+    }
+    return error("Could not create this chat. Please try again.", 500);
+  }
 
   return json({ success: true, conversationId: id }, 201);
 }
