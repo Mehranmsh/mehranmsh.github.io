@@ -2880,11 +2880,32 @@ async function socialResolveAssistantImages(env,userId,attachments) {
   return images;
 }
 
+async function socialEnsureCloudflareVisionLicense(env, model) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS social_ai_model_licenses(
+      model TEXT PRIMARY KEY,
+      accepted_at TEXT NOT NULL
+    )
+  `).run();
+  const accepted = await env.DB.prepare(
+    "SELECT model FROM social_ai_model_licenses WHERE model=? LIMIT 1"
+  ).bind(model).first();
+  if (accepted) return;
+  // The account owner explicitly approved Meta's Llama 3.2 license in this conversation.
+  await env.AI.run(model, { prompt: "agree" });
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO social_ai_model_licenses(model,accepted_at) VALUES(?,?)"
+  ).bind(model, new Date().toISOString()).run();
+}
+
 async function socialAIRequest(provider, model, messages, env, images = []) {
   const system = "You are an assistant inside SOCIAL, an international social network. Be helpful, safe, clear and concise. Reply in the user's language. Never claim actions you did not perform. Never request passwords, private keys, API keys or wallet recovery phrases.";
   const userMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
   if(images.length&&!socialAIImageModelSupported(provider,model)) throw new Error("Image analysis requires a compatible vision model.");
   if (provider === "cloudflare") {
+    if (images.length && model === "@cf/meta/llama-3.2-11b-vision-instruct") {
+      await socialEnsureCloudflareVisionLicense(env, model);
+    }
     const cloudflareInput = { messages: [{ role: "system", content: system }, ...userMessages], max_tokens: 900 };
     if (images.length) {
       if (images.length !== 1) throw new Error("Cloudflare Vision currently accepts one image per message. Use OpenAI or Gemini for multiple images.");
