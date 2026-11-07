@@ -53,7 +53,12 @@ window.__piInitPromise.catch(error=>console.error("Pi SDK initialization failed:
 @media(max-width:420px){.grid{grid-template-columns:1fr}.feature-grid{grid-template-columns:1fr}.social-shell{padding:11px}.social-tab{padding:9px 10px}}
 .creator-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-left:5px;border-radius:50%;background:#168cff;color:#fff;font-size:12px;font-weight:800;vertical-align:middle;box-shadow:0 0 0 2px rgba(22,140,255,.16)}.admin-stats{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.admin-stats .card{min-width:0}
 
-#storiesRow{min-height:88px}#conversationList .social-card{cursor:pointer}.social-result{padding:13px;border:1px solid var(--line);border-radius:12px;margin:8px 0;background:#0d1829}.chat-bubble{max-width:85%;padding:10px 13px;border-radius:13px;background:#15273d;margin:7px 0;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.chat-bubble.mine{margin-left:auto;background:#123d55}.chat-meta{font-size:9px;color:var(--muted);margin-top:4px}
+#storiesRow{min-height:88px}#conversationList .social-card{cursor:pointer}.social-result{padding:13px;border:1px solid var(--line);border-radius:12px;margin:8px 0;background:#0d1829}.chat-bubble{max-width:85%;padding:10px 13px;border-radius:13px;background:#15273d;margin:7px 0;font-size:12px;line-height:1.6;overflow-wrap:anywhere}.chat-bubble.mine{margin-left:auto;background:#123d55}
+#assistantMessages{display:flex;flex-direction:column;align-items:stretch;gap:2px}
+#assistantMessages .chat-bubble{max-width:min(88%,680px);text-align:start;unicode-bidi:plaintext}
+#assistantMessages .chat-bubble.mine{align-self:flex-end;margin-left:0;margin-right:0}
+#assistantMessages .chat-bubble:not(.mine){align-self:flex-start;margin-left:0;margin-right:0}
+#assistantMessages .chat-bubble [dir="auto"]{unicode-bidi:plaintext;text-align:start;overflow-wrap:anywhere}.chat-meta{font-size:9px;color:var(--muted);margin-top:4px}
 
 /* SOCIAL visual refresh: warm, expressive composer and form surfaces */
 #page-social{--social-card:rgba(17,29,48,.88);--social-line:rgba(111,157,205,.2)}
@@ -1633,7 +1638,7 @@ async function socialLoadAssistant(){
   const selected=provider==="central"?null:socialAIProvidersCache.find(p=>p.key===provider);
   status.textContent=ready.length?ready.length+" AI provider(s) connected. Conversation history is private to your account.":"No AI provider is configured on the server yet.";
   $("assistantProviderStatus").textContent=socialAIProvidersCache.map(p=>p.name+": "+(p.configured?"Connected":"Not configured")).join(" · ");
-  box.innerHTML=(history.messages||[]).map(m=>'<div class="chat-bubble '+(m.role==="user"?"mine":"")+'"><strong>'+(m.role==="user"?"You":socialAIProviderName(m.provider_key||provider))+'</strong><div style="white-space:pre-wrap">'+sx(m.content)+'</div></div>').join("")||'<div class="empty">Start a conversation with '+sx(socialAIProviderName(provider))+'.</div>';
+  box.innerHTML=(history.messages||[]).map(m=>'<div class="chat-bubble '+(m.role==="user"?"mine":"")+'"><strong dir="auto">'+(m.role==="user"?"You":socialAIProviderName(m.provider_key||provider))+'</strong><div dir="auto" style="white-space:pre-wrap;unicode-bidi:plaintext;text-align:start">'+sx(m.content)+'</div></div>').join("")||'<div class="empty">Start a conversation with '+sx(socialAIProviderName(provider))+'.</div>';
   box.scrollTop=box.scrollHeight;send.disabled=provider==="central"?!ready.length:!selected?.configured;
  }catch(e){status.textContent=e.message;send.disabled=true;}
 }
@@ -1645,7 +1650,7 @@ async function socialSendAssistantMessage(){
   await socialRequest("/assistant/chat",{method:"POST",body:JSON.stringify({content,provider})});
   input.value="";
   const history=await socialRequest("/assistant/history?provider="+encodeURIComponent(provider));
-  $("assistantMessages").innerHTML=(history.messages||[]).map(m=>'<div class="chat-bubble '+(m.role==="user"?"mine":"")+'"><strong>'+(m.role==="user"?"You":socialAIProviderName(m.provider_key||provider))+'</strong><div style="white-space:pre-wrap">'+sx(m.content)+'</div></div>').join("");
+  $("assistantMessages").innerHTML=(history.messages||[]).map(m=>'<div class="chat-bubble '+(m.role==="user"?"mine":"")+'"><strong dir="auto">'+(m.role==="user"?"You":socialAIProviderName(m.provider_key||provider))+'</strong><div dir="auto" style="white-space:pre-wrap;unicode-bidi:plaintext;text-align:start">'+sx(m.content)+'</div></div>').join("");
   $("assistantMessages").scrollTop=$("assistantMessages").scrollHeight;
  }catch(e){toast(e.message);}
  finally{input.disabled=false;send.textContent="Send";await socialLoadAssistant();}
