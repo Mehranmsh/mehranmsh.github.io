@@ -1826,10 +1826,11 @@ async function socialRefreshChatMessages(){
   const box=$("chatMessages");
   if(!box)return;
   const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100;
-  const html=(d.messages||[]).map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';
-  if(box.dataset.lastRender!==html){
-   box.innerHTML=html;
-   box.dataset.lastRender=html;
+  const messages=d.messages||[];
+  const fingerprint=JSON.stringify(messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})));
+  if(box.dataset.lastFingerprint!==fingerprint){
+   box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';
+   box.dataset.lastFingerprint=fingerprint;
    if(nearBottom)box.scrollTop=box.scrollHeight;
   }
  }catch(e){
@@ -1854,7 +1855,7 @@ async function socialOpenConversation(id){
   const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");
   if(socialActiveConversation!==String(id))return;
   const messages=d.messages||[];
-  if(box){box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet. Send the first message.</div>';box.dataset.lastRender=box.innerHTML;box.scrollTop=box.scrollHeight;}
+  if(box){box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet. Send the first message.</div>';box.dataset.lastFingerprint=JSON.stringify(messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})));box.scrollTop=box.scrollHeight;}
   await socialRefreshActiveCall();
   await socialLoadConversations();
   socialStartChatRefresh();
