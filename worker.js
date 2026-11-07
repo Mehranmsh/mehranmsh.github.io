@@ -2903,23 +2903,32 @@ async function socialAssistantChat(request, env) {
   if (!content) return error("Write a message first.");
   const requestedProvider = cleanText(body.provider || "central", 32).toLowerCase();
   if (requestedProvider !== "central" && !SOCIAL_AI_PROVIDERS[requestedProvider]) return error("Unknown AI provider.");
-  let provider = requestedProvider;
-  if (provider === "central") {
-    const preferred = cleanText(env.SOCIAL_AI_DEFAULT_PROVIDER, 32).toLowerCase();
-    const order = [preferred, "openai", "gemini", "groq", "cloudflare"].filter((v, i, a) => SOCIAL_AI_PROVIDERS[v] && a.indexOf(v) === i);
-    provider = order.find(key => socialAIProviderReady(key, env));
-  }
-  if (!provider || !socialAIProviderReady(provider, env)) return error("This AI provider is not configured on the server.", 503);
-  const model = cleanText(body.model, 120) || cleanText(env["SOCIAL_AI_MODEL_" + provider.toUpperCase()], 120) || SOCIAL_AI_PROVIDERS[provider].model;
+  const preferred = cleanText(env.SOCIAL_AI_DEFAULT_PROVIDER, 32).toLowerCase();
+  const order = [preferred, "openai", "gemini", "groq", "cloudflare"].filter((v, i, a) => SOCIAL_AI_PROVIDERS[v] && a.indexOf(v) === i);
+  const candidates = requestedProvider === "central"
+    ? order.filter(key => socialAIProviderReady(key, env))
+    : (socialAIProviderReady(requestedProvider, env) ? [requestedProvider] : []);
+  if (!candidates.length) return error("This AI provider is not configured on the server.", 503);
   const conversationId = requestedProvider === "central" ? "central" : requestedProvider;
   const recent = await env.DB.prepare(
     "SELECT role,content FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC LIMIT 19"
   ).bind(user.id, conversationId).all();
   const input = (recent.results || []).reverse().map(row => ({ role: row.role, content: row.content }));
   input.push({ role: "user", content });
-  let answer;
-  try { answer = await socialAIRequest(provider, model, input, env); }
-  catch (e) { return error((e?.message || "Could not reach the AI service.").slice(0, 240), 502); }
+  let answer, provider, model, lastError;
+  for (const candidate of candidates) {
+    const candidateModel = cleanText(body.model, 120) || cleanText(env["SOCIAL_AI_MODEL_" + candidate.toUpperCase()], 120) || SOCIAL_AI_PROVIDERS[candidate].model;
+    try {
+      answer = await socialAIRequest(candidate, candidateModel, input, env);
+      provider = candidate;
+      model = candidateModel;
+      break;
+    } catch (e) {
+      lastError = e;
+      if (requestedProvider !== "central") break;
+    }
+  }
+  if (!answer) return error((lastError?.message || "No configured AI provider could complete the request.").slice(0, 240), 502);
   await env.DB.batch([
     env.DB.prepare("INSERT INTO social_ai_messages(id,user_id,role,content,provider_key,conversation_id) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), user.id, "user", content, provider, conversationId),
     env.DB.prepare("INSERT INTO social_ai_messages(id,user_id,role,content,provider_key,conversation_id) VALUES(?,?,?,?,?,?)").bind(crypto.randomUUID(), user.id, "assistant", answer, provider, conversationId)
