@@ -758,7 +758,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
-let piUser=null,socialUser=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
+let piUser=null,socialUser=(getSocialToken()?readJSON("msh_social_cached_user",null):null),socialSessionVerified=false,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
@@ -995,7 +995,7 @@ $("authSwitchText").textContent=registering?"Already have an account?":"Don't ha
 $("authSwitchBtn").textContent=registering?"Sign in":"Create account";
 }
 function requireAuth(action){
-if(socialUser)return true;
+if(socialUser&&socialSessionVerified)return true;
 if(getSocialToken()){
 toast("Your saved session is reconnecting. Please try again in a moment.");
 socialMe();
@@ -1070,9 +1070,12 @@ if(!response.ok)throw new Error(data.message||data.error||"Login failed");
 if(!data.token)throw new Error("The server did not return a session token.");
 localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
 socialUser=data.user||null;
-await socialMe();
+socialSessionVerified=!!socialUser;
+if(socialUser)saveJSON("msh_social_cached_user",socialUser);
+renderSocial();
 closeAuth();
 toast("Welcome to SOCIAL");
+socialMe();
 }catch(error){
 const messages={
 "auth/user-not-found":"No account found for this email. Check the address or create an account.",
@@ -1092,6 +1095,8 @@ const data=await response.json().catch(()=>({}));
 if(response.status===401){
 localStorage.removeItem(SOCIAL_TOKEN_KEY);
 socialUser=null;
+socialSessionVerified=false;
+localStorage.removeItem("msh_social_cached_user");
 $("socialStatus").textContent="Session expired";
 $("settingsMessage").textContent="Your session expired. Please sign in again.";
 renderSocial();
@@ -1099,12 +1104,15 @@ return false;
 }
 if(!response.ok)throw new Error(data.message||("Server unavailable ("+response.status+")"));
 socialUser=data.user||data;
+socialSessionVerified=true;
+saveJSON("msh_social_cached_user",socialUser);
 $("settingsUsername").value=socialUser.username||"";
 $("socialStatus").textContent="Connected";
 renderSocial();
 loadSocialFeed().catch(error=>console.warn("SOCIAL feed:",error));
 return true;
 }catch(error){
+socialSessionVerified=false;
 $("socialStatus").textContent="Connection issue";
 $("settingsMessage").textContent="Connection problem. Your saved session was kept. Try again when the connection is stable. "+error.message;
 renderSocial();
@@ -1114,7 +1122,9 @@ return false;
 async function socialLogout(){
 try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}
 localStorage.removeItem(SOCIAL_TOKEN_KEY);
+localStorage.removeItem("msh_social_cached_user");
 socialUser=null;
+socialSessionVerified=false;
 $("settingsUsername").value="";
 $("socialStatus").textContent="Not registered";
 renderSocial();
