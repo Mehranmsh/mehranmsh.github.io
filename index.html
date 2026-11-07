@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#070b14">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>MEHRAN MSH | Digital Ecosystem</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <script>
@@ -668,7 +671,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <p class="small-text">Create from text with FLUX.1 SCHNELL, or upload a reference photo and add a prompt to edit and recreate the scene with FLUX.2 KLEIN 4B. Your reference photo is uploaded privately and processed by Cloudflare Workers AI. No external paid model or paid fallback is used. Both modes share Cloudflare's daily free AI allocation. On a Workers Paid account, usage above the free daily allowance can be billed; use Workers Free to avoid overage charges.</p>
 <div class="field"><label for="imageStudioReferenceInput">Reference photo (optional)</label><input id="imageStudioReferenceInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="socialChooseImageReference(event)"><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn secondary small" type="button" onclick="$('imageStudioReferenceInput').click()">Choose a photo</button><button class="btn secondary small" type="button" onclick="socialClearImageReference()">Remove photo</button><span id="imageStudioReferencePreview" class="small-text">No reference photo selected.</span></div><p class="small-text">Use a clear photo. It is resized privately to fit the model's input limit. The model will try to preserve the person's recognizable facial identity, but exact identity matching cannot be guaranteed.</p></div>
 <div class="field"><label for="imageStudioPrompt">Describe the image you want</label><textarea id="imageStudioPrompt" maxlength="1800" placeholder="Example: Keep my face recognizable. Put me in a sky-blue shirt and white trousers, standing in a modern city at golden hour, natural realistic photography."></textarea></div>
-<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn" id="imageStudioGenerateBtn" type="button" onclick="socialGenerateImage()">Generate image</button><span id="imageStudioStatus" class="small-text" role="status"></span></div>
+<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn" id="imageStudioGenerateBtn" type="button" onclick="socialGenerateImage()">Generate image</button><span id="imageStudioStatus" class="small-text" role="status"></span><span id="imageStudioElapsed" class="small-text" aria-live="off" hidden style="color:#28d9ff;font-variant-numeric:tabular-nums;font-weight:700">Elapsed 00:00</span></div>
 </div></div>
 <div class="social-view" id="social-prompt-creator">
 <div class="section-title"><h2>✦ PROMPT CREATOR</h2><span class="small-text">Prompt writing only · no AI execution here</span></div>
@@ -2376,9 +2379,11 @@ async function socialGenerateImage(){
  if(!prompt){toast("Write a description for your image first.");return;}
  if(prompt.length>1800)return;
  button.disabled=true;button.textContent="Generating...";
- const generationStatus=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation":"Generating from your prompt using the free daily AI allocation";
+ const generationStatus=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation...":"Generating from your prompt using the free daily AI allocation...";
+ status.textContent=generationStatus;
+ const elapsedNode=$("imageStudioElapsed");
  const generationStartedAt=Date.now();
- const formatGenerationElapsed=()=>{const totalSeconds=Math.floor((Date.now()-generationStartedAt)/1000);const minutes=String(Math.floor(totalSeconds/60)).padStart(2,"0");const seconds=String(totalSeconds%60).padStart(2,"0");status.textContent=generationStatus+" · Elapsed "+minutes+":"+seconds;};
+ const formatGenerationElapsed=()=>{const totalSeconds=Math.floor((Date.now()-generationStartedAt)/1000);const minutes=String(Math.floor(totalSeconds/60)).padStart(2,"0");const seconds=String(totalSeconds%60).padStart(2,"0");if(elapsedNode){elapsedNode.hidden=false;elapsedNode.textContent="Elapsed "+minutes+":"+seconds;}};
  formatGenerationElapsed();
  const generationTimer=setInterval(formatGenerationElapsed,1000);
  $("imageStudioResult").classList.add("hidden");
@@ -2399,7 +2404,7 @@ async function socialGenerateImage(){
   $("imageStudioSaveStatus").textContent="";
   status.textContent="Image generated successfully.";
  }catch(e){status.textContent=e.message||"Image generation failed.";socialShowAssistantError(e);}
- finally{clearInterval(generationTimer);button.disabled=false;button.textContent="Generate image";}
+ finally{clearInterval(generationTimer);const elapsedNode=$("imageStudioElapsed");if(elapsedNode)elapsedNode.hidden=true;button.disabled=false;button.textContent="Generate image";}
 }
 function socialDownloadGeneratedImage(){
  if(!socialGeneratedImageUrl)return;
