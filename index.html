@@ -2091,7 +2091,8 @@ async function socialGenerateImage(){
  try{
   const result=await socialRequest("/assistant/image/generate",{method:"POST",body:JSON.stringify({prompt,reference:socialImageReferenceAttachment?.id||"",width:size[0],height:size[1]})});
   if(!result.image||typeof result.image!=="string")throw new Error("The image model returned no image data.");
-  const binary=atob(result.image.replace(/^data:image\\/[^;]+;base64,/,""));
+  const imageData=result.image.startsWith("data:image/")?result.image.slice(result.image.indexOf(",")+1):result.image;
+  const binary=atob(imageData);
   const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   socialGeneratedImageBlob=new Blob([bytes],{type:result.mimeType||"image/png"});
   socialGeneratedImageFile=new File([socialGeneratedImageBlob],"social-ai-"+Date.now()+".png",{type:socialGeneratedImageBlob.type});
