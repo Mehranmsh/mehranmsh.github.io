@@ -1783,6 +1783,7 @@ function socialEmojiPickerFor(input){
  }
  window.socialEmojiTarget=input.id;picker.classList.remove("hidden");
 }
+function socialInitEmojiPicker(){socialEmojiPickerFor($("chatInput"));}
 document.addEventListener("click",e=>{const trigger=e.target.closest?.("[data-social-emoji-trigger]");if(trigger){e.preventDefault();const input=$(trigger.dataset.emojiTarget);if(input)socialEmojiPickerFor(input);}},true);
 document.addEventListener("click",e=>{const picker=$("socialEmojiPickerGlobal");if(picker&&!picker.classList.contains("hidden")&&!e.target.closest("#socialEmojiPickerGlobal,[data-social-emoji-trigger]"))picker.classList.add("hidden");});
 
