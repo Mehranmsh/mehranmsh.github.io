@@ -266,6 +266,37 @@ window.__piInitPromise.catch(error=>console.error("Pi SDK initialization failed:
 
 /* Keep focus styling; the full-card native input overlay is defined below. */
 #page-social label.file-dropzone:focus-within{outline:3px solid rgba(50,210,255,.2)!important}
+
+/* SOCIAL AI attachment composer */
+#page-social .assistant-composer-wrap{position:relative;margin-top:12px}
+#page-social .assistant-composer{display:flex;align-items:center;gap:9px;padding:8px;border:1px solid rgba(74,170,220,.28);border-radius:19px;background:linear-gradient(135deg,rgba(11,26,46,.98),rgba(12,19,34,.98));box-shadow:0 8px 28px rgba(0,0,0,.18)}
+#page-social .assistant-composer>input{flex:1;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;padding:12px 7px!important;color:#eef8ff!important;outline:none!important}
+#page-social .assistant-attach-wrap{position:relative;flex:0 0 auto}
+#page-social .assistant-attach-btn{width:43px;height:43px;border:1px solid rgba(57,205,255,.28);border-radius:14px;background:linear-gradient(145deg,rgba(35,120,180,.22),rgba(21,42,69,.8));color:#57dcff;font-size:27px;line-height:1;cursor:pointer;transition:.2s}
+#page-social .assistant-attach-btn:hover,#page-social .assistant-attach-btn[aria-expanded=true]{background:rgba(40,160,220,.22);border-color:#37caff;transform:translateY(-1px)}
+#page-social .assistant-attach-menu{position:absolute;z-index:30;left:0;bottom:54px;width:min(290px,calc(100vw - 54px));padding:10px;border:1px solid rgba(75,180,230,.25);border-radius:18px;background:linear-gradient(155deg,#142943,#0b1423 80%);box-shadow:0 18px 48px rgba(0,0,0,.48);backdrop-filter:blur(18px)}
+#page-social .assistant-attach-heading{padding:8px 10px 11px;color:#e8f7ff;font-size:12px;font-weight:800;letter-spacing:.04em}
+#page-social .assistant-attach-option{width:100%;display:flex;align-items:center;gap:11px;padding:10px;border:0;border-radius:12px;background:transparent;color:#e9f5ff;text-align:left;cursor:pointer}
+#page-social .assistant-attach-option:hover{background:rgba(58,174,226,.12)}
+#page-social .assistant-attach-option>span:nth-child(2){display:grid;gap:3px;flex:1}
+#page-social .assistant-attach-option strong{font-size:12px}
+#page-social .assistant-attach-option small{font-size:10px;color:#91a9c1}
+#page-social .assistant-attach-option>b{color:#6f94b4;font-size:19px;font-weight:400}
+#page-social .assistant-attach-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;font-size:19px}
+#page-social .assistant-attach-icon.image{background:rgba(64,167,255,.15);color:#68baff}
+#page-social .assistant-attach-icon.audio{background:rgba(190,113,255,.15);color:#d29aff}
+#page-social .assistant-attach-icon.video{background:rgba(255,117,137,.15);color:#ff9aaa}
+#page-social .assistant-attach-icon.file{background:rgba(66,220,170,.13);color:#66e6bd}
+#page-social .assistant-attach-footnote{padding:9px 10px 4px;border-top:1px solid rgba(130,180,220,.12);color:#718da9;font-size:10px}
+#page-social .assistant-hidden-file{display:none!important}
+#page-social .assistant-attach-note{margin:7px 4px 0;color:#7891aa;font-size:10px;line-height:1.5}
+#page-social .assistant-attachment-preview{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 9px}
+#page-social .assistant-file-chip{display:flex;align-items:center;gap:8px;max-width:100%;padding:7px 10px;border:1px solid rgba(65,185,220,.2);border-radius:12px;background:rgba(19,45,69,.78);color:#e7f7ff;font-size:11px}
+#page-social .assistant-file-chip .file-kind{font-size:17px}
+#page-social .assistant-file-chip .file-name{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#page-social .assistant-file-chip button{border:0;background:transparent;color:#ff9aa9;font-size:17px;cursor:pointer}
+#page-social .assistant-attachment-preview[hidden],#page-social .assistant-attach-menu[hidden]{display:none!important}
+@media(max-width:520px){#page-social .assistant-composer{gap:6px;padding:6px}#page-social .assistant-attach-btn{width:40px;height:40px}#page-social .assistant-composer>input{font-size:13px!important;padding:10px 4px!important}#page-social #assistantSendBtn{padding:10px 12px}}
 </style>
 <style id="social-profile-editor-refresh">
 /* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
@@ -556,7 +587,23 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="social-view" id="social-channels"><h2>Channels</h2><div class="form-grid"><div class="field"><label>Channel name</label><input id="newChannelName"></div><div class="field"><label>Username</label><input id="newChannelUsername"></div><div class="field"><label>Description</label><input id="newChannelDescription"></div><div class="field"><label>Visibility</label><select id="newChannelPrivate"><option value="false">Public</option><option value="true">Private</option></select></div></div><button class="btn" id="submitChannelBtn">Create channel</button><div id="channelInviteNotice" class="notice hidden"></div><div class="form-grid"><div class="field"><label>Join channel by ID</label><input id="joinChannelId" placeholder="Channel ID"></div><div class="field"><label>Invite code (private channels)</label><input id="joinChannelInviteCode" placeholder="Invite code, if required"></div></div><button class="btn secondary" id="joinChannelBtn">Join channel</button><div id="channelsList" class="empty"></div><div id="channelWorkspace" class="panel hidden"></div></div>
 
 <div class="social-view" id="social-bots"><div class="section-title"><h2>Telegram Bots</h2><span class="small-text">Telegram bot workspace</span></div><div class="notice warn">This section is reserved for Telegram bots only. Telegram BotFather token and webhook connection are not active yet. Creating a record below currently registers it in SOCIAL and generates a SOCIAL API token; it does not by itself connect the bot to Telegram.</div><details class="panel" open><summary>Telegram bot developer</summary><div class="form-grid" style="margin-top:14px"><div class="field"><label for="newBotName">Bot name</label><input id="newBotName" placeholder="My Telegram Bot"></div><div class="field"><label for="newBotUsername">Telegram username</label><input id="newBotUsername" placeholder="my_example_bot"></div></div><div class="field"><label for="newBotDescription">Description</label><textarea id="newBotDescription" placeholder="What does your Telegram bot do?"></textarea></div><button class="btn secondary" id="submitBotBtn">Register bot in SOCIAL</button><div id="botTokenNotice" class="notice hidden"></div></details><div class="panel"><h3>Your Telegram bot records</h3><div id="botsList" class="empty">Sign in to manage your bots.</div></div></div>
-<div class="social-view" id="social-ai"><div class="section-title"><h2>SOCIAL AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. SOCIAL AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><p id="assistantStatus" class="notice">Checking AI providers...</p><div class="field"><label for="assistantProviderSelect">AI workspace</label><select id="assistantProviderSelect"><option value="central">Central Assistant · Auto</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select><small class="small-text">The central assistant selects an available provider. Each independent model keeps a separate conversation. This AI workspace is separate from Telegram Bots. Provider availability and supported capabilities depend on the server configuration.</small></div><div id="assistantProviderStatus" class="small-text" style="margin:8px 0"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your SOCIAL AI conversation will appear here.</div></div><div class="comment-form"><input id="assistantInput" maxlength="4000" placeholder="Message SOCIAL AI..." autocomplete="off"><button class="btn" id="assistantSendBtn">Send</button></div></div></div>
+<div class="social-view" id="social-ai"><div class="section-title"><h2>SOCIAL AI</h2><span class="small-text">AI execution workspace</span></div><div class="panel"><div class="notice" style="margin-bottom:12px"><strong>Your AI workspace</strong><p class="small-text" style="margin:6px 0 0">Send a request directly, or bring a ready-made text prompt from Prompt Creator. SOCIAL AI is the place where the selected AI model processes your request. Image understanding and image generation require compatible vision/image models and are not enabled just by choosing a provider.</p></div><p id="assistantStatus" class="notice">Checking AI providers...</p><div class="field"><label for="assistantProviderSelect">AI workspace</label><select id="assistantProviderSelect"><option value="central">Central Assistant · Auto</option><option value="openai">OpenAI</option><option value="gemini">Google Gemini</option><option value="cloudflare">Cloudflare AI</option><option value="groq">Groq</option></select><small class="small-text">The central assistant selects an available provider. Each independent model keeps a separate conversation. This AI workspace is separate from Telegram Bots. Provider availability and supported capabilities depend on the server configuration.</small></div><div id="assistantProviderStatus" class="small-text" style="margin:8px 0"></div><div id="assistantMessages" class="social-card" style="min-height:180px;max-height:420px;overflow:auto;margin:12px 0"><div class="empty">Your SOCIAL AI conversation will appear here.</div></div><div class="assistant-composer-wrap">
+<div id="assistantAttachmentPreview" class="assistant-attachment-preview" hidden></div>
+<div class="assistant-composer">
+<div class="assistant-attach-wrap"><button type="button" class="assistant-attach-btn" id="assistantAttachBtn" aria-label="Attach media" aria-expanded="false" title="Attach image, audio, video or file" onclick="socialToggleAttachMenu()">＋</button>
+<div class="assistant-attach-menu" id="assistantAttachMenu" hidden>
+<div class="assistant-attach-heading">Add to your message</div>
+<button type="button" class="assistant-attach-option" onclick="socialChooseAssistantFile('image')"><span class="assistant-attach-icon image">▧</span><span><strong>Image</strong><small>Photos and pictures</small></span><b>›</b></button>
+<button type="button" class="assistant-attach-option" onclick="socialChooseAssistantFile('audio')"><span class="assistant-attach-icon audio">♫</span><span><strong>Music & audio</strong><small>Listen and analyze sound</small></span><b>›</b></button>
+<button type="button" class="assistant-attach-option" onclick="socialChooseAssistantFile('video')"><span class="assistant-attach-icon video">▶</span><span><strong>Video</strong><small>Clips and recordings</small></span><b>›</b></button>
+<button type="button" class="assistant-attach-option" onclick="socialChooseAssistantFile('file')"><span class="assistant-attach-icon file">▤</span><span><strong>Document</strong><small>PDF and office files</small></span><b>›</b></button>
+<div class="assistant-attach-footnote">Choose a file from your device</div></div></div>
+<input id="assistantInput" maxlength="4000" placeholder="Message SOCIAL AI..." autocomplete="off"><button class="btn" id="assistantSendBtn">Send</button></div>
+<input class="assistant-hidden-file" id="assistantImageFile" type="file" accept="image/*" multiple onchange="socialPickAssistantFiles(event,'image')">
+<input class="assistant-hidden-file" id="assistantAudioFile" type="file" accept="audio/*" multiple onchange="socialPickAssistantFiles(event,'audio')">
+<input class="assistant-hidden-file" id="assistantVideoFile" type="file" accept="video/*" multiple onchange="socialPickAssistantFiles(event,'video')">
+<input class="assistant-hidden-file" id="assistantDocumentFile" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv" multiple onchange="socialPickAssistantFiles(event,'file')">
+<p class="assistant-attach-note">Media preview is ready. AI media analysis will be enabled after the secure upload and model-processing connection is completed.</p></div></div></div>
 
 <div class="social-view" id="social-prompt-creator">
 <div class="section-title"><h2>✦ PROMPT CREATOR</h2><span class="small-text">Prompt writing only · no AI execution here</span></div>
@@ -1644,6 +1691,7 @@ async function socialLoadAssistant(){
 }
 async function socialSendAssistantMessage(){
  const input=$("assistantInput"),send=$("assistantSendBtn"),content=input.value.trim(),provider=socialSelectedAIProvider();
+ if(socialAssistantPendingFiles.length){toast("Media preview is ready. Secure AI attachment processing is not connected yet.");return;}
  if(!content||!socialUser)return;
  input.disabled=true;send.disabled=true;send.textContent="...";
  try{
@@ -1656,6 +1704,13 @@ async function socialSendAssistantMessage(){
  finally{input.disabled=false;send.textContent="Send";await socialLoadAssistant();}
 }
 
+
+let socialAssistantPendingFiles=[];
+function socialToggleAttachMenu(){const menu=$("assistantAttachMenu"),btn=$("assistantAttachBtn");if(!menu||!btn)return;const open=menu.hidden;menu.hidden=!open;btn.setAttribute("aria-expanded",String(open));}
+function socialChooseAssistantFile(kind){const ids={image:"assistantImageFile",audio:"assistantAudioFile",video:"assistantVideoFile",file:"assistantDocumentFile"};const menu=$("assistantAttachMenu");if(menu)menu.hidden=true;const btn=$("assistantAttachBtn");if(btn)btn.setAttribute("aria-expanded","false");$(ids[kind])?.click();}
+function socialPickAssistantFiles(event,kind){const files=Array.from(event.target.files||[]);const max=kind==="video"?100:kind==="audio"?40:kind==="image"?20:25;for(const file of files){if(file.size>max*1024*1024){toast(file.name+" is larger than "+max+" MB.");continue;}if(socialAssistantPendingFiles.length>=5){toast("You can select up to 5 files.");break;}socialAssistantPendingFiles.push({file,kind,id:crypto.randomUUID()});}event.target.value="";socialRenderAssistantAttachments();}
+function socialRenderAssistantAttachments(){const box=$("assistantAttachmentPreview");if(!box)return;box.innerHTML=socialAssistantPendingFiles.map(item=>{const icon={image:"▧",audio:"♫",video:"▶",file:"▤"}[item.kind];return '<div class="assistant-file-chip"><span class="file-kind">'+icon+'</span><span class="file-name" title="'+sx(item.file.name)+'">'+sx(item.file.name)+'</span><button type="button" aria-label="Remove attachment" onclick="socialRemoveAssistantAttachment(\''+item.id+'\')">×</button></div>';}).join("");box.hidden=!socialAssistantPendingFiles.length;}
+function socialRemoveAssistantAttachment(id){socialAssistantPendingFiles=socialAssistantPendingFiles.filter(x=>x.id!==id);socialRenderAssistantAttachments();}
 function socialUsePromptTemplate(key){
  const templates={
  portrait:{category:"image",goal:"Create a photorealistic cinematic portrait of [describe the person]. Set the scene in [location or environment]. Define camera framing, lens feel, pose, natural facial details, lighting, color grading, atmosphere and background. Keep the subject recognizable and realistic.",style:"Photorealistic, cinematic, natural skin texture",tool:"Image generation AI",constraints:"Avoid distorted anatomy, artificial skin, exaggerated facial changes, extra fingers, text artifacts and unnecessary props."},
