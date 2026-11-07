@@ -1713,6 +1713,24 @@ async function socialUploadAssistantImage(file){
  if(completed.file?.status!=="ready")throw new Error("Image is not ready yet.");
  return {id,name:file.name,type:file.type};
 }
+function socialShowAssistantError(error){
+ const message=String(error?.message||error||"Unknown error").slice(0,6000);
+ let panel=document.getElementById("assistantPersistentError");
+ if(!panel){
+  panel=document.createElement("section");panel.id="assistantPersistentError";
+  panel.style.cssText="position:fixed;z-index:9999;left:12px;right:12px;bottom:18px;max-height:55vh;overflow:auto;background:#24131c;border:1px solid #a84a63;border-radius:14px;padding:14px;color:#ffe8ee;box-shadow:0 12px 40px #000b;direction:ltr;text-align:left";
+  panel.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px"><strong style="font-size:13px">SOCIAL AI error</strong><button type="button" id="assistantErrorClose" style="background:#44202c;color:#fff;border:1px solid #98506a;border-radius:8px;padding:6px 10px">Close</button></div><pre id="assistantErrorText" style="white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 monospace;margin:0 0 12px"></pre><button type="button" id="assistantErrorCopy" style="background:#1a6680;color:white;border:0;border-radius:8px;padding:9px 13px;font-weight:700">Copy error</button>';
+  document.body.appendChild(panel);
+  panel.querySelector("#assistantErrorClose").onclick=()=>panel.remove();
+  panel.querySelector("#assistantErrorCopy").onclick=async()=>{
+   const value=panel.querySelector("#assistantErrorText").textContent;
+   try{await navigator.clipboard.writeText(value);panel.querySelector("#assistantErrorCopy").textContent="Copied";}
+   catch{const area=document.createElement("textarea");area.value=value;document.body.appendChild(area);area.select();try{document.execCommand("copy");panel.querySelector("#assistantErrorCopy").textContent="Copied";}catch{}area.remove();}
+  };
+ }
+ panel.querySelector("#assistantErrorText").textContent=message;
+ panel.scrollTop=0;
+}
 async function socialSendAssistantMessage(){
  const input=$("assistantInput"),send=$("assistantSendBtn"),content=input.value.trim(),provider=socialSelectedAIProvider();
  if(!content&&!socialAssistantPendingFiles.length)return;
@@ -1729,7 +1747,7 @@ async function socialSendAssistantMessage(){
   const history=await socialRequest("/assistant/history?provider="+encodeURIComponent(provider));
   $("assistantMessages").innerHTML=(history.messages||[]).map(m=>'<div class="chat-bubble '+(m.role==="user"?"mine":"")+'"><strong dir="auto">'+(m.role==="user"?"You":socialAIProviderName(m.provider_key||provider))+'</strong><div dir="auto" style="white-space:pre-wrap;unicode-bidi:plaintext;text-align:start">'+sx(m.content)+'</div></div>').join("");
   $("assistantMessages").scrollTop=$("assistantMessages").scrollHeight;
- }catch(e){toast(e.message);}
+ }catch(e){socialShowAssistantError(e);}
  finally{input.disabled=false;send.textContent="Send";await socialLoadAssistant();}
 }
 
