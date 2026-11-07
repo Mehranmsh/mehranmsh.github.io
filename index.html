@@ -1008,24 +1008,23 @@ $("authSwitchBtn").textContent=registering?"Sign in":"Create account";
 }
 function requireAuth(action){
 const token=getSocialToken();
-if(socialUser&&token){
-if(!socialSessionVerified)socialMe();
-return true;
-}
+if(token&&socialUser?.id&&socialSessionVerified)return true;
 if(token){
 if(!socialMePromise){
-toast("Restoring your saved login. Please wait a moment.");
+toast("Verifying your SOCIAL identity. Please wait a moment.");
 socialMe();
 }else{
-toast("Your login is still being restored. Please wait a moment.");
+toast("Your SOCIAL identity is still being verified. Please wait a moment.");
 }
 return false;
 }
+socialUser=null;
+socialSessionVerified=false;
 openAuth("register");
 setSocialAuthMessage("Create an account or sign in to "+action.toLowerCase()+".","notice warn");
 return false;
 }
-$("socialTopAuth").addEventListener("click",()=>{if(socialUser){switchSocial("settings");return}if(getSocialToken()){toast("Restoring your saved session...");socialMe();return}openAuth("register")});
+$("socialTopAuth").addEventListener("click",()=>{if(socialUser?.id&&socialSessionVerified){switchSocial("settings");return}if(getSocialToken()){toast("Verifying your saved SOCIAL identity...");socialMe();return}openAuth("register")});
 $("authSwitchBtn").addEventListener("click",()=>{
 authMode=authMode==="register"?"login":"register";
 updateAuthMode();
@@ -1089,12 +1088,16 @@ if(!response.ok)throw new Error(data.message||data.error||"Login failed");
 }
 if(!data.token)throw new Error("The server did not return a session token.");
 localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
-socialUser=data.user||null;
-socialSessionVerified=!!socialUser;
-if(socialUser)saveJSON("msh_social_cached_user",socialUser);
-if(socialUser?.username)$("settingsUsername").value=socialUser.username;
-$("socialStatus").textContent=socialUser?"Connected":"Signing in...";
+// Never trust a cached or login-response profile as proof of identity.
+// The server's /me endpoint is the single source of truth for this session.
+socialUser=null;
+socialSessionVerified=false;
+localStorage.removeItem("msh_social_cached_user");
+$("settingsUsername").value="";
+$("socialStatus").textContent="Verifying identity...";
 renderSocial();
+const verified=await socialMe();
+if(!verified||!socialUser?.id||!socialUser?.username)throw new Error("Sign-in succeeded, but SOCIAL could not verify which account this session belongs to. Please retry.");
 closeAuth();
 toast("Welcome to SOCIAL");
 if(typeof loadSocialFeed==="function")loadSocialFeed().catch(error=>console.warn("SOCIAL feed:",error));
@@ -1116,6 +1119,7 @@ socialMePromise=(async()=>{
 try{
 const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});
 const data=await response.json().catch(()=>({}));
+if(token!==getSocialToken())return false;
 if(response.status===401){
 localStorage.removeItem(SOCIAL_TOKEN_KEY);
 socialUser=null;
@@ -1127,7 +1131,11 @@ renderSocial();
 return false;
 }
 if(!response.ok)throw new Error(data.message||("Server unavailable ("+response.status+")"));
-socialUser=data.user||data;
+const verifiedUser=data?.user;
+if(data?.success!==true||!verifiedUser||typeof verifiedUser.id!=="string"||!verifiedUser.id||typeof verifiedUser.username!=="string"||!verifiedUser.username){
+throw new Error("The server returned an incomplete account identity. Please sign in again.");
+}
+socialUser=verifiedUser;
 socialSessionVerified=true;
 saveJSON("msh_social_cached_user",socialUser);
 $("settingsUsername").value=socialUser.username||"";
