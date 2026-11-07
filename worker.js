@@ -3270,13 +3270,8 @@ async function socialGenerateAssistantImage(request, env) {
   const size = allowedSizes.has(width + "x" + height) ? { width, height } : { width: 1024, height: 1024 };
   const model = "@cf/black-forest-labs/flux-2-klein-9b";
   try {
-    await socialEnsureCloudflareVisionLicense(env, model);
-    const form = new FormData();
-    form.append("prompt", prompt);
-    form.append("width", String(size.width));
-    form.append("height", String(size.height));
-    form.append("guidance", "4");
     const referenceId = cleanText(body.reference, 150);
+    let referenceBlob = null;
     if (referenceId) {
       const row = await env.DB.prepare(
         "SELECT id,name,size,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
@@ -3292,15 +3287,31 @@ async function socialGenerateAssistantImage(request, env) {
       if (!signed.url || !validHttpsUrl(signed.url)) return error("Could not securely access the reference photo.", 502);
       const response = await fetch(signed.url);
       if (!response.ok) return error("Could not read the reference photo.", 502);
-      const imageBlob = await response.blob();
-      if (!imageBlob.size || imageBlob.size > 3 * 1024 * 1024) return error("Reference photo is too large.", 413);
-      form.append("input_image_0", imageBlob, "reference.jpg");
+      referenceBlob = await response.blob();
+      if (!referenceBlob.size || referenceBlob.size > 3 * 1024 * 1024) return error("Reference photo is too large.", 413);
     }
-    const formResponse = new Response(form);
-    const contentType = formResponse.headers.get("content-type");
-    const result = await env.AI.run(model, {
-      multipart: { body: formResponse.body, contentType }
-    });
+    const runFlux = async (textPrompt) => {
+      const form = new FormData();
+      form.append("prompt", textPrompt);
+      form.append("width", String(size.width));
+      form.append("height", String(size.height));
+      form.append("guidance", "4");
+      if (referenceBlob) form.append("input_image_0", referenceBlob, "reference.jpg");
+      const formResponse = new Response(form);
+      return env.AI.run(model, {
+        multipart: { body: formResponse.body, contentType: formResponse.headers.get("content-type") }
+      });
+    };
+    let result;
+    try {
+      result = await runFlux(prompt);
+    } catch (firstError) {
+      const message = String(firstError?.message || firstError || "");
+      const needsAgreement = /5016/.test(message) && /terms|agree|you may now use the model/i.test(message);
+      if (!needsAgreement) throw firstError;
+      await runFlux("agree");
+      result = await runFlux(prompt);
+    }
     let image = result?.image || result?.result?.image || result?.data?.image;
     let mimeType = "image/png";
     if (image instanceof ArrayBuffer) image = socialBytesToBase64(new Uint8Array(image));
