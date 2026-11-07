@@ -2316,7 +2316,25 @@ function socialClearImageReference(){
 }
 async function socialGenerateImage(){
  const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn"),status=$("imageStudioStatus");
- if(!socialUser){toast("Sign in to generate images.");return;}
+ // A saved token may exist while the initial /me identity check is still running.
+ // Verify it here instead of rejecting a valid signed-in user during that race.
+ if(!socialUser?.id||!socialSessionVerified){
+  if(getSocialToken()){
+   status.textContent="Verifying your SOCIAL sign-in...";
+   const verified=await socialMe();
+   if(!verified||!socialUser?.id||!socialSessionVerified){
+    openAuth("login");
+    setSocialAuthMessage("Please sign in to your SOCIAL account before generating images.","notice warn");
+    status.textContent="Sign in to generate images.";
+    return;
+   }
+  }else{
+   openAuth("login");
+   setSocialAuthMessage("Please sign in to your SOCIAL account before generating images. Pi wallet sign-in is separate.","notice warn");
+   status.textContent="Sign in to generate images.";
+   return;
+  }
+ }
  if(!prompt){toast("Write a description for your image first.");return;}
  if(prompt.length>1800)return;
  button.disabled=true;button.textContent="Generating...";status.textContent=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation...":"Generating from your prompt using the free daily AI allocation...";
