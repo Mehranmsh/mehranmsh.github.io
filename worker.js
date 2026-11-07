@@ -2632,7 +2632,7 @@ async function socialConversationMessages(request, env, conversationId) {
           const signed = await rapidfileRequest(env, `/files/${encodeURIComponent(upload.id)}/signed-url`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ expiresIn: 900 })
+            body: JSON.stringify({ expiresIn: 3600 })
           });
           if (!signed.url || !validHttpsUrl(signed.url)) throw new Error("Invalid signed media URL");
           return { url: signed.url, type: item.type || upload.mime_type, name: item.name || upload.name };
@@ -3448,6 +3448,7 @@ function validUploadType(type) {
 
   return [
     "application/pdf",
+    "application/msword",
     "text/plain",
     "text/csv",
     "application/rtf",
