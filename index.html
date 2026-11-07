@@ -1182,7 +1182,7 @@ const el=$(id);if(!el)return;
 if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
 else el.textContent=profileInitial();
 }
-let profileTab="posts",profileData=null;window.window.socialProfileGallery=[];
+let profileTab="posts",profileData=null;window.socialProfileGallery=[];
 function profileAvatarMarkup(url,fallback){return url?'<img src="'+sx(url)+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
 function renderProfilePosts(){
 const panel=$("profilePostsPanel");if(!panel)return;
