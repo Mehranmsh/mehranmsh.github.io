@@ -1017,8 +1017,25 @@ async function socialExtendedSettings(request, env) {
     const row = await env.DB.prepare(
       "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
     ).bind(user.id).first();
-    let preferences = {};
-    try { preferences = JSON.parse(row?.preferences_json || "{}"); } catch {}
+    let stored = {};
+    try { stored = JSON.parse(row?.preferences_json || "{}"); } catch {}
+    const preferences = {
+      notifications: {
+        likesComments: stored.notifications?.likesComments !== false,
+        followers: stored.notifications?.followers !== false,
+        messages: stored.notifications?.messages !== false,
+        groups: stored.notifications?.groups !== false
+      },
+      chat: {
+        readReceipts: stored.chat?.readReceipts !== false,
+        messagePreviews: stored.chat?.messagePreviews !== false,
+        autoDownload: stored.chat?.autoDownload !== false
+      },
+      community: {
+        groupInvites: stored.community?.groupInvites !== false,
+        channelInvites: stored.community?.channelInvites !== false
+      }
+    };
     return json({success:true,preferences});
   }
   const body = await readBody(request);
@@ -1721,6 +1738,19 @@ async function socialCreateComment(request, env, postId) {
 
   if (!post) return error("Post not found", 404);
   if (await isBlocked(env, user.id, post.user_id)) return error("Post unavailable", 404);
+
+  const ownerSettings = await env.DB.prepare(
+    "SELECT allow_comments FROM social_user_settings WHERE user_id=?"
+  ).bind(post.user_id).first();
+  if (ownerSettings?.allow_comments === "none") {
+    return error("This user does not accept comments", 403);
+  }
+  if (ownerSettings?.allow_comments === "followers") {
+    const follows = await env.DB.prepare(
+      "SELECT 1 FROM social_follows WHERE follower_id=? AND following_id=?"
+    ).bind(user.id, post.user_id).first();
+    if (!follows) return error("Only followers can comment on this user's posts", 403);
+  }
 
   const id = crypto.randomUUID();
 
@@ -2530,11 +2560,18 @@ async function socialConversationMessages(request, env, conversationId) {
     isMine: row.sender_id === user.id
   }));
 
-  await env.DB.prepare(`
-    UPDATE social_conversation_members
-    SET last_read_at=CURRENT_TIMESTAMP
-    WHERE conversation_id=? AND user_id=?
-  `).bind(conversationId, user.id).run();
+  const viewerPrefsRow = await env.DB.prepare(
+    "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+  ).bind(user.id).first();
+  let viewerPrefs = {};
+  try { viewerPrefs = JSON.parse(viewerPrefsRow?.preferences_json || "{}"); } catch {}
+  if (viewerPrefs.chat?.readReceipts !== false) {
+    await env.DB.prepare(`
+      UPDATE social_conversation_members
+      SET last_read_at=CURRENT_TIMESTAMP
+      WHERE conversation_id=? AND user_id=?
+    `).bind(conversationId, user.id).run();
+  }
 
   return json({ success: true, messages });
 }
@@ -2584,13 +2621,18 @@ async function socialSendMessage(request, env, conversationId) {
     `).bind(conversationId)
   ]);
 
+  const conversation = await env.DB.prepare(
+    "SELECT type FROM social_conversations WHERE id=?"
+  ).bind(conversationId).first();
   const members = await env.DB.prepare(`
     SELECT user_id FROM social_conversation_members
     WHERE conversation_id=? AND user_id!=?
   `).bind(conversationId, user.id).all();
 
+  const notificationType = conversation?.type === "group" ? "group_message" : "message";
   for (const row of members.results || []) {
-    await notify(env, row.user_id, user.id, "message", conversationId, "sent you a message");
+    await notify(env, row.user_id, user.id, notificationType, conversationId,
+      conversation?.type === "group" ? "new activity in your group" : "sent you a message");
   }
 
   return json({
