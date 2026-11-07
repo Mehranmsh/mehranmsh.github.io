@@ -1653,7 +1653,7 @@ updateAuthMode();
 </script>
 
 <script>
-let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null;
+let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false;
 const sx=v=>escapeHTML(String(v??""));
 async function socialUploadFile(file){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type,visibility:"public"})});
@@ -1665,6 +1665,16 @@ async function socialUploadFile(file){
  const completed=await socialRequest("/uploads/"+encodeURIComponent(id)+"/complete",{method:"POST",body:JSON.stringify({})});
  if(completed.file?.status!=="ready"||!completed.file?.url)throw new Error("Upload could not be verified or has no public URL");
  return completed.file.url;
+}
+async function socialUploadPrivateChatFile(file){
+ const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type||"application/octet-stream",visibility:"private"})});
+ const id=created.file?.id,target=created.upload;
+ if(!id||!target?.url||target.method!=="PUT")throw new Error("Could not prepare a private attachment upload.");
+ const uploaded=await fetch(target.url,{method:"PUT",body:file});
+ if(!uploaded.ok)throw new Error("Private attachment upload failed ("+uploaded.status+").");
+ const completed=await socialRequest("/uploads/"+encodeURIComponent(id)+"/complete",{method:"POST",body:JSON.stringify({})});
+ if(completed.file?.status!=="ready")throw new Error("Private attachment could not be verified.");
+ return {uploadId:id,name:file.name,type:file.type||"application/octet-stream"};
 }
 async function socialLoadStories(){const row=$("storiesRow");if(!row)return;const ownStory='<div class="story"><button class="story-ring" id="addStoryBtn" aria-label="Add your story"><div class="avatar">+</div></button><span>Your story</span></div>';if(!socialUser){row.innerHTML=ownStory;return}try{const d=await socialRequest("/stories");socialStoriesCache=d.stories||[];row.innerHTML=ownStory+socialStoriesCache.map(s=>'<div class="story"><button class="story-ring" data-story="'+sx(s.id)+'"><div class="avatar">'+sx((s.author?.username||"M")[0].toUpperCase())+'</div></button><span>'+sx(s.author?.username||"Member")+'</span></div>').join("");}catch(e){row.innerHTML=ownStory;console.warn(e)}}
 async function socialCreateStory(){
@@ -1781,17 +1791,114 @@ async function socialLoadContacts(){
  }catch(e){box.textContent="Could not load contacts: "+e.message;}
 }
 async function socialLoadConversations(){
- if(!socialUser){$("conversationList").textContent="Sign in to use messages and groups.";$("groupsList").textContent="Sign in to view and create groups.";return}
+ const list=$("conversationList"),groupsBox=$("groupsList");
+ if(!socialUser){
+  if(list)list.textContent="Sign in to use messages and groups.";
+  if(groupsBox)groupsBox.textContent="Sign in to view and create groups.";
+  socialActiveConversation=null;
+  ["chatInput","sendChatBtn","chatEmojiBtn","chatAttachBtn","voiceChatBtn"].forEach(id=>{const el=$(id);if(el)el.disabled=true;});
+  socialCallControls(false,false);
+  return;
+ }
+ if(list)list.textContent="Loading conversations...";
  try{
   const d=await socialRequest("/conversations");
-  socialConversations=d.conversations||[];
-  $("conversationList").innerHTML=socialConversations.map(c=>{
-   const m=(c.members||[]).find(x=>x.username!==currentUsername());
-   return '<div class="social-card" data-conversation="'+sx(c.id)+'"><strong>'+sx(c.title||m?.username||"Direct message")+'</strong><p class="small-text">'+sx(c.lastMessage||"No messages yet")+'</p>'+(c.type==="group"?'<button class="btn secondary small" data-invite-group="'+sx(c.id)+'">Create invite</button>':"")+'</div>';
-  }).join("")||'<div class="empty">No conversations yet. Start a chat with a username.</div>';
+  socialConversations=Array.isArray(d.conversations)?d.conversations:[];
+  if(list)list.innerHTML=socialConversations.map(c=>{
+   const other=(c.members||[]).find(x=>x.username!==currentUsername());
+   const title=c.title||other?.displayName||other?.username||"Direct message";
+   return '<button type="button" class="social-card" data-conversation="'+sx(c.id)+'" style="display:block;width:100%;text-align:left;margin:8px 0;border:1px solid var(--line);'+(socialActiveConversation===c.id?'border-color:var(--accent);':'')+'"><strong>'+sx(title)+'</strong><p class="small-text">'+sx(c.lastMessage||"No messages yet")+'</p>'+(c.type==="group"?'<span class="small-text">'+(c.members?.length||0)+' members</span>':"")+'</button>';
+  }).join("")||'<div class="empty">No conversations yet. Start a chat with New chat.</div>';
   const groups=socialConversations.filter(c=>c.type==="group");
-  $("groupsList").innerHTML=groups.map(c=>'<div class="social-result"><strong>'+sx(c.title||"Group")+'</strong><p class="small-text">'+(c.members?.length||0)+' members</p><button class="btn secondary small" data-conversation="'+sx(c.id)+'">Open group chat</button> <button class="btn secondary small" data-invite-group="'+sx(c.id)+'">Create invite</button></div>').join("")||'<div class="empty">No groups yet. Create a group or join with an invite code.</div>';
- }catch(e){$("conversationList").textContent=e.message;$("groupsList").textContent=e.message}
+  if(groupsBox)groupsBox.innerHTML=groups.map(c=>'<div class="social-result"><strong>'+sx(c.title||"Group")+'</strong><p class="small-text">'+(c.members?.length||0)+' members</p><button type="button" class="btn secondary small" data-conversation="'+sx(c.id)+'">Open group chat</button> <button type="button" class="btn secondary small" data-invite-group="'+sx(c.id)+'">Create invite</button></div>').join("")||'<div class="empty">No groups yet. Create a group or join with an invite code.</div>';
+ }catch(e){
+  if(list)list.textContent="Could not load conversations: "+e.message;
+  if(groupsBox)groupsBox.textContent="Could not load groups: "+e.message;
+ }
+}
+async function socialRefreshChatMessages(){
+ const id=socialActiveConversation;
+ if(!id||!socialUser||socialChatRefreshBusy||document.hidden)return;
+ socialChatRefreshBusy=true;
+ try{
+  const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");
+  if(socialActiveConversation!==id)return;
+  const box=$("chatMessages");
+  if(!box)return;
+  const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100;
+  const html=(d.messages||[]).map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';
+  if(box.dataset.lastRender!==html){
+   box.innerHTML=html;
+   box.dataset.lastRender=html;
+   if(nearBottom)box.scrollTop=box.scrollHeight;
+  }
+ }catch(e){
+  if(socialActiveConversation===id)console.warn("Chat refresh failed:",e.message);
+ }finally{socialChatRefreshBusy=false;}
+}
+function socialStartChatRefresh(){
+ if(socialChatRefreshTimer)clearInterval(socialChatRefreshTimer);
+ socialChatRefreshTimer=setInterval(()=>socialRefreshChatMessages(),5000);
+}
+async function socialOpenConversation(id){
+ if(!id||!socialUser)return;
+ socialActiveConversation=String(id);
+ const c=socialConversations.find(x=>String(x.id)===String(id));
+ const other=(c?.members||[]).find(x=>x.username!==currentUsername());
+ $("chatTitle").textContent=c?.title||other?.displayName||other?.username||"Conversation";
+ ["chatInput","sendChatBtn","voiceChatBtn","chatAttachBtn","chatEmojiBtn"].forEach(key=>{const el=$(key);if(el)el.disabled=false;});
+ socialCallControls(true,c?.type==="group");
+ const box=$("chatMessages");if(box){box.textContent="Loading messages...";delete box.dataset.lastRender;}
+ if(window.socialExtendedSettingsUser!==socialUser?.id)socialLoadExtendedSettings();
+ try{
+  const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");
+  if(socialActiveConversation!==String(id))return;
+  const messages=d.messages||[];
+  if(box){box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet. Send the first message.</div>';box.dataset.lastRender=box.innerHTML;box.scrollTop=box.scrollHeight;}
+  await socialRefreshActiveCall();
+  await socialLoadConversations();
+  socialStartChatRefresh();
+ }catch(e){
+  if(socialActiveConversation===String(id)&&box)box.textContent="Could not open this conversation: "+e.message;
+ }
+}
+async function socialStartDM(username){
+ const target=String(username||"").trim().replace(/^@/,"");
+ if(!target)return toast("Enter a username or choose a contact.");
+ try{
+  const d=await socialRequest("/conversations",{method:"POST",body:JSON.stringify({username:target})});
+  if(!d.conversationId)throw new Error("The server did not return a conversation.");
+  switchSocial("messages");
+  await socialLoadConversations();
+  await socialOpenConversation(d.conversationId);
+ }catch(e){toast(e.message||"Could not start this chat.");}
+}
+async function socialSendChatMedia(file){
+ const conversationId=socialActiveConversation;
+ if(!file||!conversationId)return toast("Open a conversation before attaching a file.");
+ if(file.size>50*1024*1024)return toast("Chat attachments must be 50 MB or smaller.");
+ if(!(file.type.startsWith("image/")||file.type.startsWith("video/")||file.type.startsWith("audio/")||["application/pdf","text/plain","text/csv","application/rtf","application/zip","application/x-zip-compressed","application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(file.type)))return toast("This file type is not supported in chat.");
+ const btn=$("chatAttachBtn");if(btn){btn.disabled=true;btn.textContent="Uploading…";}
+ try{
+  const attachment=await socialUploadPrivateChatFile(file);
+  await socialRequest("/conversations/"+encodeURIComponent(conversationId)+"/messages",{method:"POST",body:JSON.stringify({content:"",media:[attachment]})});
+  if(socialActiveConversation===conversationId)await socialRefreshChatMessages();
+  await socialLoadConversations();toast("Private attachment sent.");
+ }catch(e){toast("Could not send attachment: "+e.message);}
+ finally{if(btn){btn.disabled=false;btn.textContent="＋";}if($("chatFileInput"))$("chatFileInput").value="";}
+}
+async function socialSendChat(){
+ const input=$("chatInput"),button=$("sendChatBtn"),conversationId=socialActiveConversation;
+ const content=input?.value.trim()||"";
+ if(!content||!conversationId||socialChatSendBusy)return;
+ socialChatSendBusy=true;if(button)button.disabled=true;
+ try{
+  await socialRequest("/conversations/"+encodeURIComponent(conversationId)+"/messages",{method:"POST",body:JSON.stringify({content})});
+  if(socialActiveConversation===conversationId&&input)input.value="";
+  if(socialActiveConversation===conversationId)await socialRefreshChatMessages();
+  await socialLoadConversations();
+ }catch(e){toast("Message not sent: "+e.message);}
+ finally{socialChatSendBusy=false;if(button)button.disabled=!socialActiveConversation;}
 }
 function socialLionSunMark(size=32){
  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+size+'" height="'+Math.round(size*.67)+'" viewBox="0 0 60 40" role="img" aria-label="Iran Lion and Sun flag" style="display:inline-block;vertical-align:middle;border-radius:3px;overflow:hidden;flex:none"><rect width="60" height="13.34" fill="#239b56"/><rect y="13.33" width="60" height="13.34" fill="#fff"/><rect y="26.66" width="60" height="13.34" fill="#da291c"/><g fill="#c89b32" stroke="#8b641c" stroke-width=".65" stroke-linejoin="round"><circle cx="31" cy="19.8" r="7.2"/><path d="M31 9.2l1.5 3.4 3.1-2.1-.3 4 4-.3-2.1 3.1 3.4 1.5-3.4 1.5 2.1 3.1-4-.3.3 4-3.1-2.1-1.5 3.4-1.5-3.4-3.1 2.1.3-4-4 .3 2.1-3.1-3.4-1.5 3.4-1.5-2.1-3.1 4 .3-.3-4 3.1 2.1z"/><path d="M17 28.8c-3.5-2-5.1-5.8-3.9-9.1 1-2.8 3.8-4.5 6.7-4.2l3.2-2.7 1.2 3.4 4.1.5-1.8 3.1 1.6 3.5-3.8.3-2.3 3.2-2.5 3.5z"/><path d="M17 19.3c-2.5-2.1-5.2-1.3-6.2.5 1.6-.2 2.5.5 2.9 1.6-.1 1.6.7 3.1 2.1 4.2l2.6-1.7z"/><path d="M18.5 27.5l-2.8 4.2 1.7.8 3.8-4.1z"/><path d="M12.8 18.3l-2.6-4.8 1.2-.8 4.3 4.3z"/><path d="M20.5 17.1l4.2-1.4 2.1 2.2-2.9 2.3-3.5-.5z"/></g><path d="M11 13.7L5.4 8.1l-1.1 1.1 5.5 5.6 1.1 1.1 1.3-1.2z" fill="#eee" stroke="#555" stroke-width=".55"/><path d="M4.5 7.2l2.2-.5-.5 2.2z" fill="#aaa"/></svg>';
@@ -1828,37 +1935,54 @@ async function socialRefreshActiveCall(){
  }catch(e){console.warn("Call status:",e.message);}
 }
 
-let socialVoiceRecorder=null,socialVoiceStream=null,socialVoiceChunks=[];
+let socialVoiceRecorder=null,socialVoiceStream=null,socialVoiceChunks=[],socialVoiceConversationId=null;
 async function socialToggleVoiceRecording(){
  const btn=$("voiceChatBtn");
- if(socialVoiceRecorder&&socialVoiceRecorder.state==="recording"){btn.textContent="Uploading...";btn.disabled=true;socialVoiceRecorder.stop();return;}
- if(!socialActiveConversation)return toast("Open a conversation first.");
+ if(socialVoiceRecorder&&socialVoiceRecorder.state==="recording"){
+  if(btn){btn.textContent="Uploading…";btn.disabled=true;}
+  socialVoiceRecorder.stop();return;
+ }
+ const conversationId=socialActiveConversation;
+ if(!conversationId)return toast("Open a conversation first.");
  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return toast("Voice recording is not supported in this browser.");
  try{
+  socialVoiceConversationId=conversationId;
   socialVoiceStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
   socialVoiceChunks=[];
   const mime=["audio/webm;codecs=opus","audio/webm","audio/mp4"].find(t=>MediaRecorder.isTypeSupported?.(t));
   socialVoiceRecorder=new MediaRecorder(socialVoiceStream,mime?{mimeType:mime}:{});
   socialVoiceRecorder.ondataavailable=e=>{if(e.data?.size)socialVoiceChunks.push(e.data);};
+  socialVoiceRecorder.onerror=e=>{console.warn("Voice recorder error:",e.error||e);toast("Voice recording stopped unexpectedly.");};
   socialVoiceRecorder.onstop=async()=>{
-   const stream=socialVoiceStream;socialVoiceStream=null;stream?.getTracks().forEach(t=>t.stop());
-   const blob=new Blob(socialVoiceChunks,{type:socialVoiceRecorder?.mimeType||"audio/webm"});socialVoiceRecorder=null;
+   const stream=socialVoiceStream,targetConversation=socialVoiceConversationId;
+   socialVoiceStream=null;socialVoiceConversationId=null;stream?.getTracks().forEach(t=>t.stop());
+   const recorder=socialVoiceRecorder;socialVoiceRecorder=null;
+   const blob=new Blob(socialVoiceChunks,{type:recorder?.mimeType||"audio/webm"});socialVoiceChunks=[];
    $("voiceRecordingStatus")?.classList.add("hidden");
-   if(!blob.size){btn.disabled=false;btn.textContent="🎤 Voice";return toast("No audio was recorded.");}
+   if(!blob.size){if(btn){btn.disabled=false;btn.textContent="🎤";}return toast("No audio was recorded.");}
    try{
     const ext=blob.type.includes("mp4")?"m4a":blob.type.includes("ogg")?"ogg":"webm";
     const file=new File([blob],"SOCIAL-voice-message."+ext,{type:blob.type||"audio/webm"});
-    const url=await socialUploadFile(file);
-    await socialRequest("/conversations/"+encodeURIComponent(socialActiveConversation)+"/messages",{method:"POST",body:JSON.stringify({content:"",media:[{url,type:file.type,name:"Voice message"}]})});
-    await socialOpenConversation(socialActiveConversation);await socialLoadConversations();toast("Voice message sent");
+    const attachment=await socialUploadPrivateChatFile(file);
+    await socialRequest("/conversations/"+encodeURIComponent(targetConversation)+"/messages",{method:"POST",body:JSON.stringify({content:"",media:[{...attachment,name:"Voice message"}]})});
+    if(socialActiveConversation===targetConversation)await socialRefreshChatMessages();
+    await socialLoadConversations();toast("Voice message sent.");
    }catch(e){toast("Voice message failed: "+e.message);}
-   finally{btn.disabled=false;btn.textContent="🎤 Voice";}
+   finally{if(btn){btn.disabled=!socialActiveConversation;btn.textContent="🎤";}}
   };
-  socialVoiceRecorder.start(250);$("voiceRecordingStatus")?.classList.remove("hidden");btn.textContent="■ Stop";toast("Recording started");
- }catch(e){socialVoiceStream?.getTracks().forEach(t=>t.stop());socialVoiceStream=null;toast("Microphone access failed: "+e.message);}
+  socialVoiceRecorder.start(250);
+  $("voiceRecordingStatus")?.classList.remove("hidden");
+  if(btn)btn.textContent="■ Stop";
+  toast("Recording started. Tap Stop to send.");
+ }catch(e){
+  socialVoiceStream?.getTracks().forEach(t=>t.stop());socialVoiceStream=null;socialVoiceConversationId=null;socialVoiceRecorder=null;
+  if(btn){btn.disabled=false;btn.textContent="🎤";}
+  toast("Microphone access failed: "+e.message);
+ }
 }
 function socialRenderChatMessage(m){
  const media=(m.media||[]).map(item=>{
+  if(item.unavailable)return '<span class="small-text">Attachment unavailable. It may have expired or been removed.</span>';
   const url=sx(item.url||"");const type=String(item.type||"").toLowerCase();
   if(window.socialExtendedSettingsCache?.chat?.autoDownload===false){
    const label=type.startsWith("image")?"View image":type.startsWith("video")?"Open video":(type.startsWith("audio")||type.includes("voice"))?"Play voice message":"Open attachment";
@@ -2414,7 +2538,7 @@ $("settingsLanguage")?.addEventListener("change",e=>{
  document.documentElement.lang=lang;
  document.documentElement.dir=lang==="fa"?"rtl":"ltr";
 });
-$("chatInput")?.addEventListener("keydown",e=>{if(e.key==="Enter")socialSendChat()});
+$("chatInput")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();socialSendChat();}});
 $("contactsSearchInput")?.addEventListener("input",socialRenderContacts);
 $("chatFileInput")?.addEventListener("change",e=>{const file=e.target.files?.[0];if(file)socialSendChatMedia(file);});
  $("assistantInput")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();socialSendAssistantMessage();}});
