@@ -759,7 +759,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
-let piUser=null,socialUser=(getSocialToken()?readJSON("msh_social_cached_user",null):null),socialSessionVerified=false,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
+let piUser=null,socialUser=(getSocialToken()?readJSON("msh_social_cached_user",null):null),socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
@@ -999,10 +999,18 @@ $("authSwitchText").textContent=registering?"Already have an account?":"Don't ha
 $("authSwitchBtn").textContent=registering?"Sign in":"Create account";
 }
 function requireAuth(action){
-if(socialUser&&socialSessionVerified)return true;
-if(getSocialToken()){
-toast("Your saved session is reconnecting. Please try again in a moment.");
+const token=getSocialToken();
+if(socialUser&&token){
+if(!socialSessionVerified)socialMe();
+return true;
+}
+if(token){
+if(!socialMePromise){
+toast("Restoring your saved login. Please wait a moment.");
 socialMe();
+}else{
+toast("Your login is still being restored. Please wait a moment.");
+}
 return false;
 }
 openAuth("register");
@@ -1093,8 +1101,10 @@ setSocialAuthMessage(messages[error.code]||error.message||"Login failed","notice
 }finally{button.disabled=false;button.textContent="Sign in"}
 }
 async function socialMe(){
+if(socialMePromise)return socialMePromise;
 const token=getSocialToken();
-if(!token){socialUser=null;renderSocial();return false}
+if(!token){socialUser=null;socialSessionVerified=false;renderSocial();return false}
+socialMePromise=(async()=>{
 try{
 const response=await fetch(SOCIAL_API+"/me",{headers:socialHeaders()});
 const data=await response.json().catch(()=>({}));
@@ -1120,10 +1130,12 @@ return true;
 }catch(error){
 socialSessionVerified=false;
 $("socialStatus").textContent="Connection issue";
-$("settingsMessage").textContent="Connection problem. Your saved session was kept. Try again when the connection is stable. "+error.message;
+$("settingsMessage").textContent="Could not verify your saved session: "+(error.message||"Network error")+". Your saved login was kept. Check your connection and retry.";
 renderSocial();
 return false;
 }
+})();
+try{return await socialMePromise}finally{socialMePromise=null}
 }
 async function socialLogout(){
 try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}
