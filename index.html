@@ -1375,9 +1375,9 @@ if(!uploadId||!upload?.url||upload.method!=="PUT")throw new Error("The storage s
 createdUploadIds.push(uploadId);
 const uploaded=await fetch(upload.url,{method:"PUT",body:file});
 if(!uploaded.ok)throw new Error("Upload failed for "+file.name+" ("+uploaded.status+").");
-const uploadedData=await uploaded.json().catch(()=>({}));
-if(uploadedData.file?.status!=="ready")throw new Error("The storage service could not confirm "+file.name+".");
-await socialRequest("/uploads/"+encodeURIComponent(uploadId)+"/complete",{method:"POST"});
+// Presigned storage PUT responses are often empty; verify readiness through our Worker.
+const completed=await socialRequest("/uploads/"+encodeURIComponent(uploadId)+"/complete",{method:"POST"});
+if(completed.file?.status!=="ready"||!completed.file?.url)throw new Error("The storage service could not confirm "+file.name+".");
 mediaIds.push({id:uploadId});
 }
 button.textContent="Publishing post...";
