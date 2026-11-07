@@ -2795,6 +2795,11 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
  #page-social .chat-bottom-nav{height:64px;flex-basis:64px}
 }
 
+/* Keep chat panels inside the app while reserving room for its bottom navigation */
+#page-social .chat-inbox-view,#page-social .chat-thread-view{flex:1 1 0;height:auto;min-height:0}
+#page-social .chat-inbox-view.hidden,#page-social .chat-thread-view.hidden{display:none!important}
+#page-social .chat-bottom-nav{flex:0 0 68px}
+@media(max-width:640px){#page-social .chat-bottom-nav{flex-basis:64px}}
 </style>
 
 
