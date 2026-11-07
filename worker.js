@@ -3302,9 +3302,8 @@ async function socialGenerateAssistantImage(request, env) {
     });
     let image = result?.image || result?.result?.image || result?.data?.image;
     let mimeType = "image/png";
-    if (image instanceof Uint8Array) image = btoa(String.fromCharCode(...image));
-    else if (image instanceof ArrayBuffer) image = btoa(String.fromCharCode(...new Uint8Array(image)));
-    else if (image instanceof ArrayBuffer?.constructor) image = image;
+    if (image instanceof ArrayBuffer) image = socialBytesToBase64(new Uint8Array(image));
+    else if (ArrayBuffer.isView(image)) image = socialBytesToBase64(new Uint8Array(image.buffer, image.byteOffset, image.byteLength));
     if (typeof image !== "string" || !image.length) {
       console.error("Image generation returned an unexpected payload shape", Object.keys(result || {}));
       return error("The image model returned an unsupported response. Please try again.", 502);
