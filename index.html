@@ -456,7 +456,15 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 .social-source-footnote{margin:15px 2px 0;text-align:center;color:#6f89a3;font-size:10px;line-height:1.5}
 @media(min-width:700px){.social-source-overlay{align-items:center}.social-source-sheet{border-radius:25px}}
 </style>
-<style id="prompt-creator-styles">#social-prompt-creator .prompt-hero{background:radial-gradient(ellipse at 10% 0%,rgba(40,217,255,.16),transparent 48%),linear-gradient(135deg,#10223a,#0c1728);border-color:rgba(40,217,255,.25)}#social-prompt-creator .prompt-kicker{font-size:10px;letter-spacing:2px;font-weight:800;color:var(--cyan);margin-bottom:10px}#social-prompt-creator .prompt-hero h3{font-size:clamp(21px,4vw,29px);margin:0 0 8px}#social-prompt-creator .prompt-hero p{max-width:720px;line-height:1.65}#social-prompt-creator #pcOutput{width:100%;min-height:230px;resize:vertical;line-height:1.6;background:#07111f;border:1px solid var(--line);border-radius:13px;color:var(--text);padding:14px}#social-prompt-creator .prompt-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}#social-prompt-creator .prompt-actions button:disabled{opacity:.45;cursor:not-allowed}</style></head>
+<style id="prompt-gallery-styles">
+#social-prompt-creator .prompt-gallery-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:15px}
+#social-prompt-creator .prompt-template{min-width:0;padding:15px;border:1px solid rgba(125,170,210,.18);border-radius:15px;background:linear-gradient(145deg,rgba(22,42,66,.9),rgba(10,21,37,.95));display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+#social-prompt-creator .prompt-template-icon{font-size:24px}
+#social-prompt-creator .prompt-template strong{font-size:14px}
+#social-prompt-creator .prompt-template p{font-size:12px;line-height:1.5;color:var(--muted);margin:0;flex:1}
+#social-prompt-creator .prompt-template button{margin-top:5px}
+#social-feed .panel button{flex-shrink:0}
+</style><style id="prompt-creator-styles">#social-prompt-creator .prompt-hero{background:radial-gradient(ellipse at 10% 0%,rgba(40,217,255,.16),transparent 48%),linear-gradient(135deg,#10223a,#0c1728);border-color:rgba(40,217,255,.25)}#social-prompt-creator .prompt-kicker{font-size:10px;letter-spacing:2px;font-weight:800;color:var(--cyan);margin-bottom:10px}#social-prompt-creator .prompt-hero h3{font-size:clamp(21px,4vw,29px);margin:0 0 8px}#social-prompt-creator .prompt-hero p{max-width:720px;line-height:1.65}#social-prompt-creator #pcOutput{width:100%;min-height:230px;resize:vertical;line-height:1.6;background:#07111f;border:1px solid var(--line);border-radius:13px;color:var(--text);padding:14px}#social-prompt-creator .prompt-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}#social-prompt-creator .prompt-actions button:disabled{opacity:.45;cursor:not-allowed}</style></head>
 <body>
 <div class="app">
 <aside class="sidebar">
@@ -490,10 +498,11 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="social-shell">
 <div class="social-top"><div class="social-brand">SOC<span>IAL</span></div><div class="social-top-actions"><button title="Search" onclick="switchSocial('explore')">⌕</button><button title="Messages" onclick="switchSocial('messages')">✉</button><button title="Notifications" onclick="switchSocial('notifications')" style="position:relative">♡<span id="notificationBadge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ff667d;color:#fff;border-radius:10px;padding:2px 5px;font-size:9px;line-height:1.2">0</span></button><button title="Sign in / Register" id="socialTopAuth">⇥</button></div></div>
 <div class="social-tabs">
-<button class="social-tab active" data-social="feed">⌂ Home</button><button class="social-tab" data-social="explore">⌕ Explore</button><button class="social-tab" data-social="reels">▣ Reels</button><button class="social-tab" data-social="messages">✉ Messages</button><button class="social-tab" data-social="groups">♧ Groups</button><button class="social-tab" data-social="channels">▤ Channels</button><button class="social-tab" data-social="bots">🤖 Telegram Bots</button><button class="social-tab" data-social="ai">✧ SOCIAL AI</button><button class="social-tab" data-social="prompt-creator">✦ PROMPT CREATOR</button><button class="social-tab" data-social="profile">◉ Profile</button><button class="social-tab" data-social="settings">⚙ Settings</button>
+<button class="social-tab active" data-social="feed">⌂ Home</button><button class="social-tab" data-social="prompt-creator">✦ Prompt Creator</button><button class="social-tab" data-social="explore">⌕ Explore</button><button class="social-tab" data-social="reels">▣ Reels</button><button class="social-tab" data-social="messages">✉ Messages</button><button class="social-tab" data-social="groups">♧ Groups</button><button class="social-tab" data-social="channels">▤ Channels</button><button class="social-tab" data-social="bots">🤖 Telegram Bots</button><button class="social-tab" data-social="ai">✧ SOCIAL AI</button><button class="social-tab" data-social="profile">◉ Profile</button><button class="social-tab" data-social="settings">⚙ Settings</button>
 </div>
 
 <div class="social-view active" id="social-feed">
+<div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px"><div><strong>Have an idea? Turn it into a professional prompt.</strong><div class="small-text">No prompt-writing skills required.</div></div><button class="btn" onclick="switchSocial('prompt-creator')">✦ Create a prompt</button></div>
 <div class="story-row" id="storiesRow" aria-label="Stories"></div>
 <div class="section-title"><h2>Your Feed</h2><span class="small-text" id="feedCount">0 posts</span></div>
 <div id="feedList"></div>
@@ -547,6 +556,19 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="social-view" id="social-prompt-creator">
 <div class="section-title"><h2>✦ PROMPT CREATOR</h2><span class="small-text">Turn a simple idea into a powerful prompt</span></div>
 <div class="panel prompt-hero"><div class="prompt-kicker">YOUR IDEA, PROFESSIONALLY EXPRESSED</div><h3>Tell us what you want to create.</h3><p class="small-text">No prompt-writing experience needed. Describe your goal naturally and we'll structure it into a clear, detailed prompt you can use with your favorite AI tool.</p></div>
+<div class="panel prompt-gallery">
+<div class="section-title" style="margin-top:0"><div><h3>🔥 Popular prompt ideas</h3><span class="small-text">A curated starter gallery based on common creative requests</span></div></div>
+<p class="small-text">Choose an idea to load it into Prompt Creator, then customize it. These are starter templates, not live community rankings.</p>
+<div class="prompt-gallery-grid">
+<article class="prompt-template"><div class="prompt-template-icon">📸</div><strong>Cinematic Portrait</strong><p>Build a photorealistic portrait with precise lighting, atmosphere and composition.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('portrait')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">✨</div><strong>Brand Identity</strong><p>Create a memorable logo direction, colors, typography and brand personality.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('brand')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">🛍️</div><strong>Product Campaign</strong><p>Plan a polished product advertisement with a clear message and visual concept.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('product')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">🎬</div><strong>Short Video</strong><p>Turn an idea into a short video script, scene list and shot directions.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('video')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">🎵</div><strong>Original Song</strong><p>Shape a song concept with genre, mood, instruments and lyrical direction.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('music')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">💻</div><strong>Build a Website</strong><p>Define a responsive website, its user journey, design system and implementation plan.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('website')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">📱</div><strong>Social Content Plan</strong><p>Generate a practical content calendar with platform-ready post ideas.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('social')">Use this prompt</button></article>
+<article class="prompt-template"><div class="prompt-template-icon">🧠</div><strong>Personal Tutor</strong><p>Build a patient learning plan with examples, exercises and progress checks.</p><button class="btn secondary small" onclick="socialUsePromptTemplate('tutor')">Use this prompt</button></article>
+</div></div>
 <div class="panel">
 <div class="form-grid"><div class="field"><label for="pcCategory">What do you want to do?</label><select id="pcCategory"><option value="image">Image & Design</option><option value="video">Video & Animation</option><option value="music">Music & Audio</option><option value="writing">Writing & Content</option><option value="coding">Programming & App Building</option><option value="business">Business & Marketing</option><option value="study">Education & Research</option><option value="assistant">AI Assistant</option><option value="other">Something else</option></select></div><div class="field"><label for="pcTool">Where will you use this prompt? (optional)</label><input id="pcTool" maxlength="120" placeholder="e.g. ChatGPT, Midjourney, Suno, Veo..."></div></div>
 <div class="field"><label for="pcGoal">Describe what you want</label><textarea id="pcGoal" maxlength="3000" rows="4" placeholder="For example: I want a cinematic portrait of myself in a futuristic city at night, with realistic lighting and a natural face..."></textarea></div>
@@ -707,6 +729,7 @@ window.scrollTo({top:0,behavior:"smooth"});
 document.querySelectorAll("[data-social]").forEach(btn=>btn.addEventListener("click",()=>switchSocial(btn.dataset.social)));
 function switchSocial(name){
 document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
+const activeSocialTab=document.querySelector(".social-tab.active");activeSocialTab?.scrollIntoView({behavior:"smooth",block:"nearest",inline:"nearest"});
 document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));
 const view=$("social-"+name);
 if(view)view.classList.add("active");
@@ -1627,7 +1650,24 @@ async function socialSendAssistantMessage(){
  }catch(e){toast(e.message);}
  finally{input.disabled=false;send.textContent="Send";await socialLoadAssistant();}
 }
-async 
+
+function socialUsePromptTemplate(key){
+ const templates={
+ portrait:{category:"image",goal:"Create a photorealistic cinematic portrait of [describe the person]. Set the scene in [location or environment]. Define camera framing, lens feel, pose, natural facial details, lighting, color grading, atmosphere and background. Keep the subject recognizable and realistic.",style:"Photorealistic, cinematic, natural skin texture",tool:"Image generation AI",constraints:"Avoid distorted anatomy, artificial skin, exaggerated facial changes, extra fingers, text artifacts and unnecessary props."},
+ brand:{category:"business",goal:"Develop a complete brand identity for [business or project]. Define its audience, positioning, personality, logo concept, color palette, typography, visual language and practical usage examples. Explain the reasoning behind each recommendation.",style:"Distinctive, modern, memorable and scalable",tool:"ChatGPT"},
+ product:{category:"business",goal:"Create a high-converting creative campaign for [product]. Identify the target customer, strongest benefit, campaign concept, headline, supporting copy, visual direction, call to action and three variations for testing.",style:"Premium, persuasive, clear",tool:"ChatGPT"},
+ video:{category:"video",goal:"Create a [duration]-second video about [topic] for [platform]. Write a strong opening hook, scene-by-scene storyboard, camera movement, visual direction, voiceover, on-screen text, sound design and a memorable ending.",style:"Dynamic, cinematic, concise",tool:"Video AI"},
+ music:{category:"music",goal:"Create an original song concept about [theme]. Specify genre, mood, tempo range, instrumentation, vocal character, song structure, production texture and lyrical themes. Keep the result original and avoid imitating a specific living artist.",style:"Emotional, distinctive, polished",tool:"Suno or another music AI",constraints:"Do not copy existing lyrics or melodies."},
+ website:{category:"coding",goal:"Plan and build a responsive website for [project]. Define its users, key pages, user flows, visual system, accessibility requirements, data model, security considerations and implementation milestones. Then provide maintainable code and clear setup instructions.",style:"Modern, accessible, production-minded",tool:"Coding AI"},
+ social:{category:"writing",goal:"Create a 30-day social media content plan for [brand or creator] on [platforms]. Include content pillars, daily post concepts, hooks, captions, suggested formats, calls to action and a simple measurement plan.",style:"Engaging, authentic, platform-aware",tool:"ChatGPT"},
+ tutor:{category:"study",goal:"Act as a patient personal tutor helping me learn [subject] from [current level] to [target level]. First assess what I know, then create a step-by-step learning path with simple explanations, examples, practice questions, feedback and regular progress checks.",style:"Supportive, clear, interactive",tool:"ChatGPT"}
+ };
+ const t=templates[key];if(!t)return;
+ $("pcCategory").value=t.category;$("pcGoal").value=t.goal;$("pcStyle").value=t.style;$("pcTool").value=t.tool;$("pcConstraints").value=t.constraints||"";
+ $("pcLanguage").value="English";$("pcDetail").value="professional";
+ $("pcGoal").scrollIntoView({behavior:"smooth",block:"center"});$("pcGoal").focus({preventScroll:true});
+ toast("Template loaded. Customize it and create your prompt.");
+}
 function socialCreatePrompt(){
  const get=id=>$(id)?.value?.trim()||"",goal=get("pcGoal");
  if(!goal){toast("First, describe what you want to create.");$("pcGoal").focus();return;}
@@ -1639,7 +1679,7 @@ function socialCreatePrompt(){
 }
 async function socialCopyPrompt(){const value=$("pcOutput").value;if(!value)return;try{await navigator.clipboard.writeText(value);toast("Prompt copied.");}catch(e){$("pcOutput").focus();$("pcOutput").select();try{document.execCommand("copy");toast("Prompt copied.");}catch(_){toast("Select and copy the prompt manually.");}}}
 function socialSendPromptToAI(){const value=$("pcOutput").value;if(!value)return;switchSocial("ai");const input=$("assistantInput");if(input){input.value=value;input.focus();}toast("Prompt added to SOCIAL AI. Review it and press Send.");}
-function socialLoadBots(){if(!socialUser){$("botsList").textContent="Sign in to create bots.";return}try{const d=await socialRequest("/bots");$("botsList").innerHTML=(d.bots||[]).map(b=>'<div class="social-result"><strong>'+sx(b.name)+' @'+sx(b.username)+'</strong><p>'+sx(b.description||"")+'</p></div>').join("")||'<div class="empty">No bots created.</div>';}catch(e){$("botsList").textContent=e.message}}
+async function socialLoadBots(){if(!socialUser){$("botsList").textContent="Sign in to create bots.";return}try{const d=await socialRequest("/bots");$("botsList").innerHTML=(d.bots||[]).map(b=>'<div class="social-result"><strong>'+sx(b.name)+' @'+sx(b.username)+'</strong><p>'+sx(b.description||"")+'</p></div>').join("")||'<div class="empty">No bots created.</div>';}catch(e){$("botsList").textContent=e.message}}
 async function socialCreateBot(){
  const name=$("newBotName").value.trim(),username=$("newBotUsername").value.trim();
  if(!name||!username)return toast("Enter bot name and username");
