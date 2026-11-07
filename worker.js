@@ -3320,7 +3320,7 @@ async function socialGenerateAssistantImage(request, env) {
       console.error("Image generation returned an unexpected payload shape", Object.keys(result || {}));
       return error("The image model returned an unsupported response. Please try again.", 502);
     }
-    image = image.replace(/^data:image\\/[^;]+;base64,/, "");
+    if (image.startsWith("data:image/")) image = image.slice(image.indexOf(",") + 1);
     return json({ success: true, model, image, mimeType });
   } catch (e) {
     console.error("SOCIAL_IMAGE_GENERATION_FAILED", e);
