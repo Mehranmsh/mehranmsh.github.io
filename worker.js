@@ -3425,7 +3425,21 @@ async function socialGenerateAssistantImage(request, env) {
     let result, mimeType;
     if (hasReference) {
       logStage("reference_resolution_started");
-      const refs = await socialResolveAssistantImages(env, user.id, [body.reference]);
+      let refs, referenceTimeoutId;
+      try {
+        refs = await Promise.race([
+          socialResolveAssistantImages(env, user.id, [body.reference]),
+          new Promise((_, reject) => {
+            referenceTimeoutId = setTimeout(() => {
+              const timeoutError = new Error("Private reference photo processing exceeded 30 seconds.");
+              timeoutError.code = "SOCIAL_IMAGE_REFERENCE_TIMEOUT";
+              reject(timeoutError);
+            }, 30000);
+          })
+        ]);
+      } finally {
+        if (referenceTimeoutId) clearTimeout(referenceTimeoutId);
+      }
       logStage("reference_resolution_finished", { found: refs.length });
       if (!refs.length) return error("Reference photo is unavailable.", 400);
       const reference = refs[0];
@@ -3492,6 +3506,10 @@ async function socialGenerateAssistantImage(request, env) {
     return json({ success: true, model, image, mimeType, requestId });
   } catch (e) {
     const elapsedMs = Date.now() - startedAt;
+    if (e?.code === "SOCIAL_IMAGE_REFERENCE_TIMEOUT") {
+      console.error("SOCIAL_IMAGE_REFERENCE_TIMEOUT", JSON.stringify({ requestId, elapsedMs }));
+      return json({ success: false, error: "Preparing your private reference photo took longer than 30 seconds. Please try again.", code: "SOCIAL_IMAGE_REFERENCE_TIMEOUT", requestId }, 504);
+    }
     if (e?.code === "SOCIAL_IMAGE_GENERATION_TIMEOUT") {
       console.error("SOCIAL_IMAGE_GENERATION_TIMEOUT", JSON.stringify({ requestId, model, elapsedMs }));
       return json({ success: false, error: "Image generation took longer than 120 seconds and was stopped waiting for a response. Please try again later.", code: "SOCIAL_IMAGE_GENERATION_TIMEOUT", requestId }, 504);
