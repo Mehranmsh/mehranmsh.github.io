@@ -1176,8 +1176,13 @@ localStorage.removeItem("msh_social_cached_user");
 $("settingsUsername").value="";
 $("socialStatus").textContent="Verifying identity...";
 renderSocial();
-const verified=await socialMe();
-if(!verified||!socialUser?.id||!socialUser?.username)throw new Error("Sign-in succeeded, but SOCIAL could not verify which account this session belongs to. Please retry.");
+let verified=await socialMe();
+// If an earlier page-load identity check was still finishing with an older token,
+// let it settle and verify the newly issued login token once more.
+if(!verified&&getSocialToken()===data.token&&!socialMePromise){
+ verified=await socialMe();
+}
+if(!verified||!socialUser?.id||!socialUser?.username||!socialSessionVerified)throw new Error("Sign-in succeeded, but SOCIAL could not verify which account this session belongs to. Please retry.");
 closeAuth();
 toast("Welcome to SOCIAL");
 if(typeof loadSocialFeed==="function")loadSocialFeed().catch(error=>console.warn("SOCIAL feed:",error));
