@@ -645,6 +645,13 @@ async function createSocialTables(db) {
   await ensureColumn("social_conversation_members", "role", "TEXT NOT NULL DEFAULT 'member'");
   await ensureColumn("social_conversation_members", "joined_at", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_conversation_members", "last_read_at", "TEXT");
+  // Bring legacy message tables up to the columns used by chat reads and edits.
+  await ensureColumn("social_messages", "media_json", "TEXT NOT NULL DEFAULT '[]'");
+  await ensureColumn("social_messages", "reply_to", "TEXT");
+  await ensureColumn("social_messages", "forwarded_from", "TEXT");
+  await ensureColumn("social_messages", "edited_at", "TEXT");
+  await ensureColumn("social_messages", "deleted_at", "TEXT");
+  await ensureColumn("social_messages", "created_at", "TEXT NOT NULL DEFAULT ''");
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
