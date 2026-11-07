@@ -3146,7 +3146,7 @@ function socialBytesToBase64(bytes) {
   for (let i=0;i<bytes.length;i+=0x8000) binary += String.fromCharCode(...bytes.subarray(i,i+0x8000));
   return btoa(binary);
 }
-async async function socialResolveAssistantImages(env,userId,attachments) {
+async function socialResolveAssistantImages(env,userId,attachments) {
   if(!Array.isArray(attachments)||attachments.length>5) throw new Error("Attach up to 5 images.");
   const images=[];
   for(const item of attachments){
