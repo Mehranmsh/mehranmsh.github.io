@@ -1173,7 +1173,7 @@ if(authMode!=="login")return;
 socialLogin();
 });
 $("socialLogoutBtn").addEventListener("click",socialLogout);
-$("refreshSessionBtn").addEventListener("click",socialMe);
+$("refreshSessionBtn")?.addEventListener("click",socialMe);
 
 function currentUsername(){return socialUser?.username||socialUser?.displayName||"Member"}
 function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
@@ -1242,9 +1242,9 @@ $("socialStatus").textContent=logged?"Connected":"Not registered";
 $("socialTopAuth").textContent=logged?"⚙":"⇥";
 $("dashPosts").textContent=posts.length;
 $("settingsUsername").value=logged?(socialUser.username||""):"";
-$("sideProfileName").innerHTML=logged?escapeHTML(localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile")+(socialUser.isCreator?' <span class="creator-badge" title="Verified creator">✓</span>':""):"Welcome to SOCIAL";
-$("sideProfileBio").textContent=logged?(localProfile.bio||"Welcome to your SOCIAL profile."):"Browse the feed or sign in to create your profile.";
-$("profilePostCount").textContent=logged?posts.filter(p=>p.author===currentUsername()).length:0;
+$("sideProfileName")?.innerHTML=logged?escapeHTML(localProfile.displayName||socialUser.displayName||socialUser.username||"Your profile")+(socialUser.isCreator?' <span class="creator-badge" title="Verified creator">✓</span>':""):"Welcome to SOCIAL";
+$("sideProfileBio")?.textContent=logged?(localProfile.bio||"Welcome to your SOCIAL profile."):"Browse the feed or sign in to create your profile.";
+$("profilePostCount")?.textContent=logged?posts.filter(p=>p.author===currentUsername()).length:0;
 renderAvatar("sideAvatar");
 renderFeed();renderExplore();renderReels();
 }
