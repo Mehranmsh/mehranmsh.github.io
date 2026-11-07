@@ -3270,6 +3270,7 @@ async function socialGenerateAssistantImage(request, env) {
   const size = allowedSizes.has(width + "x" + height) ? { width, height } : { width: 1024, height: 1024 };
   const model = "@cf/black-forest-labs/flux-2-klein-9b";
   try {
+    await socialEnsureCloudflareVisionLicense(env, model);
     const form = new FormData();
     form.append("prompt", prompt);
     form.append("width", String(size.width));
