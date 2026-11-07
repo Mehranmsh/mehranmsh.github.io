@@ -807,30 +807,30 @@ window.scrollTo({top:0,behavior:"smooth"});
 }
 $("chatSearchInput")?.addEventListener("input",socialRenderConversationRows);
 document.addEventListener("click",e=>{if(e.target.closest("#copyChatErrorBtn"))socialCopyChatError();if(e.target.closest("#dismissChatErrorBtn"))$("chatErrorPanel")?.classList.add("hidden")});
-document.querySelectorAll("[data-social]").forEach(btn=>btn.addEventListener("click",()=>switchSocial(btn.dataset.social)));
+// SOCIAL navigation is delegated once at document level after the final switchSocial wrapper is installed.
 function switchSocial(name){
-$("page-social")?.classList.toggle("chat-mode",name==="messages");
-document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
-const activeSocialTab=document.querySelector(".social-tab.active");activeSocialTab?.scrollIntoView({behavior:"smooth",block:"nearest",inline:"nearest"});
-document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));
-const view=$("social-"+name);
-if(view)view.classList.add("active");
-if(name==="profile")renderProfile();
-if(name==="feed")renderSocial();
-if(name==="explore")renderExplore();
-if(name==="reels")renderReels();
-if(name==="notifications")loadNotifications();
-if(name==="messages")socialLoadConversations();
-if(name==="groups")socialLoadConversations();
-if(name==="channels")socialLoadChannels();
-if(name==="settings"&&socialUser){
-socialLoadPrivacy();
-socialLoadExtendedSettings();
-socialLoadSessions();
-socialLoadRequests();
-socialLoadStorage();
-}
-if(name==="prompt-creator"){$("pcGoal")?.focus({preventScroll:true});}
+ const allowed=new Set(["feed","prompt-creator","explore","reels","messages","groups","channels","bots","ai","profile","settings","notifications"]);
+ if(!allowed.has(name))return;
+ $("page-social")?.classList.toggle("chat-mode",name==="messages");
+ document.querySelectorAll(".social-tab").forEach(b=>b.classList.toggle("active",b.dataset.social===name));
+ document.querySelectorAll(".social-view").forEach(v=>v.classList.remove("active"));
+ const view=$("social-"+name);
+ if(view)view.classList.add("active");
+ // Do not call scrollIntoView here: older Android WebViews can throw on the
+ // options-object overload and abort the tab transition before the view changes.
+ try{
+  if(name==="profile")renderProfile();
+  if(name==="feed")renderSocial();
+  if(name==="explore")renderExplore();
+  if(name==="reels")renderReels();
+  if(name==="notifications")loadNotifications();
+  if(name==="messages"||name==="groups")socialLoadConversations();
+  if(name==="channels")socialLoadChannels();
+  if(name==="settings"&&socialUser){
+   socialLoadPrivacy();socialLoadExtendedSettings();socialLoadSessions();socialLoadRequests();socialLoadStorage();
+  }
+  if(name==="prompt-creator")$("pcGoal")?.focus();
+ }catch(error){console.error("SOCIAL tab activation failed:",name,error);toast("Could not load "+name+" view: "+(error?.message||"Please try again."));}
 }
 
 async function checkWorker(){
@@ -2581,19 +2581,27 @@ $("assistantProviderSelect")?.addEventListener("change",socialLoadAssistant);
 $("exploreSearch")?.addEventListener("input",e=>{clearTimeout(socialSearchTimer);socialSearchTimer=setTimeout(()=>socialSearch(e.target.value),300)});
 const prevSwitch=window.switchSocial;
 window.switchSocial=function(name){
- prevSwitch(name);
+ if(typeof prevSwitch==="function")prevSwitch(name);
  if(name!=="messages"&&name!=="groups"&&socialChatRefreshTimer){clearInterval(socialChatRefreshTimer);socialChatRefreshTimer=null;}
- if(name==="feed")socialLoadStories();
- if(name==="messages"||name==="groups")socialLoadConversations();
- if(name==="channels")socialLoadChannels();
- if(name==="bots"){socialLoadBots();}
-  if(name==="ai"){socialLoadAssistant();}
- if(name==="settings"){
-  // prevSwitch already loads settings data. Avoid duplicate GETs that can finish
-  // after a user's change and restore stale values over the controls.
-  socialSettingsTab("account");
- }
+ try{
+  if(name==="feed")socialLoadStories();
+  if(name==="messages"||name==="groups")socialLoadConversations();
+  if(name==="channels")socialLoadChannels();
+  if(name==="bots")socialLoadBots();
+  if(name==="ai")socialLoadAssistant();
+  if(name==="settings")socialSettingsTab("account");
+ }catch(error){console.error("SOCIAL tab data loading failed:",name,error);toast("View opened, but data could not load: "+(error?.message||"Please try again."));}
 };
+// One delegated handler owns all SOCIAL top-tab clicks. It calls the final wrapper
+// directly, avoiding stale per-button handlers and event interception conflicts.
+document.addEventListener("click",event=>{
+ const target=event.target instanceof Element?event.target:null;
+ const button=target?.closest(".social-tabs [data-social]");
+ if(!button)return;
+ event.preventDefault();
+ event.stopPropagation();
+ window.switchSocial(button.dataset.social);
+},true);
 const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();socialLoadStories();};socialLoadStories();
 
 </script><div id="socialAvatarLightbox" role="dialog" aria-modal="true" aria-label="Profile photo preview"><button class="avatar-lightbox-close" type="button" aria-label="Close photo">×</button><img id="socialAvatarLightboxImage" class="avatar-lightbox-image" alt="Profile photo enlarged"><div class="avatar-lightbox-hint">Tap outside the photo to close</div></div><script>
