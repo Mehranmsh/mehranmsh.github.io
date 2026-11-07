@@ -2320,24 +2320,56 @@ function socialClearImageReference(){
  if(preview)preview.textContent="No reference photo selected.";
  const status=$("imageStudioStatus");if(status)status.textContent="Reference photo removed.";
 }
+async function verifySocialSessionForImageStudio(){
+ const token=getSocialToken();
+ if(!token)return {ok:false,reason:"missing"};
+ // Do not reuse socialMePromise here: it may belong to an earlier page-load
+ // identity check. Image Studio verifies the exact token it will use to generate.
+ try{
+  const response=await fetch(SOCIAL_API+"/me",{headers:{Authorization:"Bearer "+token},cache:"no-store"});
+  const data=await response.json().catch(()=>({}));
+  if(token!==getSocialToken())return {ok:false,reason:"changed"};
+  if(response.status===401){
+   localStorage.removeItem(SOCIAL_TOKEN_KEY);
+   localStorage.removeItem("msh_social_cached_user");
+   socialUser=null;socialSessionVerified=false;
+   $("socialStatus").textContent="Session expired";
+   renderSocial();
+   return {ok:false,reason:"expired"};
+  }
+  if(!response.ok)throw new Error(data.message||("Server unavailable ("+response.status+")"));
+  const user=data?.user;
+  if(data?.success!==true||!user||typeof user.id!=="string"||!user.id||typeof user.username!=="string"||!user.username){
+   throw new Error("The server returned an incomplete account identity.");
+  }
+  socialUser=user;socialSessionVerified=true;
+  saveJSON("msh_social_cached_user",user);
+  $("settingsUsername").value=user.username;
+  $("socialStatus").textContent="Connected";
+  return {ok:true};
+ }catch(error){
+  // Keep the saved token on network/server errors. A temporary outage is not
+  // evidence that the user needs to enter their password again.
+  socialSessionVerified=false;
+  $("socialStatus").textContent="Connection issue";
+  return {ok:false,reason:"network",message:error.message||"Could not verify your SOCIAL session."};
+ }
+}
 async function socialGenerateImage(){
  const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn"),status=$("imageStudioStatus");
- // A saved token may exist while the initial /me identity check is still running.
- // Verify it here instead of rejecting a valid signed-in user during that race.
  if(!socialUser?.id||!socialSessionVerified){
-  if(getSocialToken()){
-   status.textContent="Verifying your SOCIAL sign-in...";
-   const verified=await socialMe();
-   if(!verified||!socialUser?.id||!socialSessionVerified){
+  status.textContent="Verifying your SOCIAL sign-in...";
+  const verification=await verifySocialSessionForImageStudio();
+  if(!verification.ok){
+   if(verification.reason==="missing"||verification.reason==="expired"){
     openAuth("login");
-    setSocialAuthMessage("Please sign in to your SOCIAL account before generating images.","notice warn");
+    setSocialAuthMessage("Please sign in to your SOCIAL account before generating images. Pi wallet sign-in is separate.","notice warn");
     status.textContent="Sign in to generate images.";
-    return;
+   }else if(verification.reason==="network"){
+    status.textContent="Could not verify your saved sign-in: "+verification.message+" Your login was kept. Check your connection and try again.";
+   }else{
+    status.textContent="Your sign-in changed while it was being checked. Please tap Generate again.";
    }
-  }else{
-   openAuth("login");
-   setSocialAuthMessage("Please sign in to your SOCIAL account before generating images. Pi wallet sign-in is separate.","notice warn");
-   status.textContent="Sign in to generate images.";
    return;
   }
  }
