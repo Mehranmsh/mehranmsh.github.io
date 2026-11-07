@@ -2170,6 +2170,8 @@ async function socialLoadSessions(){const box=$("settingsSessionsList");if(!box)
 async function socialRevokeSession(id){if(!confirm("Sign out this device?"))return;try{await socialRequest("/sessions/"+encodeURIComponent(id),{method:"DELETE"});await socialLoadSessions();toast("Session revoked");}catch(e){toast(e.message)}}
 async function socialLogoutOtherSessions(){if(!confirm("Sign out all other devices?"))return;try{await socialRequest("/logout-all",{method:"POST"});await socialLoadSessions();toast("Other sessions signed out");}catch(e){toast(e.message)}}
 async function socialLoadExtendedSettings(){
+ window.socialExtendedSettingsCache=null;
+ window.socialExtendedSettingsUser="";
  try{
   const d=await socialRequest("/settings/extended");
   const p=d.preferences||{};
