@@ -612,6 +612,9 @@ async function createSocialTables(db) {
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN account_type TEXT NOT NULL DEFAULT 'human'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN business_category TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_users ADD COLUMN business_website TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  // Upgrade older installations where social_user_settings predates theme/language columns.
+  try { await db.prepare("ALTER TABLE social_user_settings ADD COLUMN language TEXT NOT NULL DEFAULT 'en'").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_user_settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'dark'").run(); } catch {}
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
