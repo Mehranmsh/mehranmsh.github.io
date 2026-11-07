@@ -2585,61 +2585,63 @@ async function socialStartConversation(request, env) {
 async function socialListConversations(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  let stage = "preferences";
+  try {
+    const preferenceRow = await env.DB.prepare(
+      "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+    ).bind(user.id).first();
+    let conversationPrefs = {};
+    try { conversationPrefs = JSON.parse(preferenceRow?.preferences_json || "{}"); } catch {}
+    const showMessagePreviews = conversationPrefs.chat?.messagePreviews !== false;
 
-  const preferenceRow = await env.DB.prepare(
-    "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
-  ).bind(user.id).first();
-  let conversationPrefs = {};
-  try { conversationPrefs = JSON.parse(preferenceRow?.preferences_json || "{}"); } catch {}
-  const showMessagePreviews = conversationPrefs.chat?.messagePreviews !== false;
-
-  const result = await env.DB.prepare(`
-    SELECT c.id,c.type,c.title,c.updated_at,
-      (
-        SELECT m.content FROM social_messages m
-        WHERE m.conversation_id=c.id AND m.deleted_at IS NULL
-        ORDER BY m.created_at DESC LIMIT 1
-      ) AS last_message,
-      (
-        SELECT m.created_at FROM social_messages m
-        WHERE m.conversation_id=c.id
-        ORDER BY m.created_at DESC LIMIT 1
-      ) AS last_message_at
-    FROM social_conversations c
-    JOIN social_conversation_members cm ON cm.conversation_id=c.id
-    WHERE cm.user_id=?
-    ORDER BY COALESCE(last_message_at,c.updated_at) DESC
-    LIMIT 100
-  `).bind(user.id).all();
-
-  const conversations = [];
-
-  for (const row of result.results || []) {
-    const members = await env.DB.prepare(`
-      SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role
-      FROM social_conversation_members cm
-      JOIN social_users u ON u.id=cm.user_id
-      WHERE cm.conversation_id=?
+    stage = "conversation_query";
+    const result = await env.DB.prepare(`
+      SELECT c.id,c.type,c.title,c.updated_at,
+        (SELECT m.content FROM social_messages m
+         WHERE m.conversation_id=c.id AND m.deleted_at IS NULL
+         ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+        (SELECT m.created_at FROM social_messages m
+         WHERE m.conversation_id=c.id
+         ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
+      FROM social_conversations c
+      JOIN social_conversation_members cm ON cm.conversation_id=c.id
+      WHERE cm.user_id=?
+      ORDER BY COALESCE(last_message_at,c.updated_at) DESC
       LIMIT 100
-    `).bind(row.id).all();
+    `).bind(user.id).all();
 
-    conversations.push({
-      id: row.id,
-      type: row.type,
-      title: row.title,
-      lastMessage: showMessagePreviews ? (row.last_message || "") : "",
-      lastMessageAt: row.last_message_at || row.updated_at,
-      members: (members.results || []).map(member => ({
-        id: member.id,
-        username: member.username,
-        displayName: member.display_name || "",
-        avatarUrl: member.avatar_url || "",
-        role: member.role
-      }))
-    });
+    const conversations = [];
+    for (const row of result.results || []) {
+      stage = "members_query";
+      const members = await env.DB.prepare(`
+        SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role
+        FROM social_conversation_members cm
+        JOIN social_users u ON u.id=cm.user_id
+        WHERE cm.conversation_id=?
+        LIMIT 100
+      `).bind(row.id).all();
+
+      conversations.push({
+        id: row.id, type: row.type, title: row.title,
+        lastMessage: showMessagePreviews ? (row.last_message || "") : "",
+        lastMessageAt: row.last_message_at || row.updated_at,
+        members: (members.results || []).map(member => ({
+          id: member.id, username: member.username,
+          displayName: member.display_name || "",
+          avatarUrl: member.avatar_url || "", role: member.role
+        }))
+      });
+    }
+    return json({ success: true, conversations });
+  } catch (err) {
+    console.error("SOCIAL_CONVERSATIONS_LIST_FAILURE", { stage, message: String(err?.message || err) });
+    return json({
+      success: false,
+      error: "Could not load conversations.",
+      code: "CHAT_LIST_" + stage.toUpperCase(),
+      detail: String(err?.message || err).slice(0, 220)
+    }, 500);
   }
-
-  return json({ success: true, conversations });
 }
 
 async function isConversationMember(env, conversationId, userId) {
