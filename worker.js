@@ -615,6 +615,10 @@ async function createSocialTables(db) {
   // Upgrade older installations where social_user_settings predates theme/language columns.
   try { await db.prepare("ALTER TABLE social_user_settings ADD COLUMN language TEXT NOT NULL DEFAULT 'en'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_user_settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'dark'").run(); } catch {}
+  // Upgrade databases created before the current chat membership schema.
+  try { await db.prepare("ALTER TABLE social_conversation_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_conversation_members ADD COLUMN joined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP").run(); } catch {}
+  try { await db.prepare("ALTER TABLE social_conversation_members ADD COLUMN last_read_at TEXT").run(); } catch {}
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
