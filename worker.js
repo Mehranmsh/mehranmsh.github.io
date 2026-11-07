@@ -3146,7 +3146,7 @@ function socialBytesToBase64(bytes) {
   for (let i=0;i<bytes.length;i+=0x8000) binary += String.fromCharCode(...bytes.subarray(i,i+0x8000));
   return btoa(binary);
 }
-async function socialResolveAssistantImages(env,userId,attachments) {
+async async function socialResolveAssistantImages(env,userId,attachments) {
   if(!Array.isArray(attachments)||attachments.length>5) throw new Error("Attach up to 5 images.");
   const images=[];
   for(const item of attachments){
@@ -3252,6 +3252,70 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
     : (data.choices || []).map(c => c.message?.content || "").join("\n").trim();
   if (!answer) throw new Error("AI provider returned an empty reply.");
   return answer;
+}
+
+async function socialGenerateAssistantImage(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  if (!env.AI || typeof env.AI.run !== "function") return error("Cloudflare image generation is not available on this Worker.", 503);
+  if (!await checkRateLimit(env, request, "social-ai-image-generation", 3, 600, 600)) {
+    return error("Image generation limit reached. Please wait before trying again.", 429);
+  }
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body");
+  const prompt = cleanText(body.prompt, 1800);
+  if (!prompt) return error("Write an image prompt first.");
+  const width = Number(body.width), height = Number(body.height);
+  const allowedSizes = new Set(["1024x1024", "1024x768", "768x1024", "1280x720"]);
+  const size = allowedSizes.has(width + "x" + height) ? { width, height } : { width: 1024, height: 1024 };
+  const model = "@cf/black-forest-labs/flux-2-klein-9b";
+  try {
+    const form = new FormData();
+    form.append("prompt", prompt);
+    form.append("width", String(size.width));
+    form.append("height", String(size.height));
+    form.append("guidance", "4");
+    const referenceId = cleanText(body.reference, 150);
+    if (referenceId) {
+      const row = await env.DB.prepare(
+        "SELECT id,name,size,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+      ).bind(referenceId, user.id).first();
+      if (!row || row.status !== "ready" || row.acl !== "private") return error("Reference photo is unavailable or not private.", 400);
+      if (!["image/jpeg", "image/png", "image/webp"].includes(row.mime_type) || Number(row.size) > 3 * 1024 * 1024) {
+        return error("Reference photo must be a JPG, PNG or WEBP smaller than 3 MB.", 400);
+      }
+      const signed = await rapidfileRequest(env, `/files/${encodeURIComponent(referenceId)}/signed-url`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expiresIn: 300 })
+      });
+      if (!signed.url || !validHttpsUrl(signed.url)) return error("Could not securely access the reference photo.", 502);
+      const response = await fetch(signed.url);
+      if (!response.ok) return error("Could not read the reference photo.", 502);
+      const imageBlob = await response.blob();
+      if (!imageBlob.size || imageBlob.size > 3 * 1024 * 1024) return error("Reference photo is too large.", 413);
+      form.append("input_image_0", imageBlob, "reference.jpg");
+    }
+    const formResponse = new Response(form);
+    const contentType = formResponse.headers.get("content-type");
+    const result = await env.AI.run(model, {
+      multipart: { body: formResponse.body, contentType }
+    });
+    let image = result?.image || result?.result?.image || result?.data?.image;
+    let mimeType = "image/png";
+    if (image instanceof Uint8Array) image = btoa(String.fromCharCode(...image));
+    else if (image instanceof ArrayBuffer) image = btoa(String.fromCharCode(...new Uint8Array(image)));
+    else if (image instanceof ArrayBuffer?.constructor) image = image;
+    if (typeof image !== "string" || !image.length) {
+      console.error("Image generation returned an unexpected payload shape", Object.keys(result || {}));
+      return error("The image model returned an unsupported response. Please try again.", 502);
+    }
+    image = image.replace(/^data:image\\/[^;]+;base64,/, "");
+    return json({ success: true, model, image, mimeType });
+  } catch (e) {
+    console.error("SOCIAL_IMAGE_GENERATION_FAILED", e);
+    const message = String(e?.message || e || "Image generation failed").slice(0, 220);
+    return error(message, 502);
+  }
 }
 
 async function socialAssistantStatus(request, env) {
@@ -4350,6 +4414,7 @@ export default {
           );
         }
 
+        if (path === "/social/assistant/image/generate" && method === "POST") return await socialGenerateAssistantImage(request, env);
         if (path === "/social/assistant/status" && method === "GET") return await socialAssistantStatus(request, env);
         if (path === "/social/assistant/history" && method === "GET") return await socialAssistantHistory(request, env);
         if (path === "/social/assistant/chat" && method === "POST") return await socialAssistantChat(request, env);
