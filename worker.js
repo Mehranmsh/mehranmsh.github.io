@@ -1034,6 +1034,11 @@ async function socialExtendedSettings(request, env) {
       community: {
         groupInvites: stored.community?.groupInvites !== false,
         channelInvites: stored.community?.channelInvites !== false
+      },
+      privacy: {
+        profileVisibility: ["everyone","contacts","nobody"].includes(stored.privacy?.profileVisibility) ? stored.privacy.profileVisibility : "everyone",
+        whoCanAddToGroups: ["everyone","contacts","nobody"].includes(stored.privacy?.whoCanAddToGroups) ? stored.privacy.whoCanAddToGroups : "everyone",
+        whoCanAddToChannels: ["everyone","contacts","nobody"].includes(stored.privacy?.whoCanAddToChannels) ? stored.privacy.whoCanAddToChannels : "everyone"
       }
     };
     return json({success:true,preferences});
@@ -1043,13 +1048,19 @@ async function socialExtendedSettings(request, env) {
   const allowed = {
     notifications: ["likesComments","followers","messages","groups"],
     chat: ["readReceipts","messagePreviews","autoDownload"],
-    community: ["groupInvites","channelInvites"]
+    community: ["groupInvites","channelInvites"],
+    privacy: ["profileVisibility","whoCanAddToGroups","whoCanAddToChannels"]
   };
   const clean = {};
   for (const [section, keys] of Object.entries(allowed)) {
     const source = body.preferences[section] || {};
     clean[section] = {};
-    for (const key of keys) clean[section][key] = source[key] !== false;
+    for (const key of keys) {
+      if (section === "privacy") {
+        const valid = key === "profileVisibility" ? ["everyone","contacts","nobody"] : ["everyone","contacts","nobody"];
+        clean[section][key] = valid.includes(source[key]) ? source[key] : "everyone";
+      } else clean[section][key] = source[key] !== false;
+    }
   }
   await env.DB.prepare(`
     INSERT INTO social_extended_settings(user_id,preferences_json,updated_at)
@@ -1178,13 +1189,27 @@ async function socialGetProfile(request, env, username) {
 
   if (!profile) return error("User not found", 404);
 
-  if (profile.isPrivate && profile.id !== viewer.id && !profile.isFollowing) {
+  const prefRow = await env.DB.prepare(
+    "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+  ).bind(profile.id).first();
+  let prefs = {};
+  try { prefs = JSON.parse(prefRow?.preferences_json || "{}"); } catch {}
+  const visibility = ["everyone","contacts","nobody"].includes(prefs.privacy?.profileVisibility)
+    ? prefs.privacy.profileVisibility : "everyone";
+  const mutualContact = profile.id === viewer.id ? true : !!(await env.DB.prepare(`
+    SELECT 1 FROM social_follows a
+    JOIN social_follows b ON b.follower_id=a.following_id AND b.following_id=a.follower_id
+    WHERE a.follower_id=? AND a.following_id=? LIMIT 1
+  `).bind(profile.id, viewer.id).first());
+  const hiddenByVisibility = profile.id !== viewer.id &&
+    (visibility === "nobody" || (visibility === "contacts" && !mutualContact));
+  if ((profile.isPrivate && profile.id !== viewer.id && !profile.isFollowing) || hiddenByVisibility) {
     return json({
       success: true,
       profile: {
         ...profile,
         bio: "",
-        avatarUrl: profile.avatarUrl,
+        avatarUrl: visibility === "nobody" ? "" : profile.avatarUrl,
         counts: profile.counts,
         privateContent: true
       }
@@ -2699,45 +2724,57 @@ async function socialDeleteMessage(request, env, messageId) {
 async function socialCreateGroup(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
-
   const title = cleanText(body.title, 100);
   const usernames = Array.isArray(body.members)
     ? [...new Set(body.members.map(cleanUsername).filter(Boolean))].slice(0, 99)
     : [];
-
   if (!title) return error("Group name is required");
 
-  const id = crypto.randomUUID();
+  // Validate every requested member before creating anything, so a rejected
+  // invitation never leaves behind a half-created group.
+  const targets = [];
+  for (const username of usernames) {
+    if (username === user.username) continue;
+    const target = await env.DB.prepare(
+      "SELECT id FROM social_users WHERE username=? AND is_active=1"
+    ).bind(username).first();
+    if (!target || await isBlocked(env, user.id, target.id)) continue;
+    const prefRow = await env.DB.prepare(
+      "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
+    ).bind(target.id).first();
+    let prefs = {};
+    try { prefs = JSON.parse(prefRow?.preferences_json || "{}"); } catch {}
+    const rule = ["everyone","contacts","nobody"].includes(prefs.privacy?.whoCanAddToGroups)
+      ? prefs.privacy.whoCanAddToGroups : "everyone";
+    if (rule === "nobody") return error("@" + username + " does not allow being added to groups", 403);
+    if (rule === "contacts") {
+      const mutual = await env.DB.prepare(`
+        SELECT 1 FROM social_follows a
+        JOIN social_follows b ON b.follower_id=a.following_id AND b.following_id=a.follower_id
+        WHERE a.follower_id=? AND a.following_id=? LIMIT 1
+      `).bind(target.id, user.id).first();
+      if (!mutual) return error("Only mutual contacts can add @" + username + " to groups", 403);
+    }
+    targets.push(target);
+  }
 
+  const id = crypto.randomUUID();
   await env.DB.prepare(`
     INSERT INTO social_conversations(id,type,title,owner_id)
     VALUES(?,'group',?,?)
   `).bind(id, title, user.id).run();
-
   await env.DB.prepare(`
     INSERT INTO social_conversation_members(conversation_id,user_id,role)
     VALUES(?,?,'owner')
   `).bind(id, user.id).run();
-
-  for (const username of usernames) {
-    if (username === user.username) continue;
-
-    const target = await env.DB.prepare(
-      "SELECT id FROM social_users WHERE username=? AND is_active=1"
-    ).bind(username).first();
-
-    if (target && !(await isBlocked(env, user.id, target.id))) {
-      await env.DB.prepare(`
-        INSERT OR IGNORE INTO social_conversation_members(
-          conversation_id,user_id,role
-        ) VALUES(?,?,'member')
-      `).bind(id, target.id).run();
-    }
+  for (const target of targets) {
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO social_conversation_members(conversation_id,user_id,role)
+      VALUES(?,?,'member')
+    `).bind(id, target.id).run();
   }
-
   return json({ success: true, group: { id, title } }, 201);
 }
 
