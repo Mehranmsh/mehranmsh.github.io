@@ -615,10 +615,36 @@ async function createSocialTables(db) {
   // Upgrade older installations where social_user_settings predates theme/language columns.
   try { await db.prepare("ALTER TABLE social_user_settings ADD COLUMN language TEXT NOT NULL DEFAULT 'en'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_user_settings ADD COLUMN theme TEXT NOT NULL DEFAULT 'dark'").run(); } catch {}
-  // Upgrade databases created before the current chat membership schema.
-  try { await db.prepare("ALTER TABLE social_conversation_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'").run(); } catch {}
-  try { await db.prepare("ALTER TABLE social_conversation_members ADD COLUMN joined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP").run(); } catch {}
-  try { await db.prepare("ALTER TABLE social_conversation_members ADD COLUMN last_read_at TEXT").run(); } catch {}
+  // Repair legacy chat tables. CREATE TABLE IF NOT EXISTS does not add
+  // columns to tables that already existed in older deployments.
+  const ensureColumn = async (table, column, definition) => {
+    const info = await db.prepare("PRAGMA table_info(" + table + ")").all();
+    const columns = new Set((info.results || []).map(row => row.name));
+    if (!columns.has(column)) {
+      try {
+        await db.prepare("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition).run();
+      } catch (err) {
+        // Concurrent isolates may perform the same idempotent migration.
+        const refreshed = await db.prepare("PRAGMA table_info(" + table + ")").all();
+        if (!(refreshed.results || []).some(row => row.name === column)) throw err;
+      }
+    }
+  };
+  await ensureColumn("social_conversations", "type", "TEXT NOT NULL DEFAULT 'private'");
+  await ensureColumn("social_conversations", "title", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn("social_conversations", "owner_id", "TEXT");
+  await ensureColumn("social_conversations", "created_at", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn("social_conversations", "updated_at", "TEXT NOT NULL DEFAULT ''");
+  const conversationInfo = await db.prepare("PRAGMA table_info(social_conversations)").all();
+  const conversationColumns = new Set((conversationInfo.results || []).map(row => row.name));
+  if (conversationColumns.has("created_by")) {
+    await db.prepare("UPDATE social_conversations SET owner_id=created_by WHERE owner_id IS NULL OR owner_id=''").run();
+  } else if (conversationColumns.has("creator_id")) {
+    await db.prepare("UPDATE social_conversations SET owner_id=creator_id WHERE owner_id IS NULL OR owner_id=''").run();
+  }
+  await ensureColumn("social_conversation_members", "role", "TEXT NOT NULL DEFAULT 'member'");
+  await ensureColumn("social_conversation_members", "joined_at", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn("social_conversation_members", "last_read_at", "TEXT");
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
@@ -2487,26 +2513,28 @@ async function socialStartConversation(request, env) {
 
   const id = crypto.randomUUID();
   let conversationCreated = false;
+  let createStage = "conversation_insert";
 
   try {
-    // Keep creation steps explicit so a failed membership write cannot be
-    // hidden inside a multi-statement batch.
     await env.DB.prepare(`
       INSERT INTO social_conversations(id,type,owner_id)
       VALUES(?,'private',?)
     `).bind(id, user.id).run();
     conversationCreated = true;
 
+    createStage = "first_member_insert";
     await env.DB.prepare(`
       INSERT INTO social_conversation_members(conversation_id,user_id,role)
       VALUES(?,?,'member')
     `).bind(id, user.id).run();
 
+    createStage = "second_member_insert";
     await env.DB.prepare(`
       INSERT INTO social_conversation_members(conversation_id,user_id,role)
       VALUES(?,?,'member')
     `).bind(id, target.id).run();
 
+    createStage = "membership_verification";
     const verified = await env.DB.prepare(`
       SELECT COUNT(*) AS member_count
       FROM social_conversation_members
@@ -2517,10 +2545,11 @@ async function socialStartConversation(request, env) {
       throw new Error("Conversation membership verification failed");
     }
   } catch (err) {
-    console.error("SOCIAL_DIRECT_CHAT_CREATE_FAILURE", {
-      stage: conversationCreated ? "members" : "conversation",
+    const diagnostic = {
+      stage: createStage,
       message: String(err?.message || err).slice(0, 300)
-    });
+    };
+    console.error("SOCIAL_DIRECT_CHAT_CREATE_FAILURE", diagnostic);
     if (conversationCreated) {
       try {
         await env.DB.prepare("DELETE FROM social_conversations WHERE id=?").bind(id).run();
@@ -2528,7 +2557,13 @@ async function socialStartConversation(request, env) {
         console.error("SOCIAL_DIRECT_CHAT_CLEANUP_FAILURE", String(cleanupError?.message || cleanupError).slice(0, 200));
       }
     }
-    return error("Could not create this chat. Please try again.", 500);
+    // Return a non-sensitive stage code so the failing database operation can
+    // be identified without exposing SQL details to ordinary users.
+    return json({
+      success: false,
+      error: "Could not create this chat. Please try again.",
+      code: "CHAT_CREATE_" + createStage.toUpperCase()
+    }, 500);
   }
 
   return json({ success: true, conversationId: id }, 201);
