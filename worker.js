@@ -3290,13 +3290,13 @@ async function socialGenerateAssistantImage(request, env) {
       referenceBlob = await response.blob();
       if (!referenceBlob.size || referenceBlob.size > 3 * 1024 * 1024) return error("Reference photo is too large.", 413);
     }
-    const runFlux = async (textPrompt) => {
+    const runFlux = async (textPrompt, includeReference = true) => {
       const form = new FormData();
       form.append("prompt", textPrompt);
       form.append("width", String(size.width));
       form.append("height", String(size.height));
       form.append("guidance", "4");
-      if (referenceBlob) form.append("input_image_0", referenceBlob, "reference.jpg");
+      if (referenceBlob && includeReference) form.append("input_image_0", referenceBlob, "reference.jpg");
       const formResponse = new Response(form);
       return env.AI.run(model, {
         multipart: { body: formResponse.body, contentType: formResponse.headers.get("content-type") }
@@ -3309,7 +3309,7 @@ async function socialGenerateAssistantImage(request, env) {
       const message = String(firstError?.message || firstError || "");
       const needsAgreement = /5016/.test(message) && /terms|agree|you may now use the model/i.test(message);
       if (!needsAgreement) throw firstError;
-      await runFlux("agree");
+      await runFlux("agree", false);
       result = await runFlux(prompt);
     }
     let image = result?.image || result?.result?.image || result?.data?.image;
