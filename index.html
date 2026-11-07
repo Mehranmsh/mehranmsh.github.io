@@ -1072,10 +1072,12 @@ localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
 socialUser=data.user||null;
 socialSessionVerified=!!socialUser;
 if(socialUser)saveJSON("msh_social_cached_user",socialUser);
+if(socialUser?.username)$("settingsUsername").value=socialUser.username;
+$("socialStatus").textContent=socialUser?"Connected":"Signing in...";
 renderSocial();
 closeAuth();
 toast("Welcome to SOCIAL");
-socialMe();
+if(typeof loadSocialFeed==="function")loadSocialFeed().catch(error=>console.warn("SOCIAL feed:",error));
 }catch(error){
 const messages={
 "auth/user-not-found":"No account found for this email. Check the address or create an account.",
