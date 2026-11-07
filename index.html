@@ -760,7 +760,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
-let piUser=null,socialUser=(getSocialToken()?readJSON("msh_social_cached_user",null):null),socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
+let piUser=null,socialUser=null,socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
