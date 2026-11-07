@@ -299,15 +299,11 @@ body[data-theme="light"]{--bg:#f2f6fc;--panel:#ffffff;--panel2:#eaf0f8;--line:#d
 #page-social .assistant-attachment-preview[hidden],#page-social .assistant-attach-menu[hidden]{display:none!important}
 @media(max-width:520px){#page-social .assistant-composer{gap:6px;padding:6px}#page-social .assistant-attach-btn{width:40px;height:40px}#page-social .assistant-composer>input{font-size:13px!important;padding:10px 4px!important}#page-social #assistantSendBtn{padding:10px 12px}}
 
-/* Unified Communications navigation */
-#page-social .communication-subnav{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:10px 12px;margin:0 0 12px;border:1px solid rgba(122,161,201,.13);border-radius:15px;background:#172738;scrollbar-width:none}
-#page-social .communication-subnav button{flex:0 0 auto;border:1px solid transparent;border-radius:11px;padding:9px 14px;background:transparent;color:#a9bac9;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
-#page-social .communication-subnav button.active{background:#254c70;border-color:#3a79a6;color:#8bd5ff}
+/* Communications tabs now share the existing inbox filter row. */
 #page-social .communication-view.hidden{display:none!important}
 #page-social .communication-view:not(.hidden){display:block}
 #page-social #socialChatApp.communication-view:not(.hidden){display:flex}
 #page-social .communication-view#communication-groups,#page-social .communication-view#communication-channels,#page-social .communication-view#communication-bots{min-height:300px}
-@media(max-width:640px){#page-social .communication-subnav{gap:5px;padding:8px;margin-bottom:9px;border-radius:12px}#page-social .communication-subnav button{padding:9px 11px;font-size:11px}}
 </style>
 <style id="social-profile-editor-refresh">
 /* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
@@ -593,18 +589,12 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 </div>
 
 <div class="social-view" id="social-messages">
- <nav class="communication-subnav" aria-label="Communication sections">
-  <button type="button" id="communicationMessagesTab" class="active" data-communication="messages" onclick="switchCommunicationSection('messages');return false;">✉ Messages</button>
-  <button type="button" id="communicationGroupsTab" data-communication="groups" onclick="switchCommunicationSection('groups');return false;">♧ Groups</button>
-  <button type="button" id="communicationChannelsTab" data-communication="channels" onclick="switchCommunicationSection('channels');return false;">▤ Channels</button>
-  <button type="button" id="communicationBotsTab" data-communication="bots" onclick="switchCommunicationSection('bots');return false;">🤖 بات</button>
- </nav>
  <div class="social-chat-app communication-view active" id="socialChatApp">
   <div id="chatErrorPanel" class="notice hidden" role="alert" aria-live="assertive" style="margin:0 0 12px;border-color:#a94c59;background:#351923;color:#ffe5e8"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><strong>Chat error</strong><div id="chatErrorText" style="margin-top:6px;overflow-wrap:anywhere;user-select:text"></div><div class="small-text" style="margin-top:6px;color:#ffc4cc">This message stays here until you dismiss it.</div></div><div style="display:flex;gap:6px"><button type="button" class="btn secondary small" id="copyChatErrorBtn">Copy</button><button type="button" class="btn secondary small" id="dismissChatErrorBtn">Dismiss</button></div></div></div>
   <section class="chat-inbox-view" id="chatInboxView">
    <header class="chat-inbox-header"><div><div class="chat-brand-mark">S</div><div><h2>Communications</h2><p>Messages, groups, channels and bots</p></div></div><div class="chat-header-actions"><button type="button" class="chat-icon-btn" id="chatSearchToggle" aria-label="Search chats">⌕</button><button type="button" class="chat-icon-btn" id="openContactsBtn" aria-label="New chat">＋</button></div></header>
    <div class="chat-search-wrap" id="chatSearchWrap"><input id="chatSearchInput" type="search" placeholder="Search people or messages..." autocomplete="off"></div>
-   <nav class="chat-filter-tabs" aria-label="Chat filters"><button type="button" class="active" data-chat-filter="all">All</button><button type="button" data-chat-filter="private">Private</button><button type="button" data-chat-filter="group">Groups</button></nav>
+   <nav class="chat-filter-tabs" aria-label="Communications"><button type="button" id="communicationMessagesTab" class="active" data-communication="messages">Private</button><button type="button" id="communicationGroupsTab" data-communication="groups">Groups</button><button type="button" id="communicationChannelsTab" data-communication="channels">Channels</button><button type="button" id="communicationBotsTab" data-communication="bots">بات</button></nav>
    <div id="conversationList" class="chat-conversation-list"><div class="empty">Loading chats...</div></div>
   </section>
   <section class="chat-thread-view hidden" id="chatThreadView">
@@ -854,8 +844,9 @@ function switchSocial(name){
 function switchCommunicationSection(name){
  const allowed=new Set(["messages","groups","channels","bots"]);
  if(!allowed.has(name))return;
- document.querySelectorAll("[data-communication]").forEach(button=>button.classList.toggle("active",button.dataset.communication===name));
+ document.querySelectorAll("#social-messages [data-communication]").forEach(button=>button.classList.toggle("active",button.dataset.communication===name));
  document.querySelectorAll("#social-messages .communication-view").forEach(view=>view.classList.toggle("hidden",view.id!==(name==="messages"?"socialChatApp":"communication-"+name)));
+ if(name==="messages")socialChatFilter="private";
  if(name!=="messages"&&socialChatRefreshTimer){clearInterval(socialChatRefreshTimer);socialChatRefreshTimer=null;}
  try{
   if(name==="messages")socialLoadConversations();
