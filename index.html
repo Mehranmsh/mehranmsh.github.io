@@ -1650,8 +1650,10 @@ document.addEventListener("click",event=>{
  if(!target)return;
  const pageButton=target.closest("[data-page]");
  const languageButton=target.closest("#languageBtn");
- const socialButton=target.closest("[data-social]");
- if(!pageButton&&!languageButton&&!socialButton)return;
+ // SOCIAL tabs have their own dedicated click handlers. Do not intercept
+ // them in this capture-phase recovery listener, or Pi Browser can swallow
+ // the original button event before its handler runs.
+ if(!pageButton&&!languageButton)return;
  event.preventDefault();
  event.stopImmediatePropagation();
  if(pageButton){showPage(pageButton.dataset.page);return}
@@ -1665,7 +1667,6 @@ document.addEventListener("click",event=>{
   $("languageBtn").textContent=isFa?"FA / EN":"EN / FA";
   return;
  }
- if(socialButton)switchSocial(socialButton.dataset.social);
 },true);
 updateAccountUI();
 socialMe();
