@@ -2845,12 +2845,13 @@ function socialAIProviderList(env) {
     key, name: item.label,
     model: cleanText(env["SOCIAL_AI_MODEL_" + key.toUpperCase()], 120) || item.model,
     configured: socialAIProviderReady(key, env),
-    vision: (key === "openai" && (cleanText(env.SOCIAL_AI_MODEL_OPENAI, 120) || item.model) === "gpt-4.1-mini") ||
+    vision: (key === "cloudflare" && !!(env.AI && typeof env.AI.run === "function")) ||
+      (key === "openai" && (cleanText(env.SOCIAL_AI_MODEL_OPENAI, 120) || item.model) === "gpt-4.1-mini") ||
       (key === "gemini" && (cleanText(env.SOCIAL_AI_MODEL_GEMINI, 120) || item.model) === "gemini-2.5-flash")
   }));
 }
 function socialAIImageModelSupported(provider, model) {
-  return (provider === "openai" && model === "gpt-4.1-mini") || (provider === "gemini" && model === "gemini-2.5-flash");
+  return (provider === "openai" && model === "gpt-4.1-mini") || (provider === "gemini" && model === "gemini-2.5-flash") || (provider === "cloudflare" && model === "@cf/meta/llama-3.2-11b-vision-instruct");
 }
 function socialBytesToBase64(bytes) {
   let binary = "";
@@ -2884,7 +2885,12 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
   const userMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
   if(images.length&&!socialAIImageModelSupported(provider,model)) throw new Error("Image analysis requires a compatible vision model.");
   if (provider === "cloudflare") {
-    const result = await env.AI.run(model, { messages: [{ role: "system", content: system }, ...userMessages], max_tokens: 900 });
+    const cloudflareInput = { messages: [{ role: "system", content: system }, ...userMessages], max_tokens: 900 };
+    if (images.length) {
+      if (images.length !== 1) throw new Error("Cloudflare Vision currently accepts one image per message. Use OpenAI or Gemini for multiple images.");
+      cloudflareInput.image = `data:${images[0].mime};base64,${images[0].data}`;
+    }
+    const result = await env.AI.run(model, cloudflareInput);
     const answer = result?.response || result?.result?.response || "";
     if (typeof answer !== "string" || !answer.trim()) throw new Error("Cloudflare AI returned an empty reply.");
     return answer.trim();
@@ -2953,10 +2959,10 @@ async function socialAssistantChat(request, env) {
   let images=[];
   if(attachmentItems.length){try{images=await socialResolveAssistantImages(env,user.id,attachmentItems);}catch(e){return error(e.message||"Could not process image attachments.",400);}}
   const candidates = requestedProvider === "central"
-    ? order.filter(key => socialAIProviderReady(key, env) && (!images.length || ["openai","gemini"].includes(key)))
-    : (socialAIProviderReady(requestedProvider, env) && (!images.length || ["openai","gemini"].includes(requestedProvider)) ? [requestedProvider] : []);
+    ? order.filter(key => socialAIProviderReady(key, env) && (!images.length || ["openai","gemini"].includes(key) || (key === "cloudflare" && images.length === 1)))
+    : (socialAIProviderReady(requestedProvider, env) && (!images.length || ["openai","gemini"].includes(requestedProvider) || (requestedProvider === "cloudflare" && images.length === 1)) ? [requestedProvider] : []);
   if (!candidates.length) return error(images.length
-    ? "Image analysis needs a configured OpenAI GPT-4.1 mini or Gemini 2.5 Flash provider."
+    ? "Image analysis needs a configured vision model. Cloudflare Vision supports one image per message; OpenAI/Gemini support multiple images."
     : "This AI provider is not configured on the server.", 503);
   const conversationId = requestedProvider === "central" ? "central" : requestedProvider;
   const recent = await env.DB.prepare(
@@ -2967,7 +2973,9 @@ async function socialAssistantChat(request, env) {
   input.push({ role: "user", content: storedContent });
   let answer, provider, model, lastError;
   for (const candidate of candidates) {
-    const candidateModel = cleanText(body.model, 120) || cleanText(env["SOCIAL_AI_MODEL_" + candidate.toUpperCase()], 120) || SOCIAL_AI_PROVIDERS[candidate].model;
+    const candidateModel = images.length && candidate === "cloudflare"
+      ? "@cf/meta/llama-3.2-11b-vision-instruct"
+      : (cleanText(body.model, 120) || cleanText(env["SOCIAL_AI_MODEL_" + candidate.toUpperCase()], 120) || SOCIAL_AI_PROVIDERS[candidate].model);
     try {
       if(images.length&&!socialAIImageModelSupported(candidate,candidateModel)) throw new Error("The configured model does not support image analysis.");
       answer = await socialAIRequest(candidate, candidateModel, input, env, images);
