@@ -771,7 +771,7 @@ function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),3200)}
+function toast(message,duration=3200){const el=$("toast");el.textContent=String(message??"");el.title="Tap to copy";el.onclick=()=>{const value=el.textContent; if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>{el.textContent="Copied: "+value;}).catch(()=>{});}};el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),duration)}
 async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
@@ -1872,7 +1872,7 @@ async function socialStartDM(username){
   switchSocial("messages");
   await socialLoadConversations();
   await socialOpenConversation(d.conversationId);
- }catch(e){toast(e.message||"Could not start this chat.");}
+ }catch(e){toast(e.message||"Could not start this chat.",20000);}
 }
 async function socialSendChatMedia(file){
  const conversationId=socialActiveConversation;
