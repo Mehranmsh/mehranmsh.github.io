@@ -2888,7 +2888,7 @@ async function socialAssistantHistory(request, env) {
   const provider = cleanText(url.searchParams.get("provider") || "central", 32);
   const conversationId = provider === "central" ? "central" : provider;
   const result = await env.DB.prepare(
-    "SELECT id,role,content,created_at,provider_key FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC LIMIT 40"
+    "SELECT id,role,content,created_at,provider_key FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC, rowid DESC LIMIT 40"
   ).bind(user.id, conversationId).all();
   return json({ success: true, provider, messages: (result.results || []).reverse() });
 }
@@ -2911,7 +2911,7 @@ async function socialAssistantChat(request, env) {
   if (!candidates.length) return error("This AI provider is not configured on the server.", 503);
   const conversationId = requestedProvider === "central" ? "central" : requestedProvider;
   const recent = await env.DB.prepare(
-    "SELECT role,content FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC LIMIT 19"
+    "SELECT role,content FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC, rowid DESC LIMIT 19"
   ).bind(user.id, conversationId).all();
   const input = (recent.results || []).reverse().map(row => ({ role: row.role, content: row.content }));
   input.push({ role: "user", content });
