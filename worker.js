@@ -3257,7 +3257,7 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
 async function socialGenerateAssistantImage(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  if (!env.AI || typeof env.AI.run !== "function") return error("Cloudflare image generation is not available on this Worker.", 503);
+  if (!env.AI || typeof env.AI.run !== "function") return error("Free image generation is not available on this Worker.", 503);
   if (!await checkRateLimit(env, request, "social-ai-image-generation", 3, 600, 600)) {
     return error("Image generation limit reached. Please wait before trying again.", 429);
   }
@@ -3265,66 +3265,23 @@ async function socialGenerateAssistantImage(request, env) {
   if (!body) return error("Invalid request body");
   const prompt = cleanText(body.prompt, 1800);
   if (!prompt) return error("Write an image prompt first.");
-  const width = Number(body.width), height = Number(body.height);
-  const allowedSizes = new Set(["1024x1024", "1024x768", "768x1024", "1280x720"]);
-  const size = allowedSizes.has(width + "x" + height) ? { width, height } : { width: 1024, height: 1024 };
-  const model = "@cf/black-forest-labs/flux-2-klein-9b";
+  if (body.reference) return error("The free image model currently supports text-to-image only. Reference-photo editing is not available in free mode.", 400);
   try {
-    const referenceId = cleanText(body.reference, 150);
-    let referenceBlob = null;
-    if (referenceId) {
-      const row = await env.DB.prepare(
-        "SELECT id,name,size,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
-      ).bind(referenceId, user.id).first();
-      if (!row || row.status !== "ready" || row.acl !== "private") return error("Reference photo is unavailable or not private.", 400);
-      if (!["image/jpeg", "image/png", "image/webp"].includes(row.mime_type) || Number(row.size) > 3 * 1024 * 1024) {
-        return error("Reference photo must be a JPG, PNG or WEBP smaller than 3 MB.", 400);
-      }
-      const signed = await rapidfileRequest(env, `/files/${encodeURIComponent(referenceId)}/signed-url`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expiresIn: 300 })
-      });
-      if (!signed.url || !validHttpsUrl(signed.url)) return error("Could not securely access the reference photo.", 502);
-      const response = await fetch(signed.url);
-      if (!response.ok) return error("Could not read the reference photo.", 502);
-      referenceBlob = await response.blob();
-      if (!referenceBlob.size || referenceBlob.size > 3 * 1024 * 1024) return error("Reference photo is too large.", 413);
-    }
-    const runFlux = async (textPrompt, includeReference = true) => {
-      const form = new FormData();
-      form.append("prompt", textPrompt);
-      form.append("width", String(size.width));
-      form.append("height", String(size.height));
-      form.append("guidance", "4");
-      if (referenceBlob && includeReference) form.append("input_image_0", referenceBlob, "reference.jpg");
-      const formResponse = new Response(form);
-      return env.AI.run(model, {
-        multipart: { body: formResponse.body, contentType: formResponse.headers.get("content-type") }
-      });
-    };
-    let result;
-    try {
-      result = await runFlux(prompt);
-    } catch (firstError) {
-      const message = String(firstError?.message || firstError || "");
-      const needsAgreement = /5016/.test(message) && /terms|agree|you may now use the model/i.test(message);
-      if (!needsAgreement) throw firstError;
-      await runFlux("agree", false);
-      result = await runFlux(prompt);
-    }
-    let image = result?.image || result?.result?.image || result?.data?.image;
-    let mimeType = "image/png";
-    if (image instanceof ArrayBuffer) image = socialBytesToBase64(new Uint8Array(image));
-    else if (ArrayBuffer.isView(image)) image = socialBytesToBase64(new Uint8Array(image.buffer, image.byteOffset, image.byteLength));
+    // FLUX.1 schnell uses Cloudflare Workers AI's free daily neuron allocation.
+    // It accepts prompt + steps only; no paid fallback is configured.
+    const result = await env.AI.run("@cf/black-forest-labs/flux-1-schnell", {
+      prompt,
+      steps: 4
+    });
+    const image = result?.image;
     if (typeof image !== "string" || !image.length) {
-      console.error("Image generation returned an unexpected payload shape", Object.keys(result || {}));
-      return error("The image model returned an unsupported response. Please try again.", 502);
+      console.error("Free image model returned an unexpected payload shape", Object.keys(result || {}));
+      return error("The free image model returned an unsupported response. Please try again.", 502);
     }
-    if (image.startsWith("data:image/")) image = image.slice(image.indexOf(",") + 1);
-    return json({ success: true, model, image, mimeType });
+    return json({ success: true, model: "@cf/black-forest-labs/flux-1-schnell", image, mimeType: "image/jpeg" });
   } catch (e) {
-    console.error("SOCIAL_IMAGE_GENERATION_FAILED", e);
-    const message = String(e?.message || e || "Image generation failed").slice(0, 220);
+    console.error("SOCIAL_FREE_IMAGE_GENERATION_FAILED", e);
+    const message = String(e?.message || e || "Free image generation failed").slice(0, 220);
     return error(message, 502);
   }
 }
