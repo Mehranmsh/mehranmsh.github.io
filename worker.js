@@ -761,11 +761,11 @@ async function socialFirebaseSession(request, env) {
   const email = cleanEmail(identity.email);
   const requestedAccountType = body.accountType === "business" ? "business" : "human";
   let user = await env.DB.prepare(
-    "SELECT id,username,email,display_name,is_active,firebase_uid,account_type FROM social_users WHERE firebase_uid=? LIMIT 1"
+    "SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,email_verified,created_at,account_type,business_category,business_website,is_active,firebase_uid FROM social_users WHERE firebase_uid=? LIMIT 1"
   ).bind(identity.localId).first();
   if (!user) {
     user = await env.DB.prepare(
-      "SELECT id,username,email,display_name,is_active,firebase_uid,account_type FROM social_users WHERE email=? LIMIT 1"
+      "SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,email_verified,created_at,account_type,business_category,business_website,is_active,firebase_uid FROM social_users WHERE email=? LIMIT 1"
     ).bind(email).first();
     if (user && user.firebase_uid && user.firebase_uid !== identity.localId) {
       return error("This email is already linked to another sign-in identity. Contact support.", 409);
@@ -805,12 +805,16 @@ async function socialFirebaseSession(request, env) {
     token: session.token,
     expiresAt: session.expiresAt,
     user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
+      id: user.id, username: user.username, email: user.email,
       displayName: user.display_name || "",
       accountType: user.account_type === "business" ? "business" : "human",
-      emailVerified: true
+      businessCategory: user.business_category || "", businessWebsite: user.business_website || "",
+      bio: user.bio || "", avatarUrl: user.avatar_url || "",
+      piUsername: user.pi_username || "", piVerified: Boolean(user.pi_verified),
+      emailVerified: true,
+      isCreator: Boolean(user.pi_verified && String(user.pi_username || "").trim().toLowerCase() === "mehranmsh"),
+      creatorLabel: Boolean(user.pi_verified && String(user.pi_username || "").trim().toLowerCase() === "mehranmsh") ? "Creator" : "",
+      createdAt: user.created_at || ""
     }
   });
 }
@@ -834,7 +838,7 @@ async function socialLogin(request, env) {
   }
 
   const user = await env.DB.prepare(`
-    SELECT id,username,email,password_hash,display_name,email_verified,is_active
+    SELECT id,username,email,password_hash,display_name,bio,avatar_url,pi_username,pi_verified,email_verified,created_at,account_type,business_category,business_website,is_active
     FROM social_users
     WHERE email=? OR username=?
     LIMIT 1
@@ -855,11 +859,16 @@ async function socialLogin(request, env) {
     token: session.token,
     expiresAt: session.expiresAt,
     user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
+      id: user.id, username: user.username, email: user.email,
       displayName: user.display_name || "",
-      emailVerified: Boolean(user.email_verified)
+      accountType: user.account_type === "business" ? "business" : "human",
+      businessCategory: user.business_category || "", businessWebsite: user.business_website || "",
+      bio: user.bio || "", avatarUrl: user.avatar_url || "",
+      piUsername: user.pi_username || "", piVerified: Boolean(user.pi_verified),
+      emailVerified: Boolean(user.email_verified),
+      isCreator: Boolean(user.pi_verified && String(user.pi_username || "").trim().toLowerCase() === "mehranmsh"),
+      creatorLabel: Boolean(user.pi_verified && String(user.pi_username || "").trim().toLowerCase() === "mehranmsh") ? "Creator" : "",
+      createdAt: user.created_at || ""
     }
   });
 }
