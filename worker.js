@@ -645,6 +645,14 @@ async function createSocialTables(db) {
   await ensureColumn("social_conversation_members", "role", "TEXT NOT NULL DEFAULT 'member'");
   await ensureColumn("social_conversation_members", "joined_at", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_conversation_members", "last_read_at", "TEXT");
+  // Upgrade channel tables created by earlier SOCIAL versions.
+  await ensureColumn("social_channels", "description", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn("social_channels", "username", "TEXT");
+  await ensureColumn("social_channels", "is_private", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("social_channels", "invite_code", "TEXT");
+  await ensureColumn("social_channels", "created_at", "TEXT NOT NULL DEFAULT ''");
+  await ensureColumn("social_channel_members", "role", "TEXT NOT NULL DEFAULT 'subscriber'");
+  await ensureColumn("social_channel_members", "joined_at", "TEXT NOT NULL DEFAULT ''");
   // Bring legacy message tables up to the columns used by chat reads and edits.
   await ensureColumn("social_messages", "media_json", "TEXT NOT NULL DEFAULT '[]'");
   await ensureColumn("social_messages", "reply_to", "TEXT");
@@ -2913,27 +2921,30 @@ async function socialCreateGroup(request, env) {
   }
 
   const id = crypto.randomUUID();
-  // Create the group and all memberships in one D1 batch. D1 batches are
-  // transactional, so a failed membership insert cannot leave an orphan group.
-  const statements = [
-    env.DB.prepare(`
+  // Use individual D1 writes with compensating cleanup. This also works
+  // on older D1 bindings where batch execution can fail for legacy schemas.
+  try {
+    await env.DB.prepare(`
       INSERT INTO social_conversations(id,type,title,owner_id)
       VALUES(?,'group',?,?)
-    `).bind(id, title, user.id),
-    env.DB.prepare(`
+    `).bind(id, title, user.id).run();
+    await env.DB.prepare(`
       INSERT INTO social_conversation_members(conversation_id,user_id,role)
       VALUES(?,?,'owner')
-    `).bind(id, user.id)
-  ];
-  for (const target of targets) {
-    statements.push(env.DB.prepare(`
-      INSERT OR IGNORE INTO social_conversation_members(conversation_id,user_id,role)
-      VALUES(?,?,'member')
-    `).bind(id, target.id));
-  }
-  try {
-    await env.DB.batch(statements);
+    `).bind(id, user.id).run();
+    for (const target of targets) {
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO social_conversation_members(conversation_id,user_id,role)
+        VALUES(?,?,'member')
+      `).bind(id, target.id).run();
+    }
   } catch (err) {
+    try {
+      await env.DB.prepare("DELETE FROM social_conversation_members WHERE conversation_id=?").bind(id).run();
+      await env.DB.prepare("DELETE FROM social_conversations WHERE id=?").bind(id).run();
+    } catch (cleanupErr) {
+      console.error("SOCIAL group cleanup failed:", String(cleanupErr?.message || cleanupErr).slice(0, 300));
+    }
     console.error("SOCIAL group creation failed:", {
       name: err?.name || "Error",
       message: String(err?.message || err).slice(0, 500)
@@ -3007,21 +3018,24 @@ async function socialCreateChannel(request, env) {
     : null;
 
   try {
-    await env.DB.batch([
-      env.DB.prepare(`
-        INSERT INTO social_channels(
-          id,owner_id,title,description,username,is_private,invite_code
-        )
-        VALUES(?,?,?,?,?,?,?)
-      `).bind(id, user.id, title, description, username, isPrivate, inviteCode),
-
-      env.DB.prepare(`
-        INSERT INTO social_channel_members(channel_id,user_id,role)
-        VALUES(?,?,'owner')
-      `).bind(id, user.id)
-    ]);
+    await env.DB.prepare(`
+      INSERT INTO social_channels(
+        id,owner_id,title,description,username,is_private,invite_code
+      )
+      VALUES(?,?,?,?,?,?,?)
+    `).bind(id, user.id, title, description, username, isPrivate, inviteCode).run();
+    await env.DB.prepare(`
+      INSERT INTO social_channel_members(channel_id,user_id,role)
+      VALUES(?,?,'owner')
+    `).bind(id, user.id).run();
   } catch (err) {
     const detail = String(err?.message || err);
+    try {
+      await env.DB.prepare("DELETE FROM social_channel_members WHERE channel_id=?").bind(id).run();
+      await env.DB.prepare("DELETE FROM social_channels WHERE id=?").bind(id).run();
+    } catch (cleanupErr) {
+      console.error("SOCIAL channel cleanup failed:", String(cleanupErr?.message || cleanupErr).slice(0, 300));
+    }
     console.error("SOCIAL channel creation failed:", {
       name: err?.name || "Error",
       message: detail.slice(0, 500)
