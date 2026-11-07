@@ -3404,6 +3404,11 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
 }
 
 async function socialGenerateAssistantImage(request, env) {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const logStage = (stage, extra = {}) => console.info("SOCIAL_IMAGE_GENERATION", JSON.stringify({
+    requestId, stage, elapsedMs: Date.now() - startedAt, ...extra
+  }));
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
   if (!env.AI || typeof env.AI.run !== "function") return error("Free image generation is not available on this Worker.", 503);
@@ -3415,11 +3420,13 @@ async function socialGenerateAssistantImage(request, env) {
   const prompt = cleanText(body.prompt, 1800);
   if (!prompt) return error("Write an image prompt first.");
   const hasReference = !!body.reference;
+  let model = hasReference ? "@cf/black-forest-labs/flux-2-klein-4b" : "@cf/black-forest-labs/flux-1-schnell";
   try {
-    let result, model, mimeType;
+    let result, mimeType;
     if (hasReference) {
-      // Verify that the reference belongs to this user and is stored privately.
+      logStage("reference_resolution_started");
       const refs = await socialResolveAssistantImages(env, user.id, [body.reference]);
+      logStage("reference_resolution_finished", { found: refs.length });
       if (!refs.length) return error("Reference photo is unavailable.", 400);
       const reference = refs[0];
       const binary = atob(reference.data);
@@ -3431,30 +3438,67 @@ async function socialGenerateAssistantImage(request, env) {
       );
       form.append("input_image_0", new Blob([bytes], { type: reference.mime }), reference.name || "reference.jpg");
       const multipartRequest = new Request("https://social-image-generation.invalid/", { method: "POST", body: form });
-      model = "@cf/black-forest-labs/flux-2-klein-4b";
-      result = await env.AI.run(model, {
-        multipart: {
-          body: multipartRequest.body,
-          contentType: multipartRequest.headers.get("content-type")
-        }
-      });
+      logStage("model_started", { model, hasReference: true, referenceBytes: bytes.length });
+      const timeoutMs = 120000;
+      let timeoutId;
+      try {
+        result = await Promise.race([
+          env.AI.run(model, {
+            multipart: {
+              body: multipartRequest.body,
+              contentType: multipartRequest.headers.get("content-type")
+            }
+          }),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              const timeoutError = new Error("Image generation exceeded the 120-second time limit.");
+              timeoutError.code = "SOCIAL_IMAGE_GENERATION_TIMEOUT";
+              reject(timeoutError);
+            }, timeoutMs);
+          })
+        ]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+      logStage("model_finished", { model });
       mimeType = "image/png";
     } else {
-      // Prompt-only requests use FLUX.1 schnell. No paid model fallback is configured.
-      model = "@cf/black-forest-labs/flux-1-schnell";
-      result = await env.AI.run(model, { prompt, steps: 4 });
+      logStage("model_started", { model, hasReference: false });
+      const timeoutMs = 120000;
+      let timeoutId;
+      try {
+        result = await Promise.race([
+          env.AI.run(model, { prompt, steps: 4 }),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              const timeoutError = new Error("Image generation exceeded the 120-second time limit.");
+              timeoutError.code = "SOCIAL_IMAGE_GENERATION_TIMEOUT";
+              reject(timeoutError);
+            }, timeoutMs);
+          })
+        ]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+      logStage("model_finished", { model });
       mimeType = "image/jpeg";
     }
     const image = result?.image;
     if (typeof image !== "string" || !image.length) {
-      console.error("Cloudflare image model returned an unexpected payload shape", Object.keys(result || {}));
-      return error("The image model returned an unsupported response. Please try again.", 502);
+      console.error("SOCIAL_IMAGE_GENERATION_BAD_RESPONSE", JSON.stringify({ requestId, model, elapsedMs: Date.now() - startedAt, resultKeys: Object.keys(result || {}) }));
+      return json({ success: false, error: "The image model returned an unsupported response. Please try again.", code: "SOCIAL_IMAGE_GENERATION_BAD_RESPONSE", requestId }, 502);
     }
-    return json({ success: true, model, image, mimeType });
+    logStage("completed", { model, outputChars: image.length });
+    return json({ success: true, model, image, mimeType, requestId });
   } catch (e) {
-    console.error("SOCIAL_IMAGE_GENERATION_FAILED", e);
+    const elapsedMs = Date.now() - startedAt;
+    if (e?.code === "SOCIAL_IMAGE_GENERATION_TIMEOUT") {
+      console.error("SOCIAL_IMAGE_GENERATION_TIMEOUT", JSON.stringify({ requestId, model, elapsedMs }));
+      return json({ success: false, error: "Image generation took longer than 120 seconds and was stopped waiting for a response. Please try again later.", code: "SOCIAL_IMAGE_GENERATION_TIMEOUT", requestId }, 504);
+    }
+    console.error("SOCIAL_IMAGE_GENERATION_FAILED", JSON.stringify({ requestId, model, elapsedMs, message: String(e?.message || e || "Image generation failed").slice(0, 220) }));
     const message = String(e?.message || e || "Image generation failed").slice(0, 220);
-    return error(message, 502);
+    return json({ success: false, error: message, code: "SOCIAL_IMAGE_GENERATION_FAILED", requestId }, 502);
   }
 }
 async function socialAssistantStatus(request, env) {
