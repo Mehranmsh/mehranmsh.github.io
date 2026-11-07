@@ -1643,7 +1643,40 @@ async function socialChooseStoryReaction(author){
   modal.addEventListener("click",handler);modal.style.display="flex";
  });
 }
-async function socialOpenStory(id){const s=socialStoriesCache.find(x=>String(x.id)===String(id));if(!s)return;try{await socialRequest("/stories/"+encodeURIComponent(id)+"/view",{method:"POST"});window.open(s.mediaUrl,"_blank","noopener");const reaction=await socialChooseStoryReaction(s.author?.username||"Story");if(reaction)await socialRequest("/stories/"+encodeURIComponent(id)+"/react",{method:"POST",body:JSON.stringify({reaction})});const reply=prompt("Reply to @"+(s.author?.username||"creator")+"'s story (optional):");if(reply){const c=await socialRequest("/conversations",{method:"POST",body:JSON.stringify({username:s.author.username})});await socialRequest("/conversations/"+encodeURIComponent(c.conversationId)+"/messages",{method:"POST",body:JSON.stringify({content:"Story reply: "+reply})});toast("Story reply sent");}}catch(e){toast(e.message)}}
+async function socialOpenStory(id){
+ const stories=socialStoriesCache||[];
+ let index=stories.findIndex(x=>String(x.id)===String(id));
+ if(index<0)return;
+ let modal=document.getElementById("socialStoryViewer");
+ if(!modal){
+  modal=document.createElement("div");modal.id="socialStoryViewer";
+  modal.style.cssText="position:fixed;inset:0;z-index:100001;background:#050912f5;display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box";
+  modal.innerHTML='<div id="socialStoryShell" style="position:relative;width:min(100%,440px);height:min(86dvh,780px);background:#101a2a;border:1px solid #29415f;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 80px #000b"><div id="socialStoryProgress" style="height:3px;background:#ffffff30"></div><header style="display:flex;align-items:center;gap:10px;padding:12px 14px;color:white"><div id="socialStoryAvatar" class="avatar">S</div><div style="flex:1;min-width:0"><strong id="socialStoryAuthor"></strong><div id="socialStoryTime" class="small-text"></div></div><button type="button" data-story-action="close" class="btn secondary small" aria-label="Close story">×</button></header><div id="socialStoryMedia" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#03060c;overflow:hidden"></div><div id="socialStoryCaption" style="padding:10px 14px;color:#edf5ff;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere"></div><div style="display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid #ffffff20"><button type="button" data-story-action="react" class="btn secondary small">☺ React</button><input id="socialStoryReplyInput" placeholder="Reply to story..." style="min-width:0;flex:1;background:#080f1b;border:1px solid #344760;border-radius:20px;padding:10px 12px;color:white"><button type="button" data-story-action="reply" class="btn small">Send</button></div><div style="display:flex;justify-content:space-between;padding:0 12px 10px"><button type="button" data-story-action="prev" class="btn secondary small">‹ Previous</button><button type="button" data-story-action="next" class="btn secondary small">Next ›</button></div></div>';
+  document.body.appendChild(modal);
+  modal.addEventListener("click",async e=>{
+   if(e.target===modal||e.target.closest('[data-story-action="close"]')){modal.remove();document.body.style.overflow="";return;}
+   const action=e.target.closest("[data-story-action]")?.dataset.storyAction;
+   const current=(socialStoriesCache||[])[index];if(!current)return;
+   if(action==="prev"||action==="next"){const list=socialStoriesCache||[];index=(index+(action==="next"?1:-1)+list.length)%list.length;await renderStory();return;}
+   if(action==="react"){try{const reaction=await socialChooseStoryReaction(current.author?.username||"Story");if(reaction){await socialRequest("/stories/"+encodeURIComponent(current.id)+"/react",{method:"POST",body:JSON.stringify({reaction})});toast("Reaction sent");}}catch(err){toast(err.message)}return;}
+   if(action==="reply"){const input=document.getElementById("socialStoryReplyInput");const message=input?.value.trim();if(!message)return;try{const c=await socialRequest("/conversations",{method:"POST",body:JSON.stringify({username:current.author.username})});await socialRequest("/conversations/"+encodeURIComponent(c.conversationId)+"/messages",{method:"POST",body:JSON.stringify({content:"Story reply: "+message})});input.value="";toast("Reply sent");}catch(err){toast(err.message)}}
+  });
+  modal.addEventListener("keydown",e=>{if(e.key==="Escape"){modal.remove();document.body.style.overflow="";}if(e.key==="ArrowRight")modal.querySelector('[data-story-action="next"]')?.click();if(e.key==="ArrowLeft")modal.querySelector('[data-story-action="prev"]')?.click();});
+ }
+ async function renderStory(){
+  const story=(socialStoriesCache||[])[index];if(!story)return;
+  const media=document.getElementById("socialStoryMedia");
+  document.getElementById("socialStoryAuthor").textContent=story.author?.displayName||("@"+(story.author?.username||"Member"));
+  document.getElementById("socialStoryTime").textContent="SOCIAL story · 24 hours";
+  document.getElementById("socialStoryAvatar").textContent=(story.author?.username||"S").slice(0,1).toUpperCase();
+  document.getElementById("socialStoryCaption").textContent=story.caption||"";
+  document.getElementById("socialStoryProgress").style.background="linear-gradient(90deg,#32d9ff "+Math.round((index+1)/Math.max(1,(socialStoriesCache||[]).length)*100)+"%,#ffffff30 0)";
+  media.innerHTML=story.mediaType==="video"?'<video src="'+sx(story.mediaUrl)+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+sx(story.mediaUrl)+'" alt="Story" style="width:100%;height:100%;object-fit:contain">';
+  try{await socialRequest("/stories/"+encodeURIComponent(story.id)+"/view",{method:"POST"});}catch(err){console.warn("Story view could not be recorded",err);}
+  document.body.style.overflow="hidden";
+ }
+ await renderStory();
+}
 
 async function socialGroupInvite(id){try{const d=await socialRequest("/groups/"+encodeURIComponent(id)+"/invite",{method:"POST"});toast("Invite code: "+d.inviteCode); }catch(e){toast(e.message)}}
 function socialOpenContacts(){if(!requireAuth("Start a conversation"))return;const modal=$("contactsModal");if(!modal)return;modal.classList.remove("hidden");$("contactsResults").textContent="Enter at least 2 characters to find members.";$("contactsSearchInput").value="";$("contactsSearchInput").focus();}
