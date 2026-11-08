@@ -3362,6 +3362,38 @@ async function socialTransferChannelOwnership(request, env, channelId) {
   }
 }
 
+async function socialListChannelMembers(request, env, channelId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const membership = await env.DB.prepare(
+    "SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?"
+  ).bind(channelId, user.id).first();
+  if (!membership) return error("Channel not found", 404);
+
+  const result = await env.DB.prepare(`
+    SELECT m.user_id,m.role,m.joined_at,u.username,u.display_name,u.avatar_url
+    FROM social_channel_members m
+    JOIN social_users u ON u.id=m.user_id
+    WHERE m.channel_id=?
+    ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+      m.joined_at ASC
+    LIMIT 500
+  `).bind(channelId).all();
+
+  return json({
+    success: true,
+    members: (result.results || []).map(row => ({
+      userId: row.user_id,
+      username: row.username,
+      displayName: row.display_name,
+      avatarUrl: row.avatar_url,
+      role: row.role,
+      joinedAt: row.joined_at
+    }))
+  });
+}
+
 async function socialManageChannelMember(request, env, channelId, targetUserId, action) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4980,6 +5012,13 @@ export default {
             env,
             decodeURIComponent(transferChannelMatch[1])
           );
+        }
+
+        const channelMembersMatch = path.match(
+          /^\/social\/channels\/([^/]+)\/members$/
+        );
+        if (channelMembersMatch && method === "GET") {
+          return await socialListChannelMembers(request, env, decodeURIComponent(channelMembersMatch[1]));
         }
 
         const channelMemberMatch = path.match(
