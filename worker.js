@@ -2183,13 +2183,19 @@ async function socialPrivacy(request, env) {
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
 
+  for (const key of ["isPrivate", "showOnlineStatus", "showActivityStatus"]) {
+    if (body[key] !== undefined && typeof body[key] !== "boolean") {
+      return error(`\u001b[0m${key} must be a boolean`, 400);
+    }
+  }
+
   const current = await env.DB.prepare(
     "SELECT * FROM social_user_settings WHERE user_id=?"
   ).bind(user.id).first();
 
   const isPrivate = body.isPrivate === undefined
     ? Number(current?.is_private || 0)
-    : (body.isPrivate ? 1 : 0);
+    : (body.isPrivate === true ? 1 : 0);
 
   const allowMessages = ["everyone", "followers", "none"].includes(body.allowMessages)
     ? body.allowMessages
@@ -2201,11 +2207,11 @@ async function socialPrivacy(request, env) {
 
   const online = body.showOnlineStatus === undefined
     ? Number(current?.show_online_status ?? 1)
-    : (body.showOnlineStatus ? 1 : 0);
+    : (body.showOnlineStatus === true ? 1 : 0);
 
   const activity = body.showActivityStatus === undefined
     ? Number(current?.show_activity_status ?? 1)
-    : (body.showActivityStatus ? 1 : 0);
+    : (body.showActivityStatus === true ? 1 : 0);
 
   const language = ["en", "fa"].includes(body.language)
     ? body.language
