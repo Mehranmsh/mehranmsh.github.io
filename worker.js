@@ -1762,7 +1762,6 @@ async function socialLikePost(request, env, postId, shouldLike) {
   ).bind(postId).first();
 
   if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
-  if (!(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   if (shouldLike) {
     await env.DB.prepare(`
@@ -1795,7 +1794,8 @@ async function socialBookmark(request, env, postId, save) {
     "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
 
-  if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
+  if (!post) return error("Post not found", 404);
+  if (save && !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   if (save) {
     await env.DB.prepare(`
@@ -1824,7 +1824,9 @@ async function socialListBookmarks(request, env) {
 
   const posts = [];
   for (const row of result.results || []) {
-    posts.push(await formatPost(row, user.id, env));
+    if (await canViewSocialPost(env, user.id, row)) {
+      posts.push(await formatPost(row, user.id, env));
+    }
   }
 
   return json({ success: true, posts, total: posts.length });
