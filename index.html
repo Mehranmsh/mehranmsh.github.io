@@ -2359,7 +2359,7 @@ async function verifySocialSessionForImageStudio(){
  }
 }
 async function socialGenerateImage(){
- const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn"),status=$("imageStudioStatus");
+ const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn");let status=$("imageStudioStatus");
  if(!socialUser?.id||!socialSessionVerified){
   status.textContent="Verifying your SOCIAL sign-in...";
   const verification=await verifySocialSessionForImageStudio();
@@ -2376,6 +2376,7 @@ async function socialGenerateImage(){
    return;
   }
  }
+ status=$("imageStudioStatus")||status;
  if(!prompt){toast("Write a description for your image first.");return;}
  if(prompt.length>1800)return;
  button.disabled=true;button.textContent="Generating...";
