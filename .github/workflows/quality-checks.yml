@@ -9,6 +9,7 @@ on:
       - "music-studio.html"
       - "worker.js"
       - "scripts/**"
+      - "engine/**"
       - ".github/workflows/quality-checks.yml"
   pull_request:
     paths:
@@ -45,3 +46,6 @@ jobs:
 
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
+
+      - name: Run local Music Studio control-plane tests
+        run: python -m unittest discover -s engine -p 'test_*.py' -v
