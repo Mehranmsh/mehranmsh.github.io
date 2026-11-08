@@ -562,6 +562,19 @@ test("SOCIAL repeated like requests do not create duplicate notifications", () =
   assert.match(handler, /SOCIAL_LIKE_NOTIFICATION_FAILURE/);
 });
 
+test("SOCIAL read cursor advances only to the newest message actually delivered in the response", () => {
+  const start = workerSource.indexOf("async function socialConversationMessages");
+  const end = workerSource.indexOf("\\nasync function socialSendMessage", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.ok(handler.includes("const newestDelivered = (result.results || [])[0]"));
+  assert.ok(handler.includes("SET last_read_at=?,"));
+  assert.ok(handler.includes("last_read_message_rowid=?"));
+  assert.ok(handler.includes("Number(newestDelivered.message_rowid)"));
+  assert.ok(handler.includes("if (newestDelivered?.message_rowid != null)"));
+  assert.doesNotMatch(handler, /SELECT MAX\\(read_cursor\\.rowid\\).*UPDATE/s);
+});
+
 test("SOCIAL read receipts use message sequence cursors to avoid same-second false Seen states", () => {
   assert.ok(workerSource.includes("cm.last_read_at,cm.last_read_message_rowid"));
   assert.ok(workerSource.includes("m.rowid AS message_rowid"));
