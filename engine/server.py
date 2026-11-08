@@ -162,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
             if not name or len(name) > 100 or not kind or len(kind) > 40:
                 return self.send_json(400, {"error": "invalid_project_fields"})
             bpm = payload.get("bpm", current["bpm"])
-            if bpm is not None and (not isinstance(bpm, int) or not 20 <= bpm <= 300):
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 20 <= bpm <= 300):
                 return self.send_json(400, {"error": "invalid_bpm"})
             values = {
                 "language": str(payload.get("language", current["language"]))[:40],
