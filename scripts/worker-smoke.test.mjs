@@ -233,3 +233,20 @@ test("direct message sending stops when either participant blocks the other", ()
   assert.match(send, /isDirectConversationBlocked\(env, conversationId, user\.id\)/);
   assert.match(send, /Messaging is unavailable for this conversation/);
 });
+
+
+test("group invite creation is restricted to actual group conversations", () => {
+  const start = workerSource.indexOf("async function socialGroupInvite");
+  const end = workerSource.indexOf("\nasync function ", start + 20);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /SELECT type FROM social_conversations WHERE id=\?/);
+  assert.match(handler, /conversation\?\.type !== "group"/);
+});
+
+test("channel pins can only reference posts belonging to that channel", () => {
+  const start = workerSource.indexOf("async function socialPinChannelPost");
+  const end = workerSource.indexOf("\nasync function ", start + 20);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /SELECT id FROM social_channel_posts WHERE id=\? AND channel_id=\?/);
+  assert.match(handler, /Channel post not found/);
+});
