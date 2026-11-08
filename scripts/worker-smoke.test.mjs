@@ -134,3 +134,25 @@ test("social feed excludes private-account public posts and blocked relationship
   assert.equal((feed.match(/SELECT blocker_id FROM social_blocks WHERE blocked_id=\?/g) || []).length, 2);
   assert.match(feed, /\.bind\(user\.id, user\.id, user\.id, user\.id, user\.id, user\.id, limit\)/);
 });
+
+
+test("SOCIAL post interactions enforce the same visibility policy", () => {
+  assert.match(workerSource, /async function canViewSocialPost\(env, viewerId, post\)/);
+  const helperStart = workerSource.indexOf("async function canViewSocialPost");
+  const helperEnd = workerSource.indexOf("\n}\n", helperStart) + 3;
+  const helper = workerSource.slice(helperStart, helperEnd);
+  assert.match(helper, /await isBlocked\(env, viewerId, post\.user_id\)/);
+  assert.match(helper, /settings\?\.is_private && !follows/);
+  assert.match(helper, /post\.visibility === "followers" && !follows/);
+  for (const name of ["socialLikePost", "socialBookmark", "socialViewPost", "socialListComments", "socialCreateComment"]) {
+    const start = workerSource.indexOf("async function " + name);
+    const end = workerSource.indexOf("\nasync function ", start + 20);
+    assert.ok(start >= 0 && end > start, name + " must exist");
+    assert.match(workerSource.slice(start, end), /canViewSocialPost/);
+  }
+  const searchStart = workerSource.indexOf("async function socialSearch");
+  const searchEnd = workerSource.indexOf("\nasync function ", searchStart + 20);
+  const search = workerSource.slice(searchStart, searchEnd);
+  assert.match(search, /privacy\.is_private=1/);
+  assert.equal((search.match(/SELECT blocker_id FROM social_blocks WHERE blocked_id=\?/g) || []).length, 2);
+});
