@@ -1125,10 +1125,11 @@ const author=p.author||{},stats=p.stats||{};
 return {id:String(p.id),text:p.content??p.text??"",author:author.username||p.username||"Member",displayName:author.displayName||author.display_name||author.username||"Member",avatarUrl:author.avatarUrl||author.avatar_url||p.avatarUrl||"",date:p.createdAt?new Date(p.createdAt).toLocaleString():(p.date||""),media:(p.media||[]).map(m=>({type:(m.type||"").startsWith("video")?"video":"image",data:m.url||m.data||"",name:m.name||""})),likesCount:Number(stats.likes??p.likesCount??(Array.isArray(p.likes)?p.likes.length:0)),liked:!!stats.liked,commentsCount:Number(stats.comments??p.commentsCount??(Array.isArray(p.comments)?p.comments.length:0)),comments:Array.isArray(p.comments)?p.comments:[],server:true};
 }
 let socialNotifications=[];
+let socialNotificationUnreadCount=0;
 function updateNotificationBadge(){
 const badge=$("notificationBadge");
 if(!badge)return;
-const unread=socialNotifications.filter(item=>!item.isRead).length;
+const unread=Number.isFinite(socialNotificationUnreadCount)?socialNotificationUnreadCount:socialNotifications.filter(item=>!item.isRead).length;
 badge.textContent=unread>99?"99+":String(unread);
 badge.style.display=unread?"inline-block":"none";
 }
@@ -1154,6 +1155,7 @@ $("notificationStatus").textContent="Sign in to view your notifications.";
 $("notificationsList").innerHTML='<div class="empty">Please sign in or create a SOCIAL account to view notifications.</div>';
 $("markAllNotificationsRead").disabled=true;
 socialNotifications=[];
+socialNotificationUnreadCount=0;
 updateNotificationBadge();
 return;
 }
@@ -1162,6 +1164,7 @@ $("notificationsList").innerHTML='<div class="empty">Loading notifications...</d
 try{
 const data=await socialRequest("/notifications?limit=100");
 socialNotifications=Array.isArray(data.notifications)?data.notifications:[];
+socialNotificationUnreadCount=Number.isFinite(Number(data.unreadCount))?Math.max(0,Number(data.unreadCount)):socialNotifications.filter(item=>!item.isRead).length;
 $("notificationStatus").textContent=socialNotifications.length+" notifications";
 renderNotifications();
 updateNotificationBadge();
@@ -1174,7 +1177,7 @@ async function markNotificationRead(id){
 try{
 await socialRequest("/notifications/"+encodeURIComponent(id)+"/read",{method:"POST"});
 const item=socialNotifications.find(entry=>String(entry.id)===String(id));
-if(item)item.isRead=true;
+if(item&&!item.isRead){item.isRead=true;socialNotificationUnreadCount=Math.max(0,socialNotificationUnreadCount-1);}
 renderNotifications();
 updateNotificationBadge();
 }catch(error){toast("Could not update notification: "+error.message)}
@@ -1184,6 +1187,7 @@ if(!socialUser)return;
 try{
 await socialRequest("/notifications/read-all",{method:"POST"});
 socialNotifications=socialNotifications.map(item=>({...item,isRead:true}));
+socialNotificationUnreadCount=0;
 renderNotifications();
 updateNotificationBadge();
 toast("All notifications marked as read");
@@ -2057,7 +2061,8 @@ function socialRenderConversationRows(){
   const avatar=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
   const preview=c.lastMessage|| (c.type==="group"?"Group conversation":"No messages yet");
   const stamp=c.lastMessageAt?new Date(c.lastMessageAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";
-  return '<button type="button" class="chat-conversation-row" data-conversation="'+sx(c.id)+'"><div class="chat-row-avatar">'+avatar+'</div><div class="chat-row-content"><div class="chat-row-top"><strong>'+sx(title)+'</strong><span class="chat-row-time">'+sx(stamp)+'</span></div><div class="chat-row-preview">'+sx(preview)+'</div></div></button>';
+  const unread=Number(c.unreadCount||0);
+  return '<button type="button" class="chat-conversation-row" data-conversation="'+sx(c.id)+'"><div class="chat-row-avatar">'+avatar+'</div><div class="chat-row-content"><div class="chat-row-top"><strong>'+sx(title)+'</strong><span class="chat-row-time">'+sx(stamp)+(unread?'<span class="chat-unread-count" aria-label="'+unread+' unread messages">'+(unread>99?'99+':unread)+'</span>':'')+'</span></div><div class="chat-row-preview">'+sx(preview)+'</div></div></button>';
  }).join("")||'<div class="empty" style="padding:28px 14px;text-align:center;color:#91a3b4">'+(query?"No matching chats.":"No conversations yet. Start a new chat.")+'</div>';
 }
 async function socialLoadConversations(){
@@ -2079,7 +2084,7 @@ async function socialLoadConversations(){
   socialConversations=Array.isArray(d.conversations)?d.conversations:[];
   socialRenderConversationRows();
   const groups=socialConversations.filter(c=>c.type==="group");
-  if(groupsBox)groupsBox.innerHTML=groups.map(c=>{const title=c.title||"Group";const stamp=c.lastMessageAt?new Date(c.lastMessageAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";return '<button type="button" class="chat-conversation-row" data-conversation="'+sx(c.id)+'"><div class="chat-row-avatar">'+sx(title.trim()[0].toUpperCase())+'</div><div class="chat-row-content"><div class="chat-row-top"><strong>'+sx(title)+'</strong><span class="chat-row-time">'+sx(stamp)+'</span></div><div class="chat-row-preview">'+sx(c.lastMessage||((c.members?.length||0)+' members · Group conversation'))+'</div></div></button>';}).join("")||'<div class="empty">No groups yet. Create a group or join with an invite code.</div>';
+  if(groupsBox)groupsBox.innerHTML=groups.map(c=>{const title=c.title||"Group";const stamp=c.lastMessageAt?new Date(c.lastMessageAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";const unread=Number(c.unreadCount||0);return '<button type="button" class="chat-conversation-row" data-conversation="'+sx(c.id)+'"><div class="chat-row-avatar">'+sx(title.trim()[0].toUpperCase())+'</div><div class="chat-row-content"><div class="chat-row-top"><strong>'+sx(title)+'</strong><span class="chat-row-time">'+sx(stamp)+(unread?'<span class="chat-unread-count" aria-label="'+unread+' unread messages">'+(unread>99?'99+':unread)+'</span>':'')+'</span></div><div class="chat-row-preview">'+sx(c.lastMessage||((c.members?.length||0)+' members · Group conversation'))+'</div></div></button>';}).join("")||'<div class="empty">No groups yet. Create a group or join with an invite code.</div>';
  }catch(e){
   if(list)list.textContent="Could not load conversations: "+e.message;
   if(groupsBox)groupsBox.textContent="Could not load groups: "+e.message;
