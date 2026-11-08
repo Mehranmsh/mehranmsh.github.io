@@ -9,6 +9,7 @@ TLS/reverse-proxy and firewall.
 from __future__ import annotations
 
 import json
+import ipaddress
 from contextlib import contextmanager
 import os
 import secrets
@@ -252,11 +253,23 @@ class Handler(BaseHTTPRequestHandler):
                                                 "status": "draft", "created_at": now}})
 
 
+def validate_server_config(host, port):
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise SystemExit("MEHRAN_STUDIO_HOST must be an IPv4 loopback address such as 127.0.0.1.") from exc
+    if address.version != 4 or not address.is_loopback:
+        raise SystemExit("MEHRAN Studio may only bind to an IPv4 loopback address. Public/network binds are blocked.")
+    if not isinstance(port, int) or not 1 <= port <= 65535:
+        raise SystemExit("MEHRAN_STUDIO_PORT must be an integer from 1 to 65535.")
+
+
 def main():
     if not TOKEN:
         raise SystemExit("Set MEHRAN_STUDIO_TOKEN to a long random secret before starting.")
     if len(TOKEN) < 32:
         raise SystemExit("MEHRAN_STUDIO_TOKEN must contain at least 32 characters.")
+    validate_server_config(HOST, PORT)
     connection = database()
     connection.close()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
