@@ -2995,6 +2995,78 @@ async function socialDeleteMessage(request, env, messageId) {
   return json({ success: true, deleted: true });
 }
 
+async function socialLeaveGroup(request, env, conversationId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const conversation = await env.DB.prepare(
+    "SELECT type,owner_id FROM social_conversations WHERE id=?"
+  ).bind(conversationId).first();
+  if (!conversation || conversation.type !== "group") return error("Group not found", 404);
+  if (conversation.owner_id === user.id) {
+    return error("The group owner must transfer ownership before leaving", 409);
+  }
+
+  const result = await env.DB.prepare(
+    "DELETE FROM social_conversation_members WHERE conversation_id=? AND user_id=?"
+  ).bind(conversationId, user.id).run();
+  if (!Number(result.meta?.changes || 0)) return error("You are not a group member", 404);
+
+  await env.DB.prepare(
+    "DELETE FROM social_group_invites WHERE conversation_id=? AND created_by=?"
+  ).bind(conversationId, user.id).run();
+
+  return json({ success: true, left: true });
+}
+
+async function socialManageGroupMember(request, env, conversationId, targetUserId, action) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const conversation = await env.DB.prepare(
+    "SELECT type FROM social_conversations WHERE id=?"
+  ).bind(conversationId).first();
+  if (!conversation || conversation.type !== "group") return error("Group not found", 404);
+  if (targetUserId === user.id) return error("Use the leave-group action to remove yourself", 400);
+
+  if (action === "remove") {
+    const result = await env.DB.prepare(`
+      DELETE FROM social_conversation_members
+      WHERE conversation_id=? AND user_id=? AND role!='owner'
+        AND EXISTS (
+          SELECT 1 FROM social_conversation_members actor
+          WHERE actor.conversation_id=? AND actor.user_id=?
+            AND (actor.role='owner' OR (actor.role='admin' AND social_conversation_members.role='member'))
+        )
+    `).bind(conversationId, targetUserId, conversationId, user.id).run();
+    if (!Number(result.meta?.changes || 0)) return error("Member not found or insufficient permissions", 403);
+    await env.DB.prepare(
+      "DELETE FROM social_group_invites WHERE conversation_id=? AND created_by=?"
+    ).bind(conversationId, targetUserId).run();
+    return json({ success: true, removed: true });
+  }
+
+  if (action === "role") {
+    const body = await readBody(request);
+    const nextRole = body?.role;
+    if (!["admin", "member"].includes(nextRole)) return error("Invalid group role");
+    const result = await env.DB.prepare(`
+      UPDATE social_conversation_members
+      SET role=?
+      WHERE conversation_id=? AND user_id=? AND role!='owner'
+        AND EXISTS (
+          SELECT 1 FROM social_conversation_members actor
+          WHERE actor.conversation_id=? AND actor.user_id=?
+            AND (actor.role='owner' OR (actor.role='admin' AND ?='member' AND social_conversation_members.role='member'))
+        )
+    `).bind(nextRole, conversationId, targetUserId, conversationId, user.id, nextRole).run();
+    if (!Number(result.meta?.changes || 0)) return error("Member not found or insufficient permissions", 403);
+    return json({ success: true, role: nextRole });
+  }
+
+  return error("Unsupported group member action", 400);
+}
+
 async function socialCreateGroup(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4687,6 +4759,19 @@ export default {
             env,
             decodeURIComponent(joinGroupMatch[1])
           );
+        }
+
+        const groupLeaveMatch = path.match(/^\/social\/groups\/([^/]+)\/leave$/);
+        if (groupLeaveMatch && method === "POST") {
+          return await socialLeaveGroup(request, env, decodeURIComponent(groupLeaveMatch[1]));
+        }
+
+        const groupMemberMatch = path.match(/^\/social\/groups\/([^/]+)\/members\/([^/]+)$/);
+        if (groupMemberMatch && method === "DELETE") {
+          return await socialManageGroupMember(request, env, decodeURIComponent(groupMemberMatch[1]), decodeURIComponent(groupMemberMatch[2]), "remove");
+        }
+        if (groupMemberMatch && method === "PATCH") {
+          return await socialManageGroupMember(request, env, decodeURIComponent(groupMemberMatch[1]), decodeURIComponent(groupMemberMatch[2]), "role");
         }
 
         if (path === "/social/groups" && method === "POST") {
