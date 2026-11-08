@@ -270,6 +270,6 @@ test("group leave and member management enforce owner and admin hierarchy", () =
 });
 
 test("group member management routes expose only leave, remove, and role updates", () => {
-  assert.match(workerSource, /groupLeaveMatch = path\\.match/);
-  assert.match(workerSource, /groupMemberMatch = path\\.match/);
+  assert.ok(workerSource.includes("groupLeaveMatch = path.match"));
+  assert.ok(workerSource.includes("groupMemberMatch = path.match"));
 });
