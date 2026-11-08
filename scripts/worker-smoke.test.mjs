@@ -226,7 +226,7 @@ test("conversation list exposes per-member unread counts without counting own or
   const handler = workerSource.slice(start, end);
   assert.match(handler, /unread\.sender_id<>\?/);
   assert.match(handler, /unread\.deleted_at IS NULL/);
-  assert.match(handler, /unread\\.rowid>COALESCE\\(cm\\.last_read_message_rowid/);
+  assert.ok(handler.includes("unread.rowid>COALESCE(cm.last_read_message_rowid"));
   assert.match(handler, /unreadCount: Math\.max\(0, Number\(row\.unread_count \|\| 0\)\)/);
   assert.match(handler, /\.bind\(user\.id, user\.id\)\.all\(\)/);
 });
@@ -456,7 +456,7 @@ test("chat read cursors always advance while read-receipt visibility respects ea
   const end = workerSource.indexOf("\nasync function socialSendMessage", start);
   assert.ok(start >= 0 && end > start, "conversation messages handler must exist");
   const handler = workerSource.slice(start, end);
-  assert.match(handler, /UPDATE social_conversation_members\s+SET last_read_at=CURRENT_TIMESTAMP\s+WHERE conversation_id=\? AND user_id=\?/);
+  assert.ok(handler.includes("SET last_read_at=CURRENT_TIMESTAMP,") && handler.includes("last_read_message_rowid="));
   assert.doesNotMatch(handler, /if \(viewerPrefs\.chat\?\.readReceipts/);
   const listStart = workerSource.indexOf("async function socialListConversations");
   const listEnd = workerSource.indexOf("\nasync function ", listStart + 30);
