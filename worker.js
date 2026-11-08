@@ -1900,7 +1900,6 @@ async function socialCreateComment(request, env, postId) {
   ).bind(postId).first();
 
   if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
-  if (!(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   const ownerSettings = await env.DB.prepare(
     "SELECT allow_comments FROM social_user_settings WHERE user_id=?"
