@@ -7,7 +7,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).with_name("server.py")
+PREFLIGHT_PATH = Path(__file__).with_name("preflight.py")\npreflight_spec = importlib.util.spec_from_file_location("mehran_studio_preflight", PREFLIGHT_PATH)\npreflight = importlib.util.module_from_spec(preflight_spec)\npreflight_spec.loader.exec_module(preflight)\n\nMODULE_PATH = Path(__file__).with_name("server.py")
 spec = importlib.util.spec_from_file_location("mehran_studio_server", MODULE_PATH)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -97,7 +97,7 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertIn("within_limit", state)
         self.assertGreaterEqual(state["free_bytes"], 0)
 
-    def test_request_size_cap_is_defined(self):
+    def test_preflight_is_offline_and_reports_resources(self):\n        report = preflight.inspect()\n        self.assertFalse(report["network_accessed"])\n        self.assertFalse(report["models_downloaded"])\n        self.assertFalse(report["paid_services_used"])\n        self.assertIn("cpu_cores", report["system"])\n        self.assertIn("free_bytes", report["storage"])\n\n    def test_request_size_cap_is_defined(self):
         self.assertEqual(module.MAX_BODY, 64 * 1024)
 
 
