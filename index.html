@@ -1146,8 +1146,8 @@ return;
 list.innerHTML=socialNotifications.map(item=>{
 const actor=item.actor?.displayName||item.actor?.username||"Someone";
 const message=item.message||({like:"liked your post",comment:"commented on your post",follow:"started following you",follow_request:"requested to follow you",story_reaction:"reacted to your story"}[item.type]||"interacted with you");
-const date=item.createdAt?new Date(item.createdAt).toLocaleString():"";
-return '<article class="social-card" style="display:flex;align-items:flex-start;gap:12px;'+(item.isRead?'opacity:.72':'border-color:#286080')+'"><div class="avatar">'+escapeHTML(actor.charAt(0).toUpperCase())+'</div><div style="flex:1;min-width:0"><div class="post-text"><strong>'+escapeHTML(actor)+'</strong> '+escapeHTML(message)+'</div><small class="muted">'+escapeHTML(date)+'</small></div>'+(item.isRead?'<span class="small-text">Read</span>':'<button class="btn secondary small" onclick="markNotificationRead(\''+escapeHTML(item.id)+'\')">Mark read</button>')+'</article>';
+const date=item.createdAt?new Date(item.createdAt).toLocaleString():"";const identityLabel=socialAccountTypeLabel(item.actor?.accountType);
+return '<article class="social-card" style="display:flex;align-items:flex-start;gap:12px;'+(item.isRead?'opacity:.72':'border-color:#286080')+'"><div class="avatar">'+escapeHTML(actor.charAt(0).toUpperCase())+'</div><div style="flex:1;min-width:0"><div class="post-text"><strong>'+escapeHTML(actor)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700;margin-left:7px">'+identityLabel+'</small>':'')+' '+escapeHTML(message)+'</div><small class="muted">'+escapeHTML(date)+'</small></div>'+(item.isRead?'<span class="small-text">Read</span>':'<button class="btn secondary small" onclick="markNotificationRead(\''+escapeHTML(item.id)+'\')">Mark read</button>')+'</article>';
 }).join("");
 }
 let socialNotificationListBusy=false;
@@ -1939,7 +1939,7 @@ async function socialUploadPrivateChatFile(file){
  if(completed.file?.status!=="ready")throw new Error("Private attachment could not be verified.");
  return {uploadId:id,name:file.name,type:file.type||"application/octet-stream"};
 }
-async function socialLoadStories(){const row=$("storiesRow");if(!row)return;const ownStory='<div class="story"><button class="story-ring" id="addStoryBtn" aria-label="Add your story"><div class="avatar">+</div></button><span>Your story</span></div>';if(!socialUser){row.innerHTML=ownStory;return}try{const d=await socialRequest("/stories");socialStoriesCache=d.stories||[];row.innerHTML=ownStory+socialStoriesCache.map(s=>'<div class="story"><button class="story-ring" data-story="'+sx(s.id)+'"><div class="avatar">'+sx((s.author?.username||"M")[0].toUpperCase())+'</div></button><span>'+sx(s.author?.username||"Member")+'</span></div>').join("");}catch(e){row.innerHTML=ownStory;console.warn(e)}}
+async function socialLoadStories(){const row=$("storiesRow");if(!row)return;const ownStory='<div class="story"><button class="story-ring" id="addStoryBtn" aria-label="Add your story"><div class="avatar">+</div></button><span>Your story</span></div>';if(!socialUser){row.innerHTML=ownStory;return}try{const d=await socialRequest("/stories");socialStoriesCache=d.stories||[];row.innerHTML=ownStory+socialStoriesCache.map(s=>'<div class="story"><button class="story-ring" data-story="'+sx(s.id)+'"><div class="avatar">'+sx((s.author?.username||"M")[0].toUpperCase())+'</div></button><span>'+sx(s.author?.username||"Member")+'</span>'+(socialAccountTypeLabel(s.author?.accountType)?'<small style="color:#78dfff;font-size:9px">'+socialAccountTypeLabel(s.author?.accountType)+'</small>':'')+'</div>').join("");}catch(e){row.innerHTML=ownStory;console.warn(e)}}
 async function socialCreateStory(){
  const picker=document.createElement("input");picker.type="file";picker.accept="image/*,video/*";
  picker.onchange=async()=>{
