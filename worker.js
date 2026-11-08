@@ -3362,6 +3362,70 @@ async function socialTransferChannelOwnership(request, env, channelId) {
   }
 }
 
+async function socialManageChannelMember(request, env, channelId, targetUserId, action) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  if (!targetUserId || targetUserId === user.id) return error("You cannot manage your own channel role", 400);
+
+  const channel = await env.DB.prepare(
+    "SELECT owner_id FROM social_channels WHERE id=?"
+  ).bind(channelId).first();
+  if (!channel) return error("Channel not found", 404);
+  if (channel.owner_id !== user.id) return error("Only the channel owner can manage administrators", 403);
+
+  const target = await env.DB.prepare(
+    "SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?"
+  ).bind(channelId, targetUserId).first();
+  if (!target || target.role === "owner") return error("Channel member not found", 404);
+
+  if (action === "role") {
+    const body = await readBody(request);
+    const role = body?.role;
+    if (!["admin", "subscriber"].includes(role)) return error("Invalid channel role", 400);
+    const result = await env.DB.prepare(`
+      UPDATE social_channel_members SET role=?
+      WHERE channel_id=? AND user_id=? AND role!='owner'
+        AND EXISTS (SELECT 1 FROM social_channels WHERE id=? AND owner_id=?)
+    `).bind(role, channelId, targetUserId, channelId, user.id).run();
+    if (!Number(result.meta?.changes || 0)) return error("Channel member role was not changed", 409);
+    return json({ success: true, role });
+  }
+
+  if (action === "remove") {
+    const result = await env.DB.prepare(`
+      DELETE FROM social_channel_members
+      WHERE channel_id=? AND user_id=? AND role!='owner'
+        AND EXISTS (SELECT 1 FROM social_channels WHERE id=? AND owner_id=?)
+    `).bind(channelId, targetUserId, channelId, user.id).run();
+    if (!Number(result.meta?.changes || 0)) return error("Channel member was not removed", 409);
+    return json({ success: true, removed: true });
+  }
+
+  return error("Unsupported channel member action", 400);
+}
+
+async function socialRotateChannelInvite(request, env, channelId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const code = toBase64Url(crypto.getRandomValues(new Uint8Array(24)));
+  const result = await env.DB.prepare(`
+    UPDATE social_channels SET invite_code=?
+    WHERE id=? AND owner_id=? AND is_private=1
+  `).bind(code, channelId, user.id).run();
+
+  if (!Number(result.meta?.changes || 0)) {
+    const channel = await env.DB.prepare(
+      "SELECT owner_id,is_private FROM social_channels WHERE id=?"
+    ).bind(channelId).first();
+    if (!channel) return error("Channel not found", 404);
+    if (channel.owner_id !== user.id) return error("Only the channel owner can rotate invitations", 403);
+    return error("Invite rotation is available only for private channels", 400);
+  }
+
+  return json({ success: true, inviteCode: code, previousInvitesRevoked: true });
+}
+
 async function socialLeaveChannel(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4916,6 +4980,23 @@ export default {
             env,
             decodeURIComponent(transferChannelMatch[1])
           );
+        }
+
+        const channelMemberMatch = path.match(
+          /^\/social\/channels\/([^/]+)\/members\/([^/]+)\/(role|remove)$/
+        );
+        if (channelMemberMatch && channelMemberMatch[3] === "role" && method === "PATCH") {
+          return await socialManageChannelMember(request, env, decodeURIComponent(channelMemberMatch[1]), decodeURIComponent(channelMemberMatch[2]), "role");
+        }
+        if (channelMemberMatch && channelMemberMatch[3] === "remove" && method === "DELETE") {
+          return await socialManageChannelMember(request, env, decodeURIComponent(channelMemberMatch[1]), decodeURIComponent(channelMemberMatch[2]), "remove");
+        }
+
+        const rotateChannelInviteMatch = path.match(
+          /^\/social\/channels\/([^/]+)\/invite\/rotate$/
+        );
+        if (rotateChannelInviteMatch && method === "POST") {
+          return await socialRotateChannelInvite(request, env, decodeURIComponent(rotateChannelInviteMatch[1]));
         }
 
         const leaveChannelMatch = path.match(
