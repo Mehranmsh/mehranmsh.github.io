@@ -769,3 +769,20 @@ test("MEHRAN MUSIC STUDIO supports new projects without overwriting the previous
   assert.match(musicStudioSource, /if\(nav\.dataset\.view==="create"\)newProject\(\)/);
   assert.match(musicStudioSource, /if\(go\.dataset\.go==="create"\)newProject\(\)/);
 });
+
+test("SOCIAL AI account identity is preserved and can only be assigned by the Pi admin", () => {
+  assert.match(workerSource, /function normalizeAccountType\(value\)/);
+  assert.match(workerSource, /\["human", "business", "ai"\]\.includes\(value\) \? value : "human"/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(user\.account_type\)/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(profile\.account_type\)/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(row\.account_type\)/);
+  const start = workerSource.indexOf("const adminUserAccountTypeMatch");
+  const end = workerSource.indexOf("const adminUserStatusMatch", start);
+  assert.ok(start >= 0 && end > start, "admin account type route must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /\["human", "business", "ai"\]\.includes\(body\.accountType\)/);
+  assert.match(route, /primary administrator identity must remain a human account/);
+  assert.match(route, /writeAdminAudit\(env, admin, "account_type_changed"/);
+  assert.match(workerSource, /const requestedAccountType = body\.accountType === "business" \? "business" : "human"/);
+});
