@@ -828,3 +828,18 @@ test("SOCIAL admin UI can manage Human, Business and AI identity types", () => {
   assert.match(indexSource, /\/account-type/);
   assert.match(indexSource, /Human · protected/);
 });
+
+test("SOCIAL marks AI and Business identities in feed, stories, notifications and chat data", () => {
+  assert.match(workerSource, /accountType: normalizeAccountType\(author\?\.account_type\)/);
+  assert.match(workerSource, /u\.username,u\.display_name,u\.avatar_url,u\.account_type\s+FROM social_messages/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(row\.account_type\)\s+\},\s+isMine/);
+  assert.match(workerSource, /u\.username,u\.display_name,u\.avatar_url,u\.account_type\s+FROM social_notifications/);
+  assert.match(workerSource, /u\.username,u\.display_name,u\.avatar_url,u\.account_type,\s+EXISTS/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(member\.account_type\)/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(row\.account_type\)/);
+  assert.match(indexSource, /function socialAccountTypeLabel/);
+  assert.match(indexSource, /socialAccountTypeLabel\(post\.accountType\)/);
+  assert.match(indexSource, /socialAccountTypeLabel\(m\.author\?\.accountType\)/);
+  assert.match(indexSource, /socialAccountTypeLabel\(s\.author\?\.accountType\)/);
+  assert.match(indexSource, /socialAccountTypeLabel\(item\.actor\?\.accountType\)/);
+});
