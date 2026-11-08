@@ -2941,7 +2941,12 @@ async function socialEditMessage(request, env, messageId) {
     UPDATE social_messages
     SET content=?,edited_at=CURRENT_TIMESTAMP
     WHERE id=? AND sender_id=? AND deleted_at IS NULL
-  `).bind(content, messageId, user.id).run();
+      AND EXISTS (
+        SELECT 1 FROM social_conversation_members cm
+        WHERE cm.conversation_id=social_messages.conversation_id
+          AND cm.user_id=?
+      )
+  `).bind(content, messageId, user.id, user.id).run();
 
   if (!result.meta || result.meta.changes === 0) {
     return error("Message not found or not editable", 404);
@@ -2958,7 +2963,12 @@ async function socialDeleteMessage(request, env, messageId) {
     UPDATE social_messages
     SET content='',media_json='[]',deleted_at=CURRENT_TIMESTAMP
     WHERE id=? AND sender_id=? AND deleted_at IS NULL
-  `).bind(messageId, user.id).run();
+      AND EXISTS (
+        SELECT 1 FROM social_conversation_members cm
+        WHERE cm.conversation_id=social_messages.conversation_id
+          AND cm.user_id=?
+      )
+  `).bind(messageId, user.id, user.id).run();
 
   if (!result.meta || result.meta.changes === 0) {
     return error("Message not found or not deletable", 404);
