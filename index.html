@@ -1886,7 +1886,7 @@ updateAuthMode();
 </script>
 
 <script>
-let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false;
+let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false,socialConversationRefreshBusy=false,socialChatRefreshTick=0;
 const sx=v=>escapeHTML(String(v??""));
 async function socialUploadFile(file){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type,visibility:"public"})});
@@ -2136,9 +2136,32 @@ async function socialRefreshChatMessages(){
   if(socialActiveConversation===id)console.warn("Chat refresh failed:",e.message);
  }finally{socialChatRefreshBusy=false;}
 }
+async function socialRefreshConversationList(){
+ if(!socialUser||socialConversationRefreshBusy||document.hidden)return;
+ socialConversationRefreshBusy=true;
+ try{
+  const d=await socialRequest("/conversations");
+  if(!Array.isArray(d.conversations))return;
+  socialConversations=d.conversations;
+  socialRenderConversationRows();
+  const active=socialConversations.find(c=>String(c.id)===String(socialActiveConversation));
+  if(active){
+   const other=(active.members||[]).find(m=>m.username!==currentUsername());
+   const status=$("chatThreadStatus");
+   if(status)status.textContent=active.type==="group"?"Group conversation":(other?.lastSeenAt?socialPresenceLabel(other.lastSeenAt):"SOCIAL chat");
+   if(active.type==="group")socialRenderGroupManagement(active);
+  }
+ }catch(error){console.warn("Conversation list refresh failed:",error.message);}
+ finally{socialConversationRefreshBusy=false;}
+}
 function socialStartChatRefresh(){
  if(socialChatRefreshTimer)clearInterval(socialChatRefreshTimer);
- socialChatRefreshTimer=setInterval(()=>socialRefreshChatMessages(),5000);
+ socialChatRefreshTick=0;
+ socialChatRefreshTimer=setInterval(()=>{
+  socialRefreshChatMessages();
+  socialChatRefreshTick++;
+  if(socialChatRefreshTick%3===0)socialRefreshConversationList();
+ },5000);
 }
 
 function socialRenderGroupManagement(conversation){
