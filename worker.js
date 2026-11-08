@@ -2772,9 +2772,21 @@ async function socialListConversations(request, env) {
       FROM social_conversations c
       JOIN social_conversation_members cm ON cm.conversation_id=c.id
       WHERE cm.user_id=?
+        AND NOT (
+          c.type IN ('direct','private')
+          AND EXISTS (
+            SELECT 1
+            FROM social_conversation_members other_member
+            JOIN social_blocks block_edge
+              ON (block_edge.blocker_id=? AND block_edge.blocked_id=other_member.user_id)
+              OR (block_edge.blocker_id=other_member.user_id AND block_edge.blocked_id=?)
+            WHERE other_member.conversation_id=c.id
+              AND other_member.user_id<>?
+          )
+        )
       ORDER BY COALESCE(last_message_at,c.updated_at) DESC
       LIMIT 100
-    `).bind(user.id, user.id).all();
+    `).bind(user.id, user.id, user.id, user.id).all();
 
     const conversations = [];
     for (const row of result.results || []) {
@@ -2857,6 +2869,9 @@ async function socialConversationMessages(request, env, conversationId) {
   if (!user) return error("Authentication required", 401);
   const member = await isConversationMember(env, conversationId, user.id);
   if (!member) return error("Conversation not found", 404);
+  if (await isDirectConversationBlocked(env, conversationId, user.id)) {
+    return error("Conversation not found", 404);
+  }
   const url = new URL(request.url);
   const limit = safeLimit(url.searchParams.get("limit"), 50, 100);
   const result = await env.DB.prepare(`
