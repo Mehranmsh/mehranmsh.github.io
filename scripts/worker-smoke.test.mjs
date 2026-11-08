@@ -121,3 +121,16 @@ test("Workers AI requests have a fail-closed daily reservation ceiling", () => {
   assert.match(workerSource, /WHERE social_ai_daily_budget\.reserved_neurons\+excluded\.reserved_neurons<=\?/);
   assert.match(workerSource, /if \(!budget\.allowed\) throw new Error\("Daily free Workers AI budget is reserved for today\."/);
 });
+
+
+test("social feed excludes private-account public posts and blocked relationships", () => {
+  const start = workerSource.indexOf("async function socialFeed");
+  const end = workerSource.indexOf("async function socialUserPosts", start);
+  assert.ok(start >= 0 && end > start, "socialFeed implementation must exist");
+  const feed = workerSource.slice(start, end);
+  assert.match(feed, /NOT EXISTS\s*\(\s*SELECT 1 FROM social_user_settings privacy\s*WHERE privacy\.user_id=p\.user_id AND privacy\.is_private=1/);
+  assert.match(feed, /p\.visibility='followers'[\s\S]*?social_follows WHERE follower_id=\?/);
+  assert.equal((feed.match(/SELECT blocked_id FROM social_blocks WHERE blocker_id=\?/g) || []).length, 2);
+  assert.equal((feed.match(/SELECT blocker_id FROM social_blocks WHERE blocked_id=\?/g) || []).length, 2);
+  assert.match(feed, /\.bind\(user\.id, user\.id, user\.id, user\.id, user\.id, user\.id, limit\)/);
+});
