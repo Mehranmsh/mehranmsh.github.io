@@ -9,6 +9,7 @@ TLS/reverse-proxy and firewall.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 import os
 import secrets
 import shutil
@@ -47,6 +48,15 @@ def database():
     )""")
     connection.commit()
     return connection
+
+
+@contextmanager
+def db_session():
+    connection = database()
+    try:
+        yield connection
+    finally:
+        connection.close()
 
 
 def engine_status():
@@ -105,7 +115,7 @@ class Handler(BaseHTTPRequestHandler):
                 "external_api_calls": False, "paid_fallback": False
             })
         if path == "/v1/projects":
-            with database() as db:
+            with db_session() as db:
                 rows = db.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()
             return self.send_json(200, {"projects": [dict(row) for row in rows]})
         if path.startswith("/v1/projects/"):
@@ -242,8 +252,8 @@ def main():
         raise SystemExit("Set MEHRAN_STUDIO_TOKEN to a long random secret before starting.")
     if len(TOKEN) < 32:
         raise SystemExit("MEHRAN_STUDIO_TOKEN must contain at least 32 characters.")
-    with database():
-        pass
+    connection = database()
+    connection.close()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"MEHRAN Music Studio control plane listening on http://{HOST}:{PORT}")
     print("Local-only by default. No external API, billing, or paid fallback is configured.")
