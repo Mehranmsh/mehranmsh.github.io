@@ -250,3 +250,26 @@ test("channel pins can only reference posts belonging to that channel", () => {
   assert.match(handler, /SELECT id FROM social_channel_posts WHERE id=\? AND channel_id=\?/);
   assert.match(handler, /Channel post not found/);
 });
+
+
+test("group leave and member management enforce owner and admin hierarchy", () => {
+  const leaveStart = workerSource.indexOf("async function socialLeaveGroup");
+  const leaveEnd = workerSource.indexOf("\nasync function ", leaveStart + 20);
+  const leave = workerSource.slice(leaveStart, leaveEnd);
+  assert.match(leave, /conversation\.owner_id === user\.id/);
+  assert.match(leave, /transfer ownership before leaving/);
+  assert.match(leave, /DELETE FROM social_conversation_members WHERE conversation_id=\? AND user_id=\?/);
+
+  const manageStart = workerSource.indexOf("async function socialManageGroupMember");
+  const manageEnd = workerSource.indexOf("\nasync function ", manageStart + 20);
+  const manage = workerSource.slice(manageStart, manageEnd);
+  assert.match(manage, /role!='owner'/);
+  assert.match(manage, /actor\.role='owner' OR \(actor\.role='admin' AND social_conversation_members\.role='member'\)/);
+  assert.match(manage, /\["admin", "member"\]/);
+  assert.match(manage, /Use the leave-group action to remove yourself/);
+});
+
+test("group member management routes expose only leave, remove, and role updates", () => {
+  assert.match(workerSource, /\/social\/groups\/\(\[\^\/\]\+\)\/leave/);
+  assert.match(workerSource, /\/social\/groups\/\(\[\^\/\]\+\)\/members\/\(\[\^\/\]\+\)/);
+});
