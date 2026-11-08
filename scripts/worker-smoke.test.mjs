@@ -528,3 +528,18 @@ test("SOCIAL direct messages, group messages, and channel posts notify other mem
   assert.match(channel, /SOCIAL_CHANNEL_NOTIFICATION_FAILURE/);
   assert.match(channel, /new post in a channel you follow/);
 });
+
+test("SOCIAL group creation sends preference-aware invitation notifications after membership succeeds", () => {
+  const start = workerSource.indexOf("async function socialCreateGroup");
+  const end = workerSource.indexOf("\\nasync function socialGroupInvite", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /for \(const target of targets\)/);
+  assert.match(handler, /await notify\(env, target\.id, user\.id, "group_invite", id, "added you to a group"\)/);
+  assert.match(handler, /SOCIAL_GROUP_INVITATION_NOTIFICATION_FAILURE/);
+  const notifyStart = workerSource.indexOf("async function notify");
+  const notifyEnd = workerSource.indexOf("\\nasync function ", notifyStart + 30);
+  const notifyHandler = workerSource.slice(notifyStart, notifyEnd);
+  assert.match(notifyHandler, /prefs\.community\?\.groupInvites === false/);
+  assert.match(notifyHandler, /prefs\.notifications\[key\] === false/);
+});
