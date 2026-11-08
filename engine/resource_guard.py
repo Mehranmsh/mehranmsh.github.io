@@ -42,7 +42,8 @@ class ResourceGuard:
         self.db_path = Path(db_path)
         if not self.db_path.parent.exists() or not self.db_path.parent.is_dir():
             raise ValueError("Reservation database parent directory must already exist.")
-        with self._connect() as db:
+        db = self._connect()
+        try:
             db.execute("""
                 CREATE TABLE IF NOT EXISTS job_reservations (
                     reservation_id TEXT PRIMARY KEY,
@@ -56,6 +57,8 @@ class ResourceGuard:
                 CREATE INDEX IF NOT EXISTS idx_job_reservations_status
                 ON job_reservations(status)
             """)
+        finally:
+            db.close()
 
     def _connect(self):
         db = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
