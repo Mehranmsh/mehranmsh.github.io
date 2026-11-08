@@ -511,6 +511,23 @@ test("SOCIAL notifications remain recipient-scoped and respect notification pref
 });
 
 
+test("SOCIAL blocked direct conversations are hidden from lists and message history", () => {
+  const messageStart = workerSource.indexOf("async function socialConversationMessages");
+  const messageEnd = workerSource.indexOf("async function socialSendMessage", messageStart + 30);
+  assert.ok(messageStart >= 0 && messageEnd > messageStart);
+  const messages = workerSource.slice(messageStart, messageEnd);
+  assert.ok(messages.includes("isDirectConversationBlocked(env, conversationId, user.id)"));
+  assert.ok(messages.includes('return error("Conversation not found", 404)'));
+
+  const listStart = workerSource.indexOf("async function socialListConversations");
+  const listEnd = workerSource.indexOf("async function ", listStart + 30);
+  const list = workerSource.slice(listStart, listEnd);
+  assert.ok(list.includes("c.type IN ('direct','private')"));
+  assert.ok(list.includes("JOIN social_blocks block_edge"));
+  assert.ok(list.includes("block_edge.blocker_id=? AND block_edge.blocked_id=other_member.user_id"));
+  assert.ok(list.includes("block_edge.blocker_id=other_member.user_id AND block_edge.blocked_id=?"));
+});
+
 test("SOCIAL direct messages, group messages, and channel posts notify other members without failing the content write", () => {
   const sendStart = workerSource.indexOf("async function socialSendMessage");
   const sendEnd = workerSource.indexOf("async function socialEditMessage", sendStart);
