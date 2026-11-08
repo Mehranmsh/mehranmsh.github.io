@@ -191,6 +191,12 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(invalid_bpm["error"], "invalid_bpm")
 
+    def test_project_creation_rejects_boolean_bpm(self):
+        status, payload = self.request("/v1/projects", method="POST",
+                                       payload={"name": "Bad BPM", "bpm": True})
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "invalid_bpm")
+
     def test_engine_is_honestly_unavailable_without_local_runtime(self):
         state = module.engine_status()
         self.assertFalse(state["ready"])
