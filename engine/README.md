@@ -34,7 +34,7 @@ python engine/server.py
 
 متغیرهای اختیاری:
 - `MEHRAN_STUDIO_HOME`: مسیر داده‌ها؛ پیش‌فرض `~/.mehran-music-studio`
-- `MEHRAN_STUDIO_HOST`: پیش‌فرض `127.0.0.1`، آن را عمومی نکنید
+- `MEHRAN_STUDIO_HOST`: پیش‌فرض `127.0.0.1`؛ فقط IP حلقه‌بسته IPv4 پذیرفته می‌شود و آدرس شبکه‌ای/عمومی حتی با تنظیم دستی هم رد خواهد شد
 - `MEHRAN_STUDIO_PORT`: پیش‌فرض `8765`
 - `MEHRAN_STUDIO_MAX_PROJECTS`: پیش‌فرض 500
 - `MEHRAN_STUDIO_MIN_FREE_BYTES`: حداقل فضای آزاد، پیش‌فرض 2 GiB
