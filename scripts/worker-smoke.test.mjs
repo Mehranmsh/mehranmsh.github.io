@@ -867,3 +867,9 @@ test("SOCIAL AI accounts cannot inflate likes, follows or view/reaction counts",
     assert.ok(adminRoute.includes("DELETE FROM " + table), "AI conversion must clean " + table);
   }
 });
+
+test("SOCIAL public profile visibly labels verified AI and Business account types", () => {
+  assert.match(workerSource, /accountType: normalizeAccountType\(profile\.account_type\)/);
+  assert.match(indexSource, /socialAccountTypeLabel\(p\.accountType\)/);
+  assert.match(indexSource, /profile-name-line/);
+});
