@@ -582,3 +582,22 @@ test("SOCIAL repeated follow and private follow-request calls do not duplicate n
   assert.ok(handler.includes("SOCIAL_FOLLOW_REQUEST_NOTIFICATION_FAILURE"));
   assert.ok(handler.includes("SOCIAL_FOLLOW_NOTIFICATION_FAILURE"));
 });
+
+test("SOCIAL new conversation members receive a read cursor at their join boundary", () => {
+  const dmStart = workerSource.indexOf("async function socialStartDM");
+  const dmEnd = workerSource.indexOf("async function ", dmStart + 30);
+  const dm = workerSource.slice(dmStart, dmEnd);
+  assert.ok(dm.includes("last_read_message_rowid)"));
+  assert.ok(dm.includes("VALUES(?,?,'member',0)"));
+  const groupStart = workerSource.indexOf("async function socialCreateGroup");
+  const groupEnd = workerSource.indexOf("async function socialGroupInvite", groupStart);
+  const group = workerSource.slice(groupStart, groupEnd);
+  assert.ok(group.includes("VALUES(?,?,'owner',0)"));
+  assert.ok(group.includes("VALUES(?,?,'member',0)"));
+  const joinStart = workerSource.indexOf("async function socialJoinGroup");
+  const joinEnd = workerSource.indexOf("async function ", joinStart + 30);
+  const join = workerSource.slice(joinStart, joinEnd);
+  assert.ok(join.includes("last_read_at,last_read_message_rowid"));
+  assert.ok(join.includes("SELECT MAX(rowid) FROM social_messages WHERE conversation_id=?"));
+  assert.ok(join.includes("COALESCE("));
+});
