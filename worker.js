@@ -717,6 +717,10 @@ function cleanEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeAccountType(value) {
+  return ["human", "business", "ai"].includes(value) ? value : "human";
+}
+
 function validUsername(value) {
   return /^[a-z0-9_]{3,24}$/.test(value);
 }
@@ -929,7 +933,7 @@ async function socialFirebaseSession(request, env) {
     user: {
       id: user.id, username: user.username, email: user.email,
       displayName: user.display_name || "",
-      accountType: user.account_type === "business" ? "business" : "human",
+      accountType: normalizeAccountType(user.account_type),
       businessCategory: user.business_category || "", businessWebsite: user.business_website || "",
       bio: user.bio || "", avatarUrl: user.avatar_url || "",
       piUsername: user.pi_username || "", piVerified: Boolean(user.pi_verified),
@@ -983,7 +987,7 @@ async function socialLogin(request, env) {
     user: {
       id: user.id, username: user.username, email: user.email,
       displayName: user.display_name || "",
-      accountType: user.account_type === "business" ? "business" : "human",
+      accountType: normalizeAccountType(user.account_type),
       businessCategory: user.business_category || "", businessWebsite: user.business_website || "",
       bio: user.bio || "", avatarUrl: user.avatar_url || "",
       piUsername: user.pi_username || "", piVerified: Boolean(user.pi_verified),
@@ -1279,7 +1283,7 @@ async function getProfileByUsername(username, viewerId, env) {
     id: profile.id,
     username: profile.username,
     displayName: profile.display_name || "",
-    accountType: profile.account_type === "business" ? "business" : "human",
+    accountType: normalizeAccountType(profile.account_type),
     businessCategory: profile.business_category || "",
     businessWebsite: profile.business_website || "",
     bio: profile.bio || "",
@@ -1449,7 +1453,7 @@ async function socialSearch(request, env) {
       username: row.username,
       displayName: row.display_name || "",
       avatarUrl: row.avatar_url || "",
-      accountType: row.account_type === "business" ? "business" : "human",
+      accountType: normalizeAccountType(row.account_type),
       piVerified: Boolean(row.pi_verified)
     }));
   }
@@ -5563,6 +5567,40 @@ export default {
           })),
           total: Number(count?.total || 0),
           limit
+        });
+      }
+
+      const adminUserAccountTypeMatch = path.match(new RegExp("^/admin/users/([^/]+)/account-type$"));
+      if (adminUserAccountTypeMatch && method === "PUT") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "admin-user-account-type", 10, 3600, 900)) {
+          return error("Too many account type changes. Try again later.", 429);
+        }
+
+        const body = await readBody(request);
+        if (!body || !["human", "business", "ai"].includes(body.accountType)) {
+          return error("Account type must be human, business or ai.");
+        }
+        const id = decodeURIComponent(adminUserAccountTypeMatch[1]);
+        if (!id || id.length > 100) return error("Invalid user ID");
+
+        const target = await env.DB.prepare(
+          "SELECT id,username,account_type FROM social_users WHERE id=? LIMIT 1"
+        ).bind(id).first();
+        if (!target) return error("User not found", 404);
+        if (String(target.username).trim().toLowerCase() === "mehranmsh" && body.accountType !== "human") {
+          return error("The primary administrator identity must remain a human account.", 403);
+        }
+
+        await env.DB.prepare(
+          "UPDATE social_users SET account_type=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+        ).bind(body.accountType, id).run();
+        await writeAdminAudit(env, admin, "account_type_changed", "user", id, "Account type changed to " + body.accountType);
+
+        return json({
+          success: true,
+          user: { id: target.id, username: target.username, accountType: body.accountType }
         });
       }
 
