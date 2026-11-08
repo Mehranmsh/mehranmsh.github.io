@@ -668,7 +668,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 
 <div class="panel" id="imageStudioPanel" style="margin-top:18px">
 <div class="section-title" style="margin-top:0"><div><h3>✦ Image Studio</h3><span class="small-text">Free AI image generation and photo editing</span></div><span class="badge-soon">FLUX MODELS</span></div>
-<p class="small-text">Create from text with FLUX.1 SCHNELL, or upload a reference photo and add a prompt to edit and recreate the scene with FLUX.2 KLEIN 4B. Your reference photo is uploaded privately and processed by Cloudflare Workers AI. No external paid model or paid fallback is used. Both modes share Cloudflare's daily free AI allocation. On a Workers Paid account, usage above the free daily allowance can be billed; use Workers Free to avoid overage charges.</p>
+<p class="small-text">Create from text with FLUX.1 SCHNELL, or upload a reference photo and add a prompt to edit and recreate the scene with FLUX.2 KLEIN 9B. Your reference photo is uploaded privately and processed by Cloudflare Workers AI. No external paid model or paid fallback is used. Both modes share Cloudflare's daily free AI allocation. On a Workers Paid account, usage above the free daily allowance can be billed; use Workers Free to avoid overage charges.</p>
 <div class="field"><label for="imageStudioReferenceInput">Reference photo (optional)</label><input id="imageStudioReferenceInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="socialChooseImageReference(event)"><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn secondary small" type="button" onclick="$('imageStudioReferenceInput').click()">Choose a photo</button><button class="btn secondary small" type="button" onclick="socialClearImageReference()">Remove photo</button><span id="imageStudioReferencePreview" class="small-text">No reference photo selected.</span></div><p class="small-text">Use a clear photo. It is resized privately to fit the model's input limit. The model will try to preserve the person's recognizable facial identity, but exact identity matching cannot be guaranteed.</p></div>
 <div class="field"><label for="imageStudioPrompt">Describe the image you want</label><textarea id="imageStudioPrompt" maxlength="1800" placeholder="Example: Keep my face recognizable. Put me in a sky-blue shirt and white trousers, standing in a modern city at golden hour, natural realistic photography."></textarea></div>
 <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn" id="imageStudioGenerateBtn" type="button" onclick="socialGenerateImage()">Generate image</button></div><div id="imageStudioStatus" class="small-text" role="status" aria-live="polite" style="display:block;min-height:18px;margin-top:9px;white-space:pre-line"></div><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="btn secondary small" type="button" onclick="socialToggleImageDebug()">Debug details</button><button class="btn secondary small" type="button" onclick="socialCopyImageDebug()">Copy debug</button></div><pre id="imageStudioDebug" class="small-text hidden" dir="ltr" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:10px"></pre>
@@ -3212,39 +3212,51 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 #social-prompt-creator .prompt-category-section[hidden]{display:none!important}
 @media(max-width:600px){#social-prompt-creator .prompt-gallery-toolbar{flex-wrap:nowrap;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}#social-prompt-creator .prompt-gallery-toolbar::-webkit-scrollbar{display:none}#social-prompt-creator .prompt-category-chip{flex:0 0 auto}}
 </style>
+<style id="prompt-gallery-folder-styles">
+#social-prompt-creator .prompt-folder-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin:16px 0}
+#social-prompt-creator .prompt-folder{display:flex;align-items:center;gap:13px;min-height:84px;padding:14px;text-align:left;border:1px solid rgba(105,190,225,.2);border-radius:15px;background:linear-gradient(145deg,#142a43,#0b1728);color:var(--text);cursor:pointer}
+#social-prompt-creator .prompt-folder:hover{border-color:#35c9ef;background:#193752}
+#social-prompt-creator .prompt-folder-icon{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:12px;background:#1b4560;color:#8ceaff;font-size:22px}
+#social-prompt-creator .prompt-folder-copy{display:flex;flex-direction:column;gap:5px}
+#social-prompt-creator .prompt-folder-copy strong{font-size:13px}
+#social-prompt-creator .prompt-folder-copy small{font-size:10px;color:var(--muted)}
+#social-prompt-creator .prompt-folder-back{margin:14px 0;padding:9px 13px;border:1px solid rgba(105,190,225,.2);border-radius:10px;background:#102139;color:#d9f5ff;font-size:12px;font-weight:750}
+#social-prompt-creator .prompt-folder-title{margin:12px 0 4px;font-size:17px}
+#social-prompt-creator .prompt-folder-subtitle{margin:0 0 12px;color:var(--muted);font-size:11px}
+#social-prompt-creator .prompt-folder-grid[hidden],#social-prompt-creator .prompt-folder-view[hidden],#social-prompt-creator .prompt-gallery-grid[hidden],#social-prompt-creator .prompt-gallery-grid .prompt-template[hidden]{display:none!important}
+@media(max-width:600px){#social-prompt-creator .prompt-folder-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#social-prompt-creator .prompt-folder{min-height:75px;padding:9px;gap:8px}#social-prompt-creator .prompt-folder-icon{width:35px;height:35px;flex-basis:35px;font-size:18px}}
+</style>
 <script id="prompt-gallery-category-filter-script">
 (()=>{
  const init=()=>{
-  const root=document.querySelector("#social-prompt-creator .prompt-gallery");
-  const grid=root?.querySelector(".prompt-gallery-grid");
-  if(!root||!grid||root.dataset.categoryFilterReady==="true")return;
-  const cards=Array.from(grid.querySelectorAll(".prompt-template"));
-  if(!cards.length)return;
+  const root=document.querySelector("#social-prompt-creator .prompt-gallery"),grid=root?.querySelector(".prompt-gallery-grid");
+  if(!root||!grid||root.dataset.categoryFoldersReady==="true")return;
+  const cards=[...grid.querySelectorAll(".prompt-template")];if(!cards.length)return;
   const defs=[
-   {id:"all",label:"All prompts",icon:"✦",tags:[]},
-   {id:"image",label:"Images & Design",icon:"🎨",tags:["IMAGE","DESIGN"]},
-   {id:"music",label:"Music & Audio",icon:"🎵",tags:["AUDIO","MUSIC"]},
-   {id:"video",label:"Video & Film",icon:"🎬",tags:["VIDEO","FILM"]},
-   {id:"coding",label:"Web & Coding",icon:"💻",tags:["WEB","CODING","CODE"]},
-   {id:"writing",label:"Writing & Content",icon:"✍️",tags:["WRITING","SOCIAL","CONTENT"]},
-   {id:"business",label:"Business & Marketing",icon:"📈",tags:["BUSINESS","PRODUCT","MARKETING"]},
-   {id:"study",label:"Learning & Research",icon:"📚",tags:["STUDY","LEARN","RESEARCH"]},
-   {id:"productivity",label:"Productivity",icon:"⚡",tags:["PRODUCTIVITY"]}
+   {id:"all",label:"All prompts",icon:"✦",tags:[],desc:"Browse the complete collection"},
+   {id:"image",label:"Images",icon:"🖼️",tags:["IMAGE"],desc:"Portraits, scenes and image creation"},
+   {id:"design",label:"Design",icon:"🎨",tags:["DESIGN"],desc:"Branding, graphics and visual design"},
+   {id:"music",label:"Music & Audio",icon:"🎵",tags:["AUDIO","MUSIC"],desc:"Songs, sound and music production"},
+   {id:"video",label:"Video & Film",icon:"🎬",tags:["VIDEO","FILM"],desc:"Video concepts, scripts and film"},
+   {id:"coding",label:"Web & Coding",icon:"💻",tags:["WEB","CODING","CODE"],desc:"Websites, software and development"},
+   {id:"writing",label:"Writing & Content",icon:"✍️",tags:["WRITING","SOCIAL","CONTENT"],desc:"Writing, storytelling and social content"},
+   {id:"business",label:"Business & Products",icon:"📈",tags:["BUSINESS","PRODUCT","MARKETING"],desc:"Business strategy and product campaigns"},
+   {id:"study",label:"Learning & Research",icon:"📚",tags:["STUDY","LEARN","RESEARCH"],desc:"Learning paths, tutoring and research"},
+   {id:"productivity",label:"Productivity",icon:"⚡",tags:["PRODUCTIVITY"],desc:"Planning, focus and workflows"}
   ];
-  const categoryFor=card=>{
-   const tag=(card.querySelector(".prompt-media-tag")?.textContent||"").trim().toUpperCase();
-   return defs.find(d=>d.id!=="all"&&d.tags.includes(tag))?.id||"image";
-  };
-  const counts={};
-  cards.forEach(card=>{const id=categoryFor(card);card.dataset.promptCategory=id;counts[id]=(counts[id]||0)+1;});
-  const toolbar=document.createElement("div");toolbar.className="prompt-gallery-toolbar";
-  toolbar.setAttribute("aria-label","Filter prompt templates by category");
-  defs.forEach(def=>{if(def.id!=="all"&&!counts[def.id])return;const button=document.createElement("button");button.type="button";button.className="prompt-category-chip"+(def.id==="all"?" active":"");button.dataset.category=def.id;button.innerHTML=def.icon+" "+def.label+" <span>"+(def.id==="all"?cards.length:counts[def.id])+"</span>";toolbar.appendChild(button);});
-  grid.parentNode.insertBefore(toolbar,grid);
-  const buttons=Array.from(toolbar.querySelectorAll("button"));
-  const select=category=>{buttons.forEach(button=>button.classList.toggle("active",button.dataset.category===category));cards.forEach(card=>{card.hidden=category!=="all"&&card.dataset.promptCategory!==category;});};
-  buttons.forEach(button=>button.addEventListener("click",()=>select(button.dataset.category)));
-  root.dataset.categoryFilterReady="true";
+  const map={};defs.forEach(d=>d.tags.forEach(t=>map[t]=d.id));
+  const counts={all:cards.length};
+  cards.forEach(card=>{const tag=(card.querySelector(".prompt-media-tag")?.textContent||"").trim().toUpperCase();const id=map[tag]||"image";card.dataset.promptCategory=id;counts[id]=(counts[id]||0)+1;});
+  const folders=document.createElement("div");folders.className="prompt-folder-grid";folders.setAttribute("aria-label","Prompt categories");
+  const view=document.createElement("section");view.className="prompt-folder-view";view.hidden=true;
+  const back=document.createElement("button");back.type="button";back.className="prompt-folder-back";back.textContent="← All categories";
+  const title=document.createElement("h4");title.className="prompt-folder-title";
+  const note=document.createElement("p");note.className="prompt-folder-subtitle";view.append(back,title,note);
+  grid.parentNode.insertBefore(folders,grid);grid.parentNode.insertBefore(view,grid);
+  const show=id=>{const d=defs.find(x=>x.id===id)||defs[0];folders.hidden=true;view.hidden=false;grid.hidden=false;title.textContent=d.icon+"  "+d.label;note.textContent=d.desc+" · "+counts[id]+" prompts";cards.forEach(c=>c.hidden=id!=="all"&&c.dataset.promptCategory!==id);grid.scrollIntoView({behavior:"smooth",block:"start"});};
+  const home=()=>{folders.hidden=false;view.hidden=true;grid.hidden=true;cards.forEach(c=>c.hidden=false);};
+  defs.forEach(d=>{if(d.id!=="all"&&!counts[d.id])return;const btn=document.createElement("button");btn.type="button";btn.className="prompt-folder";const ico=document.createElement("span");ico.className="prompt-folder-icon";ico.textContent=d.icon;const copy=document.createElement("span");copy.className="prompt-folder-copy";const name=document.createElement("strong");name.textContent=d.label;const count=document.createElement("small");count.textContent=(counts[d.id]||0)+" prompts";copy.append(name,count);btn.append(ico,copy);btn.addEventListener("click",()=>show(d.id));folders.append(btn);});
+  back.addEventListener("click",home);home();root.dataset.categoryFoldersReady="true";
  };
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
