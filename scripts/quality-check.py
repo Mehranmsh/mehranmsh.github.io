@@ -7,7 +7,7 @@ import tempfile
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_FILE = ROOT / "index.html"
+HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
 WORKER_FILE = ROOT / "worker.js"
 
 class InlineScripts(HTMLParser):
@@ -37,7 +37,7 @@ def run_node_check(path):
         raise SystemExit(result.returncode)
 
 def main():
-    for path in (HTML_FILE, WORKER_FILE):
+    for path in (*HTML_FILES, WORKER_FILE):
         if not path.is_file():
             raise SystemExit(f"Required project file is missing: {path.name}")
 
@@ -45,26 +45,28 @@ def main():
     run_node_check(WORKER_FILE)
 
     print("2/3 Parsing app HTML and checking inline JavaScript...")
-    parser = InlineScripts()
-    parser.feed(HTML_FILE.read_text(encoding="utf-8"))
-    parser.close()
     checked = 0
     with tempfile.TemporaryDirectory() as temp:
-        for index, item in enumerate(parser.scripts, start=1):
-            if item["external"] or not item["is_js"]:
-                continue
-            source = "".join(item["parts"]).strip()
-            if not source:
-                continue
-            candidate = Path(temp) / f"inline-script-{index}.js"
-            candidate.write_text(source, encoding="utf-8")
-            run_node_check(candidate)
-            checked += 1
+        for html_file in HTML_FILES:
+            parser = InlineScripts()
+            parser.feed(html_file.read_text(encoding="utf-8"))
+            parser.close()
+            file_checked = 0
+            for index, item in enumerate(parser.scripts, start=1):
+                if item["external"] or not item["is_js"]:
+                    continue
+                source = "".join(item["parts"]).strip()
+                if not source:
+                    continue
+                candidate = Path(temp) / f"{html_file.stem}-inline-script-{index}.js"
+                candidate.write_text(source, encoding="utf-8")
+                run_node_check(candidate)
+                checked += 1
+                file_checked += 1
+            if file_checked == 0:
+                raise SystemExit(f"No inline JavaScript blocks were found in {html_file.name}; refusing a false-green check.")
 
-    if checked == 0:
-        raise SystemExit("No inline JavaScript blocks were found; refusing a false-green check.")
-
-    print(f"3/3 Passed: Worker syntax + {checked} inline JavaScript block(s).")
+    print(f"3/3 Passed: Worker syntax + {checked} inline JavaScript block(s) across {len(HTML_FILES)} HTML app(s).")
     print("Note: these checks do not replace live Pi Browser, database, or security integration tests.")
 
 if __name__ == "__main__":
