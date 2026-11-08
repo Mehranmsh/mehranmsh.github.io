@@ -273,3 +273,17 @@ test("group member management routes expose only leave, remove, and role updates
   assert.ok(workerSource.includes("groupLeaveMatch = path.match"));
   assert.ok(workerSource.includes("groupMemberMatch = path.match"));
 });
+
+
+
+test("channel leave requires membership and prevents owner orphaning", () => {
+  const start = workerSource.indexOf("async function socialLeaveChannel");
+  const end = workerSource.indexOf("\nasync function ", start + 20);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /SELECT owner_id FROM social_channels WHERE id=\?/);
+  assert.match(handler, /channel\.owner_id === user\.id/);
+  assert.match(handler, /transfer ownership before leaving/);
+  assert.match(handler, /DELETE FROM social_channel_members WHERE channel_id=\? AND user_id=\?/);
+  assert.match(handler, /You are not a channel member/);
+  assert.ok(workerSource.includes("leaveChannelMatch = path.match"));
+});
