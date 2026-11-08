@@ -785,4 +785,5 @@ test("SOCIAL AI account identity is preserved and can only be assigned by the Pi
   assert.match(route, /primary administrator identity must remain a human account/);
   assert.match(route, /writeAdminAudit\(env, admin, "account_type_changed"/);
   assert.match(workerSource, /const requestedAccountType = body\.accountType === "business" \? "business" : "human"/);
+  assert.match(indexSource, /accountType==="ai"\?"🤖 AI account"/);
 });
