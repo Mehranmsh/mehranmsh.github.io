@@ -1304,6 +1304,9 @@ async function socialGetProfile(request, env, username) {
   );
 
   if (!profile) return error("User not found", 404);
+  if (profile.id !== viewer.id && await isBlocked(env, viewer.id, profile.id)) {
+    return error("User not found", 404);
+  }
 
   const prefRow = await env.DB.prepare(
     "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
