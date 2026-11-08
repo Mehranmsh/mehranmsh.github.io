@@ -509,3 +509,22 @@ test("SOCIAL notifications remain recipient-scoped and respect notification pref
   assert.match(notifyHandler, /if \(!userId \|\| userId === actorId\) return/);
   assert.match(notifyHandler, /prefs\.notifications\[key\] === false/);
 });
+
+
+test("SOCIAL direct messages, group messages, and channel posts notify other members without failing the content write", () => {
+  const sendStart = workerSource.indexOf("async function socialSendMessage");
+  const sendEnd = workerSource.indexOf("\\nasync function socialEditMessage", sendStart);
+  const send = workerSource.slice(sendStart, sendEnd);
+  assert.match(send, /SELECT user_id FROM social_conversation_members WHERE conversation_id=\? AND user_id!=\?/);
+  assert.match(send, /conversation\?\.type === "group" \? "group_message" : "message"/);
+  assert.match(send, /await notify\(env, row\.user_id, user\.id, notificationType/);
+  assert.match(send, /SOCIAL_MESSAGE_NOTIFICATION_FAILURE/);
+
+  const channelStart = workerSource.indexOf("async function socialChannelPost");
+  const channelEnd = workerSource.indexOf("\\nasync function socialEditChannelPost", channelStart);
+  const channel = workerSource.slice(channelStart, channelEnd);
+  assert.match(channel, /SELECT user_id FROM social_channel_members WHERE channel_id=\? AND user_id!=\?/);
+  assert.match(channel, /await notify\(env, subscriber\.user_id, user\.id, "channel_post"/);
+  assert.match(channel, /SOCIAL_CHANNEL_NOTIFICATION_FAILURE/);
+  assert.match(channel, /new post in a channel you follow/);
+});
