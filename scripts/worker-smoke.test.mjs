@@ -341,3 +341,15 @@ test("private channel invite rotation revokes the previous code and is owner-onl
   assert.match(handler, /Invite rotation is available only for private channels/);
   assert.ok(workerSource.includes("rotateChannelInviteMatch = path.match"));
 });
+
+
+test("channel member directory is visible only to current channel members", () => {
+  const start = workerSource.indexOf("async function socialListChannelMembers");
+  const end = workerSource.indexOf("\nasync function ", start + 30);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /SELECT role FROM social_channel_members WHERE channel_id=\? AND user_id=\?/);
+  assert.match(handler, /if \(!membership\) return error\("Channel not found", 404\)/);
+  assert.match(handler, /JOIN social_users u ON u\.id=m\.user_id/);
+  assert.match(handler, /LIMIT 500/);
+  assert.ok(workerSource.includes("channelMembersMatch = path.match"));
+});
