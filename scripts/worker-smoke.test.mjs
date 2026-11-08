@@ -843,3 +843,27 @@ test("SOCIAL marks AI and Business identities in feed, stories, notifications an
   assert.match(indexSource, /socialAccountTypeLabel\(s\.author\?\.accountType\)/);
   assert.match(indexSource, /socialAccountTypeLabel\(item\.actor\?\.accountType\)/);
 });
+
+test("SOCIAL AI accounts cannot inflate likes, follows or view/reaction counts", () => {
+  const followStart = workerSource.indexOf("async function socialFollow(");
+  const followEnd = workerSource.indexOf("\nasync function ", followStart + 20);
+  assert.match(workerSource.slice(followStart, followEnd), /user\.accountType === "ai" && follow/);
+  const likeStart = workerSource.indexOf("async function socialLikePost");
+  const likeEnd = workerSource.indexOf("\nasync function ", likeStart + 20);
+  assert.match(workerSource.slice(likeStart, likeEnd), /shouldLike && user\.accountType === "ai"/);
+  const viewStart = workerSource.indexOf("async function socialViewPost");
+  const viewEnd = workerSource.indexOf("\nasync function ", viewStart + 20);
+  assert.match(workerSource.slice(viewStart, viewEnd), /user\.accountType === "ai"/);
+  const storyReactStart = workerSource.indexOf("async function socialReactStory");
+  const storyReactEnd = workerSource.indexOf("\nasync function ", storyReactStart + 20);
+  assert.match(workerSource.slice(storyReactStart, storyReactEnd), /user\.accountType === "ai"/);
+  const storyViewStart = workerSource.indexOf("async function socialViewStory");
+  const storyViewEnd = workerSource.indexOf("\nasync function ", storyViewStart + 20);
+  assert.match(workerSource.slice(storyViewStart, storyViewEnd), /user\.accountType === "ai"/);
+  const adminStart = workerSource.indexOf("const adminUserAccountTypeMatch");
+  const adminEnd = workerSource.indexOf("const adminUserStatusMatch", adminStart);
+  const adminRoute = workerSource.slice(adminStart, adminEnd);
+  for (const table of ["social_post_likes", "social_follows", "social_follow_requests", "social_post_views", "social_story_views", "social_story_reactions"]) {
+    assert.ok(adminRoute.includes("DELETE FROM " + table), "AI conversion must clean " + table);
+  }
+});
