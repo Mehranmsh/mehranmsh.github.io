@@ -80,3 +80,23 @@ test("unknown routes return a structured 404 response", async () => {
   const payload = await response.json();
   assert.equal(payload.success, false);
 });
+
+test("admin overview rejects requests without a verified admin session", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          return { total: 0 };
+        }
+      };
+    }
+  };
+  const response = await request("/admin/overview", {}, { DB: db });
+  assert.equal(response.status, 403);
+  const payload = await response.json();
+  assert.match(payload.error, /Admin authentication required/);
+});
