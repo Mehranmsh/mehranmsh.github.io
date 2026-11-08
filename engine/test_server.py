@@ -1,8 +1,10 @@
 import importlib.util
 import json
-import os
 import tempfile
+import threading
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).with_name("server.py")
@@ -20,9 +22,57 @@ class StudioControlPlaneTests(unittest.TestCase):
         module.MAX_PROJECTS = 2
         module.TOKEN = "t" * 40
         module.database().close()
+        self.httpd = module.ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+        self.base = f"http://127.0.0.1:{self.httpd.server_port}"
 
     def tearDown(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self.thread.join(timeout=2)
         self.temp.cleanup()
+
+    def request(self, path, method="GET", payload=None, token=True):
+        body = None if payload is None else json.dumps(payload).encode("utf-8")
+        headers = {}
+        if token:
+            headers["Authorization"] = "Bearer " + module.TOKEN
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(self.base + path, data=body, headers=headers, method=method)
+        try:
+            response = urllib.request.urlopen(req, timeout=3)
+        except urllib.error.HTTPError as error:
+            response = error
+        return response.code, json.loads(response.read().decode("utf-8"))
+
+    def test_http_authentication_is_required(self):
+        status, payload = self.request("/health", token=False)
+        self.assertEqual(status, 401)
+        self.assertEqual(payload["error"], "unauthorized")
+
+    def test_health_endpoint_never_claims_engine_is_ready(self):
+        status, payload = self.request("/health")
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["engine"]["ready"])
+        self.assertFalse(payload["external_api_calls"])
+        self.assertFalse(payload["paid_fallback"])
+
+    def test_job_submission_is_hard_stopped_without_local_engine(self):
+        status, payload = self.request("/v1/jobs", method="POST", payload={"kind": "song"})
+        self.assertEqual(status, 503)
+        self.assertFalse(payload["job_created"])
+        self.assertFalse(payload["charged"])
+
+    def test_authenticated_project_creation_persists(self):
+        status, payload = self.request("/v1/projects", method="POST", payload={"name": "Local Demo", "kind": "song"})
+        self.assertEqual(status, 201)
+        self.assertEqual(payload["project"]["status"], "draft")
+        status, listing = self.request("/v1/projects")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(listing["projects"]), 1)
+        self.assertEqual(listing["projects"][0]["name"], "Local Demo")
 
     def test_engine_is_honestly_unavailable_without_local_runtime(self):
         state = module.engine_status()
