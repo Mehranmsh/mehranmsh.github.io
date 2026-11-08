@@ -918,3 +918,16 @@ test("SOCIAL privacy settings reject non-boolean visibility flags instead of coe
   assert.match(handler, /body\.showOnlineStatus === true \? 1 : 0/);
   assert.match(handler, /body\.showActivityStatus === true \? 1 : 0/);
 });
+
+test("SOCIAL existing direct chats recheck the recipient's current message privacy before sending", () => {
+  const start = workerSource.indexOf("async function socialSendMessage");
+  const end = workerSource.indexOf("async function ", start + 30);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /directRecipient = await env\.DB\.prepare/);
+  assert.match(handler, /c\.type IN \('direct','private'\)/);
+  assert.match(handler, /recipientSettings\?\.allow_messages === "none"/);
+  assert.match(handler, /recipientSettings\?\.allow_messages === "followers"/);
+  assert.match(handler, /follower_id=\? AND following_id=\?/);
+  assert.ok(handler.indexOf("recipientSettings") < handler.indexOf("const body = await readBody(request)"));
+});
