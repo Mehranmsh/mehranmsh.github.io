@@ -3936,9 +3936,7 @@ function socialAIProviderList(env) {
     key, name: item.label,
     model: cleanText(env["SOCIAL_AI_MODEL_" + key.toUpperCase()], 120) || item.model,
     configured: socialAIProviderReady(key, env),
-    vision: (key === "cloudflare" && !!(env.AI && typeof env.AI.run === "function")) ||
-      (key === "openai" && (cleanText(env.SOCIAL_AI_MODEL_OPENAI, 120) || item.model) === "gpt-4.1-mini") ||
-      (key === "gemini" && (cleanText(env.SOCIAL_AI_MODEL_GEMINI, 120) || item.model) === "gemini-2.5-flash")
+    vision: key === "cloudflare" && !!(env.AI && typeof env.AI.run === "function")
   }));
 }
 function socialAIImageModelSupported(provider, model) {
