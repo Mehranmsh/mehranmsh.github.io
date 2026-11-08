@@ -671,7 +671,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <p class="small-text">Create from text with FLUX.1 SCHNELL, or upload a reference photo and add a prompt to edit and recreate the scene with FLUX.2 KLEIN 4B. Your reference photo is uploaded privately and processed by Cloudflare Workers AI. No external paid model or paid fallback is used. Both modes share Cloudflare's daily free AI allocation. On a Workers Paid account, usage above the free daily allowance can be billed; use Workers Free to avoid overage charges.</p>
 <div class="field"><label for="imageStudioReferenceInput">Reference photo (optional)</label><input id="imageStudioReferenceInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="socialChooseImageReference(event)"><div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn secondary small" type="button" onclick="$('imageStudioReferenceInput').click()">Choose a photo</button><button class="btn secondary small" type="button" onclick="socialClearImageReference()">Remove photo</button><span id="imageStudioReferencePreview" class="small-text">No reference photo selected.</span></div><p class="small-text">Use a clear photo. It is resized privately to fit the model's input limit. The model will try to preserve the person's recognizable facial identity, but exact identity matching cannot be guaranteed.</p></div>
 <div class="field"><label for="imageStudioPrompt">Describe the image you want</label><textarea id="imageStudioPrompt" maxlength="1800" placeholder="Example: Keep my face recognizable. Put me in a sky-blue shirt and white trousers, standing in a modern city at golden hour, natural realistic photography."></textarea></div>
-<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn" id="imageStudioGenerateBtn" type="button" onclick="socialGenerateImage()">Generate image</button></div><div id="imageStudioStatus" class="small-text" role="status" aria-live="polite" style="display:block;min-height:18px;margin-top:9px;white-space:pre-line"></div>
+<div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center"><button class="btn" id="imageStudioGenerateBtn" type="button" onclick="socialGenerateImage()">Generate image</button></div><div id="imageStudioStatus" class="small-text" role="status" aria-live="polite" style="display:block;min-height:18px;margin-top:9px;white-space:pre-line"></div><div style="display:flex;gap:8px;align-items:center;margin-top:8px"><button class="btn secondary small" type="button" onclick="socialToggleImageDebug()">Debug details</button></div><pre id="imageStudioDebug" class="small-text hidden" dir="ltr" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:10px"></pre>
 </div></div>
 <div class="social-view" id="social-prompt-creator">
 <div class="section-title"><h2>✦ PROMPT CREATOR</h2><span class="small-text">Prompt writing only · no AI execution here</span></div>
@@ -968,11 +968,13 @@ async function restoreAdminSession(){
 }
 function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
 async function socialRequest(path,options={}){
+const startedAt=Date.now();
 const headers={"Authorization":"Bearer "+getSocialToken(),...(options.headers||{})};
 if(options.body&&!headers["Content-Type"])headers["Content-Type"]="application/json";
-const response=await fetch(SOCIAL_API+path,{...options,headers});
-const data=await response.json().catch(()=>({}));
-if(!response.ok||data.success===false)throw new Error((data.message||data.error||("Request failed ("+response.status+")"))+(data.code?" ["+data.code+"]":"")+(data.detail?" · "+data.detail:""));
+let response,data;
+try{response=await fetch(SOCIAL_API+path,{...options,headers});data=await response.json().catch(()=>({}));}
+catch(e){e.requestUrl=SOCIAL_API+path;e.elapsedMs=Date.now()-startedAt;throw e;}
+if(!response.ok||data.success===false){const e=new Error((data.message||data.error||("Request failed ("+response.status+")"))+(data.code?" ["+data.code+"]":"")+(data.detail?" · "+data.detail:""));e.httpStatus=response.status;e.code=data.code||"";e.requestId=data.requestId||"";e.serverStage=data.stage||"";e.serverElapsedMs=data.elapsedMs??null;e.requestUrl=SOCIAL_API+path;e.elapsedMs=Date.now()-startedAt;throw e;}
 return data;
 }
 function normalizeSocialPost(p){
@@ -2358,6 +2360,9 @@ async function verifySocialSessionForImageStudio(){
   return {ok:false,reason:"network",message:error.message||"Could not verify your SOCIAL session."};
  }
 }
+let socialImageDebugEnabled=false,socialImageDebugLines=[];
+function socialImageDebugLog(label,details={}){socialImageDebugLines.push({time:new Date().toISOString(),label,...details});socialImageDebugLines=socialImageDebugLines.slice(-30);const panel=$("imageStudioDebug");if(panel&&socialImageDebugEnabled){panel.textContent=JSON.stringify(socialImageDebugLines,null,2);panel.classList.remove("hidden");}}
+function socialToggleImageDebug(){socialImageDebugEnabled=!socialImageDebugEnabled;const panel=$("imageStudioDebug");if(!panel)return;panel.classList.toggle("hidden",!socialImageDebugEnabled);panel.textContent=socialImageDebugEnabled?JSON.stringify(socialImageDebugLines,null,2):"";}
 async function socialGenerateImage(){
  const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn");let status=$("imageStudioStatus");
  if(!socialUser?.id||!socialSessionVerified){
@@ -2380,6 +2385,7 @@ async function socialGenerateImage(){
  if(!prompt){toast("Write a description for your image first.");return;}
  if(prompt.length>1800)return;
  button.disabled=true;button.textContent="Generating...";
+ socialImageDebugLines=[];socialImageDebugLog("client_request_started",{hasReference:!!socialImageReferenceAttachment,referenceId:socialImageReferenceAttachment?.id||null,promptLength:prompt.length});
  const generationStatus=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation...":"Generating from your prompt using the free daily AI allocation...";
  const generationStartedAt=Date.now();
  status.style.whiteSpace="pre-line";
@@ -2397,7 +2403,9 @@ async function socialGenerateImage(){
  try{
   const requestBody={prompt};
   if(socialImageReferenceAttachment)requestBody.reference=socialImageReferenceAttachment;
+  socialImageDebugLog("sending_to_worker",{endpoint:"/social/assistant/image/generate",hasReference:!!requestBody.reference});
   const result=await socialRequest("/assistant/image/generate",{method:"POST",body:JSON.stringify(requestBody)});
+  socialImageDebugLog("worker_success",{requestId:result.requestId||null,model:result.model||null});
   if(!result.image||typeof result.image!=="string")throw new Error("The image model returned no image data.");
   const imageData=result.image.startsWith("data:image/")?result.image.slice(result.image.indexOf(",")+1):result.image;
   const binary=atob(imageData);
@@ -2410,7 +2418,7 @@ async function socialGenerateImage(){
   $("imageStudioResult").classList.remove("hidden");
   $("imageStudioSaveStatus").textContent="";
   status.textContent="Image generated successfully.";
- }catch(e){status.textContent=e.message||"Image generation failed.";socialShowAssistantError(e);}
+ }catch(e){socialImageDebugLog("request_failed",{message:e.message||String(e),httpStatus:e.httpStatus||null,code:e.code||null,requestId:e.requestId||null,serverStage:e.serverStage||null,serverElapsedMs:e.serverElapsedMs??null,clientElapsedMs:e.elapsedMs??null,requestUrl:e.requestUrl||null});status.textContent=e.message||"Image generation failed.";socialShowAssistantError(e);}
  finally{clearInterval(generationTimer);button.disabled=false;button.textContent="Generate image";}
 }
 function socialDownloadGeneratedImage(){
