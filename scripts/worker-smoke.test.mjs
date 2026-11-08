@@ -156,3 +156,19 @@ test("SOCIAL post interactions enforce the same visibility policy", () => {
   assert.match(search, /privacy\.is_private=1/);
   assert.equal((search.match(/SELECT blocker_id FROM social_blocks WHERE blocked_id=\?/g) || []).length, 2);
 });
+
+
+test("private SOCIAL profile gallery and posts respect privacy and blocks", () => {
+  const profileStart = workerSource.indexOf("async function getProfileByUsername");
+  const profileEnd = workerSource.indexOf("\nasync function ", profileStart + 20);
+  const profile = workerSource.slice(profileStart, profileEnd);
+  assert.match(profile, /const canViewGallery = !settings\?\.is_private \|\| viewerId === profile\.id \|\| Boolean\(counts\?\.is_following\)/);
+  assert.match(profile, /canViewGallery\s*\?\s*await env\.DB\.prepare/);
+
+  const postsStart = workerSource.indexOf("async function socialUserPosts");
+  const postsEnd = workerSource.indexOf("\nasync function ", postsStart + 20);
+  const posts = workerSource.slice(postsStart, postsEnd);
+  assert.match(posts, /await isBlocked\(env, viewer\.id, target\.id\)/);
+  assert.match(posts, /canViewSocialPost\(env, viewer\.id, row\)/);
+  assert.match(posts, /settings\?\.is_private && !following/);
+});
