@@ -431,3 +431,23 @@ test("group member management enforces owner and admin hierarchy", () => {
   assert.ok(workerSource.includes('groupMemberMatch && method === "PATCH"'));
   assert.ok(workerSource.includes('groupMemberMatch && method === "DELETE"'));
 });
+
+
+test("presence heartbeat requires authentication and updates only the authenticated active user", () => {
+  const start = workerSource.indexOf("async function socialPresenceHeartbeat");
+  const end = workerSource.indexOf("\\nasync function ", start + 30);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /getSocialUser\\(request, env\\)/);
+  assert.match(handler, /UPDATE social_users SET last_seen_at=CURRENT_TIMESTAMP WHERE id=\\? AND is_active=1/);
+  assert.match(handler, /bind\\(user\\.id\\)/);
+  assert.ok(workerSource.includes('path === "/social/presence" && method === "POST"'));
+});
+
+test("conversation presence respects each member's online-status privacy setting", () => {
+  const start = workerSource.indexOf("async function socialListConversations");
+  const end = workerSource.indexOf("\\nasync function ", start + 30);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /LEFT JOIN social_user_settings us ON us\\.user_id=cm\\.user_id/);
+  assert.match(handler, /COALESCE\\(us\\.show_online_status,1\\)=1 THEN u\\.last_seen_at ELSE NULL/);
+  assert.match(handler, /lastSeenAt: member\\.last_seen_at \\|\\| null/);
+});
