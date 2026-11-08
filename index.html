@@ -2608,7 +2608,7 @@ function socialUsePromptTemplate(key){
  review:{category:"coding",goal:"Review this code for correctness, security, performance, accessibility and maintainability: [paste code]. Prioritize confirmed issues, explain their impact, show minimal safe fixes and suggest tests. Do not invent problems.",style:"Precise, security-conscious, practical",tool:"Coding AI"},
  startup:{category:"business",goal:"Create a practical launch strategy for [business idea]. Cover customer problem, target segment, value proposition, positioning, pricing assumptions, acquisition channels, operations, risks, milestones and a prioritized 90-day plan.",style:"Analytical, realistic, actionable",tool:"ChatGPT"},
  research:{category:"study",goal:"Research [market or topic] using reliable, current sources. Separate verified facts from assumptions, compare relevant alternatives, identify evidence gaps and provide citations with a concise findings summary.",style:"Evidence-based, balanced, structured",tool:"Research AI"},
- language:{category:"study",goal:"Act as my interactive [language] coach. My current level is [level] and my goal is [goal]. Start a realistic conversation, correct my errors, explain useful patterns and adapt the next exercise to my performance.",style:"Patient, practical, encouraging",tool:"ChatGPT"}
+ language:{category:"study",goal:"Act as my interactive [language] coach. My current level is [level] and my goal is [goal]. Start a realistic conversation, correct my errors, explain useful patterns and adapt the next exercise to my performance.",style:"Patient, practical, encouraging",tool:"ChatGPT"},
  logo:{category:"business",goal:"Create three logo directions with concept, shape language, typography, colors, scalability and use cases.",style:"Professional, clear, detailed and practical",tool:"ChatGPT"},
 packaging:{category:"business",goal:"Develop packaging concepts, materials, hierarchy, shelf impact and production notes.",style:"Professional, clear, detailed and practical",tool:"ChatGPT"},
 brandbook:{category:"business",goal:"Create rules for logo, colors, typography, imagery, voice and practical examples.",style:"Professional, clear, detailed and practical",tool:"ChatGPT"},
@@ -3217,65 +3217,34 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
  const init=()=>{
   const root=document.querySelector("#social-prompt-creator .prompt-gallery");
   const grid=root?.querySelector(".prompt-gallery-grid");
-  if(!root||!grid||root.dataset.grouped==="true")return;
+  if(!root||!grid||root.dataset.categoryFilterReady==="true")return;
   const cards=Array.from(grid.querySelectorAll(".prompt-template"));
   if(!cards.length)return;
-  const definitions=[
+  const defs=[
+   {id:"all",label:"All prompts",icon:"✦",tags:[]},
    {id:"image",label:"Images & Design",icon:"🎨",tags:["IMAGE","DESIGN"]},
    {id:"music",label:"Music & Audio",icon:"🎵",tags:["AUDIO","MUSIC"]},
-   {id:"video",label:"Video & Film",icon:"🎬",tags:["VIDEO"]},
-   {id:"coding",label:"Web & Coding",icon:"💻",tags:["WEB","CODING"]},
-   {id:"writing",label:"Writing & Content",icon:"✍️",tags:["WRITING","SOCIAL"]},
-   {id:"business",label:"Business & Marketing",icon:"📈",tags:["BUSINESS","PRODUCT"]},
-   {id:"study",label:"Learning & Research",icon:"📚",tags:["STUDY","LEARN"]},
+   {id:"video",label:"Video & Film",icon:"🎬",tags:["VIDEO","FILM"]},
+   {id:"coding",label:"Web & Coding",icon:"💻",tags:["WEB","CODING","CODE"]},
+   {id:"writing",label:"Writing & Content",icon:"✍️",tags:["WRITING","SOCIAL","CONTENT"]},
+   {id:"business",label:"Business & Marketing",icon:"📈",tags:["BUSINESS","PRODUCT","MARKETING"]},
+   {id:"study",label:"Learning & Research",icon:"📚",tags:["STUDY","LEARN","RESEARCH"]},
    {id:"productivity",label:"Productivity",icon:"⚡",tags:["PRODUCTIVITY"]}
   ];
   const categoryFor=card=>{
    const tag=(card.querySelector(".prompt-media-tag")?.textContent||"").trim().toUpperCase();
-   return definitions.find(d=>d.tags.includes(tag))||definitions[0];
+   return defs.find(d=>d.id!=="all"&&d.tags.includes(tag))?.id||"image";
   };
-  const toolbar=document.createElement("div");
-  toolbar.className="prompt-gallery-toolbar";
+  const counts={};
+  cards.forEach(card=>{const id=categoryFor(card);card.dataset.promptCategory=id;counts[id]=(counts[id]||0)+1;});
+  const toolbar=document.createElement("div");toolbar.className="prompt-gallery-toolbar";
   toolbar.setAttribute("aria-label","Filter prompt templates by category");
-  const grouped=new Map(definitions.map(d=>[d.id,[]]));
-  cards.forEach(card=>grouped.get(categoryFor(card).id).push(card));
-  const allCount=cards.length;
-  const allButton=document.createElement("button");
-  allButton.type="button";allButton.className="prompt-category-chip active";
-  allButton.dataset.category="all";allButton.innerHTML='All categories <span>'+allCount+'</span>';
-  toolbar.appendChild(allButton);
-  const sections=document.createDocumentFragment();
-  definitions.forEach(def=>{
-   const items=grouped.get(def.id);
-   if(!items.length)return;
-   const button=document.createElement("button");
-   button.type="button";button.className="prompt-category-chip";
-   button.dataset.category=def.id;
-   button.innerHTML=def.icon+" "+def.label+' <span>'+items.length+'</span>';
-   toolbar.appendChild(button);
-   const section=document.createElement("section");
-   section.className="prompt-category-section";
-   section.dataset.category=def.id;
-   const heading=document.createElement("div");
-   heading.className="prompt-category-heading";
-   const title=document.createElement("h4");title.textContent=def.icon+" "+def.label;
-   const count=document.createElement("small");count.textContent=items.length+" templates";
-   heading.append(title,count);
-   const sectionGrid=document.createElement("div");
-   sectionGrid.className="prompt-gallery-grid";
-   items.forEach(card=>sectionGrid.appendChild(card));
-   section.append(heading,sectionGrid);
-   sections.appendChild(section);
-  });
-  grid.replaceWith(toolbar,sections);
+  defs.forEach(def=>{if(def.id!=="all"&&!counts[def.id])return;const button=document.createElement("button");button.type="button";button.className="prompt-category-chip"+(def.id==="all"?" active":"");button.dataset.category=def.id;button.innerHTML=def.icon+" "+def.label+" <span>"+(def.id==="all"?cards.length:counts[def.id])+"</span>";toolbar.appendChild(button);});
+  grid.parentNode.insertBefore(toolbar,grid);
   const buttons=Array.from(toolbar.querySelectorAll("button"));
-  const categorySections=Array.from(root.querySelectorAll(".prompt-category-section"));
-  const select=category=>{
-   buttons.forEach(button=>button.classList.toggle("active",button.dataset.category===category));
-   categorySections.forEach(section=>section.hidden=category!=="all"&&section.dataset.category!==category);
-  };
+  const select=category=>{buttons.forEach(button=>button.classList.toggle("active",button.dataset.category===category));cards.forEach(card=>{card.hidden=category!=="all"&&card.dataset.promptCategory!==category;});};
   buttons.forEach(button=>button.addEventListener("click",()=>select(button.dataset.category)));
-  root.dataset.grouped="true";
+  root.dataset.categoryFilterReady="true";
  };
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
 })();
