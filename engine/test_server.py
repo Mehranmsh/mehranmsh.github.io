@@ -6,6 +6,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from unittest import mock
 from pathlib import Path
 
 PREFLIGHT_PATH = Path(__file__).with_name("preflight.py")
@@ -57,6 +58,26 @@ class StudioControlPlaneTests(unittest.TestCase):
         body = response.read().decode("utf-8")
         response.close()
         return status, json.loads(body)
+
+    def test_server_bind_rejects_public_interfaces(self):
+        for host in ("0.0.0.0", "192.168.1.20", "::", "localhost"):
+            with self.subTest(host=host):
+                with self.assertRaises(SystemExit):
+                    module.validate_server_config(host, 8765)
+
+    def test_server_bind_accepts_loopback_and_valid_port_only(self):
+        module.validate_server_config("127.0.0.1", 8765)
+        module.validate_server_config("127.20.30.40", 65535)
+        for port in (0, -1, 65536, "8765"):
+            with self.subTest(port=port):
+                with self.assertRaises(SystemExit):
+                    module.validate_server_config("127.0.0.1", port)
+
+    def test_main_refuses_public_bind_before_starting(self):
+        with mock.patch.object(module, "TOKEN", "t" * 40), \
+             mock.patch.object(module, "HOST", "0.0.0.0"):
+            with self.assertRaises(SystemExit):
+                module.main()
 
     def test_http_authentication_is_required(self):
         status, payload = self.request("/health", token=False)
