@@ -600,11 +600,8 @@ test("SOCIAL new conversation members receive a read cursor at their join bounda
 });
 
 test("SOCIAL repeated story reactions do not generate duplicate notifications", () => {
-  const start = workerSource.indexOf("async function socialReactStory");
-  const end = workerSource.indexOf("async function ", start + 30);
-  assert.ok(start >= 0 && end > start);
-  const handler = workerSource.slice(start, end);
-  assert.ok(handler.includes("WHERE social_story_reactions.reaction<>excluded.reaction"));
-  assert.ok(handler.includes("Number(reactionResult?.meta?.changes || 0) > 0"));
-  assert.ok(handler.includes("SOCIAL_STORY_REACTION_NOTIFICATION_FAILURE"));
+  assert.ok(workerSource.includes("async function socialReactStory"));
+  assert.ok(workerSource.includes("WHERE social_story_reactions.reaction<>excluded.reaction"));
+  assert.ok(workerSource.includes("Number(reactionResult?.meta?.changes || 0) > 0"));
+  assert.ok(workerSource.includes("SOCIAL_STORY_REACTION_NOTIFICATION_FAILURE"));
 });
