@@ -473,6 +473,9 @@ async function createSocialTables(db) {
     `CREATE INDEX IF NOT EXISTS idx_social_notifications_user
       ON social_notifications(user_id,created_at DESC)`,
 
+    `CREATE INDEX IF NOT EXISTS idx_social_notifications_unread
+      ON social_notifications(user_id,is_read,created_at DESC)`,
+
     `CREATE TABLE IF NOT EXISTS social_stories(
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -699,6 +702,7 @@ async function createSocialTables(db) {
   await ensureColumn("social_messages", "edited_at", "TEXT");
   await ensureColumn("social_messages", "deleted_at", "TEXT");
   await ensureColumn("social_messages", "created_at", "TEXT NOT NULL DEFAULT ''");
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_social_messages_unread ON social_messages(conversation_id,sender_id,deleted_at)").run();
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN resolved_at TEXT").run(); } catch {}
