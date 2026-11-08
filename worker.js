@@ -1464,7 +1464,7 @@ async function socialSearch(request, env) {
   if (type === "all" || type === "posts") {
     const result = await env.DB.prepare(`
       SELECT p.id,p.content,p.media_json,p.created_at,
-        u.username,u.display_name,u.avatar_url
+        u.username,u.display_name,u.avatar_url,u.account_type
       FROM social_posts p
       JOIN social_users u ON u.id=p.user_id
       WHERE p.visibility='public' AND p.content LIKE ?
@@ -1489,7 +1489,8 @@ async function socialSearch(request, env) {
       author: {
         username: row.username,
         displayName: row.display_name || "",
-        avatarUrl: row.avatar_url || ""
+        avatarUrl: row.avatar_url || "",
+        accountType: normalizeAccountType(row.account_type)
       }
     }));
   }
@@ -1585,7 +1586,7 @@ async function formatPost(row, viewerId, env) {
   ).first();
 
   const author = await env.DB.prepare(`
-    SELECT username,display_name,avatar_url,pi_verified
+    SELECT username,display_name,avatar_url,pi_verified,account_type
     FROM social_users WHERE id=?
   `).bind(row.user_id).first();
 
@@ -1600,6 +1601,7 @@ async function formatPost(row, viewerId, env) {
       username: author?.username || "",
       displayName: author?.display_name || "",
       avatarUrl: author?.avatar_url || "",
+      accountType: normalizeAccountType(author?.account_type),
       piVerified: Boolean(author?.pi_verified)
     },
     stats: {
@@ -2302,7 +2304,7 @@ async function socialNotifications(request, env) {
   const [result, unreadRow] = await Promise.all([
     env.DB.prepare(`
       SELECT n.id,n.type,n.target_id,n.message,n.is_read,n.created_at,
-        u.username,u.display_name,u.avatar_url
+        u.username,u.display_name,u.avatar_url,u.account_type
       FROM social_notifications n
       LEFT JOIN social_users u ON u.id=n.actor_id
       WHERE n.user_id=?
@@ -2325,7 +2327,8 @@ async function socialNotifications(request, env) {
       actor: row.username ? {
         username: row.username,
         displayName: row.display_name || "",
-        avatarUrl: row.avatar_url || ""
+        avatarUrl: row.avatar_url || "",
+        accountType: normalizeAccountType(row.account_type)
       } : null
     }))
   });
@@ -2370,7 +2373,7 @@ async function socialStories(request, env) {
 
   const result = await env.DB.prepare(`
     SELECT s.id,s.user_id,s.media_url,s.media_type,s.caption,s.created_at,s.expires_at,
-      u.username,u.display_name,u.avatar_url,
+      u.username,u.display_name,u.avatar_url,u.account_type,
       EXISTS(
         SELECT 1 FROM social_story_views v
         WHERE v.story_id=s.id AND v.user_id=?
@@ -2405,7 +2408,8 @@ async function socialStories(request, env) {
       author: {
         username: row.username,
         displayName: row.display_name || "",
-        avatarUrl: row.avatar_url || ""
+        avatarUrl: row.avatar_url || "",
+        accountType: normalizeAccountType(row.account_type)
       }
     }))
   });
@@ -2830,7 +2834,7 @@ async function socialListConversations(request, env) {
     for (const row of result.results || []) {
       stage = "members_query";
       const members = await env.DB.prepare(`
-        SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role,
+        SELECT u.id,u.username,u.display_name,u.avatar_url,u.account_type,cm.role,
           cm.last_read_at,cm.last_read_message_rowid,
           readprefs.preferences_json AS read_preferences_json,
           CASE WHEN COALESCE(us.show_online_status,1)=1 THEN u.last_seen_at ELSE NULL END AS last_seen_at
@@ -2851,7 +2855,7 @@ async function socialListConversations(request, env) {
         members: (members.results || []).map(member => ({
           id: member.id, username: member.username,
           displayName: member.display_name || "",
-          avatarUrl: member.avatar_url || "", role: member.role,
+          avatarUrl: member.avatar_url || "", accountType: normalizeAccountType(member.account_type), role: member.role,
           lastSeenAt: member.last_seen_at || null,
           lastReadAt: (() => {
             let prefs = {};
@@ -2915,7 +2919,7 @@ async function socialConversationMessages(request, env, conversationId) {
   const result = await env.DB.prepare(`
     SELECT m.id,m.rowid AS message_rowid,m.sender_id,m.content,m.media_json,m.reply_to,
       m.forwarded_from,m.edited_at,m.deleted_at,m.created_at,
-      u.username,u.display_name,u.avatar_url
+      u.username,u.display_name,u.avatar_url,u.account_type
     FROM social_messages m
     JOIN social_users u ON u.id=m.sender_id
     WHERE m.conversation_id=?
@@ -2962,7 +2966,8 @@ async function socialConversationMessages(request, env, conversationId) {
       author: {
         username: row.username,
         displayName: row.display_name || "",
-        avatarUrl: row.avatar_url || ""
+        avatarUrl: row.avatar_url || "",
+        accountType: normalizeAccountType(row.account_type)
       },
       isMine: row.sender_id === user.id
     });
