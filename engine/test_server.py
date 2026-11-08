@@ -53,7 +53,10 @@ class StudioControlPlaneTests(unittest.TestCase):
             response = urllib.request.urlopen(req, timeout=3)
         except urllib.error.HTTPError as error:
             response = error
-        status = response.code\n        body = response.read().decode("utf-8")\n        response.close()\n        return status, json.loads(body)
+        status = response.code
+        body = response.read().decode("utf-8")
+        response.close()
+        return status, json.loads(body)
 
     def test_http_authentication_is_required(self):
         status, payload = self.request("/health", token=False)
