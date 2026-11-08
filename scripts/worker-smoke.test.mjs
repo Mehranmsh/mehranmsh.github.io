@@ -172,3 +172,12 @@ test("private SOCIAL profile gallery and posts respect privacy and blocks", () =
   assert.match(posts, /canViewSocialPost\(env, viewer\.id, row\)/);
   assert.match(posts, /settings\?\.is_private && !following/);
 });
+
+
+test("blocked SOCIAL profiles are not returned to either side", () => {
+  const start = workerSource.indexOf("async function socialGetProfile");
+  const end = workerSource.indexOf("\nasync function ", start + 20);
+  const profile = workerSource.slice(start, end);
+  assert.match(profile, /profile\.id !== viewer\.id && await isBlocked\(env, viewer\.id, profile\.id\)/);
+  assert.match(profile, /return error\("User not found", 404\)/);
+});
