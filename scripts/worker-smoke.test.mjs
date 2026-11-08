@@ -448,3 +448,18 @@ test("conversation presence respects each member's online-status privacy setting
 });
 
 
+
+
+test("chat read cursors always advance while read-receipt visibility respects each member preference", () => {
+  const start = workerSource.indexOf("async function socialConversationMessages");
+  const end = workerSource.indexOf("\nasync function socialSendMessage", start);
+  assert.ok(start >= 0 && end > start, "conversation messages handler must exist");
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /UPDATE social_conversation_members\s+SET last_read_at=CURRENT_TIMESTAMP\s+WHERE conversation_id=\? AND user_id=\?/);
+  assert.doesNotMatch(handler, /if \(viewerPrefs\.chat\?\.readReceipts/);
+  const listStart = workerSource.indexOf("async function socialListConversations");
+  const listEnd = workerSource.indexOf("\nasync function ", listStart + 30);
+  const list = workerSource.slice(listStart, listEnd);
+  assert.match(list, /readprefs\.preferences_json AS read_preferences_json/);
+  assert.match(list, /prefs\.chat\?\.readReceipts === false \? null/);
+});
