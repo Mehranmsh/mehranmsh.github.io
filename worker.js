@@ -2342,6 +2342,16 @@ async function socialReadNotifications(request, env, id = null) {
   return json({ success: true, read: true });
 }
 
+async function canViewSocialStory(env, viewerId, story) {
+  if (!story) return false;
+  if (story.user_id === viewerId) return true;
+  if (await isBlocked(env, viewerId, story.user_id)) return false;
+  const following = await env.DB.prepare(
+    "SELECT 1 FROM social_follows WHERE follower_id=? AND following_id=? LIMIT 1"
+  ).bind(viewerId, story.user_id).first();
+  return Boolean(following);
+}
+
 async function socialStories(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -2367,8 +2377,13 @@ async function socialStories(request, env) {
           SELECT following_id FROM social_follows WHERE follower_id=?
         )
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM social_blocks b
+        WHERE (b.blocker_id=? AND b.blocked_id=s.user_id)
+           OR (b.blocker_id=s.user_id AND b.blocked_id=?)
+      )
     ORDER BY s.created_at DESC LIMIT 100
-  `).bind(user.id, now, user.id, user.id).all();
+  `).bind(user.id, now, user.id, user.id, user.id, user.id).all();
 
   return json({
     success: true,
@@ -2401,6 +2416,18 @@ async function socialCreateStory(request, env) {
 
   if (!validHttpsUrl(mediaUrl)) return error("Invalid media URL");
   if (!["image", "video"].includes(mediaType)) return error("Invalid story media type");
+
+  // Stories must reference a ready public upload owned by the publisher.
+  // This prevents arbitrary external URLs and cross-account media injection.
+  const upload = await env.DB.prepare(`
+    SELECT id,url,mime_type,status,acl FROM social_uploads
+    WHERE user_id=? AND url=? LIMIT 1
+  `).bind(user.id, mediaUrl).first();
+  const expectedMime = mediaType === "video" ? "video/" : "image/";
+  if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+      !validHttpsUrl(upload.url) || !String(upload.mime_type || "").toLowerCase().startsWith(expectedMime)) {
+    return error("Story media must be a ready image or video uploaded by your account.", 400);
+  }
 
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
@@ -2443,7 +2470,9 @@ async function socialViewStory(request, env, id) {
     "SELECT id,user_id FROM social_stories WHERE id=? AND expires_at>?"
   ).bind(id, new Date().toISOString()).first();
 
-  if (!story) return error("Story not found", 404);
+  if (!story || !await canViewSocialStory(env, user.id, story)) {
+    return error("Story not found", 404);
+  }
 
   await env.DB.prepare(`
     INSERT OR IGNORE INTO social_story_views(story_id,user_id) VALUES(?,?)
@@ -2466,7 +2495,9 @@ async function socialReactStory(request, env, id) {
     "SELECT id,user_id FROM social_stories WHERE id=? AND expires_at>?"
   ).bind(id, new Date().toISOString()).first();
 
-  if (!story) return error("Story not found", 404);
+  if (!story || !await canViewSocialStory(env, user.id, story)) {
+    return error("Story not found", 404);
+  }
 
   const reactionResult = await env.DB.prepare(`
     INSERT INTO social_story_reactions(story_id,user_id,reaction)
