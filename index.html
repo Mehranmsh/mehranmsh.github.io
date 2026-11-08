@@ -2164,6 +2164,27 @@ function socialStartChatRefresh(){
  },5000);
 }
 
+let socialNetworkRecoveryInstalled=false;
+function socialInstallNetworkRecovery(){
+ if(socialNetworkRecoveryInstalled)return;
+ socialNetworkRecoveryInstalled=true;
+ window.addEventListener("offline",()=>{
+  const status=$("chatThreadStatus");
+  if(status&&socialActiveConversation)status.textContent="Offline · messages will sync when connection returns";
+ });
+ const recover=()=>{
+  if(!socialUser||!navigator.onLine)return;
+  socialRefreshConversationList();
+  if(socialActiveConversation)socialRefreshChatMessages();
+  if(document.querySelector("#social-notifications.active"))loadNotifications();
+ };
+ window.addEventListener("online",recover);
+ document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden)recover();
+ });
+}
+socialInstallNetworkRecovery();
+
 function socialRenderGroupManagement(conversation){
  const panel=$("groupManagementPanel");if(!panel)return;
  const members=Array.isArray(conversation?.members)?conversation.members:[];
