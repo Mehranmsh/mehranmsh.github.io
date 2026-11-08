@@ -300,3 +300,19 @@ test("channel media upload IDs must belong to the publishing admin and be ready 
   assert.match(handler, /!upload\.url \|\| !validHttpsUrl\(upload\.url\)/);
   assert.match(handler, /Channel media must be a ready public upload owned by your account/);
 });
+
+
+
+test("channel ownership transfer is owner-only and restricted to existing members", () => {
+  const start = workerSource.indexOf("async function socialTransferChannelOwnership(");
+  const end = workerSource.indexOf("\nasync function ", start + 30);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /channel\.owner_id !== user\.id/);
+  assert.match(handler, /SELECT role FROM social_channel_members WHERE channel_id=\? AND user_id=\?/);
+  assert.match(handler, /The new owner must already be a channel member/);
+  assert.match(handler, /UPDATE social_channels SET owner_id=\?/);
+  assert.match(handler, /UPDATE social_channel_members SET role='subscriber'/);
+  assert.match(handler, /UPDATE social_channel_members SET role='owner'/);
+  assert.match(handler, /await env\.DB\.batch\(/);
+  assert.ok(workerSource.includes("transferChannelMatch = path.match"));
+});
