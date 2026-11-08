@@ -5541,7 +5541,7 @@ export default {
 
         const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
         const result = await env.DB.prepare(`
-          SELECT id,username,email,display_name,pi_username,pi_verified,
+          SELECT id,username,email,display_name,pi_username,pi_verified,account_type,
                  is_active,email_verified,created_at,updated_at
           FROM social_users ${where}
           ORDER BY created_at DESC
@@ -5559,6 +5559,7 @@ export default {
             username: row.username,
             email: row.email,
             displayName: row.display_name || "",
+            accountType: normalizeAccountType(row.account_type),
             piUsername: row.pi_username || "",
             piVerified: Boolean(row.pi_verified),
             active: Boolean(row.is_active),
