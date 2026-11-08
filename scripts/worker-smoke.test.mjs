@@ -285,6 +285,15 @@ test("group ownership transfer is owner-only and restricted to existing members"
   assert.ok(workerSource.includes("SET role='owner'"));
   assert.ok(workerSource.includes("transferGroupMatch"));
   assert.ok(workerSource.includes("/transfer-ownership"));
+  const transferStart = workerSource.indexOf("async function socialTransferGroupOwnership");
+  const transferEnd = workerSource.indexOf("\nasync function ", transferStart + 20);
+  const transfer = workerSource.slice(transferStart, transferEnd);
+  assert.match(transfer, /DELETE FROM social_group_invites WHERE conversation_id=\?/);
+  const manageStart = workerSource.indexOf("async function socialManageGroupMember");
+  const manageEnd = workerSource.indexOf("\nasync function ", manageStart + 20);
+  const manage = workerSource.slice(manageStart, manageEnd);
+  assert.match(manage, /DELETE FROM social_group_invites WHERE conversation_id=\?/);
+  assert.match(manage, /previousInvitesRevoked: true/);
 });
 
 test("group member management routes expose only leave, remove, and role updates", () => {
