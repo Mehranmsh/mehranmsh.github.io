@@ -886,3 +886,23 @@ test("SOCIAL comments preserve and display the author's verified account type", 
   assert.match(indexSource, /socialAccountTypeLabel\(c\.accountType\|\|c\.author\?\.accountType\)/);
   assert.match(indexSource, /accountType:c\.author\?\.accountType\|\|"human"/);
 });
+
+test("SOCIAL follow requests expose account type and acceptance revalidates privacy and active accounts", () => {
+  const listStart = workerSource.indexOf("async function socialFollowRequests");
+  const listEnd = workerSource.indexOf("async function ", listStart + 30);
+  assert.ok(listStart >= 0 && listEnd > listStart);
+  const list = workerSource.slice(listStart, listEnd);
+  assert.match(list, /u\.account_type/);
+  assert.match(list, /accountType: normalizeAccountType\(row\.account_type\)/);
+  assert.match(list, /u\.is_active=1/);
+
+  const actionStart = workerSource.indexOf("async function socialFollowRequestAction");
+  const actionEnd = workerSource.indexOf("async function ", actionStart + 30);
+  const action = workerSource.slice(actionStart, actionEnd);
+  assert.match(action, /requester\.is_active=1/);
+  assert.match(action, /target\.is_active=1/);
+  assert.match(action, /await isBlocked\(env, row\.requester_id, user\.id\)/);
+  assert.match(action, /NOT EXISTS \([\s\S]*FROM social_blocks/);
+  assert.match(action, /results\?\.\[0\]\?\.meta\?\.changes/);
+  assert.match(indexSource, /socialAccountTypeLabel\(r\.user\.accountType\)/);
+});
