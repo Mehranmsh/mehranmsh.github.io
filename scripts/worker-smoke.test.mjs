@@ -316,3 +316,28 @@ test("channel ownership transfer is owner-only and restricted to existing member
   assert.match(handler, /await env\.DB\.batch\(/);
   assert.ok(workerSource.includes("transferChannelMatch = path.match"));
 });
+
+
+test("channel administration is owner-only and cannot alter the owner", () => {
+  const start = workerSource.indexOf("async function socialManageChannelMember");
+  const end = workerSource.indexOf("\nasync function ", start + 30);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /channel\.owner_id !== user\.id/);
+  assert.match(handler, /Only the channel owner can manage administrators/);
+  assert.match(handler, /target\.role === "owner"/);
+  assert.match(handler, /\["admin", "subscriber"\]/);
+  assert.match(handler, /role!='owner'/);
+  assert.match(handler, /DELETE FROM social_channel_members/);
+  assert.ok(workerSource.includes("channelMemberMatch = path.match"));
+});
+
+test("private channel invite rotation revokes the previous code and is owner-only", () => {
+  const start = workerSource.indexOf("async function socialRotateChannelInvite");
+  const end = workerSource.indexOf("\nasync function ", start + 30);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /UPDATE social_channels SET invite_code=\?/);
+  assert.match(handler, /owner_id=\? AND is_private=1/);
+  assert.match(handler, /previousInvitesRevoked: true/);
+  assert.match(handler, /Invite rotation is available only for private channels/);
+  assert.ok(workerSource.includes("rotateChannelInviteMatch = path.match"));
+});
