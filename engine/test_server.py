@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import hashlib
 import tempfile
 import threading
 import unittest
@@ -27,6 +28,8 @@ class StudioControlPlaneTests(unittest.TestCase):
         module.MAX_PROJECTS = 2
         module.TOKEN = "t" * 40
         module.database().close()
+        self.models = module.ROOT / "models"
+        self.models.mkdir()
         self.httpd = module.ThreadingHTTPServer(("127.0.0.1", 0), module.Handler)
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
@@ -78,6 +81,54 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(len(listing["projects"]), 1)
         self.assertEqual(listing["projects"][0]["name"], "Local Demo")
+
+
+    def write_manifest(self, **overrides):
+        artifact = self.models / "tiny-model.bin"
+        artifact.write_bytes(b"local model test bytes")
+        data = {
+            "enabled": True, "runtime": "local", "model_id": "ace-step-1.5",
+            "license": "MIT", "license_reviewed": True, "owner_approved": True,
+            "self_test_passed": True,
+            "artifacts": [{"path": "tiny-model.bin", "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()}],
+        }
+        data.update(overrides)
+        (self.models / "runtime.json").write_text(json.dumps(data), encoding="utf-8")
+        return artifact
+
+    def test_model_manifest_requires_owner_approval_and_verified_hash(self):
+        self.write_manifest()
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertTrue(result["valid"])
+        self.assertEqual(result["model_id"], "ace-step-1.5")
+
+    def test_noncommercial_model_is_not_allowlisted(self):
+        self.write_manifest(model_id="musicgen", license="CC-BY-NC-4.0")
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+
+    def test_owner_approval_is_mandatory(self):
+        self.write_manifest(owner_approved=False)
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("Owner approval", result["message"])
+
+    def test_model_artifact_hash_mismatch_is_rejected(self):
+        self.write_manifest(artifacts=[{"path": "tiny-model.bin", "sha256": "0" * 64}])
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("SHA-256 mismatch", result["message"])
+
+    def test_model_artifact_path_traversal_is_rejected(self):
+        self.write_manifest(artifacts=[{"path": "../outside.bin", "sha256": "0" * 64}])
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+
+    def test_verified_model_still_cannot_start_generation_before_runner_integration(self):
+        self.write_manifest()
+        status = module.engine_status()
+        self.assertFalse(status["ready"])
+        self.assertEqual(status["state"], "model_verified_runner_not_integrated")
 
     def test_engine_is_honestly_unavailable_without_local_runtime(self):
         state = module.engine_status()
