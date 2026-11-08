@@ -654,3 +654,29 @@ test("SOCIAL comment and follow approval writes survive notification delivery fa
   assert.ok(acceptStart >= 0);
   assert.ok(workerSource.includes('await notify(env, row.requester_id, user.id, "follow_accepted"'));
 });
+
+test("SOCIAL uploads enforce per-user ownership and verify storage metadata before completion", () => {
+  const completeStart = workerSource.indexOf("async function socialCompleteUpload");
+  const completeEnd = workerSource.indexOf("async function socialListUploads", completeStart);
+  assert.ok(completeStart >= 0 && completeEnd > completeStart);
+  const complete = workerSource.slice(completeStart, completeEnd);
+  assert.match(complete, /SELECT \* FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(complete, /file\.metadata\?\.userId !== user\.id/);
+  assert.match(complete, /file\.status !== "ready"/);
+  assert.match(complete, /row\.acl === "public" \? \(file\.url \|\| null\) : null/);
+
+  const getStart = workerSource.indexOf("async function socialGetUploadUrl");
+  const getEnd = workerSource.indexOf("async function socialDeleteUpload", getStart);
+  assert.ok(getStart >= 0 && getEnd > getStart);
+  const getUrl = workerSource.slice(getStart, getEnd);
+  assert.match(getUrl, /SELECT \* FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(getUrl, /if \(row\.status !== "ready"\)/);
+  assert.match(getUrl, /expiresIn: 3600/);
+  assert.match(getUrl, /validHttpsUrl\(result\.url\)/);
+
+  const deleteStart = workerSource.indexOf("async function socialDeleteUpload");
+  const deleteEnd = workerSource.indexOf("async function fetchPiUser", deleteStart);
+  const remove = workerSource.slice(deleteStart, deleteEnd);
+  assert.match(remove, /SELECT id FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(remove, /DELETE FROM social_uploads WHERE id=\? AND user_id=\?/);
+});
