@@ -456,7 +456,7 @@ test("chat read cursors always advance while read-receipt visibility respects ea
   const end = workerSource.indexOf("\nasync function socialSendMessage", start);
   assert.ok(start >= 0 && end > start, "conversation messages handler must exist");
   const handler = workerSource.slice(start, end);
-  assert.ok(handler.includes("SET last_read_at=CURRENT_TIMESTAMP,") && handler.includes("last_read_message_rowid="));
+  assert.ok(handler.includes("SET last_read_at=?,") && handler.includes("last_read_message_rowid=?"));
   assert.doesNotMatch(handler, /if \(viewerPrefs\.chat\?\.readReceipts/);
   const listStart = workerSource.indexOf("async function socialListConversations");
   const listEnd = workerSource.indexOf("\nasync function ", listStart + 30);
@@ -548,7 +548,7 @@ test("SOCIAL chat unread cursors are rowid-based to avoid same-second message lo
   assert.ok(workerSource.includes('ensureColumn("social_conversation_members", "last_read_message_rowid", "INTEGER")'));
   assert.ok(workerSource.includes("unread.rowid>COALESCE(cm.last_read_message_rowid"));
   assert.ok(workerSource.includes("read_cursor.created_at<=COALESCE(NULLIF(cm.last_read_at,''),NULLIF(cm.joined_at,''),"));
-  assert.ok(workerSource.includes("last_read_message_rowid=(SELECT MAX(read_cursor.rowid)"));
+  assert.ok(workerSource.includes("const newestDelivered = (result.results || [])[0]"));
   assert.ok(workerSource.includes("ORDER BY m.created_at DESC,m.rowid DESC LIMIT ?"));
   assert.ok(workerSource.includes("ORDER BY m.created_at DESC,m.rowid DESC LIMIT 1"));
 });
@@ -564,7 +564,7 @@ test("SOCIAL repeated like requests do not create duplicate notifications", () =
 
 test("SOCIAL read cursor advances only to the newest message actually delivered in the response", () => {
   const start = workerSource.indexOf("async function socialConversationMessages");
-  const end = workerSource.indexOf("\\nasync function socialSendMessage", start);
+  const end = workerSource.indexOf("async function socialSendMessage", start + 30);
   assert.ok(start >= 0 && end > start);
   const handler = workerSource.slice(start, end);
   assert.ok(handler.includes("const newestDelivered = (result.results || [])[0]"));
@@ -572,7 +572,7 @@ test("SOCIAL read cursor advances only to the newest message actually delivered 
   assert.ok(handler.includes("last_read_message_rowid=?"));
   assert.ok(handler.includes("Number(newestDelivered.message_rowid)"));
   assert.ok(handler.includes("if (newestDelivered?.message_rowid != null)"));
-  assert.doesNotMatch(handler, /SELECT MAX\\(read_cursor\\.rowid\\).*UPDATE/s);
+  assert.ok(!handler.includes("SELECT MAX(read_cursor.rowid)"));
 });
 
 test("SOCIAL read receipts use message sequence cursors to avoid same-second false Seen states", () => {
