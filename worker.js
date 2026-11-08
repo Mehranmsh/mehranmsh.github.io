@@ -3577,6 +3577,39 @@ async function socialChannelPost(request, env, channelId) {
   return json({ success: true, post: { id, content, media } }, 201);
 }
 
+
+async function socialEditChannelPost(request, env, channelId, postId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const member = await env.DB.prepare("SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?").bind(channelId, user.id).first();
+  if (!member || !["owner", "admin"].includes(member.role)) return error("Admin permission required", 403);
+  const body = await readBody(request);
+  if (!body || typeof body.content !== "string") return error("Invalid request body");
+  const content = cleanText(body.content, 10000);
+  const post = await env.DB.prepare("SELECT id,media_json FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId).first();
+  if (!post) return error("Channel post not found", 404);
+  let media = [];
+  try { media = JSON.parse(post.media_json || "[]"); } catch { return error("Post media data is invalid", 500); }
+  if (!content && (!Array.isArray(media) || media.length === 0)) return error("Post cannot be empty");
+  await env.DB.prepare("UPDATE social_channel_posts SET content=?,edited_at=CURRENT_TIMESTAMP WHERE id=? AND channel_id=?").bind(content, postId, channelId).run();
+  return json({ success: true, post: { id: postId, content, editedAt: new Date().toISOString() } });
+}
+
+async function socialDeleteChannelPost(request, env, channelId, postId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const member = await env.DB.prepare("SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?").bind(channelId, user.id).first();
+  if (!member || !["owner", "admin"].includes(member.role)) return error("Admin permission required", 403);
+  const post = await env.DB.prepare("SELECT id FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId).first();
+  if (!post) return error("Channel post not found", 404);
+  // Delete only database references. Uploaded media files are intentionally retained.
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM social_channel_pins WHERE channel_id=? AND post_id=?").bind(channelId, postId),
+    env.DB.prepare("DELETE FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId)
+  ]);
+  return json({ success: true, deleted: true });
+}
+
 async function socialPinChannelPost(request, env, channelId, postId, pin) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -5065,6 +5098,16 @@ export default {
             env,
             decodeURIComponent(channelPostsMatch[1])
           );
+        }
+
+        const channelPostItemMatch = path.match(
+          /^\/social\/channels\/([^/]+)\/posts\/([^/]+)$/
+        );
+        if (channelPostItemMatch && method === "PUT") {
+          return await socialEditChannelPost(request, env, decodeURIComponent(channelPostItemMatch[1]), decodeURIComponent(channelPostItemMatch[2]));
+        }
+        if (channelPostItemMatch && method === "DELETE") {
+          return await socialDeleteChannelPost(request, env, decodeURIComponent(channelPostItemMatch[1]), decodeURIComponent(channelPostItemMatch[2]));
         }
 
         const channelPinMatch = path.match(
