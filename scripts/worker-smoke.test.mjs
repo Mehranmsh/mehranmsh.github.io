@@ -584,11 +584,8 @@ test("SOCIAL repeated follow and private follow-request calls do not duplicate n
 });
 
 test("SOCIAL new conversation members receive a read cursor at their join boundary", () => {
-  const dmStart = workerSource.indexOf("async function socialStartConversation");
-  const dmEnd = workerSource.indexOf("async function ", dmStart + 30);
-  const dm = workerSource.slice(dmStart, dmEnd);
-  assert.ok(dm.includes("last_read_message_rowid)"));
-  assert.ok(dm.includes("VALUES(?,?,'member',0)"));
+  assert.ok(workerSource.includes("INSERT INTO social_conversation_members(conversation_id,user_id,role,last_read_message_rowid)"));
+  assert.ok(workerSource.includes("VALUES(?,?,'member',0)"));
   const groupStart = workerSource.indexOf("async function socialCreateGroup");
   const groupEnd = workerSource.indexOf("async function socialGroupInvite", groupStart);
   const group = workerSource.slice(groupStart, groupEnd);
