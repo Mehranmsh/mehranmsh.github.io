@@ -2062,6 +2062,9 @@ function socialRenderConversationRows(){
 }
 async function socialLoadConversations(){
  const list=$("conversationList"),groupsBox=$("groupsList");
+ const pendingGroupInvite=new URLSearchParams(location.search).get("groupInvite");
+ if(pendingGroupInvite&&$("groupInviteCode"))$("groupInviteCode").value=pendingGroupInvite;
+
  if(!socialUser){
   if(list)list.textContent="Sign in to use messages and groups.";
   if(groupsBox)groupsBox.textContent="Sign in to view and create groups.";
