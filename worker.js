@@ -2456,13 +2456,20 @@ async function socialReactStory(request, env, id) {
 
   if (!story) return error("Story not found", 404);
 
-  await env.DB.prepare(`
+  const reactionResult = await env.DB.prepare(`
     INSERT INTO social_story_reactions(story_id,user_id,reaction)
     VALUES(?,?,?)
     ON CONFLICT(story_id,user_id) DO UPDATE SET reaction=excluded.reaction
+    WHERE social_story_reactions.reaction<>excluded.reaction
   `).bind(id, user.id, reaction).run();
 
-  await notify(env, story.user_id, user.id, "story_reaction", id, reaction);
+  if (Number(reactionResult?.meta?.changes || 0) > 0) {
+    try {
+      await notify(env, story.user_id, user.id, "story_reaction", id, reaction);
+    } catch (notificationError) {
+      console.error("SOCIAL_STORY_REACTION_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+    }
+  }
 
   return json({ success: true, reaction });
 }
