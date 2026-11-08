@@ -108,7 +108,78 @@ class Handler(BaseHTTPRequestHandler):
             with database() as db:
                 rows = db.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()
             return self.send_json(200, {"projects": [dict(row) for row in rows]})
+        if path.startswith("/v1/projects/"):
+            project_id = path.rsplit("/", 1)[-1]
+            if not project_id or len(project_id) > 64:
+                return self.send_json(400, {"error": "invalid_project_id"})
+            with database() as db:
+                row = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+            if row is None:
+                return self.send_json(404, {"error": "project_not_found"})
+            return self.send_json(200, {"project": dict(row)})
         return self.send_json(404, {"error": "not_found"})
+
+    def do_PUT(self):
+        if not self.authorized():
+            return self.send_json(401, {"error": "unauthorized"})
+        path = urlparse(self.path).path
+        if not path.startswith("/v1/projects/"):
+            return self.send_json(404, {"error": "not_found"})
+        project_id = path.rsplit("/", 1)[-1]
+        length = self.headers.get("Content-Length", "")
+        if not project_id or len(project_id) > 64:
+            return self.send_json(400, {"error": "invalid_project_id"})
+        if not length.isdigit() or int(length) > MAX_BODY:
+            return self.send_json(413, {"error": "payload_too_large"})
+        try:
+            payload = json.loads(self.rfile.read(int(length) or 0))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self.send_json(400, {"error": "invalid_json"})
+        if not isinstance(payload, dict):
+            return self.send_json(400, {"error": "invalid_payload"})
+        with LOCK, database() as db:
+            current = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+            if current is None:
+                return self.send_json(404, {"error": "project_not_found"})
+            name = str(payload.get("name", current["name"])).strip()
+            kind = str(payload.get("kind", current["kind"])).strip()
+            if not name or len(name) > 100 or not kind or len(kind) > 40:
+                return self.send_json(400, {"error": "invalid_project_fields"})
+            bpm = payload.get("bpm", current["bpm"])
+            if bpm is not None and (not isinstance(bpm, int) or not 20 <= bpm <= 300):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            values = {
+                "language": str(payload.get("language", current["language"]))[:40],
+                "genre": str(payload.get("genre", current["genre"]))[:60],
+                "mood": str(payload.get("mood", current["mood"]))[:60],
+                "brief": str(payload.get("brief", current["brief"]))[:4000],
+                "lyrics": str(payload.get("lyrics", current["lyrics"]))[:20000],
+                "status": str(payload.get("status", current["status"]))[:20],
+            }
+            if values["status"] not in ("draft", "ready", "archived"):
+                return self.send_json(400, {"error": "invalid_project_status"})
+            now = int(time.time())
+            db.execute("""UPDATE projects SET name=?, kind=?, language=?, genre=?, mood=?,
+                bpm=?, brief=?, lyrics=?, status=?, updated_at=? WHERE id=?""",
+                (name, kind, values["language"], values["genre"], values["mood"], bpm,
+                 values["brief"], values["lyrics"], values["status"], now, project_id))
+            row = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
+        return self.send_json(200, {"project": dict(row)})
+
+    def do_DELETE(self):
+        if not self.authorized():
+            return self.send_json(401, {"error": "unauthorized"})
+        path = urlparse(self.path).path
+        if not path.startswith("/v1/projects/"):
+            return self.send_json(404, {"error": "not_found"})
+        project_id = path.rsplit("/", 1)[-1]
+        if not project_id or len(project_id) > 64:
+            return self.send_json(400, {"error": "invalid_project_id"})
+        with LOCK, database() as db:
+            result = db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+            if result.rowcount == 0:
+                return self.send_json(404, {"error": "project_not_found"})
+        return self.send_json(200, {"deleted": True, "project_id": project_id})
 
     def do_POST(self):
         if not self.authorized():
