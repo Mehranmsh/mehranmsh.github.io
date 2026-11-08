@@ -100,3 +100,24 @@ test("admin overview rejects requests without a verified admin session", async (
   const payload = await response.json();
   assert.match(payload.error, /Admin authentication required/);
 });
+
+test("security guardrails keep request bodies bounded and CORS restricted", () => {
+  assert.match(workerSource, /const MAX_BODY_BYTES = 100000;/);
+  assert.match(workerSource, /origin !== ALLOWED_ORIGIN/);
+  assert.match(workerSource, /Access-Control-Allow-Origin": ALLOWED_ORIGIN/);
+});
+
+test("password hashing parameters remain explicit and compatible with the deployed history", () => {
+  assert.match(workerSource, /const PBKDF2_ITERATIONS = 100000;/);
+  assert.match(workerSource, /crypto\.getRandomValues\(new Uint8Array\(16\)\)/);
+  assert.match(workerSource, /hash: "SHA-256"/);
+  assert.match(workerSource, /expected\.length !== 32/);
+  assert.match(workerSource, /iterations !== PBKDF2_ITERATIONS/);
+});
+
+test("Workers AI requests have a fail-closed daily reservation ceiling", () => {
+  assert.match(workerSource, /const SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000;/);
+  assert.match(workerSource, /if \(!env\?\.DB \|\| !Number\.isInteger\(reservedNeurons\) \|\| reservedNeurons < 1\)/);
+  assert.match(workerSource, /WHERE social_ai_daily_budget\.reserved_neurons\+excluded\.reserved_neurons<=\?/);
+  assert.match(workerSource, /if \(!budget\.allowed\) throw new Error\("Daily free Workers AI budget is reserved for today\."/);
+});
