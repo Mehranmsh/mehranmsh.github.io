@@ -3200,6 +3200,16 @@ async function socialCreateGroup(request, env) {
     }
     return error("Could not create the group. Please try again. [GROUP_CREATE_FAILED]", 500);
   }
+
+  // Notify newly added members as group invitations. The shared notifier
+  // enforces both notification and community-invite preferences.
+  for (const target of targets) {
+    try {
+      await notify(env, target.id, user.id, "group_invite", id, "added you to a group");
+    } catch (notificationError) {
+      console.error("SOCIAL_GROUP_INVITATION_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+    }
+  }
   return json({ success: true, group: { id, title } }, 201);
 }
 
