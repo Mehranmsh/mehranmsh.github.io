@@ -3310,6 +3310,26 @@ async function socialJoinChannel(request, env, channelId) {
   return json({ success: true, joined: true });
 }
 
+async function socialLeaveChannel(request, env, channelId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const channel = await env.DB.prepare(
+    "SELECT owner_id FROM social_channels WHERE id=?"
+  ).bind(channelId).first();
+  if (!channel) return error("Channel not found", 404);
+  if (channel.owner_id === user.id) {
+    return error("The channel owner must transfer ownership before leaving", 409);
+  }
+
+  const result = await env.DB.prepare(
+    "DELETE FROM social_channel_members WHERE channel_id=? AND user_id=?"
+  ).bind(channelId, user.id).run();
+  if (!Number(result.meta?.changes || 0)) return error("You are not a channel member", 404);
+
+  return json({ success: true, left: true });
+}
+
 async function socialChannelPosts(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4810,6 +4830,17 @@ export default {
             request,
             env,
             decodeURIComponent(joinChannelMatch[1])
+          );
+        }
+
+        const leaveChannelMatch = path.match(
+          /^\/social\/channels\/([^/]+)\/leave$/
+        );
+        if (leaveChannelMatch && method === "POST") {
+          return await socialLeaveChannel(
+            request,
+            env,
+            decodeURIComponent(leaveChannelMatch[1])
           );
         }
 
