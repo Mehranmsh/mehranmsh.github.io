@@ -238,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
             "lyrics": str(payload.get("lyrics", ""))[:20000],
         }
         bpm = payload.get("bpm")
-        if bpm is not None and (not isinstance(bpm, int) or not 20 <= bpm <= 300):
+        if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 20 <= bpm <= 300):
             return self.send_json(400, {"error": "invalid_bpm"})
         with LOCK, db_session() as db:
             count = db.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
