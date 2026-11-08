@@ -1470,7 +1470,7 @@ $("profileEditor").classList.add("hidden");
 if(!logged){syncPiVerificationUI();return}
 try{const d=await socialRequest("/profile/"+encodeURIComponent(socialUser.username));profileData=d.profile||null;if(profileData){socialUser={...socialUser,...profileData};localProfile={...localProfile,displayName:profileData.displayName||"",bio:profileData.bio||"",photo:profileData.avatarUrl||""};saveJSON(SOCIAL_PROFILE_KEY,localProfile);}}catch(e){console.warn("Profile refresh:",e.message);profileData={...socialUser,counts:{posts:0,followers:0,following:0}}}
 syncPiVerificationUI();
-const p=profileData||socialUser,name=p.displayName||p.username||"Your name",bio=p.bio||"",avatar=p.avatarUrl||localProfile.photo||"";const accountType=p.accountType||"human";$("profileAccountTypeBadge").textContent=accountType==="business"?"▣ Business account":"✦ Human account";window.socialProfileGallery=Array.isArray(p.gallery)?p.gallery.map(x=>({id:x.id,url:x.url})):[];
+const p=profileData||socialUser,name=p.displayName||p.username||"Your name",bio=p.bio||"",avatar=p.avatarUrl||localProfile.photo||"";const accountType=p.accountType||"human";$("profileAccountTypeBadge").textContent=accountType==="business"?"▣ Business account":accountType==="ai"?"🤖 AI account":"✦ Human account";window.socialProfileGallery=Array.isArray(p.gallery)?p.gallery.map(x=>({id:x.id,url:x.url})):[];
 $("profileHeroName").textContent=name;$("profileHeroHandle").textContent="@"+(p.username||socialUser.username);
 $("profileHeroBio").textContent=bio||"A little mystery, a lot of possibility. Add a bio to tell your story.";
 $("profileCreatorBadge").classList.toggle("hidden",!socialUser.isCreator&&!p.isCreator&&!socialUser.piVerified);
