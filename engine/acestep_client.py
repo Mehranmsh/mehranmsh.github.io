@@ -39,7 +39,7 @@ class ACEstepLocalClient:
             if not addresses or any(not ipaddress.ip_address(item[4][0]).is_loopback for item in addresses):
                 raise ValueError("localhost resolved to a non-loopback address.")
         self.host = host
-        self.port = parsed.port or 80
+        self.port = parsed.port or 8001
         if not 1 <= self.port <= 65535:
             raise ValueError("Invalid local ACE-Step port.")
         self.api_key = api_key
