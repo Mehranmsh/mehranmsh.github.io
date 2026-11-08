@@ -2914,14 +2914,23 @@ async function socialConversationMessages(request, env, conversationId) {
       isMine: row.sender_id === user.id
     });
   }
-  // Always advance the viewer's own read cursor so unread counts stay accurate.
-  // The viewer's readReceipts preference controls whether other members can see it.
-  await env.DB.prepare(`
-    UPDATE social_conversation_members
-    SET last_read_at=CURRENT_TIMESTAMP,
-        last_read_message_rowid=(SELECT MAX(read_cursor.rowid) FROM social_messages read_cursor WHERE read_cursor.conversation_id=?)
-    WHERE conversation_id=? AND user_id=?
-  `).bind(conversationId, conversationId, user.id).run();
+  // Advance only through the newest message included in this response.
+  // A message arriving after the SELECT must remain unread until a later refresh.
+  // The viewer's readReceipts preference controls visibility, not cursor accuracy.
+  const newestDelivered = (result.results || [])[0];
+  if (newestDelivered?.message_rowid != null) {
+    await env.DB.prepare(`
+      UPDATE social_conversation_members
+      SET last_read_at=?,
+          last_read_message_rowid=?
+      WHERE conversation_id=? AND user_id=?
+    `).bind(
+      newestDelivered.created_at,
+      Number(newestDelivered.message_rowid),
+      conversationId,
+      user.id
+    ).run();
+  }
   return json({ success: true, messages });
 }
 
