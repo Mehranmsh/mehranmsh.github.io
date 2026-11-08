@@ -605,3 +605,10 @@ test("SOCIAL repeated story reactions do not generate duplicate notifications", 
   assert.ok(workerSource.includes("Number(reactionResult?.meta?.changes || 0) > 0"));
   assert.ok(workerSource.includes("SOCIAL_STORY_REACTION_NOTIFICATION_FAILURE"));
 });
+
+test("SOCIAL unread counters have indexes for recipient and conversation lookups", () => {
+  assert.ok(workerSource.includes("idx_social_notifications_unread"));
+  assert.ok(workerSource.includes("ON social_notifications(user_id,is_read,created_at DESC)"));
+  assert.ok(workerSource.includes("idx_social_messages_unread"));
+  assert.ok(workerSource.includes("ON social_messages(conversation_id,sender_id,deleted_at)"));
+});
