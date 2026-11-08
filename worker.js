@@ -3406,9 +3406,11 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
 async function socialGenerateAssistantImage(request, env) {
   const requestId = crypto.randomUUID();
   const startedAt = Date.now();
-  const logStage = (stage, extra = {}) => console.info("SOCIAL_IMAGE_GENERATION", JSON.stringify({
-    requestId, stage, elapsedMs: Date.now() - startedAt, ...extra
-  }));
+  let currentStage = "request_received";
+  const logStage = (stage, extra = {}) => {
+    currentStage = stage;
+    console.info("SOCIAL_IMAGE_GENERATION", JSON.stringify({ requestId, stage, elapsedMs: Date.now() - startedAt, ...extra }));
+  };
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
   if (!env.AI || typeof env.AI.run !== "function") return error("Free image generation is not available on this Worker.", 503);
@@ -3500,7 +3502,7 @@ async function socialGenerateAssistantImage(request, env) {
     const image = result?.image;
     if (typeof image !== "string" || !image.length) {
       console.error("SOCIAL_IMAGE_GENERATION_BAD_RESPONSE", JSON.stringify({ requestId, model, elapsedMs: Date.now() - startedAt, resultKeys: Object.keys(result || {}) }));
-      return json({ success: false, error: "The image model returned an unsupported response. Please try again.", code: "SOCIAL_IMAGE_GENERATION_BAD_RESPONSE", requestId }, 502);
+      return json({ success: false, error: "The image model returned an unsupported response. Please try again.", code: "SOCIAL_IMAGE_GENERATION_BAD_RESPONSE", requestId, stage: currentStage, elapsedMs: Date.now() - startedAt }, 502);
     }
     logStage("completed", { model, outputChars: image.length });
     return json({ success: true, model, image, mimeType, requestId });
@@ -3508,15 +3510,15 @@ async function socialGenerateAssistantImage(request, env) {
     const elapsedMs = Date.now() - startedAt;
     if (e?.code === "SOCIAL_IMAGE_REFERENCE_TIMEOUT") {
       console.error("SOCIAL_IMAGE_REFERENCE_TIMEOUT", JSON.stringify({ requestId, elapsedMs }));
-      return json({ success: false, error: "Preparing your private reference photo took longer than 30 seconds. Please try again.", code: "SOCIAL_IMAGE_REFERENCE_TIMEOUT", requestId }, 504);
+      return json({ success: false, error: "Preparing your private reference photo took longer than 30 seconds. Please try again.", code: "SOCIAL_IMAGE_REFERENCE_TIMEOUT", requestId, stage: currentStage, elapsedMs }, 504);
     }
     if (e?.code === "SOCIAL_IMAGE_GENERATION_TIMEOUT") {
       console.error("SOCIAL_IMAGE_GENERATION_TIMEOUT", JSON.stringify({ requestId, model, elapsedMs }));
-      return json({ success: false, error: "Image generation took longer than 120 seconds and was stopped waiting for a response. Please try again later.", code: "SOCIAL_IMAGE_GENERATION_TIMEOUT", requestId }, 504);
+      return json({ success: false, error: "Image generation took longer than 120 seconds and was stopped waiting for a response. Please try again later.", code: "SOCIAL_IMAGE_GENERATION_TIMEOUT", requestId, stage: currentStage, elapsedMs }, 504);
     }
     console.error("SOCIAL_IMAGE_GENERATION_FAILED", JSON.stringify({ requestId, model, elapsedMs, message: String(e?.message || e || "Image generation failed").slice(0, 220) }));
     const message = String(e?.message || e || "Image generation failed").slice(0, 220);
-    return json({ success: false, error: message, code: "SOCIAL_IMAGE_GENERATION_FAILED", requestId }, 502);
+    return json({ success: false, error: message, code: "SOCIAL_IMAGE_GENERATION_FAILED", requestId, stage: currentStage, elapsedMs }, 502);
   }
 }
 async function socialAssistantStatus(request, env) {
