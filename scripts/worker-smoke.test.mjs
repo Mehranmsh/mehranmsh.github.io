@@ -373,3 +373,15 @@ test("channel post edits and deletion require admin membership and stay scoped t
   assert.match(remove, /Uploaded media files are intentionally retained/);
   assert.ok(workerSource.includes("channelPostItemMatch = path.match"));
 });
+
+
+test("group member management enforces owner and admin hierarchy", () => {
+  const start = workerSource.indexOf("async function socialManageGroupMember");
+  const end = workerSource.indexOf("\\nasync function ", start + 20);
+  const manage = workerSource.slice(start, end);
+  assert.match(manage, /actor\.role='owner' OR \(actor\.role='admin' AND social_conversation_members\.role='member'\)/);
+  assert.match(manage, /role!='owner'/);
+  assert.match(manage, /Use the leave-group action to remove yourself/);
+  assert.ok(workerSource.includes('groupMemberMatch && method === "PATCH"'));
+  assert.ok(workerSource.includes('groupMemberMatch && method === "DELETE"'));
+});
