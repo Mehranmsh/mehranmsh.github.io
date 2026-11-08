@@ -19,6 +19,13 @@ def _inside(parent: Path, candidate: Path) -> bool:
     except ValueError:
         return False
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 def validate_manifest(models_root: Path, manifest_path: Path | None = None) -> dict:
     models_root = models_root.resolve()
     manifest_path = (manifest_path or (models_root / "runtime.json")).resolve()
@@ -47,12 +54,13 @@ def validate_manifest(models_root: Path, manifest_path: Path | None = None) -> d
             if not isinstance(artifact, dict):
                 raise ValueError("Invalid artifact record.")
             rel, expected = artifact.get("path"), artifact.get("sha256")
-            if not isinstance(rel, str) or not rel or not isinstance(expected, str) or len(expected) != 64:
-                raise ValueError("Each artifact needs a relative path and SHA-256.")
+            if (not isinstance(rel, str) or not rel or not isinstance(expected, str)
+                    or len(expected) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in expected)):
+                raise ValueError("Each artifact needs a relative path and a 64-character hexadecimal SHA-256.")
             target = (models_root / rel).resolve()
             if not _inside(models_root, target) or not target.is_file():
                 raise ValueError("Artifact is missing or escapes local models directory.")
-            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            digest = sha256_file(target)
             if digest.lower() != expected.lower():
                 raise ValueError("Artifact SHA-256 mismatch.")
             checked.append({"path": rel, "sha256": digest})
