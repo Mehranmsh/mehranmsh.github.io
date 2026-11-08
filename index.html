@@ -2366,19 +2366,19 @@ function socialImageDebugLog(label,details={}){socialImageDebugLines.push({time:
 function socialToggleImageDebug(){socialImageDebugEnabled=!socialImageDebugEnabled;const panel=$("imageStudioDebug");if(!panel)return;panel.classList.toggle("hidden",!socialImageDebugEnabled);panel.textContent=socialImageDebugEnabled?JSON.stringify(socialImageDebugLines,null,2):"";}
 function socialCopyImageDebug(){const report=JSON.stringify(socialImageDebugLines,null,2)||"No diagnostic data yet.";if(navigator.clipboard?.writeText){navigator.clipboard.writeText(report).then(()=>toast("Debug report copied." )).catch(()=>toast("Could not copy. Select and copy the debug text."));}else{toast("Select and copy the debug text.");}}
 async function socialGenerateImage(){
- const prompt=$("imageStudioPrompt").value.trim(),button=$("imageStudioGenerateBtn");let status=$("imageStudioStatus");
+ const prompt=$("imageStudioPrompt")?.value?.trim()||"",button=$("imageStudioGenerateBtn");let status=$("imageStudioStatus");
  if(!socialUser?.id||!socialSessionVerified){
-  status.textContent="Verifying your SOCIAL sign-in...";
+  if(status)status.textContent="Verifying your SOCIAL sign-in...";
   const verification=await verifySocialSessionForImageStudio();
   if(!verification.ok){
    if(verification.reason==="missing"||verification.reason==="expired"){
     openAuth("login");
     setSocialAuthMessage("Please sign in to your SOCIAL account before generating images. Pi wallet sign-in is separate.","notice warn");
-    status.textContent="Sign in to generate images.";
+    if(status)status.textContent="Sign in to generate images.";
    }else if(verification.reason==="network"){
-    status.textContent="Could not verify your saved sign-in: "+verification.message+" Your login was kept. Check your connection and try again.";
+    if(status)status.textContent="Could not verify your saved sign-in: "+verification.message+" Your login was kept. Check your connection and try again.";
    }else{
-    status.textContent="Your sign-in changed while it was being checked. Please tap Generate again.";
+    if(status)status.textContent="Your sign-in changed while it was being checked. Please tap Generate again.";
    }
    return;
   }
@@ -2386,22 +2386,25 @@ async function socialGenerateImage(){
  status=$("imageStudioStatus")||status;
  if(!prompt){toast("Write a description for your image first.");return;}
  if(prompt.length>1800)return;
+ if(!button){if(status)status.textContent="Image Studio is unavailable. Please refresh the page.";return;}
  button.disabled=true;button.textContent="Generating...";
- socialImageDebugLines=[];socialImageDebugLog("client_request_started",{hasReference:!!socialImageReferenceAttachment,referenceId:socialImageReferenceAttachment?.id||null,promptLength:prompt.length});
- const generationStatus=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation...":"Generating from your prompt using the free daily AI allocation...";
- const generationStartedAt=Date.now();
- status.style.whiteSpace="pre-line";
- const formatGenerationElapsed=()=>{
-  const totalSeconds=Math.floor((Date.now()-generationStartedAt)/1000);
-  const minutes=String(Math.floor(totalSeconds/60)).padStart(2,"0");
-  const seconds=String(totalSeconds%60).padStart(2,"0");
-  const elapsed=minutes+":"+seconds;
-  status.textContent=generationStatus+"\nElapsed "+elapsed;
-  button.textContent="Generating "+elapsed;
- };
- formatGenerationElapsed();
- const generationTimer=setInterval(formatGenerationElapsed,1000);
+ socialImageDebugLines=[];
+ socialImageDebugLog("client_request_started",{hasReference:!!socialImageReferenceAttachment,referenceId:socialImageReferenceAttachment?.id||null,promptLength:prompt.length});
+ let generationTimer=null;
  try{
+  const generationStatus=socialImageReferenceAttachment?"Editing with your private reference photo using the free daily AI allocation...":"Generating from your prompt using the free daily AI allocation...";
+  const generationStartedAt=Date.now();
+  if(status)status.style.whiteSpace="pre-line";
+  const formatGenerationElapsed=()=>{
+   const totalSeconds=Math.floor((Date.now()-generationStartedAt)/1000);
+   const minutes=String(Math.floor(totalSeconds/60)).padStart(2,"0");
+   const seconds=String(totalSeconds%60).padStart(2,"0");
+   const elapsed=minutes+":"+seconds;
+   if(status)status.textContent=generationStatus+"\\nElapsed "+elapsed;
+   button.textContent="Generating "+elapsed;
+  };
+  formatGenerationElapsed();
+  generationTimer=setInterval(formatGenerationElapsed,1000);
   const resultPanel=$("imageStudioResult");if(resultPanel)resultPanel.classList.add("hidden");
   const requestBody={prompt};
   if(socialImageReferenceAttachment)requestBody.reference=socialImageReferenceAttachment;
@@ -2416,12 +2419,19 @@ async function socialGenerateImage(){
   socialGeneratedImageFile=new File([socialGeneratedImageBlob],"social-ai-"+Date.now()+".jpg",{type:socialGeneratedImageBlob.type});
   if(socialGeneratedImageUrl)URL.revokeObjectURL(socialGeneratedImageUrl);
   socialGeneratedImageUrl=URL.createObjectURL(socialGeneratedImageBlob);
-  $("imageStudioOutput").src=socialGeneratedImageUrl;
-  $("imageStudioResult").classList.remove("hidden");
-  $("imageStudioSaveStatus").textContent="";
-  status.textContent="Image generated successfully.";
- }catch(e){socialImageDebugLog("request_failed",{message:e.message||String(e),httpStatus:e.httpStatus||null,code:e.code||null,requestId:e.requestId||null,serverStage:e.serverStage||null,serverElapsedMs:e.serverElapsedMs??null,clientElapsedMs:e.elapsedMs??null,requestUrl:e.requestUrl||null});status.textContent=e.message||"Image generation failed.";socialShowAssistantError(e);}
- finally{clearInterval(generationTimer);button.disabled=false;button.textContent="Generate image";}
+  const output=$("imageStudioOutput");if(!output)throw new Error("Image Studio output panel is missing. Refresh SOCIAL and try again.");
+  output.src=socialGeneratedImageUrl;
+  if(resultPanel)resultPanel.classList.remove("hidden");
+  const saveStatus=$("imageStudioSaveStatus");if(saveStatus)saveStatus.textContent="";
+  if(status)status.textContent="Image generated successfully.";
+ }catch(e){
+  socialImageDebugLog("request_failed",{message:e.message||String(e),httpStatus:e.httpStatus||null,code:e.code||null,requestId:e.requestId||null,serverStage:e.serverStage||null,serverElapsedMs:e.serverElapsedMs??null,clientElapsedMs:e.elapsedMs??null,requestUrl:e.requestUrl||null});
+  if(status)status.textContent=e.message||"Image generation failed.";
+  socialShowAssistantError(e);
+ }finally{
+  if(generationTimer!==null)clearInterval(generationTimer);
+  button.disabled=false;button.textContent="Generate image";
+ }
 }
 function socialDownloadGeneratedImage(){
  if(!socialGeneratedImageUrl)return;
