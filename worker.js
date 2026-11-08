@@ -2664,14 +2664,14 @@ async function socialStartConversation(request, env) {
 
     createStage = "first_member_insert";
     await env.DB.prepare(`
-      INSERT INTO social_conversation_members(conversation_id,user_id,role)
-      VALUES(?,?,'member')
+      INSERT INTO social_conversation_members(conversation_id,user_id,role,last_read_message_rowid)
+      VALUES(?,?,'member',0)
     `).bind(id, user.id).run();
 
     createStage = "second_member_insert";
     await env.DB.prepare(`
-      INSERT INTO social_conversation_members(conversation_id,user_id,role)
-      VALUES(?,?,'member')
+      INSERT INTO social_conversation_members(conversation_id,user_id,role,last_read_message_rowid)
+      VALUES(?,?,'member',0)
     `).bind(id, target.id).run();
 
     createStage = "membership_verification";
@@ -3206,13 +3206,13 @@ async function socialCreateGroup(request, env) {
       VALUES(?,'group',?,?)
     `).bind(id, title, user.id).run();
     await env.DB.prepare(`
-      INSERT INTO social_conversation_members(conversation_id,user_id,role)
-      VALUES(?,?,'owner')
+      INSERT INTO social_conversation_members(conversation_id,user_id,role,last_read_message_rowid)
+      VALUES(?,?,'owner',0)
     `).bind(id, user.id).run();
     for (const target of targets) {
       await env.DB.prepare(`
-        INSERT OR IGNORE INTO social_conversation_members(conversation_id,user_id,role)
-        VALUES(?,?,'member')
+        INSERT OR IGNORE INTO social_conversation_members(conversation_id,user_id,role,last_read_message_rowid)
+        VALUES(?,?,'member',0)
       `).bind(id, target.id).run();
     }
   } catch (err) {
@@ -3291,9 +3291,11 @@ async function socialJoinGroup(request, env, code) {
 
   await env.DB.prepare(`
     INSERT OR IGNORE INTO social_conversation_members(
-      conversation_id,user_id,role
-    ) VALUES(?,?,'member')
-  `).bind(invite.conversation_id, user.id).run();
+      conversation_id,user_id,role,last_read_at,last_read_message_rowid
+    )
+    SELECT ?,?,'member',CURRENT_TIMESTAMP,
+      COALESCE((SELECT MAX(rowid) FROM social_messages WHERE conversation_id=?),0)
+  `).bind(invite.conversation_id, user.id, invite.conversation_id).run();
 
   return json({
     success: true,
