@@ -3080,6 +3080,10 @@ async function socialGroupInvite(request, env, conversationId) {
   if (!member || !["owner", "admin"].includes(member.role)) {
     return error("Only group admins can create invite links", 403);
   }
+  const conversation = await env.DB.prepare(
+    "SELECT type FROM social_conversations WHERE id=?"
+  ).bind(conversationId).first();
+  if (conversation?.type !== "group") return error("Group not found", 404);
 
   const code = toBase64Url(crypto.getRandomValues(new Uint8Array(24)));
 
@@ -3325,6 +3329,10 @@ async function socialPinChannelPost(request, env, channelId, postId, pin) {
   }
 
   if (pin) {
+    const post = await env.DB.prepare(
+      "SELECT id FROM social_channel_posts WHERE id=? AND channel_id=?"
+    ).bind(postId, channelId).first();
+    if (!post) return error("Channel post not found", 404);
     await env.DB.prepare(`
       INSERT OR IGNORE INTO social_channel_pins(channel_id,post_id)
       VALUES(?,?)
