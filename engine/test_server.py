@@ -178,12 +178,15 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertIn("No generation can be started", state["message"])
 
     def test_project_database_persists_and_enforces_limit(self):
-        with module.database() as db:
+        db = module.database()
+        try:
             db.execute("INSERT INTO projects (id,name,kind,created_at,updated_at) VALUES (?,?,?,?,?)",
                        ("p1", "Demo", "song", 1, 1))
             db.execute("INSERT INTO projects (id,name,kind,created_at,updated_at) VALUES (?,?,?,?,?)",
                        ("p2", "Demo 2", "beat", 2, 2))
             self.assertEqual(db.execute("SELECT COUNT(*) FROM projects").fetchone()[0], 2)
+        finally:
+            db.close()
 
     def test_resource_guard_reports_threshold(self):
         state = module.resource_status()
