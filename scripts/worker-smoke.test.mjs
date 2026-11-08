@@ -571,3 +571,14 @@ test("SOCIAL read receipts use message sequence cursors to avoid same-second fal
   assert.ok(indexSource.includes("readSequence>=messageSequence"));
   assert.ok(indexSource.includes("member.lastReadMessageRowId??null"));
 });
+
+test("SOCIAL repeated follow and private follow-request calls do not duplicate notifications", () => {
+  const start = workerSource.indexOf("async function socialFollow");
+  const end = workerSource.indexOf("async function ", start + 30);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.ok(handler.includes("Number(requestResult?.meta?.changes || 0) > 0"));
+  assert.ok(handler.includes("Number(followResult?.meta?.changes || 0) > 0"));
+  assert.ok(handler.includes("SOCIAL_FOLLOW_REQUEST_NOTIFICATION_FAILURE"));
+  assert.ok(handler.includes("SOCIAL_FOLLOW_NOTIFICATION_FAILURE"));
+});
