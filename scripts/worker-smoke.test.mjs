@@ -513,7 +513,7 @@ test("SOCIAL notifications remain recipient-scoped and respect notification pref
 
 test("SOCIAL direct messages, group messages, and channel posts notify other members without failing the content write", () => {
   const sendStart = workerSource.indexOf("async function socialSendMessage");
-  const sendEnd = workerSource.indexOf("\\nasync function socialEditMessage", sendStart);
+  const sendEnd = workerSource.indexOf("async function socialEditMessage", sendStart);
   const send = workerSource.slice(sendStart, sendEnd);
   assert.match(send, /SELECT user_id FROM social_conversation_members WHERE conversation_id=\? AND user_id!=\?/);
   assert.match(send, /conversation\?\.type === "group" \? "group_message" : "message"/);
@@ -521,7 +521,7 @@ test("SOCIAL direct messages, group messages, and channel posts notify other mem
   assert.match(send, /SOCIAL_MESSAGE_NOTIFICATION_FAILURE/);
 
   const channelStart = workerSource.indexOf("async function socialChannelPost");
-  const channelEnd = workerSource.indexOf("\\nasync function socialEditChannelPost", channelStart);
+  const channelEnd = workerSource.indexOf("async function socialEditChannelPost", channelStart);
   const channel = workerSource.slice(channelStart, channelEnd);
   assert.match(channel, /SELECT user_id FROM social_channel_members WHERE channel_id=\? AND user_id!=\?/);
   assert.match(channel, /await notify\(env, subscriber\.user_id, user\.id, "channel_post"/);
@@ -531,14 +531,14 @@ test("SOCIAL direct messages, group messages, and channel posts notify other mem
 
 test("SOCIAL group creation sends preference-aware invitation notifications after membership succeeds", () => {
   const start = workerSource.indexOf("async function socialCreateGroup");
-  const end = workerSource.indexOf("\\nasync function socialGroupInvite", start);
+  const end = workerSource.indexOf("async function socialGroupInvite", start);
   assert.ok(start >= 0 && end > start);
   const handler = workerSource.slice(start, end);
   assert.match(handler, /for \(const target of targets\)/);
   assert.match(handler, /await notify\(env, target\.id, user\.id, "group_invite", id, "added you to a group"\)/);
   assert.match(handler, /SOCIAL_GROUP_INVITATION_NOTIFICATION_FAILURE/);
   const notifyStart = workerSource.indexOf("async function notify");
-  const notifyEnd = workerSource.indexOf("\\nasync function ", notifyStart + 30);
+  const notifyEnd = workerSource.indexOf("\nasync function ", notifyStart + 30);
   const notifyHandler = workerSource.slice(notifyStart, notifyEnd);
   assert.match(notifyHandler, /prefs\.community\?\.groupInvites === false/);
   assert.match(notifyHandler, /prefs\.notifications\[key\] === false/);
