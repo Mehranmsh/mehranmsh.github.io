@@ -741,7 +741,7 @@ async function getSocialUser(request, env) {
       s.id AS session_id,s.expires_at
     FROM social_sessions s
     JOIN social_users u ON u.id=s.user_id
-    WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1
+    WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1 AND u.email_verified=1
     LIMIT 1
   `).bind(tokenHash, new Date().toISOString()).first();
 
@@ -976,6 +976,9 @@ async function socialLogin(request, env) {
 
   const result = await verifyPassword(password, user.password_hash);
   if (!result.valid) return error("Invalid username/email or password", 401);
+  if (!user.email_verified) {
+    return error("Email verification is required. Sign in through the verified email identity to finish account migration.", 403);
+  }
 
   const session = await createSocialSession(env, user.id);
 
@@ -4828,7 +4831,7 @@ export default {
         await ensureSocialTables(env);
 
         if (path === "/social/register" && method === "POST") {
-          return await socialRegister(request, env);
+          return error("Legacy password registration is disabled. Create and verify your email identity first.", 410);
         }
 
         if (path === "/social/firebase/session" && method === "POST") {
