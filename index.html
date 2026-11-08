@@ -2135,7 +2135,7 @@ async function socialRefreshChatMessages(){
   if(!box)return;
   const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100;
   const messages=d.messages||[];
-  const readState=(socialConversations.find(c=>String(c.id)===String(id))?.members||[]).map(member=>[member.username,member.lastReadAt||null]);
+  const readState=(socialConversations.find(c=>String(c.id)===String(id))?.members||[]).map(member=>[member.username,member.lastReadAt||null,member.lastReadMessageRowId??null]);
   const fingerprint=JSON.stringify({messages:messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})),readState});
   if(box.dataset.lastFingerprint!==fingerprint){
    box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';
@@ -2422,6 +2422,9 @@ function socialRenderChatMessage(m){
  const messageStamp=Date.parse(String(m.createdAt||"").replace(" ","T")+"Z");
  const readers=(active?.members||[]).filter(member=>{
   if(member.username===currentUsername()||!member.lastReadAt)return false;
+  const readSequence=Number(member.lastReadMessageRowId);
+  const messageSequence=Number(m.messageRowId);
+  if(Number.isFinite(readSequence)&&Number.isFinite(messageSequence))return readSequence>=messageSequence;
   const readStamp=Date.parse(String(member.lastReadAt).replace(" ","T")+"Z");
   return Number.isFinite(messageStamp)&&Number.isFinite(readStamp)&&readStamp>=messageStamp;
  });
