@@ -906,3 +906,15 @@ test("SOCIAL follow requests expose account type and acceptance revalidates priv
   assert.match(action, /results\?\.\[0\]\?\.meta\?\.changes/);
   assert.match(indexSource, /socialAccountTypeLabel\(r\.user\.accountType\)/);
 });
+
+test("SOCIAL privacy settings reject non-boolean visibility flags instead of coercing strings", () => {
+  const start = workerSource.indexOf("async function socialPrivacy");
+  const end = workerSource.indexOf("async function ", start + 30);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /\["isPrivate", "showOnlineStatus", "showActivityStatus"\]/);
+  assert.match(handler, /typeof body\[key\] !== "boolean"/);
+  assert.match(handler, /body\.isPrivate === true \? 1 : 0/);
+  assert.match(handler, /body\.showOnlineStatus === true \? 1 : 0/);
+  assert.match(handler, /body\.showActivityStatus === true \? 1 : 0/);
+});
