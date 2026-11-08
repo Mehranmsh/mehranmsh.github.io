@@ -228,11 +228,11 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
 }
 
 // Conservative, account-wide reservation for this Worker's Workers AI calls.
- // Keep 20% of Cloudflare's 10,000-Neuron free daily allocation unreserved.
+ // Reserve half of Cloudflare's 10,000-Neuron free daily allocation for other account usage.
  // Image generation reserves 2,000 Neurons (actual published estimate is lower).
  // Reservations are never refunded after a model call because failed responses
  // may still have consumed inference resources. UTC date matches Cloudflare reset.
-const SOCIAL_AI_DAILY_BUDGET_NEURONS = 8000;
+const SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000;
 async function reserveSocialWorkersAIBudget(env, reservedNeurons) {
   if (!env?.DB || !Number.isInteger(reservedNeurons) || reservedNeurons < 1) {
     throw new Error("Workers AI budget guard is unavailable.");
