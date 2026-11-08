@@ -2524,9 +2524,30 @@ async function socialGenerateImage(){
   button.disabled=false;button.textContent="Generate image";
  }
 }
-function socialDownloadGeneratedImage(){
- if(!socialGeneratedImageUrl)return;
- const a=document.createElement("a");a.href=socialGeneratedImageUrl;a.download=socialGeneratedImageFile?.name||"social-ai-image.png";document.body.appendChild(a);a.click();a.remove();
+async function socialDownloadGeneratedImage(){
+ if(!socialGeneratedImageBlob||!socialGeneratedImageUrl){
+  const status=$("imageStudioSaveStatus");if(status)status.textContent="Generate an image first.";return;
+ }
+ const file=socialGeneratedImageFile||new File([socialGeneratedImageBlob],"social-ai-image.png",{type:socialGeneratedImageBlob.type||"image/png"});
+ try{
+  if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+   await navigator.share({files:[file],title:"SOCIAL AI image"});
+   const status=$("imageStudioSaveStatus");if(status)status.textContent="Choose Save or Files in the sharing menu to keep the image.";
+   return;
+  }
+ }catch(e){
+  if(e&&e.name==="AbortError")return;
+ }
+ const a=document.createElement("a");
+ a.href=socialGeneratedImageUrl;
+ a.target="_blank";
+ a.rel="noopener";
+ a.download=file.name||"social-ai-image.png";
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+ const status=$("imageStudioSaveStatus");
+ if(status)status.textContent="If the download does not start, open the image and long-press it, then choose Download image or Save image.";
 }
 async function socialSaveGeneratedImage(){
  if(!socialGeneratedImageFile)return;
