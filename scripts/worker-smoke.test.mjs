@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -743,4 +744,28 @@ test("SOCIAL stories can only publish ready public media uploaded by the story o
   assert.match(handler, /upload\.status !== "ready"/);
   assert.match(handler, /upload\.acl !== "public"/);
   assert.match(handler, /startsWith\(expectedMime\)/);
+});
+
+
+test("MEHRAN MUSIC STUDIO is linked from Services as an independent workspace", () => {
+  assert.match(indexSource, /href="music-studio\.html"/);
+  assert.match(indexSource, /MEHRAN MUSIC STUDIO/);
+  assert.match(musicStudioSource, /<title>MEHRAN MUSIC STUDIO<\/title>/);
+  assert.match(musicStudioSource, /Independent creative workspace/);
+});
+
+test("MEHRAN MUSIC STUDIO drafts stay local and generation is fail-closed before engine setup", () => {
+  assert.match(musicStudioSource, /mehran_music_studio_drafts_v1/);
+  assert.match(musicStudioSource, /localStorage\.setItem\(KEY,JSON\.stringify\(projects\)\)/);
+  assert.match(musicStudioSource, /GENERATION ENGINE NOT CONNECTED/);
+  assert.match(musicStudioSource, /Audio generation is not active yet/);
+  assert.doesNotMatch(musicStudioSource, /fetch\s*\(/);
+  assert.match(musicStudioSource, /No external model is called/);
+});
+
+test("MEHRAN MUSIC STUDIO supports new projects without overwriting the previously edited draft", () => {
+  assert.match(musicStudioSource, /function newProject\(\)/);
+  assert.match(musicStudioSource, /delete \$\("saveProject"\)\.dataset\.edit/);
+  assert.match(musicStudioSource, /if\(nav\.dataset\.view==="create"\)newProject\(\)/);
+  assert.match(musicStudioSource, /if\(go\.dataset\.go==="create"\)newProject\(\)/);
 });
