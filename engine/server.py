@@ -122,7 +122,7 @@ class Handler(BaseHTTPRequestHandler):
             project_id = path.rsplit("/", 1)[-1]
             if not project_id or len(project_id) > 64:
                 return self.send_json(400, {"error": "invalid_project_id"})
-            with database() as db:
+            with db_session() as db:
                 row = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
             if row is None:
                 return self.send_json(404, {"error": "project_not_found"})
