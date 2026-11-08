@@ -55,6 +55,11 @@ def db_session():
     connection = database()
     try:
         yield connection
+    except Exception:
+        connection.rollback()
+        raise
+    else:
+        connection.commit()
     finally:
         connection.close()
 
