@@ -2126,7 +2126,8 @@ async function socialRefreshChatMessages(){
   if(!box)return;
   const nearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<100;
   const messages=d.messages||[];
-  const fingerprint=JSON.stringify(messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})));
+  const readState=(socialConversations.find(c=>String(c.id)===String(id))?.members||[]).map(member=>[member.username,member.lastReadAt||null]);
+  const fingerprint=JSON.stringify({messages:messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})),readState});
   if(box.dataset.lastFingerprint!==fingerprint){
    box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet.</div>';
    box.dataset.lastFingerprint=fingerprint;
@@ -2250,7 +2251,7 @@ async function socialOpenConversation(id){
   const d=await socialRequest("/conversations/"+encodeURIComponent(id)+"/messages");
   if(socialActiveConversation!==String(id))return;
   const messages=d.messages||[];
-  if(box){box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet. Send the first message.</div>';box.dataset.lastFingerprint=JSON.stringify(messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})));box.scrollTop=box.scrollHeight;}
+  if(box){box.innerHTML=messages.map(socialRenderChatMessage).join("")||'<div class="empty">No messages yet. Send the first message.</div>';box.dataset.lastFingerprint=JSON.stringify({messages:messages.map(m=>({id:m.id,content:m.content,editedAt:m.editedAt,deleted:m.deleted,media:(m.media||[]).map(x=>[x.name,x.type,x.unavailable])})),readState:(socialConversations.find(c=>String(c.id)===String(id))?.members||[]).map(member=>[member.username,member.lastReadAt||null])});box.scrollTop=box.scrollHeight;}
   await socialRefreshActiveCall();
   await socialLoadConversations();
   socialStartChatRefresh();
