@@ -9,6 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
 WORKER_FILE = ROOT / "worker.js"
+ENGINE_FILE = ROOT / "engine" / "server.py"
 
 class InlineScripts(HTMLParser):
     def __init__(self):
@@ -66,7 +67,11 @@ def main():
             if file_checked == 0:
                 raise SystemExit(f"No inline JavaScript blocks were found in {html_file.name}; refusing a false-green check.")
 
-    print(f"3/3 Passed: Worker syntax + {checked} inline JavaScript block(s) across {len(HTML_FILES)} HTML app(s).")
+    print("3/4 Checking the self-hosted Music Studio control-plane Python syntax...")
+    import py_compile
+    py_compile.compile(str(ENGINE_FILE), doraise=True)
+
+    print(f"4/4 Passed: Worker syntax + {checked} inline JavaScript block(s) across {len(HTML_FILES)} HTML app(s), and local engine syntax.")
     print("Note: these checks do not replace live Pi Browser, database, or security integration tests.")
 
 if __name__ == "__main__":
