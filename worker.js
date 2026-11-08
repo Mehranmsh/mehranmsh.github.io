@@ -2754,6 +2754,21 @@ async function isConversationMember(env, conversationId, userId) {
   return row || null;
 }
 
+async function isDirectConversationBlocked(env, conversationId, userId) {
+  const result = await env.DB.prepare(`
+    SELECT c.type,cm.user_id
+    FROM social_conversations c
+    JOIN social_conversation_members cm ON cm.conversation_id=c.id
+    WHERE c.id=? AND cm.user_id<>?
+  `).bind(conversationId, userId).all();
+
+  for (const row of result.results || []) {
+    if (["direct", "private"].includes(row.type) &&
+        await isBlocked(env, userId, row.user_id)) return true;
+  }
+  return false;
+}
+
 async function socialConversationMessages(request, env, conversationId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -2835,6 +2850,9 @@ async function socialSendMessage(request, env, conversationId) {
   if (!user) return error("Authentication required", 401);
   const member = await isConversationMember(env, conversationId, user.id);
   if (!member) return error("Conversation not found", 404);
+  if (await isDirectConversationBlocked(env, conversationId, user.id)) {
+    return error("Messaging is unavailable for this conversation", 403);
+  }
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const content = cleanText(body.content, 10000);
