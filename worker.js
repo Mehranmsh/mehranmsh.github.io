@@ -3063,9 +3063,11 @@ async function socialManageGroupMember(request, env, conversationId, targetUserI
         )
     `).bind(conversationId, targetUserId, conversationId, user.id).run();
     if (!Number(result.meta?.changes || 0)) return error("Member not found or insufficient permissions", 403);
+    // Revoke every outstanding group invite so a removed member cannot
+    // re-enter through a link created by another administrator.
     await env.DB.prepare(
-      "DELETE FROM social_group_invites WHERE conversation_id=? AND created_by=?"
-    ).bind(conversationId, targetUserId).run();
+      "DELETE FROM social_group_invites WHERE conversation_id=?"
+    ).bind(conversationId).run();
     return json({ success: true, removed: true });
   }
 
@@ -3181,13 +3183,17 @@ async function socialGroupInvite(request, env, conversationId) {
   if (conversation?.type !== "group") return error("Group not found", 404);
 
   const code = toBase64Url(crypto.getRandomValues(new Uint8Array(24)));
-
-  await env.DB.prepare(`
-    INSERT INTO social_group_invites(id,conversation_id,created_by,invite_code)
-    VALUES(?,?,?,?)
-  `).bind(crypto.randomUUID(), conversationId, user.id, code).run();
-
-  return json({ success: true, inviteCode: code });
+  const results = await env.DB.batch([
+    env.DB.prepare("DELETE FROM social_group_invites WHERE conversation_id=?").bind(conversationId),
+    env.DB.prepare(`
+      INSERT INTO social_group_invites(id,conversation_id,created_by,invite_code)
+      VALUES(?,?,?,?)
+    `).bind(crypto.randomUUID(), conversationId, user.id, code)
+  ]);
+  if (!Number(results?.[1]?.meta?.changes || 0)) {
+    return error("Could not create a new group invitation", 500);
+  }
+  return json({ success: true, inviteCode: code, previousInvitesRevoked: true });
 }
 
 async function socialJoinGroup(request, env, code) {
