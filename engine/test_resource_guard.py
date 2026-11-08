@@ -1,13 +1,20 @@
+import tempfile
 import threading
 import unittest
+from pathlib import Path
 
 from resource_guard import ResourceGuard, ResourceSnapshot
 
 
 class ResourceGuardTests(unittest.TestCase):
     def setUp(self):
-        self.guard = ResourceGuard()
+        self.temp = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.temp.name) / "reservations.sqlite3"
+        self.guard = ResourceGuard(self.db_path)
         self.snapshot = ResourceSnapshot(free_bytes=8 * 1024**3)
+
+    def tearDown(self):
+        self.temp.cleanup()
 
     def reserve(self, key="request-key-000001", **kwargs):
         args = {
@@ -20,7 +27,7 @@ class ResourceGuardTests(unittest.TestCase):
         args.update(kwargs)
         return self.guard.reserve(**args)
 
-    def test_accepts_one_safe_reservation_without_starting_model(self):
+    def test_accepts_one_durable_reservation_without_starting_model(self):
         decision = self.reserve()
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.code, "reserved")
@@ -51,12 +58,32 @@ class ResourceGuardTests(unittest.TestCase):
         self.assertFalse(second.allowed)
         self.assertEqual(second.code, "concurrency_limit")
 
-    def test_duplicate_key_is_rejected_even_after_release(self):
+    def test_duplicate_key_is_rejected_even_after_release_and_restart(self):
         first = self.reserve()
         self.assertTrue(self.guard.release(first.reservation_id))
-        second = self.reserve()
+        restarted = ResourceGuard(self.db_path)
+        second = restarted.reserve(
+            snapshot=self.snapshot, engine_ready=True,
+            idempotency_key="request-key-000001", duration_seconds=180,
+        )
         self.assertFalse(second.allowed)
         self.assertEqual(second.code, "duplicate_request")
+
+    def test_active_reservation_survives_restart_and_requires_explicit_recovery(self):
+        first = self.reserve()
+        restarted = ResourceGuard(self.db_path)
+        state = restarted.status()
+        self.assertEqual(state["active_jobs"], 1)
+        self.assertTrue(state["recovery_required"])
+        self.assertEqual(restarted.active_reservations()[0]["reservation_id"], first.reservation_id)
+        blocked = restarted.reserve(
+            snapshot=self.snapshot, engine_ready=True,
+            idempotency_key="request-key-000002", duration_seconds=180,
+        )
+        self.assertFalse(blocked.allowed)
+        self.assertEqual(blocked.code, "concurrency_limit")
+        self.assertTrue(restarted.release(first.reservation_id))
+        self.assertFalse(restarted.status()["recovery_required"])
 
     def test_only_single_output_and_bounded_duration(self):
         for kwargs, code in [
@@ -67,7 +94,7 @@ class ResourceGuardTests(unittest.TestCase):
             ({"duration_seconds": 9}, "duration_limit"),
         ]:
             with self.subTest(kwargs=kwargs):
-                decision = self.reserve(key="request-key-" + str(len(str(kwargs))).zfill(6), **kwargs)
+                decision = self.reserve(key="parallel-request-" + str(len(str(kwargs))).zfill(6), **kwargs)
                 self.assertFalse(decision.allowed)
                 self.assertEqual(decision.code, code)
 
@@ -84,14 +111,19 @@ class ResourceGuardTests(unittest.TestCase):
         self.assertFalse(self.guard.release(first.reservation_id))
         self.assertEqual(self.guard.status()["active_jobs"], 0)
 
-    def test_concurrent_reservations_never_exceed_one(self):
+    def test_concurrent_reservations_never_exceed_one_across_instances(self):
+        guards = [ResourceGuard(self.db_path) for _ in range(8)]
         barrier = threading.Barrier(8)
         results = []
         result_lock = threading.Lock()
 
         def attempt(index):
             barrier.wait()
-            result = self.reserve(key=f"parallel-request-{index:04d}")
+            result = guards[index].reserve(
+                snapshot=self.snapshot, engine_ready=True,
+                idempotency_key=f"parallel-request-{index:04d}",
+                duration_seconds=180,
+            )
             with result_lock:
                 results.append(result)
 
@@ -99,9 +131,13 @@ class ResourceGuardTests(unittest.TestCase):
         for thread in threads:
             thread.start()
         for thread in threads:
-            thread.join(timeout=2)
+            thread.join(timeout=4)
         self.assertEqual(sum(result.allowed for result in results), 1)
         self.assertEqual(self.guard.status()["active_jobs"], 1)
+
+    def test_database_parent_must_exist(self):
+        with self.assertRaises(ValueError):
+            ResourceGuard(Path(self.temp.name) / "missing" / "reservations.sqlite3")
 
 
 if __name__ == "__main__":
