@@ -598,3 +598,13 @@ test("SOCIAL new conversation members receive a read cursor at their join bounda
   assert.ok(join.includes("SELECT MAX(rowid) FROM social_messages WHERE conversation_id=?"));
   assert.ok(join.includes("COALESCE("));
 });
+
+test("SOCIAL repeated story reactions do not generate duplicate notifications", () => {
+  const start = workerSource.indexOf("async function socialReactToStory");
+  const end = workerSource.indexOf("async function ", start + 30);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.ok(handler.includes("WHERE social_story_reactions.reaction<>excluded.reaction"));
+  assert.ok(handler.includes("Number(reactionResult?.meta?.changes || 0) > 0"));
+  assert.ok(handler.includes("SOCIAL_STORY_REACTION_NOTIFICATION_FAILURE"));
+});
