@@ -612,3 +612,15 @@ test("SOCIAL unread counters have indexes for recipient and conversation lookups
   assert.ok(workerSource.includes("idx_social_messages_unread"));
   assert.ok(workerSource.includes("ON social_messages(conversation_id,sender_id,deleted_at)"));
 });
+
+test("SOCIAL comment and follow approval writes survive notification delivery failures", () => {
+  assert.ok(workerSource.includes("SOCIAL_COMMENT_NOTIFICATION_FAILURE"));
+  assert.ok(workerSource.includes("SOCIAL_FOLLOW_ACCEPTED_NOTIFICATION_FAILURE"));
+  const commentStart = workerSource.indexOf("async function socialCreateComment");
+  const commentEnd = workerSource.indexOf("async function ", commentStart + 30);
+  assert.ok(commentStart >= 0 && commentEnd > commentStart);
+  assert.ok(workerSource.slice(commentStart, commentEnd).includes("try {"));
+  const acceptStart = workerSource.indexOf("async function socialFollowRequestAction");
+  assert.ok(acceptStart >= 0);
+  assert.ok(workerSource.includes('await notify(env, row.requester_id, user.id, "follow_accepted"'));
+});
