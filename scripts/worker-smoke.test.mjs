@@ -561,3 +561,13 @@ test("SOCIAL repeated like requests do not create duplicate notifications", () =
   assert.match(handler, /Number\(likeResult\?\.meta\?\.changes \|\| 0\) > 0/);
   assert.match(handler, /SOCIAL_LIKE_NOTIFICATION_FAILURE/);
 });
+
+test("SOCIAL read receipts use message sequence cursors to avoid same-second false Seen states", () => {
+  assert.ok(workerSource.includes("cm.last_read_at,cm.last_read_message_rowid"));
+  assert.ok(workerSource.includes("m.rowid AS message_rowid"));
+  assert.ok(workerSource.includes("messageRowId: Number(row.message_rowid)"));
+  assert.ok(workerSource.includes("lastReadMessageRowId:"));
+  assert.ok(indexSource.includes("member.lastReadMessageRowId"));
+  assert.ok(indexSource.includes("readSequence>=messageSequence"));
+  assert.ok(indexSource.includes("member.lastReadMessageRowId??null"));
+});
