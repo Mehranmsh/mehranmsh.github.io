@@ -479,3 +479,13 @@ test("SOCIAL reconnect recovery refreshes notification counts and only reloads t
   assert.match(indexSource, /socialRefreshNotificationCount\(\)/);
   assert.match(indexSource, /\$\("social-notifications"\)\?\.classList\.contains\("active"\)\)loadNotifications\(\)/);
 });
+
+
+test("open SOCIAL notification feed refreshes silently without overlapping requests", () => {
+  assert.match(indexSource, /let socialNotificationListBusy=false/);
+  assert.match(indexSource, /async function loadNotifications\(silent=false\)/);
+  assert.match(indexSource, /if\(socialNotificationListBusy\)return/);
+  assert.match(indexSource, /socialNotificationListBusy=false/);
+  assert.match(indexSource, /await loadNotifications\(true\)/);
+  assert.match(indexSource, /if\(!silent\)\{/);
+});
