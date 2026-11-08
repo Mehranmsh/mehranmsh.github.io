@@ -817,3 +817,14 @@ test("SOCIAL AI never falls back to paid external providers", () => {
   assert.match(workerSource, /Only the capped Cloudflare free allowance is available/);
   assert.match(workerSource, /Free image analysis currently supports one image per message/);
 });
+
+test("SOCIAL admin UI can manage Human, Business and AI identity types", () => {
+  assert.match(workerSource, /SELECT id,username,email,display_name,pi_username,pi_verified,account_type/);
+  assert.match(workerSource, /accountType: normalizeAccountType\(row\.account_type\)/);
+  assert.match(indexSource, /data-account-type=/);
+  assert.match(indexSource, /option value="human"/);
+  assert.match(indexSource, /option value="business"/);
+  assert.match(indexSource, /option value="ai"/);
+  assert.match(indexSource, /\/account-type/);
+  assert.match(indexSource, /Human · protected/);
+});
