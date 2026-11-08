@@ -443,7 +443,7 @@ test("presence heartbeat requires authentication and updates only the authentica
 
 test("conversation presence respects each member's online-status privacy setting", () => {
   const start = workerSource.indexOf("async function socialListConversations");
-  const end = workerSource.indexOf("\\nasync function isConversationMember", start);
+  const end = workerSource.indexOf("\nasync function isConversationMember", start);
   const handler = workerSource.slice(start, end);
   assert.ok(handler.includes("LEFT JOIN social_user_settings us ON us.user_id=cm.user_id"));
   assert.ok(handler.includes("COALESCE(us.show_online_status,1)=1 THEN u.last_seen_at ELSE NULL"));
