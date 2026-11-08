@@ -3389,16 +3389,38 @@ async function socialChannelPost(request, env, channelId) {
   if (!body) return error("Invalid request body");
 
   const content = cleanText(body.content, 10000);
-  const media = Array.isArray(body.media) ? body.media.slice(0, 10) : [];
+  const rawMedia = Array.isArray(body.media) ? body.media.slice(0, 10) : [];
+  if (!content && rawMedia.length === 0) return error("Post cannot be empty");
 
-  if (!content && media.length === 0) return error("Post cannot be empty");
-
-  for (const item of media) {
-    if (!item || !validHttpsUrl(item.url)) return error("Invalid attachment");
+  const media = [];
+  for (const item of rawMedia) {
+    if (item?.uploadId) {
+      const uploadId = String(item.uploadId).slice(0, 150);
+      const upload = await env.DB.prepare(
+        "SELECT id,name,mime_type,acl,status,url FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+      ).bind(uploadId, user.id).first();
+      if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+          !upload.url || !validHttpsUrl(upload.url)) {
+        return error("Channel media must be a ready public upload owned by your account.", 400);
+      }
+      media.push({
+        url: upload.url,
+        type: cleanText(item.type || upload.mime_type, 100),
+        name: cleanText(item.name || upload.name, 180)
+      });
+    } else if (item && validHttpsUrl(item.url)) {
+      // Backward compatibility for previously supported externally hosted media.
+      media.push({
+        url: item.url,
+        type: cleanText(item.type || "", 100),
+        name: cleanText(item.name || "", 180)
+      });
+    } else {
+      return error("Invalid attachment");
+    }
   }
 
   const id = crypto.randomUUID();
-
   await env.DB.prepare(`
     INSERT INTO social_channel_posts(id,channel_id,sender_id,content,media_json)
     VALUES(?,?,?,?,?)
