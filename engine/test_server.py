@@ -119,6 +119,13 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertIn("SHA-256 mismatch", result["message"])
 
+
+    def test_malformed_hash_is_rejected_before_reading_artifact(self):
+        self.write_manifest(artifacts=[{"path": "tiny-model.bin", "sha256": "z" * 64}])
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("hexadecimal SHA-256", result["message"])
+
     def test_model_artifact_path_traversal_is_rejected(self):
         self.write_manifest(artifacts=[{"path": "../outside.bin", "sha256": "0" * 64}])
         result = module.model_policy.validate_manifest(self.models)
