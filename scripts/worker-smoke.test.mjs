@@ -695,3 +695,26 @@ test("SOCIAL channel content and membership are hidden across block relationship
     assert.match(workerSource.slice(start, end), /getAccessibleChannelMembership\(env, channelId, user\.id\)/, name + " must enforce block privacy");
   }
 });
+
+
+test("SOCIAL group creation rejects blocked relationships between invited members", () => {
+  const start = workerSource.indexOf("async function socialCreateGroup");
+  const end = workerSource.indexOf("async function socialGroupInvite", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /for \(let i = 0; i < targets\.length; i\+\+\)/);
+  assert.match(handler, /for \(let j = i \+ 1; j < targets\.length; j\+\+\)/);
+  assert.match(handler, /isBlocked\(env, targets\[i\]\.id, targets\[j\]\.id\)/);
+  assert.match(handler, /cannot be placed in the same group/);
+});
+
+test("SOCIAL group invite joins check block relationships with every existing participant", () => {
+  const start = workerSource.indexOf("async function socialJoinGroup");
+  const end = workerSource.indexOf("async function socialCreateChannel", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /SELECT user_id FROM social_conversation_members WHERE conversation_id=\?/);
+  assert.match(handler, /for \(const existing of existingMembers\.results \|\| \[\]\)/);
+  assert.match(handler, /isBlocked\(env, user\.id, existing\.user_id\)/);
+  assert.match(handler, /Group access is unavailable because of a block relationship/);
+});
