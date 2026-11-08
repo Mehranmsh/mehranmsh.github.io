@@ -3078,11 +3078,17 @@ async function socialJoinGroup(request, env, code) {
   if (!user) return error("Authentication required", 401);
 
   const invite = await env.DB.prepare(`
-    SELECT conversation_id FROM social_group_invites
-    WHERE invite_code=? AND (expires_at IS NULL OR expires_at>?)
+    SELECT i.conversation_id,i.created_by,c.owner_id,c.type
+    FROM social_group_invites i
+    JOIN social_conversations c ON c.id=i.conversation_id
+    WHERE i.invite_code=? AND (i.expires_at IS NULL OR i.expires_at>?)
   `).bind(code, new Date().toISOString()).first();
 
-  if (!invite) return error("Invalid or expired invite link", 404);
+  if (!invite || invite.type !== "group") return error("Invalid or expired invite link", 404);
+  if (await isBlocked(env, user.id, invite.owner_id) ||
+      await isBlocked(env, user.id, invite.created_by)) {
+    return error("Group access is unavailable", 403);
+  }
 
   await env.DB.prepare(`
     INSERT OR IGNORE INTO social_conversation_members(
@@ -3189,10 +3195,13 @@ async function socialJoinChannel(request, env, channelId) {
   if (!user) return error("Authentication required", 401);
 
   const channel = await env.DB.prepare(
-    "SELECT id,is_private,invite_code FROM social_channels WHERE id=?"
+    "SELECT id,owner_id,is_private,invite_code FROM social_channels WHERE id=?"
   ).bind(channelId).first();
 
   if (!channel) return error("Channel not found", 404);
+  if (await isBlocked(env, user.id, channel.owner_id)) {
+    return error("Channel access is unavailable", 403);
+  }
 
   const body = await readBody(request) || {};
   if (channel.is_private && body.inviteCode !== channel.invite_code) {
