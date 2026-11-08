@@ -3031,6 +3031,32 @@ async function socialSendMessage(request, env, conversationId) {
   if (await isDirectConversationBlocked(env, conversationId, user.id)) {
     return error("Messaging is unavailable for this conversation", 403);
   }
+
+  const directRecipient = await env.DB.prepare(`
+    SELECT c.type,u.id AS user_id
+    FROM social_conversations c
+    JOIN social_conversation_members m ON m.conversation_id=c.id AND m.user_id!=?
+    JOIN social_users u ON u.id=m.user_id AND u.is_active=1
+    WHERE c.id=? AND c.type IN ('direct','private')
+    LIMIT 1
+  `).bind(user.id, conversationId).first();
+
+  if (directRecipient) {
+    const recipientSettings = await env.DB.prepare(
+      "SELECT allow_messages FROM social_user_settings WHERE user_id=?"
+    ).bind(directRecipient.user_id).first();
+
+    if (recipientSettings?.allow_messages === "none") {
+      return error("This user no longer accepts messages", 403);
+    }
+    if (recipientSettings?.allow_messages === "followers") {
+      const follows = await env.DB.prepare(
+        "SELECT 1 FROM social_follows WHERE follower_id=? AND following_id=?"
+      ).bind(user.id, directRecipient.user_id).first();
+      if (!follows) return error("Only followers can message this user", 403);
+    }
+  }
+
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const content = cleanText(body.content, 10000);
