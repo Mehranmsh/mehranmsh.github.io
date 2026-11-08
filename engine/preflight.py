@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
 import platform
 import shutil
@@ -37,7 +38,7 @@ def command_output(command):
 
 
 def detect_gpu():
-    nvidia = command_output(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"])
+    nvidia = command_output(["nvidia-smi", "--query-gpu=name,memory.total,memory.free", "--format=csv,noheader"])
     if nvidia:
         return {"detected": True, "vendor": "NVIDIA", "details": nvidia.splitlines(), "source": "nvidia-smi"}
     amd = command_output(["rocm-smi", "--showproductname"])
@@ -53,9 +54,15 @@ def detect_gpu():
 
 
 def inspect():
-    ROOT.mkdir(parents=True, exist_ok=True)
-    disk = shutil.disk_usage(ROOT)
+    disk_path = ROOT
+    while not disk_path.exists() and disk_path != disk_path.parent:
+        disk_path = disk_path.parent
+    disk = shutil.disk_usage(disk_path)
     memory = total_memory_bytes()
+    try:
+        torch_available = importlib.util.find_spec("torch") is not None
+    except (ImportError, ValueError):
+        torch_available = False
     return {
         "system": {
             "os": platform.platform(),
@@ -63,17 +70,19 @@ def inspect():
             "python": platform.python_version(),
             "cpu_cores": os.cpu_count(),
             "ram_total_bytes": memory,
+            "pytorch_installed": torch_available,
         },
         "gpu": detect_gpu(),
         "storage": {
             "studio_data_path": str(ROOT),
+            "checked_existing_mount": str(disk_path),
             "total_bytes": disk.total,
             "free_bytes": disk.free,
         },
         "network_accessed": False,
         "models_downloaded": False,
         "paid_services_used": False,
-        "notice": "Inventory only. No model is downloaded, no audio is generated, and no paid service is contacted.",
+        "notice": "Read-only inventory. No directory is created, no network is accessed, no model is downloaded, no audio is generated, and no paid service is contacted.",
     }
 
 
