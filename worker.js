@@ -2185,7 +2185,7 @@ async function socialPrivacy(request, env) {
 
   for (const key of ["isPrivate", "showOnlineStatus", "showActivityStatus"]) {
     if (body[key] !== undefined && typeof body[key] !== "boolean") {
-      return error(`\u001b[0m${key} must be a boolean`, 400);
+      return error(`${key} must be a boolean`, 400);
     }
   }
 
