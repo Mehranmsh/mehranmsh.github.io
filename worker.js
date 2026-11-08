@@ -1899,7 +1899,7 @@ async function socialListComments(request, env, postId) {
   if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   const result = await env.DB.prepare(`
-    SELECT c.id,c.content,c.created_at,u.username,u.display_name,u.avatar_url
+    SELECT c.id,c.content,c.created_at,u.username,u.display_name,u.avatar_url,u.account_type
     FROM social_comments c
     JOIN social_users u ON u.id=c.user_id
     WHERE c.post_id=?
@@ -1913,7 +1913,8 @@ async function socialListComments(request, env, postId) {
     author: {
       username: row.username,
       displayName: row.display_name || "",
-      avatarUrl: row.avatar_url || ""
+      avatarUrl: row.avatar_url || "",
+      accountType: normalizeAccountType(row.account_type)
     }
   }));
 
@@ -1971,7 +1972,8 @@ async function socialCreateComment(request, env, postId) {
       author: {
         username: user.username,
         displayName: user.displayName,
-        avatarUrl: user.avatarUrl
+        avatarUrl: user.avatarUrl,
+        accountType: normalizeAccountType(user.accountType)
       }
     }
   }, 201);
