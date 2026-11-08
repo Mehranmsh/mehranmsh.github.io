@@ -227,6 +227,36 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
   return true;
 }
 
+// Conservative, account-wide reservation for this Worker's Workers AI calls.
+ // Keep 20% of Cloudflare's 10,000-Neuron free daily allocation unreserved.
+ // Image generation reserves 2,000 Neurons (actual published estimate is lower).
+ // Reservations are never refunded after a model call because failed responses
+ // may still have consumed inference resources. UTC date matches Cloudflare reset.
+const SOCIAL_AI_DAILY_BUDGET_NEURONS = 8000;
+async function reserveSocialWorkersAIBudget(env, reservedNeurons) {
+  if (!env?.DB || !Number.isInteger(reservedNeurons) || reservedNeurons < 1) {
+    throw new Error("Workers AI budget guard is unavailable.");
+  }
+  await ensureSocialTables(env);
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const row = await env.DB.prepare(`
+    INSERT INTO social_ai_daily_budget(day_key,reserved_neurons,request_count,updated_at)
+    VALUES(?,?,1,CURRENT_TIMESTAMP)
+    ON CONFLICT(day_key) DO UPDATE SET
+      reserved_neurons=social_ai_daily_budget.reserved_neurons+excluded.reserved_neurons,
+      request_count=social_ai_daily_budget.request_count+1,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE social_ai_daily_budget.reserved_neurons+excluded.reserved_neurons<=?
+    RETURNING reserved_neurons,request_count
+  `).bind(dayKey, reservedNeurons, SOCIAL_AI_DAILY_BUDGET_NEURONS).first();
+  return {
+    allowed: !!row,
+    reservedNeurons: row ? Number(row.reserved_neurons) : null,
+    requestCount: row ? Number(row.request_count) : null,
+    dayKey
+  };
+}
+
 const socialSchemaInit = new WeakMap();
 
 async function ensureSocialTables(env) {
@@ -249,6 +279,13 @@ async function createSocialTables(db) {
       attempts INTEGER NOT NULL DEFAULT 0,
       window_started_at INTEGER NOT NULL,
       blocked_until INTEGER
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS social_ai_daily_budget(
+      day_key TEXT PRIMARY KEY,
+      reserved_neurons INTEGER NOT NULL DEFAULT 0,
+      request_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
 
     `CREATE TABLE IF NOT EXISTS social_users(
@@ -3333,6 +3370,8 @@ async function socialEnsureCloudflareVisionLicense(env, model) {
   // error code 5016 and a confirmation message. Treat only that exact
   // confirmation as success; propagate all unrelated failures.
   try {
+    const budget = await reserveSocialWorkersAIBudget(env, 500);
+    if (!budget.allowed) throw new Error("Daily free Workers AI budget is reserved for today.");
     const result = await env.AI.run(model, { prompt: "agree" });
     const resultText = JSON.stringify(result || {});
     const resultErrors = Array.isArray(result?.errors) ? result.errors : [];
@@ -3370,6 +3409,8 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
       if (images.length !== 1) throw new Error("Cloudflare Vision currently accepts one image per message. Use OpenAI or Gemini for multiple images.");
       cloudflareInput.image = `data:${images[0].mime};base64,${images[0].data}`;
     }
+    const budget = await reserveSocialWorkersAIBudget(env, 1500);
+    if (!budget.allowed) throw new Error("Daily free Workers AI budget is reserved for today.");
     const result = await env.AI.run(model, cloudflareInput);
     const answer = result?.response || result?.result?.response || "";
     if (typeof answer !== "string" || !answer.trim()) throw new Error("Cloudflare AI returned an empty reply.");
@@ -3457,7 +3498,11 @@ async function socialGenerateAssistantImage(request, env) {
       form.append("width", "1024");
       form.append("height", "1024");
       const multipartRequest = new Request("https://social-image-generation.invalid/", { method: "POST", body: form });
-      logStage("model_started", { model, hasReference: true, referenceBytes: bytes.length });
+      const budget = await reserveSocialWorkersAIBudget(env, 2000);
+      if (!budget.allowed) {
+        return json({ success: false, error: "Today's free image-generation allowance has been reached. It will reset at 00:00 UTC.", code: "SOCIAL_AI_DAILY_FREE_LIMIT", requestId, stage: currentStage }, 429);
+      }
+      logStage("model_started", { model, hasReference: true, referenceBytes: bytes.length, reservedNeurons: budget.reservedNeurons });
       const timeoutMs = 120000;
       let timeoutId;
       try {
@@ -3482,7 +3527,11 @@ async function socialGenerateAssistantImage(request, env) {
       logStage("model_finished", { model });
       mimeType = "image/png";
     } else {
-      logStage("model_started", { model, hasReference: false });
+      const budget = await reserveSocialWorkersAIBudget(env, 2000);
+      if (!budget.allowed) {
+        return json({ success: false, error: "Today's free image-generation allowance has been reached. It will reset at 00:00 UTC.", code: "SOCIAL_AI_DAILY_FREE_LIMIT", requestId, stage: currentStage }, 429);
+      }
+      logStage("model_started", { model, hasReference: false, reservedNeurons: budget.reservedNeurons });
       const timeoutMs = 120000;
       let timeoutId;
       try {
@@ -3511,6 +3560,10 @@ async function socialGenerateAssistantImage(request, env) {
     return json({ success: true, model, image, mimeType, requestId });
   } catch (e) {
     const elapsedMs = Date.now() - startedAt;
+    if (/Daily free Workers AI budget is reserved/.test(String(e?.message || ""))) {
+      console.warn("SOCIAL_AI_DAILY_BUDGET_BLOCKED", JSON.stringify({ requestId, elapsedMs }));
+      return json({ success: false, error: "The free AI allowance is temporarily unavailable. No image request was sent. Please try again after the daily reset.", code: "SOCIAL_AI_DAILY_FREE_LIMIT", requestId, stage: currentStage, elapsedMs }, 429);
+    }
     if (e?.code === "SOCIAL_IMAGE_REFERENCE_TIMEOUT") {
       console.error("SOCIAL_IMAGE_REFERENCE_TIMEOUT", JSON.stringify({ requestId, elapsedMs }));
       return json({ success: false, error: "Preparing your private reference photo took longer than 30 seconds. Please try again.", code: "SOCIAL_IMAGE_REFERENCE_TIMEOUT", requestId, stage: currentStage, elapsedMs }, 504);
