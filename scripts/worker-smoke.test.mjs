@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -462,4 +463,19 @@ test("chat read cursors always advance while read-receipt visibility respects ea
   const list = workerSource.slice(listStart, listEnd);
   assert.match(list, /readprefs\.preferences_json AS read_preferences_json/);
   assert.match(list, /prefs\.chat\?\.readReceipts === false \? null/);
+});
+
+
+test("SOCIAL notification badge refresh is bounded, authenticated, and skips hidden or offline tabs", () => {
+  assert.match(indexSource, /async function socialRefreshNotificationCount\(\)/);
+  assert.match(indexSource, /if\(!socialUser\|\|!navigator\.onLine\|\|document\.hidden\|\|socialNotificationRefreshBusy\)return/);
+  assert.match(indexSource, /socialRequest\("\/notifications\?limit=1"\)/);
+  assert.match(indexSource, /setInterval\(socialRefreshNotificationCount,30000\)/);
+  assert.match(indexSource, /socialNotificationRefreshBusy=false/);
+});
+
+test("SOCIAL reconnect recovery refreshes notification counts and only reloads the open notification view", () => {
+  assert.match(indexSource, /window\.addEventListener\("online",recover\)/);
+  assert.match(indexSource, /socialRefreshNotificationCount\(\)/);
+  assert.match(indexSource, /\$\("social-notifications"\)\?\.classList\.contains\("active"\)\)loadNotifications\(\)/);
 });
