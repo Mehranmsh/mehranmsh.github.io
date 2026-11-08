@@ -269,6 +269,20 @@ test("group leave and member management enforce owner and admin hierarchy", () =
   assert.match(manage, /Use the leave-group action to remove yourself/);
 });
 
+test("group ownership transfer is owner-only and restricted to existing members", () => {
+  const start = workerSource.indexOf("async function socialTransferGroupOwnership");
+  const end = workerSource.indexOf("\\nasync function ", start + 20);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /group\\.owner_id !== user\\.id/);
+  assert.match(handler, /Only the group owner can transfer ownership/);
+  assert.match(handler, /The new owner must already be a group member/);
+  assert.match(handler, /UPDATE social_conversations SET owner_id=\\?/);
+  assert.match(handler, /SET role='admin'/);
+  assert.match(handler, /SET role='owner'/);
+  assert.ok(workerSource.includes("transferGroupMatch"));
+  assert.ok(workerSource.includes("/transfer-ownership"));
+});
+
 test("group member management routes expose only leave, remove, and role updates", () => {
   assert.ok(workerSource.includes("groupLeaveMatch = path.match"));
   assert.ok(workerSource.includes("groupMemberMatch = path.match"));
