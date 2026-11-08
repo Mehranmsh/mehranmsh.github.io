@@ -2258,17 +2258,22 @@ async function socialNotifications(request, env) {
   const url = new URL(request.url);
   const limit = safeLimit(url.searchParams.get("limit"), 30, 100);
 
-  const result = await env.DB.prepare(`
-    SELECT n.id,n.type,n.target_id,n.message,n.is_read,n.created_at,
-      u.username,u.display_name,u.avatar_url
-    FROM social_notifications n
-    LEFT JOIN social_users u ON u.id=n.actor_id
-    WHERE n.user_id=?
-    ORDER BY n.created_at DESC LIMIT ?
-  `).bind(user.id, limit).all();
+  const [result, unreadRow] = await Promise.all([
+    env.DB.prepare(`
+      SELECT n.id,n.type,n.target_id,n.message,n.is_read,n.created_at,
+        u.username,u.display_name,u.avatar_url
+      FROM social_notifications n
+      LEFT JOIN social_users u ON u.id=n.actor_id
+      WHERE n.user_id=?
+      ORDER BY n.created_at DESC LIMIT ?
+    `).bind(user.id, limit).all(),
+    env.DB.prepare("SELECT COUNT(*) AS total FROM social_notifications WHERE user_id=? AND is_read=0")
+      .bind(user.id).first()
+  ]);
 
   return json({
     success: true,
+    unreadCount: Math.max(0, Number(unreadRow?.total || 0)),
     notifications: (result.results || []).map(row => ({
       id: row.id,
       type: row.type,
@@ -2697,19 +2702,25 @@ async function socialListConversations(request, env) {
 
     stage = "conversation_query";
     const result = await env.DB.prepare(`
-      SELECT c.id,c.type,c.title,c.updated_at,
+      SELECT c.id,c.type,c.title,c.updated_at,cm.last_read_at,
         (SELECT m.content FROM social_messages m
          WHERE m.conversation_id=c.id AND m.deleted_at IS NULL
          ORDER BY m.created_at DESC LIMIT 1) AS last_message,
         (SELECT m.created_at FROM social_messages m
          WHERE m.conversation_id=c.id
-         ORDER BY m.created_at DESC LIMIT 1) AS last_message_at
+         ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+        (SELECT COUNT(*) FROM social_messages unread
+         WHERE unread.conversation_id=c.id
+           AND unread.sender_id<>?
+           AND unread.deleted_at IS NULL
+           AND unread.created_at>COALESCE(NULLIF(cm.last_read_at,''),NULLIF(cm.joined_at,''),'1970-01-01 00:00:00')
+        ) AS unread_count
       FROM social_conversations c
       JOIN social_conversation_members cm ON cm.conversation_id=c.id
       WHERE cm.user_id=?
       ORDER BY COALESCE(last_message_at,c.updated_at) DESC
       LIMIT 100
-    `).bind(user.id).all();
+    `).bind(user.id, user.id).all();
 
     const conversations = [];
     for (const row of result.results || []) {
@@ -2726,6 +2737,8 @@ async function socialListConversations(request, env) {
         id: row.id, type: row.type, title: row.title,
         lastMessage: showMessagePreviews ? (row.last_message || "") : "",
         lastMessageAt: row.last_message_at || row.updated_at,
+        lastReadAt: row.last_read_at || null,
+        unreadCount: Math.max(0, Number(row.unread_count || 0)),
         members: (members.results || []).map(member => ({
           id: member.id, username: member.username,
           displayName: member.display_name || "",
