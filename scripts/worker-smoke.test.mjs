@@ -353,3 +353,23 @@ test("channel member directory is visible only to current channel members", () =
   assert.match(handler, /LIMIT 500/);
   assert.ok(workerSource.includes("channelMembersMatch = path.match"));
 });
+
+
+test("channel post edits and deletion require admin membership and stay scoped to the channel", () => {
+  const editStart = workerSource.indexOf("async function socialEditChannelPost");
+  const editEnd = workerSource.indexOf("\nasync function ", editStart + 30);
+  const edit = workerSource.slice(editStart, editEnd);
+  assert.match(edit, /!\["owner", "admin"\]\.includes\(member\.role\)/);
+  assert.match(edit, /WHERE id=\? AND channel_id=\?/);
+  assert.match(edit, /edited_at=CURRENT_TIMESTAMP/);
+  assert.match(edit, /UPDATE social_channel_posts SET content=/);
+
+  const deleteStart = workerSource.indexOf("async function socialDeleteChannelPost");
+  const deleteEnd = workerSource.indexOf("\nasync function ", deleteStart + 30);
+  const remove = workerSource.slice(deleteStart, deleteEnd);
+  assert.match(remove, /!\["owner", "admin"\]\.includes\(member\.role\)/);
+  assert.match(remove, /DELETE FROM social_channel_pins WHERE channel_id=\? AND post_id=\?/);
+  assert.match(remove, /DELETE FROM social_channel_posts WHERE id=\? AND channel_id=\?/);
+  assert.match(remove, /Uploaded media files are intentionally retained/);
+  assert.ok(workerSource.includes("channelPostItemMatch = path.match"));
+});
