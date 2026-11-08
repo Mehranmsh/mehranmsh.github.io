@@ -3199,5 +3199,87 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&overlay.classList.contains("open"))close();});
 })();
 </script>
+
+<style id="prompt-gallery-category-filter">
+#social-prompt-creator .prompt-gallery-toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0 18px}
+#social-prompt-creator .prompt-category-chip{border:1px solid rgba(125,170,210,.2);border-radius:999px;background:#101e31;color:#a9bfd4;padding:9px 13px;font-size:11px;font-weight:750;white-space:nowrap}
+#social-prompt-creator .prompt-category-chip.active{background:linear-gradient(110deg,#123c56,#173a68);border-color:#35c9ef;color:#eafaff;box-shadow:0 0 0 2px rgba(40,217,255,.08)}
+#social-prompt-creator .prompt-category-chip span{margin-left:5px;color:#78cce8;font-size:10px}
+#social-prompt-creator .prompt-category-section{margin:20px 0 25px}
+#social-prompt-creator .prompt-category-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+#social-prompt-creator .prompt-category-heading h4{margin:0;font-size:15px}
+#social-prompt-creator .prompt-category-heading small{color:var(--muted);font-size:10px}
+#social-prompt-creator .prompt-category-section[hidden]{display:none!important}
+@media(max-width:600px){#social-prompt-creator .prompt-gallery-toolbar{flex-wrap:nowrap;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}#social-prompt-creator .prompt-gallery-toolbar::-webkit-scrollbar{display:none}#social-prompt-creator .prompt-category-chip{flex:0 0 auto}}
+</style>
+<script id="prompt-gallery-category-filter-script">
+(()=>{
+ const init=()=>{
+  const root=document.querySelector("#social-prompt-creator .prompt-gallery");
+  const grid=root?.querySelector(".prompt-gallery-grid");
+  if(!root||!grid||root.dataset.grouped==="true")return;
+  const cards=Array.from(grid.querySelectorAll(".prompt-template"));
+  if(!cards.length)return;
+  const definitions=[
+   {id:"image",label:"Images & Design",icon:"🎨",tags:["IMAGE","DESIGN"]},
+   {id:"music",label:"Music & Audio",icon:"🎵",tags:["AUDIO","MUSIC"]},
+   {id:"video",label:"Video & Film",icon:"🎬",tags:["VIDEO"]},
+   {id:"coding",label:"Web & Coding",icon:"💻",tags:["WEB","CODING"]},
+   {id:"writing",label:"Writing & Content",icon:"✍️",tags:["WRITING","SOCIAL"]},
+   {id:"business",label:"Business & Marketing",icon:"📈",tags:["BUSINESS","PRODUCT"]},
+   {id:"study",label:"Learning & Research",icon:"📚",tags:["STUDY","LEARN"]},
+   {id:"productivity",label:"Productivity",icon:"⚡",tags:["PRODUCTIVITY"]}
+  ];
+  const categoryFor=card=>{
+   const tag=(card.querySelector(".prompt-media-tag")?.textContent||"").trim().toUpperCase();
+   return definitions.find(d=>d.tags.includes(tag))||definitions[0];
+  };
+  const toolbar=document.createElement("div");
+  toolbar.className="prompt-gallery-toolbar";
+  toolbar.setAttribute("aria-label","Filter prompt templates by category");
+  const grouped=new Map(definitions.map(d=>[d.id,[]]));
+  cards.forEach(card=>grouped.get(categoryFor(card).id).push(card));
+  const allCount=cards.length;
+  const allButton=document.createElement("button");
+  allButton.type="button";allButton.className="prompt-category-chip active";
+  allButton.dataset.category="all";allButton.innerHTML='All categories <span>'+allCount+'</span>';
+  toolbar.appendChild(allButton);
+  const sections=document.createDocumentFragment();
+  definitions.forEach(def=>{
+   const items=grouped.get(def.id);
+   if(!items.length)return;
+   const button=document.createElement("button");
+   button.type="button";button.className="prompt-category-chip";
+   button.dataset.category=def.id;
+   button.innerHTML=def.icon+" "+def.label+' <span>'+items.length+'</span>';
+   toolbar.appendChild(button);
+   const section=document.createElement("section");
+   section.className="prompt-category-section";
+   section.dataset.category=def.id;
+   const heading=document.createElement("div");
+   heading.className="prompt-category-heading";
+   const title=document.createElement("h4");title.textContent=def.icon+" "+def.label;
+   const count=document.createElement("small");count.textContent=items.length+" templates";
+   heading.append(title,count);
+   const sectionGrid=document.createElement("div");
+   sectionGrid.className="prompt-gallery-grid";
+   items.forEach(card=>sectionGrid.appendChild(card));
+   section.append(heading,sectionGrid);
+   sections.appendChild(section);
+  });
+  grid.replaceWith(toolbar,sections);
+  const buttons=Array.from(toolbar.querySelectorAll("button"));
+  const categorySections=Array.from(root.querySelectorAll(".prompt-category-section"));
+  const select=category=>{
+   buttons.forEach(button=>button.classList.toggle("active",button.dataset.category===category));
+   categorySections.forEach(section=>section.hidden=category!=="all"&&section.dataset.category!==category);
+  };
+  buttons.forEach(button=>button.addEventListener("click",()=>select(button.dataset.category)));
+  root.dataset.grouped="true";
+ };
+ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
+})();
+</script>
+
 </body>
 </html>
