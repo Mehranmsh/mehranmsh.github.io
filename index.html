@@ -2166,6 +2166,26 @@ function socialStartChatRefresh(){
 }
 
 let socialNetworkRecoveryInstalled=false;
+let socialNotificationRefreshBusy=false;
+let socialNotificationRefreshTimer=null;
+async function socialRefreshNotificationCount(){
+ if(!socialUser||!navigator.onLine||document.hidden||socialNotificationRefreshBusy)return;
+ socialNotificationRefreshBusy=true;
+ try{
+  const data=await socialRequest("/notifications?limit=1");
+  socialNotificationUnreadCount=Number.isFinite(Number(data.unreadCount))?Math.max(0,Number(data.unreadCount)):socialNotificationUnreadCount;
+  updateNotificationBadge();
+ }catch(error){
+  console.warn("SOCIAL notification count refresh:",error);
+ }finally{
+  socialNotificationRefreshBusy=false;
+ }
+}
+function socialStartNotificationRefresh(){
+ if(socialNotificationRefreshTimer)clearInterval(socialNotificationRefreshTimer);
+ socialNotificationRefreshTimer=setInterval(socialRefreshNotificationCount,30000);
+ socialRefreshNotificationCount();
+}
 function socialInstallNetworkRecovery(){
  if(socialNetworkRecoveryInstalled)return;
  socialNetworkRecoveryInstalled=true;
@@ -2177,7 +2197,8 @@ function socialInstallNetworkRecovery(){
   if(!socialUser||!navigator.onLine)return;
   socialRefreshConversationList();
   if(socialActiveConversation)socialRefreshChatMessages();
-  if(document.querySelector("#social-notifications.active"))loadNotifications();
+  socialRefreshNotificationCount();
+  if($("social-notifications")?.classList.contains("active"))loadNotifications();
  };
  window.addEventListener("online",recover);
  document.addEventListener("visibilitychange",()=>{
@@ -2185,6 +2206,7 @@ function socialInstallNetworkRecovery(){
  });
 }
 socialInstallNetworkRecovery();
+socialStartNotificationRefresh();
 
 function socialRenderGroupManagement(conversation){
  const panel=$("groupManagementPanel");if(!panel)return;
