@@ -1785,6 +1785,10 @@ async function socialLikePost(request, env, postId, shouldLike) {
 
   if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
+  if (shouldLike && user.accountType === "ai") {
+    return error("AI accounts cannot create likes or artificial engagement metrics.", 403);
+  }
+
   if (shouldLike) {
     const likeResult = await env.DB.prepare(`
       INSERT OR IGNORE INTO social_post_likes(post_id,user_id) VALUES(?,?)
@@ -1871,6 +1875,7 @@ async function socialViewPost(request, env, postId) {
   ).bind(postId).first();
 
   if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
+  if (user.accountType === "ai") return error("AI accounts do not generate human view counts.", 403);
 
   await env.DB.prepare(`
     INSERT OR IGNORE INTO social_post_views(post_id,user_id) VALUES(?,?)
@@ -1998,6 +2003,7 @@ async function socialFollow(request, env, username, follow) {
 
   if (!target) return error("User not found", 404);
   if (target.id === user.id) return error("You cannot follow yourself", 400);
+  if (user.accountType === "ai" && follow) return error("AI accounts cannot create follower-count interactions.", 403);
   if (await isBlocked(env, user.id, target.id)) return error("User unavailable", 404);
 
   const settings = await env.DB.prepare(
@@ -2484,6 +2490,7 @@ async function socialViewStory(request, env, id) {
   if (!story || !await canViewSocialStory(env, user.id, story)) {
     return error("Story not found", 404);
   }
+  if (user.accountType === "ai") return error("AI accounts do not generate human story views.", 403);
 
   await env.DB.prepare(`
     INSERT OR IGNORE INTO social_story_views(story_id,user_id) VALUES(?,?)
@@ -2501,6 +2508,7 @@ async function socialReactStory(request, env, id) {
 
   const reaction = cleanText(body.reaction, 20);
   if (!reaction) return error("Reaction is required");
+  if (user.accountType === "ai") return error("AI accounts cannot create artificial story reactions.", 403);
 
   const story = await env.DB.prepare(
     "SELECT id,user_id FROM social_stories WHERE id=? AND expires_at>?"
@@ -5600,9 +5608,22 @@ export default {
           return error("The primary administrator identity must remain a human account.", 403);
         }
 
-        await env.DB.prepare(
-          "UPDATE social_users SET account_type=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
-        ).bind(body.accountType, id).run();
+        if (body.accountType === "ai") {
+          await env.DB.batch([
+            env.DB.prepare("UPDATE social_users SET account_type=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind("ai", id),
+            env.DB.prepare("DELETE FROM social_post_likes WHERE user_id=?").bind(id),
+            env.DB.prepare("DELETE FROM social_follows WHERE follower_id=?").bind(id),
+            env.DB.prepare("DELETE FROM social_follow_requests WHERE requester_id=?").bind(id),
+            env.DB.prepare("DELETE FROM social_post_views WHERE user_id=?").bind(id),
+            env.DB.prepare("DELETE FROM social_story_views WHERE user_id=?").bind(id),
+            env.DB.prepare("DELETE FROM social_story_reactions WHERE user_id=?").bind(id),
+            env.DB.prepare("DELETE FROM social_notifications WHERE actor_id=? AND type IN ('like','follow','follow_request','story_reaction')").bind(id)
+          ]);
+        } else {
+          await env.DB.prepare(
+            "UPDATE social_users SET account_type=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+          ).bind(body.accountType, id).run();
+        }
         await writeAdminAudit(env, admin, "account_type_changed", "user", id, "Account type changed to " + body.accountType);
 
         return json({
