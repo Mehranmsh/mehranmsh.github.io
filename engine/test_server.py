@@ -223,6 +223,22 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertIn("within_limit", state)
         self.assertGreaterEqual(state["free_bytes"], 0)
 
+    def test_resource_status_is_read_only_for_missing_studio_path(self):
+        with tempfile.TemporaryDirectory() as parent:
+            missing = Path(parent) / "not-created" / "nested"
+            with mock.patch.object(module, "ROOT", missing):
+                state = module.resource_status()
+            self.assertFalse(missing.exists())
+            self.assertEqual(state["checked_existing_mount"], parent)
+            self.assertIn("within_limit", state)
+
+    def test_resource_status_fails_closed_when_disk_usage_is_unavailable(self):
+        with mock.patch.object(module.shutil, "disk_usage", side_effect=OSError("unavailable")):
+            state = module.resource_status()
+        self.assertIsNone(state["free_bytes"])
+        self.assertFalse(state["within_limit"])
+        self.assertEqual(state["state"], "unknown")
+
     def test_preflight_is_offline_and_reports_resources(self):
         report = preflight.inspect()
         self.assertFalse(report["network_accessed"])
