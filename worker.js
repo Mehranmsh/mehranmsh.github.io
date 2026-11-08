@@ -2995,6 +2995,29 @@ async function socialDeleteMessage(request, env, messageId) {
   return json({ success: true, deleted: true });
 }
 
+async function socialTransferGroupOwnership(request, env, conversationId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const body = await readBody(request);
+  const targetUserId = String(body?.userId || "");
+  if (!targetUserId || targetUserId.length > 150) return error("A valid group member is required", 400);
+  if (targetUserId === user.id) return error("You already own this group", 400);
+  const group = await env.DB.prepare("SELECT id,owner_id FROM social_conversations WHERE id=? AND type='group'").bind(conversationId).first();
+  if (!group) return error("Group not found", 404);
+  if (group.owner_id !== user.id) return error("Only the group owner can transfer ownership", 403);
+  const target = await env.DB.prepare("SELECT role FROM social_conversation_members WHERE conversation_id=? AND user_id=?").bind(conversationId, targetUserId).first();
+  if (!target) return error("The new owner must already be a group member", 400);
+  const results = await env.DB.batch([
+    env.DB.prepare("UPDATE social_conversations SET owner_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND type='group' AND owner_id=?").bind(targetUserId, conversationId, user.id),
+    env.DB.prepare("UPDATE social_conversation_members SET role='admin' WHERE conversation_id=? AND user_id=? AND EXISTS (SELECT 1 FROM social_conversations WHERE id=? AND owner_id=?)").bind(conversationId, user.id, conversationId, targetUserId),
+    env.DB.prepare("UPDATE social_conversation_members SET role='owner' WHERE conversation_id=? AND user_id=? AND EXISTS (SELECT 1 FROM social_conversations WHERE id=? AND owner_id=?)").bind(conversationId, targetUserId, conversationId, targetUserId)
+  ]);
+  if (!Number(results?.[0]?.meta?.changes || 0) || !Number(results?.[1]?.meta?.changes || 0) || !Number(results?.[2]?.meta?.changes || 0)) {
+    return error("Ownership transfer could not be completed. Refresh and try again.", 409);
+  }
+  return json({ success: true, transferred: true, ownerId: targetUserId });
+}
+
 async function socialLeaveGroup(request, env, conversationId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4982,6 +5005,11 @@ export default {
             env,
             decodeURIComponent(joinGroupMatch[1])
           );
+        }
+
+        const transferGroupMatch = path.match(/^\\/social\\/groups\\/([^/]+)\\/transfer-ownership$/);
+        if (transferGroupMatch && method === "POST") {
+          return await socialTransferGroupOwnership(request, env, decodeURIComponent(transferGroupMatch[1]));
         }
 
         const groupLeaveMatch = path.match(/^\/social\/groups\/([^/]+)\/leave$/);
