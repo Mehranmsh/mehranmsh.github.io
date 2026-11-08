@@ -137,6 +137,36 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertFalse(status["ready"])
         self.assertEqual(status["state"], "model_verified_runner_not_integrated")
 
+
+    def test_project_detail_update_and_delete_are_owner_authenticated(self):
+        status, created = self.request("/v1/projects", method="POST", payload={"name": "Draft", "kind": "song"})
+        self.assertEqual(status, 201)
+        project_id = created["project"]["id"]
+        status, updated = self.request("/v1/projects/" + project_id, method="PUT",
+                                       payload={"name": "Final Mix", "status": "ready", "bpm": 112})
+        self.assertEqual(status, 200)
+        self.assertEqual(updated["project"]["name"], "Final Mix")
+        self.assertEqual(updated["project"]["bpm"], 112)
+        status, detail = self.request("/v1/projects/" + project_id)
+        self.assertEqual(status, 200)
+        self.assertEqual(detail["project"]["status"], "ready")
+        status, deleted = self.request("/v1/projects/" + project_id, method="DELETE")
+        self.assertEqual(status, 200)
+        self.assertTrue(deleted["deleted"])
+        status, missing = self.request("/v1/projects/" + project_id)
+        self.assertEqual(status, 404)
+        self.assertEqual(missing["error"], "project_not_found")
+
+    def test_project_update_rejects_invalid_status_and_bpm(self):
+        status, created = self.request("/v1/projects", method="POST", payload={"name": "Draft"})
+        project_id = created["project"]["id"]
+        status, invalid = self.request("/v1/projects/" + project_id, method="PUT", payload={"status": "running"})
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid["error"], "invalid_project_status")
+        status, invalid_bpm = self.request("/v1/projects/" + project_id, method="PUT", payload={"bpm": 999})
+        self.assertEqual(status, 400)
+        self.assertEqual(invalid_bpm["error"], "invalid_bpm")
+
     def test_engine_is_honestly_unavailable_without_local_runtime(self):
         state = module.engine_status()
         self.assertFalse(state["ready"])
