@@ -244,7 +244,7 @@ test("group invite creation is restricted to actual group conversations", () => 
   assert.match(handler, /DELETE FROM social_group_invites WHERE conversation_id=\?/);
   assert.match(handler, /previousInvitesRevoked: true/);
   const manageStart = workerSource.indexOf("async function socialManageGroupMember");
-  const manageEnd = workerSource.indexOf("\\nasync function ", manageStart + 20);
+  const manageEnd = workerSource.indexOf("\nasync function ", manageStart + 20);
   const manage = workerSource.slice(manageStart, manageEnd);
   assert.match(manage, /DELETE FROM social_group_invites WHERE conversation_id=\?/);
 });
