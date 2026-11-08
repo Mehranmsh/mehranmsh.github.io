@@ -15,6 +15,7 @@ import shutil
 import sqlite3
 import threading
 import time
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -28,6 +29,8 @@ HOST = os.environ.get("MEHRAN_STUDIO_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MEHRAN_STUDIO_PORT", "8765"))
 TOKEN = os.environ.get("MEHRAN_STUDIO_TOKEN", "")
 LOCK = threading.Lock()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import model_policy
 
 
 def database():
@@ -47,19 +50,19 @@ def database():
 
 
 def engine_status():
-    manifest = ROOT / "models" / "runtime.json"
+    models_root = ROOT / "models"
+    manifest = models_root / "runtime.json"
     if not manifest.is_file():
         return {"ready": False, "state": "not_installed",
                 "message": "No locally installed model runtime. No generation can be started."}
-    try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-        if data.get("enabled") is not True or data.get("runtime") != "local":
-            raise ValueError("Runtime manifest is not enabled for local execution.")
-        return {"ready": False, "state": "runtime_unverified",
-                "message": "A local runtime manifest exists, but model self-tests are not implemented yet."}
-    except Exception:
+    validation = model_policy.validate_manifest(models_root, manifest)
+    if not validation["valid"]:
         return {"ready": False, "state": "invalid_manifest",
-                "message": "Local runtime manifest is invalid or not approved."}
+                "message": validation["message"]}
+    return {"ready": False, "state": "model_verified_runner_not_integrated",
+            "model_id": validation["model_id"], "license": validation["license"],
+            "verified_artifacts": validation["verified_artifacts"],
+            "message": "Local model files and approval are verified, but the inference runner is not integrated. Generation remains disabled."}
 
 
 def resource_status():
