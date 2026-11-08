@@ -489,3 +489,23 @@ test("open SOCIAL notification feed refreshes silently without overlapping reque
   assert.match(indexSource, /await loadNotifications\(true\)/);
   assert.match(indexSource, /if\(!silent\)\{/);
 });
+
+
+test("SOCIAL notifications remain recipient-scoped and respect notification preferences", () => {
+  const start = workerSource.indexOf("async function socialNotifications");
+  const end = workerSource.indexOf("\nasync function socialReadNotifications", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /WHERE n\.user_id=\?/);
+  assert.match(handler, /\.bind\(user\.id, limit\)/);
+  const readStart = workerSource.indexOf("async function socialReadNotifications");
+  const readEnd = workerSource.indexOf("\nasync function ", readStart + 30);
+  const readHandler = workerSource.slice(readStart, readEnd);
+  assert.match(readHandler, /WHERE id=\? AND user_id=\?/);
+  assert.match(readHandler, /WHERE user_id=\?/);
+  const notifyStart = workerSource.indexOf("async function notify");
+  const notifyEnd = workerSource.indexOf("\nasync function ", notifyStart + 30);
+  const notifyHandler = workerSource.slice(notifyStart, notifyEnd);
+  assert.match(notifyHandler, /if \(!userId \|\| userId === actorId\) return/);
+  assert.match(notifyHandler, /prefs\.notifications\[key\] === false/);
+});
