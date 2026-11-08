@@ -355,7 +355,7 @@ test("channel ownership transfer is owner-only and restricted to existing member
   const end = workerSource.indexOf("\nasync function ", start + 30);
   const handler = workerSource.slice(start, end);
   assert.match(handler, /channel\.owner_id !== user\.id/);
-  assert.match(handler, /SELECT role FROM social_channel_members WHERE channel_id=\? AND user_id=\?/);
+  assert.match(handler, /getAccessibleChannelMembership\(env, channelId, user\.id\)/);
   assert.match(handler, /The new owner must already be a channel member/);
   assert.match(handler, /UPDATE social_channels SET owner_id=\?/);
   assert.match(handler, /UPDATE social_channel_members SET role='subscriber'/);
