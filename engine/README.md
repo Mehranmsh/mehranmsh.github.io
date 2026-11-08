@@ -76,7 +76,10 @@ python3 engine/preflight.py
 
 - `GET /health`: وضعیت کنترل‌پلین، مدل محلی و فضای آزاد
 - `GET /v1/projects`: فهرست پروژه‌ها
+- `GET /v1/projects/{id}`: جزئیات یک پروژه
 - `POST /v1/projects`: ایجاد پیش‌نویس پروژه با JSON
+- `PUT /v1/projects/{id}`: ویرایش پروژه و وضعیت آن (`draft`، `ready`، `archived`)
+- `DELETE /v1/projects/{id}`: حذف پروژه با احراز هویت مالک
 - `POST /v1/jobs`: تا زمان نصب و آزمون موتور محلی، عمداً `503` برمی‌گرداند؛ job ساخته نمی‌شود و هزینه‌ای ثبت نمی‌شود.
 
 ## تست
