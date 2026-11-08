@@ -3422,7 +3422,7 @@ async function socialGenerateAssistantImage(request, env) {
   const prompt = cleanText(body.prompt, 1800);
   if (!prompt) return error("Write an image prompt first.");
   const hasReference = !!body.reference;
-  let model = hasReference ? "@cf/black-forest-labs/flux-2-klein-4b" : "@cf/black-forest-labs/flux-1-schnell";
+  let model = hasReference ? "@cf/black-forest-labs/flux-2-klein-9b" : "@cf/black-forest-labs/flux-1-schnell";
   try {
     let result, mimeType;
     if (hasReference) {
@@ -3450,9 +3450,12 @@ async function socialGenerateAssistantImage(request, env) {
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const form = new FormData();
       form.append("prompt",
-        "Use the supplied reference photo as the identity anchor for the person. Preserve the person's recognizable facial identity, facial structure, proportions, skin tone, eyes, nose, lips, jawline and distinctive features. Change only the pose, expression, clothing, hairstyle, lighting, camera angle and background as requested. Do not redesign the face. User's creative instruction: " + prompt
+        "IMAGE EDITING TASK. The person in input_image_0 is the exact person who must appear in the result. Treat the reference as identity ground truth, not loose inspiration. Preserve the same individual and reproduce their actual face: same facial geometry, head shape, forehead, hairline, eyebrows, eye shape and spacing, nose bridge and tip, nostrils, lips, philtrum, cheeks, jawline, chin, ears, skin tone, age and all distinctive asymmetries. Do not beautify, idealize, stylize, reshape, smooth, age, de-age, or substitute another face. Do not create a lookalike. Keep the face natural and photorealistic. Make only the requested changes to pose, expression, clothing, hairstyle, lighting, camera angle and background; if a requested change conflicts with identity preservation, preserve the face. Keep the person clearly recognizable as the same person in the reference. User creative instruction: " + prompt
       );
       form.append("input_image_0", new Blob([bytes], { type: reference.mime }), reference.name || "reference.jpg");
+      form.append("guidance", "3.5");
+      form.append("width", "1024");
+      form.append("height", "1024");
       const multipartRequest = new Request("https://social-image-generation.invalid/", { method: "POST", body: form });
       logStage("model_started", { model, hasReference: true, referenceBytes: bytes.length });
       const timeoutMs = 120000;
