@@ -801,3 +801,19 @@ test("SOCIAL legacy registration cannot bypass verified email identity", () => {
   assert.match(login, /Email verification is required/);
   assert.match(login, /verified email identity/);
 });
+
+test("SOCIAL AI never falls back to paid external providers", () => {
+  const readyStart = workerSource.indexOf("function socialAIProviderReady");
+  const readyEnd = workerSource.indexOf("\nfunction socialAIProviderList", readyStart);
+  const ready = workerSource.slice(readyStart, readyEnd);
+  assert.match(ready, /return key === "cloudflare"/);
+  assert.doesNotMatch(ready, /OPENAI_API_KEY|GEMINI_API_KEY|GROQ_API_KEY/);
+  const requestStart = workerSource.indexOf("function socialAIRequest");
+  const requestEnd = workerSource.indexOf("\nasync function ", requestStart);
+  const request = workerSource.slice(requestStart, requestEnd);
+  assert.match(request, /provider !== "cloudflare"/);
+  assert.match(request, /Paid external AI providers are disabled/);
+  assert.match(workerSource, /const SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000/);
+  assert.match(workerSource, /Only the capped Cloudflare free allowance is available/);
+  assert.match(workerSource, /Free image analysis currently supports one image per message/);
+});
