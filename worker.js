@@ -3240,6 +3240,16 @@ async function socialCreateGroup(request, env) {
     targets.push(target);
   }
 
+  // Do not create a shared group that forcibly places two blocked accounts
+  // together. Blocking is symmetric, regardless of which participant set it.
+  for (let i = 0; i < targets.length; i++) {
+    for (let j = i + 1; j < targets.length; j++) {
+      if (await isBlocked(env, targets[i].id, targets[j].id)) {
+        return error("The selected members cannot be placed in the same group", 403);
+      }
+    }
+  }
+
   const id = crypto.randomUUID();
   // Use individual D1 writes with compensating cleanup. This also works
   // on older D1 bindings where batch execution can fail for legacy schemas.
@@ -3330,6 +3340,17 @@ async function socialJoinGroup(request, env, code) {
   if (await isBlocked(env, user.id, invite.owner_id) ||
       await isBlocked(env, user.id, invite.created_by)) {
     return error("Group access is unavailable", 403);
+  }
+
+  // Joining by link is still a group-join action, so check every current
+  // participant rather than only the owner and the invite creator.
+  const existingMembers = await env.DB.prepare(
+    "SELECT user_id FROM social_conversation_members WHERE conversation_id=?"
+  ).bind(invite.conversation_id).all();
+  for (const existing of existingMembers.results || []) {
+    if (existing.user_id !== user.id && await isBlocked(env, user.id, existing.user_id)) {
+      return error("Group access is unavailable because of a block relationship", 403);
+    }
   }
 
   await env.DB.prepare(`
