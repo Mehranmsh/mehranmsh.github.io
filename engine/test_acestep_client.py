@@ -62,6 +62,10 @@ class ACEstepClientTests(unittest.TestCase):
         client = ACEstepLocalClient("http://127.0.0.1")
         self.assertEqual(client.port, 8001)
 
+    def test_explicit_zero_port_is_rejected(self):
+        with self.assertRaises(ValueError):
+            ACEstepLocalClient("http://127.0.0.1:0")
+
     def test_public_host_is_rejected(self):
         with self.assertRaises(ValueError):
             ACEstepLocalClient("http://example.com:8001")
