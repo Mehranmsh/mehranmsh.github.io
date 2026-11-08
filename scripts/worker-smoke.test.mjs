@@ -241,6 +241,12 @@ test("group invite creation is restricted to actual group conversations", () => 
   const handler = workerSource.slice(start, end);
   assert.match(handler, /SELECT type FROM social_conversations WHERE id=\?/);
   assert.match(handler, /conversation\?\.type !== "group"/);
+  assert.match(handler, /DELETE FROM social_group_invites WHERE conversation_id=\?/);
+  assert.match(handler, /previousInvitesRevoked: true/);
+  const manageStart = workerSource.indexOf("async function socialManageGroupMember");
+  const manageEnd = workerSource.indexOf("\\nasync function ", manageStart + 20);
+  const manage = workerSource.slice(manageStart, manageEnd);
+  assert.match(manage, /DELETE FROM social_group_invites WHERE conversation_id=\?/);
 });
 
 test("channel pins can only reference posts belonging to that channel", () => {
