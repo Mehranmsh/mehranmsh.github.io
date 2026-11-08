@@ -3532,9 +3532,7 @@ async function socialListChannelMembers(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
-  const membership = await env.DB.prepare(
-    "SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?"
-  ).bind(channelId, user.id).first();
+  const membership = await getAccessibleChannelMembership(env, channelId, user.id);
   if (!membership) return error("Channel not found", 404);
 
   const result = await env.DB.prepare(`
