@@ -217,3 +217,19 @@ test("group and channel joins enforce owner block relationships", () => {
   assert.match(group, /isBlocked\(env, user\.id, invite\.owner_id\)/);
   assert.match(group, /isBlocked\(env, user\.id, invite\.created_by\)/);
 });
+
+
+test("direct message sending stops when either participant blocks the other", () => {
+  const helperStart = workerSource.indexOf("async function isDirectConversationBlocked");
+  const helperEnd = workerSource.indexOf("\nasync function ", helperStart + 20);
+  const helper = workerSource.slice(helperStart, helperEnd);
+  assert.match(helper, /c\.type,cm\.user_id/);
+  assert.match(helper, /\["direct", "private"\]/);
+  assert.match(helper, /isBlocked\(env, userId, row\.user_id\)/);
+
+  const sendStart = workerSource.indexOf("async function socialSendMessage");
+  const sendEnd = workerSource.indexOf("\nasync function ", sendStart + 20);
+  const send = workerSource.slice(sendStart, sendEnd);
+  assert.match(send, /isDirectConversationBlocked\(env, conversationId, user\.id\)/);
+  assert.match(send, /Messaging is unavailable for this conversation/);
+});
