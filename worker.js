@@ -1256,9 +1256,12 @@ async function getProfileByUsername(username, viewerId, env) {
     "SELECT is_private FROM social_user_settings WHERE user_id=?"
   ).bind(profile.id).first();
 
-  const galleryResult = await env.DB.prepare(
-    "SELECT id,photo_url,sort_order,created_at FROM social_profile_photos WHERE user_id=? ORDER BY sort_order ASC,created_at ASC"
-  ).bind(profile.id).all();
+  const canViewGallery = !settings?.is_private || viewerId === profile.id || Boolean(counts?.is_following);
+  const galleryResult = canViewGallery
+    ? await env.DB.prepare(
+        "SELECT id,photo_url,sort_order,created_at FROM social_profile_photos WHERE user_id=? ORDER BY sort_order ASC,created_at ASC"
+      ).bind(profile.id).all()
+    : { results: [] };
   const gallery = (galleryResult.results || []).map(row => ({
     id: row.id,
     url: row.photo_url,
@@ -1698,21 +1701,22 @@ async function socialUserPosts(request, env, username) {
     SELECT 1 FROM social_follows WHERE follower_id=? AND following_id=?
   `).bind(viewer.id, target.id).first();
 
-  if (target.id !== viewer.id && settings?.is_private && !following) {
+  if (target.id !== viewer.id && (settings?.is_private && !following || await isBlocked(env, viewer.id, target.id))) {
     return json({ success: true, posts: [], privateContent: true, total: 0 });
   }
 
   const result = await env.DB.prepare(`
     SELECT * FROM social_posts
     WHERE user_id=?
-      AND (visibility='public' OR user_id=? OR visibility='followers')
+      AND (visibility IN ('public','followers') OR user_id=?)
     ORDER BY created_at DESC LIMIT 50
   `).bind(target.id, viewer.id).all();
 
   const posts = [];
   for (const row of result.results || []) {
-    if (row.visibility === "followers" && target.id !== viewer.id && !following) continue;
-    posts.push(await formatPost(row, viewer.id, env));
+    if (await canViewSocialPost(env, viewer.id, row)) {
+      posts.push(await formatPost(row, viewer.id, env));
+    }
   }
 
   return json({ success: true, posts, total: posts.length });
