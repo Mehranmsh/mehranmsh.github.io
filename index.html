@@ -2381,6 +2381,15 @@ async function socialToggleVoiceRecording(){
  }
 }
 function socialRenderChatMessage(m){
+ const active=socialConversations.find(c=>String(c.id)===String(socialActiveConversation));
+ const isMine=m.author?.username===currentUsername();
+ const messageStamp=Date.parse(String(m.createdAt||"").replace(" ","T")+"Z");
+ const readers=(active?.members||[]).filter(member=>{
+  if(member.username===currentUsername()||!member.lastReadAt)return false;
+  const readStamp=Date.parse(String(member.lastReadAt).replace(" ","T")+"Z");
+  return Number.isFinite(messageStamp)&&Number.isFinite(readStamp)&&readStamp>=messageStamp;
+ });
+ const receipt=isMine&&readers.length?(active?.type==="group"?" · Seen by "+readers.length:" · Seen"):"";
  const media=(m.media||[]).map(item=>{
   if(item.unavailable)return '<span class="small-text">Attachment unavailable. It may have expired or been removed.</span>';
   const url=sx(item.url||"");const type=String(item.type||"").toLowerCase();
@@ -2393,7 +2402,7 @@ function socialRenderChatMessage(m){
   if(type.startsWith("image"))return '<img src="'+url+'" alt="Chat attachment" loading="lazy" style="display:block;max-width:100%;max-height:260px;border-radius:10px;margin-top:8px">';
   return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text">Open attachment</a>';
  }).join("");
- return '<div class="chat-bubble '+(m.author?.username===currentUsername()?"mine":"")+'"><strong>'+sx(m.author?.username||"Member")+'</strong>'+(m.content?'<div>'+socialRenderCustomEmoji(m.content)+'</div>':"")+media+'<div class="chat-meta">'+sx(m.createdAt||"")+'</div></div>';
+ return '<div class="chat-bubble '+(isMine?"mine":"")+'"><strong>'+sx(m.author?.username||"Member")+'</strong>'+(m.content?'<div>'+socialRenderCustomEmoji(m.content)+'</div>':"")+media+'<div class="chat-meta">'+sx(m.createdAt||"")+sx(receipt)+'</div></div>';
 }
 
 async function socialStartCall(kind){
