@@ -543,3 +543,22 @@ test("SOCIAL group creation sends preference-aware invitation notifications afte
   assert.match(notifyHandler, /prefs\.community\?\.groupInvites === false/);
   assert.match(notifyHandler, /prefs\.notifications\[key\] === false/);
 });
+
+test("SOCIAL chat unread cursors are rowid-based to avoid same-second message loss", () => {
+  assert.match(workerSource, /ensureColumn\("social_conversation_members", "last_read_message_rowid", "INTEGER"\)/);
+  assert.match(workerSource, /unread\.rowid>COALESCE\(cm\.last_read_message_rowid/);
+  assert.match(workerSource, /read_cursor\.created_at<=COALESCE\(NULLIF\(cm\.last_read_at,''\),NULLIF\(cm\.joined_at,''\)/);
+  assert.match(workerSource, /last_read_message_rowid=\(SELECT MAX\(read_cursor\.rowid\)/);
+  assert.match(workerSource, /ORDER BY m\.created_at DESC,m\.rowid DESC LIMIT \?/);
+  assert.match(workerSource, /ORDER BY m\.created_at DESC,m\.rowid DESC LIMIT 1/);
+});
+
+test("SOCIAL repeated like requests do not create duplicate notifications", () => {
+  const start = workerSource.indexOf("async function socialLikePost");
+  const end = workerSource.indexOf("\\nasync function socialBookmark", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /INSERT OR IGNORE INTO social_post_likes/);
+  assert.match(handler, /Number\(likeResult\?\.meta\?\.changes \|\| 0\) > 0/);
+  assert.match(handler, /SOCIAL_LIKE_NOTIFICATION_FAILURE/);
+});
