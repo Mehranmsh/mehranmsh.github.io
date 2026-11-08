@@ -2071,9 +2071,9 @@ async function socialFollowRequests(request, env) {
   if (!user) return error("Authentication required", 401);
 
   const result = await env.DB.prepare(`
-    SELECT r.id,r.created_at,u.id AS user_id,u.username,u.display_name,u.avatar_url
+    SELECT r.id,r.created_at,u.id AS user_id,u.username,u.display_name,u.avatar_url,u.account_type
     FROM social_follow_requests r
-    JOIN social_users u ON u.id=r.requester_id
+    JOIN social_users u ON u.id=r.requester_id AND u.is_active=1
     WHERE r.target_id=?
     ORDER BY r.created_at DESC LIMIT 100
   `).bind(user.id).all();
@@ -2087,7 +2087,8 @@ async function socialFollowRequests(request, env) {
         id: row.user_id,
         username: row.username,
         displayName: row.display_name || "",
-        avatarUrl: row.avatar_url || ""
+        avatarUrl: row.avatar_url || "",
+        accountType: normalizeAccountType(row.account_type)
       }
     }))
   });
@@ -2098,28 +2099,42 @@ async function socialFollowRequestAction(request, env, requestId, accept) {
   if (!user) return error("Authentication required", 401);
 
   const row = await env.DB.prepare(`
-    SELECT id,requester_id,target_id
-    FROM social_follow_requests
-    WHERE id=? AND target_id=?
+    SELECT r.id,r.requester_id,r.target_id
+    FROM social_follow_requests r
+    JOIN social_users requester ON requester.id=r.requester_id AND requester.is_active=1
+    JOIN social_users target ON target.id=r.target_id AND target.is_active=1
+    WHERE r.id=? AND r.target_id=?
   `).bind(requestId, user.id).first();
 
   if (!row) return error("Follow request not found", 404);
+  if (await isBlocked(env, row.requester_id, user.id)) {
+    await env.DB.prepare("DELETE FROM social_follow_requests WHERE id=?").bind(requestId).run();
+    return error("User unavailable", 404);
+  }
 
   if (accept) {
-    await env.DB.batch([
+    const results = await env.DB.batch([
       env.DB.prepare(`
         INSERT OR IGNORE INTO social_follows(follower_id,following_id)
-        VALUES(?,?)
-      `).bind(row.requester_id, user.id),
+        SELECT ?,?
+        WHERE EXISTS (SELECT 1 FROM social_users WHERE id=? AND is_active=1)
+          AND EXISTS (SELECT 1 FROM social_users WHERE id=? AND is_active=1)
+          AND NOT EXISTS (
+            SELECT 1 FROM social_blocks
+            WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?)
+          )
+      `).bind(row.requester_id, user.id, row.requester_id, user.id, row.requester_id, user.id, user.id, row.requester_id),
       env.DB.prepare(
         "DELETE FROM social_follow_requests WHERE id=?"
       ).bind(requestId)
     ]);
 
-    try {
-      await notify(env, row.requester_id, user.id, "follow_accepted", user.id, "accepted your follow request");
-    } catch (notificationError) {
-      console.error("SOCIAL_FOLLOW_ACCEPTED_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+    if (Number(results?.[0]?.meta?.changes || 0) > 0) {
+      try {
+        await notify(env, row.requester_id, user.id, "follow_accepted", user.id, "accepted your follow request");
+      } catch (notificationError) {
+        console.error("SOCIAL_FOLLOW_ACCEPTED_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+      }
     }
   } else {
     await env.DB.prepare(
