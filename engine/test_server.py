@@ -231,6 +231,22 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertIn("cpu_cores", report["system"])
         self.assertIn("free_bytes", report["storage"])
 
+    def test_preflight_does_not_create_studio_directory(self):
+        with tempfile.TemporaryDirectory() as parent:
+            missing = Path(parent) / "not-created" / "nested"
+            with mock.patch.object(preflight, "ROOT", missing), \
+                 mock.patch.object(preflight, "detect_gpu", return_value={"detected": False}):
+                report = preflight.inspect()
+            self.assertFalse(missing.exists())
+            self.assertFalse(report["network_accessed"])
+            self.assertEqual(report["storage"]["checked_existing_mount"], parent)
+
+    def test_project_creation_rejects_boolean_bpm_on_all_write_paths(self):
+        status, payload = self.request("/v1/projects", method="POST",
+                                       payload={"name": "Bad BPM", "bpm": True})
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "invalid_bpm")
+
     def test_request_size_cap_is_defined(self):
         self.assertEqual(module.MAX_BODY, 64 * 1024)
 
