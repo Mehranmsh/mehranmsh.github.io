@@ -873,3 +873,16 @@ test("SOCIAL public profile visibly labels verified AI and Business account type
   assert.match(indexSource, /socialAccountTypeLabel\(p\.accountType\)/);
   assert.match(indexSource, /profile-name-line/);
 });
+
+test("SOCIAL comments preserve and display the author's verified account type", () => {
+  const listStart = workerSource.indexOf("async function socialListComments");
+  const listEnd = workerSource.indexOf("\nasync function ", listStart + 20);
+  const listRoute = workerSource.slice(listStart, listEnd);
+  assert.match(listRoute, /u\.avatar_url,u\.account_type/);
+  assert.match(listRoute, /accountType: normalizeAccountType\(row\.account_type\)/);
+  const createStart = workerSource.indexOf("async function socialCreateComment");
+  const createEnd = workerSource.indexOf("\nasync function ", createStart + 20);
+  assert.match(workerSource.slice(createStart, createEnd), /accountType: normalizeAccountType\(user\.accountType\)/);
+  assert.match(indexSource, /socialAccountTypeLabel\(c\.accountType\|\|c\.author\?\.accountType\)/);
+  assert.match(indexSource, /accountType:c\.author\?\.accountType\|\|"human"/);
+});
