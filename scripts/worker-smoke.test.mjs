@@ -718,3 +718,29 @@ test("SOCIAL group invite joins check block relationships with every existing pa
   assert.match(handler, /isBlocked\(env, user\.id, existing\.user_id\)/);
   assert.match(handler, /Group access is unavailable because of a block relationship/);
 });
+
+
+test("SOCIAL story visibility respects block relationships in both directions", () => {
+  assert.match(workerSource, /async function canViewSocialStory\(env, viewerId, story\)/);
+  const listStart = workerSource.indexOf("async function socialStories");
+  const listEnd = workerSource.indexOf("async function socialCreateStory", listStart);
+  const list = workerSource.slice(listStart, listEnd);
+  assert.match(list, /NOT EXISTS \([\s\S]*social_blocks[\s\S]*b\.blocker_id=s\.user_id AND b\.blocked_id=\?/);
+  for (const name of ["socialViewStory", "socialReactStory"]) {
+    const start = workerSource.indexOf("async function " + name);
+    const end = workerSource.indexOf("async function ", start + 1);
+    assert.ok(start >= 0 && end > start);
+    assert.match(workerSource.slice(start, end), /canViewSocialStory\(env, user\.id, story\)/, name + " must enforce story visibility");
+  }
+});
+
+test("SOCIAL stories can only publish ready public media uploaded by the story owner", () => {
+  const start = workerSource.indexOf("async function socialCreateStory");
+  const end = workerSource.indexOf("async function socialDeleteStory", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /WHERE user_id=\? AND url=\? LIMIT 1/);
+  assert.match(handler, /upload\.status !== "ready"/);
+  assert.match(handler, /upload\.acl !== "public"/);
+  assert.match(handler, /startsWith\(expectedMime\)/);
+});
