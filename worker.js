@@ -3405,6 +3405,17 @@ async function socialCreateChannel(request, env) {
   }, 201);
 }
 
+async function getAccessibleChannelMembership(env, channelId, userId) {
+  const member = await env.DB.prepare(`
+    SELECT m.role,c.owner_id
+    FROM social_channel_members m
+    JOIN social_channels c ON c.id=m.channel_id
+    WHERE m.channel_id=? AND m.user_id=?
+  `).bind(channelId, userId).first();
+  if (!member || await isBlocked(env, userId, member.owner_id)) return null;
+  return member;
+}
+
 async function socialListChannels(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -3416,8 +3427,13 @@ async function socialListChannels(request, env) {
     FROM social_channels c
     JOIN social_channel_members m ON m.channel_id=c.id
     WHERE m.user_id=?
+      AND NOT EXISTS (
+        SELECT 1 FROM social_blocks b
+        WHERE (b.blocker_id=? AND b.blocked_id=c.owner_id)
+           OR (b.blocker_id=c.owner_id AND b.blocked_id=?)
+      )
     ORDER BY c.created_at DESC LIMIT 100
-  `).bind(user.id).all();
+  `).bind(user.id, user.id, user.id).all();
 
   return json({
     success: true,
@@ -3632,10 +3648,7 @@ async function socialChannelPosts(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
-  const member = await env.DB.prepare(`
-    SELECT role FROM social_channel_members
-    WHERE channel_id=? AND user_id=?
-  `).bind(channelId, user.id).first();
+  const member = await getAccessibleChannelMembership(env, channelId, user.id);
 
   if (!member) return error("Channel not found", 404);
 
@@ -3674,10 +3687,7 @@ async function socialChannelPost(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
-  const member = await env.DB.prepare(`
-    SELECT role FROM social_channel_members
-    WHERE channel_id=? AND user_id=?
-  `).bind(channelId, user.id).first();
+  const member = await getAccessibleChannelMembership(env, channelId, user.id);
 
   if (!member || !["owner", "admin"].includes(member.role)) {
     return error("Only channel admins can publish", 403);
@@ -3781,10 +3791,7 @@ async function socialPinChannelPost(request, env, channelId, postId, pin) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
-  const member = await env.DB.prepare(`
-    SELECT role FROM social_channel_members
-    WHERE channel_id=? AND user_id=?
-  `).bind(channelId, user.id).first();
+  const member = await getAccessibleChannelMembership(env, channelId, user.id);
 
   if (!member || !["owner", "admin"].includes(member.role)) {
     return error("Admin permission required", 403);
