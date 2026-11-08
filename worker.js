@@ -3010,7 +3010,8 @@ async function socialTransferGroupOwnership(request, env, conversationId) {
   const results = await env.DB.batch([
     env.DB.prepare("UPDATE social_conversations SET owner_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND type='group' AND owner_id=?").bind(targetUserId, conversationId, user.id),
     env.DB.prepare("UPDATE social_conversation_members SET role='admin' WHERE conversation_id=? AND user_id=? AND EXISTS (SELECT 1 FROM social_conversations WHERE id=? AND owner_id=?)").bind(conversationId, user.id, conversationId, targetUserId),
-    env.DB.prepare("UPDATE social_conversation_members SET role='owner' WHERE conversation_id=? AND user_id=? AND EXISTS (SELECT 1 FROM social_conversations WHERE id=? AND owner_id=?)").bind(conversationId, targetUserId, conversationId, targetUserId)
+    env.DB.prepare("UPDATE social_conversation_members SET role='owner' WHERE conversation_id=? AND user_id=? AND EXISTS (SELECT 1 FROM social_conversations WHERE id=? AND owner_id=?)").bind(conversationId, targetUserId, conversationId, targetUserId),
+    env.DB.prepare("DELETE FROM social_group_invites WHERE conversation_id=?").bind(conversationId)
   ]);
   if (!Number(results?.[0]?.meta?.changes || 0) || !Number(results?.[1]?.meta?.changes || 0) || !Number(results?.[2]?.meta?.changes || 0)) {
     return error("Ownership transfer could not be completed. Refresh and try again.", 409);
@@ -3086,7 +3087,11 @@ async function socialManageGroupMember(request, env, conversationId, targetUserI
         )
     `).bind(nextRole, conversationId, targetUserId, conversationId, user.id, nextRole).run();
     if (!Number(result.meta?.changes || 0)) return error("Member not found or insufficient permissions", 403);
-    return json({ success: true, role: nextRole });
+    // Revoke outstanding invitations whenever an administrator role changes.
+    await env.DB.prepare(
+      "DELETE FROM social_group_invites WHERE conversation_id=?"
+    ).bind(conversationId).run();
+    return json({ success: true, role: nextRole, previousInvitesRevoked: true });
   }
 
   return error("Unsupported group member action", 400);
