@@ -3758,7 +3758,7 @@ async function socialChannelPost(request, env, channelId) {
 async function socialEditChannelPost(request, env, channelId, postId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  const member = await env.DB.prepare("SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?").bind(channelId, user.id).first();
+  const member = await getAccessibleChannelMembership(env, channelId, user.id);
   if (!member || !["owner", "admin"].includes(member.role)) return error("Admin permission required", 403);
   const body = await readBody(request);
   if (!body || typeof body.content !== "string") return error("Invalid request body");
@@ -3775,7 +3775,7 @@ async function socialEditChannelPost(request, env, channelId, postId) {
 async function socialDeleteChannelPost(request, env, channelId, postId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  const member = await env.DB.prepare("SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?").bind(channelId, user.id).first();
+  const member = await getAccessibleChannelMembership(env, channelId, user.id);
   if (!member || !["owner", "admin"].includes(member.role)) return error("Admin permission required", 403);
   const post = await env.DB.prepare("SELECT id FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId).first();
   if (!post) return error("Channel post not found", 404);
