@@ -1886,7 +1886,7 @@ updateAuthMode();
 </script>
 
 <script>
-let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false;
+let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false;
 const sx=v=>escapeHTML(String(v??""));
 async function socialUploadFile(file){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type,visibility:"public"})});
@@ -2065,12 +2065,36 @@ function socialRenderConversationRows(){
   return '<button type="button" class="chat-conversation-row" data-conversation="'+sx(c.id)+'"><div class="chat-row-avatar">'+avatar+'</div><div class="chat-row-content"><div class="chat-row-top"><strong>'+sx(title)+'</strong><span class="chat-row-time">'+sx(stamp)+(unread?'<span class="chat-unread-count" aria-label="'+unread+' unread messages">'+(unread>99?'99+':unread)+'</span>':'')+'</span></div><div class="chat-row-preview">'+sx(preview)+'</div></div></button>';
  }).join("")||'<div class="empty" style="padding:28px 14px;text-align:center;color:#91a3b4">'+(query?"No matching chats.":"No conversations yet. Start a new chat.")+'</div>';
 }
+async function socialSendPresenceHeartbeat(){
+ if(!socialUser||socialPresenceBusy||document.hidden)return;
+ socialPresenceBusy=true;
+ try{await socialRequest("/presence",{method:"POST",body:JSON.stringify({})});}
+ catch(error){console.warn("SOCIAL presence heartbeat failed:",error.message);}
+ finally{socialPresenceBusy=false;}
+}
+function socialStartPresenceHeartbeat(){
+ if(socialPresenceTimer)clearInterval(socialPresenceTimer);
+ socialSendPresenceHeartbeat();
+ socialPresenceTimer=setInterval(socialSendPresenceHeartbeat,60000);
+}
+function socialPresenceLabel(lastSeenAt){
+ if(!lastSeenAt)return "Online status hidden";
+ const stamp=new Date(String(lastSeenAt).replace(" ","T")+"Z");
+ if(!Number.isFinite(stamp.getTime()))return "Recently active";
+ const age=Math.max(0,Date.now()-stamp.getTime());
+ if(age<120000)return "Online";
+ if(age<3600000)return "Last seen "+Math.max(1,Math.floor(age/60000))+"m ago";
+ if(age<86400000)return "Last seen "+Math.floor(age/3600000)+"h ago";
+ return "Last seen "+stamp.toLocaleDateString();
+}
+
 async function socialLoadConversations(){
  const list=$("conversationList"),groupsBox=$("groupsList");
  const pendingGroupInvite=new URLSearchParams(location.search).get("groupInvite");
  if(pendingGroupInvite&&$("groupInviteCode"))$("groupInviteCode").value=pendingGroupInvite;
 
  if(!socialUser){
+  if(socialPresenceTimer){clearInterval(socialPresenceTimer);socialPresenceTimer=null;}
   if(list)list.textContent="Sign in to use messages and groups.";
   if(groupsBox)groupsBox.textContent="Sign in to view and create groups.";
   socialActiveConversation=null;
@@ -2078,6 +2102,7 @@ async function socialLoadConversations(){
   socialCallControls(false,false);
   return;
  }
+ socialStartPresenceHeartbeat();
  if(list)list.textContent="Loading conversations...";
  try{
   const d=await socialRequest("/conversations");
@@ -2171,7 +2196,7 @@ async function socialOpenConversation(id){
  const inbox=$("chatInboxView"),thread=$("chatThreadView"),avatar=$("chatThreadAvatar");
  if(inbox)inbox.classList.add("hidden");if(thread)thread.classList.remove("hidden");
  if(avatar)avatar.innerHTML=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
- const status=$("chatThreadStatus");if(status)status.textContent=c?.type==="group"?"Group conversation":"SOCIAL chat";
+ const status=$("chatThreadStatus");if(status){const presence=other?.lastSeenAt?socialPresenceLabel(other.lastSeenAt):"SOCIAL chat";status.textContent=c?.type==="group"?"Group conversation":presence;}
  socialRenderGroupManagement(c);
  ["chatInput","sendChatBtn","voiceChatBtn","chatAttachBtn","chatEmojiBtn"].forEach(key=>{const el=$(key);if(el)el.disabled=false;});
  socialCallControls(true,c?.type==="group");
