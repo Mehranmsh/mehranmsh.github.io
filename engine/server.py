@@ -82,10 +82,20 @@ def engine_status():
 
 
 def resource_status():
-    ROOT.mkdir(parents=True, exist_ok=True)
-    free = shutil.disk_usage(ROOT).free
+    # Read-only: inspect the nearest existing ancestor instead of creating
+    # directories merely to report storage health.
+    disk_path = ROOT
+    while not disk_path.exists() and disk_path != disk_path.parent:
+        disk_path = disk_path.parent
+    try:
+        free = shutil.disk_usage(disk_path).free
+    except OSError:
+        return {"free_bytes": None, "minimum_free_bytes": MIN_FREE_BYTES,
+                "within_limit": False, "state": "unknown",
+                "checked_existing_mount": str(disk_path)}
     return {"free_bytes": free, "minimum_free_bytes": MIN_FREE_BYTES,
-            "within_limit": free >= MIN_FREE_BYTES}
+            "within_limit": free >= MIN_FREE_BYTES, "state": "ok",
+            "checked_existing_mount": str(disk_path)}
 
 
 class Handler(BaseHTTPRequestHandler):
