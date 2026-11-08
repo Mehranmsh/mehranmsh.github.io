@@ -1988,23 +1988,35 @@ async function socialFollow(request, env, username, follow) {
   ).bind(target.id).first();
 
   if (follow && settings?.is_private) {
-    await env.DB.prepare(`
+    const requestResult = await env.DB.prepare(`
       INSERT OR IGNORE INTO social_follow_requests(id,requester_id,target_id)
       VALUES(?,?,?)
     `).bind(crypto.randomUUID(), user.id, target.id).run();
 
-    await notify(env, target.id, user.id, "follow_request", user.id, "requested to follow you");
+    if (Number(requestResult?.meta?.changes || 0) > 0) {
+      try {
+        await notify(env, target.id, user.id, "follow_request", user.id, "requested to follow you");
+      } catch (notificationError) {
+        console.error("SOCIAL_FOLLOW_REQUEST_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+      }
+    }
 
     return json({ success: true, following: false, requestPending: true });
   }
 
   if (follow) {
-    await env.DB.prepare(`
+    const followResult = await env.DB.prepare(`
       INSERT OR IGNORE INTO social_follows(follower_id,following_id)
       VALUES(?,?)
     `).bind(user.id, target.id).run();
 
-    await notify(env, target.id, user.id, "follow", user.id, "started following you");
+    if (Number(followResult?.meta?.changes || 0) > 0) {
+      try {
+        await notify(env, target.id, user.id, "follow", user.id, "started following you");
+      } catch (notificationError) {
+        console.error("SOCIAL_FOLLOW_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+      }
+    }
   } else {
     await env.DB.prepare(`
       DELETE FROM social_follows
