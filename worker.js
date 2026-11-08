@@ -5007,7 +5007,7 @@ export default {
           );
         }
 
-        const transferGroupMatch = path.match(/^\\/social\\/groups\\/([^/]+)\\/transfer-ownership$/);
+        const transferGroupMatch = path.match(/^\/social\/groups\/([^/]+)\/transfer-ownership$/);
         if (transferGroupMatch && method === "POST") {
           return await socialTransferGroupOwnership(request, env, decodeURIComponent(transferGroupMatch[1]));
         }
