@@ -3927,11 +3927,8 @@ const SOCIAL_AI_PROVIDERS = {
 };
 
 function socialAIProviderReady(key, env) {
-  if (key === "openai") return typeof env.OPENAI_API_KEY === "string" && env.OPENAI_API_KEY.length > 20;
-  if (key === "gemini") return typeof env.GEMINI_API_KEY === "string" && env.GEMINI_API_KEY.length > 20;
-  if (key === "groq") return typeof env.GROQ_API_KEY === "string" && env.GROQ_API_KEY.length > 20;
-  if (key === "cloudflare") return !!(env.AI && typeof env.AI.run === "function");
-  return false;
+  // Paid third-party providers are deliberately disabled to prevent surprise charges.
+  return key === "cloudflare" && !!(env.AI && typeof env.AI.run === "function");
 }
 
 function socialAIProviderList(env) {
@@ -3945,7 +3942,7 @@ function socialAIProviderList(env) {
   }));
 }
 function socialAIImageModelSupported(provider, model) {
-  return (provider === "openai" && model === "gpt-4.1-mini") || (provider === "gemini" && model === "gemini-2.5-flash") || (provider === "cloudflare" && model === "@cf/meta/llama-3.2-11b-vision-instruct");
+  return provider === "cloudflare" && model === "@cf/meta/llama-3.2-11b-vision-instruct";
 }
 function socialBytesToBase64(bytes) {
   let binary = "";
@@ -4017,6 +4014,9 @@ async function socialEnsureCloudflareVisionLicense(env, model) {
 }
 
 async function socialAIRequest(provider, model, messages, env, images = []) {
+  if (provider !== "cloudflare") {
+    throw new Error("Paid external AI providers are disabled. Only the capped Cloudflare free allowance is available.");
+  }
   const system = "You are an assistant inside SOCIAL, an international social network. Be helpful, safe, clear and concise. Reply in the user's language. Never claim actions you did not perform. Never request passwords, private keys, API keys or wallet recovery phrases.";
   const userMessages = messages.filter(m => m.role === "user" || m.role === "assistant");
   if(images.length&&!socialAIImageModelSupported(provider,model)) throw new Error("Image analysis requires a compatible vision model.");
@@ -4026,7 +4026,7 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
     }
     const cloudflareInput = { messages: [{ role: "system", content: system }, ...userMessages], max_tokens: 900 };
     if (images.length) {
-      if (images.length !== 1) throw new Error("Cloudflare Vision currently accepts one image per message. Use OpenAI or Gemini for multiple images.");
+      if (images.length !== 1) throw new Error("Free Cloudflare Vision currently accepts one image per message.");
       cloudflareInput.image = `data:${images[0].mime};base64,${images[0].data}`;
     }
     const budget = await reserveSocialWorkersAIBudget(env, 1500);
@@ -4236,8 +4236,8 @@ async function socialAssistantChat(request, env) {
     ? order.filter(key => socialAIProviderReady(key, env) && (!images.length || ["openai","gemini"].includes(key) || (key === "cloudflare" && images.length === 1)))
     : (socialAIProviderReady(requestedProvider, env) && (!images.length || ["openai","gemini"].includes(requestedProvider) || (requestedProvider === "cloudflare" && images.length === 1)) ? [requestedProvider] : []);
   if (!candidates.length) return error(images.length
-    ? "Image analysis needs a configured vision model. Cloudflare Vision supports one image per message; OpenAI/Gemini support multiple images."
-    : "This AI provider is not configured on the server.", 503);
+    ? "Free image analysis currently supports one image per message through Cloudflare Vision."
+    : "This AI provider is disabled or not configured on the server.", 503);
   const conversationId = requestedProvider === "central" ? "central" : requestedProvider;
   const recent = await env.DB.prepare(
     "SELECT role,content FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC, rowid DESC LIMIT 19"
