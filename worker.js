@@ -3310,6 +3310,58 @@ async function socialJoinChannel(request, env, channelId) {
   return json({ success: true, joined: true });
 }
 
+async function socialTransferChannelOwnership(request, env, channelId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+
+  const body = await readBody(request);
+  const targetUserId = cleanText(body?.userId, 150);
+  if (!targetUserId || targetUserId === user.id) return error("Select another channel member");
+
+  const channel = await env.DB.prepare(
+    "SELECT owner_id FROM social_channels WHERE id=?"
+  ).bind(channelId).first();
+  if (!channel || channel.owner_id !== user.id) return error("Only the current owner can transfer ownership", 403);
+
+  const target = await env.DB.prepare(
+    "SELECT role FROM social_channel_members WHERE channel_id=? AND user_id=?"
+  ).bind(channelId, targetUserId).first();
+  if (!target) return error("The new owner must already be a channel member", 404);
+
+  try {
+    await env.DB.batch([
+      env.DB.prepare(`
+        UPDATE social_channels SET owner_id=?
+        WHERE id=? AND owner_id=?
+          AND EXISTS (
+            SELECT 1 FROM social_channel_members
+            WHERE channel_id=? AND user_id=?
+          )
+      `).bind(targetUserId, channelId, user.id, channelId, targetUserId),
+      env.DB.prepare(`
+        UPDATE social_channel_members SET role='subscriber'
+        WHERE channel_id=? AND user_id=? AND EXISTS (
+          SELECT 1 FROM social_channels WHERE id=? AND owner_id=?
+        )
+      `).bind(channelId, user.id, channelId, targetUserId),
+      env.DB.prepare(`
+        UPDATE social_channel_members SET role='owner'
+        WHERE channel_id=? AND user_id=? AND EXISTS (
+          SELECT 1 FROM social_channels WHERE id=? AND owner_id=?
+        )
+      `).bind(channelId, targetUserId, channelId, targetUserId)
+    ]);
+    const updated = await env.DB.prepare(
+      "SELECT owner_id FROM social_channels WHERE id=?"
+    ).bind(channelId).first();
+    if (updated?.owner_id !== targetUserId) return error("Ownership transfer could not be completed", 409);
+    return json({ success: true, transferred: true, ownerId: targetUserId });
+  } catch (err) {
+    console.error("Channel ownership transfer failed:", String(err?.message || err).slice(0, 300));
+    return error("Could not transfer channel ownership", 500);
+  }
+}
+
 async function socialLeaveChannel(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4852,6 +4904,17 @@ export default {
             request,
             env,
             decodeURIComponent(joinChannelMatch[1])
+          );
+        }
+
+        const transferChannelMatch = path.match(
+          /^\/social\/channels\/([^/]+)\/transfer-ownership$/
+        );
+        if (transferChannelMatch && method === "POST") {
+          return await socialTransferChannelOwnership(
+            request,
+            env,
+            decodeURIComponent(transferChannelMatch[1])
           );
         }
 
