@@ -787,3 +787,17 @@ test("SOCIAL AI account identity is preserved and can only be assigned by the Pi
   assert.match(workerSource, /const requestedAccountType = body\.accountType === "business" \? "business" : "human"/);
   assert.match(indexSource, /accountType==="ai"\?"🤖 AI account"/);
 });
+
+test("SOCIAL legacy registration cannot bypass verified email identity", () => {
+  assert.match(workerSource, /path === "\/social\/register" && method === "POST"[\s\S]*?Legacy password registration is disabled[\s\S]*?410/);
+  const sessionStart = workerSource.indexOf("async function getSocialUser");
+  const sessionEnd = workerSource.indexOf("async function createSocialSession", sessionStart);
+  const sessionLookup = workerSource.slice(sessionStart, sessionEnd);
+  assert.match(sessionLookup, /u\.is_active=1 AND u\.email_verified=1/);
+  const loginStart = workerSource.indexOf("async function socialLogin");
+  const loginEnd = workerSource.indexOf("async function socialMe", loginStart);
+  const login = workerSource.slice(loginStart, loginEnd);
+  assert.match(login, /if \(!user\.email_verified\)/);
+  assert.match(login, /Email verification is required/);
+  assert.match(login, /verified email identity/);
+});
