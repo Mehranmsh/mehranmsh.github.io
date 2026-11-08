@@ -2750,7 +2750,7 @@ async function socialListConversations(request, env) {
       stage = "members_query";
       const members = await env.DB.prepare(`
         SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role,
-          cm.last_read_at,
+          cm.last_read_at,cm.last_read_message_rowid,
           readprefs.preferences_json AS read_preferences_json,
           CASE WHEN COALESCE(us.show_online_status,1)=1 THEN u.last_seen_at ELSE NULL END AS last_seen_at
         FROM social_conversation_members cm
@@ -2776,6 +2776,11 @@ async function socialListConversations(request, env) {
             let prefs = {};
             try { prefs = JSON.parse(member.read_preferences_json || "{}"); } catch {}
             return prefs.chat?.readReceipts === false ? null : (member.last_read_at || null);
+          })(),
+          lastReadMessageRowId: (() => {
+            let prefs = {};
+            try { prefs = JSON.parse(member.read_preferences_json || "{}"); } catch {}
+            return prefs.chat?.readReceipts === false ? null : (member.last_read_message_rowid == null ? null : Number(member.last_read_message_rowid));
           })()
         }))
       });
@@ -2824,7 +2829,7 @@ async function socialConversationMessages(request, env, conversationId) {
   const url = new URL(request.url);
   const limit = safeLimit(url.searchParams.get("limit"), 50, 100);
   const result = await env.DB.prepare(`
-    SELECT m.id,m.sender_id,m.content,m.media_json,m.reply_to,
+    SELECT m.id,m.rowid AS message_rowid,m.sender_id,m.content,m.media_json,m.reply_to,
       m.forwarded_from,m.edited_at,m.deleted_at,m.created_at,
       u.username,u.display_name,u.avatar_url
     FROM social_messages m
@@ -2861,6 +2866,7 @@ async function socialConversationMessages(request, env, conversationId) {
     }
     messages.push({
       id: row.id,
+      messageRowId: Number(row.message_rowid),
       senderId: row.sender_id,
       content: row.deleted_at ? "Message deleted" : row.content,
       media,
