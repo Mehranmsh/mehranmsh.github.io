@@ -3637,6 +3637,23 @@ async function socialChannelPost(request, env, channelId) {
     VALUES(?,?,?,?,?)
   `).bind(id, channelId, user.id, content, JSON.stringify(media)).run();
 
+  // Channel announcements notify subscribers, while respecting each user's
+  // group/channel notification preference. Delivery must never undo a post.
+  try {
+    const subscribers = await env.DB.prepare(
+      "SELECT user_id FROM social_channel_members WHERE channel_id=? AND user_id!=?"
+    ).bind(channelId, user.id).all();
+    for (const subscriber of subscribers.results || []) {
+      try {
+        await notify(env, subscriber.user_id, user.id, "channel_post", channelId, "new post in a channel you follow");
+      } catch (notificationError) {
+        console.error("SOCIAL_CHANNEL_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+      }
+    }
+  } catch (notificationError) {
+    console.error("SOCIAL_CHANNEL_NOTIFICATION_LOOKUP_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+  }
+
   return json({ success: true, post: { id, content, media } }, 201);
 }
 
