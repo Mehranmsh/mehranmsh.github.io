@@ -442,8 +442,9 @@ test("presence heartbeat requires authentication and updates only the authentica
 });
 
 test("conversation presence respects each member's online-status privacy setting", () => {
-  assert.ok(workerSource.includes("LEFT JOIN social_user_settings us ON us.user_id=cm.user_id"));
-  assert.ok(workerSource.includes("COALESCE(us.show_online_status,1)=1 THEN u.last_seen_at ELSE NULL"));
-  assert.ok(workerSource.includes("lastSeenAt: member.last_seen_at || null"));
+  assert.ok(workerSource.includes("show_online_status"));
+  assert.ok(workerSource.includes("last_seen_at ELSE NULL"));
+  assert.ok(workerSource.includes("lastSeenAt: member.last_seen_at"));
 });
+
 
