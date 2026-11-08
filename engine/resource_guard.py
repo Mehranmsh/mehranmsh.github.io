@@ -1,15 +1,17 @@
-"""Fail-closed resource policy for future local generation jobs.
+"""Durable fail-closed resource policy for future local generation jobs.
 
-This module performs no I/O, downloads, retries, billing, or model startup.
-It is deliberately not wired to the HTTP job route until runtime acceptance.
+Reservations are persisted in SQLite and serialized with BEGIN IMMEDIATE.
+A process restart never silently clears an active reservation: recovery must
+explicitly release the exact reservation ID after an operator verifies that
+no inference process is still running. This module never starts a model.
 """
 from __future__ import annotations
 
 import re
 import secrets
-import threading
+import sqlite3
 from dataclasses import dataclass
-
+from pathlib import Path
 
 DEFAULT_DISK_RESERVE_BYTES = 2 * 1024**3
 MAX_DURATION_SECONDS = 600
@@ -34,12 +36,32 @@ class GuardDecision:
 
 
 class ResourceGuard:
-    """In-process single-job reservation guard; fail closed on unknown data."""
+    """SQLite-backed single-job reservation guard; fail closed on unknown data."""
 
-    def __init__(self):
-        self._lock = threading.Lock()
-        self._active: tuple[str, str] | None = None
-        self._seen_keys: set[str] = set()
+    def __init__(self, db_path: str | Path):
+        self.db_path = Path(db_path)
+        if not self.db_path.parent.exists() or not self.db_path.parent.is_dir():
+            raise ValueError("Reservation database parent directory must already exist.")
+        with self._connect() as db:
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS job_reservations (
+                    reservation_id TEXT PRIMARY KEY,
+                    idempotency_key TEXT NOT NULL UNIQUE,
+                    status TEXT NOT NULL CHECK(status IN ('active','released')),
+                    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+                    released_at INTEGER
+                )
+            """)
+            db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_job_reservations_status
+                ON job_reservations(status)
+            """)
+
+    def _connect(self):
+        db = sqlite3.connect(self.db_path, timeout=10, isolation_level=None)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA busy_timeout=10000")
+        return db
 
     @staticmethod
     def _valid_int(value: object) -> bool:
@@ -75,32 +97,88 @@ class ResourceGuard:
         if not isinstance(idempotency_key, str) or not _IDEMPOTENCY_RE.fullmatch(idempotency_key):
             return GuardDecision(False, "invalid_idempotency_key", "A 16-128 character idempotency key is required.")
 
-        with self._lock:
-            if idempotency_key in self._seen_keys:
+        db = self._connect()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            existing = db.execute(
+                "SELECT status FROM job_reservations WHERE idempotency_key=?",
+                (idempotency_key,),
+            ).fetchone()
+            if existing is not None:
+                db.rollback()
                 return GuardDecision(False, "duplicate_request", "This request key has already been used.")
-            if self._active is not None:
+            active = db.execute(
+                "SELECT COUNT(*) AS total FROM job_reservations WHERE status='active'"
+            ).fetchone()["total"]
+            if active >= MAX_CONCURRENT_JOBS:
+                db.rollback()
                 return GuardDecision(False, "concurrency_limit", "A generation job is already reserved.")
-            reservation_id = secrets.token_urlsafe(18)
-            self._active = (reservation_id, idempotency_key)
-            self._seen_keys.add(idempotency_key)
-            return GuardDecision(True, "reserved", "Resources reserved; no model was started.", reservation_id)
+            reservation_id = secrets.token_urlsafe(24)
+            db.execute(
+                "INSERT INTO job_reservations(reservation_id,idempotency_key,status) VALUES(?,?,'active')",
+                (reservation_id, idempotency_key),
+            )
+            db.commit()
+            return GuardDecision(True, "reserved", "Resources reserved durably; no model was started.", reservation_id)
+        except sqlite3.IntegrityError:
+            db.rollback()
+            return GuardDecision(False, "duplicate_request", "This request key has already been used.")
+        except sqlite3.Error:
+            db.rollback()
+            return GuardDecision(False, "reservation_store_error", "Durable reservation failed; job was not accepted.")
+        finally:
+            db.close()
 
     def release(self, reservation_id: str) -> bool:
-        """Release only the matching active reservation; never clears key history."""
+        """Release only the matching active reservation; idempotency history remains."""
         if not isinstance(reservation_id, str) or not reservation_id:
             return False
-        with self._lock:
-            if self._active is None or self._active[0] != reservation_id:
-                return False
-            self._active = None
-            return True
+        db = self._connect()
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            result = db.execute(
+                "UPDATE job_reservations SET status='released', released_at=unixepoch() "
+                "WHERE reservation_id=? AND status='active'",
+                (reservation_id,),
+            )
+            db.commit()
+            return result.rowcount == 1
+        except sqlite3.Error:
+            db.rollback()
+            return False
+        finally:
+            db.close()
 
     def status(self) -> dict:
-        with self._lock:
+        db = self._connect()
+        try:
+            rows = db.execute("""
+                SELECT
+                    SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS active_jobs,
+                    COUNT(*) AS seen_idempotency_keys
+                FROM job_reservations
+            """).fetchone()
+            active = int(rows["active_jobs"] or 0)
             return {
-                "active_jobs": 1 if self._active is not None else 0,
+                "active_jobs": active,
                 "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
                 "max_batch_size": MAX_BATCH_SIZE,
                 "max_duration_seconds": MAX_DURATION_SECONDS,
-                "seen_idempotency_keys": len(self._seen_keys),
+                "seen_idempotency_keys": int(rows["seen_idempotency_keys"] or 0),
+                "recovery_required": active > 0,
             }
+        finally:
+            db.close()
+
+    def active_reservations(self) -> list[dict]:
+        """Expose reservation IDs for explicit operator reconciliation only."""
+        db = self._connect()
+        try:
+            rows = db.execute("""
+                SELECT reservation_id, created_at
+                FROM job_reservations WHERE status='active'
+                ORDER BY created_at
+            """).fetchall()
+            return [dict(row) for row in rows]
+        finally:
+            db.close()
