@@ -2120,7 +2120,7 @@ function socialRenderGroupManagement(conversation){
  if(conversation?.type!=="group")return;
  panel.innerHTML='<div class="section-title"><div><strong>Group details</strong><span class="small-text">'+members.length+' members · '+sx(myRole)+'</span></div><div class="hero-actions"><button type="button" class="btn secondary small" data-group-action="invite" data-group-id="'+sx(conversation.id)+'">Invite link</button>'+(canManage?'':'')+'<button type="button" class="btn danger small" data-group-action="leave" data-group-id="'+sx(conversation.id)+'">Leave group</button></div></div><div class="group-members-list">'+members.map(m=>{
   const role=m.role||"member",isSelf=m.username===currentUsername(),canChange=canManage&&!isSelf&&role!=="owner"&&(myRole==="owner"||role==="member");
-  return '<div class="social-result" style="display:flex;align-items:center;gap:9px"><div class="chat-row-avatar">'+sx((m.username||"U").slice(0,1).toUpperCase())+'</div><div style="flex:1;min-width:0"><strong>'+sx(m.displayName||m.username||"Member")+'</strong><div class="small-text">@'+sx(m.username)+' · '+sx(role)+(isSelf?' · You':'')+'</div></div>'+(canChange?'<div style="display:flex;gap:5px;flex-wrap:wrap">'+(role==="admin"?'<button type="button" class="btn secondary small" data-group-action="role" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'" data-role="member">Remove admin</button>':'<button type="button" class="btn secondary small" data-group-action="role" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'" data-role="admin">Make admin</button>')+'<button type="button" class="btn danger small" data-group-action="remove" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'">Remove</button></div>':'')+'</div>';
+  return '<div class="social-result" style="display:flex;align-items:center;gap:9px"><div class="chat-row-avatar">'+sx((m.username||"U").slice(0,1).toUpperCase())+'</div><div style="flex:1;min-width:0"><strong>'+sx(m.displayName||m.username||"Member")+'</strong><div class="small-text">@'+sx(m.username)+' · '+sx(role)+(isSelf?' · You':'')+'</div></div>'+(canChange?'<div style="display:flex;gap:5px;flex-wrap:wrap">'+(role==="admin"?'<button type="button" class="btn secondary small" data-group-action="role" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'" data-role="member">Remove admin</button>':'<button type="button" class="btn secondary small" data-group-action="role" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'" data-role="admin">Make admin</button>')+'<button type="button" class="btn danger small" data-group-action="remove" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'">Remove</button>'+(myRole==="owner"?'<button type="button" class="btn secondary small" data-group-action="transfer" data-group-id="'+sx(conversation.id)+'" data-user-id="'+sx(m.id)+'">Transfer ownership</button>':'')+'</div>':'')+'</div>';
  }).join("")+'</div>';
 }
 async function socialHandleGroupAction(button){
@@ -2139,6 +2139,11 @@ async function socialHandleGroupAction(button){
    socialActiveConversation=null;
    $("chatThreadView")?.classList.add("hidden");$("chatInboxView")?.classList.remove("hidden");
    await socialLoadConversations();toast("You left the group.");
+  }else if(action==="transfer"){
+   if(!confirm("Transfer group ownership to this member? You will become an admin."))return;
+   await socialRequest("/groups/"+encodeURIComponent(id)+"/transfer-ownership",{method:"POST",body:JSON.stringify({userId})});
+   await socialLoadConversations();const updated=socialConversations.find(c=>String(c.id)===String(id));socialRenderGroupManagement(updated);
+   toast("Group ownership transferred. You are now an admin.");
   }else if(action==="role"){
    await socialRequest("/groups/"+encodeURIComponent(id)+"/members/"+encodeURIComponent(userId),{method:"PATCH",body:JSON.stringify({role:button.dataset.role})});
    await socialLoadConversations();const updated=socialConversations.find(c=>String(c.id)===String(id));socialRenderGroupManagement(updated);
