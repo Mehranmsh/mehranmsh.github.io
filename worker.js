@@ -667,6 +667,7 @@ async function createSocialTables(db) {
       }
     }
   };
+  await ensureColumn("social_users", "last_seen_at", "TEXT");
   await ensureColumn("social_conversations", "type", "TEXT NOT NULL DEFAULT 'direct'");
   await ensureColumn("social_conversations", "title", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_conversations", "owner_id", "TEXT");
@@ -2688,6 +2689,15 @@ async function socialStartConversation(request, env) {
   return json({ success: true, conversationId: id }, 201);
 }
 
+async function socialPresenceHeartbeat(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  await env.DB.prepare(
+    "UPDATE social_users SET last_seen_at=CURRENT_TIMESTAMP WHERE id=? AND is_active=1"
+  ).bind(user.id).run();
+  return json({ success: true, updated: true });
+}
+
 async function socialListConversations(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -2726,9 +2736,11 @@ async function socialListConversations(request, env) {
     for (const row of result.results || []) {
       stage = "members_query";
       const members = await env.DB.prepare(`
-        SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role
+        SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role,
+          CASE WHEN COALESCE(us.show_online_status,1)=1 THEN u.last_seen_at ELSE NULL END AS last_seen_at
         FROM social_conversation_members cm
         JOIN social_users u ON u.id=cm.user_id
+        LEFT JOIN social_user_settings us ON us.user_id=u.id
         WHERE cm.conversation_id=?
         LIMIT 100
       `).bind(row.id).all();
@@ -2742,7 +2754,8 @@ async function socialListConversations(request, env) {
         members: (members.results || []).map(member => ({
           id: member.id, username: member.username,
           displayName: member.display_name || "",
-          avatarUrl: member.avatar_url || "", role: member.role
+          avatarUrl: member.avatar_url || "", role: member.role,
+          lastSeenAt: member.last_seen_at || null
         }))
       });
     }
@@ -4913,6 +4926,10 @@ export default {
 
         if (path === "/social/reports" && method === "POST") {
           return await socialReport(request, env);
+        }
+
+        if (path === "/social/presence" && method === "POST") {
+          return await socialPresenceHeartbeat(request, env);
         }
 
         if (path === "/social/notifications" && method === "GET") {
