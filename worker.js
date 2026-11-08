@@ -683,6 +683,7 @@ async function createSocialTables(db) {
   await ensureColumn("social_conversation_members", "role", "TEXT NOT NULL DEFAULT 'member'");
   await ensureColumn("social_conversation_members", "joined_at", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_conversation_members", "last_read_at", "TEXT");
+  await ensureColumn("social_conversation_members", "last_read_message_rowid", "INTEGER");
   // Upgrade channel tables created by earlier SOCIAL versions.
   await ensureColumn("social_channels", "description", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_channels", "username", "TEXT");
@@ -1772,11 +1773,19 @@ async function socialLikePost(request, env, postId, shouldLike) {
   if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   if (shouldLike) {
-    await env.DB.prepare(`
+    const likeResult = await env.DB.prepare(`
       INSERT OR IGNORE INTO social_post_likes(post_id,user_id) VALUES(?,?)
     `).bind(postId, user.id).run();
 
-    await notify(env, post.user_id, user.id, "like", postId, "liked your post");
+    // Only a newly-created like emits a notification. Repeated requests are
+    // idempotent and notification outages cannot turn a saved like into a 500.
+    if (Number(likeResult?.meta?.changes || 0) > 0) {
+      try {
+        await notify(env, post.user_id, user.id, "like", postId, "liked your post");
+      } catch (notificationError) {
+        console.error("SOCIAL_LIKE_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+      }
+    }
   } else {
     await env.DB.prepare(`
       DELETE FROM social_post_likes WHERE post_id=? AND user_id=?
@@ -2715,15 +2724,19 @@ async function socialListConversations(request, env) {
       SELECT c.id,c.type,c.title,c.updated_at,cm.last_read_at,
         (SELECT m.content FROM social_messages m
          WHERE m.conversation_id=c.id AND m.deleted_at IS NULL
-         ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+         ORDER BY m.created_at DESC,m.rowid DESC LIMIT 1) AS last_message,
         (SELECT m.created_at FROM social_messages m
          WHERE m.conversation_id=c.id
-         ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+         ORDER BY m.created_at DESC,m.rowid DESC LIMIT 1) AS last_message_at,
         (SELECT COUNT(*) FROM social_messages unread
          WHERE unread.conversation_id=c.id
            AND unread.sender_id<>?
            AND unread.deleted_at IS NULL
-           AND unread.created_at>COALESCE(NULLIF(cm.last_read_at,''),NULLIF(cm.joined_at,''),'1970-01-01 00:00:00')
+           AND unread.rowid>COALESCE(cm.last_read_message_rowid,(
+              SELECT MAX(read_cursor.rowid) FROM social_messages read_cursor
+              WHERE read_cursor.conversation_id=c.id
+                AND read_cursor.created_at<=COALESCE(NULLIF(cm.last_read_at,''),NULLIF(cm.joined_at,''),'1970-01-01 00:00:00')
+            ),0)
         ) AS unread_count
       FROM social_conversations c
       JOIN social_conversation_members cm ON cm.conversation_id=c.id
@@ -2817,7 +2830,7 @@ async function socialConversationMessages(request, env, conversationId) {
     FROM social_messages m
     JOIN social_users u ON u.id=m.sender_id
     WHERE m.conversation_id=?
-    ORDER BY m.created_at DESC LIMIT ?
+    ORDER BY m.created_at DESC,m.rowid DESC LIMIT ?
   `).bind(conversationId, limit).all();
   const messages = [];
   for (const row of (result.results || []).reverse()) {
@@ -2868,9 +2881,10 @@ async function socialConversationMessages(request, env, conversationId) {
   // The viewer's readReceipts preference controls whether other members can see it.
   await env.DB.prepare(`
     UPDATE social_conversation_members
-    SET last_read_at=CURRENT_TIMESTAMP
+    SET last_read_at=CURRENT_TIMESTAMP,
+        last_read_message_rowid=(SELECT MAX(read_cursor.rowid) FROM social_messages read_cursor WHERE read_cursor.conversation_id=?)
     WHERE conversation_id=? AND user_id=?
-  `).bind(conversationId, user.id).run();
+  `).bind(conversationId, conversationId, user.id).run();
   return json({ success: true, messages });
 }
 
