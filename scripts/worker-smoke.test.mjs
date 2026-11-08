@@ -680,3 +680,18 @@ test("SOCIAL uploads enforce per-user ownership and verify storage metadata befo
   assert.match(remove, /SELECT id FROM social_uploads WHERE id=\? AND user_id=\?/);
   assert.match(remove, /DELETE FROM social_uploads WHERE id=\? AND user_id=\?/);
 });
+
+test("SOCIAL channel content and membership are hidden across block relationships", () => {
+  assert.match(workerSource, /async function getAccessibleChannelMembership\(env, channelId, userId\)/);
+  assert.match(workerSource, /if \(!member \|\| await isBlocked\(env, userId, member\.owner_id\)\) return null/);
+  const listStart = workerSource.indexOf("async function socialListChannels");
+  const listEnd = workerSource.indexOf("async function socialCreateChannel", listStart);
+  const list = workerSource.slice(listStart, listEnd);
+  assert.match(list, /NOT EXISTS \([\s\S]*social_blocks[\s\S]*b\.blocker_id=c\.owner_id/);
+  for (const name of ["socialListChannelMembers", "socialChannelPosts", "socialChannelPost"]) {
+    const start = workerSource.indexOf("async function " + name);
+    assert.ok(start >= 0, name + " should exist");
+    const end = workerSource.indexOf("async function ", start + 1);
+    assert.match(workerSource.slice(start, end), /getAccessibleChannelMembership\(env, channelId, user\.id\)/, name + " must enforce block privacy");
+  }
+});
