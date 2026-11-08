@@ -291,7 +291,7 @@ test("channel leave requires membership and prevents owner orphaning", () => {
 
 
 test("channel media upload IDs must belong to the publishing admin and be ready public files", () => {
-  const start = workerSource.indexOf("async function socialChannelPost");
+  const start = workerSource.indexOf("async function socialChannelPost(");
   const end = workerSource.indexOf("\nasync function ", start + 20);
   const handler = workerSource.slice(start, end);
   assert.match(handler, /SELECT id,name,mime_type,acl,status,url FROM social_uploads WHERE id=\? AND user_id=\? LIMIT 1/);
