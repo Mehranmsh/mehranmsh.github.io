@@ -219,6 +219,25 @@ test("group and channel joins enforce owner block relationships", () => {
 });
 
 
+test("conversation list exposes per-member unread counts without counting own or deleted messages", () => {
+  const start = workerSource.indexOf("async function socialListConversations");
+  const end = workerSource.indexOf("\nasync function ", start + 20);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /unread\.sender_id<>\?/);
+  assert.match(handler, /unread\.deleted_at IS NULL/);
+  assert.match(handler, /unread\.created_at>COALESCE/);
+  assert.match(handler, /unreadCount: Math\.max\(0, Number\(row\.unread_count \|\| 0\)\)/);
+  assert.match(handler, /\.bind\(user\.id, user\.id\)\.all\(\)/);
+});
+
+test("notification API returns the complete unread total independently of page limit", () => {
+  const start = workerSource.indexOf("async function socialNotifications");
+  const end = workerSource.indexOf("\nasync function ", start + 20);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /SELECT COUNT\(\*\) AS total FROM social_notifications WHERE user_id=\? AND is_read=0/);
+  assert.match(handler, /unreadCount: Math\.max\(0, Number\(unreadRow\?\.total \|\| 0\)\)/);
+});
+
 test("direct message sending stops when either participant blocks the other", () => {
   const helperStart = workerSource.indexOf("async function isDirectConversationBlocked");
   const helperEnd = workerSource.indexOf("\nasync function ", helperStart + 20);
