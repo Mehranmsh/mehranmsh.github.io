@@ -1614,6 +1614,10 @@ async function socialFeed(request, env) {
       p.user_id=?
       OR (
         p.visibility='public'
+        AND NOT EXISTS (
+          SELECT 1 FROM social_user_settings privacy
+          WHERE privacy.user_id=p.user_id AND privacy.is_private=1
+        )
         AND p.user_id NOT IN (
           SELECT blocked_id FROM social_blocks WHERE blocker_id=?
         )
@@ -1626,10 +1630,16 @@ async function socialFeed(request, env) {
         AND p.user_id IN (
           SELECT following_id FROM social_follows WHERE follower_id=?
         )
+        AND p.user_id NOT IN (
+          SELECT blocked_id FROM social_blocks WHERE blocker_id=?
+        )
+        AND p.user_id NOT IN (
+          SELECT blocker_id FROM social_blocks WHERE blocked_id=?
+        )
       )
     ORDER BY p.created_at DESC,p.id DESC
     LIMIT ?
-  `).bind(user.id, user.id, user.id, user.id, limit).all();
+  `).bind(user.id, user.id, user.id, user.id, user.id, user.id, limit).all();
 
   const posts = [];
   for (const row of result.results || []) {
