@@ -1942,7 +1942,11 @@ async function socialCreateComment(request, env, postId) {
     VALUES(?,?,?,?)
   `).bind(id, postId, user.id, content).run();
 
-  await notify(env, post.user_id, user.id, "comment", postId, "commented on your post");
+  try {
+    await notify(env, post.user_id, user.id, "comment", postId, "commented on your post");
+  } catch (notificationError) {
+    console.error("SOCIAL_COMMENT_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+  }
 
   return json({
     success: true,
@@ -2095,7 +2099,11 @@ async function socialFollowRequestAction(request, env, requestId, accept) {
       ).bind(requestId)
     ]);
 
-    await notify(env, row.requester_id, user.id, "follow_accepted", user.id, "accepted your follow request");
+    try {
+      await notify(env, row.requester_id, user.id, "follow_accepted", user.id, "accepted your follow request");
+    } catch (notificationError) {
+      console.error("SOCIAL_FOLLOW_ACCEPTED_NOTIFICATION_FAILURE", String(notificationError?.message || notificationError).slice(0, 200));
+    }
   } else {
     await env.DB.prepare(
       "DELETE FROM social_follow_requests WHERE id=?"
