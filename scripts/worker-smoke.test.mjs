@@ -181,3 +181,22 @@ test("blocked SOCIAL profiles are not returned to either side", () => {
   assert.match(profile, /profile\.id !== viewer\.id && await isBlocked\(env, viewer\.id, profile\.id\)/);
   assert.match(profile, /return error\("User not found", 404\)/);
 });
+
+
+test("message edit and delete require current conversation membership", () => {
+  const editStart = workerSource.indexOf("async function socialEditMessage");
+  const editEnd = workerSource.indexOf("\nasync function ", editStart + 20);
+  const edit = workerSource.slice(editStart, editEnd);
+  assert.match(edit, /EXISTS\s*\(\s*SELECT 1 FROM social_conversation_members cm/);
+  assert.match(edit, /cm\.conversation_id=social_messages\.conversation_id/);
+  assert.match(edit, /cm\.user_id=\?/);
+  assert.match(edit, /\.bind\(content, messageId, user\.id, user\.id\)/);
+
+  const deleteStart = workerSource.indexOf("async function socialDeleteMessage");
+  const deleteEnd = workerSource.indexOf("\nasync function ", deleteStart + 20);
+  const remove = workerSource.slice(deleteStart, deleteEnd);
+  assert.match(remove, /EXISTS\s*\(\s*SELECT 1 FROM social_conversation_members cm/);
+  assert.match(remove, /cm\.conversation_id=social_messages\.conversation_id/);
+  assert.match(remove, /cm\.user_id=\?/);
+  assert.match(remove, /\.bind\(messageId, user\.id, user\.id\)/);
+});
