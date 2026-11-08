@@ -200,3 +200,20 @@ test("message edit and delete require current conversation membership", () => {
   assert.match(remove, /cm\.user_id=\?/);
   assert.match(remove, /\.bind\(messageId, user\.id, user\.id\)/);
 });
+
+
+test("group and channel joins enforce owner block relationships", () => {
+  const channelStart = workerSource.indexOf("async function socialJoinChannel");
+  const channelEnd = workerSource.indexOf("\nasync function ", channelStart + 20);
+  const channel = workerSource.slice(channelStart, channelEnd);
+  assert.match(channel, /SELECT id,owner_id,is_private,invite_code FROM social_channels/);
+  assert.match(channel, /isBlocked\(env, user\.id, channel\.owner_id\)/);
+
+  const groupStart = workerSource.indexOf("async function socialJoinGroup");
+  const groupEnd = workerSource.indexOf("\nasync function ", groupStart + 20);
+  const group = workerSource.slice(groupStart, groupEnd);
+  assert.match(group, /JOIN social_conversations c ON c\.id=i\.conversation_id/);
+  assert.match(group, /invite\.type !== "group"/);
+  assert.match(group, /isBlocked\(env, user\.id, invite\.owner_id\)/);
+  assert.match(group, /isBlocked\(env, user\.id, invite\.created_by\)/);
+});
