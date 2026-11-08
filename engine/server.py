@@ -147,7 +147,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "invalid_json"})
         if not isinstance(payload, dict):
             return self.send_json(400, {"error": "invalid_payload"})
-        with LOCK, database() as db:
+        with LOCK, db_session() as db:
             current = db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
             if current is None:
                 return self.send_json(404, {"error": "project_not_found"})
@@ -185,7 +185,7 @@ class Handler(BaseHTTPRequestHandler):
         project_id = path.rsplit("/", 1)[-1]
         if not project_id or len(project_id) > 64:
             return self.send_json(400, {"error": "invalid_project_id"})
-        with LOCK, database() as db:
+        with LOCK, db_session() as db:
             result = db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             if result.rowcount == 0:
                 return self.send_json(404, {"error": "project_not_found"})
@@ -234,7 +234,7 @@ class Handler(BaseHTTPRequestHandler):
         bpm = payload.get("bpm")
         if bpm is not None and (not isinstance(bpm, int) or not 20 <= bpm <= 300):
             return self.send_json(400, {"error": "invalid_bpm"})
-        with LOCK, database() as db:
+        with LOCK, db_session() as db:
             count = db.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
             if count >= MAX_PROJECTS:
                 return self.send_json(429, {"error": "project_limit_reached", "project_created": False})
