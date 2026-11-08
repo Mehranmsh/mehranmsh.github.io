@@ -2737,10 +2737,13 @@ async function socialListConversations(request, env) {
       stage = "members_query";
       const members = await env.DB.prepare(`
         SELECT u.id,u.username,u.display_name,u.avatar_url,cm.role,
+          cm.last_read_at,
+          readprefs.preferences_json AS read_preferences_json,
           CASE WHEN COALESCE(us.show_online_status,1)=1 THEN u.last_seen_at ELSE NULL END AS last_seen_at
         FROM social_conversation_members cm
         JOIN social_users u ON u.id=cm.user_id
         LEFT JOIN social_user_settings us ON us.user_id=u.id
+        LEFT JOIN social_extended_settings readprefs ON readprefs.user_id=u.id
         WHERE cm.conversation_id=?
         LIMIT 100
       `).bind(row.id).all();
@@ -2755,7 +2758,12 @@ async function socialListConversations(request, env) {
           id: member.id, username: member.username,
           displayName: member.display_name || "",
           avatarUrl: member.avatar_url || "", role: member.role,
-          lastSeenAt: member.last_seen_at || null
+          lastSeenAt: member.last_seen_at || null,
+          lastReadAt: (() => {
+            let prefs = {};
+            try { prefs = JSON.parse(member.read_preferences_json || "{}"); } catch {}
+            return prefs.chat?.readReceipts === false ? null : (member.last_read_at || null);
+          })()
         }))
       });
     }
@@ -2856,18 +2864,13 @@ async function socialConversationMessages(request, env, conversationId) {
       isMine: row.sender_id === user.id
     });
   }
-  const viewerPrefsRow = await env.DB.prepare(
-    "SELECT preferences_json FROM social_extended_settings WHERE user_id=?"
-  ).bind(user.id).first();
-  let viewerPrefs = {};
-  try { viewerPrefs = JSON.parse(viewerPrefsRow?.preferences_json || "{}"); } catch {}
-  if (viewerPrefs.chat?.readReceipts !== false) {
-    await env.DB.prepare(`
-      UPDATE social_conversation_members
-      SET last_read_at=CURRENT_TIMESTAMP
-      WHERE conversation_id=? AND user_id=?
-    `).bind(conversationId, user.id).run();
-  }
+  // Always advance the viewer's own read cursor so unread counts stay accurate.
+  // The viewer's readReceipts preference controls whether other members can see it.
+  await env.DB.prepare(`
+    UPDATE social_conversation_members
+    SET last_read_at=CURRENT_TIMESTAMP
+    WHERE conversation_id=? AND user_id=?
+  `).bind(conversationId, user.id).run();
   return json({ success: true, messages });
 }
 
