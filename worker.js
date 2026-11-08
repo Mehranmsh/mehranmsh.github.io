@@ -1069,6 +1069,24 @@ async function isBlocked(env, firstId, secondId) {
   return Boolean(row);
 }
 
+async function canViewSocialPost(env, viewerId, post) {
+  if (!post) return false;
+  if (post.user_id === viewerId) return true;
+  if (await isBlocked(env, viewerId, post.user_id)) return false;
+
+  const settings = await env.DB.prepare(
+    "SELECT is_private FROM social_user_settings WHERE user_id=?"
+  ).bind(post.user_id).first();
+  const follows = await env.DB.prepare(
+    "SELECT 1 FROM social_follows WHERE follower_id=? AND following_id=? LIMIT 1"
+  ).bind(viewerId, post.user_id).first();
+
+  if (settings?.is_private && !follows) return false;
+  if (post.visibility === "followers" && !follows) return false;
+  return post.visibility === "public" || post.visibility === "followers";
+}
+
+
 async function notify(env, userId, actorId, type, targetId, message = "") {
   if (!userId || userId === actorId) return;
   const row = await env.DB.prepare(
@@ -1408,8 +1426,11 @@ async function socialSearch(request, env) {
         AND id NOT IN (
           SELECT blocked_id FROM social_blocks WHERE blocker_id=?
         )
+        AND id NOT IN (
+          SELECT blocker_id FROM social_blocks WHERE blocked_id=?
+        )
       ORDER BY username LIMIT ?
-    `).bind(user.id, term, term, user.id, limit).all();
+    `).bind(user.id, term, term, user.id, user.id, limit).all();
 
     output.users = (result.results || []).map(row => ({
       id: row.id,
@@ -1428,8 +1449,18 @@ async function socialSearch(request, env) {
       FROM social_posts p
       JOIN social_users u ON u.id=p.user_id
       WHERE p.visibility='public' AND p.content LIKE ?
+        AND NOT EXISTS (
+          SELECT 1 FROM social_user_settings privacy
+          WHERE privacy.user_id=p.user_id AND privacy.is_private=1
+        )
+        AND p.user_id NOT IN (
+          SELECT blocked_id FROM social_blocks WHERE blocker_id=?
+        )
+        AND p.user_id NOT IN (
+          SELECT blocker_id FROM social_blocks WHERE blocked_id=?
+        )
       ORDER BY p.created_at DESC LIMIT ?
-    `).bind(term, limit).all();
+    `).bind(term, user.id, user.id, limit).all();
 
     output.posts = (result.results || []).map(row => ({
       id: row.id,
@@ -1727,11 +1758,11 @@ async function socialLikePost(request, env, postId, shouldLike) {
   if (!user) return error("Authentication required", 401);
 
   const post = await env.DB.prepare(
-    "SELECT id,user_id FROM social_posts WHERE id=?"
+    "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
 
-  if (!post) return error("Post not found", 404);
-  if (await isBlocked(env, user.id, post.user_id)) return error("Post unavailable", 404);
+  if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
+  if (!(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   if (shouldLike) {
     await env.DB.prepare(`
@@ -1761,10 +1792,10 @@ async function socialBookmark(request, env, postId, save) {
   if (!user) return error("Authentication required", 401);
 
   const post = await env.DB.prepare(
-    "SELECT id FROM social_posts WHERE id=?"
+    "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
 
-  if (!post) return error("Post not found", 404);
+  if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   if (save) {
     await env.DB.prepare(`
@@ -1804,10 +1835,10 @@ async function socialViewPost(request, env, postId) {
   if (!user) return error("Authentication required", 401);
 
   const post = await env.DB.prepare(
-    "SELECT id FROM social_posts WHERE id=?"
+    "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
 
-  if (!post) return error("Post not found", 404);
+  if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   await env.DB.prepare(`
     INSERT OR IGNORE INTO social_post_views(post_id,user_id) VALUES(?,?)
@@ -1825,10 +1856,10 @@ async function socialListComments(request, env, postId) {
   if (!user) return error("Authentication required", 401);
 
   const post = await env.DB.prepare(
-    "SELECT id FROM social_posts WHERE id=?"
+    "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
 
-  if (!post) return error("Post not found", 404);
+  if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   const result = await env.DB.prepare(`
     SELECT c.id,c.content,c.created_at,u.username,u.display_name,u.avatar_url
@@ -1863,11 +1894,11 @@ async function socialCreateComment(request, env, postId) {
   if (!content) return error("Comment cannot be empty");
 
   const post = await env.DB.prepare(
-    "SELECT id,user_id FROM social_posts WHERE id=?"
+    "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
 
-  if (!post) return error("Post not found", 404);
-  if (await isBlocked(env, user.id, post.user_id)) return error("Post unavailable", 404);
+  if (!post || !(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
+  if (!(await canViewSocialPost(env, user.id, post))) return error("Post unavailable", 404);
 
   const ownerSettings = await env.DB.prepare(
     "SELECT allow_comments FROM social_user_settings WHERE user_id=?"
