@@ -754,13 +754,19 @@ test("MEHRAN MUSIC STUDIO is linked from Services as an independent workspace", 
   assert.match(musicStudioSource, /Independent creative workspace/);
 });
 
-test("MEHRAN MUSIC STUDIO drafts stay local and generation is fail-closed before engine setup", () => {
+test("MEHRAN MUSIC STUDIO keeps drafts local and separates free lyric AI from disabled audio generation", () => {
   assert.match(musicStudioSource, /mehran_music_studio_drafts_v1/);
   assert.match(musicStudioSource, /localStorage\.setItem\(KEY,JSON\.stringify\(projects\)\)/);
-  assert.match(musicStudioSource, /GENERATION ENGINE NOT CONNECTED/);
+  assert.match(musicStudioSource, /AUDIO ENGINE NOT CONNECTED/);
   assert.match(musicStudioSource, /Audio generation is not active yet/);
-  assert.doesNotMatch(musicStudioSource, /fetch\s*\(/);
-  assert.match(musicStudioSource, /No external model is called/);
+  assert.match(musicStudioSource, /AI Songwriter/);
+  assert.match(musicStudioSource, /music\/lyrics\/generate/);
+  assert.match(musicStudioSource, /No automatic paid fallback/);
+  assert.match(workerSource, /async function musicGenerateLyrics\(/);
+  assert.match(workerSource, /path === "\/music\/lyrics\/generate"/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 1200\)/);
+  assert.match(workerSource, /Paid external AI providers are disabled/);
+  assert.match(workerSource, /SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000/);
 });
 
 test("MEHRAN MUSIC STUDIO supports new projects without overwriting the previously edited draft", () => {
