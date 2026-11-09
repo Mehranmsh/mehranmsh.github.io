@@ -458,7 +458,7 @@ def main():
                 page.locator("#patternBars").select_option("1")
                 page.locator("#kickSteps [data-pattern-step='1']").click()
                 page.locator("#openHatSteps [data-pattern-step='7']").click()
-                page.locator("#clapSteps [data-pattern-step='4']").click()
+                page.locator("#clapSteps [data-pattern-step='5']").click()
                 page.locator("#tomSteps [data-pattern-step='11']").click()
                 page.locator("#percSteps [data-pattern-step='15']").click()
                 page.locator("#drumKit").select_option("lofi")
@@ -468,7 +468,7 @@ def main():
                 generated_track = next(track for track in generated_project["tracks"] if track.get("generated"))
                 assert generated_track["type"] == "Drums / Percussion" and generated_track["audioName"].endswith(".wav")
                 assert generated_project["patternStudio"]["drumKit"] == "lofi"
-                assert 7 in generated_project["patternStudio"]["openHat"] and 4 in generated_project["patternStudio"]["clap"] and 11 in generated_project["patternStudio"]["tom"] and 15 in generated_project["patternStudio"]["perc"]
+                assert 7 in generated_project["patternStudio"]["openHat"] and 5 in generated_project["patternStudio"]["clap"] and 11 in generated_project["patternStudio"]["tom"] and 15 in generated_project["patternStudio"]["perc"]
                 with page.expect_download() as drum_midi_download:
                     page.locator("#exportPatternMidi").click()
                 drum_midi_path = Path(tmpdir) / "drum-roundtrip.mid"
@@ -477,7 +477,7 @@ def main():
                 page.locator("#patternMidiFile").set_input_files(str(drum_midi_path))
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('MIDI imported')", timeout=5000)
                 drum_roundtrip = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio")
-                assert drum_roundtrip["mode"] == "drums" and 7 in drum_roundtrip["openHat"] and 4 in drum_roundtrip["clap"] and 11 in drum_roundtrip["tom"] and 15 in drum_roundtrip["perc"]
+                assert drum_roundtrip["mode"] == "drums" and 7 in drum_roundtrip["openHat"] and 5 in drum_roundtrip["clap"] and 11 in drum_roundtrip["tom"] and 15 in drum_roundtrip["perc"]
                 assert generated_track["audioSize"] > 44 and page.locator("#patternPreview").get_attribute("src")
                 generated_blob_exists = page.evaluate("""async () => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1"))[0];
