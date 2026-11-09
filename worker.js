@@ -559,6 +559,16 @@ async function createSocialTables(db) {
     )`,
     `CREATE INDEX IF NOT EXISTS idx_social_call_active
       ON social_call_sessions(conversation_id,status,created_at DESC)`,
+    `UPDATE social_call_sessions
+      SET status='ended',ended_at=CURRENT_TIMESTAMP
+      WHERE status='active' AND id<>(
+        SELECT newer.id FROM social_call_sessions newer
+        WHERE newer.conversation_id=social_call_sessions.conversation_id
+          AND newer.status='active'
+        ORDER BY newer.created_at DESC,newer.id DESC LIMIT 1
+      )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_social_call_one_active_per_conversation
+      ON social_call_sessions(conversation_id) WHERE status='active'`,
     `CREATE TABLE IF NOT EXISTS social_call_participants(
       call_id TEXT NOT NULL,
       user_id TEXT NOT NULL,
@@ -2589,11 +2599,21 @@ async function socialCallStart(request, env) {
   ).bind(conversationId).first();
   if (active) return json({success:true,callId:active.id,kind:active.kind,alreadyActive:true});
   const id = crypto.randomUUID();
-  await env.DB.batch([
-    env.DB.prepare("INSERT INTO social_call_sessions(id,conversation_id,host_id,kind,status) VALUES(?,?,?,?,'active')").bind(id,conversationId,user.id,kind),
-    env.DB.prepare("INSERT INTO social_call_participants(call_id,user_id) VALUES(?,?)").bind(id,user.id)
-  ]);
-  return json({success:true,callId:id,kind,conversationId},201);
+  try {
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO social_call_sessions(id,conversation_id,host_id,kind,status) VALUES(?,?,?,?,'active')").bind(id,conversationId,user.id,kind),
+      env.DB.prepare("INSERT INTO social_call_participants(call_id,user_id) VALUES(?,?)").bind(id,user.id)
+    ]);
+    return json({success:true,callId:id,kind,conversationId},201);
+  } catch (creationError) {
+    // A concurrent caller may have created the unique active session after
+    // our initial lookup. Return that session instead of surfacing a 500.
+    const concurrent = await env.DB.prepare(
+      "SELECT id,kind FROM social_call_sessions WHERE conversation_id=? AND status='active' ORDER BY created_at DESC LIMIT 1"
+    ).bind(conversationId).first();
+    if (concurrent) return json({success:true,callId:concurrent.id,kind:concurrent.kind,alreadyActive:true});
+    throw creationError;
+  }
 }
 
 async function socialCallActive(request, env) {
