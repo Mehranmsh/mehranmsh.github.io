@@ -1091,12 +1091,11 @@ test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits 
 
 test("SOCIAL call leave requires active participation and is rate limited", () => {
   const start = workerSource.indexOf("async function socialCallLeave");
-  const end = workerSource.indexOf("\\nasync function socialStartConversation", start);
+  const end = workerSource.indexOf("\nasync function socialStartConversation", start);
   const handler = workerSource.slice(start, end);
   assert.ok(start >= 0 && end > start);
-  assert.match(handler, /social-call-leave/);
-  assert.match(handler, /30, 60, 60, user\\.id/);
-  assert.match(handler, /SELECT left_at FROM social_call_participants WHERE call_id=\\? AND user_id=\\?/);
-  assert.match(handler, /if \\(!participant \\|\\| participant\\.left_at\\) return error/);
+  assert.ok(handler.includes('"social-call-leave", 30, 60, 60, user.id'));
+  assert.ok(handler.includes("SELECT left_at FROM social_call_participants WHERE call_id=? AND user_id=?"));
+  assert.ok(handler.includes("if (!participant || participant.left_at)"));
   assert.ok(handler.indexOf("if (!participant || participant.left_at)") < handler.indexOf("UPDATE social_call_participants"));
 });
