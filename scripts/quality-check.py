@@ -147,7 +147,16 @@ def main():
     import py_compile
     py_compile.compile(str(ENGINE_FILE), doraise=True)
 
-    print(f"4/4 Passed: Worker syntax + {checked} inline JavaScript block(s) across {len(HTML_FILES)} HTML app(s), and local engine syntax.")
+    print("4/5 Running local Music Studio control-plane regression tests...")
+    test_result = subprocess.run(
+        [sys.executable, "-m", "unittest", "engine.test_server", "-v"],
+        cwd=ROOT,
+        text=True,
+    )
+    if test_result.returncode:
+        raise SystemExit(test_result.returncode)
+
+    print(f"5/5 Passed: Worker syntax + {checked} inline JavaScript block(s) across {len(HTML_FILES)} HTML app(s), local engine syntax, and Music Studio regression tests.")
     print("Note: these checks do not replace live Pi Browser, database, or security integration tests.")
 
 if __name__ == "__main__":
