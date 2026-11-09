@@ -2603,10 +2603,12 @@ async function socialCallActive(request, env) {
   if (!call) return json({success:true,call:null});
   const participants = await env.DB.prepare(`
     SELECT p.user_id,u.username,u.display_name,u.avatar_url
-    FROM social_call_participants p JOIN social_users u ON u.id=p.user_id
+    FROM social_call_participants p
+    JOIN social_users u ON u.id=p.user_id
+    JOIN social_conversation_members cm ON cm.conversation_id=? AND cm.user_id=p.user_id
     WHERE p.call_id=? AND p.left_at IS NULL AND p.last_seen_at>=datetime('now','-25 seconds')
     ORDER BY p.joined_at
-  `).bind(call.id).all();
+  `).bind(call.conversation_id,call.id).all();
   return json({success:true,call:{id:call.id,kind:call.kind,hostId:call.host_id,createdAt:call.created_at,participants:participants.results||[]}});
 }
 
