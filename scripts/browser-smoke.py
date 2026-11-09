@@ -212,6 +212,11 @@ def main():
                 selection_start = page.locator("[data-waveform-selection-start]")
                 selection_end = page.locator("[data-waveform-selection-end]")
                 assert float(selection_end.input_value()) - float(selection_start.input_value()) > 0.05, "Precise selection time fields were not populated."
+                original_selection_start = float(selection_start.input_value())
+                edited_selection_start = round(original_selection_start + 0.10, 2)
+                selection_start.fill(str(edited_selection_start))
+                assert f"{edited_selection_start:.2f}s" in page.locator("[data-waveform-status]").inner_text(), "Editing selection start did not update the selected region."
+                selection_start.fill(f"{original_selection_start:.2f}")
                 loop_button = page.locator("[data-waveform-preview-loop]")
                 loop_button.click()
                 assert loop_button.get_attribute("aria-pressed") == "true", "Waveform audition loop did not enable."
