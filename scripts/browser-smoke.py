@@ -193,6 +193,16 @@ def main():
                 offset_control.dispatch_event("change")
                 saved_offset = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0].startOffset")
                 assert abs(saved_offset - 1.25) < 0.001, "Track start offset did not persist."
+                fade_in_control = page.locator("[data-track-fade-in]")
+                fade_out_control = page.locator("[data-track-fade-out]")
+                assert fade_in_control.count() == 1 and fade_out_control.count() == 1, "Per-track fade controls are missing."
+                fade_in_control.fill("0.25")
+                fade_in_control.dispatch_event("change")
+                fade_out_control.fill("0.35")
+                fade_out_control.dispatch_event("change")
+                saved_fades = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0]")
+                assert abs(saved_fades["fadeIn"] - 0.25) < 0.001, "Track fade-in did not persist."
+                assert abs(saved_fades["fadeOut"] - 0.35) < 0.001, "Track fade-out did not persist."
 
                 # Exercise both offline render paths and verify actual downloadable WAV artifacts.
                 with page.expect_download(timeout=30000) as mix_download:
