@@ -401,8 +401,13 @@ def main():
                 page.locator("[data-waveform-selection-start]").fill("0.20")
                 page.locator("[data-waveform-selection-end]").fill("0.35")
                 page.locator("[data-waveform-split-selection]").click()
-                page.wait_for_function("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks.length === 3", timeout=10000)
+                page.wait_for_function("document.querySelector('#mixStatus').textContent.includes('Split complete') || document.querySelector('#mixStatus').textContent.includes('Split cancelled safely')", timeout=15000)
+                split_status = page.locator("#mixStatus").inner_text()
+                print("SPLIT TEST STATUS: " + split_status)
                 split_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                print("SPLIT TEST TRACKS: " + str([{key: track.get(key) for key in ('id', 'name', 'audioName', 'trimStart', 'trimEnd', 'startOffset')} for track in split_project['tracks']]))
+                assert "Split complete" in split_status, "Split operation did not complete: " + split_status
+                assert len(split_project["tracks"]) == 3, "Split did not create exactly three clips."
                 assert [round(track["trimStart"], 2) for track in split_project["tracks"]] == [0.10, 0.20, 0.35], "Split clips do not preserve the selected source boundaries."
                 assert [round(track["startOffset"], 2) for track in split_project["tracks"]] == [0.00, 0.10, 0.25], "Split clips do not preserve contiguous timeline placement."
                 assert all(track.get("audioName") for track in split_project["tracks"]), "A split clip lost its local audio reference."
