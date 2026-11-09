@@ -543,6 +543,15 @@ def main():
                     project_after_layer = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     layer = next(track for track in project_after_layer["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert layer["type"] == expected_type and layer["audioSize"] > 44
+                # Exercise the expanded virtual instrument palette through actual WAV rendering.
+                for mode, expected_type in [("epiano", "Keys / Piano"), ("organ", "Organ"), ("lead", "Synth Lead"), ("strings", "Strings"), ("bell", "Bell / Mallet")]:
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternTrackName").fill("Generated " + mode)
+                    page.locator("#renderPattern").click()
+                    page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                    instrument_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
+                    assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
