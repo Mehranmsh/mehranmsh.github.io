@@ -101,6 +101,14 @@ class ACEstepClientTests(unittest.TestCase):
             client.submit_song("prompt", bpm=301)
         self.assertIsNone(FakeACEHandler.last_path)
 
+    def test_non_text_prompts_and_lyrics_are_rejected_before_network(self):
+        client = ACEstepLocalClient(self.url)
+        with self.assertRaisesRegex(ValueError, "must be text"):
+            client.submit_song(None)
+        with self.assertRaisesRegex(ValueError, "must be text"):
+            client.submit_song("valid prompt", lyrics=["not", "text"])
+        self.assertIsNone(FakeACEHandler.last_path)
+
     def test_redirects_and_unsuccessful_wrappers_are_rejected(self):
         client = ACEstepLocalClient(self.url)
         FakeACEHandler.response_status = 302
