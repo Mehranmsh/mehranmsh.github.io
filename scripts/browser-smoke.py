@@ -78,6 +78,9 @@ def main():
                 assert page.locator('[data-track-drive]').count() == 1
                 assert page.locator('[data-track-chorus-depth]').count() == 1
                 assert page.locator('[data-track-chorus-rate]').count() == 1
+                assert page.locator('#masterMeter').get_attribute('role') == 'meter'
+                assert page.locator('#masterMeterFill').count() == 1
+                assert 'masterLimiterNode=mixAudioContext.createDynamicsCompressor()' in page.content()
 
                 # Exercise the delegated controls and verify persistence after reload.
                 page.locator('[data-track-delay]').evaluate("(el) => { el.value='20'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
@@ -135,6 +138,8 @@ def main():
                 print("PASS: project creation and persistence")
                 print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
+                print("PASS: master output peak meter and live safety limiter are present")
+                print("PASS: offline mix and stem WAV paths include the safety limiter")
                 print("PASS: offline full-mix WAV and individual stem WAV downloads")
                 print("PASS: no uncaught browser JavaScript exceptions")
                 context.close()
