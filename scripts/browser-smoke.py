@@ -20,14 +20,16 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
 def make_test_wav(path: Path):
     sample_rate = 44100
-    frames = int(sample_rate * 0.35)
+    frames = int(sample_rate * 0.5)
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
         wav.setframerate(sample_rate)
         samples = bytearray()
         for index in range(frames):
-            value = int(7000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+            noise = (((index * 1103515245 + 12345) >> 16) & 0x7FFF) - 16384
+            signal = 0 if index < int(sample_rate * 0.15) else int(7000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+            value = max(-32768, min(32767, signal + int(noise * 0.08)))
             samples.extend(struct.pack("<h", value))
         wav.writeframes(samples)
 
@@ -82,13 +84,23 @@ def main():
                 page.locator('[data-track-reverb]').wait_for(state="visible")
                 assert page.locator('[data-track-vocal-polish]').count() == 1
                 assert page.locator('[data-track-noise-gate]').count() == 1
+                assert page.locator('[data-noise-learn]').count() == 1
+                assert page.locator('[data-noise-strength]').count() == 1
                 page.locator('[data-track-noise-gate]').click()
                 assert page.locator('[data-track-noise-gate]').inner_text() == "Noise gate: on"
                 page.locator('[data-track-vocal-polish]').click()
                 assert page.locator('[data-track-vocal-polish]').inner_text() == "Vocal polish: on"
+                page.locator('[data-noise-start]').fill("0")
+                page.locator('[data-noise-duration]').fill("0.12")
+                page.locator('[data-noise-learn]').click()
+                page.wait_for_function("document.querySelector('#mixStatus')?.textContent.includes('Noise profile learned and saved locally')", timeout=10000)
+                page.locator('[data-noise-strength]').evaluate("(el) => { el.value='65'; el.dispatchEvent(new Event('input',{bubbles:true})); }")
                 saved_vocal_fx = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
                 assert saved_vocal_fx[0]["tracks"][0]["effects"]["vocalPolish"] is True
                 assert saved_vocal_fx[0]["tracks"][0]["effects"]["noiseGate"] is True
+                assert saved_vocal_fx[0]["tracks"][0]["effects"]["noiseProfile"]["fftSize"] == 1024
+                assert len(saved_vocal_fx[0]["tracks"][0]["effects"]["noiseProfile"]["bins"]) == 513
+                assert saved_vocal_fx[0]["tracks"][0]["effects"]["noiseReduction"] == 65
                 assert page.locator('[data-track-delay-time]').get_attribute("max") == "450"
                 assert page.locator('[data-track-feedback]').get_attribute("max") == "30"
                 assert page.locator('[data-track-filter]').count() == 1
@@ -161,7 +173,8 @@ def main():
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
-                print("PASS: Vocal Polish and live/offline noise gate controls persist and process audio")
+                print("PASS: Vocal Polish, live/offline noise gate, and saved spectral noise profiles")
+                print("PASS: spectral noise reduction applied to offline mix and stem WAV renders")
                 print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
                 print("PASS: independent per-track peak meter responds to playback")
