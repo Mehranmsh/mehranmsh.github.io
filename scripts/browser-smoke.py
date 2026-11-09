@@ -80,6 +80,11 @@ def main():
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator('[data-track-reverb]').wait_for(state="visible")
+                assert page.locator('[data-track-vocal-polish]').count() == 1
+                page.locator('[data-track-vocal-polish]').click()
+                assert page.locator('[data-track-vocal-polish]').inner_text() == "Vocal polish: on"
+                saved_vocal_fx = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
+                assert saved_vocal_fx[0]["tracks"][0]["effects"]["vocalPolish"] is True
                 assert page.locator('[data-track-delay-time]').get_attribute("max") == "450"
                 assert page.locator('[data-track-feedback]').get_attribute("max") == "30"
                 assert page.locator('[data-track-filter]').count() == 1
@@ -148,6 +153,7 @@ def main():
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
+                print("PASS: Vocal Polish preset persists and is applied to live and offline audio chains")
                 print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
                 print("PASS: master output peak meter and live safety limiter are present")
