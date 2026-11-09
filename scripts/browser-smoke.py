@@ -472,7 +472,7 @@ def main():
                 assert 7 in generated_project["patternStudio"]["openHat"] and 5 in generated_project["patternStudio"]["clap"] and 11 in generated_project["patternStudio"]["tom"] and 15 in generated_project["patternStudio"]["perc"]
                 with page.expect_download() as drum_midi_download:
                     page.locator("#exportPatternMidi").click()
-                drum_midi_path = Path(tmpdir) / "drum-roundtrip.mid"
+                drum_midi_path = Path(temp) / "drum-roundtrip.mid"
                 drum_midi_download.value.save_as(drum_midi_path)
                 assert drum_midi_path.read_bytes().startswith(b"MThd")
                 page.locator("#patternMidiFile").set_input_files(str(drum_midi_path))
@@ -520,7 +520,7 @@ def main():
                 assert {event["note"] for event in melody_events} == {"D3", "F3"} and all(event["lengthSteps"] == 4 for event in melody_events)
                 with page.expect_download() as melody_midi_download:
                     page.locator("#exportPatternMidi").click()
-                melody_midi_path = Path(tmpdir) / "melody-roundtrip.mid"
+                melody_midi_path = Path(temp) / "melody-roundtrip.mid"
                 melody_midi_download.value.save_as(melody_midi_path)
                 assert melody_midi_path.read_bytes().startswith(b"MThd")
                 page.locator("#patternMidiFile").set_input_files(str(melody_midi_path))
