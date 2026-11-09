@@ -172,7 +172,7 @@
  document.addEventListener("click",e=>{const nav=e.target.closest("[data-view]");if(nav){if(nav.dataset.view==="create")newProject();else show(nav.dataset.view);return;}const go=e.target.closest("[data-go]");if(go){if(go.dataset.go==="create")newProject();else show(go.dataset.go);return;}const op=e.target.closest("[data-open]");if(op){openProject(op.dataset.open);return;}const del=e.target.closest("[data-delete]");if(del){if(confirm("Delete this local project draft?")){const previous=projects;projects=projects.filter(p=>p.id!==del.dataset.delete);if(save())render();else projects=previous;}}});
  $("saveProject").addEventListener("click",()=>{if($("saveProject").dataset.edit)update();else create();});
  $("lyricsProject").addEventListener("change",changeLyricsProject);
- $("vocalProject").addEventListener("change",renderVocalCast);
+ $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();});
  $("addSinger").addEventListener("click",addSinger);
  $("vocalCast").addEventListener("click",e=>{const edit=e.target.closest("[data-edit-singer]");if(edit){editSinger(Number(edit.dataset.editSinger));return;}const remove=e.target.closest("[data-remove-singer]");if(remove)removeSinger(Number(remove.dataset.removeSinger));});
  $("cancelSingerEdit").addEventListener("click",cancelSingerEdit);
