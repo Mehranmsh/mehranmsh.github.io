@@ -129,6 +129,8 @@ def main():
 
     if "async function socialRotateBotToken" not in worker or "UPDATE social_bots SET token_hash=? WHERE id=? AND owner_id=? AND is_active=1" not in worker or "DELETE FROM social_bots WHERE id=? AND owner_id=?" not in worker:
         raise SystemExit("SOCIAL bot owners must be able to rotate and revoke their own bot credentials.")
+    if '"social-bot-create"' not in worker or '"social-bot-rotate"' not in worker or '>= 25' not in worker:
+        raise SystemExit("SOCIAL bot registration and token rotation must be rate-limited and capped per owner.")
     if "isConversationMember(env, call.conversation_id, user.id)" not in worker or "isConversationMember(env, call.conversation_id, toUserId)" not in worker:
         raise SystemExit("SOCIAL call signaling must reject participants removed from a conversation.")
     for marker in ['data-bot-rotate', 'data-bot-delete', 'socialRotateBot', 'socialDeleteBot']:
