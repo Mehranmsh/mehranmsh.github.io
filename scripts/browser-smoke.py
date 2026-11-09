@@ -179,6 +179,11 @@ def main():
                 page.get_by_text("Audio saved on this device. Preview playback is ready.").wait_for(timeout=10000)
                 assert page.locator('[data-track-audio-player]').count() == 1
                 page.wait_for_function("!!document.querySelector('[data-track-audio-player]')?.src", timeout=10000)
+                page.wait_for_function("document.querySelector('[data-track-waveform]')?.dataset.waveformReady === 'true'", timeout=15000)
+                waveform = page.locator("[data-track-waveform]")
+                assert waveform.count() == 1 and waveform.get_attribute("aria-label").startswith("Lead Vocal waveform"), "Decoded audio waveform was not rendered for the attached track."
+                waveform_box = waveform.bounding_box()
+                assert waveform_box and waveform_box["width"] > 300 and waveform_box["height"] >= 90, "Waveform canvas has invalid dimensions."
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
