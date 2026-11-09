@@ -479,6 +479,21 @@ def main():
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
                 melody_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"]
+                # Render a four-chord harmonic backing layer and verify the project record.
+                page.locator("#patternMode").select_option("chords")
+                page.locator("#patternChords").fill("Am, F, C, G")
+                page.locator("#patternTrackName").fill("Generated chord backing")
+                page.locator("#renderPattern").click()
+                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                chord_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                chord_track = next(track for track in chord_project["tracks"] if track.get("generated") and track["name"] == "Generated chord backing")
+                assert chord_track["type"] == "Chord Backing" and chord_track["audioSize"] > 44
+                assert chord_project["patternStudio"]["chords"] == ["Am", "F", "C", "G"]
+                page.locator("#patternMode").select_option("chords")
+                page.locator("#patternChords").fill("Am, H-not-a-chord")
+                page.locator("#renderPattern").click()
+                assert "valid chords" in page.locator("#patternStatus").inner_text()
+                page.locator("#patternChords").fill("Am, F, C, G")
                 # Exercise dedicated sub-bass and cinematic sound-layer render paths.
                 for mode, expected_type in [("sub", "Bass"), ("riser", "Sound Effects"), ("impact", "Sound Effects"), ("texture", "Sound Effects")]:
                     page.locator("#patternMode").select_option(mode)
