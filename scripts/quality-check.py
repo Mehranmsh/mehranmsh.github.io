@@ -74,7 +74,7 @@ def main():
         'id="exportLyrics"', 'data-lyric-section="[Chorus]"',
         'id="exportBackup"', 'id="importBackup"', 'id="backupFile"',
         'mehran-music-studio-backup', 'Could not save: browser storage is full or unavailable',
-        'Tempo must be between 40 and 220 BPM', 'id="vocalProject"', 'id="singerName"', 'id="vocalRecordingFile"', 'id="importVocalRecording"', 'id="vocalRecordingPreview"', 'async function importVocalRecording(file)', 'Vocal recording imported and saved on this device.', 'MAX_AUDIO_BYTES',
+        'Tempo must be between 40 and 220 BPM', 'id="vocalProject"', 'id="singerName"', 'id="vocalRecordingFile"', 'id="importVocalRecording"', 'id="vocalRecordingPreview"', 'id="analyzeRecordingQuality"', 'id="recordingQualityResult"', 'async function analyzeRecordingQuality()', 'Peak headroom looks safe for this recording.', 'Clipped samples', 'Silent 100ms blocks', 'Original recording was not changed.', 'analyzeRecordingQuality();', 'async function importVocalRecording(file)', 'Vocal recording imported and saved on this device.', 'MAX_AUDIO_BYTES',
         'id="addSinger"', 'id="vocalCast"', 'data-remove-singer', 'Up to 8 singer profiles per project',
         'singers:Array.isArray(p.singers)',
         'id="singerParts"', 'id="cancelSingerEdit"', 'data-edit-singer',
