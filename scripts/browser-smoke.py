@@ -242,6 +242,10 @@ def main():
                 waveform.press("Shift+ArrowRight")
                 waveform.press("Escape")
                 assert preview_button.is_disabled(), "Escape did not clear the keyboard selection."
+                page.locator("[data-waveform-select-retained]").click()
+                assert "Selected retained audio" in page.locator("[data-waveform-status]").inner_text(), "One-click retained-range selection failed."
+                assert preview_button.is_enabled(), "Retained-range selection did not enable audition."
+                page.locator("[data-waveform-preview-clear]").click()
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
