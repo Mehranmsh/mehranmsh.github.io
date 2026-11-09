@@ -2570,6 +2570,9 @@ async function socialCallStart(request, env) {
   if (!conversationId || !kind) return error("A conversation and valid call type are required");
   const member = await isConversationMember(env, conversationId, user.id);
   if (!member) return error("Conversation not found", 404);
+  if (await isDirectConversationBlocked(env, conversationId, user.id)) {
+    return error("Calling is unavailable for this conversation", 403);
+  }
   const conversation = await env.DB.prepare(
     "SELECT id,type,title FROM social_conversations WHERE id=?"
   ).bind(conversationId).first();
@@ -2593,6 +2596,7 @@ async function socialCallActive(request, env) {
   const url = new URL(request.url);
   const conversationId = cleanText(url.searchParams.get("conversationId"),150);
   if (!conversationId || !await isConversationMember(env,conversationId,user.id)) return error("Conversation not found",404);
+  if (await isDirectConversationBlocked(env, conversationId, user.id)) return error("Conversation not found",404);
   const call = await env.DB.prepare(
     "SELECT id,kind,host_id,created_at FROM social_call_sessions WHERE conversation_id=? AND status='active' ORDER BY created_at DESC LIMIT 1"
   ).bind(conversationId).first();
@@ -2612,6 +2616,7 @@ async function socialCallJoin(request, env, callId) {
   const call = await env.DB.prepare("SELECT id,conversation_id,kind,status FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("This call has ended",404);
   if (!await isConversationMember(env,call.conversation_id,user.id)) return error("You are not a member of this conversation",403);
+  if (await isDirectConversationBlocked(env, call.conversation_id, user.id)) return error("Calling is unavailable for this conversation",403);
   const count = await env.DB.prepare("SELECT COUNT(*) AS total FROM social_call_participants WHERE call_id=? AND left_at IS NULL AND last_seen_at>=datetime('now','-25 seconds')").bind(callId).first();
   const cap = call.kind==="live" ? 12 : 8;
   const existing = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=?").bind(callId,user.id).first();
@@ -2661,6 +2666,9 @@ async function socialCallSignal(request, env, callId) {
   if (!type || !toUserId || !body.payload || typeof body.payload!=="object") return error("Invalid call signal");
   const call = await env.DB.prepare("SELECT conversation_id,status FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("Call has ended",404);
+  if (await isDirectConversationBlocked(env, call.conversation_id, user.id) || await isDirectConversationBlocked(env, call.conversation_id, toUserId)) {
+    return error("Call signaling is unavailable for this conversation",403);
+  }
   const sender = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=? AND left_at IS NULL").bind(callId,user.id).first();
   const target = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=? AND left_at IS NULL").bind(callId,toUserId).first();
   if (!sender || !target) return error("Both users must be in the call",403);
