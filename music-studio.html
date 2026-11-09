@@ -105,7 +105,7 @@
     <h3>Project vocal cast</h3>
     <div class="field"><label for="vocalProject">PROJECT</label><select id="vocalProject"><option value="">Choose a project…</option></select></div>
     <div class="panel" style="margin:12px 0;padding:14px"><h3>Import your own vocal recording</h3><p style="color:var(--muted);font-size:11px">Record with your phone’s Voice Recorder, then choose the saved audio file here. It will become a Lead Vocal track and stay on this device.</p><input id="vocalRecordingFile" type="file" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.opus,.aac" hidden><button class="btn" id="importVocalRecording" type="button">Import phone recording</button><p id="vocalImportStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin:10px 0 0">Choose a project first. Audio is stored locally, not uploaded.</p><audio id="vocalRecordingPreview" controls preload="none" style="display:none;width:100%;margin-top:10px"></audio></div>
-    <div class="notice">This is a singer-profile and arrangement planner only. It does not clone voices, generate vocals or upload voice recordings.</div>
+    <div class="notice">Manage singer profiles and import your own vocal recordings here. This does not clone voices or generate vocals.</div>
     <div id="vocalCast" class="projects"><div class="empty">Choose a project to view its singers.</div></div>
    </div>
    <div class="panel">
@@ -125,7 +125,7 @@
     <p id="vocalStatus" style="color:var(--muted);font-size:11px">Up to 8 singer profiles per project. Saved locally with the project.</p>
    </div>
   </div>
-  <div class="notice">Voice recordings and voice models are not stored here. Any future voice training or cloning will require explicit permission, secure private storage and a deletion control.</div>
+  <div class="notice">Imported voice recordings are stored locally in this browser and can be removed with their track. No voice model is created. Any future voice training or cloning will require explicit permission, secure private storage and a deletion control.</div>
  </section>
  <section id="view-mix" class="hidden">
   <div class="section-head"><div><h2>Arrangement & Mix Planner</h2><p>Build the track layout and save a clear production plan for each song.</p></div><button class="btn secondary" id="exportMixPlan">Export track plan</button></div>
