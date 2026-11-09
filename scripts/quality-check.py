@@ -89,7 +89,7 @@ def main():
         raise SystemExit("Music Studio must restore the prior project when an update cannot be saved.")
     if 'if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}' not in studio:
         raise SystemExit("Lyrics Lab must report storage failure and restore unsaved project data.")
-    if 'function addSinger()' not in studio or 'if(p.singers.length>=8)' not in studio:
+    if 'function addSinger()' not in studio or 'if(!existing&&p.singers.length>=8)' not in studio:
         raise SystemExit("Vocal Lab must validate singer profiles and enforce the 8-singer project limit.")
     if 'if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.updated=previousUpdated;return;}' not in studio:
         raise SystemExit("Vocal Lab must roll back singer changes when local storage fails.")
