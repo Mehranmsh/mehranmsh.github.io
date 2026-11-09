@@ -74,6 +74,24 @@ def main():
                 saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
                 assert len(saved_after_vocal[0]["tracks"]) == 1
                 assert saved_after_vocal[0]["tracks"][0]["type"] == "Lead Vocal"
+                source_audio_hash = page.evaluate("""async () => {
+                    const db = await new Promise((resolve, reject) => {
+                        const request = indexedDB.open('mehran_music_studio_audio_v1', 1);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0];
+                    const track = project.tracks[0];
+                    const record = await new Promise((resolve, reject) => {
+                        const request = db.transaction('trackAudio').objectStore('trackAudio').get(project.id + ':' + track.id);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    if (!record?.blob) throw new Error('Original audio blob missing from IndexedDB');
+                    const digest = await crypto.subtle.digest('SHA-256', await record.blob.arrayBuffer());
+                    db.close();
+                    return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+                }""")
 
                 # The pitch detector is closure-scoped; validate it through the real Vocal Lab UI below.
                 # Analyze the imported 440 Hz synthetic vocal using the local pitch detector.
@@ -209,6 +227,25 @@ def main():
                 tuned_file = Path(temp) / "tuned-stem.wav"
                 tuned_download.value.save_as(str(tuned_file))
                 assert tuned_file.is_file() and tuned_file.stat().st_size > 44
+                source_audio_hash_after = page.evaluate("""async () => {
+                    const db = await new Promise((resolve, reject) => {
+                        const request = indexedDB.open('mehran_music_studio_audio_v1', 1);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0];
+                    const track = project.tracks[0];
+                    const record = await new Promise((resolve, reject) => {
+                        const request = db.transaction('trackAudio').objectStore('trackAudio').get(project.id + ':' + track.id);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    if (!record?.blob) throw new Error('Original audio blob missing after pitch correction');
+                    const digest = await crypto.subtle.digest('SHA-256', await record.blob.arrayBuffer());
+                    db.close();
+                    return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+                }""")
+                assert source_audio_hash_after == source_audio_hash, "Pitch correction modified the original locally stored recording."
                 with wave.open(str(stem_file), "rb") as original_stem, wave.open(str(tuned_file), "rb") as tuned_stem:
                     assert tuned_stem.getnframes() == original_stem.getnframes(), "Pitch correction changed the stem duration."
                     assert tuned_stem.getnchannels() == 2 and tuned_stem.getframerate() == 44100
@@ -231,7 +268,7 @@ def main():
                 print("PASS: independent per-track peak meter responds to playback")
                 print("PASS: master output peak meter and live safety limiter are present")
                 print("PASS: offline mix and stem WAV paths include the safety limiter")
-                print("PASS: local original/corrected A/B stem preview, explicit WAV download, and duration-preserving pitch correction")
+                print("PASS: local original/corrected A/B stem preview, explicit WAV download, duration-preserving pitch correction, and SHA-256 source immutability")
                 print("PASS: no uncaught browser JavaScript exceptions")
                 context.close()
                 browser.close()
