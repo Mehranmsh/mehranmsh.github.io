@@ -220,8 +220,7 @@ def main():
                 stop_button.click()
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('preview stopped')", timeout=3000)
                 assert stop_button.is_disabled(), "Stop control remained enabled after stopping audition."
-                loop_button.click()
-                assert loop_button.get_attribute("aria-pressed") == "false", "Waveform audition loop did not disable."
+                assert loop_button.get_attribute("aria-pressed") == "false", "Stopping audition did not reset the loop toggle."
                 preview_button.click()
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('Selection preview finished')", timeout=5000)
                 page.locator("[data-waveform-preview-clear]").click()
