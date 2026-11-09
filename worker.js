@@ -4434,6 +4434,79 @@ async function socialAssistantChat(request, env) {
   return json({ success: true, provider, model, reply: answer });
 }
 
+async function musicGenerateLyrics(request, env) {
+  if (!env.AI || typeof env.AI.run !== "function") {
+    return error("The free writing model is not connected to this Worker.", 503);
+  }
+  if (!await checkRateLimit(env, request, "music-lyrics-generate", 5, 3600, 3600)) {
+    return error("The hourly free songwriting limit has been reached. Please try again later.", 429);
+  }
+  const body = await readBody(request);
+  if (!body) return error("Invalid request body.");
+  const topic = cleanText(body.topic, 400);
+  const mood = cleanText(body.mood, 80);
+  const genre = cleanText(body.genre, 80);
+  const voice = cleanText(body.voice, 80);
+  const details = cleanText(body.details, 1200);
+  const structure = body.structure === "short" ? "short" : "full";
+  if (!topic) return error("Describe the song topic first.");
+  const allowedMoods = ["عاشقانه","دلتنگ","غمگین","امیدوار","حماسی","آرام","تلخ","شاد","نوستالژیک"];
+  const allowedGenres = ["پاپ","راک","آلترناتیو","آراندبی","هیپ‌هاپ","سنتی","سینمایی","فولک"];
+  const safeMood = allowedMoods.includes(mood) ? mood : "احساسی";
+  const safeGenre = allowedGenres.includes(genre) ? genre : "پاپ";
+  const safeVoice = ["اول شخص","دوم شخص","روایت داستانی"].includes(voice) ? voice : "اول شخص";
+  const structureText = structure === "short"
+    ? "یک نسخه کوتاه شامل ورس اول، ترجیع‌بند و ورس دوم بنویس."
+    : "یک ترانه کامل با این بخش‌ها بنویس: [Intro] کوتاه، [Verse 1]، [Pre-Chorus] در صورت نیاز، [Chorus]، [Verse 2]، تکرار [Chorus]، [Bridge] و [Outro].";
+  const system = [
+    "تو ترانه‌سرای حرفه‌ای فارسی‌زبان هستی و برای یک خواننده، ترانه‌ای تازه و قابل اجرا می‌نویسی.",
+    "فقط متن ترانه را به فارسی روان بنویس و نام بخش‌ها را با برچسب‌های انگلیسی داخل کروشه مشخص کن.",
+    "شعر باید طبیعی، خوش‌خوان، تصویری و دارای قافیه‌های متنوع و غیرزورکی باشد؛ از کلیشه، تکرار بی‌دلیل و جمله‌های نثرگونه دوری کن.",
+    "طول مصرع‌ها را برای خواندن روی ملودی متعادل نگه دار. ترجیع‌بند باید به‌یادماندنی و دارای یک جمله محوری باشد.",
+    "از تقلید سبک یا بازنویسی آثار هنرمندان مشخص خودداری کن. هیچ توضیح، مقدمه یا تحلیل خارج از متن ترانه ننویس."
+  ].join(" ");
+  const prompt = [
+    "موضوع اصلی: " + topic,
+    "حال‌وهوا: " + safeMood,
+    "سبک موسیقی: " + safeGenre,
+    "زاویه روایت: " + safeVoice,
+    "ساختار: " + structureText,
+    details ? "جزئیات و تصویرهای مورد علاقه کاربر: " + details : "",
+    "یک ترانه منسجم و کاملاً تازه بنویس. ترجیع‌بند را طوری بساز که شنونده بعد از یک بار شنیدن بتواند جمله محوری آن را به خاطر بسپارد."
+  ].filter(Boolean).join("\n");
+  const model = cleanText(env.SOCIAL_AI_MODEL_CLOUDFLARE, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+  try {
+    const budget = await reserveSocialWorkersAIBudget(env, 1200);
+    if (!budget.allowed) {
+      return json({
+        success: false,
+        error: "سهمیه رایگان روزانه ترانه‌ساز برای امروز تمام شده است. پس از بازنشانی روزانه دوباره امتحان کن.",
+        code: "MUSIC_AI_DAILY_FREE_LIMIT"
+      }, 429);
+    }
+    const result = await env.AI.run(model, {
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt }
+      ],
+      max_tokens: structure === "short" ? 900 : 1800,
+      temperature: 0.82
+    });
+    const lyrics = result?.response || result?.result?.response || "";
+    if (typeof lyrics !== "string" || !lyrics.trim()) {
+      return error("مدل هوش مصنوعی متن قابل استفاده‌ای برنگرداند. دوباره تلاش کن.", 502);
+    }
+    return json({ success: true, lyrics: lyrics.trim(), provider: "cloudflare", model, free: true });
+  } catch (e) {
+    const message = String(e?.message || e || "");
+    if (/Daily free Workers AI budget is reserved/.test(message)) {
+      return json({ success: false, error: "سهمیه رایگان روزانه فعلاً در دسترس نیست. بعد از بازنشانی روزانه دوباره تلاش کن.", code: "MUSIC_AI_DAILY_FREE_LIMIT" }, 429);
+    }
+    console.error("MUSIC_LYRICS_GENERATION_FAILED", message.slice(0, 240));
+    return error("تولید ترانه فعلاً انجام نشد. کمی بعد دوباره امتحان کن.", 502);
+  }
+}
+
 async function rapidfileRequest(env, endpoint, options = {}) {
   const key = env.RAPIDFILE_API_KEY;
 
@@ -5066,6 +5139,7 @@ export default {
       const needsDB =
         path.startsWith("/projects") ||
         path.startsWith("/social") ||
+        path.startsWith("/music/") ||
         path.startsWith("/admin/") ||
         path === "/auth";
 
