@@ -4765,10 +4765,7 @@ async function socialDeleteAccount(request, env) {
 
   let verified = false;
   let providerIdToken = null;
-  if (password && password.length <= 128) {
-    try { verified = (await verifyPassword(password, row.password_hash)).valid; } catch {}
-  }
-  if (!verified && password && password.length <= 128 && row.firebase_uid && row.email) {
+  if (password && password.length <= 128 && row.firebase_uid && row.email) {
     try {
       const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + FIREBASE_WEB_API_KEY, {
         method: "POST",
@@ -4782,6 +4779,8 @@ async function socialDeleteAccount(request, env) {
         typeof identity.idToken === "string");
       if (verified) providerIdToken = identity.idToken;
     } catch {}
+  } else if (password && password.length <= 128) {
+    try { verified = (await verifyPassword(password, row.password_hash)).valid; } catch {}
   }
   if (!verified) return error("Incorrect password. Verify your current sign-in password before deleting your account.", 403);
 
