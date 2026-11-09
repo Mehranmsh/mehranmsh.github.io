@@ -232,31 +232,54 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
   return true;
 }
 
-// Conservative, account-wide reservation for this Worker's Workers AI calls.
- // Reserve half of Cloudflare's 10,000-Neuron free daily allocation for other account usage.
- // Image generation reserves 2,000 Neurons (actual published estimate is lower).
- // Reservations are never refunded after a model call because failed responses
- // may still have consumed inference resources. UTC date matches Cloudflare reset.
-const SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000;
-async function reserveSocialWorkersAIBudget(env, reservedNeurons) {
-  if (!env?.DB || !Number.isInteger(reservedNeurons) || reservedNeurons < 1) {
+// Separate daily product allowances with one shared fail-closed ceiling.
+// These are conservative reservation credits, NOT Cloudflare's measured Neurons.
+// Cloudflare Free itself remains the final hard stop at 10,000 actual Neurons/day.
+// Keep 10% headroom for model variance and unrelated account-level AI usage.
+const WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000;
+const WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000;
+const WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000;
+async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "social") {
+  if (!env?.DB || !Number.isInteger(reservedCredits) || reservedCredits < 1 ||
+      !["music", "social"].includes(productKey)) {
     throw new Error("Workers AI budget guard is unavailable.");
   }
   await ensureSocialTables(env);
   const dayKey = new Date().toISOString().slice(0, 10);
-  const row = await env.DB.prepare(`
-    INSERT INTO social_ai_daily_budget(day_key,reserved_neurons,request_count,updated_at)
-    VALUES(?,?,1,CURRENT_TIMESTAMP)
+  const isMusic = productKey === "music";
+  const statement = isMusic ? `
+    INSERT INTO workers_ai_daily_budget(day_key,music_reserved,social_reserved,total_reserved,request_count)
+    VALUES(?,?,0,?,1)
     ON CONFLICT(day_key) DO UPDATE SET
-      reserved_neurons=social_ai_daily_budget.reserved_neurons+excluded.reserved_neurons,
-      request_count=social_ai_daily_budget.request_count+1,
+      music_reserved=workers_ai_daily_budget.music_reserved+excluded.music_reserved,
+      total_reserved=workers_ai_daily_budget.total_reserved+excluded.total_reserved,
+      request_count=workers_ai_daily_budget.request_count+1,
       updated_at=CURRENT_TIMESTAMP
-    WHERE social_ai_daily_budget.reserved_neurons+excluded.reserved_neurons<=?
-    RETURNING reserved_neurons,request_count
-  `).bind(dayKey, reservedNeurons, SOCIAL_AI_DAILY_BUDGET_NEURONS).first();
+    WHERE workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?
+      AND workers_ai_daily_budget.music_reserved+excluded.music_reserved<=?
+    RETURNING music_reserved,social_reserved,total_reserved,request_count
+  ` : `
+    INSERT INTO workers_ai_daily_budget(day_key,music_reserved,social_reserved,total_reserved,request_count)
+    VALUES(?,0,?,?,1)
+    ON CONFLICT(day_key) DO UPDATE SET
+      social_reserved=workers_ai_daily_budget.social_reserved+excluded.social_reserved,
+      total_reserved=workers_ai_daily_budget.total_reserved+excluded.total_reserved,
+      request_count=workers_ai_daily_budget.request_count+1,
+      updated_at=CURRENT_TIMESTAMP
+    WHERE workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?
+      AND workers_ai_daily_budget.social_reserved+excluded.social_reserved<=?
+    RETURNING music_reserved,social_reserved,total_reserved,request_count
+  `;
+  const row = isMusic
+    ? await env.DB.prepare(statement).bind(dayKey, reservedCredits, reservedCredits,
+        WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS, WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS).first()
+    : await env.DB.prepare(statement).bind(dayKey, reservedCredits, reservedCredits,
+        WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS, WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS).first();
   return {
     allowed: !!row,
-    reservedNeurons: row ? Number(row.reserved_neurons) : null,
+    product: productKey,
+    reservedCredits: row ? Number(row[isMusic ? "music_reserved" : "social_reserved"]) : null,
+    totalReservedCredits: row ? Number(row.total_reserved) : null,
     requestCount: row ? Number(row.request_count) : null,
     dayKey
   };
@@ -289,6 +312,14 @@ async function createSocialTables(db) {
     `CREATE TABLE IF NOT EXISTS social_ai_daily_budget(
       day_key TEXT PRIMARY KEY,
       reserved_neurons INTEGER NOT NULL DEFAULT 0,
+      request_count INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS workers_ai_daily_budget(
+      day_key TEXT PRIMARY KEY,
+      music_reserved INTEGER NOT NULL DEFAULT 0,
+      social_reserved INTEGER NOT NULL DEFAULT 0,
+      total_reserved INTEGER NOT NULL DEFAULT 0,
       request_count INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
@@ -4194,7 +4225,7 @@ async function socialAIRequest(provider, model, messages, env, images = []) {
       if (images.length !== 1) throw new Error("Free Cloudflare Vision currently accepts one image per message.");
       cloudflareInput.image = `data:${images[0].mime};base64,${images[0].data}`;
     }
-    const budget = await reserveSocialWorkersAIBudget(env, 1500);
+    const budget = await reserveSocialWorkersAIBudget(env, 500, "social");
     if (!budget.allowed) throw new Error("Daily free Workers AI budget is reserved for today.");
     const result = await env.AI.run(model, cloudflareInput);
     const answer = result?.response || result?.result?.response || "";
@@ -4283,7 +4314,7 @@ async function socialGenerateAssistantImage(request, env) {
       form.append("width", "1024");
       form.append("height", "1024");
       const multipartRequest = new Request("https://social-image-generation.invalid/", { method: "POST", body: form });
-      const budget = await reserveSocialWorkersAIBudget(env, 2000);
+      const budget = await reserveSocialWorkersAIBudget(env, 2000, "social");
       if (!budget.allowed) {
         return json({ success: false, error: "Today's free image-generation allowance has been reached. It will reset at 00:00 UTC.", code: "SOCIAL_AI_DAILY_FREE_LIMIT", requestId, stage: currentStage }, 429);
       }
@@ -4312,7 +4343,7 @@ async function socialGenerateAssistantImage(request, env) {
       logStage("model_finished", { model });
       mimeType = "image/png";
     } else {
-      const budget = await reserveSocialWorkersAIBudget(env, 2000);
+      const budget = await reserveSocialWorkersAIBudget(env, 2000, "social");
       if (!budget.allowed) {
         return json({ success: false, error: "Today's free image-generation allowance has been reached. It will reset at 00:00 UTC.", code: "SOCIAL_AI_DAILY_FREE_LIMIT", requestId, stage: currentStage }, 429);
       }
@@ -4476,7 +4507,7 @@ async function musicGenerateLyrics(request, env) {
   ].filter(Boolean).join("\n");
   const model = cleanText(env.SOCIAL_AI_MODEL_CLOUDFLARE, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   try {
-    const budget = await reserveSocialWorkersAIBudget(env, 1200);
+    const budget = await reserveSocialWorkersAIBudget(env, structure === "short" ? 250 : 500, "music");
     if (!budget.allowed) {
       return json({
         success: false,
