@@ -2638,15 +2638,18 @@ async function socialCallPoll(request, env, callId) {
   if (!call || call.status!=="active") return error("This call has ended",404);
   const member = await isConversationMember(env,call.conversation_id,user.id);
   if (!member) return error("You are not allowed in this call",403);
+  if (await isDirectConversationBlocked(env, call.conversation_id, user.id)) return error("Calling is unavailable for this conversation",403);
   const participant = await env.DB.prepare("SELECT left_at FROM social_call_participants WHERE call_id=? AND user_id=?").bind(callId,user.id).first();
   if (!participant || participant.left_at) return error("Join the call first",403);
   await env.DB.prepare("UPDATE social_call_participants SET last_seen_at=CURRENT_TIMESTAMP WHERE call_id=? AND user_id=?").bind(callId,user.id).run();
   const participants = await env.DB.prepare(`
     SELECT p.user_id,u.username,u.display_name,u.avatar_url
-    FROM social_call_participants p JOIN social_users u ON u.id=p.user_id
+    FROM social_call_participants p
+    JOIN social_users u ON u.id=p.user_id
+    JOIN social_conversation_members cm ON cm.conversation_id=? AND cm.user_id=p.user_id
     WHERE p.call_id=? AND p.left_at IS NULL AND p.last_seen_at>=datetime('now','-25 seconds')
     ORDER BY p.joined_at
-  `).bind(callId).all();
+  `).bind(call.conversation_id,callId).all();
   const url = new URL(request.url);
   const after = Math.max(0,Number(url.searchParams.get("after")||0));
   const signals = await env.DB.prepare(`
