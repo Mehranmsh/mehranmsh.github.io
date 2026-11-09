@@ -471,6 +471,17 @@ def main():
                     db.close(); return !!record?.blob && record.blob.size > 44;
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
+                # Build a melodic synth layer and connect its notes to the lyric performance guide.
+                page.locator("#patternMode").select_option("keys")
+                page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
+                page.locator("#patternTrackName").fill("Generated keys phrase")
+                page.locator("#renderPattern").click()
+                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                page.locator('[data-view="lyrics"]').click()
+                page.locator("#loadProjectMelody").click()
+                assert "C3" in page.locator("#vocalGuideNotes").input_value()
+                assert "melody notes loaded" in page.locator("#vocalGuideStatus").inner_text()
+
 
                 # Generate an original local drum loop and attach its WAV to the same project.
                 page.locator("#patternTempo").fill("96")
