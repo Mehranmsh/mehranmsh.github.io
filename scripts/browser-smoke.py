@@ -553,7 +553,7 @@ def main():
                 page.locator("#vocalGuideSyllables").fill("one / two / three / four / five / six / seven / eight")
                 page.locator("#vocalGuideTempo").fill("96")
                 page.locator("#playVocalGuide").click()
-                assert "Rehearsing" in page.locator("#vocalGuideStatus").inner_text()
+                page.wait_for_function("document.querySelector('#vocalGuideStatus')?.textContent.includes('Rehearsing')", timeout=5000)
                 page.locator("#stopVocalGuide").click()
 
 
