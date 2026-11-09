@@ -132,6 +132,11 @@ def main():
 
 
 
+    studio = (ROOT / "music-studio.html").read_text(encoding="utf-8")
+    for marker in ['id="patternVelocity"', 'id="patternGate"', 'patternVelocityValue', 'patternGateValue', 'baseDuration*gate']:
+        if marker not in studio:
+            raise SystemExit("Music Studio note velocity/gate controls are missing: " + marker)
+
     print("3/4 Checking SOCIAL account deletion and re-authentication controls...")
     app = (ROOT / "index.html").read_text(encoding="utf-8")
     required_social_deletion_markers = [
