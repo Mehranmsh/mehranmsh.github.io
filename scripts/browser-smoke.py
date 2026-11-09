@@ -184,6 +184,15 @@ def main():
                 assert waveform.count() == 1 and waveform.get_attribute("aria-label").startswith("Lead Vocal waveform"), "Decoded audio waveform was not rendered for the attached track."
                 waveform_box = waveform.bounding_box()
                 assert waveform_box and waveform_box["width"] >= 280 and waveform_box["height"] >= 90, "Waveform canvas has invalid dimensions."
+                zoom_control = page.locator("[data-waveform-zoom]")
+                assert zoom_control.count() == 1, "Waveform timeline zoom control is missing."
+                base_width = waveform_box["width"]
+                zoom_control.fill("3")
+                page.wait_for_function("document.querySelector('[data-track-waveform]').getBoundingClientRect().width > 2.8 * "+str(1)+" * "+str(1)+" && document.querySelector('[data-waveform-zoom-value]').textContent === '3×'", timeout=5000)
+                zoomed_width = waveform.bounding_box()["width"]
+                assert zoomed_width >= base_width * 2.8, "Waveform timeline did not expand at 3x zoom."
+                zoom_control.fill("1")
+                page.wait_for_function("document.querySelector('[data-waveform-zoom-value]').textContent === '1×'", timeout=5000)
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
