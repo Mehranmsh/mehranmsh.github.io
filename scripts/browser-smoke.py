@@ -322,10 +322,11 @@ def main():
                     frames = tuned_stem.getnframes()
                     pcm = tuned_stem.readframes(frames)
                     values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
-                    # Left channel, 0.20–0.45 s: A4 should be moved toward G#4 in C natural minor.
-                    segment = values[int(0.20 * 44100) * 2:int(0.45 * 44100) * 2:2]
+                    # After the 0.10 s source trim, the 440 Hz tone begins at 0.05 s in the rendered stem.
+                    # Measure only the retained, non-silent 0.07–0.19 s window.
+                    segment = values[int(0.07 * 44100) * 2:int(0.19 * 44100) * 2:2]
                     crossings = sum(1 for a, b in zip(segment, segment[1:]) if a <= 0 < b)
-                    measured_hz = crossings / 0.25
+                    measured_hz = crossings / 0.12
                     assert 395 <= measured_hz <= 435, "Pitch correction did not shift A4 toward G#4: " + str(measured_hz)
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
