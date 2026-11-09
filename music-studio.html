@@ -229,6 +229,7 @@
   trackAudioNodes.clear();
  }
  function clearTrackAudioUrls(){
+  trackWaveformPeaks.clear();
   disconnectTrackAudioNodes();
   for(const url of trackAudioUrls.values())URL.revokeObjectURL(url);
   trackAudioUrls.clear();
