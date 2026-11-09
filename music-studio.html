@@ -77,7 +77,7 @@
  <section id="view-library" class="hidden"><div class="section-head"><div><h2>My projects</h2><p>Drafts stored locally on this device.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="exportBackup">Export backup</button><button class="btn secondary" id="importBackup">Import backup</button><input id="backupFile" type="file" accept="application/json,.json" hidden><button class="btn" data-go="create">＋ New project</button></div></div><div class="notice">Backups contain project text and settings only. They do not contain generated audio or voice recordings.</div><div id="libraryProjects" class="projects"></div></section>
  <section id="view-lyrics" class="hidden">
   <div class="panel" id="aiSongwriterPanel" style="margin-bottom:16px">
-   <div class="section-head"><div><h2>✦ AI Songwriter</h2><p>Generate an original Persian song lyric from your idea. Uses the capped free Cloudflare AI allowance.</p></div><span class="tag">FREE DAILY QUOTA</span></div>
+   <div class="section-head"><div><h2>✦ AI Songwriter</h2><p>Generate an original Persian song lyric from your idea. Uses MEHRAN MUSIC's reserved free daily AI allowance.</p></div><span class="tag">FREE DAILY QUOTA</span></div>
    <div class="two">
     <div class="field"><label for="songwriterTopic">SONG IDEA / TOPIC</label><input id="songwriterTopic" maxlength="400" placeholder="e.g. Missing someone who feels far away"></div>
     <div class="field"><label for="songwriterMood">MOOD</label><select id="songwriterMood"><option>عاشقانه</option><option selected>دلتنگ</option><option>غمگین</option><option>امیدوار</option><option>حماسی</option><option>آرام</option><option>تلخ</option><option>شاد</option><option>نوستالژیک</option></select></div>
@@ -89,11 +89,11 @@
    <div class="field"><label for="songwriterDetails">DETAILS YOU WANT INCLUDED (OPTIONAL)</label><textarea id="songwriterDetails" rows="2" maxlength="1200" placeholder="A memory, a place, a special image, a message or a feeling..."></textarea></div>
    <div class="two">
     <div class="field"><label for="songwriterStructure">LYRIC LENGTH</label><select id="songwriterStructure"><option value="full" selected>Full song</option><option value="short">Short draft</option></select></div>
-    <div class="field" style="justify-content:end"><button class="btn" id="generateSongLyrics" type="button">✦ Generate lyrics</button><small style="color:var(--muted)">No OpenAI key or paid API is used. Generation stops when the shared free allowance is reserved.</small></div>
+    <div class="field" style="justify-content:end"><button class="btn" id="generateSongLyrics" type="button">✦ Generate lyrics</button><small style="color:var(--muted)">No paid API or external AI key is used. Music has its own daily reservation; a global safety cap still protects all AI features.</small></div>
    </div>
    <div class="field"><label for="songwriterResult">GENERATED DRAFT</label><textarea id="songwriterResult" rows="12" readonly placeholder="Your generated song lyric will appear here..."></textarea></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="useSongwriterDraft" type="button" disabled>Replace Lyrics Lab text</button><button class="btn secondary" id="appendSongwriterDraft" type="button" disabled>Append to Lyrics Lab</button></div>
-   <p id="songwriterStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin:10px 0 0">Free mode · daily quota is shared with other MEHRAN AI features. No automatic paid fallback.</p>
+   <p id="songwriterStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin:10px 0 0">Free mode · separate MUSIC daily budget, protected by a shared global safety cap. No automatic paid fallback.</p>
   </div>
   <div class="section-head"><div><h2>Lyrics Lab</h2><p>Write and organize lyrics locally, then save them into a music project.</p></div></div>
   <div class="workspace">
