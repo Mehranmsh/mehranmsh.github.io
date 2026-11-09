@@ -483,8 +483,8 @@
 
  const WAV_EXPORT_MAX_TRACKS=8,WAV_EXPORT_MAX_SECONDS=120,WAV_EXPORT_MAX_COMPRESSED_BYTES=40*1024*1024,WAV_EXPORT_MEMORY_BUDGET=110*1024*1024;
  function scheduleTrackFadeEnvelope(param,context,duration,fadeIn,fadeOut,when=0){
-  const length=Math.max(0,Number(duration)||0);if(!length)return;
-  const start=Math.max(0,Number(when)||0),inTime=Math.min(10,length,Math.max(0,Number(fadeIn)||0)),outTime=Math.min(10,length,Math.max(0,Number(fadeOut)||0));
+  const knownLength=Number.isFinite(Number(duration))&&Number(duration)>0,length=knownLength?Number(duration):0,start=Math.max(0,Number(when)||0),inTime=Math.min(10,knownLength?length:10,Math.max(0,Number(fadeIn)||0)),outTime=knownLength?Math.min(10,length,Math.max(0,Number(fadeOut)||0)):0;
+  if(!knownLength&&!inTime)return;
   param.cancelScheduledValues(start);param.setValueAtTime(inTime>0?0:1,start);
   if(inTime>0)param.linearRampToValueAtTime(1,start+inTime);
   if(outTime>0){const outStart=Math.max(inTime,length-outTime);param.setValueAtTime(1,start+outStart);param.linearRampToValueAtTime(0,start+length);}
