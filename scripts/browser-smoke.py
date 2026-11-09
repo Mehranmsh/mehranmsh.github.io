@@ -125,6 +125,7 @@ def main():
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه")
+                page.locator("#saveLyrics").click()
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
                 page.locator("#vocalGuideTempo").fill("96")
