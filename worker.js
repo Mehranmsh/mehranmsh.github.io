@@ -4758,31 +4758,32 @@ async function socialDeleteAccount(request, env) {
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const password = typeof body.password === "string" ? body.password : "";
-  const idToken = typeof body.idToken === "string" ? body.idToken : "";
   const row = await env.DB.prepare(
     "SELECT id,password_hash,firebase_uid,email FROM social_users WHERE id=? AND is_active=1"
   ).bind(user.id).first();
   if (!row) return error("Account is not active", 404);
 
   let verified = false;
+  let providerIdToken = null;
   if (password && password.length <= 128) {
     try { verified = (await verifyPassword(password, row.password_hash)).valid; } catch {}
   }
-  if (!verified && idToken && idToken.length <= 10000 && row.firebase_uid) {
+  if (!verified && password && password.length <= 128 && row.firebase_uid && row.email) {
     try {
-      const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
+      const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + FIREBASE_WEB_API_KEY, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken })
+        body: JSON.stringify({ email: row.email, password, returnSecureToken: true })
       });
-      const lookup = response.ok ? await response.json() : null;
-      const identity = lookup && Array.isArray(lookup.users) ? lookup.users[0] : null;
+      const identity = response.ok ? await response.json() : null;
       verified = Boolean(identity && identity.localId === row.firebase_uid &&
         identity.emailVerified === true &&
-        cleanEmail(identity.email || "") === cleanEmail(row.email || ""));
+        cleanEmail(identity.email || "") === cleanEmail(row.email || "") &&
+        typeof identity.idToken === "string");
+      if (verified) providerIdToken = identity.idToken;
     } catch {}
   }
-  if (!verified) return error("Re-authenticate with your current sign-in provider before deleting your account.", 403);
+  if (!verified) return error("Incorrect password. Verify your current sign-in password before deleting your account.", 403);
 
   // Remove owned objects from the external media provider first. If storage refuses,
   // keep the account and database records intact so the owner can retry.
@@ -4904,12 +4905,12 @@ async function socialDeleteAccount(request, env) {
   }
 
   let providerIdentityDeleted = null;
-  if (idToken && row.firebase_uid) {
+  if (providerIdToken && row.firebase_uid) {
     try {
       const providerResponse = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete?key=" + FIREBASE_WEB_API_KEY, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken })
+        body: JSON.stringify({ idToken: providerIdToken })
       });
       providerIdentityDeleted = providerResponse.ok;
       if (!providerIdentityDeleted) {
