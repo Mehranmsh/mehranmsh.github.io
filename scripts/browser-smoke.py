@@ -63,8 +63,10 @@ def main():
                 print("DEBUG library content:", library_text)
                 if not saved_projects or "Automated Audio QA" not in saved_projects:
                     raise AssertionError("Project creation did not persist. Browser errors: " + " | ".join(errors))
-                project_button = page.locator('#libraryProjects [data-open]').filter(has_text="Automated Audio QA")
-                project_button.wait_for(state="visible")
+                project_card = page.locator("#libraryProjects .project").filter(has_text="Automated Audio QA")
+                project_card.wait_for(state="visible")
+                project_button = project_card.locator("[data-open]")
+                assert project_button.is_visible()
 
                 # Open the mix planner, add a track and verify the complete effects rack.
                 page.locator('[data-view="mix"]').click()
