@@ -132,7 +132,7 @@
    <div class="panel">
     <h3>Track setup</h3>
     <div class="field"><label for="mixProject">PROJECT</label><select id="mixProject"><option value="">Choose a project…</option></select></div>
-    <div class="notice">Local multitrack playback mixer. Gain, pan and mute affect playback in this browser. This is not yet a rendered/exported mix.</div><div class="two" style="margin:12px 0"><button class="btn" id="playMix" type="button">▶ Play mix</button><button class="btn secondary" id="stopMix" type="button">■ Stop</button></div><p id="mixerStatus" style="color:var(--muted);font-size:11px">Attach audio to tracks, then press Play mix. Playback starts from the beginning.</p><div class="panel" style="margin:12px 0;padding:14px"><h3>Master channel</h3><p style="color:var(--muted);font-size:11px">Global EQ and output level affect the complete mix in real time.</p><div class="two"><label>Master level <input id="masterLevel" type="range" min="-24" max="6" step="1" value="0"><small id="masterLevelValue">0 dB</small></label><label>Low · 120 Hz <input id="masterLow" type="range" min="-12" max="12" step="1" value="0"><small id="masterLowValue">0 dB</small></label><label>Mid · 1 kHz <input id="masterMid" type="range" min="-12" max="12" step="1" value="0"><small id="masterMidValue">0 dB</small></label><label>High · 8 kHz <input id="masterHigh" type="range" min="-12" max="12" step="1" value="0"><small id="masterHighValue">0 dB</small></label></div></div>
+    <div class="notice">Local multitrack playback mixer. Gain, pan and mute affect playback in this browser. This is not yet a rendered/exported mix.</div><div class="two" style="margin:12px 0"><button class="btn" id="playMix" type="button">▶ Play mix</button><button class="btn secondary" id="stopMix" type="button">■ Stop</button></div><p id="mixerStatus" style="color:var(--muted);font-size:11px">Attach audio to tracks, then press Play mix. Playback starts from the beginning.</p><div class="panel" style="margin:12px 0;padding:14px"><h3>Master channel</h3><p style="color:var(--muted);font-size:11px">Global EQ and output level affect the complete mix in real time.</p><div class="two"><label>Master level <input id="masterLevel" type="range" min="-24" max="6" step="1" value="0"><small id="masterLevelValue">0 dB</small></label><label>Low · 120 Hz <input id="masterLow" type="range" min="-12" max="12" step="1" value="0"><small id="masterLowValue">0 dB</small></label><label>Mid · 1 kHz <input id="masterMid" type="range" min="-12" max="12" step="1" value="0"><small id="masterMidValue">0 dB</small></label><label>High · 8 kHz <input id="masterHigh" type="range" min="-12" max="12" step="1" value="0"><small id="masterHighValue">0 dB</small></label></div><label style="display:flex;align-items:center;gap:8px;margin-top:12px"><input id="masterCompressor" type="checkbox"> Master compressor · gentle dynamics control</label></div></div>
     <div class="field"><label for="trackName">TRACK NAME</label><input id="trackName" maxlength="60" placeholder="e.g. Main acoustic guitar"></div>
     <div class="two">
      <div class="field"><label for="trackType">TRACK TYPE</label><select id="trackType"><option>Drums / Percussion</option><option>Bass</option><option>Keys / Piano</option><option>Guitar</option><option>Strings</option><option>Synth / Pads</option><option>Lead Vocal</option><option>Backing Vocal</option><option>Choir</option><option>Sound Effects</option><option>Other</option></select></div>
@@ -160,9 +160,9 @@
  let mixAudioContext=null;
  const trackAudioNodes=new Map();
  const MASTER_KEY="mehran_music_studio_master_v1";
- let masterSettings={level:0,low:0,mid:0,high:0};
- let masterLowNode=null,masterMidNode=null,masterHighNode=null,masterGainNode=null;
- try{const saved=JSON.parse(localStorage.getItem(MASTER_KEY)||"null");if(saved&&typeof saved==="object")masterSettings={level:Number(saved.level)||0,low:Number(saved.low)||0,mid:Number(saved.mid)||0,high:Number(saved.high)||0};}catch{}
+ let masterSettings={level:0,low:0,mid:0,high:0,compressor:false};
+ let masterLowNode=null,masterMidNode=null,masterHighNode=null,masterCompressorNode=null,masterGainNode=null;
+ try{const saved=JSON.parse(localStorage.getItem(MASTER_KEY)||"null");if(saved&&typeof saved==="object")masterSettings={level:Number(saved.level)||0,low:Number(saved.low)||0,mid:Number(saved.mid)||0,high:Number(saved.high)||0,compressor:saved.compressor===true};}catch{}
  function openAudioDb(){
   if(!("indexedDB" in window))return Promise.reject(new Error("This browser does not support local audio storage."));
   if(!audioDbPromise)audioDbPromise=new Promise((resolve,reject)=>{
@@ -287,6 +287,9 @@
    masterLowNode.gain.setTargetAtTime(Math.max(-12,Math.min(12,masterSettings.low)),mixAudioContext.currentTime,0.02);
    masterMidNode.gain.setTargetAtTime(Math.max(-12,Math.min(12,masterSettings.mid)),mixAudioContext.currentTime,0.02);
    masterHighNode.gain.setTargetAtTime(Math.max(-12,Math.min(12,masterSettings.high)),mixAudioContext.currentTime,0.02);
+   masterCompressorNode.threshold.setTargetAtTime(masterSettings.compressor?-18:0,mixAudioContext.currentTime,0.02);
+   masterCompressorNode.knee.setTargetAtTime(masterSettings.compressor?24:0,mixAudioContext.currentTime,0.02);
+   masterCompressorNode.ratio.setTargetAtTime(masterSettings.compressor?3.5:1,mixAudioContext.currentTime,0.02);
   }
  }
  function setupMasterChain(){
@@ -294,8 +297,9 @@
   masterLowNode=mixAudioContext.createBiquadFilter();masterLowNode.type="lowshelf";masterLowNode.frequency.value=120;
   masterMidNode=mixAudioContext.createBiquadFilter();masterMidNode.type="peaking";masterMidNode.frequency.value=1000;masterMidNode.Q.value=0.8;
   masterHighNode=mixAudioContext.createBiquadFilter();masterHighNode.type="highshelf";masterHighNode.frequency.value=8000;
+  masterCompressorNode=mixAudioContext.createDynamicsCompressor();
   masterGainNode=mixAudioContext.createGain();
-  masterLowNode.connect(masterMidNode);masterMidNode.connect(masterHighNode);masterHighNode.connect(masterGainNode);masterGainNode.connect(mixAudioContext.destination);
+  masterLowNode.connect(masterMidNode);masterMidNode.connect(masterHighNode);masterHighNode.connect(masterCompressorNode);masterCompressorNode.connect(masterGainNode);masterGainNode.connect(mixAudioContext.destination);
   applyMasterSettings();
  }
  function updateMasterSetting(key,value){
@@ -365,6 +369,7 @@
  $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();});
  $("mixProject").addEventListener("change",()=>{stopMix();renderMixTracks();});
  $("playMix").addEventListener("click",playMix);
+ $("masterCompressor").checked=masterSettings.compressor;$("masterCompressor").addEventListener("change",e=>{masterSettings.compressor=e.target.checked;applyMasterSettings();try{localStorage.setItem(MASTER_KEY,JSON.stringify(masterSettings));}catch{};});
  for(const key of ["level","low","mid","high"]){const id=key==="level"?"masterLevel":"master"+key[0].toUpperCase()+key.slice(1);$(id).value=masterSettings[key];$(id).addEventListener("input",e=>updateMasterSetting(key,e.target.value));$(id).addEventListener("change",e=>updateMasterSetting(key,e.target.value));const label=$(id+"Value");if(label)label.textContent=masterSettings[key]+" dB";}
  $("stopMix").addEventListener("click",stopMix);
  $("addTrack").addEventListener("click",addTrack);
