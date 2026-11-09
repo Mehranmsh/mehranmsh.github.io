@@ -4772,12 +4772,20 @@ async function socialDeleteAccount(request, env) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: row.email, password, returnSecureToken: true })
       });
-      const identity = response.ok ? await response.json() : null;
-      verified = Boolean(identity && identity.localId === row.firebase_uid &&
-        identity.emailVerified === true &&
-        cleanEmail(identity.email || "") === cleanEmail(row.email || "") &&
-        typeof identity.idToken === "string");
-      if (verified) providerIdToken = identity.idToken;
+      const loginIdentity = response.ok ? await response.json() : null;
+      if (loginIdentity && loginIdentity.localId === row.firebase_uid && typeof loginIdentity.idToken === "string") {
+        const lookupResponse = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: loginIdentity.idToken })
+        });
+        const lookup = lookupResponse.ok ? await lookupResponse.json() : null;
+        const identity = lookup && Array.isArray(lookup.users) ? lookup.users[0] : null;
+        verified = Boolean(identity && identity.localId === row.firebase_uid &&
+          identity.emailVerified === true &&
+          cleanEmail(identity.email || "") === cleanEmail(row.email || ""));
+        if (verified) providerIdToken = loginIdentity.idToken;
+      }
     } catch {}
   } else if (password && password.length <= 128) {
     try { verified = (await verifyPassword(password, row.password_hash)).valid; } catch {}
