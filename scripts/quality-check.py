@@ -116,7 +116,9 @@ def main():
         'MAX_AUDIO_BYTES=100*1024*1024', 'function storeTrackAudio(',
         'function readTrackAudio(', 'data-track-audio-player',
         'This is preview playback, not multitrack mixing or mastering',
-        'The file is not being uploaded', 'restoreTrackAudioAsset(key,previousAudio)'
+        'The file is not being uploaded', 'restoreTrackAudioAsset(key,previousAudio)',
+        'data-track-audio-download', 'async function downloadTrackAudio(',
+        'async function deleteProjectAudioAssets('
     ]
     missing = [marker for marker in required_local_audio_markers if marker not in studio]
     if missing:
