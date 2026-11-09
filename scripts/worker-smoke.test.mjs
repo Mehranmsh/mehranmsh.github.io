@@ -1057,3 +1057,28 @@ test("SOCIAL deletion transfers owned communities only to active existing member
   assert.ok(handler.includes("UPDATE social_conversation_members SET role='owner'") && handler.includes("c.owner_id=social_conversation_members.user_id"));
   assert.ok(handler.includes("UPDATE social_channel_members SET role='owner'") && handler.includes("c.owner_id=social_channel_members.user_id"));
 });
+
+
+test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits remain IP-scoped", () => {
+  const helperStart = workerSource.indexOf("async function checkRateLimit");
+  const helperEnd = workerSource.indexOf("\n}", helperStart);
+  const helper = workerSource.slice(helperStart, helperEnd);
+  assert.match(helper, /account:\\$\\{accountId\\}/);
+  assert.match(helper, /ip:\\$\\{ip\\}/);
+  assert.match(helper, /checkRateLimit\\(env, request, scope, maxAttempts, windowSeconds, blockSeconds, accountId = null\\)/);
+  for (const [fn, scope] of [
+    ["socialCallStart", "social-call-start"],
+    ["socialCallJoin", "social-call-join"],
+    ["socialCallPoll", "social-call-poll"],
+    ["socialCallSignal", "social-call-signal"],
+    ["socialAssistantChat", "social-ai-chat"],
+    ["socialDeleteAccount", "account-delete"]
+  ]) {
+    const start = workerSource.indexOf("async function " + fn);
+    assert.ok(start >= 0, fn + " must exist");
+    const next = workerSource.indexOf("\\nasync function ", start + 1);
+    const body = workerSource.slice(start, next > start ? next : undefined);
+    assert.match(body, new RegExp(scope.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&") + ".*user\\.id"));
+  }
+  assert.match(workerSource.slice(workerSource.indexOf("async function socialRegister"), workerSource.indexOf("async function socialFirebaseSession")), /checkRateLimit\\(env, request, "register-v3", 20, 3600, 600\\)/);
+});
