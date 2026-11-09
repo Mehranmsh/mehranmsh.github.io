@@ -2563,6 +2563,7 @@ async function socialReactStory(request, env, id) {
 async function socialCallStart(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await checkRateLimit(env, request, "social-call-start", 5, 600, 600)) return error("Too many call attempts. Please wait before starting another call.", 429);
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const conversationId = cleanText(body.conversationId, 150);
@@ -2615,6 +2616,7 @@ async function socialCallActive(request, env) {
 async function socialCallJoin(request, env, callId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required",401);
+  if (!await checkRateLimit(env, request, "social-call-join", 20, 60, 60)) return error("Too many call join attempts. Please wait a moment.",429);
   const call = await env.DB.prepare("SELECT id,conversation_id,kind,status FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("This call has ended",404);
   if (!await isConversationMember(env,call.conversation_id,user.id)) return error("You are not a member of this conversation",403);
@@ -2634,6 +2636,7 @@ async function socialCallJoin(request, env, callId) {
 async function socialCallPoll(request, env, callId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required",401);
+  if (!await checkRateLimit(env, request, "social-call-poll", 100, 60, 60)) return error("Call polling is temporarily rate limited. Please reconnect shortly.",429);
   const call = await env.DB.prepare("SELECT id,conversation_id,host_id,kind,status,created_at FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("This call has ended",404);
   const member = await isConversationMember(env,call.conversation_id,user.id);
@@ -2651,12 +2654,13 @@ async function socialCallPoll(request, env, callId) {
     ORDER BY p.joined_at
   `).bind(call.conversation_id,callId).all();
   const url = new URL(request.url);
-  const after = Math.max(0,Number(url.searchParams.get("after")||0));
+  const rawAfter = Number(url.searchParams.get("after")||0);
+  const after = Number.isSafeInteger(rawAfter) && rawAfter >= 0 ? rawAfter : 0;
   const signals = await env.DB.prepare(`
     SELECT seq,from_user_id,signal_type,payload_json
     FROM social_call_signals WHERE call_id=? AND to_user_id=? AND seq>?
     ORDER BY seq LIMIT 100
-  `).bind(callId,user.id,Number.isFinite(after)?after:0).all();
+  `).bind(callId,user.id,after).all();
   const items=(signals.results||[]).map(row=>({seq:row.seq,fromUserId:row.from_user_id,type:row.signal_type,payload:JSON.parse(row.payload_json||"{}")}));
   return json({success:true,call:{id:call.id,kind:call.kind,hostId:call.host_id,status:call.status,createdAt:call.created_at},userId:user.id,participants:participants.results||[],signals:items,nextAfter:items.length?items[items.length-1].seq:after});
 }
