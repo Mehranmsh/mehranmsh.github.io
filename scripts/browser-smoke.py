@@ -55,6 +55,14 @@ def main():
                 page.locator('[data-view="create"]').click()
                 page.locator("#projectName").fill("Automated Audio QA")
                 page.locator("#saveProject").click()
+                page.wait_for_timeout(250)
+                saved_projects = page.evaluate("localStorage.getItem('mehran_music_studio_drafts_v1')")
+                library_text = page.locator("#libraryProjects").inner_text()
+                print("DEBUG saved drafts:", saved_projects)
+                print("DEBUG library visible:", page.locator("#view-library").get_attribute("class"))
+                print("DEBUG library content:", library_text)
+                if not saved_projects or "Automated Audio QA" not in saved_projects:
+                    raise AssertionError("Project creation did not persist. Browser errors: " + " | ".join(errors))
                 project_button = page.locator('#libraryProjects [data-open]').filter(has_text="Automated Audio QA")
                 project_button.wait_for(state="visible")
 
