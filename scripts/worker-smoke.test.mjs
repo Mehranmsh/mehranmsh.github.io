@@ -771,7 +771,7 @@ test("MEHRAN MUSIC STUDIO keeps drafts local and separates free lyric AI from di
   assert.match(musicStudioSource, /No automatic paid fallback/);
   assert.match(workerSource, /async function musicGenerateLyrics\(/);
   assert.match(workerSource, /path === "\/music\/lyrics\/generate"/);
-  assert.match(workerSource, /reserveSocialWorkersAIBudget\\(env, structure === "short" \\? 250 : 500, "music"\\)/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
   assert.match(workerSource, /Paid external AI providers are disabled/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
 });
