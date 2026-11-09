@@ -115,7 +115,7 @@ def main():
         'id="trackAudioFile"', 'indexedDB.open(AUDIO_DB,1)',
         'MAX_AUDIO_BYTES=100*1024*1024', 'function storeTrackAudio(',
         'function readTrackAudio(', 'data-track-audio-player',
-        'Local playback only. No mix file is rendered or exported yet.',
+        'Exported WAV is downloaded to your device.',
         'The file is not being uploaded', 'restoreTrackAudioAsset(key,previousAudio)',
         'data-track-audio-download', 'async function downloadTrackAudio(',
         'id="renderWav"', 'id="renderWavStatus"', 'async function renderWavExport()', 'function writeWav16(', 'WAV_EXPORT_MAX_TRACKS=8', 'WAV_EXPORT_MAX_SECONDS=120', 'WAV_EXPORT_MAX_COMPRESSED_BYTES=40*1024*1024', 'WAV_EXPORT_MEMORY_BUDGET=110*1024*1024', 'OfflineAudioContext', 'createStereoPanner()',
