@@ -609,6 +609,7 @@
  $("lyricsProject").addEventListener("change",changeLyricsProject);
  $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();});
  $("analyzePitch").addEventListener("click",()=>{void analyzeVocalPitch();});
+ $("analyzeRecordingQuality").addEventListener("click",()=>{void analyzeRecordingQuality();});
   $("importVocalRecording").addEventListener("click",()=>{if(!$("vocalProject").value){$("vocalImportStatus").textContent="Choose a project first.";return;}$("vocalRecordingFile").click();});
   $("vocalRecordingFile").addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];e.target.value="";void importVocalRecording(file);});
  $("stemPitchStrengthValue").textContent=$("stemPitchStrength").value+"% · correction amount";$("stemPitchToleranceValue").textContent=$("stemPitchTolerance").value+" cents · expressive pitch allowed";
