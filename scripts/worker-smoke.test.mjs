@@ -960,6 +960,15 @@ test("SOCIAL call signaling rejects users removed from the conversation", () => 
   assert.match(handler, /if \(!senderMembership \|\| !targetMembership\)/);
 });
 
+test("SOCIAL active call participant lists exclude users removed from the conversation", () => {
+  const start = workerSource.indexOf("async function socialCallActive");
+  const end = workerSource.indexOf("\nasync function socialCallJoin", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /JOIN social_conversation_members cm ON cm\.conversation_id=\? AND cm\.user_id=p\.user_id/);
+  assert.match(handler, /\.bind\(call\.conversation_id,call\.id\)\.all\(\)/);
+});
+
 test("SOCIAL bot owners can rotate active credentials and delete only their own bots", () => {
   const rotateStart = workerSource.indexOf("async function socialRotateBotToken");
   const deleteStart = workerSource.indexOf("async function socialDeleteBot");
