@@ -117,10 +117,17 @@ test("password hashing parameters remain explicit and compatible with the deploy
   assert.match(workerSource, /iterations !== PBKDF2_ITERATIONS/);
 });
 
-test("Workers AI requests have a fail-closed daily reservation ceiling", () => {
-  assert.match(workerSource, /const SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000;/);
-  assert.match(workerSource, /if \(!env\?\.DB \|\| !Number\.isInteger\(reservedNeurons\) \|\| reservedNeurons < 1\)/);
-  assert.match(workerSource, /WHERE social_ai_daily_budget\.reserved_neurons\+excluded\.reserved_neurons<=\?/);
+test("Workers AI has separate Music and SOCIAL daily budgets under one fail-closed ceiling", () => {
+  assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
+  assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
+  assert.match(workerSource, /WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000/);
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS workers_ai_daily_budget/);
+  assert.match(workerSource, /productKey === "music"/);
+  assert.match(workerSource, /total_reserved/);
+  assert.match(workerSource, /music_reserved/);
+  assert.match(workerSource, /social_reserved/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 500, "social"\)/);
   assert.match(workerSource, /if \(!budget\.allowed\) throw new Error\("Daily free Workers AI budget is reserved for today\."/);
 });
 
@@ -764,9 +771,9 @@ test("MEHRAN MUSIC STUDIO keeps drafts local and separates free lyric AI from di
   assert.match(musicStudioSource, /No automatic paid fallback/);
   assert.match(workerSource, /async function musicGenerateLyrics\(/);
   assert.match(workerSource, /path === "\/music\/lyrics\/generate"/);
-  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 1200\)/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\\(env, structure === "short" \\? 250 : 500, "music"\\)/);
   assert.match(workerSource, /Paid external AI providers are disabled/);
-  assert.match(workerSource, /SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000/);
+  assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
 });
 
 test("MEHRAN MUSIC STUDIO supports new projects without overwriting the previously edited draft", () => {
@@ -819,7 +826,7 @@ test("SOCIAL AI never falls back to paid external providers", () => {
   const request = workerSource.slice(requestStart, requestEnd);
   assert.match(request, /provider !== "cloudflare"/);
   assert.match(request, /Paid external AI providers are disabled/);
-  assert.match(workerSource, /const SOCIAL_AI_DAILY_BUDGET_NEURONS = 5000/);
+  assert.match(workerSource, /const WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /Only the capped Cloudflare free allowance is available/);
   assert.match(workerSource, /Free image analysis currently supports one image per message/);
 });
