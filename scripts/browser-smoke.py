@@ -224,6 +224,7 @@ def main():
 
                 # Live playback must begin at the non-destructive trim start and stop before the trimmed tail.
                 page.locator("#playMix").click()
+                page.wait_for_function("Number(document.querySelector('[data-track-waveform]')?.dataset.playheadTime) > 0.12", timeout=5000)
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === false && document.querySelector('[data-track-audio-player]')?.currentTime >= 0.12", timeout=10000)
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && Math.abs(document.querySelector('[data-track-audio-player]')?.currentTime - 0.10) < 0.04", timeout=5000)
 
