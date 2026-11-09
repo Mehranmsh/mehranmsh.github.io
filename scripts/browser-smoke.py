@@ -489,6 +489,8 @@ def main():
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
                 # Render the section-aware arrangement and verify a real WAV download.
+                page.locator('[data-view="mix"]').click()
+                page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#arrangementTimeline select").nth(0).select_option(generated_track["id"])
                 with page.expect_download(timeout=30000) as arrangement_download:
                     page.locator("#exportArrangement").click()
