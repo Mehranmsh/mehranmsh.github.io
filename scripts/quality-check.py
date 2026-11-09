@@ -118,6 +118,7 @@ def main():
         'Local playback only. No mix file is rendered or exported yet.',
         'The file is not being uploaded', 'restoreTrackAudioAsset(key,previousAudio)',
         'data-track-audio-download', 'async function downloadTrackAudio(',
+        'id="renderWav"', 'id="renderWavStatus"', 'async function renderWavExport()', 'function writeWav16(', 'WAV_EXPORT_MAX_TRACKS=8', 'WAV_EXPORT_MAX_SECONDS=120', 'WAV_EXPORT_MAX_COMPRESSED_BYTES=40*1024*1024', 'WAV_EXPORT_MEMORY_BUDGET=110*1024*1024', 'OfflineAudioContext', 'createStereoPanner()',
         'async function deleteProjectAudioAssets('
     ]
     missing = [marker for marker in required_local_audio_markers if marker not in studio]
