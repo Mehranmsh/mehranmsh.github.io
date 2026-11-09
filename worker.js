@@ -2665,7 +2665,10 @@ async function socialCallSignal(request, env, callId) {
   if (!body) return error("Invalid request body");
   const type = ["offer","answer","candidate"].includes(body.type) ? body.type : null;
   const toUserId = cleanText(body.toUserId,150);
-  if (!type || !toUserId || !body.payload || typeof body.payload!=="object") return error("Invalid call signal");
+  if (!type || !toUserId || !body.payload || typeof body.payload!=="object" || Array.isArray(body.payload)) return error("Invalid call signal");
+  if (!await checkRateLimit(env, request, "social-call-signal", 300, 60, 60)) {
+    return error("Call signaling is temporarily rate limited. Please wait a moment.", 429);
+  }
   const call = await env.DB.prepare("SELECT conversation_id,status FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("Call has ended",404);
   const senderMembership = await isConversationMember(env, call.conversation_id, user.id);
