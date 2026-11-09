@@ -142,7 +142,7 @@
     <div class="two"><button class="btn" id="addTrack">Add track to project</button><button class="btn secondary" id="addSingerTracks" type="button">Add tracks from Vocal Lab</button></div>
     <p id="mixStatus" style="color:var(--muted);font-size:11px">Up to 32 planned tracks per project.</p>
    </div>
-   <div class="panel"><h3>Project track list</h3><div id="mixTracks" class="projects"><div class="empty">Choose a project to view its tracks.</div></div><input id="trackAudioFile" type="file" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.opus,.aac" hidden><p class="notice">Audio previews are stored only in this browser using local device storage. They are not uploaded or included in the JSON project backup. Local playback only. No mix file is rendered or exported yet.</p></div>
+   <div class="panel"><h3>Project track list</h3><div id="mixTracks" class="projects"><div class="empty">Choose a project to view its tracks.</div></div><input id="trackAudioFile" type="file" accept="audio/*,.wav,.mp3,.flac,.m4a,.ogg,.opus,.aac" hidden><div class="panel" style="margin-top:12px;padding:14px"><h3>Local WAV export</h3><p style="color:var(--muted);font-size:11px">Render the attached tracks with their gain, pan, mute, echo and master processing. Everything runs on this device. No upload or external service.</p><div class="two"><button class="btn" id="renderWav" type="button">Render & export WAV</button><span id="renderWavStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;align-self:center">Safety limits: 8 audio tracks · 120 seconds · device memory guard.</span></div></div><p class="notice">Audio previews stay in this browser using local device storage. They are not uploaded or included in the JSON project backup. Exported WAV is downloaded to your device.</p></div>
   </div>
  </section>
  <div class="footer"><span>MEHRAN MUSIC STUDIO · EARLY WORKSPACE BUILD</span><span>Drafts and audio stay in this browser · Local playback</span></div>
@@ -350,6 +350,50 @@
   for(const node of trackAudioNodes.values()){node.player.pause();try{node.player.currentTime=0;}catch{}}
   $("mixerStatus").textContent="Playback stopped and returned to the beginning.";
  }
+
+ const WAV_EXPORT_MAX_TRACKS=8,WAV_EXPORT_MAX_SECONDS=120,WAV_EXPORT_MAX_COMPRESSED_BYTES=40*1024*1024,WAV_EXPORT_MEMORY_BUDGET=110*1024*1024;
+ function writeWav16(audioBuffer){
+  const channels=2,sampleRate=audioBuffer.sampleRate,frames=audioBuffer.length,dataBytes=frames*channels*2,buffer=new ArrayBuffer(44+dataBytes),view=new DataView(buffer);
+  const writeText=(offset,value)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i));};
+  writeText(0,"RIFF");view.setUint32(4,36+dataBytes,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*channels*2,true);view.setUint16(32,channels*2,true);view.setUint16(34,16,true);writeText(36,"data");view.setUint32(40,dataBytes,true);
+  const left=audioBuffer.getChannelData(0),right=audioBuffer.numberOfChannels>1?audioBuffer.getChannelData(1):left;let offset=44;
+  for(let i=0;i<frames;i++){const l=Math.max(-1,Math.min(1,left[i])),r=Math.max(-1,Math.min(1,right[i]));view.setInt16(offset,l<0?l*32768:l*32767,true);offset+=2;view.setInt16(offset,r<0?r*32768:r*32767,true);offset+=2;}
+  return new Blob([buffer],{type:"audio/wav"});
+ }
+ async function renderWavExport(){
+  const button=$("renderWav"),status=$("renderWavStatus");if(button.disabled)return;
+  const project=projects.find(p=>p.id===$("mixProject").value);if(!project){status.textContent="Choose a project first.";return;}
+  const tracks=(project.tracks||[]).filter(t=>t.audioName);if(!tracks.length){status.textContent="Attach at least one audio file to a track first.";return;}
+  if(tracks.length>WAV_EXPORT_MAX_TRACKS){status.textContent="For safe rendering, export up to 8 audio tracks at a time.";return;}
+  if(!(window.AudioContext||window.webkitAudioContext)||!window.OfflineAudioContext){status.textContent="This browser does not support offline audio rendering. Try a recent desktop browser.";return;}
+  button.disabled=true;const decoded=[];let compressedBytes=0;
+  try{
+   status.textContent="Reading local audio files…";const decodeContext=new (window.AudioContext||window.webkitAudioContext)();
+   try{for(let i=0;i<tracks.length;i++){const track=tracks[i];status.textContent="Reading audio "+(i+1)+" of "+tracks.length+"…";const record=await readTrackAudio(audioKey(project.id,track.id));
+    if(!record||!(record.blob instanceof Blob))throw new Error("Audio is missing for track: "+track.name+". Re-attach that file and try again.");
+    compressedBytes+=record.blob.size;if(compressedBytes>WAV_EXPORT_MAX_COMPRESSED_BYTES)throw new Error("The combined source files exceed the 40 MB safety limit. Export fewer or smaller tracks.");
+    const audioBuffer=await decodeContext.decodeAudioData(await record.blob.arrayBuffer());
+    if(!Number.isFinite(audioBuffer.duration)||audioBuffer.duration<=0)throw new Error("Could not read the duration of track: "+track.name+". Check that the file is valid audio.");
+    if(audioBuffer.duration>WAV_EXPORT_MAX_SECONDS)throw new Error("Track '"+track.name+"' is longer than the 120-second export limit.");decoded.push({track,buffer:audioBuffer});
+   }}finally{await decodeContext.close().catch(()=>{});}
+   const duration=Math.max(...decoded.map(item=>item.buffer.duration));if(duration>WAV_EXPORT_MAX_SECONDS)throw new Error("The complete mix exceeds the 120-second safety limit.");
+   const sampleRate=44100,frames=Math.ceil(duration*sampleRate),outputFloatBytes=frames*2*4,outputWavBytes=44+frames*2*2,decodedBytes=decoded.reduce((sum,item)=>sum+item.buffer.length*item.buffer.numberOfChannels*4,0);
+   if(decodedBytes+outputFloatBytes+outputWavBytes>WAV_EXPORT_MEMORY_BUDGET)throw new Error("This mix may exceed the safe memory budget for this device. Try fewer tracks or shorter audio files.");
+   status.textContent="Rendering mix locally…";const Offline=window.OfflineAudioContext||window.webkitOfflineAudioContext,offline=new Offline(2,frames,sampleRate);
+   const low=offline.createBiquadFilter();low.type="lowshelf";low.frequency.value=120;low.gain.value=Math.max(-12,Math.min(12,Number(masterSettings.low)||0));
+   const mid=offline.createBiquadFilter();mid.type="peaking";mid.frequency.value=1000;mid.Q.value=0.8;mid.gain.value=Math.max(-12,Math.min(12,Number(masterSettings.mid)||0));
+   const high=offline.createBiquadFilter();high.type="highshelf";high.frequency.value=8000;high.gain.value=Math.max(-12,Math.min(12,Number(masterSettings.high)||0));
+   const compressor=offline.createDynamicsCompressor();compressor.threshold.value=masterSettings.compressor?-18:0;compressor.knee.value=masterSettings.compressor?24:0;compressor.ratio.value=masterSettings.compressor?3.5:1;
+   const master=offline.createGain();master.gain.value=Math.pow(10,Math.max(-24,Math.min(6,Number(masterSettings.level)||0))/20);
+   low.connect(mid);mid.connect(high);high.connect(compressor);compressor.connect(master);master.connect(offline.destination);
+   for(const item of decoded){const track=item.track,source=offline.createBufferSource(),gain=offline.createGain(),pan=offline.createStereoPanner();source.buffer=item.buffer;gain.gain.value=track.muted?0:Math.pow(10,Math.max(-24,Math.min(12,Number(track.gain)||0))/20);pan.pan.value=Math.max(-1,Math.min(1,(Number(track.pan)||0)/100));source.connect(gain);gain.connect(pan);pan.connect(low);
+    const wet=Math.max(0,Math.min(0.6,(Number(track.delay)||0)/100));if(wet>0){const send=offline.createGain(),delay=offline.createDelay(2),feedback=offline.createGain(),wetGain=offline.createGain();send.gain.value=wet;delay.delayTime.value=0.28;feedback.gain.value=0.28;wetGain.gain.value=0.55;gain.connect(send);send.connect(delay);delay.connect(feedback);feedback.connect(delay);delay.connect(wetGain);wetGain.connect(pan);}source.start(0);
+   }
+   const rendered=await offline.startRendering();status.textContent="Encoding WAV…";const wav=writeWav16(rendered),url=URL.createObjectURL(wav),link=document.createElement("a"),safeName=(project.name||"mehran-mix").replace(/[^a-z0-9-_]+/gi,"-").replace(/^-+|-+$/g,"").slice(0,60)||"mehran-mix";
+   link.href=url;link.download=safeName+"-mix.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+   status.textContent="WAV export started · "+Math.round(duration)+" sec · "+(wav.size/1024/1024).toFixed(1)+" MB. Keep a separate copy of the original tracks.";
+  }catch(error){status.textContent="WAV export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}finally{button.disabled=false;}
+ }
  function addTrack(){const p=projects.find(x=>x.id===$("mixProject").value);if(!p){alert("Choose a project first.");return;}const name=$("trackName").value.trim();if(!name){$("trackName").focus();alert("Enter a track name.");return;}p.tracks=Array.isArray(p.tracks)?p.tracks:[];if(p.tracks.length>=32){alert("A project can contain up to 32 planned tracks.");return;}const track={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name.slice(0,60),type:$("trackType").value,role:$("trackRole").value,notes:$("trackNotes").value.trim().slice(0,500),gain:0,pan:0,delay:0,muted:false};p.tracks.push(track);const previousUpdated=p.updated;p.updated=Date.now();if(!save()){p.tracks.pop();p.updated=previousUpdated;return;}$("trackName").value="";$("trackNotes").value="";render();refreshMixProjects(p.id);}
  function addSingerTracks(){const p=projects.find(x=>x.id===$("mixProject").value);if(!p){alert("Choose a project first.");return;}const singers=Array.isArray(p.singers)?p.singers:[];if(!singers.length){$("mixStatus").textContent="Add singer profiles in Vocal Lab first.";return;}p.tracks=Array.isArray(p.tracks)?p.tracks:[];const previous=p.tracks.slice(),previousUpdated=p.updated;const additions=[];for(const singer of singers){if(p.tracks.some(t=>t.sourceSingerId===singer.id)||additions.some(t=>t.sourceSingerId===singer.id))continue;if(p.tracks.length+additions.length>=32)break;const backing=["Backing vocals","Harmony","Ad-libs","Choir"].includes(singer.role);additions.push({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:singer.name.slice(0,60),type:backing?"Backing Vocal":"Lead Vocal",role:backing?"Support":"Lead",notes:[singer.style||"",singer.parts?"Parts: "+singer.parts:""].filter(Boolean).join(" · ").slice(0,500),gain:0,pan:0,muted:false,sourceSingerId:singer.id});}if(!additions.length){$("mixStatus").textContent=p.tracks.length>=32?"Track limit reached.":"All singer profiles already have linked tracks.";return;}p.tracks.push(...additions);p.updated=Date.now();if(!save()){p.tracks=previous;p.updated=previousUpdated;$("mixStatus").textContent="Could not save singer tracks. Existing tracks were preserved.";return;}$("mixStatus").textContent=additions.length+" singer track(s) added. Re-run after editing a singer to add newly created profiles.";render();refreshMixProjects(p.id);}
  function updateTrackControl(id,key,value){const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===id);if(!track)return;const old=track[key],previousUpdated=p.updated;track[key]=value;applyTrackAudioSettings(id);p.updated=Date.now();if(!save()){track[key]=old;p.updated=previousUpdated;applyTrackAudioSettings(id);return;}const label=$("mixTracks").querySelector(`[data-track-${key}="${id}"]`);if(label){const small=label.parentElement.querySelector("small");if(small)small.textContent=key==="gain"?value+" dB · active":"Pan "+value+" · active";}}
@@ -373,6 +417,7 @@
  $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();});
  $("mixProject").addEventListener("change",()=>{stopMix();renderMixTracks();});
  $("playMix").addEventListener("click",playMix);
+ $("renderWav").addEventListener("click",()=>{void renderWavExport();});
  $("masterCompressor").checked=masterSettings.compressor;$("masterCompressor").addEventListener("change",e=>{masterSettings.compressor=e.target.checked;applyMasterSettings();try{localStorage.setItem(MASTER_KEY,JSON.stringify(masterSettings));}catch{};});
  for(const key of ["level","low","mid","high"]){const id=key==="level"?"masterLevel":"master"+key[0].toUpperCase()+key.slice(1);$(id).value=masterSettings[key];$(id).addEventListener("input",e=>updateMasterSetting(key,e.target.value));$(id).addEventListener("change",e=>updateMasterSetting(key,e.target.value));const label=$(id+"Value");if(label)label.textContent=masterSettings[key]+" dB";}
  $("stopMix").addEventListener("click",stopMix);
