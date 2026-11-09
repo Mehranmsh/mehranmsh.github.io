@@ -477,7 +477,19 @@ def main():
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                melody_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"]
+                # Exercise dedicated sub-bass and cinematic sound-layer render paths.
+                for mode, expected_type in [("sub", "Bass"), ("riser", "Sound Effects"), ("impact", "Sound Effects"), ("texture", "Sound Effects")]:
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternTrackName").fill("Generated " + mode)
+                    page.locator("#renderPattern").click()
+                    page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                    project_after_layer = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    layer = next(track for track in project_after_layer["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
+                    assert layer["type"] == expected_type and layer["audioSize"] > 44
                 page.locator('[data-view="lyrics"]').click()
+                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
                 assert "C3" in page.locator("#vocalGuideNotes").input_value()
                 assert "melody notes loaded" in page.locator("#vocalGuideStatus").inner_text()
