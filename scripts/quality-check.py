@@ -67,6 +67,25 @@ def main():
             if file_checked == 0:
                 raise SystemExit(f"No inline JavaScript blocks were found in {html_file.name}; refusing a false-green check.")
 
+    print("3/4 Checking Music Studio user-facing safety and workflow controls...")
+    studio = (ROOT / "music-studio.html").read_text(encoding="utf-8")
+    required_studio_markers = [
+        'id="lyricsEditor"', 'id="lyricsProject"', 'id="saveLyrics"',
+        'id="exportLyrics"', 'data-lyric-section="[Chorus]"',
+        'id="exportBackup"', 'id="importBackup"', 'id="backupFile"',
+        'mehran-music-studio-backup', 'Could not save: browser storage is full or unavailable',
+        'Tempo must be between 40 and 220 BPM'
+    ]
+    missing = [marker for marker in required_studio_markers if marker not in studio]
+    if missing:
+        raise SystemExit("Music Studio safety/workflow markers missing: " + ", ".join(missing))
+    if 'if(!save()){projects.pop();return;}' not in studio:
+        raise SystemExit("Music Studio must not report a new project saved when local storage fails.")
+    if 'if(!save()){Object.assign(p,previous);return;}' not in studio:
+        raise SystemExit("Music Studio must restore the prior project when an update cannot be saved.")
+    if 'if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}' not in studio:
+        raise SystemExit("Lyrics Lab must report storage failure and restore unsaved project data.")
+
     print("3/4 Checking the self-hosted Music Studio control-plane Python syntax...")
     import py_compile
     py_compile.compile(str(ENGINE_FILE), doraise=True)
