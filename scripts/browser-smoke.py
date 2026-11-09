@@ -65,11 +65,20 @@ def main():
                     raise AssertionError("Project creation did not persist. Browser errors: " + " | ".join(errors))
                 assert "Automated Audio QA" in library_text
 
-                # Open the mix planner, add a track and verify the complete effects rack.
+                # Import a phone-recorded vocal through Vocal Lab and verify it becomes a real audio track.
+                page.locator('[data-view="vocals"]').click()
+                page.locator("#vocalProject").select_option(label="Automated Audio QA")
+                page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
+                page.get_by_text("Vocal recording imported and saved on this device.", exact=True).wait_for(timeout=10000)
+                assert page.locator("#vocalRecordingPreview").is_visible()
+                assert page.locator("#vocalRecordingPreview").get_attribute("src")
+                saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
+                assert len(saved_after_vocal[0]["tracks"]) == 1
+                assert saved_after_vocal[0]["tracks"][0]["type"] == "Lead Vocal"
+
+                # Open the mix planner and verify the imported vocal track's complete effects rack.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
-                page.locator("#trackName").fill("QA test tone")
-                page.locator("#addTrack").click()
                 page.locator('[data-track-reverb]').wait_for(state="visible")
                 assert page.locator('[data-track-delay-time]').get_attribute("max") == "450"
                 assert page.locator('[data-track-feedback]').get_attribute("max") == "30"
@@ -138,6 +147,7 @@ def main():
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
+                print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
                 print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
                 print("PASS: master output peak meter and live safety limiter are present")
