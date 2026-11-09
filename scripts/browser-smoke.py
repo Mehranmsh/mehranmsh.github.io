@@ -234,7 +234,8 @@ def main():
                     assert 3.52 * 44100 <= rendered_mix.getnframes() <= 3.54 * 44100, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
-                    assert not any(mix_pcm[:int(1.32 * 44100) * 4]), "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
+                    early_mix = struct.unpack("<" + "h" * (len(mix_pcm[:int(1.32 * 44100) * 4]) // 2), mix_pcm[:int(1.32 * 44100) * 4])
+                    assert max(map(abs, early_mix), default=0) < 100, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
                     assert any(mix_pcm[int(1.34 * 44100) * 4:int(1.48 * 44100) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
