@@ -2701,8 +2701,15 @@ async function socialCallSignal(request, env, callId) {
 async function socialCallLeave(request, env, callId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required",401);
-  const call = await env.DB.prepare("SELECT id,host_id FROM social_call_sessions WHERE id=? AND status='active'").bind(callId).first();
+  if (!await checkRateLimit(env, request, "social-call-leave", 30, 60, 60, user.id)) {
+    return error("Too many call leave requests. Please wait a moment.",429);
+  }
+  const call = await env.DB.prepare("SELECT id,conversation_id,host_id FROM social_call_sessions WHERE id=? AND status='active'").bind(callId).first();
   if (!call) return json({success:true,ended:true});
+  const participant = await env.DB.prepare(
+    "SELECT left_at FROM social_call_participants WHERE call_id=? AND user_id=?"
+  ).bind(callId,user.id).first();
+  if (!participant || participant.left_at) return error("You are not an active participant in this call",403);
   await env.DB.prepare("UPDATE social_call_participants SET left_at=CURRENT_TIMESTAMP WHERE call_id=? AND user_id=?").bind(callId,user.id).run();
   if (call.host_id===user.id) {
     await env.DB.prepare("UPDATE social_call_sessions SET status='ended',ended_at=CURRENT_TIMESTAMP WHERE id=?").bind(callId).run();
