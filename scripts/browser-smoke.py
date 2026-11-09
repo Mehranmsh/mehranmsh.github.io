@@ -76,12 +76,16 @@ def main():
                 assert page.locator('[data-track-filter]').count() == 1
                 assert page.locator('[data-track-cutoff]').count() == 1
                 assert page.locator('[data-track-drive]').count() == 1
+                assert page.locator('[data-track-chorus-depth]').count() == 1
+                assert page.locator('[data-track-chorus-rate]').count() == 1
 
                 # Exercise the delegated controls and verify persistence after reload.
                 page.locator('[data-track-delay]').evaluate("(el) => { el.value='20'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.locator('[data-track-reverb]').evaluate("(el) => { el.value='24'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.locator('[data-track-delay-time]').evaluate("(el) => { el.value='350'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.locator('[data-track-feedback]').evaluate("(el) => { el.value='30'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
+                page.locator('[data-track-chorus-depth]').evaluate("(el) => { el.value='65'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
+                page.locator('[data-track-chorus-rate]').evaluate("(el) => { el.value='2.4'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.reload(wait_until="networkidle")
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
@@ -89,6 +93,8 @@ def main():
                 assert page.locator('[data-track-reverb]').input_value() == "24"
                 assert page.locator('[data-track-delay-time]').input_value() == "350"
                 assert page.locator('[data-track-feedback]').input_value() == "30"
+                assert page.locator('[data-track-chorus-depth]').input_value() == "65"
+                assert page.locator('[data-track-chorus-rate]').input_value() == "2.4"
 
                 # Attach a generated local WAV, confirm IndexedDB-backed storage, and run live playback.
                 page.locator('[data-track-audio]').click()
@@ -127,7 +133,7 @@ def main():
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
-                print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time and Feedback controls")
+                print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
                 print("PASS: offline full-mix WAV and individual stem WAV downloads")
                 print("PASS: no uncaught browser JavaScript exceptions")
