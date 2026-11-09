@@ -126,5 +126,31 @@ class ACEstepClientTests(unittest.TestCase):
         self.assertIsNone(FakeACEHandler.last_path)
 
 
+    def test_oversized_local_model_response_is_rejected(self):
+        client = ACEstepLocalClient(self.url, max_response_bytes=1024)
+        FakeACEHandler.response_body = {
+            "code": 200, "error": None, "data": {"payload": "x" * 2048}
+        }
+        with self.assertRaisesRegex(LocalModelError, "exceeded the configured size limit"):
+            client.health()
+
+    def test_non_object_local_model_response_is_rejected(self):
+        client = ACEstepLocalClient(self.url)
+        FakeACEHandler.response_body = ["unexpected", "list"]
+        with self.assertRaisesRegex(LocalModelError, "unsuccessful operation"):
+            client.health()
+
+    def test_unsupported_local_model_endpoint_is_rejected_before_network(self):
+        client = ACEstepLocalClient(self.url)
+        with self.assertRaises(ValueError):
+            client._request("GET", "/admin")
+        self.assertIsNone(FakeACEHandler.last_path)
+
+    def test_api_key_is_not_sent_when_not_configured(self):
+        client = ACEstepLocalClient(self.url)
+        client.health()
+        self.assertNotIn("Authorization", FakeACEHandler.last_headers)
+
+
 if __name__ == "__main__":
     unittest.main()
