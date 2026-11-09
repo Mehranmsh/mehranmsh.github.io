@@ -133,6 +133,7 @@ def main():
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
                 page.locator("#vocalGuideTempo").fill("96")
                 page.locator("#vocalGuideNotes").fill("C4, D4, E4, G4, E4, D4, C4, C4")
+                guide_button_state = page.locator("#saveVocalGuide").evaluate("(el) => ({disabled:el.disabled, onclick:typeof el.onclick, connected:el.isConnected})")
                 page.locator("#saveVocalGuide").click()
                 guide_status = page.locator("#vocalGuideStatus").inner_text()
                 saved_guide = page.evaluate("""() => {
@@ -140,7 +141,7 @@ def main():
                     const project = drafts.find(item => item.name === "Automated Audio QA");
                     return project?.lyricGuides || null;
                 }""")
-                assert "Vocal guide saved locally" in guide_status and saved_guide, "Vocal guide did not save: " + guide_status
+                assert "Vocal guide saved locally" in guide_status and saved_guide, "Vocal guide did not save: " + guide_status + " | button=" + str(guide_button_state) + " | page errors=" + " | ".join(errors)
                 assert saved_guide.get("تو رفتی و هنوز دلم به یاد توئه", {}).get("tempo") == 96, "Saved guide tempo was not retained: " + str(saved_guide)
                 assert len(saved_guide.get("تو رفتی و هنوز دلم به یاد توئه", {}).get("steps", [])) == 8, "Saved guide syllable steps were not retained: " + str(saved_guide)
                 page.locator("#playVocalGuide").click()
