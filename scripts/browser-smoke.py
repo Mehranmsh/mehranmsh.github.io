@@ -536,6 +536,11 @@ def main():
                 page.locator("#addArrangementSection").click()
                 arrangement = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
                 assert [(item["name"], item["startBar"], item["bars"]) for item in arrangement] == [("Intro", 1, 4), ("Chorus", 5, 8)]
+                arrangement_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                assigned_track_id = arrangement_project["tracks"][0]["id"]
+                page.locator("#arrangementTimeline select").nth(0).select_option(assigned_track_id)
+                assigned_arrangement = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
+                assert assigned_track_id in assigned_arrangement[0]["trackIds"], "Arrangement section did not persist its selected track."
                 # Render a four-chord harmonic backing layer and verify the project record.
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, F, C, G")
