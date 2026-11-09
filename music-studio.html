@@ -462,7 +462,7 @@
   if(!project){status.textContent="Choose a project first.";return;}
   if(!track||!track.audioName){status.textContent="Choose a track with an attached audio file.";return;}
   if(!(window.AudioContext||window.webkitAudioContext)||!(window.OfflineAudioContext||window.webkitOfflineAudioContext)){status.textContent="This browser does not support offline audio rendering.";return;}
-  button.disabled=true;previewButton.disabled=true;
+  button.disabled=true;previewButton.disabled=true;clearStemPreview();
   try{
    status.textContent="Reading selected track…";
    const record=await readTrackAudio(audioKey(project.id,track.id));
