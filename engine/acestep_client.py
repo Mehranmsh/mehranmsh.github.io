@@ -79,8 +79,9 @@ class ACEstepLocalClient:
         return result["models"]
 
     def submit_song(self, prompt, lyrics="", language="en", duration=180, bpm=None, thinking=False, audio_format="wav"):
-        prompt = str(prompt).strip()
-        lyrics = str(lyrics)
+        if not isinstance(prompt, str) or not isinstance(lyrics, str):
+            raise ValueError("Prompt and lyrics must be text.")
+        prompt = prompt.strip()
         if not prompt or len(prompt) > 2000 or len(lyrics) > 20000:
             raise ValueError("Prompt or lyrics length is outside the allowed range.")
         if not isinstance(duration, (int, float)) or not 10 <= duration <= 600:
