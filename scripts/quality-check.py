@@ -109,8 +109,18 @@ def main():
         raise SystemExit("Arrangement & Mix Planner must support bounded track planning and export.")
     if 'function addSingerTracks()' not in studio or 'sourceSingerId' not in studio:
         raise SystemExit("Vocal Lab singer profiles must be linkable to planned vocal tracks.")
-    if 'Audio playback, effects, rendering and mastering are not active' not in studio:
-        raise SystemExit("Music Studio must clearly distinguish planning from active audio processing.")
+    if 'Local audio preview is active for attached files' not in studio or 'Multitrack mixing, effects, rendering and mastering require the local audio engine' not in studio:
+        raise SystemExit("Music Studio must distinguish local file preview from unavailable multitrack processing.")
+    required_local_audio_markers = [
+        'id="trackAudioFile"', 'indexedDB.open(AUDIO_DB,1)',
+        'MAX_AUDIO_BYTES=100*1024*1024', 'function storeTrackAudio(',
+        'function readTrackAudio(', 'data-track-audio-player',
+        'This is preview playback, not multitrack mixing or mastering',
+        'The file is not being uploaded', 'restoreTrackAudioAsset(key,previousAudio)'
+    ]
+    missing = [marker for marker in required_local_audio_markers if marker not in studio]
+    if missing:
+        raise SystemExit("Music Studio local audio storage/preview safeguards missing: " + ", ".join(missing))
     for marker in [r'split(/\s+/)', r'/^\d{2,3}$/', r'endsWith("\n")', r'section+"\n"']:
         if marker not in studio:
             raise SystemExit("Music Studio lyric/tempo input handling is missing: " + marker)
