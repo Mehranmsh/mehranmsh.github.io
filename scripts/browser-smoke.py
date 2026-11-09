@@ -126,6 +126,7 @@ def main():
                 page.wait_for_function("Array.from(document.querySelector('#lyricsProject').options).some(option => option.textContent.trim() === 'Automated Audio QA')", timeout=10000)
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه\nI keep walking through the night\nI hold a little light")
+                page.wait_for_function("document.querySelector('#lyricFlowAnalysis')?.textContent.includes('3 lines')", timeout=5000)
                 assert "3 lines" in page.locator("#lyricFlowAnalysis").inner_text() and "visual match with line(s)" in page.locator("#lyricFlowAnalysis").inner_text()
                 page.locator("#saveLyrics").click()
                 page.locator("#vocalGuideLine").select_option(index=0)
