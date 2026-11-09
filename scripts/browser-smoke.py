@@ -325,10 +325,12 @@ def main():
                     pcm = tuned_stem.readframes(frames)
                     values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
                     # After the 0.10 s source trim, the 440 Hz tone begins at 0.05 s in the rendered stem.
-                    # Measure only the retained, non-silent 0.07–0.19 s window.
-                    segment = values[int(0.07 * 44100) * 2:int(0.19 * 44100) * 2:2]
-                    crossings = sum(1 for a, b in zip(segment, segment[1:]) if a <= 0 < b)
-                    measured_hz = crossings / 0.12
+                    # Use autocorrelation in a retained, non-silent window so fade-in does not bias zero-crossing counts.
+                    segment = values[int(0.06 * 44100) * 2:int(0.24 * 44100) * 2:2]
+                    mean = sum(segment) / len(segment)
+                    centered = [sample - mean for sample in segment]
+                    best_lag = max(range(90, 125), key=lambda lag: sum(centered[i] * centered[i + lag] for i in range(len(centered) - lag)))
+                    measured_hz = 44100 / best_lag
                     assert 395 <= measured_hz <= 435, "Pitch correction did not shift A4 toward G#4: " + str(measured_hz)
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
