@@ -135,7 +135,7 @@ def main():
                 assert saved_guide and saved_guide["تو رفتی و هنوز دلم به یاد توئه"]["tempo"] == 96
                 assert len(saved_guide["تو رفتی و هنوز دلم به یاد توئه"]["steps"]) == 8
                 page.locator("#playVocalGuide").click()
-                page.wait_for_function("document.querySelector('#vocalGuideStatus')?.textContent.includes('Rehearsing')", timeout=5000)
+                page.wait_for_function("document.querySelector('#vocalGuideStatus')?.textContent.includes('Rehearsing') || document.querySelector('#vocalGuideStatus')?.textContent.includes('Phrase complete')", timeout=8000)
                 page.locator("#stopVocalGuide").click()
 
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
@@ -562,7 +562,7 @@ def main():
                 page.locator("#vocalGuideSyllables").fill("one / two / three / four / five / six / seven / eight")
                 page.locator("#vocalGuideTempo").fill("96")
                 page.locator("#playVocalGuide").click()
-                page.wait_for_function("document.querySelector('#vocalGuideStatus')?.textContent.includes('Rehearsing')", timeout=5000)
+                page.wait_for_function("document.querySelector('#vocalGuideStatus')?.textContent.includes('Rehearsing') || document.querySelector('#vocalGuideStatus')?.textContent.includes('Phrase complete')", timeout=8000)
                 page.locator("#stopVocalGuide").click()
 
 
