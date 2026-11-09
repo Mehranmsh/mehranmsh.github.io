@@ -78,6 +78,14 @@ def main():
                 assert len(saved_after_vocal[0]["tracks"]) == 1
                 assert saved_after_vocal[0]["tracks"][0]["type"] == "Lead Vocal"
 
+                # Analyze the imported 440 Hz synthetic vocal using the local pitch detector.
+                page.locator("#pitchStart").fill("0.15")
+                page.locator("#analyzePitch").click()
+                page.wait_for_function("document.querySelector('#pitchResult')?.textContent.includes('Hz')", timeout=10000)
+                pitch_text = page.locator("#pitchResult").inner_text()
+                assert "A4" in pitch_text, "Pitch analyzer did not identify the 440 Hz test tone: " + pitch_text
+                assert "440" in pitch_text, "Pitch analyzer frequency is outside expected test range: " + pitch_text
+
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
