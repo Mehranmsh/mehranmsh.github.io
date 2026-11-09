@@ -1125,3 +1125,18 @@ test("SOCIAL call participant capacity is enforced atomically in the join write"
   assert.ok(!handler.includes("const existing ="));
   assert.ok(!handler.includes("const count ="));
 });
+
+
+test("SOCIAL permits only one active call per conversation, including concurrent starts", () => {
+  assert.ok(workerSource.includes("idx_social_call_one_active_per_conversation"));
+  assert.ok(workerSource.includes("ON social_call_sessions(conversation_id) WHERE status='active'"));
+  assert.ok(workerSource.includes("newer.created_at DESC,newer.id DESC LIMIT 1"));
+  const start = workerSource.indexOf("async function socialCallStart");
+  const end = workerSource.indexOf("\nasync function socialCallActive", start);
+  const handler = workerSource.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.ok(handler.includes("try {"));
+  assert.ok(handler.includes("catch (creationError)"));
+  assert.ok(handler.includes("alreadyActive:true"));
+  assert.ok(handler.includes("throw creationError"));
+});
