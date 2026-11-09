@@ -76,7 +76,9 @@ def main():
         'mehran-music-studio-backup', 'Could not save: browser storage is full or unavailable',
         'Tempo must be between 40 and 220 BPM', 'id="vocalProject"', 'id="singerName"',
         'id="addSinger"', 'id="vocalCast"', 'data-remove-singer', 'Up to 8 singer profiles per project',
-        'singers:Array.isArray(p.singers)'
+        'singers:Array.isArray(p.singers)',
+        'id="singerParts"', 'id="cancelSingerEdit"', 'data-edit-singer',
+        'parts:typeof v.parts==="string"', 'Browser storage could not save the imported projects. Existing drafts were preserved.'
     ]
     missing = [marker for marker in required_studio_markers if marker not in studio]
     if missing:
@@ -89,8 +91,12 @@ def main():
         raise SystemExit("Lyrics Lab must report storage failure and restore unsaved project data.")
     if 'function addSinger()' not in studio or 'if(p.singers.length>=8)' not in studio:
         raise SystemExit("Vocal Lab must validate singer profiles and enforce the 8-singer project limit.")
-    if 'if(!save()){p.singers.pop();p.updated=previousUpdated;return;}' not in studio:
+    if 'if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.updated=previousUpdated;return;}' not in studio:
         raise SystemExit("Vocal Lab must roll back singer changes when local storage fails.")
+    if 'function editSinger(index)' not in studio or 'function cancelSingerEdit()' not in studio or 'data-edit-singer' not in studio:
+        raise SystemExit("Vocal Lab must support editing and cancelling singer profiles.")
+    if 'const previousProjects=projects;projects=projects.concat(incoming);if(!save())' not in studio:
+        raise SystemExit("Backup restore must be transactional when browser storage is full.")
     for marker in [r'split(/\s+/)', r'/^\d{2,3}$/', r'endsWith("\n")', r'section+"\n"']:
         if marker not in studio:
             raise SystemExit("Music Studio lyric/tempo input handling is missing: " + marker)
