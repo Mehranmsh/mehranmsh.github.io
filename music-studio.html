@@ -96,7 +96,7 @@
      <button class="btn secondary" data-lyric-section="[Outro]">＋ Outro</button>
     </div>
     <div class="notice">Lyrics remain on this device until saved into a project draft. Export a text backup if you want a separate copy. No AI service receives your writing.</div>
-    <button class="btn" data-go="create">＋ Create a new project</button>
+    <button class="btn" data-go="create">＋ Create a new project</button><div class="panel" id="lyricFlowPanel" style="margin-top:14px"><h3>Lyric Flow & Rhyme Map</h3><p style="color:var(--muted);font-size:11px">A local writing aid for line balance, word density and repeated endings. Visual ending matches are not a substitute for phonetic rhyme or musical judgment.</p><div id="lyricFlowAnalysis" class="projects"><div class="empty">Write a few lines to inspect their flow.</div></div></div>
    </div>
   </div>
 
@@ -694,7 +694,7 @@
  function loadLyricsProject(){const p=projects.find(x=>x.id===$("lyricsProject").value);$("lyricsTitle").value=p?(p.lyricsTitle||p.name):"";$("lyricsEditor").value=p?(p.lyrics||""):"";$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;updateLyricsCount();$("lyricsSaveState").textContent=p?"Loaded":"Choose a project";}
  function lyricsAreDirty(){return $("lyricsTitle").value!==($("lyricsTitle").dataset.saved||"")||$("lyricsEditor").value!==($("lyricsEditor").dataset.saved||"");}
  function changeLyricsProject(){const select=$("lyricsProject");const next=select.value;const previous=select.dataset.previous||"";if(lyricsAreDirty()&&!confirm("You have unsaved lyric changes. Discard them and switch projects?")){select.value=previous;return;}select.dataset.previous=next;loadLyricsProject();}
- function updateLyricsCount(){const v=$("lyricsEditor").value;const words=v.trim()?v.trim().split(/\s+/).length:0;$("lyricsCount").textContent=words+" words · "+v.length+" characters";}
+ function updateLyricsCount(){const v=$("lyricsEditor").value;const words=v.trim()?v.trim().split(/\s+/).length:0;$("lyricsCount").textContent=words+" words · "+v.length+" characters";} function analyzeLyricFlow(){const lines=$("lyricsEditor").value.split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!/^\[[^\]]+\]$/.test(x));const rows=lines.map((line,index)=>{const words=line.split(/\s+/).filter(Boolean),last=(words[words.length-1]||"").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+$/gu,""),chars=Array.from(last);return {index,line,words:words.length,last,suffix:chars.length>=3?chars.slice(-2).join(""):""};});const groups=new Map();rows.forEach(row=>{if(row.suffix){const list=groups.get(row.suffix)||[];list.push(row.index+1);groups.set(row.suffix,list);}});const matches=new Map([...groups].filter((entry)=>entry[1].length>1));const root=$("lyricFlowAnalysis");if(!root)return;if(!rows.length){root.innerHTML="<div class=\\"empty\\">Write a few lines to inspect their flow.</div>";return;}const counts=rows.map(row=>row.words),average=(counts.reduce((a,b)=>a+b,0)/counts.length).toFixed(1),range=Math.max(...counts)-Math.min(...counts);root.innerHTML="<div class=\\"two\\"><div class=\\"notice\\"><b>"+rows.length+" lines</b><br>"+average+" words per line</div><div class=\\"notice\\"><b>"+range+" word spread</b><br>Difference between shortest and longest line</div></div>"+rows.map(row=>"<article class=\\"project\\"><div class=\\"project-icon\\">"+(row.index+1)+"</div><div class=\\"project-copy\\"><b>"+esc(row.line.slice(0,120))+(row.line.length>120?"…":"")+"</b><small>"+row.words+" words · ending: "+esc(row.last||"—")+(row.suffix&&matches.has(row.suffix)?" · visual match with line(s) "+matches.get(row.suffix).filter(n=>n!==row.index+1).join(", "):"")+"</small></div></article>").join("");}
 
  let vocalGuideContext=null,vocalGuideTimers=[],vocalGuideRun=0;
  function vocalGuideProject(){return projects.find(p=>p.id===$("lyricsProject").value);}
@@ -759,7 +759,7 @@
  $("importBackup").addEventListener("click",()=>$("backupFile").click());
  $("backupFile").addEventListener("change",e=>{importBackupFile(e.target.files&&e.target.files[0]);e.target.value="";});
 
- $("lyricsEditor").addEventListener("input",()=>{updateLyricsCount();$("lyricsSaveState").textContent="Unsaved changes";});
+ $("lyricsEditor").addEventListener("input",()=>{updateLyricsCount();analyzeLyricFlow();$("lyricsSaveState").textContent="Unsaved changes";});
  $("lyricsProject").addEventListener("change",()=>refreshVocalGuideLines());
  $("lyricsEditor").addEventListener("input",()=>refreshVocalGuideLines($("vocalGuideLine").value));
  $("vocalGuideLine").addEventListener("change",loadVocalGuide);
