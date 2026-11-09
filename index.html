@@ -828,7 +828,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <button class="settings-nav-item" data-settings-tab="support">❔ Help & Support</button>
 </nav>
 <div class="settings-content">
-<section class="settings-panel active" data-settings-panel="account"><div class="panel"><div class="settings-heading"><div><span class="settings-kicker">YOUR IDENTITY</span><h2>Account</h2><p>Manage your SOCIAL account and sign-in identity.</p></div><span class="settings-icon">👤</span></div><div class="field"><label>SOCIAL username</label><input id="settingsUsername" readonly></div><div class="field"><label>Change username</label><div class="comment-form"><input id="changeUsernameInput" placeholder="New username"><button class="btn small" id="changeUsernameBtn">Update</button></div></div><div class="notice">Your email and password are managed by your sign-in provider. Account deletion is not included here yet.</div><button class="btn danger" id="socialLogoutBtn">Sign out of this device</button></div></section>
+<section class="settings-panel active" data-settings-panel="account"><div class="panel"><div class="settings-heading"><div><span class="settings-kicker">YOUR IDENTITY</span><h2>Account</h2><p>Manage your SOCIAL account and sign-in identity.</p></div><span class="settings-icon">👤</span></div><div class="field"><label>SOCIAL username</label><input id="settingsUsername" readonly></div><div class="field"><label>Change username</label><div class="comment-form"><input id="changeUsernameInput" placeholder="New username"><button class="btn small" id="changeUsernameBtn">Update</button></div></div><div class="notice">Your email and password are managed by your sign-in provider. Deleting your SOCIAL account permanently removes your profile, posts, stories, uploaded files, reactions and account settings. Messages you sent are removed; other members' messages remain.</div><div class="field"><label for="socialDeletePassword">Confirm your current password</label><input id="socialDeletePassword" type="password" autocomplete="current-password" maxlength="128" placeholder="Enter your sign-in password"></div><button class="btn danger" id="socialDeleteAccountBtn">Permanently delete my account</button><p class="small-text" id="socialDeleteStatus" role="status"></p><button class="btn secondary" id="socialLogoutBtn">Sign out of this device</button></div></section>
 <section class="settings-panel" data-settings-panel="privacy"><div class="panel"><div class="settings-heading"><div><span class="settings-kicker">CONTROL YOUR VISIBILITY</span><h2>Privacy & Security</h2><p>Choose who can reach you and manage active sign-ins.</p></div><span class="settings-icon">🔒</span></div><div class="form-grid"><div class="field"><label>Profile visibility</label><select id="privacyPrivate"><option value="false">Public</option><option value="true">Private</option></select></div><div class="field"><label>Who can message me?</label><select id="privacyMessages"><option value="everyone">Everyone</option><option value="followers">Followers</option><option value="none">No one</option></select></div><div class="field"><label>Who can comment?</label><select id="privacyComments"><option value="everyone">Everyone</option><option value="followers">Followers</option><option value="none">No one</option></select></div><div class="field"><label>Show online status</label><select id="privacyOnline"><option value="true">Everyone can see</option><option value="false">Hide my status</option></select></div><div class="field"><label>Show activity status</label><select id="privacyActivity"><option value="true">Show activity</option><option value="false">Hide activity</option></select></div><div class="field"><label>Who can see my profile?</label><select id="privacyProfileVisibility"><option value="everyone">Everybody</option><option value="contacts">Mutual contacts</option><option value="nobody">Nobody except me</option></select></div><div class="field"><label>Who can add me to groups?</label><select id="privacyWhoCanAddGroups"><option value="everyone">Everybody</option><option value="contacts">My mutual contacts</option><option value="nobody">Nobody</option></select></div><div class="field"><label>Who can add me to channels?</label><select id="privacyWhoCanAddChannels"><option value="everyone">Everybody</option><option value="contacts">My mutual contacts</option><option value="nobody">Nobody</option></select></div></div><div class="hero-actions"><button class="btn" id="savePrivacyBtn">Save privacy settings</button></div><hr><div class="section-title"><h3>Active sessions</h3><button class="btn secondary small" id="refreshSessionsBtn">Refresh</button></div><p class="small-text">Review devices currently signed in to your account. You can revoke sessions you no longer use.</p><div id="settingsSessionsList" class="empty">Load active sessions to review them.</div><div class="hero-actions"><button class="btn danger" id="logoutAllSessionsBtn">Sign out all other sessions</button></div><hr><h3>Follow requests</h3><div id="followRequestsList" class="empty"></div></div></section>
 <section class="settings-panel" data-settings-panel="notifications"><div class="panel"><div class="settings-heading"><div><span class="settings-kicker">STAY IN CONTROL</span><h2>Notifications</h2><p>Choose which activity creates in-app notifications.</p></div><span class="settings-icon">🔔</span></div>
 <label class="settings-option"><span><strong>Likes and comments</strong><small>Activity on your posts</small></span><input type="checkbox" id="prefNotifLikes" checked></label>
@@ -903,7 +903,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendEmailVerification
+  sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, deleteUser
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 const firebaseConfig = {
   apiKey: "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM",
@@ -916,6 +916,17 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 window.socialFirebaseReady = true;
+window.socialFirebaseReauthenticate = async (password, expectedEmail) => {
+  const user = firebaseAuth.currentUser;
+  if (!user || String(user.email || "").toLowerCase() !== String(expectedEmail || "").toLowerCase()) return null;
+  const credential = EmailAuthProvider.credential(user.email, password);
+  await reauthenticateWithCredential(user, credential);
+  return await user.getIdToken(true);
+};
+window.socialFirebaseDeleteIdentity = async () => {
+  const user = firebaseAuth.currentUser;
+  if (user) await deleteUser(user);
+};
 window.socialFirebaseRegister = async (email, password) => {
   const credential = await createUserWithEmailAndPassword(firebaseAuth, email, password);
   await sendEmailVerification(credential.user);
@@ -1401,6 +1412,27 @@ return false;
 })();
 try{return await socialMePromise}finally{socialMePromise=null}
 }
+async function socialDeleteAccount(){
+ if(!socialSessionVerified||!socialUser||!getSocialToken()){toast("Sign in again before deleting your account.");return;}
+ const password=$("socialDeletePassword").value;
+ if(!password){$("socialDeletePassword").focus();toast("Enter your current sign-in password.");return;}
+ if(!confirm("Permanently delete your SOCIAL account and its uploaded files? This cannot be undone."))return;
+ const button=$("socialDeleteAccountBtn"),status=$("socialDeleteStatus");
+ button.disabled=true;status.textContent="Verifying identity and removing your account data…";
+ try{
+  let idToken=null;
+  if(window.socialFirebaseReauthenticate)idToken=await window.socialFirebaseReauthenticate(password,socialUser.email);
+  const response=await fetch(SOCIAL_API+"/account",{method:"DELETE",headers:{...socialHeaders(),"Content-Type":"application/json"},body:JSON.stringify(idToken?{idToken}:{password})});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.deleted)throw new Error(data.error||"Account deletion could not be completed.");
+  localStorage.removeItem(SOCIAL_TOKEN_KEY);localStorage.removeItem("msh_social_cached_user");
+  try{if(idToken&&window.socialFirebaseDeleteIdentity)await window.socialFirebaseDeleteIdentity();}catch(firebaseError){console.warn("SOCIAL data deleted; Firebase identity cleanup needs review:",firebaseError);}
+  socialUser=null;socialSessionVerified=false;localProfile={};posts=[];stories=[];
+  $("settingsUsername").value="";$("socialDeletePassword").value="";
+  $("socialStatus").textContent="Account deleted";status.textContent="Your SOCIAL account and "+Number(data.removedFiles||0)+" uploaded file(s) were deleted.";
+  renderSocial();toast("SOCIAL account deleted.");
+ }catch(error){status.textContent=error.message||"Deletion failed. Your account remains available.";button.disabled=false;}
+}
 async function socialLogout(){
 try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}
 localStorage.removeItem(SOCIAL_TOKEN_KEY);
@@ -1420,6 +1452,7 @@ $("socialLoginBtn").addEventListener("click",()=>{
 if(authMode!=="login")return;
 socialLogin();
 });
+$("socialDeleteAccountBtn").addEventListener("click",socialDeleteAccount);
 $("socialLogoutBtn").addEventListener("click",socialLogout);
 $("refreshSessionBtn")?.addEventListener("click",socialMe);
 
