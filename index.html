@@ -1427,7 +1427,7 @@ async function socialDeleteAccount(){
   if(!response.ok||!data.deleted)throw new Error(data.error||"Account deletion could not be completed.");
   localStorage.removeItem(SOCIAL_TOKEN_KEY);localStorage.removeItem("msh_social_cached_user");
   try{if(idToken&&window.socialFirebaseDeleteIdentity)await window.socialFirebaseDeleteIdentity();}catch(firebaseError){console.warn("SOCIAL data deleted; Firebase identity cleanup needs review:",firebaseError);}
-  socialUser=null;socialSessionVerified=false;localProfile={};posts=[];stories=[];
+  socialUser=null;socialSessionVerified=false;localProfile={};posts=[];localStorage.removeItem(SOCIAL_PROFILE_KEY);localStorage.removeItem(SOCIAL_POSTS_KEY);
   $("settingsUsername").value="";$("socialDeletePassword").value="";
   $("socialStatus").textContent="Account deleted";status.textContent="Your SOCIAL account and "+Number(data.removedFiles||0)+" uploaded file(s) were deleted.";
   renderSocial();toast("SOCIAL account deleted.");
