@@ -508,6 +508,7 @@ def main():
                 page.locator("#loadProjectMelody").click()
                 assert "C3" in page.locator("#vocalGuideNotes").input_value()
                 assert "melody notes loaded" in page.locator("#vocalGuideStatus").inner_text()
+                assert "Sing C3" in page.locator("#vocalGuideSteps").inner_text(), "Lyric rehearsal cards should show the pitch for each mapped step."
 
 
                 # Generate an original local drum loop and attach its WAV to the same project.
