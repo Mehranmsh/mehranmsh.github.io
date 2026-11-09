@@ -190,6 +190,8 @@ def main():
                 page.locator("#stemPitchKey").select_option("0")
                 page.locator("#stemPitchScale").select_option("minor")
                 page.locator("#stemPitchStrength").fill("100")
+                assert page.locator("#stemPitchTolerance").input_value() == "20"
+                assert "20 cents" in page.locator("#stemPitchToleranceValue").inner_text()
                 page.locator("#previewStem").click()
                 page.wait_for_function("document.querySelector('#stemExportStatus')?.textContent.includes('Preview rendered locally')", timeout=30000)
                 assert page.locator("#stemPreviewPanel").is_visible()
