@@ -209,13 +209,19 @@ def main():
                 preview_button = page.locator("[data-waveform-preview-play]")
                 assert preview_button.is_enabled(), "Waveform range selection did not enable audition preview."
                 assert "Selected range" in page.locator("[data-waveform-status]").inner_text(), "Selected range feedback is missing."
+                loop_button = page.locator("[data-waveform-preview-loop]")
+                loop_button.click()
+                assert loop_button.get_attribute("aria-pressed") == "true", "Waveform audition loop did not enable."
                 preview_button.click()
-                page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === false", timeout=3000)
+                page.wait_for_function("document.querySelector('[data-waveform-status]')?.textContent.includes('Looping selected range')", timeout=8000)
+                assert page.locator("[data-track-audio-player]").evaluate("(el) => !el.paused"), "Looping audition stopped unexpectedly."
                 stop_button = page.locator("[data-waveform-preview-stop]")
                 assert stop_button.is_enabled(), "Stop control did not enable during selection audition."
                 stop_button.click()
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('preview stopped')", timeout=3000)
                 assert stop_button.is_disabled(), "Stop control remained enabled after stopping audition."
+                loop_button.click()
+                assert loop_button.get_attribute("aria-pressed") == "false", "Waveform audition loop did not disable."
                 preview_button.click()
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('Selection preview finished')", timeout=5000)
                 page.locator("[data-waveform-preview-clear]").click()
