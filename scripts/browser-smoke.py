@@ -191,10 +191,11 @@ def main():
                 # Set a vocal entry offset and verify it is saved and rendered on the shared timeline.
                 offset_control = page.locator("[data-track-start-offset]")
                 assert offset_control.count() == 1, "Per-track timeline offset control is missing."
-                offset_control.fill("1.25")
+                assert offset_control.get_attribute("step") == "0.01", "Timeline alignment must support 10 ms precision."
+                offset_control.fill("1.23")
                 offset_control.dispatch_event("change")
                 saved_offset = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0].startOffset")
-                assert abs(saved_offset - 1.25) < 0.001, "Track start offset did not persist."
+                assert abs(saved_offset - 1.23) < 0.001, "Fine track start offset did not persist."
                 fade_in_control = page.locator("[data-track-fade-in]")
                 fade_out_control = page.locator("[data-track-fade-out]")
                 assert fade_in_control.count() == 1 and fade_out_control.count() == 1, "Per-track fade controls are missing."
