@@ -123,6 +123,9 @@ def main():
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
                 assert "dBFS" in page.locator("#masterMeterValue").inner_text()
+                assert page.locator("[data-track-meter]").count() == 1
+                page.wait_for_function("parseFloat(document.querySelector('[data-track-meter-fill]')?.style.width || '0') > 0", timeout=5000)
+                assert "dBFS" in page.locator("[data-track-meter-value]").inner_text()
                 page.locator("#stopMix").click()
 
                 # Exercise both offline render paths and verify actual downloadable WAV artifacts.
@@ -156,6 +159,7 @@ def main():
                 print("PASS: Vocal Polish preset persists and is applied to live and offline audio chains")
                 print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
+                print("PASS: independent per-track peak meter responds to playback")
                 print("PASS: master output peak meter and live safety limiter are present")
                 print("PASS: offline mix and stem WAV paths include the safety limiter")
                 print("PASS: offline full-mix WAV and individual stem WAV downloads")
