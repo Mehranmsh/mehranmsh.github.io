@@ -70,7 +70,7 @@ def main():
     print("3/4 Checking Music Studio user-facing safety and workflow controls...")
     studio = (ROOT / "music-studio.html").read_text(encoding="utf-8")
     required_studio_markers = [
-        'id="lyricsEditor"', 'id="lyricsProject"', 'id="saveLyrics"',
+        'id="vocalPerformanceGuide"', 'id="vocalGuideLine"', 'id="vocalGuideSyllables"', 'id="vocalGuideNotes"', 'id="vocalGuideTempo"', 'id="vocalGuideFeel"', 'id="vocalGuideSubdivision"', 'id="vocalGuideBreath"', 'id="playVocalGuide"', 'id="stopVocalGuide"', 'id="saveVocalGuide"', 'function playVocalGuide()', 'function saveVocalGuide()', 'function parseGuideNote(', 'Phrase complete', 'id="lyricsEditor"', 'id="lyricsProject"', 'id="saveLyrics"',
         'id="exportLyrics"', 'data-lyric-section="[Chorus]"',
         'id="exportBackup"', 'id="importBackup"', 'id="backupFile"',
         'mehran-music-studio-backup', 'Could not save: browser storage is full or unavailable',
