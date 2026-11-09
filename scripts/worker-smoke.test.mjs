@@ -940,7 +940,7 @@ test("SOCIAL account deletion reauthenticates, removes external media and cleans
   const handler = workerSource.slice(start, end);
   assert.ok(start >= 0 && end > start, "socialDeleteAccount implementation must exist");
   for (const marker of [
-    "identitytoolkit.googleapis.com/v1/accounts:lookup",
+    "identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
     "identity.localId === row.firebase_uid",
     "rapidfileRequest(env, `/files/",
     "DELETE FROM social_uploads WHERE user_id=?",
