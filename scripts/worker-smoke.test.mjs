@@ -972,6 +972,21 @@ test("SOCIAL call polling enforces current membership and block state", () => {
   assert.match(handler, /isDirectConversationBlocked\(env, call\.conversation_id, user\.id\)/);
   assert.match(handler, /JOIN social_conversation_members cm ON cm\.conversation_id=\? AND cm\.user_id=p\.user_id/);
   assert.match(handler, /\.bind\(call\.conversation_id,callId\)\.all\(\)/);
+  assert.match(handler, /social-call-poll/);
+  assert.match(handler, /100, 60, 60/);
+  assert.match(handler, /Number\.isSafeInteger\(rawAfter\)/);
+});
+
+test("SOCIAL call creation and joining have abuse limits", () => {
+  const start = workerSource.indexOf("async function socialCallStart");
+  const active = workerSource.indexOf("\\nasync function socialCallActive", start);
+  const join = workerSource.indexOf("async function socialCallJoin");
+  const poll = workerSource.indexOf("\\nasync function socialCallPoll", join);
+  assert.ok(start >= 0 && active > start && join >= 0 && poll > join);
+  assert.match(workerSource.slice(start, active), /social-call-start/);
+  assert.match(workerSource.slice(start, active), /5, 600, 600/);
+  assert.match(workerSource.slice(join, poll), /social-call-join/);
+  assert.match(workerSource.slice(join, poll), /20, 60, 60/);
 });
 
 test("SOCIAL active call participant lists exclude users removed from the conversation", () => {
