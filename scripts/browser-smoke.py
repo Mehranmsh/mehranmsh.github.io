@@ -631,7 +631,12 @@ def main():
                 # Generate an original local drum loop and attach its WAV to the same project.
                 page.locator("#patternTempo").fill("96")
                 page.locator("#patternMode").select_option("drums")
-                page.locator("#patternBars").select_option("1")
+                page.locator("#patternBars").select_option("2")
+                page.locator("#patternEditBar").select_option("2")
+                page.locator("#kickSteps [data-pattern-step='1']").click()
+                multibar_drums = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.kick")
+                assert 17 in multibar_drums, "Second-bar drum steps were not stored at their absolute positions."
+                page.locator("#patternEditBar").select_option("1")
                 page.locator("#kickSteps [data-pattern-step='1']").click()
                 page.locator("#renderPattern").click()
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
