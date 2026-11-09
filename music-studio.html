@@ -73,7 +73,31 @@
   </div>
  </section>
  <section id="view-library" class="hidden"><div class="section-head"><div><h2>My projects</h2><p>Drafts stored locally on this device.</p></div><button class="btn" data-go="create">＋ New project</button></div><div id="libraryProjects" class="projects"></div></section>
- <section id="view-lyrics" class="hidden"><div class="hero"><div class="eyebrow">WRITING WORKSPACE</div><h1>Lyrics Lab</h1><p>A dedicated lyric editor is next in the build sequence. For now, lyrics and song ideas can be stored inside each project draft.</p></div><button class="btn" data-go="create">Start a project with lyrics</button></section>
+ <section id="view-lyrics" class="hidden">
+  <div class="section-head"><div><h2>Lyrics Lab</h2><p>Write and organize lyrics locally, then save them into a music project.</p></div></div>
+  <div class="workspace">
+   <div class="panel">
+    <div class="field"><label for="lyricsProject">PROJECT</label><select id="lyricsProject"><option value="">Choose a project…</option></select></div>
+    <div class="field"><label for="lyricsTitle">LYRIC TITLE</label><input id="lyricsTitle" maxlength="100" placeholder="Song title or working title"></div>
+    <div class="field"><label for="lyricsEditor">LYRICS</label><textarea id="lyricsEditor" maxlength="20000" style="min-height:360px" placeholder="[Verse 1]\nWrite your first verse…\n\n[Chorus]\nWrite your hook…"></textarea></div>
+    <div class="two"><span id="lyricsCount" style="color:var(--muted);font-size:11px">0 words · 0 characters</span><span id="lyricsSaveState" style="color:var(--muted);font-size:11px;text-align:right">Not saved</span></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn" id="saveLyrics">Save lyrics to project</button><button class="btn secondary" id="exportLyrics">Export .txt</button></div>
+   </div>
+   <div class="panel"><h3>Song structure</h3><p style="color:var(--muted);font-size:11px">Insert a section marker at the cursor. Build the arrangement in your own order.</p>
+    <div class="projects" id="lyricSections">
+     <button class="btn secondary" data-lyric-section="[Intro]">＋ Intro</button>
+     <button class="btn secondary" data-lyric-section="[Verse 1]">＋ Verse 1</button>
+     <button class="btn secondary" data-lyric-section="[Pre-Chorus]">＋ Pre-Chorus</button>
+     <button class="btn secondary" data-lyric-section="[Chorus]">＋ Chorus</button>
+     <button class="btn secondary" data-lyric-section="[Verse 2]">＋ Verse 2</button>
+     <button class="btn secondary" data-lyric-section="[Bridge]">＋ Bridge</button>
+     <button class="btn secondary" data-lyric-section="[Outro]">＋ Outro</button>
+    </div>
+    <div class="notice">Lyrics remain on this device until saved into a project draft. Export a text backup if you want a separate copy. No AI service receives your writing.</div>
+    <button class="btn" data-go="create">＋ Create a new project</button>
+   </div>
+  </div>
+ </section>
  <section id="view-vocals" class="hidden"><div class="hero"><div class="eyebrow">VOICE WORKSPACE</div><h1>Vocal Lab</h1><p>AI singer selection, multi-singer arrangements and personal voice workflows are planned here. No voice model is connected and no voice data is uploaded in this first build.</p></div><div class="notice">Voice processing will require explicit consent, secure private uploads and clear controls for deleting voice material.</div></section>
  <section id="view-mix" class="hidden"><div class="hero"><div class="eyebrow">POST-PRODUCTION</div><h1>Mix & Master</h1><p>Track balancing, effects, mastering and final export tools will live here once the audio engine is connected and tested.</p></div><div class="notice">No audio is processed or uploaded by this page yet.</div></section>
  <div class="footer"><span>MEHRAN MUSIC STUDIO · EARLY WORKSPACE BUILD</span><span>Drafts stay in this browser · Engine inactive</span></div>
@@ -95,6 +119,12 @@
   }
  }
  function show(view){document.querySelectorAll("main>section[id^=view-]").forEach(x=>x.classList.add("hidden"));$("view-"+view)?.classList.remove("hidden");document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("crumb").textContent=view.toUpperCase();if(view==="overview"||view==="library")render();}
+ function refreshLyricsProjects(selected){const s=$("lyricsProject");if(!s)return;const keep=selected||s.value;s.innerHTML='<option value="">Choose a project…</option>'+projects.slice().sort((a,b)=>b.updated-a.updated).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");if(projects.some(p=>p.id===keep))s.value=keep;else s.value="";}
+ function loadLyricsProject(){const p=projects.find(x=>x.id===$("lyricsProject").value);$("lyricsTitle").value=p?(p.lyricsTitle||p.name):"";$("lyricsEditor").value=p?(p.lyrics||""):"";updateLyricsCount();$("lyricsSaveState").textContent=p?"Loaded · not yet saved":"Choose a project";}
+ function updateLyricsCount(){const v=$("lyricsEditor").value;const words=v.trim()?v.trim().split(/\\s+/).length:0;$("lyricsCount").textContent=words+" words · "+v.length+" characters";}
+ function saveLyrics(){const p=projects.find(x=>x.id===$("lyricsProject").value);if(!p){alert("Choose a project first.");return;}p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);p.lyrics=$("lyricsEditor").value.slice(0,20000);p.updated=Date.now();save();render();refreshLyricsProjects(p.id);$("lyricsSaveState").textContent="Saved locally · "+new Date().toLocaleTimeString();}
+ function exportLyrics(){const title=$("lyricsTitle").value.trim()||"lyrics";const safe=title.replace(/[^a-z0-9\\-_ ]/gi,"").trim().replace(/\\s+/g,"-").slice(0,60)||"lyrics";const blob=new Blob([$("lyricsEditor").value],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=safe+".txt";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
+ function insertLyricSection(section){const t=$("lyricsEditor");const start=t.selectionStart,end=t.selectionEnd;const before=t.value.slice(0,start),after=t.value.slice(end);const prefix=before&&!before.endsWith("\\n")?"\\n\\n":"";const addition=prefix+section+"\\n";t.value=before+addition+after;t.focus();const pos=(before+addition).length;t.setSelectionRange(pos,pos);updateLyricsCount();}
  function resetForm(){["projectName","projectTempo","projectBrief","projectLyrics"].forEach(id=>$(id).value="");$("projectType").value="song";$("projectLanguage").value="Persian";$("projectGenre").value="Pop";$("projectMood").value="Emotional";}
  function create(){const name=$("projectName").value.trim();if(!name){$("projectName").focus();alert("Give your project a name first.");return;}const id=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());projects.push({id,name,type:$("projectType").value,language:$("projectLanguage").value,genre:$("projectGenre").value,mood:$("projectMood").value,tempo:$("projectTempo").value,brief:$("projectBrief").value.trim(),lyrics:$("projectLyrics").value.trim(),created:Date.now(),updated:Date.now()});save();resetForm();render();show("library");}
  function newProject(){resetForm();delete $("saveProject").dataset.edit;$("saveProject").textContent="Save project draft";show("create");}
@@ -102,6 +132,14 @@
  function update(){const id=$("saveProject").dataset.edit;if(!id){create();return;}const p=projects.find(x=>x.id===id);if(!p)return;p.name=$("projectName").value.trim()||p.name;p.type=$("projectType").value;p.language=$("projectLanguage").value;p.genre=$("projectGenre").value;p.mood=$("projectMood").value;p.tempo=$("projectTempo").value;p.brief=$("projectBrief").value.trim();p.lyrics=$("projectLyrics").value.trim();p.updated=Date.now();save();delete $("saveProject").dataset.edit;$("saveProject").textContent="Save project draft";render();show("library");}
  document.addEventListener("click",e=>{const nav=e.target.closest("[data-view]");if(nav){if(nav.dataset.view==="create")newProject();else show(nav.dataset.view);return;}const go=e.target.closest("[data-go]");if(go){if(go.dataset.go==="create")newProject();else show(go.dataset.go);return;}const op=e.target.closest("[data-open]");if(op){openProject(op.dataset.open);return;}const del=e.target.closest("[data-delete]");if(del){if(confirm("Delete this local project draft?")){projects=projects.filter(p=>p.id!==del.dataset.delete);save();render();}}});
  $("saveProject").addEventListener("click",()=>{if($("saveProject").dataset.edit)update();else create();});
+ $("lyricsProject").addEventListener("change",loadLyricsProject);
+ $("lyricsEditor").addEventListener("input",()=>{updateLyricsCount();$("lyricsSaveState").textContent="Unsaved changes";});
+ $("saveLyrics").addEventListener("click",saveLyrics);
+ $("exportLyrics").addEventListener("click",exportLyrics);
+ document.querySelectorAll("[data-lyric-section]").forEach(b=>b.addEventListener("click",()=>insertLyricSection(b.dataset.lyricSection)));
+ const originalShow=show;
+ show=function(view){originalShow(view);if(view==="lyrics"){refreshLyricsProjects();loadLyricsProject();}};
+
  render();
 })();
 </script>
