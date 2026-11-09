@@ -4,11 +4,8 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from threading import Thread
 from tempfile import TemporaryDirectory
-import contextlib
 import math
-import os
 import struct
-import time
 import wave
 
 from playwright.sync_api import sync_playwright
@@ -99,12 +96,24 @@ def main():
                 mix_file = Path(temp) / "mix.wav"
                 mix_download.value.save_as(str(mix_file))
                 assert mix_file.is_file() and mix_file.stat().st_size > 44
+                with wave.open(str(mix_file), "rb") as rendered_mix:
+                    assert rendered_mix.getnchannels() == 2
+                    assert rendered_mix.getframerate() == 44100
+                    assert rendered_mix.getnframes() >= int(2.3 * 44100)
+                    mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
+                    assert any(mix_pcm), "Rendered mix is silent."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
                 stem_file = Path(temp) / "stem.wav"
                 stem_download.value.save_as(str(stem_file))
                 assert stem_file.is_file() and stem_file.stat().st_size > 44
+                with wave.open(str(stem_file), "rb") as rendered_stem:
+                    assert rendered_stem.getnchannels() == 2
+                    assert rendered_stem.getframerate() == 44100
+                    assert rendered_stem.getnframes() >= int(2.3 * 44100)
+                    stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
+                    assert any(stem_pcm), "Rendered stem is silent."
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
