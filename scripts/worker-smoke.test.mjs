@@ -937,7 +937,7 @@ test("SOCIAL existing direct chats recheck the recipient's current message priva
 test("SOCIAL direct-call discovery, joining and signaling enforce current block relationships", () => {
   const section = (name, next) => {
     const start = workerSource.indexOf("async function " + name);
-    const end = workerSource.indexOf("\\nasync function " + next, start);
+    const end = workerSource.indexOf("\nasync function " + next, start);
     assert.ok(start >= 0 && end > start, name + " handler must exist");
     return workerSource.slice(start, end);
   };
