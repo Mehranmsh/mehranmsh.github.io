@@ -527,6 +527,13 @@ def main():
                 assert len(resized_events) == 2 and all(event["lengthSteps"] == 8 for event in resized_events), "Applying a new duration did not resize all notes in the selected piano-roll step."
                 page.locator("#patternNoteLength").select_option("4")
                 page.locator("#applyPatternNoteLength").click()
+                # Edit a second bar without overwriting the first bar's legacy note map.
+                page.locator("#patternBars").select_option("2")
+                page.locator("#patternEditBar").select_option("2")
+                page.locator("#pianoRollGrid [data-piano-step='2'][data-piano-note='G3']").click()
+                multibar_events = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents")
+                assert any(event["startStep"] == 18 and event["note"] == "G3" for event in multibar_events), "Second-bar piano roll events were not stored at their absolute step."
+                page.locator("#patternEditBar").select_option("1")
 
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
@@ -544,6 +551,7 @@ def main():
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('MIDI imported')", timeout=5000)
                 melody_roundtrip = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents")
                 assert {event["note"] for event in melody_roundtrip if event["startStep"] == 1} == {"D3", "F3"}
+                assert any(event["startStep"] == 18 and event["note"] == "G3" for event in melody_roundtrip), "MIDI roundtrip did not preserve second-bar note positions."
                 # Song-form sections are saved in sequence with computed bar positions.
                 page.locator("#arrangementSection").select_option("Intro")
                 page.locator("#arrangementBars").select_option("4")
