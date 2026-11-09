@@ -93,6 +93,9 @@ def main():
                 assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
                 assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 1, "Pitch contour has no voiced frames"
 
+                assert "fade=Math.max(32,Math.floor(rate*0.035))" in page.content(), "Pitch correction must use a longer 35 ms transition fade."
+                assert "mix=0.5-0.5*Math.cos(Math.PI*edge)" in page.content(), "Pitch correction must use smooth cosine edge blending."
+
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
