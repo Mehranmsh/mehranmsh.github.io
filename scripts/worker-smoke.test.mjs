@@ -949,7 +949,9 @@ test("SOCIAL account deletion reauthenticates, removes external media and cleans
     "DELETE FROM social_sessions WHERE user_id=?",
     "DELETE FROM social_users WHERE id=?",
     "Could not remove all account media from storage",
-    "ownershipTransferred: true"
+    "ownershipTransferred: true",
+    "identitytoolkit.googleapis.com/v1/accounts:delete",
+    "providerIdentityDeleted"
   ]) assert.ok(handler.includes(marker), "Missing account deletion safeguard: " + marker);
   assert.doesNotMatch(handler, /deactivated: true/);
 });
