@@ -203,9 +203,24 @@ def main():
                 fade_in_control.dispatch_event("change")
                 fade_out_control.fill("0.35")
                 fade_out_control.dispatch_event("change")
+                trim_start_control = page.locator("[data-track-trim-start]")
+                trim_end_control = page.locator("[data-track-trim-end]")
+                assert trim_start_control.count() == 1 and trim_end_control.count() == 1, "Non-destructive trim controls are missing."
+                assert trim_start_control.get_attribute("step") == "0.01" and trim_end_control.get_attribute("step") == "0.01"
+                trim_start_control.fill("0.10")
+                trim_start_control.dispatch_event("change")
+                trim_end_control.fill("0.10")
+                trim_end_control.dispatch_event("change")
+                saved_trim = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0]")
+                assert abs(saved_trim["trimStart"] - 0.10) < 0.001 and abs(saved_trim["trimEnd"] - 0.10) < 0.001, "Track trim values did not persist."
                 saved_fades = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0]")
                 assert abs(saved_fades["fadeIn"] - 0.25) < 0.001, "Track fade-in did not persist."
                 assert abs(saved_fades["fadeOut"] - 0.35) < 0.001, "Track fade-out did not persist."
+
+                # Live playback must begin at the non-destructive trim start and stop before the trimmed tail.
+                page.locator("#playMix").click()
+                page.wait_for_function("document.querySelector('[data-track-audio-player]')?.currentTime >= 0.10", timeout=10000)
+                page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && Math.abs(document.querySelector('[data-track-audio-player]')?.currentTime - 0.10) < 0.04", timeout=5000)
 
                 # Exercise both offline render paths and verify actual downloadable WAV artifacts.
                 with page.expect_download(timeout=30000) as mix_download:
@@ -216,10 +231,11 @@ def main():
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
                     assert rendered_mix.getframerate() == 44100
-                    assert rendered_mix.getnframes() >= int(3.7 * 44100), "Timeline offset was not included in the rendered mix duration."
+                    assert 3.52 * 44100 <= rendered_mix.getnframes() <= 3.54 * 44100, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
-                    assert not any(mix_pcm[:int(0.9 * 44100) * 4]), "Offset vocal audio leaked into the mix before its scheduled entry."
+                    assert not any(mix_pcm[:int(1.27 * 44100) * 4]), "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
+                    assert any(mix_pcm[int(1.30 * 44100) * 4:int(1.48 * 44100) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
@@ -229,9 +245,11 @@ def main():
                 with wave.open(str(stem_file), "rb") as rendered_stem:
                     assert rendered_stem.getnchannels() == 2
                     assert rendered_stem.getframerate() == 44100
-                    assert rendered_stem.getnframes() >= int(2.3 * 44100)
+                    assert 2.29 * 44100 <= rendered_stem.getnframes() <= 2.31 * 44100, "Stem duration did not reflect the non-destructive trim range."
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
+                    assert not any(stem_pcm[:int(0.04 * 44100) * 4]), "Stem did not begin at the configured 0.10 s source trim."
+                    assert any(stem_pcm[int(0.08 * 44100) * 4:int(0.18 * 44100) * 4]), "Stem omitted the expected retained vocal segment."
 
                 # Render the same lead vocal with offline pitch correction enabled.
                 page.locator("#stemPitchCorrection").check()
