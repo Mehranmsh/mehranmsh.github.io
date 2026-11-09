@@ -488,6 +488,7 @@ def main():
                 chord_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 chord_track = next(track for track in chord_project["tracks"] if track.get("generated") and track["name"] == "Generated chord backing")
                 assert chord_track["type"] == "Chord Backing" and chord_track["audioSize"] > 44
+                assert chord_track["gain"] == -4 and chord_track["effects"]["reverb"] == 18 and chord_track["effects"]["chorusDepth"] == 14
                 assert chord_project["patternStudio"]["chords"] == ["Am", "F", "C", "G"]
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, H-not-a-chord")
