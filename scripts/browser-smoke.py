@@ -209,6 +209,9 @@ def main():
                 preview_button = page.locator("[data-waveform-preview-play]")
                 assert preview_button.is_enabled(), "Waveform range selection did not enable audition preview."
                 assert "Selected range" in page.locator("[data-waveform-status]").inner_text(), "Selected range feedback is missing."
+                selection_start = page.locator("[data-waveform-selection-start]")
+                selection_end = page.locator("[data-waveform-selection-end]")
+                assert float(selection_end.input_value()) - float(selection_start.input_value()) > 0.05, "Precise selection time fields were not populated."
                 loop_button = page.locator("[data-waveform-preview-loop]")
                 loop_button.click()
                 assert loop_button.get_attribute("aria-pressed") == "true", "Waveform audition loop did not enable."
