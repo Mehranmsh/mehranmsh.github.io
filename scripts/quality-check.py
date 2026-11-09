@@ -74,7 +74,7 @@ def main():
         'id="exportLyrics"', 'data-lyric-section="[Chorus]"',
         'id="exportBackup"', 'id="importBackup"', 'id="backupFile"',
         'mehran-music-studio-backup', 'Could not save: browser storage is full or unavailable',
-        'Tempo must be between 40 and 220 BPM'
+        'Tempo must be between 40 and 220 BPM', 'id="vocalProject"', 'id="singerName"',\n        'id="addSinger"', 'id="vocalCast"', 'data-remove-singer', 'Up to 8 singer profiles per project',\n        'singers:Array.isArray(p.singers)'
     ]
     missing = [marker for marker in required_studio_markers if marker not in studio]
     if missing:
@@ -85,6 +85,11 @@ def main():
         raise SystemExit("Music Studio must restore the prior project when an update cannot be saved.")
     if 'if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}' not in studio:
         raise SystemExit("Lyrics Lab must report storage failure and restore unsaved project data.")
+    if 'function addSinger()' not in studio or 'if(p.singers.length>=8)' not in studio:
+        raise SystemExit("Vocal Lab must validate singer profiles and enforce the 8-singer project limit.")
+    if 'if(!save()){p.singers.pop();p.updated=previousUpdated;return;}' not in studio:
+        raise SystemExit("Vocal Lab must roll back singer changes when local storage fails.")
+
 
     print("3/4 Checking the self-hosted Music Studio control-plane Python syntax...")
     import py_compile
