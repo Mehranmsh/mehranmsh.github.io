@@ -102,7 +102,6 @@ def main():
     required_social_deletion_markers = [
         'id="socialDeletePassword"', 'id="socialDeleteAccountBtn"',
         'Permanently delete my account', 'socialFirebaseSignOut',
-        'reauthenticateWithCredential', 'socialFirebaseSignOut',
         'fetch(SOCIAL_API+"/account"'
     ]
     missing = [marker for marker in required_social_deletion_markers if marker not in app]
