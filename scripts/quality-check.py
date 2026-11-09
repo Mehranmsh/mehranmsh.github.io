@@ -91,7 +91,7 @@ def main():
         raise SystemExit("Vocal Lab must validate singer profiles and enforce the 8-singer project limit.")
     if 'if(!save()){p.singers.pop();p.updated=previousUpdated;return;}' not in studio:
         raise SystemExit("Vocal Lab must roll back singer changes when local storage fails.")
-    for marker in [r'split(/\\s+/)', r'/^\\d{2,3}$/', r'endsWith("\\n")', r'section+"\\n"']:
+    for marker in [r'split(/\s+/)', r'/^\d{2,3}$/', r'endsWith("\n")', r'section+"\n"']:
         if marker not in studio:
             raise SystemExit("Music Studio lyric/tempo input handling is missing: " + marker)
 
