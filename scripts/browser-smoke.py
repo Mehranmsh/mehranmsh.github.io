@@ -485,12 +485,31 @@ def main():
                 assert page.locator("#patternGateValue").inner_text() == "55%"
                 page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
                 assert "D3" not in page.locator("#patternNotes").input_value()
+                # Polyphonic note events can overlap and retain independent duration/articulation.
+                page.locator("#patternNoteLength").select_option("4")
+                page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
+                page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='F3']").click()
+                event_model = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents")
+                overlapping = [event for event in event_model if event["startStep"] == 1]
+                assert {event["note"] for event in overlapping} == {"D3", "F3"}
+                assert all(event["lengthSteps"] == 4 and event["velocity"] == 65 and event["gate"] == 55 for event in overlapping)
 
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
                 melody_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"] and melody_project["patternStudio"]["velocityByStep"][1] == 65 and melody_project["patternStudio"]["gateByStep"][1] == 55
+                melody_events = [event for event in melody_project["patternStudio"]["noteEvents"] if event["startStep"] == 1]
+                assert {event["note"] for event in melody_events} == {"D3", "F3"} and all(event["lengthSteps"] == 4 for event in melody_events)
+                # Song-form sections are saved in sequence with computed bar positions.
+                page.locator("#arrangementSection").select_option("Intro")
+                page.locator("#arrangementBars").select_option("4")
+                page.locator("#addArrangementSection").click()
+                page.locator("#arrangementSection").select_option("Chorus")
+                page.locator("#arrangementBars").select_option("8")
+                page.locator("#addArrangementSection").click()
+                arrangement = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
+                assert [(item["name"], item["startBar"], item["bars"]) for item in arrangement] == [("Intro", 1, 4), ("Chorus", 5, 8)]
                 # Render a four-chord harmonic backing layer and verify the project record.
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, F, C, G")
