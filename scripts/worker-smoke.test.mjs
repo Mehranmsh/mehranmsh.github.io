@@ -1109,3 +1109,19 @@ test("SOCIAL active-call status polling is account rate limited", () => {
   assert.ok(handler.includes('"social-call-active", 60, 60, 60, user.id'));
   assert.ok(handler.includes("Call status checks are temporarily rate limited"));
 });
+
+
+test("SOCIAL call participant capacity is enforced atomically in the join write", () => {
+  const start = workerSource.indexOf("async function socialCallJoin");
+  const end = workerSource.indexOf("\nasync function socialCallPoll", start);
+  const handler = workerSource.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.ok(handler.includes("INSERT INTO social_call_participants"));
+  assert.ok(handler.includes("SELECT ?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL"));
+  assert.ok(handler.includes("p.user_id<>?"));
+  assert.ok(handler.includes("p.last_seen_at>=datetime('now','-25 seconds')"));
+  assert.ok(handler.includes("ON CONFLICT(call_id,user_id) DO UPDATE"));
+  assert.ok(handler.includes("joined?.meta?.changes"));
+  assert.ok(!handler.includes("const existing ="));
+  assert.ok(!handler.includes("const count ="));
+});
