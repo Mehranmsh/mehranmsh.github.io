@@ -4842,6 +4842,13 @@ async function socialDeleteAccount(request, env) {
     env.DB.prepare("DELETE FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
     env.DB.prepare("DELETE FROM social_conversation_members WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
     env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=? AND type='group'").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_signals WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')))").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_participants WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')))").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private'))").bind(uid),
+    env.DB.prepare("DELETE FROM social_message_reactions WHERE message_id IN (SELECT id FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')))").bind(uid),
+    env.DB.prepare("DELETE FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private'))").bind(uid),
+    env.DB.prepare("DELETE FROM social_conversation_members WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private'))").bind(uid),
+    env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')").bind(uid),
     env.DB.prepare("DELETE FROM social_channel_pins WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
     env.DB.prepare("DELETE FROM social_channel_posts WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
     env.DB.prepare("DELETE FROM social_channel_members WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
@@ -4873,7 +4880,6 @@ async function socialDeleteAccount(request, env) {
     env.DB.prepare("DELETE FROM social_call_sessions WHERE host_id=?").bind(uid),
     env.DB.prepare("DELETE FROM social_group_invites WHERE created_by=?").bind(uid),
     env.DB.prepare("DELETE FROM social_conversation_members WHERE user_id=?").bind(uid),
-    env.DB.prepare("UPDATE social_conversations SET owner_id=(SELECT user_id FROM social_conversation_members WHERE conversation_id=social_conversations.id ORDER BY joined_at ASC LIMIT 1) WHERE owner_id=?").bind(uid),
     env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=?").bind(uid),
 
     // Remove authored channel posts, bots, private AI history and support data.
