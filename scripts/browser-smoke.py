@@ -69,7 +69,7 @@ def main():
                 page.locator('[data-view="vocals"]').click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
-                page.get_by_text("Vocal recording imported and saved on this device.", exact=True).wait_for(timeout=10000)
+                page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
                 assert page.locator("#vocalRecordingPreview").is_visible()
                 assert page.locator("#vocalRecordingPreview").get_attribute("src")
                 saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
