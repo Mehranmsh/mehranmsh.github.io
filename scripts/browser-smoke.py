@@ -210,6 +210,13 @@ def main():
                 assert preview_button.is_enabled(), "Waveform range selection did not enable audition preview."
                 assert "Selected range" in page.locator("[data-waveform-status]").inner_text(), "Selected range feedback is missing."
                 preview_button.click()
+                page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === false", timeout=3000)
+                stop_button = page.locator("[data-waveform-preview-stop]")
+                assert stop_button.is_enabled(), "Stop control did not enable during selection audition."
+                stop_button.click()
+                page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('preview stopped')", timeout=3000)
+                assert stop_button.is_disabled(), "Stop control remained enabled after stopping audition."
+                preview_button.click()
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('Selection preview finished')", timeout=5000)
                 page.locator("[data-waveform-preview-clear]").click()
                 assert preview_button.is_disabled(), "Clearing the waveform selection did not disable preview."
