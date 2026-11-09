@@ -950,6 +950,31 @@ test("SOCIAL direct-call discovery, joining and signaling enforce current block 
 });
 
 
+test("SOCIAL call signaling rejects users removed from the conversation", () => {
+  const start = workerSource.indexOf("async function socialCallSignal");
+  const end = workerSource.indexOf("\nasync function socialCallLeave", start);
+  assert.ok(start >= 0 && end > start, "socialCallSignal handler must exist");
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /isConversationMember\(env, call\.conversation_id, user\.id\)/);
+  assert.match(handler, /isConversationMember\(env, call\.conversation_id, toUserId\)/);
+  assert.match(handler, /if \(!senderMembership \|\| !targetMembership\)/);
+});
+
+test("SOCIAL bot owners can rotate active credentials and delete only their own bots", () => {
+  const rotateStart = workerSource.indexOf("async function socialRotateBotToken");
+  const deleteStart = workerSource.indexOf("async function socialDeleteBot");
+  const listStart = workerSource.indexOf("async function socialListBots");
+  const aiStart = workerSource.indexOf("const SOCIAL_AI_PROVIDERS");
+  assert.ok(rotateStart > listStart && deleteStart > rotateStart && aiStart > deleteStart);
+  const rotate = workerSource.slice(rotateStart, deleteStart);
+  const remove = workerSource.slice(deleteStart, aiStart);
+  assert.match(rotate, /UPDATE social_bots SET token_hash=\? WHERE id=\? AND owner_id=\? AND is_active=1/);
+  assert.match(rotate, /return json\(\{ success: true, token, rotated: true \}\)/);
+  assert.match(remove, /DELETE FROM social_bots WHERE id=\? AND owner_id=\?/);
+  assert.match(remove, /return json\(\{ success: true, deleted: true \}\)/);
+  assert.match(workerSource, /rotate-token/);
+});
+
 test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
   const end = workerSource.indexOf("\n}\n\nexport default", start);
