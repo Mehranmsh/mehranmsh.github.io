@@ -309,5 +309,38 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertIn("128", result["message"])
 
 
+    def test_manifest_symlink_escape_is_rejected(self):
+        outside = self.models.parent / "outside-runtime.json"
+        outside.write_text("{}", encoding="utf-8")
+        link = self.models / "runtime.json"
+        link.symlink_to(outside)
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("Manifest path escapes", result["message"])
+
+    def test_artifact_symlink_escape_is_rejected(self):
+        outside = self.models.parent / "outside-model.bin"
+        outside.write_bytes(b"outside model bytes")
+        link = self.models / "linked-model.bin"
+        link.symlink_to(outside)
+        digest = hashlib.sha256(outside.read_bytes()).hexdigest()
+        self.write_manifest(artifacts=[{"path": "linked-model.bin", "sha256": digest}])
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("escapes local models directory", result["message"])
+
+    def test_malformed_model_manifest_is_rejected_cleanly(self):
+        (self.models / "runtime.json").write_text("{not-json", encoding="utf-8")
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("Expecting", result["message"])
+
+    def test_non_object_model_manifest_is_rejected(self):
+        (self.models / "runtime.json").write_text('["not", "an", "object"]', encoding="utf-8")
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("JSON object", result["message"])
+
+
 if __name__ == "__main__":
     unittest.main()
