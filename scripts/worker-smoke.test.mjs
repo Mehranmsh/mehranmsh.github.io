@@ -963,6 +963,17 @@ test("SOCIAL call signaling rejects users removed from the conversation", () => 
   assert.match(handler, /Array\.isArray\(body\.payload\)/);
 });
 
+test("SOCIAL call polling enforces current membership and block state", () => {
+  const start = workerSource.indexOf("async function socialCallPoll");
+  const end = workerSource.indexOf("\nasync function socialCallSignal", start);
+  assert.ok(start >= 0 && end > start);
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /isConversationMember\(env,call\.conversation_id,user\.id\)/);
+  assert.match(handler, /isDirectConversationBlocked\(env, call\.conversation_id, user\.id\)/);
+  assert.match(handler, /JOIN social_conversation_members cm ON cm\.conversation_id=\? AND cm\.user_id=p\.user_id/);
+  assert.match(handler, /\.bind\(call\.conversation_id,callId\)\.all\(\)/);
+});
+
 test("SOCIAL active call participant lists exclude users removed from the conversation", () => {
   const start = workerSource.indexOf("async function socialCallActive");
   const end = workerSource.indexOf("\nasync function socialCallJoin", start);
