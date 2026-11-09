@@ -1099,3 +1099,13 @@ test("SOCIAL call leave requires active participation and is rate limited", () =
   assert.ok(handler.includes("if (!participant || participant.left_at)"));
   assert.ok(handler.indexOf("if (!participant || participant.left_at)") < handler.indexOf("UPDATE social_call_participants"));
 });
+
+
+test("SOCIAL active-call status polling is account rate limited", () => {
+  const start = workerSource.indexOf("async function socialCallActive");
+  const end = workerSource.indexOf("\nasync function socialCallJoin", start);
+  const handler = workerSource.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.ok(handler.includes('"social-call-active", 60, 60, 60, user.id'));
+  assert.ok(handler.includes("Call status checks are temporarily rate limited"));
+});
