@@ -74,7 +74,9 @@ def main():
         'id="exportLyrics"', 'data-lyric-section="[Chorus]"',
         'id="exportBackup"', 'id="importBackup"', 'id="backupFile"',
         'mehran-music-studio-backup', 'Could not save: browser storage is full or unavailable',
-        'Tempo must be between 40 and 220 BPM', 'id="vocalProject"', 'id="singerName"',\n        'id="addSinger"', 'id="vocalCast"', 'data-remove-singer', 'Up to 8 singer profiles per project',\n        'singers:Array.isArray(p.singers)'
+        'Tempo must be between 40 and 220 BPM', 'id="vocalProject"', 'id="singerName"',
+        'id="addSinger"', 'id="vocalCast"', 'data-remove-singer', 'Up to 8 singer profiles per project',
+        'singers:Array.isArray(p.singers)'
     ]
     missing = [marker for marker in required_studio_markers if marker not in studio]
     if missing:
