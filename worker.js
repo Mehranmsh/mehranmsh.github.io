@@ -4903,7 +4903,25 @@ async function socialDeleteAccount(request, env) {
     return error("Account data cleanup could not be completed. Contact support before retrying.", 500);
   }
 
-  return json({ success: true, deleted: true, removedFiles: uploadRows.length, ownershipTransferred: true });
+  let providerIdentityDeleted = null;
+  if (idToken && row.firebase_uid) {
+    try {
+      const providerResponse = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete?key=" + FIREBASE_WEB_API_KEY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      providerIdentityDeleted = providerResponse.ok;
+      if (!providerIdentityDeleted) {
+        const detail = await providerResponse.text().catch(() => "");
+        console.error("SOCIAL_FIREBASE_IDENTITY_DELETE_FAILURE", detail.slice(0, 300));
+      }
+    } catch (err) {
+      providerIdentityDeleted = false;
+      console.error("SOCIAL_FIREBASE_IDENTITY_DELETE_FAILURE", String(err?.message || err).slice(0, 300));
+    }
+  }
+  return json({ success: true, deleted: true, removedFiles: uploadRows.length, ownershipTransferred: true, providerIdentityDeleted });
 }
 
 export default {
