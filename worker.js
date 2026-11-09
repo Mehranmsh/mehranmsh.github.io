@@ -2666,6 +2666,9 @@ async function socialCallSignal(request, env, callId) {
   if (!type || !toUserId || !body.payload || typeof body.payload!=="object") return error("Invalid call signal");
   const call = await env.DB.prepare("SELECT conversation_id,status FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("Call has ended",404);
+  const senderMembership = await isConversationMember(env, call.conversation_id, user.id);
+  const targetMembership = await isConversationMember(env, call.conversation_id, toUserId);
+  if (!senderMembership || !targetMembership) return error("Both users must remain members of this conversation",403);
   if (await isDirectConversationBlocked(env, call.conversation_id, user.id) || await isDirectConversationBlocked(env, call.conversation_id, toUserId)) {
     return error("Call signaling is unavailable for this conversation",403);
   }
@@ -3987,6 +3990,28 @@ async function socialListBots(request, env) {
   `).bind(user.id).all();
 
   return json({ success: true, bots: result.results || [] });
+}
+
+async function socialRotateBotToken(request, env, botId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const token = createSessionToken();
+  const tokenHash = await sha256(token);
+  const result = await env.DB.prepare(
+    "UPDATE social_bots SET token_hash=? WHERE id=? AND owner_id=? AND is_active=1"
+  ).bind(tokenHash, botId, user.id).run();
+  if (!Number(result?.meta?.changes || 0)) return error("Active bot not found", 404);
+  return json({ success: true, token, rotated: true });
+}
+
+async function socialDeleteBot(request, env, botId) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("Authentication required", 401);
+  const result = await env.DB.prepare(
+    "DELETE FROM social_bots WHERE id=? AND owner_id=?"
+  ).bind(botId, user.id).run();
+  if (!Number(result?.meta?.changes || 0)) return error("Bot not found", 404);
+  return json({ success: true, deleted: true });
 }
 
 const SOCIAL_AI_PROVIDERS = {
@@ -5606,6 +5631,13 @@ export default {
 
         if (path === "/social/bots" && method === "POST") {
           return await socialCreateBot(request, env);
+        }
+
+        const botMatch = path.match(/^\\/social\\/bots\\/([^/]+)(?:\\/(rotate-token))?$/);
+        if (botMatch) {
+          const botId = decodeURIComponent(botMatch[1]);
+          if (botMatch[2] === "rotate-token" && method === "POST") return await socialRotateBotToken(request, env, botId);
+          if (!botMatch[2] && method === "DELETE") return await socialDeleteBot(request, env, botId);
         }
 
         if (path === "/social/uploads/create" && method === "POST") {
