@@ -55,7 +55,7 @@ def main():
                 page.locator('[data-view="create"]').click()
                 page.locator("#projectName").fill("Automated Audio QA")
                 page.locator("#saveProject").click()
-                project_button = page.locator('[data-open]').filter(has_text="Automated Audio QA")
+                project_button = page.locator('#libraryProjects [data-open]').filter(has_text="Automated Audio QA")
                 project_button.wait_for(state="visible")
 
                 # Open the mix planner, add a track and verify the complete effects rack.
