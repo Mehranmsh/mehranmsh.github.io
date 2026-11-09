@@ -303,7 +303,9 @@ def main():
                 }""")
                 assert source_audio_hash_after == source_audio_hash, "Pitch correction modified the original locally stored recording."
                 # Drag the waveform's start handle and verify that the edit persists without rewriting the source blob.
-                waveform_box = page.locator("[data-track-waveform]").bounding_box()
+                waveform = page.locator("[data-track-waveform]")
+                waveform.scroll_into_view_if_needed()
+                waveform_box = waveform.bounding_box()
                 source_duration = page.locator("[data-track-audio-player]").evaluate("(el) => el.duration")
                 handle_y = waveform_box["y"] + waveform_box["height"] / 2
                 start_x = waveform_box["x"] + waveform_box["width"] * (0.10 / source_duration)
