@@ -102,7 +102,7 @@ def main():
     required_social_deletion_markers = [
         'id="socialDeletePassword"', 'id="socialDeleteAccountBtn"',
         'Permanently delete my account', 'socialFirebaseReauthenticate',
-        'reauthenticateWithCredential', 'socialFirebaseDeleteIdentity',
+        'reauthenticateWithCredential', 'socialFirebaseSignOut',
         'fetch(SOCIAL_API+"/account"'
     ]
     missing = [marker for marker in required_social_deletion_markers if marker not in app]
@@ -111,7 +111,7 @@ def main():
     worker = (ROOT / "worker.js").read_text(encoding="utf-8")
     if "rapidfileRequest(env, `/files/${encodeURIComponent(upload.id)}`, { method: \"DELETE\" })" not in worker:
         raise SystemExit("SOCIAL account deletion must remove uploaded files from external storage.")
-    if "DELETE FROM social_users WHERE id=?" not in worker or "identity.localId === row.firebase_uid" not in worker or "Account data cleanup could not be completed" not in worker:
+    if "DELETE FROM social_users WHERE id=?" not in worker or "identity.localId === row.firebase_uid" not in worker or "Account data cleanup could not be completed" not in worker or "identitytoolkit.googleapis.com/v1/accounts:delete" not in worker:
         raise SystemExit("SOCIAL account deletion must remove the user row only after provider re-authentication.")
 
     print("3/4 Checking the self-hosted Music Studio control-plane Python syntax...")
