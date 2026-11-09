@@ -70,6 +70,14 @@ class ACEstepClientTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ACEstepLocalClient("http://example.com:8001")
 
+    def test_dns_hostnames_are_rejected_even_when_named_localhost(self):
+        with self.assertRaisesRegex(ValueError, "DNS hostnames are blocked"):
+            ACEstepLocalClient("http://localhost:8001")
+
+    def test_private_lan_addresses_are_rejected(self):
+        with self.assertRaises(ValueError):
+            ACEstepLocalClient("http://192.168.1.10:8001")
+
     def test_remote_scheme_and_path_are_rejected(self):
         with self.assertRaises(ValueError):
             ACEstepLocalClient("https://127.0.0.1:8001")
