@@ -426,7 +426,7 @@ def main():
                 assert "Split complete" in split_status, "Split operation did not complete: " + split_status
                 assert len(split_project["tracks"]) == 3, "Split did not create exactly three clips."
                 assert [round(track["trimStart"], 2) for track in split_project["tracks"]] == [0.10, 0.20, 0.35], "Split clips do not preserve the selected source boundaries."
-                assert [round(track["startOffset"], 2) for track in split_project["tracks"]] == [0.00, 0.10, 0.25], "Split clips do not preserve contiguous timeline placement."
+                assert [round(track["startOffset"], 2) for track in split_project["tracks"]] == [1.23, 1.33, 1.48], "Split clips do not preserve the original timeline offset and contiguous placement."
                 assert all(track.get("audioName") for track in split_project["tracks"]), "A split clip lost its local audio reference."
                 split_hashes = page.evaluate("""async () => {
                     const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0];
