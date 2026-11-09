@@ -80,7 +80,7 @@ def main():
         'id="singerParts"', 'id="cancelSingerEdit"', 'data-edit-singer',
         'parts:typeof v.parts==="string"', 'Browser storage could not save the imported projects. Existing drafts were preserved.',
         'id="mixProject"', 'id="trackName"', 'id="trackType"', 'id="trackNotes"',
-        'id="addTrack"', 'id="mixTracks"', 'id="exportMixPlan"', 'tracks:Array.isArray(p.tracks)',
+        'id="addTrack"', 'id="mixTracks"', 'id="exportMixPlan"', 'id="addSingerTracks"', 'sourceSingerId', 'function addSingerTracks()', 'tracks:Array.isArray(p.tracks)',
         'data-track-gain', 'data-track-pan', 'data-track-mute', 'data-track-delete',
         'up to 32 planned tracks'
     ]
@@ -103,6 +103,8 @@ def main():
         raise SystemExit("Backup restore must be transactional when browser storage is full.")
     if 'function addTrack()' not in studio or 'p.tracks.length>=32' not in studio or 'function exportMixPlan()' not in studio:
         raise SystemExit("Arrangement & Mix Planner must support bounded track planning and export.")
+    if 'function addSingerTracks()' not in studio or 'sourceSingerId' not in studio:
+        raise SystemExit("Vocal Lab singer profiles must be linkable to planned vocal tracks.")
     if 'Audio playback, effects, rendering and mastering are not active' not in studio:
         raise SystemExit("Music Studio must clearly distinguish planning from active audio processing.")
     for marker in [r'split(/\s+/)', r'/^\d{2,3}$/', r'endsWith("\n")', r'section+"\n"']:
