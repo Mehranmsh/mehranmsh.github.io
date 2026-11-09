@@ -199,6 +199,7 @@ def main():
                 zoom_control.evaluate("(el) => { el.value = '1'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
                 page.wait_for_function("document.querySelector('[data-waveform-zoom-value]').textContent === '1×'", timeout=5000)
                 # Drag across the waveform away from trim handles to select a non-destructive audition range.
+                waveform.scroll_into_view_if_needed()
                 box = waveform.bounding_box()
                 page.mouse.move(box["x"] + box["width"] * 0.25, box["y"] + box["height"] * 0.5)
                 page.mouse.down()
