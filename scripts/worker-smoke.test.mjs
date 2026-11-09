@@ -935,15 +935,20 @@ test("SOCIAL existing direct chats recheck the recipient's current message priva
 
 
 test("SOCIAL direct-call discovery, joining and signaling enforce current block relationships", () => {
-  const start = workerSource.indexOf("async function socialCallStart");
-  const end = workerSource.indexOf("\nasync function socialCallLeave", start);
-  const handlers = workerSource.slice(start, end);
-  assert.ok(start >= 0 && end > start, "SOCIAL call handlers must exist");
-  assert.match(handlers, /socialCallStart[\\s\\S]*?isDirectConversationBlocked\\(env, conversationId, user\\.id\\)/);
-  assert.match(handlers, /socialCallActive[\\s\\S]*?isDirectConversationBlocked\\(env, conversationId, user\\.id\\)/);
-  assert.match(handlers, /socialCallJoin[\\s\\S]*?isDirectConversationBlocked\\(env, call\\.conversation_id, user\\.id\\)/);
-  assert.match(handlers, /socialCallSignal[\\s\\S]*?isDirectConversationBlocked\\(env, call\\.conversation_id, user\\.id\\)[\\s\\S]*?isDirectConversationBlocked\\(env, call\\.conversation_id, toUserId\\)/);
+  const section = (name, next) => {
+    const start = workerSource.indexOf("async function " + name);
+    const end = workerSource.indexOf("\\nasync function " + next, start);
+    assert.ok(start >= 0 && end > start, name + " handler must exist");
+    return workerSource.slice(start, end);
+  };
+  assert.ok(section("socialCallStart", "socialCallActive").includes("isDirectConversationBlocked(env, conversationId, user.id)"));
+  assert.ok(section("socialCallActive", "socialCallJoin").includes("isDirectConversationBlocked(env, conversationId, user.id)"));
+  assert.ok(section("socialCallJoin", "socialCallSignal").includes("isDirectConversationBlocked(env, call.conversation_id, user.id)"));
+  const signal = section("socialCallSignal", "socialCallLeave");
+  assert.ok(signal.includes("isDirectConversationBlocked(env, call.conversation_id, user.id)"));
+  assert.ok(signal.includes("isDirectConversationBlocked(env, call.conversation_id, toUserId)"));
 });
+
 
 test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
