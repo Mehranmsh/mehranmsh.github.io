@@ -396,6 +396,41 @@ def main():
                     measured_hz = 44100 / best_lag
                     assert 395 <= measured_hz <= 435, "Pitch correction did not shift A4 toward G#4: " + str(measured_hz)
 
+                # Split a selected vocal region into three independently editable clips without changing the source blob.
+                page.locator("[data-waveform-select-retained]").click()
+                page.locator("[data-waveform-selection-start]").fill("0.20")
+                page.locator("[data-waveform-selection-end]").fill("0.35")
+                page.locator("[data-waveform-split-selection]").click()
+                page.wait_for_function("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks.length === 3", timeout=10000)
+                split_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                assert [round(track["trimStart"], 2) for track in split_project["tracks"]] == [0.10, 0.20, 0.35], "Split clips do not preserve the selected source boundaries."
+                assert [round(track["startOffset"], 2) for track in split_project["tracks"]] == [0.00, 0.10, 0.25], "Split clips do not preserve contiguous timeline placement."
+                assert all(track.get("audioName") for track in split_project["tracks"]), "A split clip lost its local audio reference."
+                split_hashes = page.evaluate("""async () => {
+                    const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0];
+                    const db = await new Promise((resolve, reject) => {
+                        const request = indexedDB.open('mehran_music_studio_audio_v1', 1);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    const store = db.transaction('trackAudio').objectStore('trackAudio');
+                    const hashes = [];
+                    for (const track of project.tracks) {
+                        const record = await new Promise((resolve, reject) => {
+                            const request = store.get(project.id + ':' + track.id);
+                            request.onsuccess = () => resolve(request.result);
+                            request.onerror = () => reject(request.error);
+                        });
+                        if (!record?.blob) throw new Error('A split clip audio asset is missing');
+                        const digest = await crypto.subtle.digest('SHA-256', await record.blob.arrayBuffer());
+                        hashes.push(Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join(''));
+                    }
+                    db.close();
+                    return hashes;
+                }""")
+                assert len(set(split_hashes)) == 1 and split_hashes[0] == source_audio_hash, "Splitting changed or detached the original source audio."
+                assert "three independently editable clips" in page.locator("#mixStatus").inner_text(), "Split completion feedback is missing."
+
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
