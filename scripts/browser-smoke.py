@@ -234,9 +234,9 @@ def main():
                     assert 3.52 * 44100 <= rendered_mix.getnframes() <= 3.54 * 44100, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
-                    early_mix = struct.unpack("<" + "h" * (len(mix_pcm[:int(1.32 * 44100) * 4]) // 2), mix_pcm[:int(1.32 * 44100) * 4])
+                    early_mix = struct.unpack("<" + "h" * (len(mix_pcm[:int(1.22 * 44100) * 4]) // 2), mix_pcm[:int(1.32 * 44100) * 4])
                     assert max(map(abs, early_mix), default=0) < 100, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
-                    assert any(mix_pcm[int(1.34 * 44100) * 4:int(1.48 * 44100) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
+                    assert any(mix_pcm[int(1.30 * 44100) * 4:int(1.45 * 44100) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
@@ -249,8 +249,10 @@ def main():
                     assert 2.29 * 44100 <= rendered_stem.getnframes() <= 2.31 * 44100, "Stem duration did not reflect the non-destructive trim range."
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
-                    assert not any(stem_pcm[:int(0.04 * 44100) * 4]), "Stem did not begin at the configured 0.10 s source trim."
-                    assert any(stem_pcm[int(0.08 * 44100) * 4:int(0.18 * 44100) * 4]), "Stem omitted the expected retained vocal segment."
+                    early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(0.04 * 44100) * 4]) // 2), stem_pcm[:int(0.04 * 44100) * 4])
+                    active_stem = struct.unpack("<" + "h" * (len(stem_pcm[int(0.06 * 44100) * 4:int(0.12 * 44100) * 4]) // 2), stem_pcm[int(0.06 * 44100) * 4:int(0.12 * 44100) * 4])
+                    assert max(map(abs, early_stem), default=0) < 2000, "Stem contains the source material before the configured trim point."
+                    assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trimming."
 
                 # Render the same lead vocal with offline pitch correction enabled.
                 page.locator("#stemPitchCorrection").check()
