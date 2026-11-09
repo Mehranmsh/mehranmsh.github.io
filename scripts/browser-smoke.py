@@ -474,6 +474,11 @@ def main():
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
                 page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
+                page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
+                assert "D3" in page.locator("#patternNotes").input_value()
+                page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
+                assert "D3" not in page.locator("#patternNotes").input_value()
+
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
