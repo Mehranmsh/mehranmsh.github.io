@@ -93,6 +93,13 @@ def main():
                     return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
                 }""")
 
+                # Run the local recording preflight against the imported synthetic vocal.
+                page.locator("#analyzeRecordingQuality").click()
+                page.wait_for_function("document.querySelector('#recordingQualityResult')?.textContent.includes('Peak')", timeout=15000)
+                quality_text = page.locator("#recordingQualityResult").inner_text()
+                assert "Average RMS" in quality_text and "Clipped samples" in quality_text, "Recording quality metrics were not rendered: " + quality_text
+                assert "Peak headroom looks safe" in quality_text, "Clean synthetic recording was incorrectly flagged as clipped: " + quality_text
+
                 # The pitch detector is closure-scoped; validate it through the real Vocal Lab UI below.
                 # Analyze the imported 440 Hz synthetic vocal using the local pitch detector.
                 page.locator("#pitchStart").fill("0.15")
