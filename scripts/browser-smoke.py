@@ -185,6 +185,28 @@ def main():
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
 
+                # Render the same lead vocal with offline pitch correction enabled.
+                page.locator("#stemPitchCorrection").check()
+                page.locator("#stemPitchKey").select_option("0")
+                page.locator("#stemPitchScale").select_option("minor")
+                page.locator("#stemPitchStrength").fill("100")
+                with page.expect_download(timeout=30000) as tuned_download:
+                    page.locator("#exportStem").click()
+                tuned_file = Path(temp) / "tuned-stem.wav"
+                tuned_download.value.save_as(str(tuned_file))
+                assert tuned_file.is_file() and tuned_file.stat().st_size > 44
+                with wave.open(str(stem_file), "rb") as original_stem, wave.open(str(tuned_file), "rb") as tuned_stem:
+                    assert tuned_stem.getnframes() == original_stem.getnframes(), "Pitch correction changed the stem duration."
+                    assert tuned_stem.getnchannels() == 2 and tuned_stem.getframerate() == 44100
+                    frames = tuned_stem.getnframes()
+                    pcm = tuned_stem.readframes(frames)
+                    values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
+                    # Left channel, 0.20–0.45 s: A4 should be moved toward G#4 in C natural minor.
+                    segment = values[int(0.20 * 44100) * 2:int(0.45 * 44100) * 2:2]
+                    crossings = sum(1 for a, b in zip(segment, segment[1:]) if a <= 0 < b)
+                    measured_hz = crossings / 0.25
+                    assert 395 <= measured_hz <= 435, "Pitch correction did not shift A4 toward G#4: " + str(measured_hz)
+
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
@@ -195,7 +217,7 @@ def main():
                 print("PASS: independent per-track peak meter responds to playback")
                 print("PASS: master output peak meter and live safety limiter are present")
                 print("PASS: offline mix and stem WAV paths include the safety limiter")
-                print("PASS: offline full-mix WAV and individual stem WAV downloads")
+                print("PASS: offline full-mix and stem WAV downloads with duration-preserving pitch correction")
                 print("PASS: no uncaught browser JavaScript exceptions")
                 context.close()
                 browser.close()
