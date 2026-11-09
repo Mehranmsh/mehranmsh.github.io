@@ -420,8 +420,8 @@
     if(!Number.isFinite(audioBuffer.duration)||audioBuffer.duration<=0)throw new Error("Could not read the duration of track: "+track.name+". Check that the file is valid audio.");
     if(audioBuffer.duration>WAV_EXPORT_MAX_SECONDS)throw new Error("Track '"+track.name+"' is longer than the 120-second export limit.");decoded.push({track,buffer:audioBuffer});
    }}finally{await decodeContext.close().catch(()=>{});}
-   const duration=Math.max(...decoded.map(item=>item.buffer.duration));if(duration>WAV_EXPORT_MAX_SECONDS)throw new Error("The complete mix exceeds the 120-second safety limit.");
-   const sampleRate=44100,frames=Math.ceil(duration*sampleRate),outputFloatBytes=frames*2*4,outputWavBytes=44+frames*2*2,decodedBytes=decoded.reduce((sum,item)=>sum+item.buffer.length*item.buffer.numberOfChannels*4,0);
+   const duration=Math.max(...decoded.map(item=>item.buffer.duration)),tailSeconds=2;if(duration+tailSeconds>WAV_EXPORT_MAX_SECONDS)throw new Error("The mix must be 118 seconds or shorter so the echo tail fits the 120-second export limit.");
+   const sampleRate=44100,frames=Math.ceil((duration+tailSeconds)*sampleRate),outputFloatBytes=frames*2*4,outputWavBytes=44+frames*2*2,decodedBytes=decoded.reduce((sum,item)=>sum+item.buffer.length*item.buffer.numberOfChannels*4,0);
    if(decodedBytes+outputFloatBytes+outputWavBytes>WAV_EXPORT_MEMORY_BUDGET)throw new Error("This mix may exceed the safe memory budget for this device. Try fewer tracks or shorter audio files.");
    status.textContent="Rendering mix locally…";const Offline=window.OfflineAudioContext||window.webkitOfflineAudioContext,offline=new Offline(2,frames,sampleRate);
    const low=offline.createBiquadFilter();low.type="lowshelf";low.frequency.value=120;low.gain.value=Math.max(-12,Math.min(12,Number(masterSettings.low)||0));
@@ -435,7 +435,7 @@
    }
    const rendered=await offline.startRendering();status.textContent="Encoding WAV…";const wav=writeWav16(rendered),url=URL.createObjectURL(wav),link=document.createElement("a"),safeName=(project.name||"mehran-mix").replace(/[^a-z0-9-_]+/gi,"-").replace(/^-+|-+$/g,"").slice(0,60)||"mehran-mix";
    link.href=url;link.download=safeName+"-mix.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
-   status.textContent="WAV export started · "+Math.round(duration)+" sec · "+(wav.size/1024/1024).toFixed(1)+" MB. Keep a separate copy of the original tracks.";
+   status.textContent="WAV export started · "+(duration+tailSeconds).toFixed(1)+" sec including echo tail · "+(wav.size/1024/1024).toFixed(1)+" MB. Keep a separate copy of the original tracks.";
   }catch(error){status.textContent="WAV export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}finally{button.disabled=false;}
  }
  function addTrack(){const p=projects.find(x=>x.id===$("mixProject").value);if(!p){alert("Choose a project first.");return;}const name=$("trackName").value.trim();if(!name){$("trackName").focus();alert("Enter a track name.");return;}p.tracks=Array.isArray(p.tracks)?p.tracks:[];if(p.tracks.length>=32){alert("A project can contain up to 32 planned tracks.");return;}const track={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name.slice(0,60),type:$("trackType").value,role:$("trackRole").value,notes:$("trackNotes").value.trim().slice(0,500),gain:0,pan:0,delay:0,muted:false};p.tracks.push(track);const previousUpdated=p.updated;p.updated=Date.now();if(!save()){p.tracks.pop();p.updated=previousUpdated;return;}$("trackName").value="";$("trackNotes").value="";render();refreshMixProjects(p.id);}
