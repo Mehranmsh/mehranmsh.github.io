@@ -132,7 +132,7 @@
    <div class="panel">
     <h3>Track setup</h3>
     <div class="field"><label for="mixProject">PROJECT</label><select id="mixProject"><option value="">Choose a project…</option></select></div>
-    <div class="notice">Local audio preview is active for attached files. Track level, pan and mute are still planning controls only. Multitrack mixing, effects, rendering and mastering require the local audio engine.</div>
+    <div class="notice">Local multitrack playback mixer. Gain, pan and mute affect playback in this browser. This is not yet a rendered/exported mix.</div><div class="two" style="margin:12px 0"><button class="btn" id="playMix" type="button">▶ Play mix</button><button class="btn secondary" id="stopMix" type="button">■ Stop</button></div><p id="mixerStatus" style="color:var(--muted);font-size:11px">Attach audio to tracks, then press Play mix. Playback starts from the beginning.</p>
     <div class="field"><label for="trackName">TRACK NAME</label><input id="trackName" maxlength="60" placeholder="e.g. Main acoustic guitar"></div>
     <div class="two">
      <div class="field"><label for="trackType">TRACK TYPE</label><select id="trackType"><option>Drums / Percussion</option><option>Bass</option><option>Keys / Piano</option><option>Guitar</option><option>Strings</option><option>Synth / Pads</option><option>Lead Vocal</option><option>Backing Vocal</option><option>Choir</option><option>Sound Effects</option><option>Other</option></select></div>
@@ -157,6 +157,8 @@
  let audioDbPromise=null;
  let activeAudioTrackId=null;
  const trackAudioUrls=new Map();
+ let mixAudioContext=null;
+ const trackAudioNodes=new Map();
  function openAudioDb(){
   if(!("indexedDB" in window))return Promise.reject(new Error("This browser does not support local audio storage."));
   if(!audioDbPromise)audioDbPromise=new Promise((resolve,reject)=>{
@@ -216,7 +218,12 @@
   });
  }
  const audioKey=(projectId,trackId)=>String(projectId)+":"+String(trackId);
+ function disconnectTrackAudioNodes(){
+  for(const [id,node] of trackAudioNodes){try{node.player.pause();node.source.disconnect();node.gain.disconnect();node.pan.disconnect();}catch{} }
+  trackAudioNodes.clear();
+ }
  function clearTrackAudioUrls(){
+  disconnectTrackAudioNodes();
   for(const url of trackAudioUrls.values())URL.revokeObjectURL(url);
   trackAudioUrls.clear();
  }
@@ -261,9 +268,55 @@
  function removeSinger(index){const p=projects.find(x=>x.id===$("vocalProject").value);if(!p||!Array.isArray(p.singers)||!p.singers[index])return;if(!confirm("Remove this singer profile? Its planned vocal track will be kept as an independent track."))return;const removed=p.singers.splice(index,1)[0];const previousTracks=(p.tracks||[]).map(t=>({...t}));const previousUpdated=p.updated;for(const track of p.tracks||[])if(track.sourceSingerId===removed.id)delete track.sourceSingerId;p.updated=Date.now();if(!save()){p.singers.splice(index,0,removed);p.tracks=previousTracks;p.updated=previousUpdated;return;}if(editingSingerId===removed.id)cancelSingerEdit();render();renderVocalCast();refreshMixProjects();}
  function refreshMixProjects(selected){const select=$("mixProject");if(!select)return;const keep=selected||select.value;select.innerHTML='<option value="">Choose a project…</option>'+projects.slice().sort((a,b)=>b.updated-a.updated).map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join("");select.value=projects.some(p=>p.id===keep)?keep:"";renderMixTracks();}
  function renderMixTracks(){const root=$("mixTracks");if(!root)return;clearTrackAudioUrls();const p=projects.find(x=>x.id===$("mixProject").value);if(!p){root.innerHTML='<div class="empty">Choose a project to view its tracks.</div>';return;}const tracks=Array.isArray(p.tracks)?p.tracks:[];root.innerHTML=tracks.length?tracks.map(t=>'<article class="project"><div class="project-icon">♫</div><div class="project-copy"><b>'+esc(t.name)+'</b><small>'+esc(t.type)+' · '+esc(t.role)+'</small><small>'+esc(t.notes||"No track notes")+'</small><div class="two"><label>Level <input type="range" min="-24" max="12" step="1" value="'+Number(t.gain||0)+'" data-track-gain="'+esc(t.id)+'"><small>'+Number(t.gain||0)+' dB · planning value</small></label><label>Pan <input type="range" min="-100" max="100" step="1" value="'+Number(t.pan||0)+'" data-track-pan="'+esc(t.id)+'"><small>'+Number(t.pan||0)+' · planning value</small></label></div><div class="two"><button class="btn secondary" type="button" data-track-audio="'+esc(t.id)+'">'+(t.audioName?"Replace audio":"Attach audio file")+'</button>'+(t.audioName?'<button class="btn secondary" type="button" data-track-audio-download="'+esc(t.id)+'">Download audio</button><button class="btn secondary" type="button" data-track-audio-remove="'+esc(t.id)+'">Remove audio</button>':'')+'</div><small>'+esc(t.audioName||"No audio file attached")+(t.audioName?" · "+(Math.max(1,Math.round((Number(t.audioSize)||0)/1024))+" KB · stored on this device"):"")+'</small><audio data-track-audio-player="'+esc(t.id)+'" controls preload="none" style="display:none;width:100%;margin-top:8px"></audio></div><div class="project-actions"><button data-track-mute="'+esc(t.id)+'">'+(t.muted?"Unmute":"Mute")+'</button><button data-track-delete="'+esc(t.id)+'">Remove track</button></div></article>').join(""):'<div class="empty">No tracks yet. Add the first instrument or vocal layer.</div>';void hydrateTrackAudioPlayers(p.id,tracks);}
+ function applyTrackAudioSettings(trackId){
+  const p=projects.find(x=>x.id===$("mixProject").value);
+  const track=p?.tracks?.find(t=>t.id===trackId);
+  const nodes=trackAudioNodes.get(trackId);
+  if(!track||!nodes)return;
+  const db=Math.max(-24,Math.min(12,Number(track.gain)||0));
+  nodes.gain.gain.setTargetAtTime(track.muted?0:Math.pow(10,db/20),mixAudioContext.currentTime,0.015);
+  nodes.pan.pan.setTargetAtTime(Math.max(-1,Math.min(1,(Number(track.pan)||0)/100)),mixAudioContext.currentTime,0.015);
+ }
+ function ensureTrackAudioNodes(){
+  const Ctx=window.AudioContext||window.webkitAudioContext;
+  if(!Ctx)throw new Error("This browser does not support the Web Audio mixer.");
+  if(!mixAudioContext)mixAudioContext=new Ctx();
+  const p=projects.find(x=>x.id===$("mixProject").value);
+  if(!p)throw new Error("Choose a project first.");
+  const players=[...$("mixTracks").querySelectorAll("audio[data-track-audio-player]")];
+  let connected=0;
+  for(const player of players){
+   if(!player.src)continue;
+   const id=player.dataset.trackAudioPlayer;
+   const existing=trackAudioNodes.get(id);
+   if(existing&&existing.player===player){applyTrackAudioSettings(id);connected++;continue;}
+   const source=mixAudioContext.createMediaElementSource(player);
+   const gain=mixAudioContext.createGain();
+   const pan=mixAudioContext.createStereoPanner();
+   source.connect(gain);gain.connect(pan);pan.connect(mixAudioContext.destination);
+   trackAudioNodes.set(id,{player,source,gain,pan});
+   applyTrackAudioSettings(id);connected++;
+  }
+  if(!connected)throw new Error("Attach at least one audio file to a track before playing the mix.");
+  return players.filter(player=>player.src);
+ }
+ async function playMix(){
+  try{
+   const players=ensureTrackAudioNodes();
+   await mixAudioContext.resume();
+   for(const player of players){player.pause();try{player.currentTime=0;}catch{}}
+   const results=await Promise.allSettled(players.map(player=>player.play()));
+   const failed=results.filter(r=>r.status==="rejected").length;
+   $("mixerStatus").textContent=failed?("Mixer started with "+(players.length-failed)+" track(s); "+failed+" could not play. Check the file format and browser support."):"Playing "+players.length+" track(s) together. Gain, pan and mute are active.";
+  }catch(error){$("mixerStatus").textContent="Mixer could not start: "+error.message;}
+ }
+ function stopMix(){
+  for(const node of trackAudioNodes.values()){node.player.pause();try{node.player.currentTime=0;}catch{}}
+  $("mixerStatus").textContent="Playback stopped and returned to the beginning.";
+ }
  function addTrack(){const p=projects.find(x=>x.id===$("mixProject").value);if(!p){alert("Choose a project first.");return;}const name=$("trackName").value.trim();if(!name){$("trackName").focus();alert("Enter a track name.");return;}p.tracks=Array.isArray(p.tracks)?p.tracks:[];if(p.tracks.length>=32){alert("A project can contain up to 32 planned tracks.");return;}const track={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name.slice(0,60),type:$("trackType").value,role:$("trackRole").value,notes:$("trackNotes").value.trim().slice(0,500),gain:0,pan:0,muted:false};p.tracks.push(track);const previousUpdated=p.updated;p.updated=Date.now();if(!save()){p.tracks.pop();p.updated=previousUpdated;return;}$("trackName").value="";$("trackNotes").value="";render();refreshMixProjects(p.id);}
  function addSingerTracks(){const p=projects.find(x=>x.id===$("mixProject").value);if(!p){alert("Choose a project first.");return;}const singers=Array.isArray(p.singers)?p.singers:[];if(!singers.length){$("mixStatus").textContent="Add singer profiles in Vocal Lab first.";return;}p.tracks=Array.isArray(p.tracks)?p.tracks:[];const previous=p.tracks.slice(),previousUpdated=p.updated;const additions=[];for(const singer of singers){if(p.tracks.some(t=>t.sourceSingerId===singer.id)||additions.some(t=>t.sourceSingerId===singer.id))continue;if(p.tracks.length+additions.length>=32)break;const backing=["Backing vocals","Harmony","Ad-libs","Choir"].includes(singer.role);additions.push({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:singer.name.slice(0,60),type:backing?"Backing Vocal":"Lead Vocal",role:backing?"Support":"Lead",notes:[singer.style||"",singer.parts?"Parts: "+singer.parts:""].filter(Boolean).join(" · ").slice(0,500),gain:0,pan:0,muted:false,sourceSingerId:singer.id});}if(!additions.length){$("mixStatus").textContent=p.tracks.length>=32?"Track limit reached.":"All singer profiles already have linked tracks.";return;}p.tracks.push(...additions);p.updated=Date.now();if(!save()){p.tracks=previous;p.updated=previousUpdated;$("mixStatus").textContent="Could not save singer tracks. Existing tracks were preserved.";return;}$("mixStatus").textContent=additions.length+" singer track(s) added. Re-run after editing a singer to add newly created profiles.";render();refreshMixProjects(p.id);}
- function updateTrackControl(id,key,value){const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===id);if(!track)return;const old=track[key],previousUpdated=p.updated;track[key]=value;p.updated=Date.now();if(!save()){track[key]=old;p.updated=previousUpdated;renderMixTracks();return;}renderMixTracks();}
+ function updateTrackControl(id,key,value){const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===id);if(!track)return;const old=track[key],previousUpdated=p.updated;track[key]=value;applyTrackAudioSettings(id);p.updated=Date.now();if(!save()){track[key]=old;p.updated=previousUpdated;applyTrackAudioSettings(id);return;}const label=$("mixTracks").querySelector(`[data-track-${key}="${id}"]`);if(label){const small=label.parentElement.querySelector("small");if(small)small.textContent=key==="gain"?value+" dB · active":"Pan "+value+" · active";}}
  async function removeTrack(id){const p=projects.find(x=>x.id===$("mixProject").value);if(!p||!Array.isArray(p.tracks))return;const index=p.tracks.findIndex(t=>t.id===id);if(index<0||!confirm("Remove this track and its locally stored audio file?"))return;const removed=p.tracks.splice(index,1)[0],previousUpdated=p.updated;p.updated=Date.now();if(!save()){p.tracks.splice(index,0,removed);p.updated=previousUpdated;return;}if(removed.audioName){try{await removeTrackAudioAsset(audioKey(p.id,removed.id));}catch(error){$("mixStatus").textContent="Track removed, but its local audio file may remain in browser storage: "+error.message;}}render();renderMixTracks();}
  function exportMixPlan(){const p=projects.find(x=>x.id===$("mixProject").value);if(!p){alert("Choose a project first.");return;}const payload={format:"mehran-music-track-plan",version:1,exportedAt:new Date().toISOString(),project:{id:p.id,name:p.name,genre:p.genre,tempo:p.tempo,language:p.language},tracks:(p.tracks||[]).map(t=>({...t}))};const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(p.name.replace(/[^a-z0-9-_ ]/gi,"").trim().replace(/\s+/g,"-").slice(0,50)||"music-project")+"-track-plan.json";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
  function loadLyricsProject(){const p=projects.find(x=>x.id===$("lyricsProject").value);$("lyricsTitle").value=p?(p.lyricsTitle||p.name):"";$("lyricsEditor").value=p?(p.lyrics||""):"";$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;updateLyricsCount();$("lyricsSaveState").textContent=p?"Loaded":"Choose a project";}
@@ -282,12 +335,15 @@
  $("saveProject").addEventListener("click",()=>{if($("saveProject").dataset.edit)update();else create();});
  $("lyricsProject").addEventListener("change",changeLyricsProject);
  $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();});
- $("mixProject").addEventListener("change",()=>renderMixTracks());
+ $("mixProject").addEventListener("change",()=>{stopMix();renderMixTracks();});
+ $("playMix").addEventListener("click",playMix);
+ $("stopMix").addEventListener("click",stopMix);
  $("addTrack").addEventListener("click",addTrack);
  $("addSingerTracks").addEventListener("click",addSingerTracks);
  $("exportMixPlan").addEventListener("click",exportMixPlan);
+ $("mixTracks").addEventListener("input",e=>{const gain=e.target.closest("[data-track-gain]");if(gain){const p=projects.find(x=>x.id===$("mixProject").value),t=p?.tracks?.find(x=>x.id===gain.dataset.trackGain);if(t){t.gain=Math.max(-24,Math.min(12,Number(gain.value)||0));applyTrackAudioSettings(t.id);const small=gain.parentElement.querySelector("small");if(small)small.textContent=t.gain+" dB · active";}}const pan=e.target.closest("[data-track-pan]");if(pan){const p=projects.find(x=>x.id===$("mixProject").value),t=p?.tracks?.find(x=>x.id===pan.dataset.trackPan);if(t){t.pan=Math.max(-100,Math.min(100,Number(pan.value)||0));applyTrackAudioSettings(t.id);const small=pan.parentElement.querySelector("small");if(small)small.textContent="Pan "+t.pan+" · active";}}});
  $("mixTracks").addEventListener("change",e=>{const gain=e.target.closest("[data-track-gain]");if(gain)updateTrackControl(gain.dataset.trackGain,"gain",Math.max(-24,Math.min(12,Number(gain.value)||0)));const pan=e.target.closest("[data-track-pan]");if(pan)updateTrackControl(pan.dataset.trackPan,"pan",Math.max(-100,Math.min(100,Number(pan.value)||0)));});
- $("mixTracks").addEventListener("click",e=>{const attach=e.target.closest("[data-track-audio]");if(attach){activeAudioTrackId=attach.dataset.trackAudio;$("trackAudioFile").click();return;}const downloadAudio=e.target.closest("[data-track-audio-download]");if(downloadAudio){void downloadTrackAudio(downloadAudio.dataset.trackAudioDownload);return;}const removeAudio=e.target.closest("[data-track-audio-remove]");if(removeAudio){void removeTrackAudio(removeAudio.dataset.trackAudioRemove);return;}const mute=e.target.closest("[data-track-mute]");if(mute){const p=projects.find(x=>x.id===$("mixProject").value),track=p?.tracks?.find(t=>t.id===mute.dataset.trackMute);if(track)updateTrackControl(track.id,"muted",!track.muted);return;}const del=e.target.closest("[data-track-delete]");if(del)removeTrack(del.dataset.trackDelete);});
+ $("mixTracks").addEventListener("click",e=>{const attach=e.target.closest("[data-track-audio]");if(attach){activeAudioTrackId=attach.dataset.trackAudio;$("trackAudioFile").click();return;}const downloadAudio=e.target.closest("[data-track-audio-download]");if(downloadAudio){void downloadTrackAudio(downloadAudio.dataset.trackAudioDownload);return;}const removeAudio=e.target.closest("[data-track-audio-remove]");if(removeAudio){void removeTrackAudio(removeAudio.dataset.trackAudioRemove);return;}const mute=e.target.closest("[data-track-mute]");if(mute){const p=projects.find(x=>x.id===$("mixProject").value),track=p?.tracks?.find(t=>t.id===mute.dataset.trackMute);if(track){updateTrackControl(track.id,"muted",!track.muted);mute.textContent=track.muted?"Unmute":"Mute";}return;}const del=e.target.closest("[data-track-delete]");if(del)removeTrack(del.dataset.trackDelete);});
  async function downloadTrackAudio(trackId){const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===trackId);if(!p||!track||!track.audioName)return;try{const record=await readTrackAudio(audioKey(p.id,track.id));if(!record||!(record.blob instanceof Blob))throw new Error("The audio file is missing from this browser's local storage.");const url=URL.createObjectURL(record.blob);const a=document.createElement("a");a.href=url;a.download=record.name||track.audioName;a.hidden=true;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$("mixStatus").textContent="Audio download started. Keep a separate copy of important recordings."; }catch(error){$("mixStatus").textContent="Could not download audio: "+error.message;alert("Audio download failed: "+error.message);}}
  async function removeTrackAudio(trackId){const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===trackId);if(!p||!track||!track.audioName)return;if(!confirm("Remove the locally stored audio from this track?"))return;const old={audioName:track.audioName,audioType:track.audioType,audioSize:track.audioSize};delete track.audioName;delete track.audioType;delete track.audioSize;p.updated=Date.now();if(!save()){Object.assign(track,old);return;}try{await removeTrackAudioAsset(audioKey(p.id,track.id));}catch(error){$("mixStatus").textContent="Audio metadata removed, but browser storage cleanup failed: "+error.message;}renderMixTracks();}
  $("trackAudioFile").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];e.target.value="";if(!file||!activeAudioTrackId)return;const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===activeAudioTrackId);if(!p||!track){$("mixStatus").textContent="Choose a project and track before attaching audio.";return;}if(file.size<=0||file.size>MAX_AUDIO_BYTES){alert("Choose an audio file between 1 byte and 100 MB.");return;}if(!(file.type.startsWith("audio/")||/\.(wav|mp3|flac|m4a|ogg|opus|aac)$/i.test(file.name))){alert("This file does not appear to be a supported audio file.");return;}const key=audioKey(p.id,track.id);const old={audioName:track.audioName,audioType:track.audioType,audioSize:track.audioSize,updated:p.updated};$("mixStatus").textContent="Saving audio locally. The file is not being uploaded.";try{const previousAudio=await readTrackAudio(key);await storeTrackAudio(key,file);track.audioName=file.name.slice(0,180);track.audioType=file.type.slice(0,100);track.audioSize=file.size;p.updated=Date.now();if(!save()){await restoreTrackAudioAsset(key,previousAudio);Object.assign(track,old);$("mixStatus").textContent="Project metadata could not be saved. The previous audio file and track data were preserved.";return;}$("mixStatus").textContent="Audio saved on this device. Preview playback is ready.";renderMixTracks();}catch(error){Object.assign(track,old);$("mixStatus").textContent="Could not store audio locally: "+error.message;alert("Audio was not attached: "+error.message);}finally{activeAudioTrackId=null;}});
