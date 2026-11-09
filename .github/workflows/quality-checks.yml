@@ -17,6 +17,7 @@ on:
       - "music-studio.html"
       - "worker.js"
       - "scripts/**"
+      - "engine/**"
       - ".github/workflows/quality-checks.yml"
   workflow_dispatch:
 
