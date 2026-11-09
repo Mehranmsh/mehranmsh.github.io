@@ -284,7 +284,7 @@
   nodes.pan.pan.setTargetAtTime(Math.max(-1,Math.min(1,(Number(track.pan)||0)/100)),mixAudioContext.currentTime,0.015);
   nodes.delaySend.gain.setTargetAtTime(Math.max(0,Math.min(0.6,(Number(track.delay)||0)/100)),mixAudioContext.currentTime,0.02);
   nodes.delay.delayTime.setTargetAtTime(Math.max(0.08,Math.min(0.8,(Number(track.effects?.delayTime)||280)/1000)),mixAudioContext.currentTime,0.025);
-  nodes.feedback.gain.setTargetAtTime(Math.max(0,Math.min(0.6,(Number(track.effects?.feedback)??28)/100)),mixAudioContext.currentTime,0.025);
+  nodes.feedback.gain.setTargetAtTime(Math.max(0,Math.min(0.6,(Number(track.effects?.feedback??28))/100)),mixAudioContext.currentTime,0.025);
   nodes.reverbWet.gain.setTargetAtTime(Math.max(0,Math.min(0.5,(Number(track.effects?.reverb)||0)/100*0.5)),mixAudioContext.currentTime,0.025);
  }
  function applyMasterSettings(){
