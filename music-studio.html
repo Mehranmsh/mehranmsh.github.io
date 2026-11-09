@@ -468,10 +468,12 @@
   if(!connected)throw new Error("Attach at least one audio file to a track before playing the mix.");
   return players.filter(player=>player.src);
  }
+ function ensurePlayerMetadata(player){if(player.readyState>=1&&Number.isFinite(player.duration))return Promise.resolve();return new Promise((resolve,reject)=>{const done=()=>{cleanup();resolve();},fail=()=>{cleanup();reject(new Error("Could not read an audio track duration."));},cleanup=()=>{player.removeEventListener("loadedmetadata",done);player.removeEventListener("error",fail);};player.addEventListener("loadedmetadata",done,{once:true});player.addEventListener("error",fail,{once:true});player.load();});}
  async function playMix(){
   try{
    const players=ensureTrackAudioNodes();
    await mixAudioContext.resume();
+   await Promise.all(players.map(ensurePlayerMetadata));
    for(const player of players){const id=player.dataset.trackAudioPlayer,track=projects.find(x=>x.id===$("mixProject").value)?.tracks?.find(x=>x.id===id);player.pause();try{player.currentTime=track&&Number.isFinite(player.duration)?getTrackTrimRange(track,player.duration).trimStart:0;}catch(error){throw new Error("Invalid trim on "+(track?.name||"track")+": "+error.message);}}
    for(const player of players){const id=player.dataset.trackAudioPlayer,node=trackAudioNodes.get(id),project=projects.find(x=>x.id===$("mixProject").value),track=project?.tracks?.find(x=>x.id===id);if(node&&track)scheduleTrackFadeEnvelope(node.fadeGain.gain,mixAudioContext,getTrackTrimRange(track,player.duration).effectiveDuration,track.fadeIn,track.fadeOut,mixAudioContext.currentTime);}const results=await Promise.allSettled(players.map(player=>player.play()));startMasterMeter();
    const failed=results.filter(r=>r.status==="rejected").length;
