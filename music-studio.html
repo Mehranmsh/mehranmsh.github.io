@@ -365,7 +365,7 @@
   const project=projects.find(p=>p.id===$("mixProject").value);if(!project){status.textContent="Choose a project first.";return;}
   const tracks=(project.tracks||[]).filter(t=>t.audioName);if(!tracks.length){status.textContent="Attach at least one audio file to a track first.";return;}
   if(tracks.length>WAV_EXPORT_MAX_TRACKS){status.textContent="For safe rendering, export up to 8 audio tracks at a time.";return;}
-  if(!(window.AudioContext||window.webkitAudioContext)||!window.OfflineAudioContext){status.textContent="This browser does not support offline audio rendering. Try a recent desktop browser.";return;}
+  if(!(window.AudioContext||window.webkitAudioContext)||!(window.OfflineAudioContext||window.webkitOfflineAudioContext)){status.textContent="This browser does not support offline audio rendering. Try a recent desktop browser.";return;}
   button.disabled=true;const decoded=[];let compressedBytes=0;
   try{
    status.textContent="Reading local audio files…";const decodeContext=new (window.AudioContext||window.webkitAudioContext)();
