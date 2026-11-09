@@ -2629,15 +2629,30 @@ async function socialCallJoin(request, env, callId) {
   if (!call || call.status!=="active") return error("This call has ended",404);
   if (!await isConversationMember(env,call.conversation_id,user.id)) return error("You are not a member of this conversation",403);
   if (await isDirectConversationBlocked(env, call.conversation_id, user.id)) return error("Calling is unavailable for this conversation",403);
-  const count = await env.DB.prepare("SELECT COUNT(*) AS total FROM social_call_participants WHERE call_id=? AND left_at IS NULL AND last_seen_at>=datetime('now','-25 seconds')").bind(callId).first();
   const cap = call.kind==="live" ? 12 : 8;
-  const existing = await env.DB.prepare("SELECT 1 FROM social_call_participants WHERE call_id=? AND user_id=?").bind(callId,user.id).first();
-  if (!existing && Number(count?.total||0)>=cap) return error("This room is full. Maximum participants: "+cap,409);
-  await env.DB.prepare(`
+  // Enforce the room cap in the same SQLite write that joins the participant.
+  // Excluding this user permits a legitimate reconnect without allowing a
+  // previously departed or stale participant to bypass a full-room limit.
+  const joined = await env.DB.prepare(`
     INSERT INTO social_call_participants(call_id,user_id,joined_at,last_seen_at,left_at)
-    VALUES(?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL)
+    SELECT ?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,NULL
+    WHERE EXISTS (
+      SELECT 1 FROM social_call_sessions WHERE id=? AND status='active'
+    )
+    AND (
+      SELECT COUNT(*) FROM social_call_participants p
+      WHERE p.call_id=? AND p.user_id<>? AND p.left_at IS NULL
+        AND p.last_seen_at>=datetime('now','-25 seconds')
+    ) < ?
     ON CONFLICT(call_id,user_id) DO UPDATE SET last_seen_at=CURRENT_TIMESTAMP,left_at=NULL
-  `).bind(callId,user.id).run();
+  `).bind(callId,user.id,callId,callId,user.id,cap).run();
+  if (Number(joined?.meta?.changes||0) < 1) {
+    const stillActive = await env.DB.prepare(
+      "SELECT 1 FROM social_call_sessions WHERE id=? AND status='active'"
+    ).bind(callId).first();
+    if (!stillActive) return error("This call has ended",404);
+    return error("This room is full. Maximum participants: "+cap,409);
+  }
   return json({success:true,callId,kind:call.kind,userId:user.id});
 }
 
