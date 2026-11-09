@@ -78,7 +78,11 @@ def main():
         'id="addSinger"', 'id="vocalCast"', 'data-remove-singer', 'Up to 8 singer profiles per project',
         'singers:Array.isArray(p.singers)',
         'id="singerParts"', 'id="cancelSingerEdit"', 'data-edit-singer',
-        'parts:typeof v.parts==="string"', 'Browser storage could not save the imported projects. Existing drafts were preserved.'
+        'parts:typeof v.parts==="string"', 'Browser storage could not save the imported projects. Existing drafts were preserved.',
+        'id="mixProject"', 'id="trackName"', 'id="trackType"', 'id="trackNotes"',
+        'id="addTrack"', 'id="mixTracks"', 'id="exportMixPlan"', 'tracks:Array.isArray(p.tracks)',
+        'data-track-gain', 'data-track-pan', 'data-track-mute', 'data-track-delete',
+        'up to 32 planned tracks'
     ]
     missing = [marker for marker in required_studio_markers if marker not in studio]
     if missing:
@@ -97,6 +101,10 @@ def main():
         raise SystemExit("Vocal Lab must support editing and cancelling singer profiles.")
     if 'const previousProjects=projects;projects=projects.concat(incoming);if(!save())' not in studio:
         raise SystemExit("Backup restore must be transactional when browser storage is full.")
+    if 'function addTrack()' not in studio or 'p.tracks.length>=32' not in studio or 'function exportMixPlan()' not in studio:
+        raise SystemExit("Arrangement & Mix Planner must support bounded track planning and export.")
+    if 'Audio playback, effects, rendering and mastering are not active' not in studio:
+        raise SystemExit("Music Studio must clearly distinguish planning from active audio processing.")
     for marker in [r'split(/\s+/)', r'/^\d{2,3}$/', r'endsWith("\n")', r'section+"\n"']:
         if marker not in studio:
             raise SystemExit("Music Studio lyric/tempo input handling is missing: " + marker)
