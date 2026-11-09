@@ -85,6 +85,8 @@ def main():
                 pitch_text = page.locator("#pitchResult").inner_text()
                 assert "A4" in pitch_text, "Pitch analyzer did not identify the 440 Hz test tone: " + pitch_text
                 assert "440" in pitch_text, "Pitch analyzer frequency is outside expected test range: " + pitch_text
+                assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
+                assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 10, "Pitch contour has too few voiced frames"
 
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
                 page.locator('[data-view="mix"]').click()
