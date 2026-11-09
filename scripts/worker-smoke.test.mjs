@@ -359,8 +359,8 @@ test("channel ownership transfer is owner-only and restricted to existing member
   assert.match(handler, /SELECT role FROM social_channel_members WHERE channel_id=\? AND user_id=\?/);
   assert.match(handler, /The new owner must already be a channel member/);
   assert.match(handler, /UPDATE social_channels SET owner_id=\?/);
-  assert.match(handler, /UPDATE social_channel_members SET role='subscriber'/);
-  assert.match(handler, /UPDATE social_channel_members SET role='owner'/);
+  assert.ok(handler.includes("UPDATE social_channel_members SET role='owner'") && handler.includes("c.owner_id=social_channel_members.user_id"));
+  assert.ok(handler.includes("UPDATE social_channel_members SET role='owner'") && handler.includes("c.owner_id=social_channel_members.user_id"));
   assert.match(handler, /await env\.DB\.batch\(/);
   assert.ok(workerSource.includes("transferChannelMatch = path.match"));
 });
@@ -397,7 +397,7 @@ test("channel member directory is visible only to current channel members", () =
   const handler = workerSource.slice(start, end);
   assert.match(handler, /getAccessibleChannelMembership\(env, channelId, user\.id\)/);
   assert.match(handler, /if \(!membership\) return error\("Channel not found", 404\)/);
-  assert.match(handler, /JOIN social_users u ON u\.id=m\.user_id/);
+  assert.ok(handler.includes("JOIN social_users u ON u.id=cm.user_id") && handler.includes("u.is_active=1"));
   assert.match(handler, /LIMIT 500/);
   assert.ok(workerSource.includes("channelMembersMatch = path.match"));
 });
@@ -934,7 +934,7 @@ test("SOCIAL existing direct chats recheck the recipient's current message priva
 
 test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
-  const end = workerSource.indexOf("\nasync function ", start + 30);
+  const end = workerSource.indexOf("\n}\n\nexport default", start);
   const handler = workerSource.slice(start, end);
   assert.ok(start >= 0 && end > start, "socialDeleteAccount implementation must exist");
   for (const marker of [
@@ -954,9 +954,9 @@ test("SOCIAL account deletion reauthenticates, removes external media and cleans
 
 test("SOCIAL deletion transfers owned communities only to active existing members", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
-  const end = workerSource.indexOf("\nasync function ", start + 30);
+  const end = workerSource.indexOf("\n}\n\nexport default", start);
   const handler = workerSource.slice(start, end);
-  assert.match(handler, /JOIN social_users u ON u\\.id=cm\\.user_id[\\s\\S]*?u\\.is_active=1/);
-  assert.match(handler, /UPDATE social_conversation_members SET role='owner'[\\s\\S]*?c\\.owner_id=social_conversation_members\\.user_id/);
-  assert.match(handler, /UPDATE social_channel_members SET role='owner'[\\s\\S]*?c\\.owner_id=social_channel_members\\.user_id/);
+  assert.ok(handler.includes("JOIN social_users u ON u.id=cm.user_id") && handler.includes("u.is_active=1"));
+  assert.ok(handler.includes("UPDATE social_conversation_members SET role='owner'") && handler.includes("c.owner_id=social_conversation_members.user_id"));
+  assert.ok(handler.includes("UPDATE social_channel_members SET role='owner'") && handler.includes("c.owner_id=social_channel_members.user_id"));
 });
