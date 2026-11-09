@@ -781,7 +781,7 @@
  $("vocalGuideBreath").addEventListener("change",()=>renderVocalGuideSteps());
  $("playVocalGuide").addEventListener("click",playVocalGuide);
  $("stopVocalGuide").addEventListener("click",stopVocalGuide);
- $("saveVocalGuide").addEventListener("click",saveVocalGuide);
+ $("saveVocalGuide").onclick=saveVocalGuide;
  $("loadProjectMelody").addEventListener("click",loadProjectMelodyForGuide);
  $("saveLyrics").addEventListener("click",saveLyrics);
  $("exportLyrics").addEventListener("click",exportLyrics);
