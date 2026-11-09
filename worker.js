@@ -4751,30 +4751,149 @@ function formatProject(row) {
 async function socialDeleteAccount(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await checkRateLimit(env, request, "account-delete", 3, 3600, 3600)) {
+    return error("Too many account deletion attempts. Try again later.", 429);
+  }
 
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
-
-  const password = String(body.password || "");
+  const password = typeof body.password === "string" ? body.password : "";
+  const idToken = typeof body.idToken === "string" ? body.idToken : "";
   const row = await env.DB.prepare(
-    "SELECT password_hash FROM social_users WHERE id=?"
+    "SELECT id,password_hash,firebase_uid,email FROM social_users WHERE id=? AND is_active=1"
   ).bind(user.id).first();
+  if (!row) return error("Account is not active", 404);
 
-  if (!row || !(await verifyPassword(password, row.password_hash)).valid) {
-    return error("Incorrect password", 403);
+  let verified = false;
+  if (password && password.length <= 128) {
+    try { verified = (await verifyPassword(password, row.password_hash)).valid; } catch {}
+  }
+  if (!verified && idToken && idToken.length <= 10000 && row.firebase_uid) {
+    try {
+      const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken })
+      });
+      const lookup = response.ok ? await response.json() : null;
+      const identity = lookup && Array.isArray(lookup.users) ? lookup.users[0] : null;
+      verified = Boolean(identity && identity.localId === row.firebase_uid &&
+        identity.emailVerified === true &&
+        cleanEmail(identity.email || "") === cleanEmail(row.email || ""));
+    } catch {}
+  }
+  if (!verified) return error("Re-authenticate with your current sign-in provider before deleting your account.", 403);
+
+  // Remove owned objects from the external media provider first. If storage refuses,
+  // keep the account and database records intact so the owner can retry.
+  const uploads = await env.DB.prepare(
+    "SELECT id FROM social_uploads WHERE user_id=? ORDER BY created_at ASC LIMIT 500"
+  ).bind(user.id).all();
+  const uploadRows = uploads.results || [];
+  if (uploadRows.length >= 500) {
+    return error("This account has too many stored files for one safe deletion pass. Contact support for assisted removal.", 409);
+  }
+  for (const upload of uploadRows) {
+    try {
+      await rapidfileRequest(env, `/files/${encodeURIComponent(upload.id)}`, { method: "DELETE" });
+    } catch (err) {
+      if (Number(err?.status) !== 404) {
+        console.error("Account media deletion failed:", String(err?.message || err).slice(0, 250));
+        return error("Could not remove all account media from storage. No account data was deleted; please retry later.", 502);
+      }
+    }
   }
 
-  await env.DB.prepare(`
-    UPDATE social_users
-    SET is_active=0,updated_at=CURRENT_TIMESTAMP
-    WHERE id=?
-  `).bind(user.id).run();
+  const uid = user.id;
+  const statements = [
+    // Transfer ownership to an existing active member before removing the owner.
+    env.DB.prepare(`UPDATE social_conversations
+      SET owner_id=(SELECT cm.user_id FROM social_conversation_members cm
+        JOIN social_users u ON u.id=cm.user_id
+        WHERE cm.conversation_id=social_conversations.id AND cm.user_id!=? AND u.is_active=1
+        ORDER BY CASE cm.role WHEN 'admin' THEN 0 ELSE 1 END,cm.joined_at ASC LIMIT 1),
+      updated_at=CURRENT_TIMESTAMP
+      WHERE owner_id=? AND EXISTS (SELECT 1 FROM social_conversation_members cm
+        JOIN social_users u ON u.id=cm.user_id
+        WHERE cm.conversation_id=social_conversations.id AND cm.user_id!=? AND u.is_active=1)`).bind(uid,uid,uid),
+    env.DB.prepare(`UPDATE social_conversation_members SET role='owner'
+      WHERE user_id IN (SELECT owner_id FROM social_conversations WHERE type='group')
+      AND conversation_id IN (SELECT id FROM social_conversations WHERE type='group')`),
+    env.DB.prepare(`UPDATE social_channels
+      SET owner_id=(SELECT cm.user_id FROM social_channel_members cm
+        JOIN social_users u ON u.id=cm.user_id
+        WHERE cm.channel_id=social_channels.id AND cm.user_id!=? AND u.is_active=1
+        ORDER BY CASE cm.role WHEN 'admin' THEN 0 ELSE 1 END,cm.joined_at ASC LIMIT 1)
+      WHERE owner_id=? AND EXISTS (SELECT 1 FROM social_channel_members cm
+        JOIN social_users u ON u.id=cm.user_id
+        WHERE cm.channel_id=social_channels.id AND cm.user_id!=? AND u.is_active=1)`).bind(uid,uid,uid),
+    env.DB.prepare(`UPDATE social_channel_members SET role='owner'
+      WHERE user_id IN (SELECT owner_id FROM social_channels)
+      AND channel_id IN (SELECT id FROM social_channels)`),
 
-  await env.DB.prepare(
-    "DELETE FROM social_sessions WHERE user_id=?"
-  ).bind(user.id).run();
+    // Remove orphaned groups/channels that have no eligible successor.
+    env.DB.prepare("DELETE FROM social_group_invites WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_signals WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group'))").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_participants WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group'))").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
+    env.DB.prepare("DELETE FROM social_message_reactions WHERE message_id IN (SELECT id FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group'))").bind(uid),
+    env.DB.prepare("DELETE FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
+    env.DB.prepare("DELETE FROM social_conversation_members WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
+    env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=? AND type='group'").bind(uid),
+    env.DB.prepare("DELETE FROM social_channel_pins WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
+    env.DB.prepare("DELETE FROM social_channel_posts WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
+    env.DB.prepare("DELETE FROM social_channel_members WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
+    env.DB.prepare("DELETE FROM social_channels WHERE owner_id=?").bind(uid),
 
-  return json({ success: true, deactivated: true });
+    // Remove the account's content and every engagement attached to it.
+    env.DB.prepare("DELETE FROM social_post_likes WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_comments WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_bookmarks WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_post_views WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_posts WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_story_views WHERE user_id=? OR story_id IN (SELECT id FROM social_stories WHERE user_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_story_reactions WHERE user_id=? OR story_id IN (SELECT id FROM social_stories WHERE user_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_stories WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_follows WHERE follower_id=? OR following_id=?").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_follow_requests WHERE requester_id=? OR target_id=?").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_blocks WHERE blocker_id=? OR blocked_id=?").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_notifications WHERE user_id=? OR actor_id=?").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_reports WHERE reporter_id=? OR (target_type='user' AND target_id=?)").bind(uid,uid),
+
+    // Remove messages and reactions authored by this account; preserve other members' messages.
+    env.DB.prepare("DELETE FROM social_message_reactions WHERE user_id=? OR message_id IN (SELECT id FROM social_messages WHERE sender_id=?)").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_messages WHERE sender_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_signals WHERE from_user_id=? OR to_user_id=?").bind(uid,uid),
+    env.DB.prepare("DELETE FROM social_call_participants WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_sessions WHERE host_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_group_invites WHERE created_by=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_conversation_members WHERE user_id=?").bind(uid),
+    env.DB.prepare("UPDATE social_conversations SET owner_id=(SELECT user_id FROM social_conversation_members WHERE conversation_id=social_conversations.id ORDER BY joined_at ASC LIMIT 1) WHERE owner_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=?").bind(uid),
+
+    // Remove authored channel posts, bots, private AI history and support data.
+    env.DB.prepare("DELETE FROM social_channel_pins WHERE post_id IN (SELECT id FROM social_channel_posts WHERE sender_id=?)").bind(uid),
+    env.DB.prepare("DELETE FROM social_channel_posts WHERE sender_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_channel_members WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_bots WHERE owner_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_ai_messages WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_support_tickets WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_user_settings WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_extended_settings WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_sessions WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_uploads WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_users WHERE id=?").bind(uid)
+  ];
+
+  try {
+    await env.DB.batch(statements);
+  } catch (err) {
+    console.error("SOCIAL_ACCOUNT_DELETE_FAILURE", String(err?.message || err).slice(0, 400));
+    return error("Account data cleanup could not be completed. Contact support before retrying.", 500);
+  }
+
+  return json({ success: true, deleted: true, removedFiles: uploadRows.length, ownershipTransferred: true });
 }
 
 export default {
