@@ -71,12 +71,14 @@ def main():
                 assert page.locator('[data-track-drive]').count() == 1
 
                 # Exercise the delegated controls and verify persistence after reload.
+                page.locator('[data-track-delay]').evaluate("(el) => { el.value='20'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.locator('[data-track-reverb]').evaluate("(el) => { el.value='24'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.locator('[data-track-delay-time]').evaluate("(el) => { el.value='350'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.locator('[data-track-feedback]').evaluate("(el) => { el.value='30'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.reload(wait_until="networkidle")
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
+                assert page.locator('[data-track-delay]').input_value() == "20"
                 assert page.locator('[data-track-reverb]').input_value() == "24"
                 assert page.locator('[data-track-delay-time]').input_value() == "350"
                 assert page.locator('[data-track-feedback]').input_value() == "30"
@@ -86,6 +88,7 @@ def main():
                 page.locator("#trackAudioFile").set_input_files(str(audio_path))
                 page.get_by_text("Audio saved on this device. Preview playback is ready.").wait_for(timeout=10000)
                 assert page.locator('[data-track-audio-player]').count() == 1
+                page.wait_for_function("!!document.querySelector('[data-track-audio-player]')?.src", timeout=10000)
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.locator("#stopMix").click()
