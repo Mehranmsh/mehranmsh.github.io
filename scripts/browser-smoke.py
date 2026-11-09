@@ -186,6 +186,14 @@ def main():
                 assert "dBFS" in page.locator("[data-track-meter-value]").inner_text()
                 page.locator("#stopMix").click()
 
+                # Set a vocal entry offset and verify it is saved and rendered on the shared timeline.
+                offset_control = page.locator("[data-track-start-offset]")
+                assert offset_control.count() == 1, "Per-track timeline offset control is missing."
+                offset_control.fill("1.25")
+                offset_control.dispatch_event("change")
+                saved_offset = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0].startOffset")
+                assert abs(saved_offset - 1.25) < 0.001, "Track start offset did not persist."
+
                 # Exercise both offline render paths and verify actual downloadable WAV artifacts.
                 with page.expect_download(timeout=30000) as mix_download:
                     page.locator("#renderWav").click()
@@ -195,9 +203,10 @@ def main():
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
                     assert rendered_mix.getframerate() == 44100
-                    assert rendered_mix.getnframes() >= int(2.3 * 44100)
+                    assert rendered_mix.getnframes() >= int(3.7 * 44100), "Timeline offset was not included in the rendered mix duration."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
+                    assert not any(mix_pcm[:int(0.9 * 44100) * 4]), "Offset vocal audio leaked into the mix before its scheduled entry."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
