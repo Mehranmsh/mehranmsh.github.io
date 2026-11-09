@@ -903,7 +903,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, signOut
+  sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 const firebaseConfig = {
   apiKey: "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM",
@@ -917,7 +917,10 @@ const firebaseApp = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 window.socialFirebaseReady = true;
 window.socialFirebaseReauthenticate = async (password, expectedEmail) => {
-  const user = firebaseAuth.currentUser;
+  let user = firebaseAuth.currentUser;
+  if (!user) user = await new Promise(resolve => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, value => { unsubscribe(); resolve(value); });
+  });
   if (!user || String(user.email || "").toLowerCase() !== String(expectedEmail || "").toLowerCase()) return null;
   const credential = EmailAuthProvider.credential(user.email, password);
   await reauthenticateWithCredential(user, credential);
