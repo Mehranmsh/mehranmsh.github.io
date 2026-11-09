@@ -979,9 +979,9 @@ test("SOCIAL call polling enforces current membership and block state", () => {
 
 test("SOCIAL call creation and joining have abuse limits", () => {
   const start = workerSource.indexOf("async function socialCallStart");
-  const active = workerSource.indexOf("\\nasync function socialCallActive", start);
+  const active = workerSource.indexOf("async function socialCallActive", start);
   const join = workerSource.indexOf("async function socialCallJoin");
-  const poll = workerSource.indexOf("\\nasync function socialCallPoll", join);
+  const poll = workerSource.indexOf("async function socialCallPoll", join);
   assert.ok(start >= 0 && active > start && join >= 0 && poll > join);
   assert.match(workerSource.slice(start, active), /social-call-start/);
   assert.match(workerSource.slice(start, active), /5, 600, 600/);
