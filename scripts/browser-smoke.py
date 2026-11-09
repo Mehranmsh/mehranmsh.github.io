@@ -191,6 +191,11 @@ def main():
                 page.wait_for_function("document.querySelector('[data-track-waveform]').getBoundingClientRect().width > "+str(base_width*2.8)+" && document.querySelector('[data-waveform-zoom-value]').textContent === '3×'", timeout=5000)
                 zoomed_width = waveform.bounding_box()["width"]
                 assert zoomed_width >= base_width * 2.8, "Waveform timeline did not expand at 3x zoom."
+                ruler = page.locator("[data-waveform-ruler]")
+                assert ruler.count() == 1 and ruler.get_attribute("aria-label") == "Waveform time ruler", "Waveform time ruler is missing."
+                assert ruler.bounding_box()["width"] >= zoomed_width * 0.99, "Time ruler does not stay aligned with the zoomed waveform."
+                ruler_pixels = ruler.evaluate("(el) => Array.from(el.getContext('2d').getImageData(0, 0, el.width, el.height).data).filter((value, index) => index % 4 === 3 && value > 0).length")
+                assert ruler_pixels > 100, "Time ruler was not drawn."
                 zoom_control.evaluate("(el) => { el.value = '1'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
                 page.wait_for_function("document.querySelector('[data-waveform-zoom-value]').textContent === '1×'", timeout=5000)
                 page.locator("#playMix").click()
