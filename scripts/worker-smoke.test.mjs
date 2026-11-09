@@ -977,6 +977,13 @@ test("SOCIAL bot owners can rotate active credentials and delete only their own 
   assert.ok(rotateStart > listStart && deleteStart > rotateStart && aiStart > deleteStart);
   const rotate = workerSource.slice(rotateStart, deleteStart);
   const remove = workerSource.slice(deleteStart, aiStart);
+  const createStart = workerSource.indexOf("async function socialCreateBot");
+  const createEnd = workerSource.indexOf("\nasync function socialListBots", createStart);
+  const create = workerSource.slice(createStart, createEnd);
+  assert.match(create, /social-bot-create/);
+  assert.match(create, /SELECT COUNT\(\*\) AS total FROM social_bots WHERE owner_id=\?/);
+  assert.match(create, /ownedBots\?\.total \|\| 0\) >= 25/);
+  assert.match(rotate, /social-bot-rotate/);
   assert.match(rotate, /UPDATE social_bots SET token_hash=\? WHERE id=\? AND owner_id=\? AND is_active=1/);
   assert.match(rotate, /return json\(\{ success: true, token, rotated: true \}\)/);
   assert.match(remove, /DELETE FROM social_bots WHERE id=\? AND owner_id=\?/);
