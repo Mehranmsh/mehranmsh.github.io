@@ -133,7 +133,7 @@ def main():
 
 
     studio = (ROOT / "music-studio.html").read_text(encoding="utf-8")
-    for marker in ['id="patternVelocity"', 'id="patternGate"', 'patternVelocityValue', 'patternGateValue', 'patternMidiName', 'Array.from({length:37}', 'velocityByStep', 'gateByStep', 'baseDuration*gate']:
+    for marker in ['id="patternVelocity"', 'id="patternGate"', 'patternVelocityValue', 'patternGateValue', 'patternMidiName', 'Array.from({length:37}', 'velocityByStep', 'gateByStep', 'baseDuration*gate', 'id="patternNoteLength"', 'noteEvents', 'lengthSteps', 'function renderArrangementTimeline()', 'function addArrangementSection()', 'id="arrangementStudio"', 'data-arrangement-remove']:
         if marker not in studio:
             raise SystemExit("Music Studio note velocity/gate controls are missing: " + marker)
 
