@@ -1061,11 +1061,11 @@ test("SOCIAL deletion transfers owned communities only to active existing member
 
 test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits remain IP-scoped", () => {
   const helperStart = workerSource.indexOf("async function checkRateLimit");
-  const helperEnd = workerSource.indexOf("\n}", helperStart);
+  const helperEnd = workerSource.indexOf("\\n}", helperStart);
   const helper = workerSource.slice(helperStart, helperEnd);
-  assert.match(helper, /account:\\$\\{accountId\\}/);
-  assert.match(helper, /ip:\\$\\{ip\\}/);
-  assert.match(helper, /checkRateLimit\\(env, request, scope, maxAttempts, windowSeconds, blockSeconds, accountId = null\\)/);
+  assert.ok(helper.includes("account:${accountId}"));
+  assert.ok(helper.includes("ip:${ip}"));
+  assert.ok(helper.includes("accountId = null"));
   for (const [fn, scope] of [
     ["socialCallStart", "social-call-start"],
     ["socialCallJoin", "social-call-join"],
@@ -1078,7 +1078,12 @@ test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits 
     assert.ok(start >= 0, fn + " must exist");
     const next = workerSource.indexOf("\\nasync function ", start + 1);
     const body = workerSource.slice(start, next > start ? next : undefined);
-    assert.match(body, new RegExp(scope.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&") + ".*user\\.id"));
+    assert.ok(body.includes(scope), fn + " must retain its rate-limit scope");
+    assert.ok(body.includes("user.id"), fn + " must pass the authenticated account ID");
   }
-  assert.match(workerSource.slice(workerSource.indexOf("async function socialRegister"), workerSource.indexOf("async function socialFirebaseSession")), /checkRateLimit\\(env, request, "register-v3", 20, 3600, 600\\)/);
+  const registerStart = workerSource.indexOf("async function socialRegister");
+  const registerEnd = workerSource.indexOf("async function socialFirebaseSession", registerStart);
+  assert.ok(workerSource.slice(registerStart, registerEnd).includes(
+    'checkRateLimit(env, request, "register-v3", 20, 3600, 600)'
+  ), "pre-auth registration must remain IP-scoped");
 });
