@@ -81,10 +81,14 @@ def main():
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator('[data-track-reverb]').wait_for(state="visible")
                 assert page.locator('[data-track-vocal-polish]').count() == 1
+                assert page.locator('[data-track-noise-gate]').count() == 1
+                page.locator('[data-track-noise-gate]').click()
+                assert page.locator('[data-track-noise-gate]').inner_text() == "Noise gate: on"
                 page.locator('[data-track-vocal-polish]').click()
                 assert page.locator('[data-track-vocal-polish]').inner_text() == "Vocal polish: on"
                 saved_vocal_fx = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
                 assert saved_vocal_fx[0]["tracks"][0]["effects"]["vocalPolish"] is True
+                assert saved_vocal_fx[0]["tracks"][0]["effects"]["noiseGate"] is True
                 assert page.locator('[data-track-delay-time]').get_attribute("max") == "450"
                 assert page.locator('[data-track-feedback]').get_attribute("max") == "30"
                 assert page.locator('[data-track-filter]').count() == 1
@@ -110,6 +114,7 @@ def main():
                 assert page.locator('[data-track-reverb]').input_value() == "24"
                 assert page.locator('[data-track-delay-time]').input_value() == "350"
                 assert page.locator('[data-track-feedback]').input_value() == "30"
+                assert page.locator('[data-track-noise-gate]').inner_text() == "Noise gate: on"
                 assert page.locator('[data-track-chorus-depth]').input_value() == "65"
                 assert page.locator('[data-track-chorus-rate]').input_value() == "2.4"
 
@@ -156,7 +161,7 @@ def main():
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
-                print("PASS: Vocal Polish preset persists and is applied to live and offline audio chains")
+                print("PASS: Vocal Polish and live/offline noise gate controls persist and process audio")
                 print("PASS: per-track Filter, Cutoff, Drive, Reverb, Delay Time, Feedback and Chorus controls")
                 print("PASS: local IndexedDB audio attachment and live Web Audio playback")
                 print("PASS: independent per-track peak meter responds to playback")
