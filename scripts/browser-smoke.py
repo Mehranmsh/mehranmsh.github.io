@@ -226,6 +226,13 @@ def main():
                 page.locator("[data-waveform-preview-clear]").click()
                 assert preview_button.is_disabled(), "Clearing the waveform selection did not disable preview."
                 assert "Selection cleared" in page.locator("[data-waveform-status]").inner_text(), "Selection clear feedback is missing."
+                waveform.focus()
+                waveform.press("ArrowRight")
+                assert preview_button.is_enabled(), "Keyboard range selection did not enable preview."
+                assert "keyboard adjusted" in page.locator("[data-waveform-status]").inner_text(), "Keyboard selection feedback is missing."
+                waveform.press("Shift+ArrowRight")
+                waveform.press("Escape")
+                assert preview_button.is_disabled(), "Escape did not clear the keyboard selection."
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
