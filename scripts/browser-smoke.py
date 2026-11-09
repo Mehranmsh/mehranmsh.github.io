@@ -80,11 +80,16 @@ def main():
 
                 # Analyze the imported 440 Hz synthetic vocal using the local pitch detector.
                 page.locator("#pitchStart").fill("0.15")
+                page.locator("#pitchKey").select_option("0")
+                page.locator("#pitchScale").select_option("minor")
+                page.locator("#pitchStrength").fill("50")
                 page.locator("#analyzePitch").click()
                 page.wait_for_function("document.querySelector('#pitchResult')?.textContent.includes('Hz')", timeout=10000)
                 pitch_text = page.locator("#pitchResult").inner_text()
                 assert "A4" in pitch_text, "Pitch analyzer did not identify the 440 Hz test tone: " + pitch_text
                 assert "440" in pitch_text, "Pitch analyzer frequency is outside expected test range: " + pitch_text
+                assert "Correction map" in pitch_text and "50%" in pitch_text, "Scale-aware correction plan was not rendered: " + pitch_text
+                assert "50.0 cents" in pitch_text, "Correction strength calculation is incorrect: " + pitch_text
                 assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
                 assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 1, "Pitch contour has no voiced frames"
 
