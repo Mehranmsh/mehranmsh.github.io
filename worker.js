@@ -5633,7 +5633,7 @@ export default {
           return await socialCreateBot(request, env);
         }
 
-        const botMatch = path.match(/^\\/social\\/bots\\/([^/]+)(?:\\/(rotate-token))?$/);
+        const botMatch = path.match(/^\/social\/bots\/([^/]+)(?:\/(rotate-token))?$/);
         if (botMatch) {
           const botId = decodeURIComponent(botMatch[1]);
           if (botMatch[2] === "rotate-token" && method === "POST") return await socialRotateBotToken(request, env, botId);
