@@ -121,6 +121,22 @@ def main():
                 assert "fade=Math.max(32,Math.floor(rate*0.035))" in page.content(), "Pitch correction must use a longer 35 ms transition fade."
                 assert "mix=0.5-0.5*Math.cos(Math.PI*edge)" in page.content(), "Pitch correction must use smooth cosine edge blending."
 
+                # Build and save a lyric-to-performance rehearsal guide.
+                page.locator('[data-view="lyrics"]').click()
+                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.locator("#lyricsEditor").fill("[Verse 1]\\nتو رفتی و هنوز دلم به یاد توئه")
+                page.locator("#vocalGuideLine").select_option(index=0)
+                page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
+                page.locator("#vocalGuideTempo").fill("96")
+                page.locator("#vocalGuideNotes").fill("C4, D4, E4, G4, E4, D4, C4, C4")
+                page.locator("#saveVocalGuide").click()
+                saved_guide = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].lyricGuides")
+                assert saved_guide and saved_guide["تو رفتی و هنوز دلم به یاد توئه"]["tempo"] == 96
+                assert len(saved_guide["تو رفتی و هنوز دلم به یاد توئه"]["steps"]) == 8
+                page.locator("#playVocalGuide").click()
+                assert "Rehearsing" in page.locator("#vocalGuideStatus").inner_text()
+                page.locator("#stopVocalGuide").click()
+
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
