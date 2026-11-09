@@ -10,7 +10,6 @@ import http.client
 import ipaddress
 import json
 import re
-import socket
 from urllib.parse import urlsplit
 
 
@@ -26,19 +25,13 @@ class ACEstepLocalClient:
         if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
             raise ValueError("ACE-Step base URL cannot contain a path, query or fragment.")
         host = parsed.hostname.lower()
-        if host != "localhost":
-            try:
-                if not ipaddress.ip_address(host).is_loopback:
-                    raise ValueError("Only loopback ACE-Step endpoints are allowed.")
-            except ValueError as exc:
-                if "Only loopback" in str(exc):
-                    raise
-                raise ValueError("Only localhost or a loopback IP address is allowed.") from exc
-        else:
-            addresses = socket.getaddrinfo(host, parsed.port or 8001, type=socket.SOCK_STREAM)
-            if not addresses or any(not ipaddress.ip_address(item[4][0]).is_loopback for item in addresses):
-                raise ValueError("localhost resolved to a non-loopback address.")
-        self.host = host
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError as exc:
+            raise ValueError("Only literal loopback IP addresses are allowed; DNS hostnames are blocked.") from exc
+        if not address.is_loopback:
+            raise ValueError("Only loopback ACE-Step endpoints are allowed.")
+        self.host = str(address)
         self.port = parsed.port if parsed.port is not None else 8001
         if not 1 <= self.port <= 65535:
             raise ValueError("Invalid local ACE-Step port.")
