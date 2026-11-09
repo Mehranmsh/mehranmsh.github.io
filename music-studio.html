@@ -76,6 +76,25 @@
  </section>
  <section id="view-library" class="hidden"><div class="section-head"><div><h2>My projects</h2><p>Drafts stored locally on this device.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="exportBackup">Export backup</button><button class="btn secondary" id="importBackup">Import backup</button><input id="backupFile" type="file" accept="application/json,.json" hidden><button class="btn" data-go="create">＋ New project</button></div></div><div class="notice">Backups contain project text and settings only. They do not contain generated audio or voice recordings.</div><div id="libraryProjects" class="projects"></div></section>
  <section id="view-lyrics" class="hidden">
+  <div class="panel" id="aiSongwriterPanel" style="margin-bottom:16px">
+   <div class="section-head"><div><h2>✦ AI Songwriter</h2><p>Generate an original Persian song lyric from your idea. Uses the capped free Cloudflare AI allowance.</p></div><span class="tag">FREE DAILY QUOTA</span></div>
+   <div class="two">
+    <div class="field"><label for="songwriterTopic">SONG IDEA / TOPIC</label><input id="songwriterTopic" maxlength="400" placeholder="e.g. Missing someone who feels far away"></div>
+    <div class="field"><label for="songwriterMood">MOOD</label><select id="songwriterMood"><option>عاشقانه</option><option selected>دلتنگ</option><option>غمگین</option><option>امیدوار</option><option>حماسی</option><option>آرام</option><option>تلخ</option><option>شاد</option><option>نوستالژیک</option></select></div>
+   </div>
+   <div class="two">
+    <div class="field"><label for="songwriterGenre">MUSIC GENRE</label><select id="songwriterGenre"><option selected>پاپ</option><option>راک</option><option>آلترناتیو</option><option>آراندبی</option><option>هیپ‌هاپ</option><option>سنتی</option><option>سینمایی</option><option>فولک</option></select></div>
+    <div class="field"><label for="songwriterVoice">STORY VOICE</label><select id="songwriterVoice"><option selected>اول شخص</option><option>دوم شخص</option><option>روایت داستانی</option></select></div>
+   </div>
+   <div class="field"><label for="songwriterDetails">DETAILS YOU WANT INCLUDED (OPTIONAL)</label><textarea id="songwriterDetails" rows="2" maxlength="1200" placeholder="A memory, a place, a special image, a message or a feeling..."></textarea></div>
+   <div class="two">
+    <div class="field"><label for="songwriterStructure">LYRIC LENGTH</label><select id="songwriterStructure"><option value="full" selected>Full song</option><option value="short">Short draft</option></select></div>
+    <div class="field" style="justify-content:end"><button class="btn" id="generateSongLyrics" type="button">✦ Generate lyrics</button><small style="color:var(--muted)">No OpenAI key or paid API is used. Generation stops when the shared free allowance is reserved.</small></div>
+   </div>
+   <div class="field"><label for="songwriterResult">GENERATED DRAFT</label><textarea id="songwriterResult" rows="12" readonly placeholder="Your generated song lyric will appear here..."></textarea></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="useSongwriterDraft" type="button" disabled>Replace Lyrics Lab text</button><button class="btn secondary" id="appendSongwriterDraft" type="button" disabled>Append to Lyrics Lab</button></div>
+   <p id="songwriterStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin:10px 0 0">Free mode · daily quota is shared with other MEHRAN AI features. No automatic paid fallback.</p>
+  </div>
   <div class="section-head"><div><h2>Lyrics Lab</h2><p>Write and organize lyrics locally, then save them into a music project.</p></div></div>
   <div class="workspace">
    <div class="panel">
@@ -722,6 +741,39 @@
 
  function loadProjectMelodyForGuide(){const p=vocalGuideProject(),pattern=p&&p.patternStudio;if(!pattern||pattern.mode==="drums"||!Array.isArray(pattern.notes)){ $("vocalGuideStatus").textContent="Create a melodic instrument pattern in the mixer first.";return;}const notes=pattern.notes.filter(n=>n&&n!=="-");if(!notes.length){$("vocalGuideStatus").textContent="The project melody contains only rests.";return;}$("vocalGuideNotes").value=notes.join(", ");$("vocalGuideTempo").value=pattern.tempo||$("vocalGuideTempo").value;renderVocalGuideSteps();$("vocalGuideStatus").textContent=notes.length+" melody notes loaded. Match the note count to the lyric steps before saving.";}
  function saveVocalGuide(){const p=vocalGuideProject(),line=currentVocalGuideLine(),steps=$("vocalGuideSyllables").value.split("/").map(x=>x.trim()).filter(Boolean),tempo=Number($("vocalGuideTempo").value),notes=$("vocalGuideNotes").value.split(/[ ,\s]+/).filter(Boolean);if(!p||!line){$("vocalGuideStatus").textContent="Choose a project and lyric line first.";return;}if(!steps.length||!Number.isFinite(tempo)||tempo<40||tempo>220||notes.length&&notes.length!==steps.length||notes.some(n=>!parseGuideNote(n))){$("vocalGuideStatus").textContent="Check the steps, tempo and optional note sequence before saving.";return;}const previous=p.lyricGuides;p.lyricGuides={...(p.lyricGuides||{}),[line]:{steps,notes,tempo,feel:$("vocalGuideFeel").value,subdivision:Number($("vocalGuideSubdivision").value),breath:$("vocalGuideBreath").checked,backing:$("vocalGuideBacking").checked,updated:Date.now()}};p.updated=Date.now();if(!save()){if(previous===undefined)delete p.lyricGuides;else p.lyricGuides=previous;$("vocalGuideStatus").textContent="Save failed. Existing project data was preserved.";return;}render();refreshLyricsProjects(p.id);$("lyricsProject").dataset.previous=p.id;$("vocalGuideStatus").textContent="Vocal guide saved locally with this project.";}
+ async function generateSongLyrics(){
+  const topic=$("songwriterTopic").value.trim();
+  if(!topic){$("songwriterTopic").focus();$("songwriterStatus").textContent="Add a song idea or topic first.";return;}
+  const button=$("generateSongLyrics"),status=$("songwriterStatus");
+  button.disabled=true;button.textContent="Generating…";status.textContent="Writing your lyric with the free Cloudflare model. This may take a little while.";
+  $("useSongwriterDraft").disabled=true;$("appendSongwriterDraft").disabled=true;
+  try{
+   const response=await fetch("https://mehran-msh-auth.mehran79mehran.workers.dev/music/lyrics/generate",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({topic,mood:$("songwriterMood").value,genre:$("songwriterGenre").value,voice:$("songwriterVoice").value,details:$("songwriterDetails").value,structure:$("songwriterStructure").value})
+   });
+   let data={};try{data=await response.json();}catch{}
+   if(!response.ok||!data.success)throw new Error(data.error||("Generation failed ("+response.status+")."));
+   $("songwriterResult").value=data.lyrics||"";
+   $("useSongwriterDraft").disabled=!data.lyrics;$("appendSongwriterDraft").disabled=!data.lyrics;
+   status.textContent="Draft generated with Cloudflare AI · free allowance · "+(data.model||"");
+  }catch(error){
+   status.textContent="Could not generate lyrics: "+String(error.message||error).slice(0,220);
+  }finally{button.disabled=false;button.textContent="✦ Generate lyrics";}
+ }
+ function applySongwriterDraft(append){
+  const draft=$("songwriterResult").value.trim();if(!draft)return;
+  const editor=$("lyricsEditor"),existing=editor.value.trim();
+  if(append&&existing)editor.value=editor.value.replace(/\s+$/,"")+"\n\n"+draft;
+  else{
+   if(existing&&!confirm("Replace the current Lyrics Lab text with the generated draft?"))return;
+   editor.value=draft;
+  }
+  if(!$("lyricsTitle").value.trim())$("lyricsTitle").value=$("songwriterTopic").value.trim().slice(0,100);
+  editor.dispatchEvent(new Event("input",{bubbles:true}));
+  $("lyricsSaveState").textContent="Unsaved generated draft";
+  editor.focus();
+ }
  function saveLyrics(){const p=projects.find(x=>x.id===$("lyricsProject").value);if(!p){alert("Choose a project first.");return;}const previous={lyricsTitle:p.lyricsTitle,lyrics:p.lyrics,updated:p.updated};p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);p.lyrics=$("lyricsEditor").value.slice(0,20000);p.updated=Date.now();if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}render();refreshLyricsProjects(p.id);$("lyricsProject").dataset.previous=p.id;$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;$("lyricsSaveState").textContent="Saved locally · "+new Date().toLocaleTimeString();}
  function exportLyrics(){const title=$("lyricsTitle").value.trim()||"lyrics";const safe=title.replace(/[^a-z0-9\-_ ]/gi,"").trim().replace(/\s+/g,"-").slice(0,60)||"lyrics";const blob=new Blob([$("lyricsEditor").value],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=safe+".txt";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
  function insertLyricSection(section){const t=$("lyricsEditor");const start=t.selectionStart,end=t.selectionEnd;const before=t.value.slice(0,start),after=t.value.slice(end);const prefix=before&&!before.endsWith("\n")?"\n\n":"";const addition=prefix+section+"\n";t.value=before+addition+after;t.focus();const pos=(before+addition).length;t.setSelectionRange(pos,pos);updateLyricsCount();}
@@ -783,6 +835,9 @@
  $("stopVocalGuide").addEventListener("click",stopVocalGuide);
  $("saveVocalGuide").onclick=saveVocalGuide;
  $("loadProjectMelody").addEventListener("click",loadProjectMelodyForGuide);
+ $("generateSongLyrics").addEventListener("click",generateSongLyrics);
+ $("useSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(false));
+ $("appendSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(true));
  $("saveLyrics").addEventListener("click",saveLyrics);
  $("exportLyrics").addEventListener("click",exportLyrics);
  document.querySelectorAll("[data-lyric-section]").forEach(b=>b.addEventListener("click",()=>insertLyricSection(b.dataset.lyricSection)));
