@@ -250,7 +250,7 @@ def main():
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
                     early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(0.04 * 44100) * 4]) // 2), stem_pcm[:int(0.04 * 44100) * 4])
-                    active_stem = struct.unpack("<" + "h" * (len(stem_pcm[int(0.06 * 44100) * 4:int(0.12 * 44100) * 4]) // 2), stem_pcm[int(0.06 * 44100) * 4:int(0.12 * 44100) * 4])
+                    active_stem = struct.unpack("<" + "h" * (len(stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4]) // 2), stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4])
                     assert max(map(abs, early_stem), default=0) < 2000, "Stem contains the source material before the configured trim point."
                     assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trimming."
 
