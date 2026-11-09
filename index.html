@@ -903,7 +903,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  sendEmailVerification, EmailAuthProvider, reauthenticateWithCredential, signOut, onAuthStateChanged
+  sendEmailVerification, signOut
 } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
 const firebaseConfig = {
   apiKey: "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM",
@@ -916,16 +916,6 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const firebaseAuth = getAuth(firebaseApp);
 window.socialFirebaseReady = true;
-window.socialFirebaseReauthenticate = async (password, expectedEmail) => {
-  let user = firebaseAuth.currentUser;
-  if (!user) user = await new Promise(resolve => {
-    const unsubscribe = onAuthStateChanged(firebaseAuth, value => { unsubscribe(); resolve(value); });
-  });
-  if (!user || String(user.email || "").toLowerCase() !== String(expectedEmail || "").toLowerCase()) return null;
-  const credential = EmailAuthProvider.credential(user.email, password);
-  await reauthenticateWithCredential(user, credential);
-  return await user.getIdToken(true);
-};
 window.socialFirebaseSignOut = async () => {
   if (firebaseAuth.currentUser) await signOut(firebaseAuth);
 };
@@ -1422,13 +1412,11 @@ async function socialDeleteAccount(){
  const button=$("socialDeleteAccountBtn"),status=$("socialDeleteStatus");
  button.disabled=true;status.textContent="Verifying identity and removing your account data…";
  try{
-  let idToken=null;
-  if(window.socialFirebaseReauthenticate)idToken=await window.socialFirebaseReauthenticate(password,socialUser.email);
-  const response=await fetch(SOCIAL_API+"/account",{method:"DELETE",headers:{...socialHeaders(),"Content-Type":"application/json"},body:JSON.stringify(idToken?{idToken}:{password})});
+  const response=await fetch(SOCIAL_API+"/account",{method:"DELETE",headers:{...socialHeaders(),"Content-Type":"application/json"},body:JSON.stringify({password})});
   const data=await response.json().catch(()=>({}));
   if(!response.ok||!data.deleted)throw new Error(data.error||"Account deletion could not be completed.");
   localStorage.removeItem(SOCIAL_TOKEN_KEY);localStorage.removeItem("msh_social_cached_user");
-  try{if(idToken&&window.socialFirebaseSignOut)await window.socialFirebaseSignOut();}catch(firebaseError){console.warn("SOCIAL data deleted; local Firebase sign-out needs review:",firebaseError);}
+  try{if(data.providerIdentityDeleted===true&&window.socialFirebaseSignOut)await window.socialFirebaseSignOut();}catch(firebaseError){console.warn("SOCIAL data deleted; local Firebase sign-out needs review:",firebaseError);}
   socialUser=null;socialSessionVerified=false;localProfile={};posts=[];localStorage.removeItem(SOCIAL_PROFILE_KEY);localStorage.removeItem(SOCIAL_POSTS_KEY);
   $("settingsUsername").value="";$("socialDeletePassword").value="";
   $("socialStatus").textContent="Account deleted";status.textContent="Your SOCIAL account and "+Number(data.removedFiles||0)+" uploaded file(s) were deleted."+(data.providerIdentityDeleted===false?" Your email sign-in identity could not be removed automatically. Please contact support.":"");
