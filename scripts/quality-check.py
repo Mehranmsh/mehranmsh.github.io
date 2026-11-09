@@ -115,7 +115,7 @@ def main():
         'id="trackAudioFile"', 'indexedDB.open(AUDIO_DB,1)',
         'MAX_AUDIO_BYTES=100*1024*1024', 'function storeTrackAudio(',
         'function readTrackAudio(', 'data-track-audio-player',
-        'This is preview playback, not multitrack mixing or mastering',
+        'Local playback only. No mix file is rendered or exported yet.',
         'The file is not being uploaded', 'restoreTrackAudioAsset(key,previousAudio)',
         'data-track-audio-download', 'async function downloadTrackAudio(',
         'async function deleteProjectAudioAssets('
