@@ -521,6 +521,12 @@ def main():
                 overlapping = [event for event in event_model if event["startStep"] == 1]
                 assert {event["note"] for event in overlapping} == {"D3", "F3"}
                 assert all(event["lengthSteps"] == 4 and event["velocity"] == 65 and event["gate"] == 55 for event in overlapping)
+                page.locator("#patternNoteLength").select_option("8")
+                page.locator("#applyPatternNoteLength").click()
+                resized_events = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents.filter(event => event.startStep === 1)")
+                assert len(resized_events) == 2 and all(event["lengthSteps"] == 8 for event in resized_events), "Applying a new duration did not resize all notes in the selected piano-roll step."
+                page.locator("#patternNoteLength").select_option("4")
+                page.locator("#applyPatternNoteLength").click()
 
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
