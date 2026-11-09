@@ -569,6 +569,12 @@ def main():
                 arrangement_download.value.save_as(arrangement_wav)
                 assert arrangement_wav.read_bytes().startswith(b"RIFF") and arrangement_wav.stat().st_size > 44
                 assert "track placements" in page.locator("#arrangementExportStatus").inner_text()
+                # Preview renders the exact same offline arrangement mix, then supports an explicit stop.
+                page.locator("#previewArrangement").click()
+                page.wait_for_function("document.querySelector('#arrangementExportStatus')?.textContent.includes('Arrangement preview playing')", timeout=30000)
+                assert page.locator("#stopArrangementPreview").is_enabled(), "Arrangement preview did not expose an active stop control."
+                page.locator("#stopArrangementPreview").click()
+                assert "preview stopped" in page.locator("#arrangementExportStatus").inner_text().lower()
                 # Render a four-chord harmonic backing layer and verify the project record.
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, F, C, G")
