@@ -453,6 +453,26 @@ def main():
                 assert len(set(split_hashes)) == 1 and split_hashes[0] == source_audio_hash, "Splitting changed or detached the original source audio."
                 assert "three independently editable clips" in page.locator("#mixStatus").inner_text(), "Split completion feedback is missing."
 
+                # Generate an original local drum loop and attach its WAV to the same project.
+                page.locator("#patternTempo").fill("96")
+                page.locator("#patternMode").select_option("drums")
+                page.locator("#patternBars").select_option("1")
+                page.locator("#kickSteps [data-pattern-step='1']").click()
+                page.locator("#renderPattern").click()
+                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                generated_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                generated_track = next(track for track in generated_project["tracks"] if track.get("generated"))
+                assert generated_track["type"] == "Drums / Percussion" and generated_track["audioName"].endswith(".wav")
+                assert generated_track["audioSize"] > 44 and page.locator("#patternPreview").get_attribute("src")
+                generated_blob_exists = page.evaluate("""async () => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1"))[0];
+                    const track = project.tracks.find(item => item.generated);
+                    const db = await new Promise((resolve, reject) => { const req = indexedDB.open("mehran_music_studio_audio_v1", 1); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    const record = await new Promise((resolve, reject) => { const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    db.close(); return !!record?.blob && record.blob.size > 44;
+                }""")
+                assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
+
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
