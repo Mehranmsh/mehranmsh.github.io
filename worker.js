@@ -3960,6 +3960,13 @@ async function socialCreateBot(request, env) {
   const description = cleanText(body.description, 500);
 
   if (!name || !validUsername(username)) return error("Invalid bot name or username");
+  if (!await checkRateLimit(env, request, "social-bot-create", 10, 3600, 1800)) {
+    return error("Too many bot registrations. Try again later.", 429);
+  }
+  const ownedBots = await env.DB.prepare(
+    "SELECT COUNT(*) AS total FROM social_bots WHERE owner_id=?"
+  ).bind(user.id).first();
+  if (Number(ownedBots?.total || 0) >= 25) return error("Each account can register up to 25 bots.", 429);
 
   const token = createSessionToken();
   const tokenHash = await sha256(token);
@@ -3997,6 +4004,9 @@ async function socialListBots(request, env) {
 async function socialRotateBotToken(request, env, botId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await checkRateLimit(env, request, "social-bot-rotate", 20, 3600, 1800)) {
+    return error("Too many bot token rotations. Try again later.", 429);
+  }
   const token = createSessionToken();
   const tokenHash = await sha256(token);
   const result = await env.DB.prepare(
