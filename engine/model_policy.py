@@ -4,6 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
+MAX_MANIFEST_BYTES = 64 * 1024
+MAX_ARTIFACTS = 128
+MAX_ARTIFACT_PATH_CHARS = 512
+
 CATALOG_PATH = Path(__file__).with_name("model_catalog.json")
 CATALOG = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
 APPROVED = {
@@ -32,6 +36,10 @@ def validate_manifest(models_root: Path, manifest_path: Path | None = None) -> d
     try:
         if not _inside(models_root, manifest_path):
             raise ValueError("Manifest path escapes local models directory.")
+        if not manifest_path.is_file():
+            raise ValueError("Model manifest is missing.")
+        if manifest_path.stat().st_size > MAX_MANIFEST_BYTES:
+            raise ValueError("Model manifest exceeds the 64 KiB safety limit.")
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ValueError("Manifest must be a JSON object.")
@@ -49,17 +57,27 @@ def validate_manifest(models_root: Path, manifest_path: Path | None = None) -> d
         artifacts = data.get("artifacts")
         if not isinstance(artifacts, list) or not artifacts:
             raise ValueError("At least one SHA-256-verified local artifact is required.")
+        if len(artifacts) > MAX_ARTIFACTS:
+            raise ValueError("No more than 128 model artifacts may be verified.")
         checked = []
+        seen_targets = set()
         for artifact in artifacts:
             if not isinstance(artifact, dict):
                 raise ValueError("Invalid artifact record.")
             rel, expected = artifact.get("path"), artifact.get("sha256")
-            if (not isinstance(rel, str) or not rel or not isinstance(expected, str)
-                    or len(expected) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in expected)):
-                raise ValueError("Each artifact needs a relative path and a 64-character hexadecimal SHA-256.")
-            target = (models_root / rel).resolve()
+            if (not isinstance(rel, str) or not rel or len(rel) > MAX_ARTIFACT_PATH_CHARS
+                    or not isinstance(expected, str) or len(expected) != 64
+                    or any(ch not in "0123456789abcdefABCDEF" for ch in expected)):
+                raise ValueError("Each artifact needs a short relative path and a 64-character hexadecimal SHA-256.")
+            relative = Path(rel)
+            if relative.is_absolute() or relative == Path("."):
+                raise ValueError("Artifact paths must be relative to the local models directory.")
+            target = (models_root / relative).resolve()
             if not _inside(models_root, target) or not target.is_file():
                 raise ValueError("Artifact is missing or escapes local models directory.")
+            if target in seen_targets:
+                raise ValueError("Duplicate artifact paths are not allowed.")
+            seen_targets.add(target)
             digest = sha256_file(target)
             if digest.lower() != expected.lower():
                 raise ValueError("Artifact SHA-256 mismatch.")
