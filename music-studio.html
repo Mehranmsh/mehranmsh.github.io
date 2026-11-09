@@ -157,7 +157,7 @@
  const $=id=>document.getElementById(id);
  let audioDbPromise=null;
  let activeAudioTrackId=null;
- let renderedStemUrl=null,originalStemUrl=null;
+ let renderedStemUrl=null,originalStemUrl=null,renderedStemProjectId=null,renderedStemTrackId=null;
  const trackAudioUrls=new Map();
  let mixAudioContext=null;
  const trackAudioNodes=new Map();
@@ -457,12 +457,12 @@
  }
 
  async function renderSelectedStem(download=true){
-  const button=$("exportStem"),status=$("stemExportStatus");if(button.disabled)return;
+  const button=$("exportStem"),previewButton=$("previewStem"),status=$("stemExportStatus");if(button.disabled||previewButton.disabled)return;
   const project=projects.find(p=>p.id===$("mixProject").value),track=project?.tracks?.find(t=>t.id===$("stemTrack").value),fx=track?.effects||{};
   if(!project){status.textContent="Choose a project first.";return;}
   if(!track||!track.audioName){status.textContent="Choose a track with an attached audio file.";return;}
   if(!(window.AudioContext||window.webkitAudioContext)||!(window.OfflineAudioContext||window.webkitOfflineAudioContext)){status.textContent="This browser does not support offline audio rendering.";return;}
-  button.disabled=true;
+  button.disabled=true;previewButton.disabled=true;
   try{
    status.textContent="Reading selected track…";
    const record=await readTrackAudio(audioKey(project.id,track.id));
@@ -497,6 +497,7 @@
    if(originalStemUrl)URL.revokeObjectURL(originalStemUrl);
    renderedStemUrl=URL.createObjectURL(wav);
    originalStemUrl=URL.createObjectURL(record.blob);
+   renderedStemProjectId=project.id;renderedStemTrackId=track.id;
    const preview=$("stemPreviewAudio");
    preview.pause();preview.src=renderedStemUrl;preview.currentTime=0;preview.style.display="block";
    $("stemPreviewPanel").classList.remove("hidden");
@@ -508,7 +509,14 @@
     status.textContent="Stem download started · "+(audioBuffer.duration+tailSeconds).toFixed(1)+" sec including echo tail · "+(wav.size/1024/1024).toFixed(1)+" MB."+(pitchCorrected?" · vocal pitch correction applied locally.":"");
    }else status.textContent="Preview rendered locally · "+(audioBuffer.duration+tailSeconds).toFixed(1)+" sec · listen to both versions, then download when ready."+(pitchCorrected?" Pitch correction is active.":"");
   }catch(error){status.textContent="Stem export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}
-  finally{button.disabled=false;}
+  finally{button.disabled=false;previewButton.disabled=false;}
+ }
+ function clearStemPreview(){
+  const player=$("stemPreviewAudio");if(player){player.pause();player.removeAttribute("src");player.load();player.style.display="none";}
+  if(renderedStemUrl)URL.revokeObjectURL(renderedStemUrl);if(originalStemUrl)URL.revokeObjectURL(originalStemUrl);
+  renderedStemUrl=null;originalStemUrl=null;renderedStemProjectId=null;renderedStemTrackId=null;
+  $("stemPreviewPanel").classList.add("hidden");$("stemPreviewOriginal").disabled=true;$("stemPreviewCorrected").disabled=true;$("downloadStem").disabled=true;
+  $("stemPreviewMode").textContent="Preview the original or corrected stem before downloading.";
  }
  async function renderWavExport(){
   const button=$("renderWav"),status=$("renderWavStatus");if(button.disabled)return;
@@ -568,14 +576,15 @@
  $("analyzePitch").addEventListener("click",()=>{void analyzeVocalPitch();});
   $("importVocalRecording").addEventListener("click",()=>{if(!$("vocalProject").value){$("vocalImportStatus").textContent="Choose a project first.";return;}$("vocalRecordingFile").click();});
   $("vocalRecordingFile").addEventListener("change",e=>{const file=e.target.files&&e.target.files[0];e.target.value="";void importVocalRecording(file);});
- $("mixProject").addEventListener("change",()=>{stopMix();renderMixTracks();});
+ $("mixProject").addEventListener("change",()=>{stopMix();renderMixTracks();clearStemPreview();});
+ $("stemTrack").addEventListener("change",clearStemPreview);
  $("playMix").addEventListener("click",playMix);
  $("renderWav").addEventListener("click",()=>{void renderWavExport();});
  $("exportStem").addEventListener("click",()=>{void renderSelectedStem(true);});
  $("previewStem").addEventListener("click",()=>{void renderSelectedStem(false);});
  $("stemPreviewOriginal").addEventListener("click",()=>{if(!originalStemUrl)return;const player=$("stemPreviewAudio");player.pause();player.src=originalStemUrl;player.currentTime=0;$("stemPreviewMode").textContent="Original recording · unchanged source";void player.play().catch(()=>{});});
  $("stemPreviewCorrected").addEventListener("click",()=>{if(!renderedStemUrl)return;const player=$("stemPreviewAudio");player.pause();player.src=renderedStemUrl;player.currentTime=0;$("stemPreviewMode").textContent="Rendered stem · "+($("stemPitchCorrection").checked?"pitch correction enabled":"effects only");void player.play().catch(()=>{});});
- $("downloadStem").addEventListener("click",()=>{if(!renderedStemUrl)return;const project=projects.find(p=>p.id===$("mixProject").value),track=project?.tracks?.find(t=>t.id===$("stemTrack").value);if(!project||!track)return;const link=document.createElement("a");link.href=renderedStemUrl;const safeProject=(project.name||"project").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"project",safeTrack=(track.name||"stem").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"stem";link.download=safeProject+"-"+safeTrack+"-stem.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();$("stemExportStatus").textContent="Rendered stem download started. The original recording remains unchanged.";});
+ $("downloadStem").addEventListener("click",()=>{if(!renderedStemUrl)return;const project=projects.find(p=>p.id===$("mixProject").value),track=project?.tracks?.find(t=>t.id===$("stemTrack").value);if(!project||!track||project.id!==renderedStemProjectId||track.id!==renderedStemTrackId){clearStemPreview();return;}const link=document.createElement("a");link.href=renderedStemUrl;const safeProject=(project.name||"project").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"project",safeTrack=(track.name||"stem").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"stem";link.download=safeProject+"-"+safeTrack+"-stem.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();$("stemExportStatus").textContent="Rendered stem download started. The original recording remains unchanged.";});
  $("masterCompressor").checked=masterSettings.compressor;$("masterCompressor").addEventListener("change",e=>{masterSettings.compressor=e.target.checked;applyMasterSettings();try{localStorage.setItem(MASTER_KEY,JSON.stringify(masterSettings));}catch{};});
  for(const key of ["level","low","mid","high"]){const id=key==="level"?"masterLevel":"master"+key[0].toUpperCase()+key.slice(1);$(id).value=masterSettings[key];$(id).addEventListener("input",e=>updateMasterSetting(key,e.target.value));$(id).addEventListener("change",e=>updateMasterSetting(key,e.target.value));const label=$(id+"Value");if(label)label.textContent=masterSettings[key]+" dB";}
  $("stopMix").addEventListener("click",stopMix);
