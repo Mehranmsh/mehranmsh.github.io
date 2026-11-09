@@ -133,7 +133,7 @@ def main():
 
 
     studio = (ROOT / "music-studio.html").read_text(encoding="utf-8")
-    for marker in ['id="patternVelocity"', 'id="patternGate"', 'patternVelocityValue', 'patternGateValue', 'patternMidiName', 'Array.from({length:37}', 'velocityByStep', 'gateByStep', 'step*length*gate', 'id="patternNoteLength"', 'noteEvents', 'lengthSteps', 'function renderArrangementTimeline()', 'function addArrangementSection()', 'id="arrangementStudio"', 'data-arrangement-remove', 'value="epiano"', 'value="organ"', 'value="lead"', 'value="strings"', 'value="bell"', 'id="drumKit"', 'id="openHatSteps"', 'id="clapSteps"', 'id="tomSteps"', 'id="percSteps"', 'openHat', 'drumKit==="lofi"', 'id="exportPatternMidi"', 'id="importPatternMidi"', 'function exportPatternMIDI()', 'function importPatternMIDI(file)', 'MThd', 'midiVLQ']:
+    for marker in ['id="patternVelocity"', 'id="patternGate"', 'patternVelocityValue', 'patternGateValue', 'patternMidiName', 'Array.from({length:37}', 'velocityByStep', 'gateByStep', 'step*length*gate', 'id="patternNoteLength"', 'noteEvents', 'lengthSteps', 'function renderArrangementTimeline()', 'function addArrangementSection()', 'id="arrangementStudio"', 'data-arrangement-remove', 'value="epiano"', 'value="organ"', 'value="lead"', 'value="strings"', 'value="bell"', 'id="drumKit"', 'id="openHatSteps"', 'id="clapSteps"', 'id="tomSteps"', 'id="percSteps"', 'openHat', 'kit==="lofi"', 'id="exportPatternMidi"', 'id="importPatternMidi"', 'function exportPatternMIDI()', 'function importPatternMIDI(file)', 'MThd', 'midiVLQ']:
         if marker not in studio:
             raise SystemExit("Music Studio note velocity/gate controls are missing: " + marker)
 
