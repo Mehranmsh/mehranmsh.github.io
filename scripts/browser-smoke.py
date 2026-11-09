@@ -469,6 +469,15 @@ def main():
                 assert generated_track["type"] == "Drums / Percussion" and generated_track["audioName"].endswith(".wav")
                 assert generated_project["patternStudio"]["drumKit"] == "lofi"
                 assert 7 in generated_project["patternStudio"]["openHat"] and 4 in generated_project["patternStudio"]["clap"] and 11 in generated_project["patternStudio"]["tom"] and 15 in generated_project["patternStudio"]["perc"]
+                with page.expect_download() as drum_midi_download:
+                    page.locator("#exportPatternMidi").click()
+                drum_midi_path = Path(tmpdir) / "drum-roundtrip.mid"
+                drum_midi_download.value.save_as(drum_midi_path)
+                assert drum_midi_path.read_bytes().startswith(b"MThd")
+                page.locator("#patternMidiFile").set_input_files(str(drum_midi_path))
+                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('MIDI imported')", timeout=5000)
+                drum_roundtrip = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio")
+                assert drum_roundtrip["mode"] == "drums" and 7 in drum_roundtrip["openHat"] and 4 in drum_roundtrip["clap"] and 11 in drum_roundtrip["tom"] and 15 in drum_roundtrip["perc"]
                 assert generated_track["audioSize"] > 44 and page.locator("#patternPreview").get_attribute("src")
                 generated_blob_exists = page.evaluate("""async () => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1"))[0];
@@ -508,6 +517,15 @@ def main():
                 assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"] and melody_project["patternStudio"]["velocityByStep"][1] == 65 and melody_project["patternStudio"]["gateByStep"][1] == 55
                 melody_events = [event for event in melody_project["patternStudio"]["noteEvents"] if event["startStep"] == 1]
                 assert {event["note"] for event in melody_events} == {"D3", "F3"} and all(event["lengthSteps"] == 4 for event in melody_events)
+                with page.expect_download() as melody_midi_download:
+                    page.locator("#exportPatternMidi").click()
+                melody_midi_path = Path(tmpdir) / "melody-roundtrip.mid"
+                melody_midi_download.value.save_as(melody_midi_path)
+                assert melody_midi_path.read_bytes().startswith(b"MThd")
+                page.locator("#patternMidiFile").set_input_files(str(melody_midi_path))
+                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('MIDI imported')", timeout=5000)
+                melody_roundtrip = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents")
+                assert {event["note"] for event in melody_roundtrip if event["startStep"] == 1} == {"D3", "F3"}
                 # Song-form sections are saved in sequence with computed bar positions.
                 page.locator("#arrangementSection").select_option("Intro")
                 page.locator("#arrangementBars").select_option("4")
