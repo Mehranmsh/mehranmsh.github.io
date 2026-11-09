@@ -229,6 +229,7 @@ def main():
                 page.locator("[data-waveform-preview-clear]").click()
                 assert preview_button.is_disabled(), "Clearing the waveform selection did not disable preview."
                 assert "Selection cleared" in page.locator("[data-waveform-status]").inner_text(), "Selection clear feedback is missing."
+                assert "Shift+ArrowLeft" in (waveform.get_attribute("aria-keyshortcuts") or ""), "Keyboard shortcut accessibility metadata is missing."
                 waveform.focus()
                 waveform.press("ArrowRight")
                 assert preview_button.is_enabled(), "Keyboard range selection did not enable preview."
