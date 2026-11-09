@@ -317,6 +317,41 @@
  function cancelSingerEdit(){editingSingerId=null;resetSingerForm();$("addSinger").textContent="Add singer to project";$("cancelSingerEdit").classList.add("hidden");}
  function editSinger(index){const p=projects.find(x=>x.id===$("vocalProject").value);const singer=p?.singers?.[index];if(!singer)return;editingSingerId=singer.id;$("singerName").value=singer.name||"";$("singerType").value=singer.voiceType||"Not specified";$("singerRole").value=singer.role||"Lead";$("singerRange").value=singer.range||"";$("singerLanguage").value=singer.language||"";$("singerStyle").value=singer.style||"";$("singerParts").value=singer.parts||"";$("addSinger").textContent="Save singer changes";$("cancelSingerEdit").classList.remove("hidden");$("singerName").focus();$("vocalStatus").textContent="Editing singer profile. Changes are saved only when you press Save.";}
  function addSinger(){const p=projects.find(x=>x.id===$("vocalProject").value);if(!p){alert("Choose a project first.");return;}const name=$("singerName").value.trim();if(!name){$("singerName").focus();alert("Enter a singer name or alias.");return;}p.singers=Array.isArray(p.singers)?p.singers:[];p.tracks=Array.isArray(p.tracks)?p.tracks:[];const existing=editingSingerId?p.singers.find(v=>v.id===editingSingerId):null;if(editingSingerId&&!existing){cancelSingerEdit();alert("This singer profile no longer exists. Please choose it again.");return;}if(!existing&&p.singers.length>=8){alert("A project can have up to 8 singer profiles.");return;}const singer={id:existing?existing.id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name.slice(0,60),voiceType:$("singerType").value,role:$("singerRole").value,range:$("singerRange").value.trim().slice(0,40),language:$("singerLanguage").value.trim().slice(0,40),style:$("singerStyle").value.trim().slice(0,500),parts:$("singerParts").value.trim().slice(0,160)};const previous=existing?{...existing}:null;const previousTracks=p.tracks.map(t=>({...t}));const previousUpdated=p.updated;if(existing)Object.assign(existing,singer);else p.singers.push(singer);const linked=p.tracks.find(t=>t.sourceSingerId===singer.id);if(linked){const backing=["Backing vocals","Harmony","Ad-libs","Choir"].includes(singer.role);linked.name=singer.name;linked.type=backing?"Backing Vocal":"Lead Vocal";linked.role=backing?"Support":"Lead";linked.notes=[singer.style||"",singer.parts?"Parts: "+singer.parts:""].filter(Boolean).join(" · ").slice(0,500);}p.updated=Date.now();if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.tracks=previousTracks;p.updated=previousUpdated;return;}cancelSingerEdit();$("vocalStatus").textContent=existing?"Singer profile and linked track updated locally.":"Singer profile saved locally.";render();renderVocalCast();refreshMixProjects();}
+ async function analyzeRecordingQuality(){
+  const button=$("analyzeRecordingQuality"),result=$("recordingQualityResult");
+  if(button.disabled)return;
+  const project=projects.find(x=>x.id===$("vocalProject").value);
+  const track=project?.tracks?.find(x=>x.id===$("pitchTrack").value&&x.audioName)||project?.tracks?.slice().reverse().find(x=>x.audioName);
+  if(!project||!track){result.textContent="Import a vocal recording into the selected project first.";return;}
+  button.disabled=true;result.textContent="Measuring your recording locally…";
+  let context;
+  try{
+   const record=await readTrackAudio(audioKey(project.id,track.id));
+   if(!record?.blob)throw Error("The original local recording is missing.");
+   const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)throw Error("This browser does not support audio analysis.");
+   context=new Ctx();const audio=await context.decodeAudioData(await record.blob.arrayBuffer());
+   const channels=audio.numberOfChannels,rate=audio.sampleRate,block=Math.max(1,Math.floor(rate*0.1)),stride=Math.max(1,Math.ceil(audio.length*channels/2000000));
+   let sum=0,count=0,peak=0,clipped=0,dc=0,silentBlocks=0,totalBlocks=0;
+   for(let c=0;c<channels;c++){
+    const data=audio.getChannelData(c);let channelSum=0,channelCount=0;
+    for(let i=0;i<data.length;i+=stride){const v=data[i],a=Math.abs(v);sum+=v*v;dc+=v;count++;channelSum+=v;channelCount++;if(a>peak)peak=a;if(a>=0.999)clipped++;}
+    const blockStride=Math.max(1,Math.floor(block/stride));
+    for(let start=0;start<data.length;start+=blockStride*stride){const end=Math.min(data.length,start+blockStride*stride);let energy=0,n=0;for(let i=start;i<end;i+=stride){energy+=data[i]*data[i];n++;}if(!n)continue;totalBlocks++;if(Math.sqrt(energy/n)<0.001)silentBlocks++;}
+   }
+   const rms=Math.sqrt(sum/Math.max(1,count)),rmsDb=20*Math.log10(Math.max(1e-8,rms)),peakDb=20*Math.log10(Math.max(1e-8,peak)),clipPct=100*clipped/Math.max(1,count),silencePct=100*silentBlocks/Math.max(1,totalBlocks),dcOffset=dc/Math.max(1,count);
+   const advice=[];
+   if(clipPct>0.1)advice.push("Clipping detected: lower the phone input level or move farther away and record again.");
+   else if(peak>0.98)advice.push("Peak is very close to digital maximum. Leave more headroom on the next take.");
+   else advice.push("Peak headroom looks safe for this recording.");
+   if(rmsDb<-35)advice.push("Average level is very quiet. Check microphone distance and input level.");
+   else if(rmsDb>-12)advice.push("Average level is hot. Check for compression or room noise before processing.");
+   else advice.push("Average level is within a useful starting range.");
+   if(silencePct>25)advice.push("Large silent sections detected. Trim the start/end or inspect pauses before noise reduction.");
+   if(Math.abs(dcOffset)>0.02)advice.push("A noticeable DC offset was measured. Consider a high-pass/DC cleanup before detailed processing.");
+   result.innerHTML='<strong style="color:var(--text)">'+esc(track.name)+' · '+audio.duration.toFixed(1)+' sec · '+channels+' channel(s)</strong><div class="two" style="margin-top:8px"><span>Peak <b>'+peakDb.toFixed(1)+' dBFS</b></span><span>Average RMS <b>'+rmsDb.toFixed(1)+' dBFS</b></span><span>Clipped samples <b>'+clipPct.toFixed(3)+'%</b></span><span>Silent 100ms blocks <b>'+silencePct.toFixed(1)+'%</b></span></div><ul style="padding-left:18px;line-height:1.8;margin-bottom:0">'+advice.map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul><small style="display:block;margin-top:8px">Quick technical preflight, not a studio-grade noise, loudness or audio-quality certification. Original recording was not changed.</small>';
+  }catch(error){result.textContent="Could not analyze recording: "+error.message;}
+  finally{if(context)await context.close().catch(()=>{});button.disabled=false;}
+ }
  async function importVocalRecording(file){
    const p=projects.find(x=>x.id===$("vocalProject").value);
    if(!p){$("vocalImportStatus").textContent="Choose a project first.";return;}
