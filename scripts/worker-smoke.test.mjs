@@ -989,6 +989,12 @@ test("SOCIAL bot owners can rotate active credentials and delete only their own 
   assert.match(remove, /DELETE FROM social_bots WHERE id=\? AND owner_id=\?/);
   assert.match(remove, /return json\(\{ success: true, deleted: true \}\)/);
   assert.match(workerSource, /rotate-token/);
+  const listStart = workerSource.indexOf("async function socialListBots");
+  const listEnd = workerSource.indexOf("\nasync function socialRotateBotToken", listStart);
+  const list = workerSource.slice(listStart, listEnd);
+  assert.match(list, /SELECT id,name,username,description,is_active,created_at/);
+  assert.match(list, /FROM social_bots WHERE owner_id=\?/);
+  assert.doesNotMatch(list, /token_hash/);
 });
 
 test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
