@@ -2599,6 +2599,9 @@ async function socialCallStart(request, env) {
 async function socialCallActive(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await checkRateLimit(env, request, "social-call-active", 60, 60, 60, user.id)) {
+    return error("Call status checks are temporarily rate limited. Please wait a moment.",429);
+  }
   const url = new URL(request.url);
   const conversationId = cleanText(url.searchParams.get("conversationId"),150);
   if (!conversationId || !await isConversationMember(env,conversationId,user.id)) return error("Conversation not found",404);
