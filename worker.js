@@ -5221,6 +5221,11 @@ export default {
         });
       }
 
+      if (path === "/music/lyrics/generate" && method === "POST") {
+        await ensureSocialTables(env);
+        return await musicGenerateLyrics(request, env);
+      }
+
       if (path.startsWith("/social")) {
         await ensureSocialTables(env);
 
