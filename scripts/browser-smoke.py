@@ -302,6 +302,20 @@ def main():
                     return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
                 }""")
                 assert source_audio_hash_after == source_audio_hash, "Pitch correction modified the original locally stored recording."
+                # Drag the waveform's start handle and verify that the edit persists without rewriting the source blob.
+                waveform_box = page.locator("[data-track-waveform]").bounding_box()
+                source_duration = page.locator("[data-track-audio-player]").evaluate("(el) => el.duration")
+                handle_y = waveform_box["y"] + waveform_box["height"] / 2
+                start_x = waveform_box["x"] + waveform_box["width"] * (0.10 / source_duration)
+                moved_x = waveform_box["x"] + waveform_box["width"] * (0.20 / source_duration)
+                page.mouse.move(start_x, handle_y)
+                page.mouse.down()
+                page.mouse.move(moved_x, handle_y, steps=5)
+                page.mouse.up()
+                page.wait_for_function("Math.abs(JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0].trimStart - 0.20) < 0.03", timeout=5000)
+                trim_start_control = page.locator("[data-track-trim-start]")
+                trim_start_control.fill("0.10")
+                trim_start_control.dispatch_event("change")
                 with wave.open(str(stem_file), "rb") as original_stem, wave.open(str(tuned_file), "rb") as tuned_stem:
                     assert tuned_stem.getnframes() == original_stem.getnframes(), "Pitch correction changed the stem duration."
                     assert tuned_stem.getnchannels() == 2 and tuned_stem.getframerate() == 44100
