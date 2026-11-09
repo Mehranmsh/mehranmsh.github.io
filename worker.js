@@ -184,9 +184,14 @@ function createSessionToken() {
   return toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
 }
 
-async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, blockSeconds) {
+async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, blockSeconds, accountId = null) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const key = await sha256(`${scope}:${ip}`);
+  // Authenticated actions are limited per account, not per shared public IP.
+  // Pre-authentication routes omit accountId and remain IP-scoped.
+  const identity = typeof accountId === "string" && accountId.length > 0
+    ? `account:${accountId}`
+    : `ip:${ip}`;
+  const key = await sha256(`${scope}:${identity}`);
   const now = Math.floor(Date.now() / 1000);
   const windowStart = now - windowSeconds;
 
@@ -1619,7 +1624,7 @@ async function socialCreatePost(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
-  if (!await checkRateLimit(env, request, "post-create", 20, 3600, 600)) {
+  if (!await checkRateLimit(env, request, "post-create", 20, 3600, 600, user.id)) {
     return error("Too many posts. Try again later.", 429);
   }
 
@@ -2563,7 +2568,7 @@ async function socialReactStory(request, env, id) {
 async function socialCallStart(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  if (!await checkRateLimit(env, request, "social-call-start", 5, 600, 600)) return error("Too many call attempts. Please wait before starting another call.", 429);
+  if (!await checkRateLimit(env, request, "social-call-start", 5, 600, 600, user.id)) return error("Too many call attempts. Please wait before starting another call.", 429);
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const conversationId = cleanText(body.conversationId, 150);
@@ -2616,7 +2621,7 @@ async function socialCallActive(request, env) {
 async function socialCallJoin(request, env, callId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required",401);
-  if (!await checkRateLimit(env, request, "social-call-join", 20, 60, 60)) return error("Too many call join attempts. Please wait a moment.",429);
+  if (!await checkRateLimit(env, request, "social-call-join", 20, 60, 60, user.id)) return error("Too many call join attempts. Please wait a moment.",429);
   const call = await env.DB.prepare("SELECT id,conversation_id,kind,status FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("This call has ended",404);
   if (!await isConversationMember(env,call.conversation_id,user.id)) return error("You are not a member of this conversation",403);
@@ -2636,7 +2641,7 @@ async function socialCallJoin(request, env, callId) {
 async function socialCallPoll(request, env, callId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required",401);
-  if (!await checkRateLimit(env, request, "social-call-poll", 100, 60, 60)) return error("Call polling is temporarily rate limited. Please reconnect shortly.",429);
+  if (!await checkRateLimit(env, request, "social-call-poll", 100, 60, 60, user.id)) return error("Call polling is temporarily rate limited. Please reconnect shortly.",429);
   const call = await env.DB.prepare("SELECT id,conversation_id,host_id,kind,status,created_at FROM social_call_sessions WHERE id=?").bind(callId).first();
   if (!call || call.status!=="active") return error("This call has ended",404);
   const member = await isConversationMember(env,call.conversation_id,user.id);
@@ -2673,7 +2678,7 @@ async function socialCallSignal(request, env, callId) {
   const type = ["offer","answer","candidate"].includes(body.type) ? body.type : null;
   const toUserId = cleanText(body.toUserId,150);
   if (!type || !toUserId || !body.payload || typeof body.payload!=="object" || Array.isArray(body.payload)) return error("Invalid call signal");
-  if (!await checkRateLimit(env, request, "social-call-signal", 300, 60, 60)) {
+  if (!await checkRateLimit(env, request, "social-call-signal", 300, 60, 60, user.id)) {
     return error("Call signaling is temporarily rate limited. Please wait a moment.", 429);
   }
   const call = await env.DB.prepare("SELECT conversation_id,status FROM social_call_sessions WHERE id=?").bind(callId).first();
@@ -3970,7 +3975,7 @@ async function socialCreateBot(request, env) {
   const description = cleanText(body.description, 500);
 
   if (!name || !validUsername(username)) return error("Invalid bot name or username");
-  if (!await checkRateLimit(env, request, "social-bot-create", 10, 3600, 1800)) {
+  if (!await checkRateLimit(env, request, "social-bot-create", 10, 3600, 1800, user.id)) {
     return error("Too many bot registrations. Try again later.", 429);
   }
   const ownedBots = await env.DB.prepare(
@@ -4014,7 +4019,7 @@ async function socialListBots(request, env) {
 async function socialRotateBotToken(request, env, botId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  if (!await checkRateLimit(env, request, "social-bot-rotate", 20, 3600, 1800)) {
+  if (!await checkRateLimit(env, request, "social-bot-rotate", 20, 3600, 1800, user.id)) {
     return error("Too many bot token rotations. Try again later.", 429);
   }
   const token = createSessionToken();
@@ -4190,7 +4195,7 @@ async function socialGenerateAssistantImage(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
   if (!env.AI || typeof env.AI.run !== "function") return error("Free image generation is not available on this Worker.", 503);
-  if (!await checkRateLimit(env, request, "social-ai-image-generation", 3, 600, 600)) {
+  if (!await checkRateLimit(env, request, "social-ai-image-generation", 3, 600, 600, user.id)) {
     return error("Image generation limit reached. Please wait before trying again.", 429);
   }
   const body = await readBody(request);
@@ -4334,7 +4339,7 @@ async function socialAssistantHistory(request, env) {
 async function socialAssistantChat(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  if (!await checkRateLimit(env, request, "social-ai-chat", 30, 60, 120)) return error("Too many messages. Please wait a moment.", 429);
+  if (!await checkRateLimit(env, request, "social-ai-chat", 30, 60, 120, user.id)) return error("Too many messages. Please wait a moment.", 429);
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
   const content = cleanText(body.content, 4000);
@@ -4463,7 +4468,7 @@ async function socialCreateUpload(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
 
-  if (!await checkRateLimit(env, request, "upload-create", 30, 3600, 900)) {
+  if (!await checkRateLimit(env, request, "upload-create", 30, 3600, 900, user.id)) {
     return error("Too many upload requests. Try again later.", 429);
   }
 
@@ -4806,7 +4811,7 @@ function formatProject(row) {
 async function socialDeleteAccount(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-  if (!await checkRateLimit(env, request, "account-delete", 3, 3600, 3600)) {
+  if (!await checkRateLimit(env, request, "account-delete", 3, 3600, 3600, user.id)) {
     return error("Too many account deletion attempts. Try again later.", 429);
   }
 
