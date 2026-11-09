@@ -135,7 +135,7 @@ def main():
                 assert saved_guide and saved_guide["تو رفتی و هنوز دلم به یاد توئه"]["tempo"] == 96
                 assert len(saved_guide["تو رفتی و هنوز دلم به یاد توئه"]["steps"]) == 8
                 page.locator("#playVocalGuide").click()
-                assert "Rehearsing" in page.locator("#vocalGuideStatus").inner_text()
+                page.wait_for_function("document.querySelector('#vocalGuideStatus')?.textContent.includes('Rehearsing')", timeout=5000)
                 page.locator("#stopVocalGuide").click()
 
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
