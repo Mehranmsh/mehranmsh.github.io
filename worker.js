@@ -4817,8 +4817,9 @@ async function socialDeleteAccount(request, env) {
         JOIN social_users u ON u.id=cm.user_id
         WHERE cm.conversation_id=social_conversations.id AND cm.user_id!=? AND u.is_active=1)`).bind(uid,uid,uid),
     env.DB.prepare(`UPDATE social_conversation_members SET role='owner'
-      WHERE user_id IN (SELECT owner_id FROM social_conversations WHERE type='group')
-      AND conversation_id IN (SELECT id FROM social_conversations WHERE type='group')`),
+      WHERE EXISTS (SELECT 1 FROM social_conversations c
+        WHERE c.id=social_conversation_members.conversation_id
+        AND c.type='group' AND c.owner_id=social_conversation_members.user_id)`),
     env.DB.prepare(`UPDATE social_channels
       SET owner_id=(SELECT cm.user_id FROM social_channel_members cm
         JOIN social_users u ON u.id=cm.user_id
@@ -4828,8 +4829,9 @@ async function socialDeleteAccount(request, env) {
         JOIN social_users u ON u.id=cm.user_id
         WHERE cm.channel_id=social_channels.id AND cm.user_id!=? AND u.is_active=1)`).bind(uid,uid,uid),
     env.DB.prepare(`UPDATE social_channel_members SET role='owner'
-      WHERE user_id IN (SELECT owner_id FROM social_channels)
-      AND channel_id IN (SELECT id FROM social_channels)`),
+      WHERE EXISTS (SELECT 1 FROM social_channels c
+        WHERE c.id=social_channel_members.channel_id
+        AND c.owner_id=social_channel_members.user_id)`),
 
     // Remove orphaned groups/channels that have no eligible successor.
     env.DB.prepare("DELETE FROM social_group_invites WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
@@ -4866,6 +4868,8 @@ async function socialDeleteAccount(request, env) {
     env.DB.prepare("DELETE FROM social_messages WHERE sender_id=?").bind(uid),
     env.DB.prepare("DELETE FROM social_call_signals WHERE from_user_id=? OR to_user_id=?").bind(uid,uid),
     env.DB.prepare("DELETE FROM social_call_participants WHERE user_id=?").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_signals WHERE call_id IN (SELECT id FROM social_call_sessions WHERE host_id=?)").bind(uid),
+    env.DB.prepare("DELETE FROM social_call_participants WHERE call_id IN (SELECT id FROM social_call_sessions WHERE host_id=?)").bind(uid),
     env.DB.prepare("DELETE FROM social_call_sessions WHERE host_id=?").bind(uid),
     env.DB.prepare("DELETE FROM social_group_invites WHERE created_by=?").bind(uid),
     env.DB.prepare("DELETE FROM social_conversation_members WHERE user_id=?").bind(uid),
