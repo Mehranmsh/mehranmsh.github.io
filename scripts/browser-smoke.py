@@ -202,7 +202,8 @@ def main():
                 box = waveform.bounding_box()
                 page.mouse.move(box["x"] + box["width"] * 0.25, box["y"] + box["height"] * 0.5)
                 page.mouse.down()
-                page.mouse.move(box["x"] + box["width"] * 0.80, box["y"] + box["height"] * 0.5, steps=8)
+                page.mouse.move(box["x"] + box["width"] * 0.80, box["y"] + box["height"] * 0.5, steps=12)
+                page.wait_for_function("Math.abs(Number(document.querySelector('[data-track-waveform]')?.dataset.selectionEnd) - Number(document.querySelector('[data-track-waveform]')?.dataset.selectionStart)) > 0.05", timeout=3000)
                 page.mouse.up()
                 preview_button = page.locator("[data-waveform-preview-play]")
                 assert preview_button.is_enabled(), "Waveform range selection did not enable audition preview."
