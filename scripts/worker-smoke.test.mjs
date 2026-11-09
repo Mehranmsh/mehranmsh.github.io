@@ -425,7 +425,7 @@ test("channel post edits and deletion require admin membership and stay scoped t
 
 test("group member management enforces owner and admin hierarchy", () => {
   const start = workerSource.indexOf("async function socialManageGroupMember");
-  const end = workerSource.indexOf("\\nasync function ", start + 20);
+  const end = workerSource.indexOf("\nasync function ", start + 20);
   const manage = workerSource.slice(start, end);
   assert.match(manage, /actor\.role='owner' OR \(actor\.role='admin' AND social_conversation_members\.role='member'\)/);
   assert.match(manage, /role!='owner'/);
@@ -934,13 +934,13 @@ test("SOCIAL existing direct chats recheck the recipient's current message priva
 
 test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
-  const end = workerSource.indexOf("\\nasync function ", start + 30);
+  const end = workerSource.indexOf("\nasync function ", start + 30);
   const handler = workerSource.slice(start, end);
   assert.ok(start >= 0 && end > start, "socialDeleteAccount implementation must exist");
   for (const marker of [
     "identitytoolkit.googleapis.com/v1/accounts:lookup",
     "identity.localId === row.firebase_uid",
-    "rapidfileRequest(env, `\\/files/",
+    "rapidfileRequest(env, `/files/",
     "DELETE FROM social_uploads WHERE user_id=?",
     "DELETE FROM social_posts WHERE user_id=?",
     "DELETE FROM social_stories WHERE user_id=?",
@@ -954,7 +954,7 @@ test("SOCIAL account deletion reauthenticates, removes external media and cleans
 
 test("SOCIAL deletion transfers owned communities only to active existing members", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
-  const end = workerSource.indexOf("\\nasync function ", start + 30);
+  const end = workerSource.indexOf("\nasync function ", start + 30);
   const handler = workerSource.slice(start, end);
   assert.match(handler, /JOIN social_users u ON u\\.id=cm\\.user_id[\\s\\S]*?u\\.is_active=1/);
   assert.match(handler, /UPDATE social_conversation_members SET role='owner'[\\s\\S]*?c\\.owner_id=social_conversation_members\\.user_id/);
