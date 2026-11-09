@@ -267,5 +267,47 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(module.MAX_BODY, 64 * 1024)
 
 
+    def test_manifest_size_limit_is_enforced(self):
+        path = self.models / "runtime.json"
+        path.write_text(" " * (module.model_policy.MAX_MANIFEST_BYTES + 1), encoding="utf-8")
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("64 KiB", result["message"])
+
+    def test_duplicate_artifact_targets_are_rejected(self):
+        self.write_manifest(artifacts=[
+            {"path": "tiny-model.bin", "sha256": hashlib.sha256(b"local model test bytes").hexdigest()},
+            {"path": "./tiny-model.bin", "sha256": hashlib.sha256(b"local model test bytes").hexdigest()},
+        ])
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("Duplicate artifact", result["message"])
+
+    def test_absolute_artifact_path_is_rejected(self):
+        artifact = self.write_manifest()
+        self.write_manifest(artifacts=[{
+            "path": str(artifact.resolve()),
+            "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+        }])
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("relative", result["message"])
+
+    def test_artifact_count_limit_is_enforced(self):
+        artifact = self.write_manifest()
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        result = module.model_policy.validate_manifest(
+            self.models,
+            self.models / "runtime.json",
+        )
+        self.assertTrue(result["valid"])
+        data = json.loads((self.models / "runtime.json").read_text(encoding="utf-8"))
+        data["artifacts"] = [{"path": "tiny-model.bin", "sha256": digest}] * (module.model_policy.MAX_ARTIFACTS + 1)
+        (self.models / "runtime.json").write_text(json.dumps(data), encoding="utf-8")
+        result = module.model_policy.validate_manifest(self.models)
+        self.assertFalse(result["valid"])
+        self.assertIn("128", result["message"])
+
+
 if __name__ == "__main__":
     unittest.main()
