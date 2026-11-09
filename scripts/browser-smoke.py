@@ -488,17 +488,6 @@ def main():
                     db.close(); return !!record?.blob && record.blob.size > 44;
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
-                # Render the section-aware arrangement and verify a real WAV download.
-                page.locator('[data-view="mix"]').click()
-                page.locator("#mixProject").select_option(label="Automated Audio QA")
-                page.locator("#arrangementTimeline select").nth(0).select_option(generated_track["id"])
-                with page.expect_download(timeout=30000) as arrangement_download:
-                    page.locator("#exportArrangement").click()
-                arrangement_wav = Path(temp) / "arranged-song.wav"
-                arrangement_download.value.save_as(arrangement_wav)
-                assert arrangement_wav.read_bytes().startswith(b"RIFF") and arrangement_wav.stat().st_size > 44
-                assert "track placements" in page.locator("#arrangementExportStatus").inner_text()
-
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
                 page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
@@ -572,6 +561,14 @@ def main():
                 page.locator("#arrangementTimeline select").nth(0).select_option(assigned_track_id)
                 assigned_arrangement = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
                 assert assigned_track_id in assigned_arrangement[0]["trackIds"], "Arrangement section did not persist its selected track."
+                # Export only after song sections exist, then verify a real section-aware WAV download.
+                page.locator("#arrangementTimeline select").nth(0).select_option(generated_track["id"])
+                with page.expect_download(timeout=30000) as arrangement_download:
+                    page.locator("#exportArrangement").click()
+                arrangement_wav = Path(temp) / "arranged-song.wav"
+                arrangement_download.value.save_as(arrangement_wav)
+                assert arrangement_wav.read_bytes().startswith(b"RIFF") and arrangement_wav.stat().st_size > 44
+                assert "track placements" in page.locator("#arrangementExportStatus").inner_text()
                 # Render a four-chord harmonic backing layer and verify the project record.
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, F, C, G")
