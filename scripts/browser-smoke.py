@@ -198,6 +198,20 @@ def main():
                 assert ruler_pixels > 100, "Time ruler was not drawn."
                 zoom_control.evaluate("(el) => { el.value = '1'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
                 page.wait_for_function("document.querySelector('[data-waveform-zoom-value]').textContent === '1×'", timeout=5000)
+                # Drag across the waveform away from trim handles to select a non-destructive audition range.
+                box = waveform.bounding_box()
+                page.mouse.move(box["x"] + box["width"] * 0.25, box["y"] + box["height"] * 0.5)
+                page.mouse.down()
+                page.mouse.move(box["x"] + box["width"] * 0.80, box["y"] + box["height"] * 0.5, steps=8)
+                page.mouse.up()
+                preview_button = page.locator("[data-waveform-preview-play]")
+                assert preview_button.is_enabled(), "Waveform range selection did not enable audition preview."
+                assert "Selected range" in page.locator("[data-waveform-status]").inner_text(), "Selected range feedback is missing."
+                preview_button.click()
+                page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && document.querySelector('[data-waveform-status]')?.textContent.includes('Selection preview finished')", timeout=5000)
+                page.locator("[data-waveform-preview-clear]").click()
+                assert preview_button.is_disabled(), "Clearing the waveform selection did not disable preview."
+                assert "Selection cleared" in page.locator("[data-waveform-status]").inner_text(), "Selection clear feedback is missing."
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
                 page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
