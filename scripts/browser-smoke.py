@@ -123,6 +123,7 @@ def main():
 
                 # Build and save a lyric-to-performance rehearsal guide.
                 page.locator('[data-view="lyrics"]').click()
+                page.wait_for_function("Array.from(document.querySelector('#lyricsProject').options).some(option => option.textContent.trim() === 'Automated Audio QA')", timeout=10000)
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه\nI keep walking through the night\nI hold a little light")
                 assert "3 lines" in page.locator("#lyricFlowAnalysis").inner_text() and "visual match with line(s)" in page.locator("#lyricFlowAnalysis").inner_text()
