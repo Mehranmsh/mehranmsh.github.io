@@ -474,12 +474,15 @@ def main():
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
                 page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
+                assert page.locator("#pianoRollGrid [data-piano-note='C5']").count() == 16
+                assert page.locator("#pianoRollGrid [data-piano-note='C2']").count() == 16
+                assert page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").count() == 1
+                page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
+                assert "D3" in page.locator("#patternNotes").input_value()
                 page.locator("#patternVelocity").fill("65")
                 page.locator("#patternGate").fill("55")
                 assert page.locator("#patternVelocityValue").inner_text() == "65%"
                 assert page.locator("#patternGateValue").inner_text() == "55%"
-                page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
-                assert "D3" in page.locator("#patternNotes").input_value()
                 page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").click()
                 assert "D3" not in page.locator("#patternNotes").input_value()
 
@@ -487,7 +490,7 @@ def main():
                 page.locator("#renderPattern").click()
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
                 melody_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
-                assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"] and melody_project["patternStudio"]["velocity"] == 65 and melody_project["patternStudio"]["gate"] == 55
+                assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"] and melody_project["patternStudio"]["velocityByStep"][1] == 65 and melody_project["patternStudio"]["gateByStep"][1] == 55
                 # Render a four-chord harmonic backing layer and verify the project record.
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, F, C, G")
