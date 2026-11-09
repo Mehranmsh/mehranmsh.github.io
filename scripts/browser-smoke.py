@@ -107,6 +107,8 @@ def main():
                 page.wait_for_function("!!document.querySelector('[data-track-audio-player]')?.src", timeout=10000)
                 page.locator("#playMix").click()
                 page.get_by_text("Playing 1 track(s) together.", exact=False).wait_for(timeout=10000)
+                page.wait_for_function("parseFloat(document.querySelector('#masterMeterFill')?.style.width || '0') > 0", timeout=5000)
+                assert "dBFS" in page.locator("#masterMeterValue").inner_text()
                 page.locator("#stopMix").click()
 
                 # Exercise both offline render paths and verify actual downloadable WAV artifacts.
