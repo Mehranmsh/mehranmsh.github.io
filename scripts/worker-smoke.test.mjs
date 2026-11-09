@@ -958,6 +958,9 @@ test("SOCIAL call signaling rejects users removed from the conversation", () => 
   assert.match(handler, /isConversationMember\(env, call\.conversation_id, user\.id\)/);
   assert.match(handler, /isConversationMember\(env, call\.conversation_id, toUserId\)/);
   assert.match(handler, /if \(!senderMembership \|\| !targetMembership\)/);
+  assert.match(handler, /social-call-signal/);
+  assert.match(handler, /300, 60, 60/);
+  assert.match(handler, /Array\.isArray\(body\.payload\)/);
 });
 
 test("SOCIAL active call participant lists exclude users removed from the conversation", () => {
