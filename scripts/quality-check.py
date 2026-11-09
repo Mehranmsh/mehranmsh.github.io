@@ -95,8 +95,12 @@ def main():
         raise SystemExit("Lyrics Lab must report storage failure and restore unsaved project data.")
     if 'function addSinger()' not in studio or 'if(!existing&&p.singers.length>=8)' not in studio:
         raise SystemExit("Vocal Lab must validate singer profiles and enforce the 8-singer project limit.")
-    if 'if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.updated=previousUpdated;return;}' not in studio:
-        raise SystemExit("Vocal Lab must roll back singer changes when local storage fails.")
+    if 'if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.tracks=previousTracks;p.updated=previousUpdated;return;}' not in studio:
+        raise SystemExit("Vocal Lab must roll back singer and linked-track changes when local storage fails.")
+    if 'const linked=p.tracks.find(t=>t.sourceSingerId===singer.id)' not in studio or 'linked.name=singer.name' not in studio:
+        raise SystemExit("Editing a singer must synchronize its linked planned vocal track.")
+    if 'delete track.sourceSingerId' not in studio or 'kept as an independent track' not in studio:
+        raise SystemExit("Removing a singer must preserve its planned track without a dangling profile link.")
     if 'function editSinger(index)' not in studio or 'function cancelSingerEdit()' not in studio or 'data-edit-singer' not in studio:
         raise SystemExit("Vocal Lab must support editing and cancelling singer profiles.")
     if 'const previousProjects=projects;projects=projects.concat(incoming);if(!save())' not in studio:
