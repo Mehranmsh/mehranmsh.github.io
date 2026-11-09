@@ -82,7 +82,7 @@ def main():
         'id="mixProject"', 'id="trackName"', 'id="trackType"', 'id="trackNotes"',
         'id="addTrack"', 'id="mixTracks"', 'id="exportMixPlan"', 'id="addSingerTracks"', 'sourceSingerId', 'function addSingerTracks()', 'tracks:Array.isArray(p.tracks)',
         'data-track-gain', 'data-track-pan', 'data-track-mute', 'data-track-delete',
-        'up to 32 planned tracks', 'id="playMix"', 'id="stopMix"', 'AudioContext||window.webkitAudioContext', 'createMediaElementSource(player)', 'createStereoPanner()', 'function applyTrackAudioSettings(', 'async function playMix()', 'function stopMix()', 'id="masterLevel"', 'id="masterLow"', 'id="masterMid"', 'id="masterHigh"', 'function setupMasterChain()', 'createBiquadFilter()', 'function updateMasterSetting(', 'pan.connect(masterLowNode)', 'id="masterCompressor"', 'createDynamicsCompressor()', 'masterCompressorNode.threshold', 'masterSettings.compressor'
+        'up to 32 planned tracks', 'id="playMix"', 'id="stopMix"', 'AudioContext||window.webkitAudioContext', 'createMediaElementSource(player)', 'createStereoPanner()', 'function applyTrackAudioSettings(', 'async function playMix()', 'function stopMix()', 'id="masterLevel"', 'id="masterLow"', 'id="masterMid"', 'id="masterHigh"', 'function setupMasterChain()', 'createBiquadFilter()', 'function updateMasterSetting(', 'pan.connect(masterLowNode)', 'id="masterCompressor"', 'createDynamicsCompressor()', 'masterCompressorNode.threshold', 'masterSettings.compressor', 'id="masterCompressor"', 'createDynamicsCompressor()', 'masterCompressorNode.threshold', 'masterSettings.compressor'
     ]
     missing = [marker for marker in required_studio_markers if marker not in studio]
     if missing:
