@@ -119,6 +119,14 @@ def main():
     if "DELETE FROM social_users WHERE id=?" not in worker or "identity.localId === row.firebase_uid" not in worker or "accounts:signInWithPassword" not in worker or "accounts:lookup" not in worker or "Account data cleanup could not be completed" not in worker or "identitytoolkit.googleapis.com/v1/accounts:delete" not in worker:
         raise SystemExit("SOCIAL account deletion must remove the user row only after provider re-authentication.")
 
+    if "async function socialRotateBotToken" not in worker or "UPDATE social_bots SET token_hash=? WHERE id=? AND owner_id=? AND is_active=1" not in worker or "DELETE FROM social_bots WHERE id=? AND owner_id=?" not in worker:
+        raise SystemExit("SOCIAL bot owners must be able to rotate and revoke their own bot credentials.")
+    if "isConversationMember(env, call.conversation_id, user.id)" not in worker or "isConversationMember(env, call.conversation_id, toUserId)" not in worker:
+        raise SystemExit("SOCIAL call signaling must reject participants removed from a conversation.")
+    for marker in ['data-bot-rotate', 'data-bot-delete', 'socialRotateBot', 'socialDeleteBot']:
+        if marker not in app:
+            raise SystemExit("SOCIAL bot credential controls are missing: " + marker)
+
     print("3/4 Checking the self-hosted Music Studio control-plane Python syntax...")
     import py_compile
     py_compile.compile(str(ENGINE_FILE), doraise=True)
