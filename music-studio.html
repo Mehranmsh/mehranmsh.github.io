@@ -301,7 +301,7 @@
   const runs=[];let run=null;
   for(const item of frames){if(item.target===null){if(run){runs.push(run);run=null;}continue;}if(!run||run.target!==item.target){if(run)runs.push(run);run={target:item.target,items:[item]};}else run.items.push(item);}
   if(run)runs.push(run);
-  const corrected=context.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate),minFrames=8,fade=Math.max(32,Math.floor(rate*0.02));
+  const corrected=context.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate),minFrames=8,fade=Math.max(32,Math.floor(rate*0.035));
   for(let c=0;c<buffer.numberOfChannels;c++)corrected.getChannelData(c).set(buffer.getChannelData(c));
   let correctedRuns=0;
   for(const segment of runs){if(segment.items.length<minFrames)continue;const first=segment.items[0],last=segment.items[segment.items.length-1],start=Math.max(0,first.at+frame/2-hop/2),end=Math.min(buffer.length,last.at+frame/2+hop/2),length=Math.floor(end-start);if(length<frame)continue;
