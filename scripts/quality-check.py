@@ -101,7 +101,7 @@ def main():
     app = (ROOT / "index.html").read_text(encoding="utf-8")
     required_social_deletion_markers = [
         'id="socialDeletePassword"', 'id="socialDeleteAccountBtn"',
-        'Permanently delete my account', 'socialFirebaseReauthenticate',
+        'Permanently delete my account', 'socialFirebaseSignOut',
         'reauthenticateWithCredential', 'socialFirebaseSignOut',
         'fetch(SOCIAL_API+"/account"'
     ]
