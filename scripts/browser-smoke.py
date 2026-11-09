@@ -488,6 +488,15 @@ def main():
                     db.close(); return !!record?.blob && record.blob.size > 44;
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
+                # Render the section-aware arrangement and verify a real WAV download.
+                page.locator("#arrangementTimeline select").nth(0).select_option(generated_track["id"])
+                with page.expect_download(timeout=30000) as arrangement_download:
+                    page.locator("#exportArrangement").click()
+                arrangement_wav = Path(temp) / "arranged-song.wav"
+                arrangement_download.value.save_as(arrangement_wav)
+                assert arrangement_wav.read_bytes().startswith(b"RIFF") and arrangement_wav.stat().st_size > 44
+                assert "track placements" in page.locator("#arrangementExportStatus").inner_text()
+
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
                 page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
