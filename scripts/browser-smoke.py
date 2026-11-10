@@ -473,7 +473,13 @@ def main():
                 page.locator("#percSteps [data-pattern-step='15']").click()
                 page.locator("#drumKit").select_option("lofi")
                 page.locator("#renderPattern").click()
-                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                try:
+                    page.wait_for_function("""(() => { const status = document.querySelector('#patternStatus')?.textContent || ''; return status.includes('Generated WAV added to the mixer') || status.includes('Pattern render failed:'); })()""", timeout=20000)
+                except Exception as error:
+                    status = page.locator("#patternStatus").inner_text()
+                    raise AssertionError("Pattern renderer did not finish. Current status: " + status) from error
+                pattern_status = page.locator("#patternStatus").inner_text()
+                assert "Generated WAV added to the mixer" in pattern_status, "Pattern rendering failed: " + pattern_status
                 generated_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 generated_track = next(track for track in generated_project["tracks"] if track.get("generated"))
                 assert generated_track["type"] == "Drums / Percussion" and generated_track["audioName"].endswith(".wav")
