@@ -138,6 +138,38 @@
    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" id="playVocalGuide" type="button">▶ Rehearse phrase</button><button class="btn secondary" id="stopVocalGuide" type="button">■ Stop</button><button class="btn secondary" id="saveVocalGuide" type="button">Save guide</button></div>
    <p id="vocalGuideStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin-top:10px">The guide plays a timing click and optional reference notes. It does not generate a sung voice.</p>
   </div>
+  <div class="panel" id="beginnerSongPractice" style="margin-top:16px">
+   <div class="section-head"><div><h3>Beginner Song Practice · آموزش آواز ساده</h3><p>بدون نت‌خوانی: اول ملودی را با پیانو بشنو، بعد کلمات را با راهنمای گفتاری تمرین کن.</p></div><span class="tag">LOCAL · NO AI CREDITS</span></div>
+   <div class="field"><label for="beginnerPracticePhrase">CHOOSE A LINE · انتخاب جمله</label>
+    <select id="beginnerPracticePhrase">
+     <option value="0">برگرد، که بی‌تو من از خودم دورم</option>
+     <option value="1">تو این شبای سرد، بی‌تو چه بی‌نورم</option>
+     <option value="2">برگرد، هنوزم عاشق چشماتم</option>
+     <option value="3">هنوزم اسیر خاطرات اون روزاتم</option>
+     <option value="4">برگرد، که این دل طاقت نداره</option>
+     <option value="5">بی‌تو نفس کشیدن هم سخته دوباره</option>
+     <option value="6">برگرد، بذار از نو شروع کنیم</option>
+     <option value="7">این عشقو از زیر خاکستر نجات بدیم</option>
+    </select>
+   </div>
+   <div class="field"><label for="beginnerPracticeText">YOUR PRACTICE LINE · جمله تمرین</label><textarea id="beginnerPracticeText" rows="2" maxlength="220">برگرد، که بی‌تو من از خودم دورم</textarea><small style="color:var(--muted)">می‌توانی متن جمله را تغییر بدهی. ملودی پیانو برای جمله‌های آماده تنظیم شده است؛ برای متن دلخواه، پیانو همان الگوی انتخابی را پخش می‌کند.</small></div>
+   <div class="two">
+    <div class="field"><label for="beginnerPracticeTempo">SPEED · سرعت تمرین</label><select id="beginnerPracticeTempo"><option value="60">خیلی آهسته · 60 BPM</option><option value="72">آهسته · 72 BPM</option><option value="84" selected>سرعت اصلی · 84 BPM</option></select></div>
+    <div class="field"><label for="beginnerPracticeRepeat">REPEAT · تعداد تکرار پیانو</label><select id="beginnerPracticeRepeat"><option value="1">یک بار</option><option value="2" selected>دو بار</option><option value="3">سه بار</option></select></div>
+   </div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" id="beginnerPlayPiano" type="button">♫ شنیدن ملودی پیانو</button>
+    <button class="btn secondary" id="beginnerPlayVoice" type="button">▶ شنیدن کلمات با صدای راهنما</button>
+    <button class="btn secondary" id="beginnerPlayBoth" type="button">♫ اول پیانو، بعد راهنما</button>
+    <button class="btn secondary" id="beginnerStop" type="button">■ توقف</button>
+   </div>
+   <div class="panel" style="margin-top:12px;padding:13px;background:var(--surface2)">
+    <b id="beginnerPracticeStep">قدم اول: فقط به ملودی پیانو گوش بده.</b>
+    <p id="beginnerPracticeHint" style="color:var(--muted);font-size:12px;margin:6px 0 0">لازم نیست هم‌زمان بخوانی. دو بار گوش بده، بعد همراه پیانو زمزمه کن.</p>
+   </div>
+   <p id="beginnerPracticeStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin-top:10px">پخش پیانو در همین دستگاه ساخته می‌شود و از اعتبار هوش مصنوعی استفاده نمی‌کند. راهنمای کلمات از قابلیت گفتار دستگاه استفاده می‌کند و آواز واقعی یا خوانندگی هوش مصنوعی نیست.</p>
+  </div>
+
  </section>
  <section id="view-vocals" class="hidden">
   <div class="section-head"><div><h2>Vocal Lab</h2><p>Build a cast of singers and plan each vocal part inside a project.</p></div></div>
@@ -741,6 +773,24 @@
 
  function loadProjectMelodyForGuide(){const p=vocalGuideProject(),pattern=p&&p.patternStudio;if(!pattern||pattern.mode==="drums"||!Array.isArray(pattern.notes)){ $("vocalGuideStatus").textContent="Create a melodic instrument pattern in the mixer first.";return;}const notes=pattern.notes.filter(n=>n&&n!=="-");if(!notes.length){$("vocalGuideStatus").textContent="The project melody contains only rests.";return;}$("vocalGuideNotes").value=notes.join(", ");$("vocalGuideTempo").value=pattern.tempo||$("vocalGuideTempo").value;renderVocalGuideSteps();$("vocalGuideStatus").textContent=notes.length+" melody notes loaded. Match the note count to the lyric steps before saving.";}
  function saveVocalGuide(){const p=vocalGuideProject(),line=currentVocalGuideLine(),steps=$("vocalGuideSyllables").value.split("/").map(x=>x.trim()).filter(Boolean),tempo=Number($("vocalGuideTempo").value),notes=$("vocalGuideNotes").value.split(/[ ,\s]+/).filter(Boolean);if(!p||!line){$("vocalGuideStatus").textContent="Choose a project and lyric line first.";return;}if(!steps.length||!Number.isFinite(tempo)||tempo<40||tempo>220||notes.length&&notes.length!==steps.length||notes.some(n=>!parseGuideNote(n))){$("vocalGuideStatus").textContent="Check the steps, tempo and optional note sequence before saving.";return;}const previous=p.lyricGuides;p.lyricGuides={...(p.lyricGuides||{}),[line]:{steps,notes,tempo,feel:$("vocalGuideFeel").value,subdivision:Number($("vocalGuideSubdivision").value),breath:$("vocalGuideBreath").checked,backing:$("vocalGuideBacking").checked,updated:Date.now()}};p.updated=Date.now();if(!save()){if(previous===undefined)delete p.lyricGuides;else p.lyricGuides=previous;$("vocalGuideStatus").textContent="Save failed. Existing project data was preserved.";return;}$("lyricsProject").dataset.previous=p.id;$("vocalGuideStatus").textContent="Vocal guide saved locally with this project.";refreshLyricsProjects(p.id);}
+
+ const beginnerPracticePhrases=[
+  {text:"برگرد، که بی‌تو من از خودم دورم",notes:[60,64,65,67,69,67,65,64,60]},
+  {text:"تو این شبای سرد، بی‌تو چه بی‌نورم",notes:[60,60,62,64,67,65,64,62,60]},
+  {text:"برگرد، هنوزم عاشق چشماتم",notes:[64,65,67,69,67,65,64,62,60]},
+  {text:"هنوزم اسیر خاطرات اون روزاتم",notes:[65,65,67,69,67,65,64,62,60]},
+  {text:"برگرد، که این دل طاقت نداره",notes:[60,64,65,67,69,67,65,64,62]},
+  {text:"بی‌تو نفس کشیدن هم سخته دوباره",notes:[64,64,65,67,69,67,65,64,62,60]},
+  {text:"برگرد، بذار از نو شروع کنیم",notes:[60,64,65,67,69,67,65,64,60]},
+  {text:"این عشقو از زیر خاکستر نجات بدیم",notes:[64,65,67,69,69,67,65,64,62,60]}
+ ];
+ let beginnerPracticeContext=null,beginnerPracticeRun=0;
+ function selectedBeginnerPhrase(){const i=Math.max(0,Math.min(beginnerPracticePhrases.length-1,Number($("beginnerPracticePhrase").value)||0));return beginnerPracticePhrases[i];}
+ function stopBeginnerPractice(update=true){beginnerPracticeRun++;if(beginnerPracticeContext){try{beginnerPracticeContext.close();}catch{}beginnerPracticeContext=null;}if("speechSynthesis" in window)window.speechSynthesis.cancel();if(update){$("beginnerPracticeStep").textContent="تمرین متوقف شد";$("beginnerPracticeStatus").textContent="هر وقت آماده بودی دوباره پخش کن.";}}
+ async function playBeginnerPiano(){stopBeginnerPractice(false);const run=beginnerPracticeRun,phrase=selectedBeginnerPhrase(),tempo=Number($("beginnerPracticeTempo").value)||84,repeats=Number($("beginnerPracticeRepeat").value)||1,AudioCtor=window.AudioContext||window.webkitAudioContext;if(!AudioCtor){$("beginnerPracticeStatus").textContent="پخش صدا در این مرورگر پشتیبانی نمی‌شود.";return false;}const ctx=new AudioCtor();beginnerPracticeContext=ctx;await ctx.resume();const beat=60/tempo,stepSeconds=beat*.62,notes=phrase.notes,duration=(notes.length*stepSeconds+(repeats-1)*(notes.length*stepSeconds+.45))*1000;const master=ctx.createGain();master.gain.value=.72;master.connect(ctx.destination);let cursor=ctx.currentTime+.12;for(let rep=0;rep<repeats;rep++){for(let i=0;i<notes.length;i++){const hz=440*Math.pow(2,(notes[i]-69)/12),at=cursor+i*stepSeconds,len=stepSeconds*.88;const fundamental=ctx.createOscillator(),harmonic=ctx.createOscillator(),g1=ctx.createGain(),g2=ctx.createGain();fundamental.type="triangle";fundamental.frequency.setValueAtTime(hz,at);harmonic.type="sine";harmonic.frequency.setValueAtTime(hz*2.01,at);g1.gain.setValueAtTime(.0001,at);g1.gain.exponentialRampToValueAtTime(.105,at+.012);g1.gain.exponentialRampToValueAtTime(.0001,at+len);g2.gain.setValueAtTime(.0001,at);g2.gain.exponentialRampToValueAtTime(.025,at+.01);g2.gain.exponentialRampToValueAtTime(.0001,at+len*.55);fundamental.connect(g1);harmonic.connect(g2);g1.connect(master);g2.connect(master);fundamental.start(at);harmonic.start(at);fundamental.stop(at+len+.02);harmonic.stop(at+len*.58);}cursor+=notes.length*stepSeconds+.45;}$("beginnerPracticeStep").textContent="به پیانو گوش بده؛ بعد همان مسیر را با صدای خودت تکرار کن."; $("beginnerPracticeStatus").textContent="در حال پخش ملودی پیانو · "+tempo+" BPM · بدون هزینه یا اعتبار AI";await new Promise(resolve=>setTimeout(resolve,duration+180));if(run===beginnerPracticeRun){beginnerPracticeContext=null;try{await ctx.close();}catch{}$("beginnerPracticeStatus").textContent="ملودی تمام شد. حالا می‌توانی با آن زمزمه کنی.";}return run===beginnerPracticeRun;}
+ function speakBeginnerPhrase(){stopBeginnerPractice(false);const text=$("beginnerPracticeText").value.trim()||selectedBeginnerPhrase().text;if(!("speechSynthesis" in window)||!("SpeechSynthesisUtterance" in window)){$("beginnerPracticeStatus").textContent="قابلیت گفتار در این مرورگر در دسترس نیست. می‌توانی از پخش پیانو استفاده کنی.";return Promise.resolve(false);}const utterance=new SpeechSynthesisUtterance(text);utterance.lang="fa-IR";utterance.rate=.82;utterance.pitch=1.02;const voices=window.speechSynthesis.getVoices();const persianVoice=voices.find(v=>/^fa([_-]|$)/i.test(v.lang)||/persian|فارسی/i.test(v.name));if(persianVoice)utterance.voice=persianVoice;$("beginnerPracticeStep").textContent="به تلفظ کلمات و مکث‌ها گوش بده؛ این صدا گفتاری است، نه آواز."; $("beginnerPracticeStatus").textContent=persianVoice?"در حال پخش راهنمای گفتاری فارسی دستگاه.":"در حال درخواست صدای فارسی از موتور گفتار دستگاه؛ اگر فارسی نصب نباشد تلفظ ممکن است دقیق نباشد.";return new Promise(resolve=>{utterance.onend=()=>{$("beginnerPracticeStatus").textContent="راهنمای کلمات تمام شد. حالا خودت همان جمله را بخوان.";resolve(true);};utterance.onerror=()=>{$("beginnerPracticeStatus").textContent="صدای فارسی روی دستگاه در دسترس نیست. از پیانو استفاده کن یا موتور گفتار فارسی گوشی را فعال کن.";resolve(false);};window.speechSynthesis.speak(utterance);});}
+ async function playBeginnerBoth(){const ok=await playBeginnerPiano();if(ok){$("beginnerPracticeStep").textContent="حالا به راهنمای گفتاری گوش بده و بعد خودت تکرار کن.";await speakBeginnerPhrase();}}
+
  async function generateSongLyrics(){
   const topic=$("songwriterTopic").value.trim();
   if(!topic){$("songwriterTopic").focus();$("songwriterStatus").textContent="Add a song idea or topic first.";return;}
@@ -831,6 +881,12 @@
  $("vocalGuideLine").addEventListener("change",loadVocalGuide);
  $("vocalGuideSyllables").addEventListener("input",()=>renderVocalGuideSteps());
  $("vocalGuideBreath").addEventListener("change",()=>renderVocalGuideSteps());
+
+ $("beginnerPracticePhrase").addEventListener("change",()=>{$("beginnerPracticeText").value=selectedBeginnerPhrase().text;$("beginnerPracticeStep").textContent="جمله انتخاب شد. اول به ملودی پیانو گوش بده.";});
+ $("beginnerPlayPiano").addEventListener("click",playBeginnerPiano);
+ $("beginnerPlayVoice").addEventListener("click",speakBeginnerPhrase);
+ $("beginnerPlayBoth").addEventListener("click",playBeginnerBoth);
+ $("beginnerStop").addEventListener("click",()=>stopBeginnerPractice(true));
  $("playVocalGuide").addEventListener("click",playVocalGuide);
  $("stopVocalGuide").addEventListener("click",stopVocalGuide);
  $("saveVocalGuide").onclick=saveVocalGuide;
