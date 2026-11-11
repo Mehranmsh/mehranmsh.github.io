@@ -65,7 +65,7 @@ def main():
                 assert "Automated Audio QA" in library_text
 
                 # Import a phone-recorded vocal through Vocal Lab and verify it becomes a real audio track.
-                page.locator('[data-view="vocals"]').click()
+                page.locator('[data-view="vocals"]').first().click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
