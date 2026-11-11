@@ -145,7 +145,7 @@
   <div class="section-head"><div><h2>Vocal Lab</h2><p>Build a cast of singers and plan each vocal part inside a project.</p></div></div>
   <div class="notice" style="margin-top:14px">تمرین مستقیم آواز آهنگ «برگرد»</div>
   <div class="panel" id="beginnerSongPractice" style="margin-top:16px">
-   <div class="section-head"><div><h3>Beginner Song Practice · آموزش آواز ساده</h3><p>بدون نت‌خوانی: اول ملودی را با پیانو بشنو، بعد کلمات را با راهنمای گفتاری تمرین کن.</p></div><span class="tag">LOCAL · NO AI CREDITS</span></div>
+   <div class="section-head"><div><h3>Beginner Song Practice · آموزش آواز ساده</h3><p>بدون نت‌خوانی: اول ملودی را با پیانو بشنو، بعد تلفظ کلمات را با صدای گفتاری دستگاه تمرین کن.</p></div><span class="tag">LOCAL · NO AI CREDITS</span></div>
    <div class="field"><label for="beginnerPracticePhrase">CHOOSE A LINE · انتخاب جمله</label>
     <select id="beginnerPracticePhrase">
      <option value="0">برگرد، که بی‌تو من از خودم دورم</option>
@@ -166,7 +166,7 @@
    <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="btn" id="beginnerPlayPiano" type="button">♫ شنیدن ملودی پیانو</button>
     <button class="btn secondary" id="beginnerPlayMaleGuide" type="button">🎙 مرجع ملودی با تُن مردانهٔ مصنوعی</button>
-    <button class="btn secondary" id="beginnerPlayVoice" type="button">▶ شنیدن کلمات با صدای راهنما</button>
+    <button class="btn secondary" id="beginnerPlayVoice" type="button">▶ شنیدن تلفظ کلمات · گفتاری</button>
     <button class="btn secondary" id="beginnerPlayBoth" type="button">♫ اول پیانو، بعد راهنما</button>
     <button class="btn secondary" id="beginnerStop" type="button">■ توقف</button>
    </div>
@@ -892,7 +892,40 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   if(run===beginnerPracticeRun){beginnerPracticeContext=null;try{await ctx.close();}catch{}$("beginnerPracticeStatus").textContent="مرجع ملودی تمام شد. حالا همان نت‌ها را با صدای خودت بخوان.";}
   return run===beginnerPracticeRun;
  }
- function speakBeginnerPhrase(){stopBeginnerPractice(false);const text=$("beginnerPracticeText").value.trim()||selectedBeginnerPhrase().text;if(!("speechSynthesis" in window)||!("SpeechSynthesisUtterance" in window)){$("beginnerPracticeStatus").textContent="قابلیت گفتار در این مرورگر در دسترس نیست. می‌توانی از پخش پیانو استفاده کنی.";return Promise.resolve(false);}const utterance=new SpeechSynthesisUtterance(text);utterance.lang="fa-IR";utterance.rate=.82;utterance.pitch=1.02;const voices=window.speechSynthesis.getVoices();const persianVoice=voices.find(v=>/^fa([_-]|$)/i.test(v.lang)||/persian|فارسی/i.test(v.name));if(persianVoice)utterance.voice=persianVoice;$("beginnerPracticeStep").textContent="به تلفظ کلمات و مکث‌ها گوش بده؛ این صدا گفتاری است، نه آواز."; $("beginnerPracticeStatus").textContent=persianVoice?"در حال پخش راهنمای گفتاری فارسی دستگاه.":"در حال درخواست صدای فارسی از موتور گفتار دستگاه؛ اگر فارسی نصب نباشد تلفظ ممکن است دقیق نباشد.";return new Promise(resolve=>{utterance.onend=()=>{$("beginnerPracticeStatus").textContent="راهنمای کلمات تمام شد. حالا خودت همان جمله را بخوان.";resolve(true);};utterance.onerror=()=>{$("beginnerPracticeStatus").textContent="صدای فارسی روی دستگاه در دسترس نیست. از پیانو استفاده کن یا موتور گفتار فارسی گوشی را فعال کن.";resolve(false);};window.speechSynthesis.speak(utterance);});}
+ async function speakBeginnerPhrase(){
+  stopBeginnerPractice(false);
+  const run=beginnerPracticeRun,text=$("beginnerPracticeText").value.trim()||selectedBeginnerPhrase().text;
+  if(!("speechSynthesis" in window)||!("SpeechSynthesisUtterance" in window)){
+   $("beginnerPracticeStatus").textContent="موتور گفتار این مرورگر در دسترس نیست؛ این گزینه روی این مرورگر قابل اجرا نیست.";
+   return false;
+  }
+  const synth=window.speechSynthesis;
+  let voices=synth.getVoices();
+  if(!voices.length){
+   await new Promise(resolve=>{
+    let finished=false;
+    const done=()=>{if(finished)return;finished=true;clearTimeout(timer);synth.removeEventListener("voiceschanged",done);resolve();};
+    const timer=setTimeout(done,1400);
+    synth.addEventListener("voiceschanged",done);
+    try{synth.getVoices();}catch{}
+   });
+   if(run!==beginnerPracticeRun)return false;
+   voices=synth.getVoices();
+  }
+  const persianVoice=voices.find(v=>/^fa([_-]|$)/i.test(v.lang)||/persian|فارسی/i.test(v.name));
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang="fa-IR";utterance.rate=.82;utterance.pitch=1.02;
+  if(persianVoice)utterance.voice=persianVoice;
+  $("beginnerPracticeStep").textContent="به تلفظ کلمات و مکث‌ها گوش بده؛ این صدا گفتاری است، نه آواز.";
+  $("beginnerPracticeStatus").textContent=persianVoice?"صدای فارسی پیدا شد؛ در حال پخش تلفظ جمله…":"صدای اختصاصی فارسی پیدا نشد؛ مرورگر تلاش می‌کند با صدای پیش‌فرض جمله را بخواند…";
+  return new Promise(resolve=>{
+   let finished=false;
+   const finish=(ok,message)=>{if(finished)return;finished=true;if(run===beginnerPracticeRun)$("beginnerPracticeStatus").textContent=message;resolve(ok);};
+   utterance.onend=()=>finish(true,"راهنمای گفتاری تمام شد. حالا خودت جمله را با ملودی پیانو بخوان.");
+   utterance.onerror=e=>finish(false,"پخش گفتار انجام نشد ("+(e.error||"خطای موتور گفتار")+"). اگر صدای فارسی نصب نیست، در تنظیمات تبدیل متن به گفتار گوشی زبان فارسی را نصب کن.");
+   try{synth.cancel();synth.speak(utterance);}catch(error){finish(false,"مرورگر نتوانست گفتار را اجرا کند: "+error.message);}
+  });
+ }
  async function playBeginnerBoth(){const ok=await playBeginnerPiano();if(ok){$("beginnerPracticeStep").textContent="حالا به راهنمای گفتاری گوش بده و بعد خودت تکرار کن.";await speakBeginnerPhrase();}}
 
  async function generateSongLyrics(){
