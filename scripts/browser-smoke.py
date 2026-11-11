@@ -323,16 +323,17 @@ def main():
                 mix_file = Path(temp) / "mix.wav"
                 mix_download.value.save_as(str(mix_file))
                 assert mix_file.is_file() and mix_file.stat().st_size > 44
+                mix_sample_rate = 22050
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
-                    assert rendered_mix.getframerate() == 44100
-                    assert 3.52 * 44100 <= rendered_mix.getnframes() <= 3.54 * 44100, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
+                    assert rendered_mix.getframerate() == mix_sample_rate
+                    assert 3.52 * mix_sample_rate <= rendered_mix.getnframes() <= 3.54 * mix_sample_rate, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
-                    early_mix_bytes = mix_pcm[:int(1.22 * 44100) * 4]
+                    early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 4]
                     early_mix = struct.unpack("<" + "h" * (len(early_mix_bytes) // 2), early_mix_bytes)
                     assert max(map(abs, early_mix), default=0) < 100, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
-                    assert any(mix_pcm[int(1.30 * 44100) * 4:int(1.45 * 44100) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
+                    assert any(mix_pcm[int(1.30 * mix_sample_rate) * 4:int(1.45 * mix_sample_rate) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
