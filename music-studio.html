@@ -175,6 +175,12 @@
     <p id="beginnerPracticeHint" style="color:var(--muted);font-size:12px;margin:6px 0 0">لازم نیست هم‌زمان بخوانی. دو بار گوش بده، بعد همراه پیانو زمزمه کن.</p>
    </div>
    <div class="panel" style="margin-top:12px;padding:13px;border:1px solid var(--line)"><b>Chorus · هم‌خوانی گروهی «برگرد»</b><p style="color:var(--muted);font-size:12px;line-height:1.9;margin:7px 0 0">در هر بار خواندن کلمهٔ «برگرد» در کورس، صدای اصلی جلو می‌ماند و سه لایهٔ هم‌خوانی به آن اضافه می‌شود: یک برداشت هم‌صدا در مرکز، یک برداشت کمی پایین‌تر در چپ و یک برداشت کمی بالاتر در راست. هر سه برداشت باید واقعاً ضبط شوند؛ لایهٔ Choir فعلی فقط هارمونی سازی‌شده است و کلمهٔ فارسی را نمی‌خواند. بعد از ضبط صدای اصلی، این راهنما را برای ساخت گروه هم‌خوانی دنبال می‌کنیم.</p></div>\n   <p id="beginnerPracticeStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin-top:10px">پخش پیانو در همین دستگاه ساخته می‌شود و از اعتبار هوش مصنوعی استفاده نمی‌کند. راهنمای کلمات از قابلیت گفتار دستگاه استفاده می‌کند و آواز واقعی یا خوانندگی هوش مصنوعی نیست.</p>
+   <details id="beginnerSpeechDebugPanel" style="margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#081727">
+    <summary style="cursor:pointer;color:var(--cyan);font-weight:700">گزارش عیب‌یابی صدای گفتار</summary>
+    <p style="color:var(--muted);font-size:11px;margin:8px 0">بعد از زدن دکمهٔ گفتار، این گزارش را کپی کن و همین‌جا بفرست.</p>
+    <textarea id="beginnerSpeechDebugReport" rows="8" readonly spellcheck="false" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px;font:11px/1.6 monospace" placeholder="هنوز گزارشی ثبت نشده است. ابتدا دکمهٔ شنیدن تلفظ کلمات را بزن."></textarea>
+    <button class="btn secondary" id="copyBeginnerSpeechDebug" type="button" style="margin-top:8px">کپی گزارش عیب‌یابی</button>
+   </details>
   </div>
 
   <div class="workspace">
@@ -892,40 +898,156 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   if(run===beginnerPracticeRun){beginnerPracticeContext=null;try{await ctx.close();}catch{}$("beginnerPracticeStatus").textContent="مرجع ملودی تمام شد. حالا همان نت‌ها را با صدای خودت بخوان.";}
   return run===beginnerPracticeRun;
  }
- async function speakBeginnerPhrase(){
-  stopBeginnerPractice(false);
-  const run=beginnerPracticeRun,text=$("beginnerPracticeText").value.trim()||selectedBeginnerPhrase().text;
-  if(!("speechSynthesis" in window)||!("SpeechSynthesisUtterance" in window)){
-   $("beginnerPracticeStatus").textContent="موتور گفتار این مرورگر در دسترس نیست؛ این گزینه روی این مرورگر قابل اجرا نیست.";
-   return false;
-  }
-  const synth=window.speechSynthesis;
-  let voices=synth.getVoices();
-  if(!voices.length){
-   await new Promise(resolve=>{
-    let finished=false;
-    const done=()=>{if(finished)return;finished=true;clearTimeout(timer);synth.removeEventListener("voiceschanged",done);resolve();};
-    const timer=setTimeout(done,1400);
-    synth.addEventListener("voiceschanged",done);
-    try{synth.getVoices();}catch{}
-   });
-   if(run!==beginnerPracticeRun)return false;
-   voices=synth.getVoices();
-  }
-  const persianVoice=voices.find(v=>/^fa([_-]|$)/i.test(v.lang)||/persian|فارسی/i.test(v.name));
-  const utterance=new SpeechSynthesisUtterance(text);
-  utterance.lang="fa-IR";utterance.rate=.82;utterance.pitch=1.02;
-  if(persianVoice)utterance.voice=persianVoice;
-  $("beginnerPracticeStep").textContent="به تلفظ کلمات و مکث‌ها گوش بده؛ این صدا گفتاری است، نه آواز.";
-  $("beginnerPracticeStatus").textContent=persianVoice?"صدای فارسی پیدا شد؛ در حال پخش تلفظ جمله…":"صدای اختصاصی فارسی پیدا نشد؛ مرورگر تلاش می‌کند با صدای پیش‌فرض جمله را بخواند…";
-  return new Promise(resolve=>{
-   let finished=false;
-   const finish=(ok,message)=>{if(finished)return;finished=true;if(run===beginnerPracticeRun)$("beginnerPracticeStatus").textContent=message;resolve(ok);};
-   utterance.onend=()=>finish(true,"راهنمای گفتاری تمام شد. حالا خودت جمله را با ملودی پیانو بخوان.");
-   utterance.onerror=e=>finish(false,"پخش گفتار انجام نشد ("+(e.error||"خطای موتور گفتار")+"). اگر صدای فارسی نصب نیست، در تنظیمات تبدیل متن به گفتار گوشی زبان فارسی را نصب کن.");
-   try{synth.cancel();synth.speak(utterance);}catch(error){finish(false,"مرورگر نتوانست گفتار را اجرا کند: "+error.message);}
-  });
+ let beginnerSpeechDebugLines=[];
+
+ function writeBeginnerSpeechDebug(line){
+
+  const stamp=new Date().toLocaleTimeString();
+
+  beginnerSpeechDebugLines.push("["+stamp+"] "+line);
+
+  const field=$("beginnerSpeechDebugReport");
+
+  if(field)field.value=beginnerSpeechDebugLines.join("\\n");
+
  }
+
+ function copyBeginnerSpeechDebug(){
+
+  const field=$("beginnerSpeechDebugReport");
+
+  if(!field||!field.value){$("beginnerPracticeStatus").textContent="هنوز گزارشی ساخته نشده؛ اول دکمهٔ گفتار را بزن.";return;}
+
+  const value=field.value;
+
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+
+   navigator.clipboard.writeText(value).then(()=>$("beginnerPracticeStatus").textContent="گزارش کپی شد؛ همین‌جا ارسالش کن.").catch(()=>{field.focus();field.select();const ok=document.execCommand("copy");$("beginnerPracticeStatus").textContent=ok?"گزارش کپی شد؛ همین‌جا ارسالش کن.":"متن گزارش انتخاب شد؛ دستی کپی کن.";});
+
+  }else{field.focus();field.select();const ok=document.execCommand("copy");$("beginnerPracticeStatus").textContent=ok?"گزارش کپی شد؛ همین‌جا ارسالش کن.":"متن گزارش انتخاب شد؛ دستی کپی کن.";}
+
+ }
+
+ function speakBeginnerPhrase(){
+
+  stopBeginnerPractice(false);
+
+  const run=beginnerPracticeRun,text=$("beginnerPracticeText").value.trim()||selectedBeginnerPhrase().text;
+
+  beginnerSpeechDebugLines=[];
+
+  writeBeginnerSpeechDebug("Speech diagnostics started");
+
+  writeBeginnerSpeechDebug("Browser: "+navigator.userAgent);
+
+  writeBeginnerSpeechDebug("System language: "+(navigator.language||"unknown"));
+
+  writeBeginnerSpeechDebug("Secure context: "+String(window.isSecureContext));
+
+  if(!("speechSynthesis" in window)||!("SpeechSynthesisUtterance" in window)){
+
+   writeBeginnerSpeechDebug("FAIL: SpeechSynthesis API or SpeechSynthesisUtterance is unavailable");
+
+   $("beginnerPracticeStatus").textContent="موتور گفتار این مرورگر در دسترس نیست؛ گزارش عیب‌یابی را باز و کپی کن.";
+
+   return false;
+
+  }
+
+  const synth=window.speechSynthesis;
+
+  let voices=[];
+
+  try{voices=synth.getVoices();}catch(error){writeBeginnerSpeechDebug("getVoices threw: "+error.message);}
+
+  writeBeginnerSpeechDebug("Available voices: "+voices.length);
+
+  voices.forEach((voice,index)=>writeBeginnerSpeechDebug("Voice "+(index+1)+": "+voice.name+" | lang="+voice.lang+" | default="+voice.default+" | local="+voice.localService));
+
+  writeBeginnerSpeechDebug("Synthesis state before speak: speaking="+synth.speaking+", pending="+synth.pending+", paused="+synth.paused);
+
+  const persianVoice=voices.find(v=>/^fa([_-]|$)/i.test(v.lang)||/persian|فارسی/i.test(v.name));
+
+  const utterance=new SpeechSynthesisUtterance(text);
+
+  utterance.lang="fa-IR";utterance.rate=.82;utterance.pitch=1.02;
+
+  if(persianVoice)utterance.voice=persianVoice;
+
+  writeBeginnerSpeechDebug("Selected voice: "+(persianVoice?persianVoice.name+" ("+persianVoice.lang+")":"none; browser default requested"));
+
+  writeBeginnerSpeechDebug("Utterance: lang="+utterance.lang+", rate="+utterance.rate+", pitch="+utterance.pitch+", textLength="+text.length);
+
+  $("beginnerPracticeStep").textContent="درخواست گفتار ارسال شد؛ منتظر پاسخ موتور صدا هستیم.";
+
+  $("beginnerPracticeStatus").textContent="در حال ارسال درخواست به موتور گفتار گوشی…";
+
+  return new Promise(resolve=>{
+
+   let finished=false,started=false,watchdog=null;
+
+   const finish=(ok,message)=>{
+
+    if(finished)return;finished=true;if(watchdog)clearTimeout(watchdog);
+
+    writeBeginnerSpeechDebug("Finished: "+(ok?"success":"failure")+" | "+message);
+
+    if(run===beginnerPracticeRun)$("beginnerPracticeStatus").textContent=message;
+
+    resolve(ok);
+
+   };
+
+   watchdog=setTimeout(()=>{
+
+    if(finished)return;
+
+    writeBeginnerSpeechDebug("TIMEOUT: "+(started?"speech started but no end/error within 60 seconds":"no onstart/onerror event within 12 seconds"));
+
+    finish(false,started?"پخش شروع شد اما موتور گفتار کامل نشد؛ گزارش عیب‌یابی را بفرست.":"موتور گفتار تا ۱۲ ثانیه هیچ پاسخی نداد. گزارش عیب‌یابی را کپی و ارسال کن.");
+
+   },12000);
+
+   utterance.onstart=()=>{
+
+    started=true;writeBeginnerSpeechDebug("EVENT onstart: browser reports speech playback has started");
+
+    $("beginnerPracticeStep").textContent="صدای گفتار شروع شد؛ به تلفظ کلمات و مکث‌ها گوش بده.";
+
+    $("beginnerPracticeStatus").textContent="پخش گفتار شروع شد…";
+
+    clearTimeout(watchdog);
+
+    watchdog=setTimeout(()=>{writeBeginnerSpeechDebug("TIMEOUT: speech did not finish within 60 seconds after onstart");finish(false,"پخش شروع شد اما موتور گفتار کامل نشد؛ گزارش عیب‌یابی را بفرست.");},60000);
+
+   };
+
+   utterance.onend=()=>{writeBeginnerSpeechDebug("EVENT onend: speech finished");finish(true,"راهنمای گفتاری تمام شد. حالا خودت جمله را با ملودی پیانو بخوان.");};
+
+   utterance.onerror=e=>{writeBeginnerSpeechDebug("EVENT onerror: error="+(e.error||"unknown")+", charIndex="+e.charIndex+", elapsedTime="+e.elapsedTime);finish(false,"پخش گفتار انجام نشد: "+(e.error||"خطای نامشخص موتور گفتار")+" · گزارش عیب‌یابی را کپی کن.");};
+
+   try{
+
+    synth.cancel();
+
+    synth.speak(utterance);
+
+    writeBeginnerSpeechDebug("synth.speak(utterance) called; speaking="+synth.speaking+", pending="+synth.pending);
+
+    setTimeout(()=>{if(!finished)writeBeginnerSpeechDebug("State after 500ms: speaking="+synth.speaking+", pending="+synth.pending+", paused="+synth.paused);},500);
+
+   }catch(error){
+
+    writeBeginnerSpeechDebug("EXCEPTION while calling speak: "+(error.name||"Error")+": "+error.message);
+
+    finish(false,"مرورگر نتوانست گفتار را اجرا کند: "+error.message+" · گزارش عیب‌یابی را بفرست.");
+
+   }
+
+  });
+
+ }
+
  async function playBeginnerBoth(){const ok=await playBeginnerPiano();if(ok){$("beginnerPracticeStep").textContent="حالا به راهنمای گفتاری گوش بده و بعد خودت تکرار کن.";await speakBeginnerPhrase();}}
 
  async function generateSongLyrics(){
@@ -1028,6 +1150,7 @@ $("resetPattern").addEventListener("click",resetPattern);$("exportPatternMidi").
  $("beginnerPlayPiano").addEventListener("click",playBeginnerPiano);
  $("beginnerPlayMaleGuide").addEventListener("click",playBeginnerMaleGuide);
  $("beginnerPlayVoice").addEventListener("click",speakBeginnerPhrase);
+ $("copyBeginnerSpeechDebug").addEventListener("click",copyBeginnerSpeechDebug);
  $("beginnerPlayBoth").addEventListener("click",playBeginnerBoth);
  $("beginnerStop").addEventListener("click",()=>stopBeginnerPractice(true));
  $("playVocalGuide").addEventListener("click",playVocalGuide);
