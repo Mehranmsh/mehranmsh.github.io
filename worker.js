@@ -36,7 +36,9 @@ async function readBody(request) {
     if (!type.toLowerCase().includes("application/json")) return null;
 
     const length = Number(request.headers.get("Content-Length") || 0);
-    if (!Number.isFinite(length) || length > MAX_BODY_BYTES || !request.body) return null;
+    const path = new URL(request.url).pathname;
+    const maxBytes = path.startsWith("/music/transfer") ? 2 * 1024 * 1024 : MAX_BODY_BYTES;
+    if (!Number.isFinite(length) || length > maxBytes || !request.body) return null;
 
     const reader = request.body.getReader();
     const chunks = [];
@@ -314,6 +316,12 @@ async function createSocialTables(db) {
       reserved_neurons INTEGER NOT NULL DEFAULT 0,
       request_count INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS music_project_transfers(
+      token_hash TEXT PRIMARY KEY,
+      payload_json TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
     )`,
     `CREATE TABLE IF NOT EXISTS workers_ai_daily_budget(
       day_key TEXT PRIMARY KEY,
@@ -5250,6 +5258,55 @@ export default {
           username: piUser.username,
           isAdmin: piUser.username.trim().toLowerCase() === "mehranmsh"
         });
+      }
+
+      if (path === "/music/transfer" && method === "POST") {
+        await ensureSocialTables(env);
+        if (!await checkRateLimit(env, request, "music-project-transfer", 5, 3600, 900)) {
+          return error("Too many transfer attempts. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body || body.format !== "mehran-music-studio-backup" || body.version !== 1 ||
+            !Array.isArray(body.projects) || body.projects.length > 500) {
+          return error("Invalid MEHRAN MUSIC project backup");
+        }
+        const payload = JSON.stringify({
+          format: "mehran-music-studio-backup",
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          projects: body.projects
+        });
+        if (new TextEncoder().encode(payload).byteLength > 2 * 1024 * 1024) {
+          return error("Project backup exceeds the 2 MB transfer limit", 413);
+        }
+        const token = toBase64Url(crypto.getRandomValues(new Uint8Array(24)));
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare(
+          "DELETE FROM music_project_transfers WHERE expires_at<?"
+        ).bind(now).run();
+        await env.DB.prepare(
+          "INSERT INTO music_project_transfers(token_hash,payload_json,expires_at,created_at) VALUES(?,?,?,?)"
+        ).bind(await sha256(token), payload, now + 900, now).run();
+        return json({success:true,code:token,expiresIn:900,projectCount:body.projects.length});
+      }
+
+      if (path === "/music/transfer" && method === "GET") {
+        await ensureSocialTables(env);
+        const token = String(url.searchParams.get("code") || "");
+        if (!/^[A-Za-z0-9_-]{30,40}$/.test(token)) return error("Invalid or expired transfer code", 400);
+        const now = Math.floor(Date.now() / 1000);
+        const tokenHash = await sha256(token);
+        const row = await env.DB.prepare(
+          "SELECT payload_json,expires_at FROM music_project_transfers WHERE token_hash=?"
+        ).bind(tokenHash).first();
+        if (!row || Number(row.expires_at) < now) {
+          if (row) await env.DB.prepare("DELETE FROM music_project_transfers WHERE token_hash=?").bind(tokenHash).run();
+          return error("Transfer code is invalid, expired or already used", 404);
+        }
+        await env.DB.prepare("DELETE FROM music_project_transfers WHERE token_hash=?").bind(tokenHash).run();
+        let backup;
+        try { backup = JSON.parse(row.payload_json); } catch { return error("Stored transfer is damaged", 500); }
+        return json({success:true,backup});
       }
 
       if (path === "/music/lyrics/generate" && method === "POST") {
