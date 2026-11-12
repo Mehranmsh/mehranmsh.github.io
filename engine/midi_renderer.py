@@ -418,7 +418,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             articulation = lyric_map_item.get("articulation") if isinstance(lyric_map_item, dict) else None
             if isinstance(articulation, str) and articulation:
                 marker = f"articulation={articulation};note={note};index={note_index}".encode("ascii", "strict")
-                melody_events.append((cursor, 3, b"\\xff\\x06" + _vlq(len(marker)) + marker))
+                melody_events.append((cursor, 3, b"\xff\x06" + _vlq(len(marker)) + marker))
             cursor += duration
             note_count += 1
         transition = phrase.get("phrase_energy", {}).get("section_transition")
@@ -496,7 +496,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     target.write_bytes(midi)
     articulation_marker_count = sum(
         1 for _, _, message in melody_events
-        if message.startswith(b"\\xff\\x06")
+        if message.startswith(b"\xff\x06")
     )
     return {
         "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
