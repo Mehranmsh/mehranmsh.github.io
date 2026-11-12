@@ -187,7 +187,10 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "duration_ticks": bars * 4 * 480,
             "chord": chord,
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
-            "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),\n            "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",\n            "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),\n            "cadence_note": notes[-1],
+            "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
+            "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",
+            "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
+            "cadence_note": notes[-1],
         })
     arrangement = {
         "intro": ["soft piano", "acoustic guitar"],
