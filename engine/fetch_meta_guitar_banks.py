@@ -98,8 +98,12 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
                 velocity_min = velocity_max = None
         elif line.startswith("<region>") and selected_group:
             attrs = dict(re.findall(r"([a-z_]+)=([^\s]+)", line))
-            if "key" not in attrs or "sample" not in attrs:
-                raise ValueError("Guitar SFZ region must define key and sample")
+            if "sample" not in attrs or not (
+                "key" in attrs or (
+                    "lokey" in attrs and attrs.get("lokey") == attrs.get("hikey")
+                )
+            ):
+                raise ValueError("Guitar SFZ region must define sample and key or a single-note lokey/hikey range")
             if velocity_min is None or velocity_max is None:
                 raise ValueError("Default guitar region has no valid velocity range")
             filename = attrs["sample"]
