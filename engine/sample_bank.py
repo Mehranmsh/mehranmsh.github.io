@@ -84,7 +84,7 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
             raise ValueError("articulation must be a lowercase slug")
         identity = (instrument, midi_note, velocity_min, velocity_max, articulation)
         if identity in seen:
-            raise ValueError("Duplicate instrument, note, and velocity layer")
+            raise ValueError("Duplicate instrument, note, velocity layer, and articulation")
         seen.add(identity)
         if not candidate.is_file():
             raise ValueError(f"Recorded sample file is missing: {relative}")
@@ -110,7 +110,7 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
             raise ValueError(f"Invalid recorded WAV sample: {relative}") from exc
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
                               velocity_max, sample_rate, channels, frames,
-                              loop_start, loop_end))
+                              loop_start, loop_end, articulation))
     return SampleBank(root, tuple(samples))
 
 
