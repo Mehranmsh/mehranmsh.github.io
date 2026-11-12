@@ -157,14 +157,16 @@ def _bass_pattern(root_pc: int, bar_start: int,
                   chorus: bool = False, bridge: bool = False,
                   bar_index: int = 0, third_interval: int = 4,
                   velocity_scale: float = 1.0,
-                  bass_root_pc: int | None = None) -> int:
+                  bass_root_pc: int | None = None,
+                  bass_third_interval: int | None = None,
+                  bass_fifth_interval: int | None = None) -> int:
     """Outline chord quality and inversion with root, third and fifth in the groove."""
     if third_interval not in (3, 4):
         raise ValueError("third_interval must be 3 (minor) or 4 (major)")
     root = 36 + root_pc
     bass_root = 36 + (root_pc if bass_root_pc is None else bass_root_pc)
-    third = root + third_interval
-    fifth = root + 7
+    third = bass_root + (third_interval if bass_third_interval is None else bass_third_interval)
+    fifth = bass_root + (7 if bass_fifth_interval is None else bass_fifth_interval)
     octave = root + 12
     if bridge:
         # Leave air in the bridge: root anchor, then a soft fifth response.
@@ -393,12 +395,20 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 velocity_scale=dynamics["chords"])
             is_chorus = "chorus" in section.lower()
             is_bridge = "bridge" in section.lower()
+            bass_root_pc = chord[0] % 12
+            bass_intervals = sorted(
+                (root_pc + interval - bass_root_pc) % 12
+                for interval in chord_intervals
+                if (root_pc + interval - bass_root_pc) % 12
+            )
             bass_note_count += _bass_pattern(
                 root_pc, bar_start, bass_events,
                 chorus=is_chorus, bridge=is_bridge, bar_index=bar,
                 third_interval=chord_intervals[1],
                 velocity_scale=dynamics["bass"],
-                bass_root_pc=chord[0] % 12)
+                bass_root_pc=bass_root_pc,
+                bass_third_interval=bass_intervals[0],
+                bass_fifth_interval=bass_intervals[-1])
             drum_hit_count += _drum_bar(
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
                 bar_index=bar, phrase_bars=bars,
