@@ -623,6 +623,7 @@ class SampleRendererTests(unittest.TestCase):
             round(first_phrase["phrase_pause_ticks"] * seconds_per_tick, 6),
         )
         self.assertEqual(fills[0]["fill_planner"], "deterministic_melodic_fill_v1")
+        self.assertEqual(fills[0]["velocity"], 54)
         self.assertFalse(any(event.get("event_role") == "melodic_response_fill"
                              for event in build_composition_events(plan)))
 
