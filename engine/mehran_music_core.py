@@ -103,7 +103,7 @@ def _chord_pitch_classes(symbol: str) -> tuple[int, ...]:
 
 def _melody_for_line(syllables: int, tonic: int, scale: list[int],
                      line_index: int, chord: str, section: str = "verse") -> list[int]:
-    """Build a section-shaped phrase with a clear peak and harmonic cadence."""
+    """Build a section-shaped phrase with an audible, bounded peak and cadence."""
     count = max(2, min(24, syllables))
     is_chorus = "chorus" in section
     verse_contour = [0, 2, 3, 2, 4, 3, 2, 1]
@@ -117,21 +117,42 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     chord_notes = [note for note in scale_notes if note % 12 in chord_classes]
     if not chord_notes:
         chord_notes = scale_notes
-    notes = []
+
     peak_index = max(0, min(count - 1, round((count - 1) * (0.62 if is_chorus else 0.48))))
+    # Set a deliberate section-specific register target. The chorus peak is
+    # higher, while every phrase remains inside the engine's safe MIDI range.
+    peak_degree = scale[5] if is_chorus else scale[4]
+    peak_target = tonic + 12 + peak_degree
+    if is_chorus:
+        peak_target += 12
+    peak_target = min(84, max(55, peak_target))
+    peak_note = min(scale_notes, key=lambda note: (abs(note - peak_target), note))
+
+    notes = []
     for i in range(count):
         degree = contour[(i + line_index % 3) % len(contour)]
-        lift = 12 if is_chorus and i >= max(1, count // 3) and i <= peak_index else 0
-        target = tonic + scale[degree % len(scale)] + lift
+        target = tonic + scale[degree % len(scale)]
+        if i < peak_index:
+            target += 12 if is_chorus else 0
+        elif i > peak_index:
+            # A controlled descent after the phrase high point.
+            target -= min(12, (i - peak_index) * 2)
         pool = chord_notes if i in (0, count - 1) else scale_notes
         notes.append(min(pool, key=lambda note: (abs(note - target), note)))
-    # Let the final note settle instead of leaving the phrase hanging at its peak.
-    if count >= 3 and notes[-1] > notes[-2]:
-        lower_cadences = [note for note in chord_notes if note <= notes[-2]]
+
+    notes[peak_index] = peak_note
+    # Keep the peak unambiguous rather than allowing an earlier note to tie it.
+    for i, note in enumerate(notes):
+        if i != peak_index and note >= peak_note:
+            lower = [candidate for candidate in scale_notes if candidate < peak_note]
+            notes[i] = min(lower, key=lambda candidate: (abs(candidate - note), candidate))
+
+    # The last note resolves to the current chord, below the peak whenever possible.
+    if count >= 2:
+        lower_cadences = [note for note in chord_notes if note < peak_note]
         if lower_cadences:
             notes[-1] = min(lower_cadences, key=lambda note: (abs(note - tonic - 12), note))
     return notes
-
 
 def _phrase_durations(syllables: int, note_count: int) -> tuple[int, list[int]]:
     """Allocate one, two, or three 4/4 bars, lengthening the phrase ending."""
