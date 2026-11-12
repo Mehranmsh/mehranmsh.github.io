@@ -800,6 +800,10 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(acoustic["envelope_family"], "percussive")
             self.assertIn("attack_10_to_90_seconds", acoustic)
             self.assertIn("release_90_to_10_seconds", acoustic)
+            self.assertIn("post_peak_decay_profile", acoustic)
+            self.assertEqual(
+                acoustic["post_peak_decay_profile"]["profile_status"], "measured"
+            )
             self.assertNotIn("acoustic_diagnostics", result["candidates"][0]["score_deductions"])
 
     def test_candidate_ranking_does_not_fallback_to_nearby_note_or_articulation(self):
