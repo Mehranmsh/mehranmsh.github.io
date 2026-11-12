@@ -61,6 +61,19 @@ PRONUNCIATION_LEXICON = {
 }
 
 
+# Stress positions are deliberately curated only for words whose spoken form
+# is explicitly represented above. Unknown words remain unmarked.
+LEXICAL_STRESS_INDEX = {
+    "برگرد": 1, "دلم": 1, "گرفته": 2, "عشق": 0, "خانه": 1,
+    "شب": 0, "روز": 0, "یار": 0, "ای": 0, "تنها": 1,
+    "امید": 1, "فردا": 1, "بهار": 1, "آزادی": 2,
+    "دلتنگ": 1, "اشک": 0, "تنهایی": 2, "رفتی": 1,
+    "عاشق": 1, "دلبر": 1, "آغوش": 1, "بوسه": 1,
+    "چشم": 0, "قلب": 0, "خموش": 1, "سرد": 0,
+}
+
+
+
 def _rhythmic_syllables(word: str) -> int:
     normalized = word.replace("ي", "ی").replace("ك", "ک")
     known = PRONUNCIATION_LEXICON.get(normalized)
@@ -79,7 +92,10 @@ def _word_phonetics(word: str) -> dict[str, Any]:
             "explicit_short_vowel_marks": explicit_marks,
             "confidence": "high",
             "method": "curated_lyric_pronunciation_lexicon_v1",
-            "lexical_stress": "unknown",
+            "lexical_stress": {
+                "syllable_index": LEXICAL_STRESS_INDEX.get(normalized),
+                "confidence": "curated" if normalized in LEXICAL_STRESS_INDEX else "unknown",
+            },
         }
     nuclei = 0
     previous_base_had_vowel_mark = False
@@ -313,6 +329,8 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "syllable_estimate": count,
             "syllables": list(pronunciation) if pronunciation else None,
             "confidence": "high" if pronunciation else "low",
+            "lexical_stress_index": LEXICAL_STRESS_INDEX.get(word),
+            "stress_confidence": "curated" if word in LEXICAL_STRESS_INDEX else "unknown",
         })
     total_syllables = sum(item["syllable_estimate"] for item in words)
     if not words or note_count <= 0 or total_syllables <= 0:
@@ -359,6 +377,11 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "syllable_index": syllable_index,
             "syllable_token": syllable_token,
             "confidence": word["confidence"],
+            "is_lexically_stressed": (
+                word["lexical_stress_index"] == local_syllable
+                if word["lexical_stress_index"] is not None else None
+            ),
+            "stress_confidence": word["stress_confidence"],
         })
     syllable_note_map = []
     for word in alignment:
@@ -379,6 +402,11 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
                 ),
                 "note_index": note_index,
                 "mapping": "proportional_syllable_to_note_v1",
+                "is_lexically_stressed": (
+                    word["lexical_stress_index"] == local_index
+                    if word["lexical_stress_index"] is not None else None
+                ),
+                "stress_confidence": word["stress_confidence"],
                 "confidence": word["confidence"],
             })
     return {
