@@ -492,6 +492,7 @@ def build_composition_events(
             part, start_tick, duration_ticks, current_vocal_intervals
         )
         events.append({
+            "part": part,
             "instrument": names[part],
             "articulation": articulation,
             "articulation_source": articulation_source,
@@ -778,8 +779,22 @@ def render_composition_to_wav(
     *,
     instruments: dict[str, str] | None = None,
     mix_gains: dict[str, float] | None = None,
+    parts: list[str] | None = None,
     sample_rate: int = 44100,
 ) -> dict[str, Any]:
-    """Render the current composition plan using only its recorded bank samples."""
+    """Render a full composition or selected arrangement parts from recorded samples."""
     events = build_composition_events(plan, instruments=instruments, mix_gains=mix_gains)
+    if parts is not None:
+        allowed_parts = {
+            "melody", "chords", "bass", "kick", "snare", "closed_hat",
+            "open_hat", "guitar", "strings", "electric_guitar",
+        }
+        if (not isinstance(parts, list) or not parts
+                or any(not isinstance(part, str) or part not in allowed_parts for part in parts)
+                or len(set(parts)) != len(parts)):
+            raise ValueError("parts must be a non-empty list of unique composition part names")
+        selected = set(parts)
+        events = [event for event in events if event.get("part") in selected]
+        if not events:
+            raise ValueError("Selected composition parts produced no renderable events")
     return render_sample_events(events, bank, output_path, sample_rate=sample_rate)
