@@ -12,7 +12,7 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from sample_bank import SampleBank, select_sample
+from sample_bank import SampleBank, rank_sample_candidates, select_sample
 from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
 from expression_planner import plan_part_expression
 from arrangement_planner import plan_part_arrangement
@@ -92,14 +92,28 @@ def render_sample_events(
             raise ValueError("event duration_seconds must be finite and positive")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("event velocity must be an integer from 1 to 127")
-        try:
-            sample = select_sample(bank, instrument, note, velocity, articulation)
-        except ValueError as exc:
-            raise ValueError(
-                f"Articulation blocked: instrument={instrument}, note={note}, "
-                f"planner_selected={articulation}, renderer_supports_exact_match=True, "
-                "sample_exact_match=False; no fallback was used"
-            ) from exc
+        candidate_report = rank_sample_candidates(
+            bank, instrument, note, velocity, articulation
+        )
+        if candidate_report["candidate_count"]:
+            selected_path = candidate_report["selected_sample"]
+            sample = next(
+                item for item in bank.samples
+                if item.path.relative_to(bank.root).as_posix() == selected_path
+            )
+            sample_selection_mode = "exact_note_quality_ranked"
+        else:
+            try:
+                sample = select_sample(bank, instrument, note, velocity, articulation)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Articulation blocked: instrument={instrument}, note={note}, "
+                    f"planner_selected={articulation}, sample_exact_articulation_velocity_match=False"
+                ) from exc
+            sample_selection_mode = (
+                "pitch_shifted_nearest_note"
+                if sample.midi_note != note else "exact_note"
+            )
         end_time = max(end_time, float(start) + float(duration))
         pan = event.get("pan", 0.0)
         if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
@@ -111,14 +125,14 @@ def render_sample_events(
         checked.append((sample, note, float(start), float(duration), velocity,
                         float(pan), float(event_gain), articulation,
                         event.get("articulation_source", "legacy_default"),
-                        float(release_seconds), float(pitch_cents)))
+                        float(release_seconds), float(pitch_cents), sample_selection_mode))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents in checked:
+    for sample, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode in checked:
         pcm, source_channels, source_rate = _read_sample(sample.path)
         source_frames = len(pcm) // source_channels
         semitone_ratio = 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents) / 1200.0)
@@ -207,6 +221,18 @@ def render_sample_events(
         "duration_seconds": round(frame_count / sample_rate, 3),
         "events_requested": len(checked),
         "events_rendered": rendered_events,
+        "sample_selection": {
+            "exact_note_quality_ranked_events": sum(
+                1 for item in checked if item[11] == "exact_note_quality_ranked"
+            ),
+            "exact_note_events": sum(
+                1 for item in checked if item[11] == "exact_note"
+            ),
+            "pitch_shifted_nearest_note_events": sum(
+                1 for item in checked if item[11] == "pitch_shifted_nearest_note"
+            ),
+            "quality_ranking": "technical_screening_only",
+        },
         "pitch_cents_applied_events": sum(1 for item in checked if item[10] != 0.0),
         "microtonal_pitch_offsets_rendered": rendered_events > 0 and any(item[10] != 0.0 for item in checked),
         "articulations_rendered": sorted({item[7] for item in checked}),
