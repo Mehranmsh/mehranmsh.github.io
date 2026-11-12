@@ -1,6 +1,7 @@
 """Dependency-free Standard MIDI File renderer for MEHRAN composition plans."""
 from __future__ import annotations
 
+import math
 import struct
 from itertools import combinations, permutations
 from pathlib import Path
