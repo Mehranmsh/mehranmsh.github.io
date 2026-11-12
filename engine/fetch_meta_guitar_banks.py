@@ -146,6 +146,8 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
                 if mapped[filename] == entry:
                     # Same recording and same playable key exposed on another channel.
                     continue
+                if mapped[filename]["midi_note"] == key:
+                    raise ValueError(f"Conflicting default SFZ sample mapping: {filename}")
                 region_id = filename + "#key" + str(key)
                 if region_id in mapped:
                     if mapped[region_id] != entry:
