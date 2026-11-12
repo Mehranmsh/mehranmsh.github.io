@@ -47,5 +47,27 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(compose_plan(lyrics), compose_plan(lyrics))
 
 
+    def test_chorus_has_a_higher_contour_and_explicit_peak(self):
+        plan = compose_plan("دلم گرفته\\nشب سرد و خاموش\\nتو برگرد ای عشق\\nبه خانه برگرد")
+        phrases = plan["composition"]["melody"]
+        verse = [p for p in phrases if "chorus" not in p["section"]]
+        chorus = [p for p in phrases if "chorus" in p["section"]]
+        self.assertTrue(verse)
+        self.assertTrue(chorus)
+        self.assertTrue(all(p["contour_type"] == "restrained_wave" for p in verse))
+        self.assertTrue(all(p["contour_type"] == "rising_peak_then_fall" for p in chorus))
+        self.assertTrue(all(0 <= p["peak_note_index"] < len(p["midi_notes"]) for p in phrases))
+        self.assertGreater(
+            sum(sum(p["midi_notes"]) / len(p["midi_notes"]) for p in chorus) / len(chorus),
+            sum(sum(p["midi_notes"]) / len(p["midi_notes"]) for p in verse) / len(verse),
+        )
+
+    def test_phrase_end_gets_longer_cadence(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق")
+        for phrase in plan["composition"]["melody"]:
+            durations = phrase["note_durations_ticks"]
+            self.assertGreater(durations[-1], durations[0])
+
+
 if __name__ == "__main__":
     unittest.main()
