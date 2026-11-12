@@ -205,7 +205,7 @@ class SampleBankTests(unittest.TestCase):
             fixtures = [
                 ("smooth.wav", 1, [1000] * 16 + [1200] * 16, True),
                 ("jump.wav", 1, [-12000] + [-12000] * 14 + [12000] + [12000] * 16, True),
-                ("stereo.wav", 2, [1000, -1000] * 16 + [1000, 12000] * 16, True),
+                ("stereo.wav", 2, [1000, -1000] + [1000, -1000] * 14 + [1000, 12000] + [1000, 12000] * 16, True),
                 ("plain.wav", 1, [1000] * 32, False),
             ]
             entries = []
