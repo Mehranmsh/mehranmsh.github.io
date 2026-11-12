@@ -146,7 +146,8 @@ class SampleBankTests(unittest.TestCase):
                 {"instrument": "piano", "midi_note": 60, "path": "piano/c4.wav",
                  "velocity_min": 1, "velocity_max": 127},
                 {"instrument": "piano", "midi_note": 61, "path": "piano/c4_bad.wav",
-                 "velocity_min": 1, "velocity_max": 127},
+                 "velocity_min": 1, "velocity_max": 127,
+                 "loop_start_frame": 0, "loop_end_frame": 16},
             ])
             bank = load_sample_bank(root)
             before = (root / "piano" / "c4.wav").read_bytes()
@@ -158,9 +159,15 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(piano["sample_rates"], [44100, 48000])
             self.assertEqual(piano["channel_counts"], [1, 2])
             self.assertEqual(piano["bit_depths"], [16])
-            self.assertEqual(piano["status"], "incomplete_coverage")
+            self.assertEqual(piano["status"], "needs_attention")
+            self.assertEqual(piano["looped_samples"], 1)
+            self.assertEqual(piano["unlooped_samples"], 1)
+            self.assertEqual(piano["loop_boundary_warning_count"], 1)
+            self.assertEqual(piano["max_loop_boundary_jump"], 0.25)
             self.assertEqual(guitar["status"], "missing")
             self.assertEqual(guitar["recorded_samples"], 0)
+            self.assertEqual(guitar["loop_boundary_warning_count"], 0)
+            self.assertIsNone(guitar["max_loop_boundary_jump"])
             self.assertFalse(guitar["coverage_ready"])
             self.assertEqual((root / "piano" / "c4.wav").read_bytes(), before)
 
