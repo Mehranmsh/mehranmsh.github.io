@@ -11,6 +11,7 @@ from typing import Any
 
 from articulation_planner import plan_articulations
 from dynamics_planner import plan_dynamics
+from persian_modal_planner import resolve_persian_modal_profile
 
 PERSIAN_VOWELS = set("َُِاویآ")
 WORD_PATTERN = re.compile(r"[\wآ-ی\u064b-\u065f\u0670]+(?:\u200c[\wآ-ی\u064b-\u065f\u0670]+)*", flags=re.UNICODE)
@@ -753,7 +754,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                  target_bpm: int | None = None,
                  melody_instrument: str = "piano",
                  articulation_style: str = "balanced",
-                 dynamics_style: str = "natural") -> dict[str, Any]:
+                 dynamics_style: str = "natural",
+                 persian_dastgah: str | None = None) -> dict[str, Any]:
     analysis = analyze_lyrics(lyrics)
     mood = analysis["mood"]
     chords, key, mode, suggested_bpm = PROGRESSIONS[mood]
@@ -761,6 +763,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
         raise ValueError("target_bpm must be an integer between 50 and 200")
     tonic, scale, lines = ROOTS[key], SCALES[mode], analysis["lines"]
+    modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic)
+                     if persian_dastgah is not None else None)
     verse_end = max(1, round(len(lines) * 0.55))
     sections = [
         {"name": "verse", "start_line": 0, "end_line": verse_end},
@@ -1048,6 +1052,13 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         "composition": {
             "key": key,
             "mode": mode,
+            "persian_dastgah": persian_dastgah,
+            "persian_modal_profile": ({
+                "name": modal_context["name"],
+                "tuning": modal_context["tuning"],
+                "scope": "response_fills_only",
+                "microtonal_audio_rendered": False,
+            } if modal_context else None),
             "tempo_bpm": bpm,
             "time_signature": "4/4",
             "chord_progression": list(chords),
