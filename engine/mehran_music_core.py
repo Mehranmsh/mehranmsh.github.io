@@ -477,21 +477,28 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         pause_ticks, breath_after = _phrase_pause(line["text"])
         tick_cursor = 0
         for note_index, note_duration in enumerate(durations):
-            lyric_alignment["note_lyric_map"][note_index]["tick_start"] = tick_cursor
-            tick_cursor += note_duration
-            lyric_alignment["note_lyric_map"][note_index]["tick_end"] = tick_cursor
-            lyric_alignment["note_lyric_map"][note_index]["duration_ticks"] = note_duration
-            beat_index = tick_cursor // 480
-            beat_in_bar = (tick_cursor % 1920) / 480 + 1
+            note_start_tick = tick_cursor
+            note_end_tick = note_start_tick + note_duration
+            note_map = lyric_alignment["note_lyric_map"][note_index]
+            note_map["tick_start"] = note_start_tick
+            note_map["tick_end"] = note_end_tick
+            note_map["duration_ticks"] = note_duration
+            beat_index = note_start_tick // 480
+            beat_in_bar = (note_start_tick % 1920) / 480 + 1
             beat_number = int(beat_in_bar)
-            lyric_alignment["note_lyric_map"][note_index]["bar_index"] = tick_cursor // 1920
-            lyric_alignment["note_lyric_map"][note_index]["beat_in_bar"] = beat_in_bar
-            lyric_alignment["note_lyric_map"][note_index]["beat_number"] = beat_number
-            lyric_alignment["note_lyric_map"][note_index]["beat_strength"] = (
+            note_map["bar_index"] = note_start_tick // 1920
+            note_map["beat_in_bar"] = beat_in_bar
+            note_map["beat_number"] = beat_number
+            note_map["beat_strength"] = (
                 "strong" if beat_number == 1 else
                 "medium" if beat_number == 3 else "weak"
             )
-            lyric_alignment["note_lyric_map"][note_index]["beat_index"] = beat_index
+            note_map["beat_index"] = beat_index
+            note_map["onset_accent"] = (
+                "primary" if beat_number == 1 else
+                "secondary" if beat_number == 3 else "none"
+            )
+            tick_cursor = note_end_tick
         melody.append({
             "line_index": index,
             **lyric_alignment,
