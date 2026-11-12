@@ -469,6 +469,7 @@ def rank_sample_candidates(
             pitch_diagnostic = _estimate_sample_fundamental(sample, reference_frequency)
         acoustic_diagnostics = {
             "pitch": pitch_diagnostic,
+            "pitch_stability_cents": pitch_diagnostic.get("pitch_stability_cents"),
             "envelope_family": measurement["envelope_family"],
             "attack_to_10_percent_seconds": measurement["attack_to_10_percent_seconds"],
             "attack_10_to_90_seconds": measurement["attack_10_to_90_seconds"],
@@ -636,6 +637,15 @@ def _estimate_sample_fundamental(
         if abs(curvature) > 1e-12:
             refined_lag += max(-0.5, min(0.5, 0.5 * (before - after) / curvature))
     measured_hz = analysis_rate / refined_lag
+    segment_pitch_hz = [analysis_rate / lag for lag in segment_lags]
+    segment_cents = [
+        1200.0 * math.log2(frequency / measured_hz)
+        for frequency in segment_pitch_hz
+    ]
+    pitch_stability_cents = (
+        max(segment_cents) - min(segment_cents)
+        if len(segment_cents) == 3 else None
+    )
     # Autocorrelation alone can mistake a repeating ramp or transient for a note.
     # Check that energy is concentrated at the estimated fundamental/harmonics.
     harmonic_energy = 0.0
@@ -669,6 +679,9 @@ def _estimate_sample_fundamental(
         "periodicity_score": round(best_score, 4),
         "spectral_concentration": round(spectral_concentration, 4),
         "zero_crossing_rate": round(zero_crossing_rate, 4),
+        "segment_pitch_estimates_hz": [round(value, 3) for value in segment_pitch_hz],
+        "pitch_stability_cents": round(pitch_stability_cents, 2)
+        if pitch_stability_cents is not None else None,
     }
 
 
