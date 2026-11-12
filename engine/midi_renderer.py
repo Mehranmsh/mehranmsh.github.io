@@ -131,25 +131,36 @@ def _section_dynamics(section: str) -> dict[str, float]:
 
 def _bass_pattern(root_pc: int, bar_start: int,
                   events: list[tuple[int, int, bytes]], *,
-                  chorus: bool = False, bar_index: int = 0,
+                  chorus: bool = False, bridge: bool = False,
+                  bar_index: int = 0,
                   velocity_scale: float = 1.0) -> int:
-    """Create a section-aware bass pulse with restrained chorus movement."""
+    """Follow each bar's chord root with section-aware, kick-conscious bass motion."""
     root = 36 + root_pc
     fifth = root + 7
     octave = root + 12
-    if chorus:
-        pattern = [(0, root, PPQ - 24, 88),
-                   (PPQ, fifth, PPQ // 2 - 18, 76),
-                   (PPQ * 2, octave, PPQ // 2 - 18, 84),
+    if bridge:
+        # Leave air in the bridge: root anchor, then a soft fifth response.
+        pattern = [(0, root, PPQ * 2 - 36, 62),
+                   (PPQ * 2, fifth, PPQ * 2 - 36, 54)]
+    elif chorus:
+        # Beat 1 and beat 3 reinforce the kick; the offbeat fifth adds forward motion.
+        pattern = [(0, root, PPQ - 36, 88),
+                   (PPQ + PPQ // 2, fifth, PPQ // 2 - 24, 72),
+                   (PPQ * 2, octave, PPQ - 36, 84),
                    (PPQ * 3, fifth if bar_index % 2 == 0 else root,
-                    PPQ - 24, 82)]
+                    PPQ - 36, 78)]
     else:
         pattern = [(0, root, PPQ * 2 - 36, 78),
                    (PPQ * 2, fifth, PPQ - 36, 68),
                    (PPQ * 3, root, PPQ - 36, 72)]
     for offset, note, gate, velocity in pattern:
         start = bar_start + offset
-        events.append((start, 2, _note_on(2, note, _groove_velocity(velocity, offset // PPQ, section_scale=velocity_scale))))
+        beat = (offset // PPQ) % 4
+        subdivision = (offset % PPQ) // (PPQ // 2)
+        shaped_velocity = _groove_velocity(
+            velocity, beat, subdivision=subdivision,
+            section_scale=velocity_scale)
+        events.append((start, 2, _note_on(2, note, shaped_velocity)))
         events.append((start + gate, 1, _note_off(2, note)))
     return len(pattern)
 
@@ -350,7 +361,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             is_bridge = "bridge" in section.lower()
             bass_note_count += _bass_pattern(
                 root_pc, bar_start, bass_events,
-                chorus=is_chorus, bar_index=bar,
+                chorus=is_chorus, bridge=is_bridge, bar_index=bar,
                 velocity_scale=dynamics["bass"])
             drum_hit_count += _drum_bar(
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
