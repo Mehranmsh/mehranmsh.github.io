@@ -36,6 +36,18 @@ class IndependentMusicCoreTests(unittest.TestCase):
             ["ne", "ne"],
         )
 
+    def test_rhyme_groups_report_repeated_endings_and_line_indices(self):
+        result = analyze_lyrics("خانه\nبهانه\nشب\nروز")
+        self.assertEqual(len(result["rhyme_groups"]), 1)
+        group = result["rhyme_groups"][0]
+        self.assertEqual(group["signature"], "ne")
+        self.assertEqual(group["confidence"], "curated")
+        self.assertEqual(group["line_indices"], [0, 1])
+        self.assertEqual(
+            [item["group"] for item in result["rhyme_analysis"]],
+            ["A", "A", None, None],
+        )
+
     def test_unknown_rhyme_uses_low_confidence_spelling_fallback(self):
         result = analyze_lyrics("پرواز\nآواز")
         self.assertEqual(
