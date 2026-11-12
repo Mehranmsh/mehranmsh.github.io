@@ -941,6 +941,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         for note_index, item in enumerate(articulation_plan["events"]):
             lyric_alignment["note_lyric_map"][note_index]["articulation"] = item["articulation"]
             lyric_alignment["note_lyric_map"][note_index]["articulation_reason"] = item["reason"]
+            lyric_alignment["note_lyric_map"][note_index]["gate_ratio"] = item["gate_ratio"]
+            lyric_alignment["note_lyric_map"][note_index]["release_ms"] = item["release_ms"]
 
         rhyme_cadence_linked = False
         if rhyme_key is not None:
