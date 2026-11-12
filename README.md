@@ -155,3 +155,15 @@ untouched and explicitly reported as `register_not_catalogued`; the engine does
 not invent a range for them. These ranges are recording-planning targets, not a
 universal physical-instrument specification, and should be reviewed against
 the actual instrument, tuning and performer before final production.
+
+
+## Explicit instrument-register policies
+
+MIDI rendering accepts `register_policy` with three explicit choices:
+`octave_fold` (default) moves out-of-range notes by octaves while preserving
+pitch class, `report_only` leaves notes untouched and reports how many note
+events fall outside the catalog recording range, and `strict` rejects the
+render when any note event is outside that range. Unknown instrument registers
+remain unmodified and are reported as unknown rather than guessed. These
+catalog ranges are recording-planning targets, not universal physical limits
+for every instrument model or performer.
