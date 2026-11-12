@@ -312,7 +312,7 @@ def build_composition_events(
                             (-0.35, 0.0, 0.35)[voice_index])
             if names["strings"] and phrase.get("section") == "chorus":
                 for voice_index, note in enumerate(voicing):
-                    add("strings", note, bar_start, 4 * PPQ - 24, 42,
+                    add("strings", note, bar_start, 4 * PPQ - 24,
                         _scaled_velocity(42, dynamics["chords"]),
                         (-0.3, 0.0, 0.3)[voice_index])
             if names["electric_guitar"] and phrase.get("section") == "chorus":
