@@ -75,6 +75,21 @@ class IndependentMusicCoreTests(unittest.TestCase):
                 if item["beat_strength"] == "strong":
                     self.assertIn(note % 12, chord_classes)
 
+    def test_curated_persian_lexical_stress_maps_to_syllable_and_note(self):
+        plan = compose_plan("برگرد به خانه")
+        phrase = plan["composition"]["melody"][0]
+        stressed = [item for item in phrase["syllable_note_map"]
+                    if item["word"] == "برگرد"]
+        self.assertEqual(len(stressed), 2)
+        self.assertEqual([item["is_lexically_stressed"] for item in stressed],
+                         [False, True])
+        self.assertTrue(all(item["stress_confidence"] == "curated"
+                            for item in stressed))
+        unknown = [item for item in phrase["syllable_note_map"]
+                   if item["word"] == "به"]
+        self.assertTrue(all(item["is_lexically_stressed"] is None
+                            for item in unknown))
+
     def test_note_map_includes_rhythmic_value_and_articulation(self):
         plan = compose_plan("دلم گرفته از این شب")
         note_map = plan["composition"]["melody"][0]["note_lyric_map"]
