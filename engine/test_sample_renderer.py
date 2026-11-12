@@ -776,5 +776,42 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(tuned["microtonal_pitch_offsets_rendered"])
             self.assertNotEqual(plain_path.read_bytes(), tuned_path.read_bytes())
 
+
+    def test_instrument_specific_note_tuning_reaches_sample_events(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        first_note = plan["composition"]["melody"][0]["midi_notes"][0]
+        events = build_composition_events(
+            plan, instrument_tuning_cents={"piano": {first_note: 37.5}}
+        )
+        first_melody = next(
+            event for event in events
+            if event["instrument"] == "piano" and event["midi_note"] == first_note
+        )
+        self.assertEqual(first_melody["instrument_tuning_offset_cents"], 37.5)
+        self.assertEqual(first_melody["pitch_cents"], 37.5)
+
+    def test_instrument_specific_note_tuning_rejects_invalid_offsets(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        with self.assertRaisesRegex(ValueError, "instrument tuning offsets"):
+            build_composition_events(plan, instrument_tuning_cents={"tar": {60: 150.0}})
+
+    def test_modal_and_instrument_tuning_offsets_are_combined(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+            persian_degree_cents={0: 25, 1: 25, 2: 25, 3: 25, 4: 25, 5: 25, 6: 25},
+        )
+        first_note = plan["composition"]["melody"][0]["midi_notes"][0]
+        events = build_composition_events(
+            plan, instrument_tuning_cents={"piano": {first_note: -12.5}}
+        )
+        first_melody = next(
+            event for event in events
+            if event["instrument"] == "piano" and event["midi_note"] == first_note
+        )
+        self.assertEqual(first_melody["instrument_tuning_offset_cents"], -12.5)
+        self.assertEqual(first_melody["pitch_cents"], 12.5)
+
+
 if __name__ == "__main__":
     unittest.main()
