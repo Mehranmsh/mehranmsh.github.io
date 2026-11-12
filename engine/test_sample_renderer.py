@@ -113,7 +113,8 @@ class SampleRendererTests(unittest.TestCase):
         phrase["peak_note_index"] = 0
         events = build_composition_events(plan, instruments={"melody": "lead"})
         melody_events = [event for event in events if event["instrument"] == "lead"]
-        self.assertEqual(len(melody_events), len(phrase["midi_notes"]))
+        self.assertEqual(len(melody_events), sum(
+            len(item["midi_notes"]) for item in plan["composition"]["melody"]))
         self.assertGreater(melody_events[0]["velocity"], melody_events[1]["velocity"])
         self.assertGreater(melody_events[-1]["velocity"], 0)
         self.assertTrue(all(1 <= event["velocity"] <= 127 for event in melody_events))
