@@ -32,7 +32,8 @@ PORT = int(os.environ.get("MEHRAN_STUDIO_PORT", "8765"))
 TOKEN = os.environ.get("MEHRAN_STUDIO_TOKEN", "")
 LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import model_policy
+from mehran_music_core import compose_plan
+from midi_renderer import render_midi
 
 
 def database():
@@ -216,7 +217,7 @@ class Handler(BaseHTTPRequestHandler):
                     "charged": False
                 })
             return self.send_json(501, {"error": "job_runner_not_implemented", "job_created": False, "charged": False})
-        if path != "/v1/projects":
+        if path not in ("/v1/projects", "/v1/compose"):
             return self.send_json(404, {"error": "not_found"})
         length = self.headers.get("Content-Length", "")
         if not length.isdigit() or int(length) > MAX_BODY:
@@ -227,6 +228,38 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "invalid_json"})
         if not isinstance(payload, dict):
             return self.send_json(400, {"error": "invalid_payload"})
+        if path == "/v1/compose":
+            lyrics = payload.get("lyrics")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            bpm = payload.get("bpm")
+            if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if not isinstance(title, str) or len(title) > 100 or not isinstance(genre, str) or len(genre) > 60:
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                plan = compose_plan(lyrics, title=title, genre=genre, target_bpm=bpm)
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except (ValueError, OSError) as error:
+                return self.send_json(400, {"error": "composition_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"], "bytes": midi_info["bytes"],
+                         "local_path": str(midi_path)},
+                "message": "Composition plan and MIDI file created. Audio rendering is not implemented yet."
+            })
         name = str(payload.get("name", "")).strip()
         kind = str(payload.get("kind", "song")).strip()
         if not name or len(name) > 100 or len(kind) > 40:
