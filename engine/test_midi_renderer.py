@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _parse_chord, _section_dynamics, _transition_dynamics, render_midi
+from midi_renderer import _instrument_track_name, PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _parse_chord, _section_dynamics, _transition_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -507,6 +507,22 @@ class MidiRendererTests(unittest.TestCase):
                     accompaniment_programs={"guitar": 128},
                 )
 
+
+
+    def test_midi_track_names_preserve_role_and_mapped_instrument(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "mapped.mid"
+            render_midi(
+                plan, target,
+                accompaniment_instruments={"guitar": "tar", "strings": "kamancheh"},
+            )
+            data = target.read_bytes()
+        self.assertIn(b"MEHRAN Guitar [tar]", data)
+        self.assertIn(b"MEHRAN Strings [kamancheh]", data)
+
+    def test_midi_track_names_sanitize_non_ascii_instrument_slugs(self):
+        self.assertEqual(_instrument_track_name("guitar", "تار"), "MEHRAN Guitar")
 
 if __name__ == "__main__":
     unittest.main()
