@@ -401,7 +401,8 @@ def _piano_bar(chord: tuple[int, ...], bar_start: int,
 
 def render_midi(plan: dict[str, Any], output_path: str | Path, *,
                 melody_instrument: str = "piano",
-                instrument_tuning_cents: dict[str, dict[int, float]] | None = None) -> dict[str, Any]:
+                instrument_tuning_cents: dict[str, dict[int, float]] | None = None,
+                accompaniment_instruments: dict[str, str] | None = None) -> dict[str, Any]:
     """Render melody, chords, bass and percussion to a Standard MIDI file."""
     try:
         composition = plan["composition"]
@@ -434,6 +435,17 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
                     raise ValueError("instrument tuning offsets require MIDI notes 0-127 and finite cents from -100 to 100")
                 checked_offsets[midi_note] = float(cents)
             tuning_maps[instrument] = checked_offsets
+    accompaniment_slots = ("strings", "bass", "guitar", "piano")
+    if accompaniment_instruments is None:
+        accompaniment_instruments = {}
+    if not isinstance(accompaniment_instruments, dict):
+        raise ValueError("accompaniment_instruments must map accompaniment slots to instrument slugs")
+    resolved_accompaniment = {slot: slot for slot in accompaniment_slots}
+    for slot, instrument in accompaniment_instruments.items():
+        if (slot not in accompaniment_slots or not isinstance(instrument, str)
+                or not instrument.strip()):
+            raise ValueError("accompaniment_instruments keys must be strings, bass, guitar or piano with non-empty instrument slugs")
+        resolved_accompaniment[slot] = instrument
     tuning_map = tuning_maps.get(melody_instrument, {})
     # Pitch bend is channel-wide. Isolate each tuning value on its own channel.
     tuning_channels = [0, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15]
@@ -646,6 +658,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
         "pitch_bend_support": "melody pitch_cents via isolated channel-per-tuning-group pitch bend, +/-200 cents",
         "melody_tuning_channels": {str(cents): channel for cents, channel in channel_by_cents.items()},
         "melody_instrument": melody_instrument,
+        "accompaniment_instruments": resolved_accompaniment,
         "accompaniment_tuning_channels": accompaniment_tuning_channels,
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
         "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
