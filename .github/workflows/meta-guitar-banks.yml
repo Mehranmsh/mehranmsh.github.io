@@ -45,7 +45,7 @@ jobs:
 
           cases = [
               ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'finger', 40, 64, 'nylon-E2-finger.wav'),
-              ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'pick', 40, 100, 'nylon-E2-pick.wav'),
+              ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'pick', 40, 64, 'nylon-E2-pick-crossfade.wav'),
               ('sample-bank-meta-steel-guitar', 'acoustic_guitar', 'sustain', 40, 70, 'steel-E2.wav'),
           ]
           for root, instrument, articulation, note, velocity, filename in cases:
