@@ -12,6 +12,9 @@ on:
       - 'engine/sample_bank_install.py'
       - 'engine/test_sample_bank_install.py'
       - 'engine/guitar_string_planner.py'
+      - 'engine/fetch_meta_piano_bank.py'
+      - 'engine/test_fetch_meta_piano_bank.py'
+      - 'engine/mehran_music_core.py'
       - 'engine/velocity_layer_planner.py'
       - '.github/workflows/meta-guitar-banks.yml'
   workflow_dispatch:
@@ -75,6 +78,57 @@ jobs:
                   assert any(audio.readframes(audio.getnframes())), filename
               print('REAL_GUITAR_PREVIEW_OK', filename, report['sample_selection'])
           PY
+      - name: Download and verify the full CC0 piano bank
+        run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
+      - name: Install all three real banks and render a piano plus guitar composition
+        run: |
+          python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano
+          python3 - <<'PY'
+          import wave
+          from mehran_music_core import compose_plan
+          from sample_bank import load_sample_bank
+          from sample_renderer import build_composition_events, render_sample_events
+
+          lyrics = "برگرد ای عشق، کنار من بمان\nدر این شب سرد، چراغ خانه‌مان"
+          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Test", genre="pop", target_bpm=84)
+          for phrase in plan["composition"]["melody"]:
+              for item in phrase.get("note_lyric_map", []):
+                  if isinstance(item, dict):
+                      item["articulation"] = "sustain"
+          bank = load_sample_bank("sample-bank-installed-all")
+          assert len(bank.samples) >= 352 + 348 + 375, len(bank.samples)
+          available = {sample.instrument for sample in bank.samples}
+          assert {"piano", "nylon_guitar", "acoustic_guitar"} <= available, available
+          events = build_composition_events(
+              plan,
+              instruments={"guitar": "acoustic_guitar"},
+              response_fill_part=None,
+          )
+          selected = [event for event in events if event.get("part") in {"melody", "chords", "guitar"}]
+          assert selected, "No piano/guitar composition events were planned"
+          for event in selected:
+              if event.get("part") == "guitar":
+                  event["guitar_max_fret"] = 12
+          output = "sample-bank-installed-all/mehran-piano-guitar-composition.wav"
+          report = render_sample_events(selected, bank, output, sample_rate=44100)
+          assert report["events_rendered"] == len(selected), report
+          assert report["source"] == "recorded_sample_bank", report
+          assert report["guitar_string_selections"], "No real guitar strings were selected"
+          with wave.open(output, "rb") as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getframerate() == 44100
+              assert audio.getnframes() > 44100
+              pcm = audio.readframes(audio.getnframes())
+          assert any(pcm), "Combined piano/guitar WAV is silent"
+          print("REAL_RECORDED_PIANO_GUITAR_COMPOSITION_OK", {
+              "samples": len(bank.samples),
+              "events": report["events_rendered"],
+              "duration": report["duration_seconds"],
+              "guitar_strings": len(report["guitar_string_selections"]),
+              "sample_selection": report["sample_selection"],
+          })
+          PY
       - name: Publish verified guitar banks and audition WAVs
         uses: actions/upload-artifact@v4
         with:
@@ -82,6 +136,8 @@ jobs:
           path: |
             sample-bank-meta-nylon-guitar/
             sample-bank-meta-steel-guitar/
+            sample-bank-meta-piano/
+            sample-bank-installed-all/
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
