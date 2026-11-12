@@ -124,7 +124,8 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     peak_degree = scale[5] if is_chorus else scale[4]
     peak_target = tonic + (12 if is_chorus else 0) + peak_degree
     peak_target = min(84, max(55, peak_target))
-    peak_note = min(scale_notes, key=lambda note: (abs(note - peak_target), note))
+    peak_pool = chord_notes if peak_index == 0 else scale_notes
+    peak_note = min(peak_pool, key=lambda note: (abs(note - peak_target), note))
 
     notes = []
     for i in range(count):
