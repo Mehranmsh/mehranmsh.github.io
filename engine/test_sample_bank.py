@@ -120,7 +120,8 @@ class SampleBankTests(unittest.TestCase):
             report = analyze_sample_bank_coverage(load_sample_bank(root))
             self.assertFalse(report["ready"])
             piano = report["instruments"]["piano"]
-            self.assertEqual(piano["covered_samples"], 1)
+            self.assertEqual(piano["recorded_samples"], 1)
+            self.assertEqual(piano["covered_requirements"], 1)
             self.assertIn(36, piano["missing_velocity_layers"] and piano["missing_notes"] or [36])
             self.assertTrue(any(item["note"] == 36 and item["layer"] == "medium"
                                 for item in piano["missing_velocity_layers"]))
@@ -185,6 +186,8 @@ class SampleBankTests(unittest.TestCase):
             })
             self.assertTrue(report["ready"])
             self.assertEqual(report["coverage_percent"], 100.0)
+            self.assertEqual(report["recorded_samples"], 4)
+            self.assertEqual(report["covered_requirements"], 4)
             self.assertEqual(report["instruments"]["piano"]["missing_velocity_layers"], [])
 
 
