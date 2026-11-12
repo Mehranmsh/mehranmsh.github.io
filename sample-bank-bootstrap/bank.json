@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "recording_sessions": {
+    "meta_piano_cc0": {
+      "instrument_model": "Felt-damped upright piano, Meta Piano collection",
+      "performer": "Meta Creative Audio team (performer details not specified)",
+      "notes": "Source recording distributed under CC0 1.0; converted from official OGG preview to mono PCM16 WAV at 48 kHz."
+    }
+  },
+  "samples": [
+    {
+      "instrument": "piano",
+      "midi_note": 60,
+      "velocity_min": 56,
+      "velocity_max": 103,
+      "articulation": "sustain",
+      "path": "piano/sustain/meta_piano_C4_vel03.wav",
+      "recording_session_id": "meta_piano_cc0"
+    }
+  ]
+}
