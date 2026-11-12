@@ -187,6 +187,24 @@ class SampleRendererTests(unittest.TestCase):
         self.assertGreater(melody_events[-1]["velocity"], 0)
         self.assertTrue(all(1 <= event["velocity"] <= 127 for event in melody_events))
 
+    def test_sample_bass_follows_major_and_minor_chord_thirds(self):
+        major = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        minor = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        major["composition"]["melody"][0]["chord"] = "A"
+        minor["composition"]["melody"][0]["chord"] = "Am"
+        major_events = build_composition_events(
+            major, instruments={"bass": "bass", "melody": "lead"})
+        minor_events = build_composition_events(
+            minor, instruments={"bass": "bass", "melody": "lead"})
+        major_bass = [e for e in major_events if e["instrument"] == "bass"]
+        minor_bass = [e for e in minor_events if e["instrument"] == "bass"]
+        major_third = next(e for e in major_bass
+                           if abs(e["start_seconds"] - (2 * 60 / 84)) < 0.001)
+        minor_third = next(e for e in minor_bass
+                           if abs(e["start_seconds"] - (2 * 60 / 84)) < 0.001)
+        self.assertEqual(major_third["midi_note"] % 12, (45 + 4) % 12)
+        self.assertEqual(minor_third["midi_note"] % 12, (45 + 3) % 12)
+
     def test_sample_arrangement_dynamics_change_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
