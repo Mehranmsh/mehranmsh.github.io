@@ -305,10 +305,18 @@ def build_composition_events(
                     _scaled_velocity(58, dynamics["chords"]),
                     (-0.22, 0.0, 0.22)[voice_index])
             if names["guitar"]:
-                for beat in range(4):
-                    for voice_index, note in enumerate(voicing):
-                        add("guitar", note, bar_start + beat * PPQ + voice_index * 18,
-                            PPQ // 2, _scaled_velocity(54, dynamics["chords"]),
+                # Alternate down/up strums: downbeats sweep low-to-high,
+                # offbeats reverse the sweep and sit lighter in the groove.
+                strum_velocities = (60, 45, 55, 47)
+                for beat, base_velocity in enumerate(strum_velocities):
+                    upstroke = beat in (1, 3)
+                    voice_order = range(len(voicing) - 1, -1, -1) if upstroke else range(len(voicing))
+                    for strum_step, voice_index in enumerate(voice_order):
+                        note = voicing[voice_index]
+                        add("guitar", note,
+                            bar_start + beat * PPQ + strum_step * 12,
+                            PPQ // 2 - 12,
+                            _scaled_velocity(base_velocity, dynamics["chords"]),
                             (-0.35, 0.0, 0.35)[voice_index])
             if names["strings"] and phrase.get("section") == "chorus":
                 for voice_index, note in enumerate(voicing):
