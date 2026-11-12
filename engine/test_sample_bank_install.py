@@ -143,7 +143,7 @@ class SampleBankInstallTests(unittest.TestCase):
             root = Path(folder)
             source, target = root / "other", root / "installed"
             source.mkdir()
-            self.make_bank(source, "piano", "meta-nylon-guitar")
+            self.make_bank(source, "synth", "meta-nylon-guitar")
             with self.assertRaisesRegex(ValueError, "Only validated Meta"):
                 install_recorded_banks([source], target)
             self.assertFalse(target.exists())
