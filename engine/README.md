@@ -82,3 +82,23 @@ python3 engine/sample_bank_tool.py /path/to/sample-bank
 - `1`: manifest یا فایل‌های بانک نامعتبر/ناقص‌اند
 
 این ابزار فقط گزارش می‌سازد و فایل‌های WAV یا manifest را تغییر نمی‌دهد. عبور از آن تضمین شنیداری کیفیت ساز، کوک، اجرای نوازنده یا آمادگی میکس نیست.
+
+
+## Articulation-aware sample playback
+
+The sample manifest accepts an optional `articulation` slug per WAV entry. Older manifests remain compatible and default to `sustain`. The same instrument, MIDI note and velocity range may have multiple distinct articulation recordings, provided each articulation has its own manifest entry and file. Playback events may request an exact articulation, for example `sustain`, `staccato`, `pizzicato`, `palm_mute`, or `tremolo`. The renderer never silently substitutes another articulation: if the requested recording is absent, the event is rejected with a clear error. These names are metadata labels, not a claim that every instrument already has every articulation recorded.
+
+Example manifest entry:
+
+```json
+{
+  "instrument": "violin",
+  "midi_note": 60,
+  "velocity_min": 1,
+  "velocity_max": 127,
+  "articulation": "pizzicato",
+  "path": "violin/c4_pizzicato.wav"
+}
+```
+
+Example playback event field: `"articulation": "pizzicato"`.
