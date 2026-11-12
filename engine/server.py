@@ -66,19 +66,14 @@ def db_session():
 
 
 def engine_status():
-    models_root = ROOT / "models"
-    manifest = models_root / "runtime.json"
-    if not manifest.is_file():
-        return {"ready": False, "state": "not_installed",
-                "message": "No locally installed model runtime. No generation can be started."}
-    validation = model_policy.validate_manifest(models_root, manifest)
-    if not validation["valid"]:
-        return {"ready": False, "state": "invalid_manifest",
-                "message": validation["message"]}
-    return {"ready": False, "state": "model_verified_runner_not_integrated",
-            "model_id": validation["model_id"], "license": validation["license"],
-            "verified_artifacts": validation["verified_artifacts"],
-            "message": "Local model files and approval are verified, but the inference runner is not integrated. Generation remains disabled."}
+    return {
+        "ready": False,
+        "state": "independent_composition_core_only",
+        "composition_core": "available",
+        "audio_renderer": "not_implemented",
+        "external_model_dependencies": False,
+        "message": "The independent MEHRAN composition core can create structured plans. Instrument rendering, vocal synthesis, mixing, and mastering are not implemented; audio generation remains disabled.",
+    }
 
 
 def resource_status():
