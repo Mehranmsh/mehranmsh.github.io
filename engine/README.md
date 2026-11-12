@@ -113,3 +113,27 @@ Every CSV row includes an `articulation` column, and suggested file paths are gr
 Coverage diagnostics now require exact instrument, note, velocity-zone and articulation matches. A bank containing every pitch but only sustained performances will correctly remain incomplete when staccato, pizzicato or other techniques are also required. Missing articulation names are reported per instrument. The checklist is version 2; the WAV manifest remains format version 1 and is backward compatible.
 
 The authenticated exact-note preview endpoint also accepts an optional `articulation` query parameter, for example `/v1/sample-bank/preview?instrument=violin&note=60&velocity=80&articulation=pizzicato`. When omitted, it uses `sustain` for compatibility. It never previews a different articulation as a fallback.
+
+
+
+## Deterministic articulation planning
+
+`engine/articulation_planner.py` adds a deterministic planning layer that selects an instrument-supported performance technique from note duration, repeated pitches, phrase endings, melodic leaps and a requested expressive style. It uses the same instrument articulation catalog as the recording checklist.
+
+Example:
+
+```python
+from articulation_planner import plan_articulations
+
+result = plan_articulations(
+    [
+        {"midi_note": 60, "duration_ticks": 240},
+        {"midi_note": 64, "duration_ticks": 960, "phrase_final": True},
+    ],
+    instrument="violin",
+    tempo_bpm=92,
+    style="expressive",
+)
+```
+
+The planner returns per-event technique choices, reasons, confidence and counts. An explicitly requested technique is preserved; if it is not listed among the available recordings, the event is marked `blocked_missing_sample` rather than silently replaced. The default available set represents catalog capability only. Pass `available_articulations` from verified bank coverage when planning against a real bank. This layer currently produces planning metadata and is not yet wired into automatic composition rendering. It does not create audio or imply that recordings exist.
