@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _instrument_track_name, PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _parse_chord, _section_dynamics, _transition_dynamics, render_midi
+from midi_renderer import _fit_events_to_register, _instrument_track_name, PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _parse_chord, _section_dynamics, _transition_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -523,6 +523,37 @@ class MidiRendererTests(unittest.TestCase):
 
     def test_midi_track_names_sanitize_non_ascii_instrument_slugs(self):
         self.assertEqual(_instrument_track_name("guitar", "تار"), "MEHRAN Guitar")
+
+
+    def test_register_fitting_uses_octave_only_and_preserves_pitch_class(self):
+        events = [
+            (0, 2, bytes((0x93, 35, 90))),
+            (120, 1, bytes((0x83, 35, 0))),
+        ]
+        fitted, report = _fit_events_to_register(events, "tar")
+        self.assertEqual([item[2][1] for item in fitted], [47, 47])
+        self.assertEqual([item[2][0] for item in fitted], [0x93, 0x83])
+        self.assertEqual(report["note_range"], [40, 88])
+        self.assertEqual(report["octave_folded_note_events"], 2)
+        self.assertTrue(report["range_enforced"])
+
+    def test_unknown_instrument_register_is_reported_without_guessing(self):
+        events = [(0, 2, bytes((0x90, 20, 80)))]
+        fitted, report = _fit_events_to_register(events, "experimental_lute")
+        self.assertEqual(fitted, events)
+        self.assertEqual(report["status"], "register_not_catalogued")
+        self.assertIsNone(report["note_range"])
+
+    def test_midi_render_reports_each_mapped_instrument_register(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(
+                plan, Path(folder) / "registers.mid",
+                accompaniment_instruments={"guitar": "tar", "strings": "kamancheh"},
+            )
+        self.assertEqual(result["instrument_registers"]["guitar"]["note_range"], [40, 88])
+        self.assertEqual(result["instrument_registers"]["strings"]["note_range"], [48, 84])
+        self.assertEqual(result["instrument_registers"]["melody"]["note_range"], [36, 96])
 
 if __name__ == "__main__":
     unittest.main()
