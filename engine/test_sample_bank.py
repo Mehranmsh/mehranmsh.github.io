@@ -558,6 +558,38 @@ class SampleBankTests(unittest.TestCase):
             self.assertIsNotNone(measured["quiet_region_rms"])
             self.assertEqual(measured["boundary_analysis_status"], "measured")
 
+    def test_quality_analysis_reports_post_peak_decay_windows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "decay.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 10000
+            values = []
+            for amplitude, duration in ((12000, 1000), (6000, 2000), (2000, 5000)):
+                values.extend(
+                    int(amplitude * math.sin(2 * math.pi * 440 * i / rate))
+                    for i in range(duration)
+                )
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 69, "path": "piano/decay.wav",
+            }])
+            measured = analyze_sample_bank_quality(load_sample_bank(root))["measurements"][0]
+            profile = measured["post_peak_decay_profile"]
+            self.assertEqual(profile["profile_status"], "measured")
+            windows = profile["windows"]
+            early = windows["0_100ms"]["mean_rms_ratio"]
+            middle = windows["100_300ms"]["mean_rms_ratio"]
+            late = windows["300_700ms"]["mean_rms_ratio"]
+            self.assertGreater(early, middle)
+            self.assertGreater(middle, late)
+            self.assertGreater(windows["0_100ms"]["bucket_count"], 0)
+
+
     def test_quality_analysis_flags_active_signal_at_file_end(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
