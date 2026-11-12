@@ -153,6 +153,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 bank = load_sample_bank(bank_root)
                 sample = select_sample(bank, instrument, note, velocity)
+                if sample.midi_note != note:
+                    return self.send_json(404, {"error": "exact_note_sample_unavailable"})
                 size = sample.path.stat().st_size
                 if size > 32 * 1024 * 1024:
                     return self.send_json(413, {"error": "sample_preview_too_large"})
