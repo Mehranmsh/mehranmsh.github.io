@@ -116,6 +116,24 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
 
 
 
+def _register_zones(low: int, high: int) -> list[dict[str, Any]]:
+    """Partition a catalog capture range into transparent, non-overlapping zones."""
+    if (isinstance(low, bool) or not isinstance(low, int)
+            or isinstance(high, bool) or not isinstance(high, int)
+            or not 0 <= low <= high <= 127):
+        raise ValueError("register bounds must be ordered MIDI notes from 0 to 127")
+    if low == high:
+        return [{"name": "single", "note_min": low, "note_max": high}]
+    span = high - low + 1
+    first_end = low + (span + 2) // 3 - 1
+    second_end = low + (2 * span + 2) // 3 - 1
+    return [
+        {"name": "low", "note_min": low, "note_max": first_end},
+        {"name": "middle", "note_min": first_end + 1, "note_max": second_end},
+        {"name": "high", "note_min": second_end + 1, "note_max": high},
+    ]
+
+
 def build_sample_recording_checklist(
     catalog: dict[str, dict[str, Any]] | None = None,
     articulation_catalog: dict[str, list[str]] | None = None,
@@ -132,8 +150,15 @@ def build_sample_recording_checklist(
         low, high = spec["note_range"]
         layers = spec["velocity_layers"]
         articulations = _articulations_for(instrument, articulation_requirements)
+        register_zones = _register_zones(low, high)
+        def zone_for_note(note: int) -> str:
+            for zone in register_zones:
+                if zone["note_min"] <= note <= zone["note_max"]:
+                    return zone["name"]
+            raise ValueError("Recording target falls outside its register zones")
         targets = [
-            {"midi_note": note, "velocity_layer": layer["name"],
+            {"midi_note": note, "register_zone": zone_for_note(note),
+             "velocity_layer": layer["name"],
              "velocity_min": layer["min"], "velocity_max": layer["max"],
              "articulation": articulation}
             for articulation in articulations
@@ -144,6 +169,7 @@ def build_sample_recording_checklist(
         instruments[instrument] = {
             "label": spec["label"],
             "note_range": [low, high],
+            "register_zones": register_zones,
             "articulations": articulations,
             "target_count": len(targets),
             "targets": targets,
@@ -157,7 +183,7 @@ def build_sample_recording_checklist(
             ],
         }
     return {
-        "catalog_version": 2,
+        "catalog_version": 3,
         "instrument_count": len(instruments),
         "total_recording_targets": total_targets,
         "articulation_count": sum(
