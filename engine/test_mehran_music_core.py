@@ -120,6 +120,34 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(word["word"], "یَک")
         self.assertEqual(word["explicit_short_vowel_marks"], 1)
 
+    def test_composition_maps_every_melody_note_to_a_lyric_syllable(self):
+        plan = compose_plan("دلم گرفته، برگرد ای عشق")
+        phrase = plan["composition"]["melody"][0]
+        note_map = phrase["note_lyric_map"]
+        alignment = phrase["word_note_alignment"]
+        self.assertEqual(len(note_map), len(phrase["midi_notes"]))
+        self.assertEqual([item["note_index"] for item in note_map],
+                         list(range(len(phrase["midi_notes"]))))
+        self.assertEqual([item["word"] for item in alignment],
+                         ["دلم", "گرفته", "برگرد", "ای", "عشق"])
+        self.assertEqual(alignment[0]["syllable_estimate"], 2)
+        self.assertEqual(alignment[1]["syllables"], ["ge", "ref", "te"])
+        self.assertEqual(note_map[0]["word"], "دلم")
+        self.assertTrue(all(item["note_start"] < item["note_end"]
+                            for item in alignment))
+        self.assertTrue(all(item["syllable_token"] is None
+                            or isinstance(item["syllable_token"], str)
+                            for item in note_map))
+
+    def test_unknown_words_are_aligned_without_fake_phonetic_tokens(self):
+        plan = compose_plan("پرواز خیالی")
+        phrase = plan["composition"]["melody"][0]
+        self.assertTrue(phrase["word_note_alignment"])
+        self.assertTrue(all(item["confidence"] == "low"
+                            for item in phrase["word_note_alignment"]))
+        self.assertTrue(all(item["syllables"] is None
+                            for item in phrase["word_note_alignment"]))
+
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
