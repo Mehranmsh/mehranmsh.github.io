@@ -20,6 +20,7 @@ from vocal_space_planner import plan_vocal_space
 from fill_planner import plan_melody_fill
 from persian_modal_planner import resolve_persian_modal_profile
 from velocity_layer_planner import plan_velocity_layers
+from guitar_string_planner import plan_guitar_string, string_for_sample
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -93,8 +94,31 @@ def render_sample_events(
             raise ValueError("event duration_seconds must be finite and positive")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("event velocity must be an integer from 1 to 127")
+        selection_bank = bank
+        selected_guitar_string = None
+        guitar_candidates = [
+            sample for sample in bank.samples
+            if sample.instrument == instrument and string_for_sample(sample) is not None
+        ]
+        if guitar_candidates:
+            string_plan = plan_guitar_string(
+                bank, instrument, note, velocity, articulation,
+                preferred_string=event.get("guitar_string", "auto"),
+                max_fret=event.get("guitar_max_fret", 4),
+            )
+            if string_plan["status"] != "exact_recorded_string":
+                raise ValueError(
+                    f"Guitar string selection blocked: instrument={instrument}, note={note}, "
+                    f"status={string_plan['status']}, available_strings={string_plan['available_strings']}"
+                )
+            selected_guitar_string = string_plan["selected_string"]
+            selection_bank = SampleBank(bank.root, tuple(
+                sample for sample in bank.samples
+                if sample.instrument == instrument
+                and string_for_sample(sample) == selected_guitar_string
+            ))
         velocity_plan = plan_velocity_layers(
-            bank, instrument, note, velocity, articulation
+            selection_bank, instrument, note, velocity, articulation
         )
         if velocity_plan["layers"]:
             planned_layers = velocity_plan["layers"]
@@ -102,7 +126,7 @@ def render_sample_events(
                 # Preserve the existing technical quality gate: do not blend a
                 # layer flagged as silent or digitally clipped into a clean take.
                 candidate_report = rank_sample_candidates(
-                    bank, instrument, note, velocity, articulation
+                    selection_bank, instrument, note, velocity, articulation
                 )
                 fatal_paths = {
                     candidate["path"] for candidate in candidate_report["candidates"]
@@ -133,7 +157,7 @@ def render_sample_events(
                 sample_selection_mode = velocity_plan["selection_mode"]
         else:
             candidate_report = rank_sample_candidates(
-                bank, instrument, note, velocity, articulation
+                selection_bank, instrument, note, velocity, articulation
             )
             if candidate_report["candidate_count"]:
                 selected_path = candidate_report["selected_sample"]
@@ -144,7 +168,7 @@ def render_sample_events(
                 sample_selection_mode = "exact_note_quality_ranked"
             else:
                 try:
-                    sample = select_sample(bank, instrument, note, velocity, articulation)
+                    sample = select_sample(selection_bank, instrument, note, velocity, articulation)
                 except ValueError as exc:
                     raise ValueError(
                         f"Articulation blocked: instrument={instrument}, note={note}, "
@@ -166,7 +190,8 @@ def render_sample_events(
         checked.append((sample_layers, note, float(start), float(duration), velocity,
                         float(pan), float(event_gain), articulation,
                         event.get("articulation_source", "legacy_default"),
-                        float(release_seconds), float(pitch_cents), sample_selection_mode))
+                        float(release_seconds), float(pitch_cents), sample_selection_mode,
+                        selected_guitar_string))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
@@ -285,6 +310,10 @@ def render_sample_events(
             "velocity_layers_rendered": velocity_crossfade_layers_rendered,
             "quality_ranking": "technical_screening_only",
         },
+        "guitar_string_selections": [
+            {"midi_note": item[1], "string": item[12]}
+            for item in checked if item[12] is not None
+        ],
         "pitch_cents_applied_events": sum(1 for item in checked if item[10] != 0.0),
         "microtonal_pitch_offsets_rendered": rendered_events > 0 and any(item[10] != 0.0 for item in checked),
         "articulations_rendered": sorted({item[7] for item in checked}),
