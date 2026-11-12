@@ -132,10 +132,13 @@ def _section_dynamics(section: str) -> dict[str, float]:
 def _bass_pattern(root_pc: int, bar_start: int,
                   events: list[tuple[int, int, bytes]], *,
                   chorus: bool = False, bridge: bool = False,
-                  bar_index: int = 0,
+                  bar_index: int = 0, third_interval: int = 4,
                   velocity_scale: float = 1.0) -> int:
-    """Follow each bar's chord root with section-aware, kick-conscious bass motion."""
+    """Outline chord quality with root, third and fifth while respecting the groove."""
+    if third_interval not in (3, 4):
+        raise ValueError("third_interval must be 3 (minor) or 4 (major)")
     root = 36 + root_pc
+    third = root + third_interval
     fifth = root + 7
     octave = root + 12
     if bridge:
