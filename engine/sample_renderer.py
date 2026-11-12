@@ -187,8 +187,10 @@ def build_composition_events(
 ) -> list[dict[str, Any]]:
     """Translate the current MEHRAN plan into sample-playback events.
 
-    Instrument names are bank slugs. Defaults are piano for melody/chords,
-    bass for bass notes, and drums for General MIDI percussion samples.
+    Instrument names are bank slugs. Melody/chords use piano, bass uses
+    electric_bass, and kick, snare, closed_hat, and open_hat use separate
+    recorded-sample instruments. Guitar, strings, and electric guitar are
+    opt-in layers until explicitly mapped by the caller.
     """
     if not isinstance(plan, dict) or not isinstance(plan.get("composition"), dict):
         raise ValueError("A valid MEHRAN composition plan is required")
