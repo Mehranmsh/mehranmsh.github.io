@@ -157,7 +157,7 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(piano["sample_rates"], [44100, 48000])
             self.assertEqual(piano["channel_counts"], [1, 2])
             self.assertEqual(piano["bit_depths"], [16])
-            self.assertEqual(piano["status"], "basic_signal_checks_passed")
+            self.assertEqual(piano["status"], "incomplete_coverage")
             self.assertEqual(guitar["status"], "missing")
             self.assertEqual(guitar["recorded_samples"], 0)
             self.assertFalse(guitar["coverage_ready"])
