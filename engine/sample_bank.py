@@ -31,6 +31,7 @@ class Sample:
     frames: int
     loop_start_frame: int | None = None
     loop_end_frame: int | None = None
+    articulation: str = "sustain"
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,10 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
         candidate = (root / relative).resolve()
         if not candidate.is_relative_to(root) or candidate == root:
             raise ValueError("Sample path must remain inside the sample-bank directory")
-        identity = (instrument, midi_note, velocity_min, velocity_max)
+        articulation = entry.get("articulation", "sustain")
+        if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
+            raise ValueError("articulation must be a lowercase slug")
+        identity = (instrument, midi_note, velocity_min, velocity_max, articulation)
         if identity in seen:
             raise ValueError("Duplicate instrument, note, and velocity layer")
         seen.add(identity)
@@ -267,19 +271,22 @@ def analyze_sample_bank_instrument_health(
 
 
 def select_sample(bank: SampleBank, instrument: str, midi_note: int,
-                  velocity: int = 80) -> Sample:
-    """Choose the closest recorded pitch within the requested velocity layer."""
+                  velocity: int = 80, articulation: str = "sustain") -> Sample:
+    """Choose the closest recorded pitch for an exact articulation and velocity layer."""
     if not isinstance(bank, SampleBank):
         raise ValueError("A validated SampleBank is required")
     if not isinstance(instrument, str) or not instrument:
         raise ValueError("instrument must be a non-empty name")
     midi_note = _integer(midi_note, 0, 127, "midi_note")
     velocity = _integer(velocity, 1, 127, "velocity")
+    if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
+        raise ValueError("articulation must be a lowercase slug")
     candidates = [sample for sample in bank.samples
                   if sample.instrument == instrument
+                  and sample.articulation == articulation
                   and sample.velocity_min <= velocity <= sample.velocity_max]
     if not candidates:
-        raise ValueError(f"No recorded sample layer for instrument: {instrument}")
+        raise ValueError(f"No recorded {articulation} sample layer for instrument: {instrument}")
     return min(candidates, key=lambda sample: (abs(sample.midi_note - midi_note),
                                                sample.midi_note))
 
