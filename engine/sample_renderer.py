@@ -201,8 +201,10 @@ def build_composition_events(
     if not isinstance(melody, list) or not melody or not isinstance(chords, list) or not chords:
         raise ValueError("Plan must include melody phrases and a chord progression")
     names = {
-        "melody": "piano", "chords": "piano", "bass": "bass", "drums": "drums",
-        "guitar": None, "strings": None, "electric_guitar": None,
+        "melody": "piano", "chords": "piano", "bass": "electric_bass",
+        "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
+        "open_hat": "open_hat", "guitar": None, "strings": None,
+        "electric_guitar": None,
     }
     if instruments is not None:
         if not isinstance(instruments, dict):
@@ -277,14 +279,16 @@ def build_composition_events(
             add("bass", root, bar_start, 2 * PPQ - 36, 82)
             add("bass", root + 7, bar_start + 2 * PPQ, PPQ - 36, 82)
             add("bass", root, bar_start + 3 * PPQ, PPQ - 36, 82)
-            add("drums", 36, bar_start, 48, 112)
-            add("drums", 36, bar_start + 2 * PPQ, 48, 104)
-            add("drums", 38, bar_start + PPQ, 48, 94)
-            add("drums", 38, bar_start + 3 * PPQ, 48, 100)
+            add("kick", 36, bar_start, 48, 112)
+            add("kick", 36, bar_start + 2 * PPQ, 48, 104)
+            add("snare", 38, bar_start + PPQ, 48, 94)
+            add("snare", 38, bar_start + 3 * PPQ, 48, 100)
             for eighth in range(8):
                 is_open_hat = phrase.get("section") == "chorus" and eighth == 7
-                add("drums", 46 if is_open_hat else 42,
-                    bar_start + eighth * (PPQ // 2), 48, 82 if is_open_hat else 72)
+                part = "open_hat" if is_open_hat else "closed_hat"
+                note = 46 if is_open_hat else 42
+                velocity = 82 if is_open_hat else 72
+                add(part, note, bar_start + eighth * (PPQ // 2), 48, velocity)
             chord_index += 1
         phrase_tick += phrase_ticks
     if len(events) > MAX_EVENTS:
