@@ -1,5 +1,7 @@
 # Mehran-msh
-Official central hub for MEHRAN MSH digital projects and Pi Network ecosystem applications.
+
+
+For a session-ready checklist of actual progress, run `python3 engine/sample_bank_tool.py /path/to/sample-bank --format csv`. The CSV emits every planned catalog target with its register zone, note, velocity layer, articulation, `recorded`/`missing` status, and matched file path. It is an export only and does not alter the bank.Official central hub for MEHRAN MSH digital projects and Pi Network ecosystem applications.
 
 
 ## Section-aware dynamic arrangement
