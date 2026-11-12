@@ -22,10 +22,9 @@ class DynamicsPlannerTests(unittest.TestCase):
         self.assertEqual(max(values), values[2])
         self.assertEqual(values[0], values[-1])
 
-    def test_natural_curve_reinforces_the_declared_melodic_peak(self):
-        events = plan_dynamics([{}, {"is_melodic_peak": True}, {}], "natural")["events"]
-        values = [item["dynamics_velocity"] for item in events]
-        self.assertEqual(values[1], max(values))
+    def test_natural_curve_leaves_phrase_accents_to_the_renderers(self):
+        events = plan_dynamics([{}, {}, {}], "natural")["events"]
+        self.assertEqual([item["dynamics_velocity"] for item in events], [84, 84, 84])
 
     def test_curated_lexical_stress_adds_a_controlled_accent(self):
         plain = plan_dynamics([{}], "steady")["events"][0]["dynamics_velocity"]
