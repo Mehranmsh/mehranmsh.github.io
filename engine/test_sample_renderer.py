@@ -718,5 +718,19 @@ class SampleRendererTests(unittest.TestCase):
         first_melody = next(event for event in events if event["instrument"] == "piano")
         self.assertEqual(first_melody["pitch_cents"], -50.0)
 
+
+    def test_custom_persian_degree_cents_reach_sampled_melody(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+            persian_degree_cents={1: 50, 4: -50},
+        )
+        events = build_composition_events(plan)
+        melody_events = [event for event in events
+                         if event["instrument"] == "piano" and event["pitch_cents"]]
+        self.assertTrue(melody_events)
+        self.assertTrue(all(abs(event["pitch_cents"]) == 50.0
+                            for event in melody_events))
+
 if __name__ == "__main__":
     unittest.main()
