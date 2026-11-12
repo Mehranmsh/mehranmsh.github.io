@@ -455,11 +455,37 @@ def _estimate_sample_fundamental(
         score = sum(x * y for x, y in zip(left, right)) / denominator
         if score > best_score:
             best_lag, best_score = lag, score
-    if best_lag is None or best_score < 0.65:
+    # Require the same periodic pitch to persist across three windows. A short
+    # transient or quasi-periodic noise can score highly in one whole-file window.
+    segment_scores = []
+    segment_lags = []
+    segment_size = len(signal) // 3
+    for segment_index in range(3):
+        segment = signal[segment_index * segment_size:(segment_index + 1) * segment_size]
+        local_best_score, local_best_lag = -1.0, None
+        for lag in range(min_lag, min(max_lag, len(segment) // 2) + 1):
+            left, right = segment[:-lag], segment[lag:]
+            denominator = (sum(value * value for value in left) *
+                           sum(value * value for value in right)) ** 0.5
+            if denominator <= 0:
+                continue
+            score = sum(x * y for x, y in zip(left, right)) / denominator
+            if score > local_best_score:
+                local_best_score, local_best_lag = score, lag
+        segment_scores.append(local_best_score)
+        if local_best_lag is not None:
+            segment_lags.append(local_best_lag)
+    stable_segments = (
+        len(segment_lags) == 3
+        and min(segment_scores) >= 0.65
+        and max(segment_lags) - min(segment_lags) <= 1
+    )
+    if best_lag is None or best_score < 0.65 or not stable_segments:
         return {
             "status": "insufficient_periodicity",
             "expected_hz": round(expected_hz, 3),
             "periodicity_score": round(max(0.0, best_score), 4),
+            "stable_segment_count": sum(score >= 0.65 for score in segment_scores),
         }
     # Parabolic interpolation reduces integer-lag quantization for stable tones.
     refined_lag = float(best_lag)
