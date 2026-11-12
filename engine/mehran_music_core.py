@@ -247,16 +247,28 @@ def _phrase_durations(syllables: int, note_count: int,
     total_ticks = bars * 4 * 480
     weights = [1.0] * note_count
 
-    words = re.findall(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE)
+    word_matches = list(re.finditer(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE))
+    words = [match.group(0) for match in word_matches]
     estimated_counts = [_rhythmic_syllables(word) for word in words]
     estimated_total = sum(estimated_counts)
     if note_count and estimated_total:
         cursor = 0
-        for word_count in estimated_counts:
+        for word_index, word_count in enumerate(estimated_counts):
             cursor += max(1, round(note_count * word_count / estimated_total))
             boundary = min(note_count - 1, cursor - 1)
             if boundary >= 0:
                 weights[boundary] *= 1.15
+                # Internal punctuation is a musical breath cue. Apply it to
+                # the note ending immediately before the next word.
+                if word_index + 1 < len(word_matches):
+                    gap = lyric_line[word_matches[word_index].end():
+                                       word_matches[word_index + 1].start()]
+                    if any(mark in gap for mark in ("؛", ";", ":")):
+                        weights[boundary] *= 1.4
+                    elif any(mark in gap for mark in ("؟", "!", "—", "–", "-")):
+                        weights[boundary] *= 1.5
+                    elif any(mark in gap for mark in (",", "،")):
+                        weights[boundary] *= 1.25
 
     if note_count >= 2:
         weights[-1] *= 1.7
@@ -314,7 +326,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",
             "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
             "cadence_note": notes[-1],
-            "prosody_timing_method": "approximate_word_boundary_and_punctuation_v1",
+            "prosody_timing_method": "word_boundary_internal_punctuation_and_cadence_v2",
         })
     arrangement = {
         "intro": ["soft piano", "acoustic guitar"],
