@@ -54,7 +54,7 @@ PRONUNCIATION_LEXICON = {
     "برگرد": ("bar", "gard"), "دلم": ("de", "lam"), "گرفته": ("ge", "ref", "te"),
     "عشق": ("eshgh",), "خانه": ("kha", "ne"), "شب": ("shab",), "روز": ("ruz",),
     "یار": ("yar",), "ای": ("ey",), "تنها": ("tan", "ha"), "امید": ("o", "mid"),
-    "فردا": ("far", "da"), "بهار": ("ba", "har"), "آزادی": ("a", "za", "di"),
+    "فردا": ("far", "da"), "بهار": ("ba", "har"), "بهانه": ("ba", "ha", "ne"), "آزادی": ("a", "za", "di"),
     "دلتنگ": ("del", "tang"), "اشک": ("ashk",), "تنهایی": ("tan", "ha", "yi"),
     "رفتی": ("raf", "ti"), "عاشق": ("a", "shegh"), "دلبر": ("del", "bar"),
     "آغوش": ("a", "ghush"), "بوسه": ("bu", "se"), "چشم": ("cheshm",),
@@ -142,13 +142,26 @@ def _syllables(word: str) -> int:
     return max(1, nuclei)
 
 
+def _rhyme_signature(word: str) -> dict[str, str]:
+    """Prefer a curated final syllable; otherwise expose a cautious spelling key."""
+    canonical = _canonical_word(word)
+    pronunciation = PRONUNCIATION_LEXICON.get(canonical)
+    if pronunciation:
+        return {
+            "signature": pronunciation[-1],
+            "confidence": "curated",
+            "method": "curated_final_syllable_v1",
+        }
+    return {
+        "signature": canonical[-2:],
+        "confidence": "low",
+        "method": "orthographic_suffix_fallback_v1",
+    }
+
+
 def _ending(line: str) -> str:
-    """Extract a lightweight rhyme key without Persian vowel marks."""
     words = WORD_PATTERN.findall(line)
-    if not words:
-        return ""
-    canonical = _canonical_word(words[-1])
-    return canonical[-2:]
+    return _rhyme_signature(words[-1])["signature"] if words else ""
 
 
 def analyze_lyrics(lyrics: str) -> dict[str, Any]:
@@ -183,6 +196,19 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
             for index, line in enumerate(lines)
         ],
         "rhyme_candidates": sorted({line.ending for line in lines if line.ending}),
+        "rhyme_analysis": [
+            {
+                "line_index": index,
+                "ending_word": (WORD_PATTERN.findall(line.text)[-1]
+                                if WORD_PATTERN.findall(line.text) else ""),
+                **(_rhyme_signature(WORD_PATTERN.findall(line.text)[-1])
+                   if WORD_PATTERN.findall(line.text) else {
+                       "signature": "", "confidence": "unknown",
+                       "method": "no_ending_word",
+                   }),
+            }
+            for index, line in enumerate(lines)
+        ],
         "syllable_method": "orthographic_estimate_v1",
         "phonetic_method": "conservative_written_vowel_scan_v1",
         "notice": "The phonetic layer reports written vowel evidence only; it does not claim full pronunciation, lexical stress, or prosodic meter.",
