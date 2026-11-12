@@ -101,7 +101,12 @@ rendered with incorrect shared bends. The same calibration map can target the MI
 `accompaniment_instruments` argument maps one of those arrangement slots to
 a real instrument slug, for example `{"guitar": "tar"}`; calibration is then
 looked up under that instrument slug (for example
-`{"tar": {"60": 32.5}}`). This separates the musical arrangement role from
+`{"tar": {"60": 32.5}}`). The optional `accompaniment_programs` argument
+selects a General MIDI program number (0-127) per arrangement slot, for both
+the base channel and isolated tuning channels. This is a soundfont/player patch
+selection, not a canonical timbre assignment: Persian instruments do not have
+a universally standardized General MIDI patch, and the actual sound depends
+on the installed soundfont. This separates the musical arrangement role from
 the instrument identity and allows tar, setar, santur, kamancheh, oud and
 other catalogued instruments to receive their own supplied note calibrations
 without pretending that the General MIDI guitar program is an authentic tar
