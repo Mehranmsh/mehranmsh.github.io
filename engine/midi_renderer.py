@@ -403,7 +403,12 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             and item.get("stress_beat_alignment") == "aligned"
         }
         for note_index, (note, duration) in enumerate(zip(notes, durations)):
-            gate = max(1, int(duration * 0.88))
+            lyric_map_item = lyric_map[note_index] if note_index < len(lyric_map) else {}
+            gate_ratio = lyric_map_item.get("gate_ratio", 0.88) if isinstance(lyric_map_item, dict) else 0.88
+            if (isinstance(gate_ratio, bool) or not isinstance(gate_ratio, (int, float))
+                    or not 0.1 <= gate_ratio <= 1.0):
+                raise ValueError("Melody gate_ratio must be between 0.1 and 1.0")
+            gate = max(1, int(duration * gate_ratio))
             velocity = _melody_velocity(
                 88, cursor, section_scale=dynamics["melody"],
                 is_peak=(isinstance(peak_index, int) and note_index == peak_index),
@@ -414,10 +419,13 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                                       if note_index == len(notes) - 1 else 1.0))
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
-            lyric_map_item = lyric_map[note_index] if note_index < len(lyric_map) else {}
             articulation = lyric_map_item.get("articulation") if isinstance(lyric_map_item, dict) else None
+            release_ms = lyric_map_item.get("release_ms", 25) if isinstance(lyric_map_item, dict) else 25
+            if isinstance(release_ms, bool) or not isinstance(release_ms, int) or not 0 <= release_ms <= 1000:
+                raise ValueError("Melody release_ms must be an integer from 0 to 1000")
             if isinstance(articulation, str) and articulation:
-                marker = f"articulation={articulation};note={note};index={note_index}".encode("ascii", "strict")
+                marker = (f"articulation={articulation};note={note};index={note_index};"
+                          f"gate_ratio={gate_ratio:.2f};release_ms={release_ms}").encode("ascii", "strict")
                 melody_events.append((cursor, 3, b"\xff\x06" + _vlq(len(marker)) + marker))
             cursor += duration
             note_count += 1
