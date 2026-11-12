@@ -817,6 +817,22 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         )
         pause_ticks, breath_after = _phrase_pause(line["text"])
         breath_demand = _breath_demand_profile(line["syllable_estimate"], pause_ticks)
+        is_section_final_phrase = index + 1 == section_end
+        is_final_song_phrase = index == len(lines) - 1
+        breath_boundary = (
+            "final_song_end" if is_final_song_phrase else
+            "section_end" if is_section_final_phrase else "internal_phrase"
+        )
+        breath_recovery_priority = (
+            "highest" if is_final_song_phrase else
+            "elevated" if is_section_final_phrase else "normal"
+        )
+        breath_demand.update({
+            "section_boundary": is_section_final_phrase,
+            "song_boundary": is_final_song_phrase,
+            "recovery_priority": breath_recovery_priority,
+            "boundary_basis": "composition_structure",
+        })
         cadence_profile = _cadence_sustain_profile(line["text"])
         if lyric_alignment["note_lyric_map"]:
             lyric_alignment["note_lyric_map"][-1]["is_phrase_final_syllable"] = True
@@ -901,7 +917,11 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                 "duration_ticks": pause_ticks,
                 "kind": breath_after,
                 "timing_basis": "written_punctuation",
+                "boundary": breath_boundary,
+                "recovery_priority": breath_recovery_priority,
             },
+            "is_section_final_phrase": is_section_final_phrase,
+            "is_final_song_phrase": is_final_song_phrase,
             "chord": chord,
             "harmonic_cadence": cadence_type,
             "structural_cadence": structural_cadence,
