@@ -105,6 +105,69 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
     return SampleBank(root, tuple(samples))
 
 
+
+def analyze_sample_bank_instrument_health(
+    bank: SampleBank,
+    coverage: dict[str, Any] | None = None,
+    quality: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Aggregate read-only sample, coverage and signal diagnostics by instrument."""
+    if not isinstance(bank, SampleBank):
+        raise ValueError("A validated SampleBank is required")
+    coverage_report = coverage if coverage is not None else analyze_sample_bank_coverage(bank)
+    quality_report = quality if quality is not None else analyze_sample_bank_quality(bank)
+    quality_by_instrument: dict[str, list[dict[str, Any]]] = {}
+    for measurement in quality_report["measurements"]:
+        quality_by_instrument.setdefault(measurement["instrument"], []).append(measurement)
+
+    instruments = {}
+    for instrument, coverage_item in coverage_report["instruments"].items():
+        samples = [sample for sample in bank.samples if sample.instrument == instrument]
+        measurements = quality_by_instrument.get(instrument, [])
+        warning_counts: dict[str, int] = {}
+        for measurement in measurements:
+            for warning in measurement["warnings"]:
+                warning_counts[warning] = warning_counts.get(warning, 0) + 1
+        sample_count = len(samples)
+        warning_sample_count = sum(bool(item["warnings"]) for item in measurements)
+        if sample_count == 0:
+            status = "missing"
+        elif warning_sample_count:
+            status = "needs_attention"
+        else:
+            status = "basic_signal_checks_passed"
+        rms_values = [item["rms"] for item in measurements]
+        peak_values = [item["peak"] for item in measurements]
+        instruments[instrument] = {
+            "label": coverage_item["label"],
+            "status": status,
+            "recorded_samples": sample_count,
+            "coverage_percent": coverage_item["coverage_percent"],
+            "covered_requirements": coverage_item["covered_requirements"],
+            "required_requirements": coverage_item["required_requirements"],
+            "missing_notes": coverage_item["missing_notes"],
+            "missing_velocity_layers": coverage_item["missing_velocity_layers"],
+            "samples_with_warnings": warning_sample_count,
+            "warning_counts": warning_counts,
+            "average_rms": round(sum(rms_values) / len(rms_values), 5) if rms_values else None,
+            "max_peak": max(peak_values) if peak_values else None,
+            "sample_rates": sorted({sample.sample_rate for sample in samples}),
+            "channel_counts": sorted({sample.channels for sample in samples}),
+            "bit_depths": [16] if samples else [],
+            "looped_samples": sum(sample.loop_start_frame is not None for sample in samples),
+            "unlooped_samples": sum(sample.loop_start_frame is None for sample in samples),
+            "total_duration_seconds": round(sum(sample.frames / sample.sample_rate for sample in samples), 4),
+            "coverage_ready": coverage_item["ready"],
+            "basic_signal_checks_pass": warning_sample_count == 0 and sample_count > 0,
+        }
+    return {
+        "read_only": True,
+        "instrument_count": len(instruments),
+        "instruments": instruments,
+        "note": "Per-instrument status summarizes file presence, catalog coverage and basic WAV signal checks only; it does not certify timbre, tuning, performance, loop quality or mix readiness.",
+    }
+
+
 def select_sample(bank: SampleBank, instrument: str, midi_note: int,
                   velocity: int = 80) -> Sample:
     """Choose the closest recorded pitch within the requested velocity layer."""
