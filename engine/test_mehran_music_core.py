@@ -75,6 +75,12 @@ class IndependentMusicCoreTests(unittest.TestCase):
         _, paused = _phrase_durations(4, 4, "دل من،")
         self.assertGreater(paused[-1], plain[-1])
 
+    def test_internal_comma_creates_a_breath_before_the_next_word(self):
+        from mehran_music_core import _phrase_durations
+        _, plain = _phrase_durations(4, 4, "دل من")
+        _, paused = _phrase_durations(4, 4, "دل، من")
+        self.assertGreater(paused[1], plain[1])
+
     def test_word_boundaries_are_reflected_in_phrase_timing(self):
         from mehran_music_core import _phrase_durations
         _, durations = _phrase_durations(5, 5, "دلم گرفته")
