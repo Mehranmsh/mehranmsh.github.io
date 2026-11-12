@@ -95,24 +95,16 @@ def plan_guitar_string(
         }
 
     _, fret, selected = min(candidates, key=lambda item: (item[0], item[1]))
-    layers = plan_velocity_layers(bank, instrument, midi_note, velocity, articulation)
-    selected_samples = [
-        {"sample": layer["sample"], "gain": layer["gain"]}
-        for layer in layers["layers"]
-        if string_for_sample(layer["sample"]) == selected
-    ]
-    if not selected_samples:
-        # Velocity planner may have chosen overlapping layers from another
-        # string. Restrict selection to this exact string before blending.
-        string_only = SampleBank(bank.root, tuple(
-            sample for sample in bank.samples
-            if sample.instrument == instrument
-            and sample.midi_note == midi_note
-            and sample.articulation == articulation
-            and string_for_sample(sample) == selected
-        ))
-        layers = plan_velocity_layers(string_only, instrument, midi_note, velocity, articulation)
-        selected_samples = layers["layers"]
+    string_only = SampleBank(bank.root, tuple(
+        sample for sample in bank.samples
+        if sample.instrument == instrument
+        and sample.midi_note == midi_note
+        and sample.articulation == articulation
+        and sample.velocity_min <= velocity <= sample.velocity_max
+        and string_for_sample(sample) == selected
+    ))
+    layers = plan_velocity_layers(string_only, instrument, midi_note, velocity, articulation)
+    selected_samples = layers["layers"]
 
     return {
         "instrument": instrument,
