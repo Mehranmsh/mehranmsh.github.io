@@ -478,5 +478,35 @@ class MidiRendererTests(unittest.TestCase):
                 )
 
 
+
+    def test_accompaniment_program_override_applies_to_base_and_tuned_channels(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "tar-patch.mid"
+            preview = render_midi(plan, path)
+            note = preview["chord_voicings"][0]["midi_notes"][0]
+            result = render_midi(
+                plan, path,
+                accompaniment_instruments={"guitar": "tar"},
+                accompaniment_programs={"guitar": 104},
+                instrument_tuning_cents={"tar": {note: 32.5}},
+            )
+            data = path.read_bytes()
+        base_channel = 3
+        tuned_channel = result["accompaniment_tuning_channels"]["guitar"]["32.5"]
+        self.assertEqual(result["accompaniment_programs"]["guitar"], 104)
+        self.assertIn(bytes((0xC0 | base_channel, 104)), data)
+        self.assertIn(bytes((0xC0 | tuned_channel, 104)), data)
+
+    def test_accompaniment_program_override_rejects_invalid_program(self):
+        plan = compose_plan("یک شب آرام")
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "accompaniment_programs"):
+                render_midi(
+                    plan, Path(folder) / "bad-program.mid",
+                    accompaniment_programs={"guitar": 128},
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
