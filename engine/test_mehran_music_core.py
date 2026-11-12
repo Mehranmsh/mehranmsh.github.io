@@ -90,6 +90,15 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(words[0]["lexical_stress"], "unknown")
         self.assertEqual(words[1]["confidence"], "low")
 
+    def test_curated_lexicon_improves_common_lyric_word_syllables(self):
+        result = analyze_lyrics("دلم گرفته برگرد ای عشق")
+        words = result["phonetic_analysis"][0]["words"]
+        by_word = {word["word"]: word for word in words}
+        self.assertEqual(by_word["دلم"]["syllable_estimate"], 2)
+        self.assertEqual(by_word["گرفته"]["syllable_estimate"], 3)
+        self.assertEqual(by_word["برگرد"]["syllables"], ["bar", "gard"])
+        self.assertEqual(by_word["عشق"]["confidence"], "high")
+        self.assertEqual(result["lines"][0]["syllable_estimate"], 8)
     def test_phonetic_layer_detects_written_long_vowels(self):
         result = analyze_lyrics("یار و روز")
         words = result["phonetic_analysis"][0]["words"]
