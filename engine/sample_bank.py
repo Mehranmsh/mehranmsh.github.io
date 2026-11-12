@@ -484,6 +484,40 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         })
         total_samples += count
         total_clipped += clipped
+    instrument_groups: dict[str, list[dict[str, Any]]] = {}
+    for report in reports:
+        instrument_groups.setdefault(report["instrument"], []).append(report)
+    instrument_profiles = {}
+    for instrument, items in sorted(instrument_groups.items()):
+        rates = sorted({item["sample_rate"] for item in items})
+        channel_counts = sorted({item["channels"] for item in items})
+        durations = [item["duration_seconds"] for item in items]
+        rms_values = [item["rms"] for item in items]
+        peak_values = [item["peak"] for item in items]
+        instrument_profiles[instrument] = {
+            "sample_count": len(items),
+            "sample_rates_hz": rates,
+            "channels_present": channel_counts,
+            "sample_rate_consistent": len(rates) == 1,
+            "channel_layout_consistent": len(channel_counts) == 1,
+            "duration_seconds": {
+                "minimum": min(durations),
+                "maximum": max(durations),
+            },
+            "rms": {
+                "minimum": min(rms_values),
+                "maximum": max(rms_values),
+                "spread": round(max(rms_values) - min(rms_values), 5),
+            },
+            "peak": {
+                "minimum": min(peak_values),
+                "maximum": max(peak_values),
+                "spread": round(max(peak_values) - min(peak_values), 5),
+            },
+            "samples_with_warnings": sum(bool(item["warnings"]) for item in items),
+            "clipped_samples": sum(item["clipped_samples"] for item in items),
+            "basic_signal_checks_pass": all(item["basic_signal_checks_pass"] for item in items),
+        }
     warning_count = sum(bool(item["warnings"]) for item in reports)
     return {
         "sample_count": len(reports),
@@ -491,7 +525,8 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         "clipped_samples": total_clipped,
         "basic_signal_checks_pass": warning_count == 0,
         "measurements": reports,
-        "note": "Checks cover silence, level, clipping, DC offset and a numerical loop-boundary jump indicator only; they do not certify perceptual loop quality, instrument tone, recording quality, tuning or mix readiness.",
+        "instrument_profiles": instrument_profiles,
+        "note": "Per-instrument profiles summarize sample-rate and channel consistency plus duration and level spread. Checks cover silence, level, clipping, DC offset and a numerical loop-boundary jump indicator only; they do not certify perceptual loop quality, instrument tone, recording quality, tuning or mix readiness.",
     }
 
 
