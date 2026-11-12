@@ -313,5 +313,20 @@ class MidiRendererTests(unittest.TestCase):
                                bytes((0xC4, 0))):
             self.assertIn(program_change, midi)
 
+
+    def test_melody_articulations_are_preserved_as_midi_marker_metadata(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        phrase = plan["composition"]["melody"][0]
+        phrase["note_lyric_map"][0]["articulation"] = "staccato"
+        phrase["note_lyric_map"][0]["articulation_reason"] = "short_note"
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "articulation.mid"
+            result = render_midi(plan, target)
+            data = target.read_bytes()
+        self.assertIn(bytes((0xff, 0x06)), data)
+        self.assertIn(b"articulation=staccato;note=", data)
+        self.assertGreaterEqual(result["articulation_markers"], 1)
+        self.assertIn("metadata only", result["articulation_rendering"])
+
 if __name__ == "__main__":
     unittest.main()
