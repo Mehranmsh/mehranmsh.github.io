@@ -689,7 +689,7 @@ class SampleRendererTests(unittest.TestCase):
         )
         self.assertEqual(fills[0]["fill_planner"], "instrument_shaped_melodic_fill_v2")
         self.assertEqual(fills[0]["velocity"], 54)
-        self.assertEqual(fills[0]["articulation"], "fingerstyle")
+        self.assertEqual(fills[0]["articulation"], "sustain")
         self.assertFalse(any(event.get("event_role") == "melodic_response_fill"
                              for event in build_composition_events(plan)))
 
@@ -995,6 +995,66 @@ class SampleRendererTests(unittest.TestCase):
                     "start_seconds": 0, "duration_seconds": 0.08,
                     "velocity": 90,
                 }], bank, Path(folder) / "blocked.wav", sample_rate=22050)
+
+    def test_installed_steel_guitar_bank_renders_composition_guitar_part_end_to_end(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
+            events = build_composition_events(plan, instruments={"guitar": "acoustic_guitar"})
+            guitar_events = [event for event in events if event["part"] == "guitar"]
+            self.assertTrue(guitar_events)
+            open_strings = {
+                "LowE": 40, "A": 45, "D": 50,
+                "G": 55, "B": 59, "HighE": 64,
+            }
+            samples = []
+            for note in sorted({event["midi_note"] for event in guitar_events}):
+                string_name = next(
+                    name for name, open_note in open_strings.items()
+                    if 0 <= note - open_note <= 4
+                )
+                relative = f"steel/{string_name}/note-{note}.wav"
+                self.make_wav(root / relative, rate=48000, frames=4800)
+                samples.append({
+                    "instrument": "acoustic_guitar",
+                    "midi_note": note,
+                    "velocity_min": 1,
+                    "velocity_max": 127,
+                    "articulation": "sustain",
+                    "string": string_name,
+                    "path": relative,
+                })
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": samples,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "composition-guitar.wav"
+            result = render_composition_to_wav(
+                plan, bank, output,
+                instruments={"guitar": "acoustic_guitar"},
+                parts=["guitar"],
+                sample_rate=22050,
+            )
+            self.assertEqual(result["events_rendered"], len(guitar_events))
+            self.assertEqual(result["source"], "recorded_sample_bank")
+            self.assertTrue(result["guitar_string_selections"])
+            with wave.open(str(output), "rb") as wav:
+                self.assertEqual(wav.getnchannels(), 2)
+                self.assertEqual(wav.getsampwidth(), 2)
+                self.assertTrue(any(wav.readframes(wav.getnframes())))
+
+    def test_composition_renderer_rejects_unknown_or_empty_part_selection(self):
+        plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            with self.assertRaisesRegex(ValueError, "parts must be"):
+                render_composition_to_wav(
+                    plan, bank, Path(folder) / "bad.wav", parts=["unknown"]
+                )
 
 
 if __name__ == "__main__":
