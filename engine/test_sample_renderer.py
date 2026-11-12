@@ -133,6 +133,17 @@ class SampleRendererTests(unittest.TestCase):
         pitch_classes = {event["midi_note"] % 12 for event in first_bar}
         self.assertTrue({0, 5, 9}.issubset(pitch_classes))
 
+    def test_sample_arrangement_plays_all_dominant_seventh_chord_tones(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        plan["composition"]["melody"][0]["chord"] = "G7"
+        events = build_composition_events(
+            plan, instruments={"chords": "keys", "melody": "lead"})
+        first_bar = [event for event in events
+                     if event["instrument"] == "keys" and
+                     event["start_seconds"] < 4 * 60 / 84]
+        self.assertEqual({event["midi_note"] % 12 for event in first_bar},
+                         {7, 11, 2, 5})
+
     def test_sample_piano_pattern_changes_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
