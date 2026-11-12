@@ -3,13 +3,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from persian_modal_planner import resolve_persian_modal_profile
+
 
 def plan_melody_fill(
     *, gap_start_tick: int, gap_duration_ticks: int,
     scale_pitch_classes: list[int], chord_pitch_classes: list[int],
     reference_note: int, instrument_range: tuple[int, int] = (48, 84),
     max_notes: int = 4, base_velocity: int = 62,
-    fill_style: str = "guitar",
+    fill_style: str = "guitar", modal_profile: str | None = None,
+    modal_tonic_pc: int = 0,
 ) -> dict[str, Any]:
     """Create a short chord-aware fill wholly contained in a vocal-rest gap.
 
@@ -28,6 +31,10 @@ def plan_melody_fill(
     if fill_style not in profiles:
         raise ValueError("unsupported fill_style")
     profile = profiles[fill_style]
+    modal = (resolve_persian_modal_profile(modal_profile, modal_tonic_pc)
+             if modal_profile is not None else None)
+    if modal is not None:
+        scale_pitch_classes = list(modal["scale_pitch_classes"])
     if instrument_range == (48, 84):
         instrument_range = profile["range"]
     if isinstance(gap_start_tick, bool) or not isinstance(gap_start_tick, int) or gap_start_tick < 0:
@@ -74,6 +81,15 @@ def plan_melody_fill(
         pool = ordered if index in (0, count - 1) and chord else candidates
         offsets = profile.get("contour", (5, 2, 7, 3))
         target = base + offsets[index % len(offsets)]
+        if modal is not None and index == count - 1:
+            landing = [value for value in candidates if value % 12 == modal["final_pitch_class"]]
+            if landing:
+                pool = landing
+        elif modal is not None and index not in (0, count - 1):
+            emphasized = set(modal["emphasized_pitch_classes"])
+            modal_tones = [value for value in pool if value % 12 in emphasized]
+            if modal_tones:
+                pool = modal_tones + [value for value in pool if value % 12 not in emphasized]
         note = min(pool, key=lambda value: (abs(value - target), abs(value - base), value))
         if chosen and note == chosen[-1] and len(pool) > 1:
             note = min((item for item in pool if item != note),
@@ -92,7 +108,13 @@ def plan_melody_fill(
                        "duration_ticks": duration, "velocity": velocity,
                        "role": "melodic_response_fill",
                        "articulation": articulations[index % len(articulations)],
-                       "release_ms": profile["release_ms"], "fill_style": fill_style})
+                       "release_ms": profile["release_ms"], "fill_style": fill_style,
+                       "modal_profile": modal["name"] if modal else None,
+                       "modal_tuning": modal["tuning"] if modal else None,
+                       "microtonal_audio_rendered": False if modal else None})
         cursor += duration
     return {"events": events, "reason": "planned_in_vocal_rest",
-            "planner": "instrument_shaped_melodic_fill_v2", "audio_rendered": False}
+            "planner": "instrument_shaped_melodic_fill_v2", "audio_rendered": False,
+            "modal_profile": modal["name"] if modal else None,
+            "modal_tuning": modal["tuning"] if modal else None,
+            "microtonal_audio_rendered": False if modal else None}
