@@ -607,6 +607,8 @@ class IndependentMusicCoreTests(unittest.TestCase):
             "duration_ticks": 120,
             "kind": "short",
             "timing_basis": "written_punctuation",
+            "boundary": "internal_phrase",
+            "recovery_priority": "normal",
         })
         self.assertEqual(second["breath_window"]["kind"], "full")
         self.assertEqual(second["breath_window"]["duration_ticks"], 360)
