@@ -4,7 +4,12 @@ import unittest
 import wave
 from pathlib import Path
 
-from sample_bank import load_sample_bank, select_sample
+from sample_bank import (
+    SAMPLE_INSTRUMENT_CATALOG,
+    analyze_sample_bank_coverage,
+    load_sample_bank,
+    select_sample,
+)
 
 
 class SampleBankTests(unittest.TestCase):
@@ -49,8 +54,8 @@ class SampleBankTests(unittest.TestCase):
                  "velocity_min": 71, "velocity_max": 127},
             ])
             bank = load_sample_bank(root)
-            self.assertTrue(select_sample(bank, "piano", 60, 50).path.name == "soft.wav")
-            self.assertTrue(select_sample(bank, "piano", 60, 100).path.name == "hard.wav")
+            self.assertEqual(select_sample(bank, "piano", 60, 50).path.name, "soft.wav")
+            self.assertEqual(select_sample(bank, "piano", 60, 100).path.name, "hard.wav")
 
     def test_rejects_path_traversal(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -93,6 +98,58 @@ class SampleBankTests(unittest.TestCase):
             bank = load_sample_bank(root)
             with self.assertRaises(ValueError):
                 select_sample(bank, "violin", 60)
+
+    def test_catalog_defines_all_current_renderer_instruments(self):
+        self.assertEqual(
+            set(SAMPLE_INSTRUMENT_CATALOG),
+            {"piano", "acoustic_guitar", "electric_bass", "strings",
+             "electric_guitar", "kick", "snare", "closed_hat", "open_hat"},
+        )
+        self.assertEqual(SAMPLE_INSTRUMENT_CATALOG["piano"]["note_range"], [36, 96])
+
+    def test_incomplete_bank_reports_missing_notes_and_velocity_layers(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c2_soft.wav")
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 36, "path": "piano/c2_soft.wav",
+                "velocity_min": 1, "velocity_max": 48,
+            }])
+            report = analyze_sample_bank_coverage(load_sample_bank(root))
+            self.assertFalse(report["ready"])
+            piano = report["instruments"]["piano"]
+            self.assertEqual(piano["covered_samples"], 1)
+            self.assertIn(36, piano["missing_velocity_layers"] and piano["missing_notes"] or [36])
+            self.assertTrue(any(item["note"] == 36 and item["layer"] == "medium"
+                                for item in piano["missing_velocity_layers"]))
+            self.assertIn("acoustic_guitar", report["instruments"])
+
+    def test_complete_custom_fixture_reports_ready(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            samples = []
+            for note, name in [(60, "soft"), (60, "hard"), (61, "soft"), (61, "hard")]:
+                filename = f"piano/{note}_{name}.wav"
+                self.write_sample(root / filename)
+                low, high = (1, 64) if name == "soft" else (65, 127)
+                samples.append({
+                    "instrument": "piano", "midi_note": note, "path": filename,
+                    "velocity_min": low, "velocity_max": high,
+                })
+            self.write_manifest(root, samples)
+            bank = load_sample_bank(root)
+            report = analyze_sample_bank_coverage(bank, {
+                "piano": {
+                    "label": "Fixture piano", "note_range": [60, 61],
+                    "velocity_layers": [
+                        {"name": "soft", "min": 1, "max": 64},
+                        {"name": "hard", "min": 65, "max": 127},
+                    ],
+                },
+            })
+            self.assertTrue(report["ready"])
+            self.assertEqual(report["coverage_percent"], 100.0)
+            self.assertEqual(report["instruments"]["piano"]["missing_velocity_layers"], [])
 
 
 if __name__ == "__main__":
