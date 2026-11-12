@@ -71,6 +71,18 @@ class MidiRendererTests(unittest.TestCase):
             self.assertIn(item["inversion"], ("root", "first", "second"))
             self.assertEqual(len(item["midi_notes"]), 3)
 
+    def test_dominant_seventh_chord_renders_all_four_voices(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        plan["composition"]["melody"][0]["chord"] = "G7"
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(plan, Path(folder) / "seventh.mid")
+        voicing = result["chord_voicings"][0]
+        self.assertEqual(voicing["symbol"], "G7")
+        self.assertEqual(len(voicing["midi_notes"]), 4)
+        self.assertEqual({note % 12 for note in voicing["midi_notes"]},
+                         {7, 11, 2, 5})
+        self.assertIn(voicing["inversion"], ("root", "first", "second", "third"))
+
     def test_chorus_bass_has_more_movement_than_verse(self):
         verse_events, chorus_events = [], []
         verse_count = _bass_pattern(9, 0, verse_events, chorus=False)
