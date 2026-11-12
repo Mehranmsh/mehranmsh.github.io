@@ -86,6 +86,10 @@ class SampleRendererTests(unittest.TestCase):
             self.assertLess(result["normalization_applied"], 1.0)
             self.assertLessEqual(measured_peak, round(32767 * MAX_PEAK) + 1)
             self.assertGreater(measured_peak, 0)
+            self.assertEqual(result["clipping_samples"], 0)
+            self.assertAlmostEqual(
+                result["peak_after_normalization"], measured_peak / 32768.0, places=5
+            )
 
     def test_mix_never_amplifies_quiet_audio_during_peak_management(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -100,6 +104,8 @@ class SampleRendererTests(unittest.TestCase):
 
             self.assertLess(result["peak_before_normalization"], 0.92)
             self.assertEqual(result["normalization_applied"], 1.0)
+            self.assertEqual(result["clipping_samples"], 0)
+            self.assertLessEqual(result["peak_after_normalization"], 0.92)
 
     def test_composition_plan_becomes_sample_events(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
