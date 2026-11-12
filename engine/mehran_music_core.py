@@ -236,6 +236,71 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
             notes[-1] = min(lower_cadences, key=lambda note: (abs(note - tonic - 12), note))
     return notes
 
+
+def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
+    """Map estimated lyric syllables onto melody notes without inventing phonemes."""
+    matches = list(re.finditer(r"[\\wآ-ی]+", lyric_line, flags=re.UNICODE))
+    words = []
+    for index, match in enumerate(matches):
+        word = match.group(0).replace("ي", "ی").replace("ك", "ک")
+        pronunciation = PRONUNCIATION_LEXICON.get(word)
+        count = len(pronunciation) if pronunciation else _syllables(word)
+        words.append({
+            "word_index": index,
+            "word": word,
+            "syllable_estimate": count,
+            "syllables": list(pronunciation) if pronunciation else None,
+            "confidence": "high" if pronunciation else "low",
+        })
+    total_syllables = sum(item["syllable_estimate"] for item in words)
+    if not words or note_count <= 0 or total_syllables <= 0:
+        return {"word_note_alignment": [], "note_lyric_map": []}
+
+    alignment = []
+    note_map = []
+    syllable_cursor = 0
+    for item in words:
+        start_syllable = syllable_cursor
+        end_syllable = start_syllable + item["syllable_estimate"]
+        note_start = round(start_syllable * note_count / total_syllables)
+        note_end = round(end_syllable * note_count / total_syllables)
+        note_start = min(note_count - 1, max(0, note_start))
+        note_end = min(note_count, max(note_start + 1, note_end))
+        alignment.append({
+            **item,
+            "syllable_start": start_syllable,
+            "syllable_end": end_syllable,
+            "note_start": note_start,
+            "note_end": note_end,
+        })
+        syllable_cursor = end_syllable
+
+    for note_index in range(note_count):
+        syllable_index = min(
+            total_syllables - 1,
+            int((note_index + 0.5) * total_syllables / note_count),
+        )
+        word = next(
+            item for item in alignment
+            if item["syllable_start"] <= syllable_index < item["syllable_end"]
+        )
+        local_syllable = syllable_index - word["syllable_start"]
+        syllable_token = (
+            word["syllables"][local_syllable]
+            if word["syllables"] and local_syllable < len(word["syllables"])
+            else None
+        )
+        note_map.append({
+            "note_index": note_index,
+            "word_index": word["word_index"],
+            "word": word["word"],
+            "syllable_index": syllable_index,
+            "syllable_token": syllable_token,
+            "confidence": word["confidence"],
+        })
+    return {"word_note_alignment": alignment, "note_lyric_map": note_map}
+
+
 def _phrase_durations(syllables: int, note_count: int,
                       lyric_line: str = "") -> tuple[int, list[int]]:
     """Allocate phrase timing with approximate word-boundary and punctuation cues.
@@ -312,8 +377,10 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         )
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
+        lyric_alignment = _align_words_to_notes(line["text"], len(notes))
         melody.append({
             "line_index": index,
+            **lyric_alignment,
             "section": line_section,
             "syllable_estimate": line["syllable_estimate"],
             "midi_notes": notes,
