@@ -299,6 +299,7 @@ def build_composition_events(
     instruments: dict[str, str] | None = None,
     mix_gains: dict[str, float] | None = None,
     response_fill_part: str | None = "guitar",
+    instrument_tuning_cents: dict[str, dict[int, float]] | None = None,
 ) -> list[dict[str, Any]]:
     """Translate the current MEHRAN plan into sample-playback events.
 
@@ -331,6 +332,24 @@ def build_composition_events(
                 raise ValueError("Unknown part or invalid instrument-bank name")
             names[part] = name
 
+    if instrument_tuning_cents is None:
+        instrument_tuning_cents = {}
+    if not isinstance(instrument_tuning_cents, dict):
+        raise ValueError("instrument_tuning_cents must map instrument slugs to MIDI-note offsets")
+    normalized_instrument_tuning: dict[str, dict[int, float]] = {}
+    for instrument_slug, note_offsets in instrument_tuning_cents.items():
+        if not isinstance(instrument_slug, str) or not instrument_slug or not isinstance(note_offsets, dict):
+            raise ValueError("instrument tuning entries must map non-empty instrument slugs to note offsets")
+        normalized_offsets: dict[int, float] = {}
+        for midi_note, cents in note_offsets.items():
+            if (isinstance(midi_note, bool) or not isinstance(midi_note, int)
+                    or not 0 <= midi_note <= 127
+                    or isinstance(cents, bool) or not isinstance(cents, (int, float))
+                    or not math.isfinite(cents) or not -100.0 <= cents <= 100.0):
+                raise ValueError("instrument tuning offsets require MIDI notes 0-127 and finite cents from -100 to 100")
+            normalized_offsets[midi_note] = float(cents)
+        normalized_instrument_tuning[instrument_slug] = normalized_offsets
+
     if response_fill_part is not None and response_fill_part not in ("guitar", "electric_guitar", "strings", "melody"):
         raise ValueError("response_fill_part must be guitar, electric_guitar, strings, melody or None")
     part_gains = _validated_part_gains(mix_gains)
@@ -349,6 +368,11 @@ def build_composition_events(
             articulation: str = "sustain",
             articulation_source: str = "legacy_default",
             release_seconds: float = 0.025, pitch_cents: float = 0.0) -> None:
+        instrument_slug = names[part]
+        tuning_offset = normalized_instrument_tuning.get(instrument_slug, {}).get(note, 0.0)
+        combined_pitch_cents = float(pitch_cents) + tuning_offset
+        if not -200.0 <= combined_pitch_cents <= 200.0:
+            raise ValueError("combined modal and instrument pitch_cents must be between -200 and 200")
         event_index = part_event_counts[part]
         part_event_counts[part] += 1
         arrangement = plan_part_arrangement(part, current_section, event_index)
@@ -366,7 +390,8 @@ def build_composition_events(
             "articulation_source": articulation_source,
             "release_seconds": release_seconds,
             "midi_note": note,
-            "pitch_cents": pitch_cents,
+            "pitch_cents": combined_pitch_cents,
+            "instrument_tuning_offset_cents": tuning_offset,
             "start_seconds": round(start_tick * seconds_per_tick, 6),
             "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
             "velocity": velocity,
