@@ -628,6 +628,29 @@ class SampleRendererTests(unittest.TestCase):
         self.assertFalse(any(event.get("event_role") == "melodic_response_fill"
                              for event in build_composition_events(plan)))
 
+    def test_persian_instrument_response_fills_use_their_recorded_techniques(self):
+        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        plan["composition"]["melody"][0]["section"] = "chorus"
+        cases = {
+            "tar": {"mezrab_down", "mezrab_up"},
+            "setar": {"mezrab_down", "mezrab_up"},
+            "santur": {"soft_mallet", "hard_mallet", "roll"},
+            "kamancheh": {"short_bow", "long_bow"},
+        }
+        for slug, expected in cases.items():
+            with self.subTest(instrument=slug):
+                events = build_composition_events(
+                    plan, instruments={"guitar": slug}, response_fill_part="guitar"
+                )
+                fills = [e for e in events if e.get("event_role") == "melodic_response_fill"]
+                self.assertTrue(fills)
+                self.assertTrue({e["articulation"] for e in fills} <= expected)
+                self.assertTrue(all(e["instrument"] == slug for e in fills))
+        self.assertFalse(any(
+            e.get("event_role") == "melodic_response_fill"
+            for e in build_composition_events(plan, response_fill_part="guitar")
+        ))
+
     def test_response_fill_can_use_explicit_piano_or_strings_part(self):
         plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
         plan["composition"]["melody"][0]["section"] = "chorus"
