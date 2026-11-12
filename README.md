@@ -178,3 +178,17 @@ is tagged with its zone so recording sessions can be organized and reviewed
 without losing note-level coverage. These are workflow groupings within the
 catalog's planned capture range, not claims about acoustic register transitions
 or recordings already available. The checklist schema is version 3.
+
+
+## Sample-bank progress reporting
+
+The read-only sample coverage report now breaks exact recording coverage down
+by instrument, low/middle/high register zone, articulation, and velocity layer.
+Each group reports required, covered, missing, and coverage percentage values.
+The top-level and per-instrument summaries also expose missing requirement
+counts. A target is counted as covered only when a recorded sample matches its
+exact MIDI note and articulation and spans the complete requested velocity
+layer. Nearby pitches, partial velocity ranges, and alternate articulations do
+not count as substitutes. Empty banks therefore report zero coverage rather
+than inferred progress. These figures measure manifest coverage only; separate
+WAV health checks are still required and do not certify musical quality.
