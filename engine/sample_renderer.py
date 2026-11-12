@@ -80,14 +80,17 @@ def render_sample_events(
             raise ValueError("event velocity must be an integer from 1 to 127")
         sample = select_sample(bank, instrument, note, velocity)
         end_time = max(end_time, float(start) + float(duration))
-        checked.append((sample, note, float(start), float(duration), velocity))
+        pan = event.get("pan", 0.0)
+        if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
+            raise ValueError("event pan must be between -1.0 and 1.0")
+        checked.append((sample, note, float(start), float(duration), velocity, float(pan)))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity in checked:
+    for sample, target_note, start, duration, velocity, pan in checked:
         pcm, source_channels, source_rate = _read_sample(sample.path)
         source_frames = len(pcm) // source_channels
         semitone_ratio = 2.0 ** ((target_note - sample.midi_note) / 12.0)
@@ -98,6 +101,7 @@ def render_sample_events(
         if requested_frames <= 0:
             continue
         gain = (velocity / 127.0) ** 1.6 * 0.72
+        pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
         attack_frames = max(1, round(sample_rate * 0.004))
         release_frames = max(1, round(sample_rate * 0.025))
         for out_index in range(requested_frames):
@@ -118,7 +122,7 @@ def render_sample_events(
                 source_channel = 0 if source_channels == 1 else channel
                 a = pcm[source_index * source_channels + source_channel]
                 b = pcm[next_index * source_channels + source_channel]
-                value = (a + (b - a) * fraction) * frame_gain
+                value = (a + (b - a) * fraction) * frame_gain * pan_gains[channel]
                 destination = (start_frame + out_index) * 2 + channel
                 mix[destination] += value
         rendered_events += 1
@@ -189,7 +193,7 @@ def build_composition_events(
     chord_index = 0
     previous_voicing = None
 
-    def add(part: str, note: int, start_tick: int, duration_ticks: int, velocity: int) -> None:
+    def add(part: str, note: int, start_tick: int, duration_ticks: int, velocity: int, pan: float = 0.0) -> None:
         events.append({
             "instrument": names[part],
             "midi_note": note,
