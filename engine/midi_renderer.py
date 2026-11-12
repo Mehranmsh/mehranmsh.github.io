@@ -217,7 +217,11 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
                 bar_index=bar, phrase_bars=bars)
             chord_bar_index += 1
-        phrase_start += phrase_ticks
+        pause_ticks = phrase.get("phrase_pause_ticks", 0)
+        if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
+                or pause_ticks < 0 or pause_ticks > PPQ * 2):
+            raise ValueError("phrase_pause_ticks must be an integer between 0 and 960")
+        phrase_start += phrase_ticks + pause_ticks
     note_count += bass_note_count + drum_hit_count
     if note_count > MAX_NOTES:
         raise ValueError("Composition exceeds the 4096-note safety limit")
