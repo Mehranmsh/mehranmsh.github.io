@@ -328,3 +328,17 @@ python3 engine/sample_bank_preview.py /path/to/sample-bank piano 69 /path/to/a4-
 ```
 
 The command requires an exact recorded instrument, MIDI note, velocity-compatible layer, and articulation. It deliberately refuses nearest-note pitch shifting so the audition proves which exact recording was played. The output is a stereo 16-bit PCM WAV rendered from the recorded sample; it is not an oscillator tone or a synthesized substitute. The repository contains no production instrument recordings by default, so a real instrument audition still requires the user to record or provide WAV files and import them first.
+
+
+## First verified CC0 instrument sample
+
+The `CC0 Real Instrument Sample Bootstrap` workflow fetches the Meta Piano C4, velocity-layer-3 OGG preview from Meta Open Sound, verifies its published SHA-256 digest, and converts it to mono PCM16 WAV at 48 kHz. The source collection is dedicated under CC0 1.0 Universal, so this sample may be used and redistributed commercially without attribution. The workflow validates the resulting one-sample bank, renders an exact C4 audition through MEHRAN's recorded-sample renderer, and uploads the bank, source license, and audition WAV as the `mehran-cc0-piano-first-sample` artifact. This is the first real piano recording only, not a complete piano library or a claim that other instruments have been imported.
+
+To prepare the same sample locally (Python 3 and FFmpeg required):
+
+```bash
+python3 engine/fetch_cc0_piano_sample.py sample-bank-bootstrap
+python3 engine/sample_bank_preview.py sample-bank-bootstrap piano 60 sample-bank-bootstrap/piano-C4-preview.wav --velocity 80 --articulation sustain
+```
+
+Source: [Meta Open Sound, Meta Piano](https://github.com/facebookincubator/Meta-open-sound), CC0 1.0 Universal. The downloaded OGG is SHA-256 checked against the upstream collection's `SHA256SUMS` before conversion.
