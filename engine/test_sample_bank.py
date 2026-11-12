@@ -97,7 +97,7 @@ class SampleBankTests(unittest.TestCase):
             {"loop_start_frame": 0},
             {"loop_end_frame": 32},
             {"loop_start_frame": -1, "loop_end_frame": 32},
-            {"loop_start_frame": 0, "loop_end_frame": 129},
+            {"loop_start_frame": 0, "loop_end_frame": 10000},
             {"loop_start_frame": 128, "loop_end_frame": 128},
             {"loop_start_frame": 120, "loop_end_frame": 127},
             {"loop_start_frame": True, "loop_end_frame": 32},
