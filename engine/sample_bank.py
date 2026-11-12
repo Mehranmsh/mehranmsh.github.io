@@ -488,6 +488,7 @@ def rank_sample_candidates(
             "rms": measurement["rms"],
             "peak": measurement["peak"],
             "dc_offset": measurement["dc_offset"],
+            "acoustic_diagnostics": acoustic_diagnostics,
             "possible_truncated_tail": measurement.get("possible_truncated_tail", False),
             "technical_checks_pass": not warnings and not measurement.get("possible_truncated_tail", False),
         })
