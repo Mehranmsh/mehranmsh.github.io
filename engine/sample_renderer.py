@@ -291,6 +291,7 @@ def build_composition_events(
     *,
     instruments: dict[str, str] | None = None,
     mix_gains: dict[str, float] | None = None,
+    response_fill_part: str | None = "guitar",
 ) -> list[dict[str, Any]]:
     """Translate the current MEHRAN plan into sample-playback events.
 
@@ -323,6 +324,8 @@ def build_composition_events(
                 raise ValueError("Unknown part or invalid instrument-bank name")
             names[part] = name
 
+    if response_fill_part is not None and response_fill_part not in ("guitar", "electric_guitar", "strings", "melody"):
+        raise ValueError("response_fill_part must be guitar, electric_guitar, strings, melody or None")
     part_gains = _validated_part_gains(mix_gains)
     explicit_mix_overrides = set(mix_gains or {})
     seconds_per_tick = 60.0 / bpm / PPQ
@@ -552,9 +555,9 @@ def build_composition_events(
                     add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
                         48, _scaled_velocity(90, drum_scale))
             chord_index += 1
-        # Optional guitar response phrases occupy only the written breath/rest window.
-        # They are metadata/sample events, and are skipped unless a guitar bank is mapped.
-        if names["guitar"] and pause_ticks >= 120:
+        # One explicitly selected part may answer in the written vocal-rest window.
+        # No alternate instrument is silently substituted when that part is unmapped.
+        if response_fill_part is not None and names[response_fill_part] and pause_ticks >= 120:
             key_roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
             mode_intervals = {
                 "major": (0, 2, 4, 5, 7, 9, 11),
@@ -568,23 +571,30 @@ def build_composition_events(
                 fill_chord = phrase.get("chord", chords[chord_index % len(chords)])
                 fill_root, fill_intervals = _parse_chord(fill_chord)
                 chord_pcs = [(fill_root + interval) % 12 for interval in fill_intervals]
+                fill_slug = names[response_fill_part]
+                fill_style = ("strings" if response_fill_part == "strings"
+                              else "piano" if response_fill_part == "melody" or fill_slug == "piano"
+                              else "guitar")
                 fill_plan = plan_melody_fill(
                     gap_start_tick=phrase_tick + phrase_ticks,
                     gap_duration_ticks=pause_ticks,
                     scale_pitch_classes=scale_pcs,
                     chord_pitch_classes=chord_pcs,
                     reference_note=notes[-1],
-                    instrument_range=(48, 84),
-                    max_notes=4,
+                    max_notes=5 if fill_style == "piano" else 4,
                     base_velocity={
                         "verse": 54, "pre_chorus": 62, "chorus": 70,
                         "bridge": 48, "final_chorus": 76,
                     }.get(section, 60),
+                    fill_style=fill_style,
                 )
                 for fill in fill_plan["events"]:
                     before_count = len(events)
-                    add("guitar", fill["midi_note"], fill["start_tick"],
-                        fill["duration_ticks"], fill["velocity"], 0.18)
+                    add(response_fill_part, fill["midi_note"], fill["start_tick"],
+                        fill["duration_ticks"], fill["velocity"], 0.18,
+                        articulation=fill["articulation"],
+                        articulation_source="planner",
+                        release_seconds=fill["release_ms"] / 1000.0)
                     if len(events) > before_count:
                         events[-1]["event_role"] = fill["role"]
                         events[-1]["fill_planner"] = fill_plan["planner"]
