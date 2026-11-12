@@ -19,7 +19,7 @@ from sample_bank import load_sample_bank
 
 
 def _safe_relative_audio_path(root: Path, value: str) -> tuple[Path, str]:
-    if not value or "\\x00" in value:
+    if not value or "\x00" in value:
         raise ValueError("Recorded file path must be non-empty")
     candidate = (root / value).resolve()
     if not candidate.is_relative_to(root) or candidate == root:
@@ -101,7 +101,7 @@ def build_sample_bank_manifest(
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             json.dump(manifest, handle, ensure_ascii=False, indent=2)
-            handle.write("\\n")
+            handle.write("\n")
         # Validate every WAV and manifest reference before publishing bank.json.
         load_sample_bank_from_manifest(root, Path(temporary_name))
         os.replace(temporary_name, destination)
