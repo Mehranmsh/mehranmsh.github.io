@@ -75,6 +75,16 @@ class IndependentMusicCoreTests(unittest.TestCase):
                 if item["beat_strength"] == "strong":
                     self.assertIn(note % 12, chord_classes)
 
+    def test_note_map_includes_rhythmic_value_and_articulation(self):
+        plan = compose_plan("دلم گرفته از این شب")
+        note_map = plan["composition"]["melody"][0]["note_lyric_map"]
+        allowed_values = {"whole", "half", "quarter", "eighth", "sixteenth", "short_subdivision"}
+        allowed_articulations = {"sustain", "normal", "light"}
+        for item in note_map:
+            self.assertIn(item["rhythmic_value"], allowed_values)
+            self.assertIn(item["articulation_hint"], allowed_articulations)
+            self.assertGreater(item["duration_ticks"], 0)
+
     def test_note_beat_metadata_uses_note_onset_not_note_end(self):
         plan = compose_plan("دلم گرفته از این شب")
         phrase = plan["composition"]["melody"][0]
