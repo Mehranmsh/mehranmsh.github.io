@@ -501,6 +501,30 @@ def _estimate_sample_fundamental(
         if abs(curvature) > 1e-12:
             refined_lag += max(-0.5, min(0.5, 0.5 * (before - after) / curvature))
     measured_hz = analysis_rate / refined_lag
+    # Autocorrelation alone can mistake a repeating ramp or transient for a note.
+    # Check that energy is concentrated at the estimated fundamental/harmonics.
+    harmonic_energy = 0.0
+    for harmonic in range(1, 9):
+        frequency = measured_hz * harmonic
+        if frequency >= analysis_rate / 2:
+            break
+        cosine = sum(
+            value * math.cos(2 * math.pi * frequency * index / analysis_rate)
+            for index, value in enumerate(signal)
+        )
+        sine = sum(
+            value * math.sin(2 * math.pi * frequency * index / analysis_rate)
+            for index, value in enumerate(signal)
+        )
+        harmonic_energy += 2.0 * (cosine * cosine + sine * sine) / len(signal)
+    spectral_concentration = min(1.0, harmonic_energy / energy)
+    if spectral_concentration < 0.08:
+        return {
+            "status": "insufficient_periodicity",
+            "expected_hz": round(expected_hz, 3),
+            "periodicity_score": round(best_score, 4),
+            "spectral_concentration": round(spectral_concentration, 4),
+        }
     cents = 1200 * math.log2(measured_hz / expected_hz)
     return {
         "status": "estimated",
@@ -508,6 +532,7 @@ def _estimate_sample_fundamental(
         "measured_hz": round(measured_hz, 3),
         "deviation_cents": round(cents, 2),
         "periodicity_score": round(best_score, 4),
+        "spectral_concentration": round(spectral_concentration, 4),
     }
 
 
