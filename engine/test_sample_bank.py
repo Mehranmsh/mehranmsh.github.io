@@ -10,6 +10,7 @@ from sample_bank import (
     analyze_sample_bank_coverage,
     analyze_sample_bank_quality,
     analyze_sample_bank_instrument_health,
+    build_sample_recording_checklist,
     load_sample_bank,
     select_sample,
 )
@@ -162,6 +163,41 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(guitar["recorded_samples"], 0)
             self.assertFalse(guitar["coverage_ready"])
             self.assertEqual((root / "piano" / "c4.wav").read_bytes(), before)
+
+
+    def test_recording_checklist_expands_note_and_velocity_targets(self):
+        checklist = build_sample_recording_checklist()
+        piano = checklist["instruments"]["piano"]
+        self.assertEqual(checklist["instrument_count"], 9)
+        self.assertEqual(piano["target_count"], 61 * 3)
+        self.assertEqual(piano["targets"][0], {
+            "midi_note": 36, "velocity_layer": "soft",
+            "velocity_min": 1, "velocity_max": 48,
+        })
+        self.assertEqual(checklist["format_requirements"]["bit_depth"], 16)
+        self.assertGreater(checklist["total_recording_targets"], 0)
+
+    def test_quality_report_includes_audio_format_and_loop_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            sample_path = root / "piano.wav"
+            values = [4096, -4096] * 128
+            with wave.open(str(sample_path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(44100)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 60, "path": "piano.wav",
+                "loop_start_frame": 0, "loop_end_frame": 128,
+            }])
+            report = analyze_sample_bank_quality(load_sample_bank(root))
+            measurement = report["measurements"][0]
+            self.assertEqual(measurement["sample_rate"], 44100)
+            self.assertEqual(measurement["channels"], 1)
+            self.assertEqual(measurement["bit_depth"], 16)
+            self.assertTrue(measurement["loop_present"])
+            self.assertEqual(measurement["loop_duration_seconds"], round(128 / 44100, 4))
 
     def test_sample_quality_diagnostics_detect_silence_clipping_and_dc_offset(self):
         with tempfile.TemporaryDirectory() as folder:
