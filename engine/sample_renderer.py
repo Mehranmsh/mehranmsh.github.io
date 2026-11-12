@@ -79,7 +79,14 @@ def render_sample_events(
             raise ValueError("event duration_seconds must be finite and positive")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("event velocity must be an integer from 1 to 127")
-        sample = select_sample(bank, instrument, note, velocity, articulation)
+        try:
+            sample = select_sample(bank, instrument, note, velocity, articulation)
+        except ValueError as exc:
+            raise ValueError(
+                f"Articulation blocked: instrument={instrument}, note={note}, "
+                f"planner_selected={articulation}, renderer_supports_exact_match=True, "
+                "sample_exact_match=False; no fallback was used"
+            ) from exc
         end_time = max(end_time, float(start) + float(duration))
         pan = event.get("pan", 0.0)
         if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
@@ -89,14 +96,15 @@ def render_sample_events(
                 or not math.isfinite(event_gain) or not 0.0 <= event_gain <= 2.0):
             raise ValueError("event gain must be between 0.0 and 2.0")
         checked.append((sample, note, float(start), float(duration), velocity,
-                        float(pan), float(event_gain), articulation))
+                        float(pan), float(event_gain), articulation,
+                        event.get("articulation_source", "legacy_default")))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity, pan, event_gain, articulation in checked:
+    for sample, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source in checked:
         pcm, source_channels, source_rate = _read_sample(sample.path)
         source_frames = len(pcm) // source_channels
         semitone_ratio = 2.0 ** ((target_note - sample.midi_note) / 12.0)
@@ -186,6 +194,13 @@ def render_sample_events(
         "events_requested": len(checked),
         "events_rendered": rendered_events,
         "articulations_rendered": sorted({item[7] for item in checked}),
+        "articulation_diagnostics": {
+            "planner_selected": sorted({item[7] for item in checked if item[8] == "planner"}),
+            "legacy_defaulted": sorted({item[7] for item in checked if item[8] == "legacy_default"}),
+            "renderer_supports_exact_match": True,
+            "sample_exact_match": True,
+            "audio_rendered": rendered_events > 0,
+        },
         "peak_before_normalization": round(peak / 32768.0, 5),
         "normalization_applied": round(normalization, 5),
         "peak_after_normalization": round(peak_after_normalization / 32768.0, 5),
@@ -304,9 +319,14 @@ def build_composition_events(
     chord_index = 0
     previous_voicing = None
 
-    def add(part: str, note: int, start_tick: int, duration_ticks: int, velocity: int, pan: float = 0.0) -> None:
+    def add(part: str, note: int, start_tick: int, duration_ticks: int,
+            velocity: int, pan: float = 0.0, *,
+            articulation: str = "sustain",
+            articulation_source: str = "legacy_default") -> None:
         events.append({
             "instrument": names[part],
+            "articulation": articulation,
+            "articulation_source": articulation_source,
             "midi_note": note,
             "start_seconds": round(start_tick * seconds_per_tick, 6),
             "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
@@ -341,6 +361,9 @@ def build_composition_events(
         transition = phrase.get("phrase_energy", {}).get("section_transition")
         cursor = phrase_tick
         peak_index = phrase.get("peak_note_index")
+        lyric_map = phrase.get("note_lyric_map", [])
+        if not isinstance(lyric_map, list):
+            raise ValueError("note_lyric_map must be a list when provided")
         for note_index, (note, duration) in enumerate(zip(notes, durations)):
             velocity = _melody_sample_velocity(
                 88, cursor, section_scale=dynamics["melody"],
@@ -348,7 +371,13 @@ def build_composition_events(
                          and note_index == peak_index),
                 is_cadence=(note_index == len(notes) - 1),
             )
-            add("melody", note, cursor, max(1, int(duration * 0.88)), velocity)
+            lyric_item = lyric_map[note_index] if note_index < len(lyric_map) else {}
+            articulation = lyric_item.get("articulation", "sustain") if isinstance(lyric_item, dict) else "sustain"
+            if not isinstance(articulation, str) or not articulation:
+                raise ValueError("Planned melody articulation must be a non-empty string")
+            add("melody", note, cursor, max(1, int(duration * 0.88)), velocity,
+                articulation=articulation,
+                articulation_source="planner" if isinstance(lyric_item, dict) and "articulation" in lyric_item else "legacy_default")
             cursor += duration
 
         for bar in range(bars):
