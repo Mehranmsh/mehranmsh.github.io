@@ -132,8 +132,15 @@ class SampleBankTests(unittest.TestCase):
     def test_instrument_health_aggregates_coverage_signal_and_format_read_only(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
-            self.write_sample(root / "piano" / "c4.wav", channels=2, rate=48000)
-            self.write_sample(root / "piano" / "c4_bad.wav")
+            for filename, channels, rate in (("c4.wav", 2, 48000), ("c4_bad.wav", 1, 44100)):
+                sample_path = root / "piano" / filename
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                values = [4096, -4096] * 128 * channels
+                with wave.open(str(sample_path), "wb") as wav:
+                    wav.setnchannels(channels)
+                    wav.setsampwidth(2)
+                    wav.setframerate(rate)
+                    wav.writeframes(struct.pack("<" + "h" * len(values), *values))
             self.write_manifest(root, [
                 {"instrument": "piano", "midi_note": 60, "path": "piano/c4.wav",
                  "velocity_min": 1, "velocity_max": 127},
