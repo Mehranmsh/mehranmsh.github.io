@@ -181,6 +181,14 @@ jobs:
               "sample_selection": report["sample_selection"],
           })
           PY
+      - name: Publish compact real piano and guitar preview WAV
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-real-piano-guitar-preview-wav
+          path: sample-bank-installed-all/mehran-piano-guitar-composition.wav
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
       - name: Publish verified guitar banks and audition WAVs
         uses: actions/upload-artifact@v4
         with:
@@ -190,14 +198,6 @@ jobs:
             sample-bank-meta-steel-guitar/
             sample-bank-meta-piano/
             sample-bank-installed-all/
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
-      - name: Publish compact real piano and guitar preview WAV
-        uses: actions/upload-artifact@v4
-        with:
-          name: mehran-real-piano-guitar-preview-wav
-          path: sample-bank-installed-all/mehran-piano-guitar-composition.wav
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
