@@ -783,5 +783,22 @@ class IndependentMusicCoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر کوتاه", melody_instrument="made_up")
 
+
+    def test_composition_accepts_explicit_persian_dastgah_for_response_fills(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+        )
+        self.assertEqual(plan["composition"]["persian_dastgah"], "shur")
+        self.assertEqual(plan["composition"]["persian_modal_profile"]["tuning"],
+                         "12tet_approximation")
+        self.assertEqual(plan["composition"]["persian_modal_profile"]["scope"],
+                         "response_fills_only")
+        self.assertFalse(plan["composition"]["persian_modal_profile"]["microtonal_audio_rendered"])
+
+    def test_composition_rejects_unknown_persian_dastgah(self):
+        with self.assertRaisesRegex(ValueError, "persian_dastgah"):
+            compose_plan("دلم گرفته از این شب", persian_dastgah="unknown")
+
 if __name__ == "__main__":
     unittest.main()
