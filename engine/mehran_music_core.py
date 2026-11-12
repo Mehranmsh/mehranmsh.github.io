@@ -842,6 +842,31 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "section_cadence" if is_section_final_phrase else
             "continuing"
         )
+        section_energy_targets = {
+            "verse": 0.82, "verse_1": 0.82, "verse_2": 0.86,
+            "pre_chorus": 0.90, "chorus": 0.94, "final_chorus": 1.0,
+            "bridge": 0.78,
+        }
+        current_section_energy = section_energy_targets.get(line_section, 0.85)
+        next_section = next(
+            (section for section in sections if section["start_line"] == section_end),
+            None,
+        )
+        next_section_name = next_section["name"] if next_section else None
+        next_section_energy = (
+            section_energy_targets.get(next_section_name, 0.85)
+            if next_section_name else None
+        )
+        section_transition = {
+            "next_section": next_section_name,
+            "current_energy_target": current_section_energy,
+            "next_energy_target": next_section_energy,
+            "energy_change": (
+                round(next_section_energy - current_section_energy, 2)
+                if next_section_energy is not None else None
+            ),
+            "basis": "section_arrangement_intent",
+        } if is_section_final_phrase else None
         cadence_profile = _cadence_sustain_profile(line["text"])
         if lyric_alignment["note_lyric_map"]:
             lyric_alignment["note_lyric_map"][-1]["is_phrase_final_syllable"] = True
@@ -935,6 +960,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                 "role": phrase_energy_role,
                 "cadence_release_scale": cadence_release_scale,
                 "basis": "structural_phrase_boundary",
+                "section_transition": section_transition,
             },
             "chord": chord,
             "harmonic_cadence": cadence_type,
