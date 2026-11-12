@@ -833,6 +833,15 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "recovery_priority": breath_recovery_priority,
             "boundary_basis": "composition_structure",
         })
+        cadence_release_scale = (
+            0.90 if is_final_song_phrase else
+            0.97 if is_section_final_phrase else 1.0
+        )
+        phrase_energy_role = (
+            "final_release" if is_final_song_phrase else
+            "section_cadence" if is_section_final_phrase else
+            "continuing"
+        )
         cadence_profile = _cadence_sustain_profile(line["text"])
         if lyric_alignment["note_lyric_map"]:
             lyric_alignment["note_lyric_map"][-1]["is_phrase_final_syllable"] = True
@@ -922,6 +931,11 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             },
             "is_section_final_phrase": is_section_final_phrase,
             "is_final_song_phrase": is_final_song_phrase,
+            "phrase_energy": {
+                "role": phrase_energy_role,
+                "cadence_release_scale": cadence_release_scale,
+                "basis": "structural_phrase_boundary",
+            },
             "chord": chord,
             "harmonic_cadence": cadence_type,
             "structural_cadence": structural_cadence,
