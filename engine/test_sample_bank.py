@@ -204,7 +204,7 @@ class SampleBankTests(unittest.TestCase):
             root = Path(folder)
             fixtures = [
                 ("smooth.wav", 1, [1000] * 16 + [1200] * 16, True),
-                ("jump.wav", 1, [-12000] * 16 + [12000] * 16, True),
+                ("jump.wav", 1, [-12000] + [-12000] * 14 + [12000] + [12000] * 16, True),
                 ("stereo.wav", 2, [1000, -1000] * 16 + [1000, 12000] * 16, True),
                 ("plain.wav", 1, [1000] * 32, False),
             ]
@@ -231,8 +231,7 @@ class SampleBankTests(unittest.TestCase):
             self.assertGreater(by_note[62]["loop_boundary_jump"], 0.10)
             self.assertIn("loop_boundary_discontinuity", by_note[62]["warnings"])
             self.assertIsNone(by_note[63]["loop_boundary_jump"])
-            self.assertIsNone(by_note[63]["loop_boundary_jump_warning_threshold"]
-                              if by_note[63]["loop_boundary_jump"] is None else None)
+            self.assertNotIn("loop_boundary_discontinuity", by_note[63]["warnings"])
 
     def test_sample_quality_diagnostics_detect_silence_clipping_and_dc_offset(self):
         with tempfile.TemporaryDirectory() as folder:
