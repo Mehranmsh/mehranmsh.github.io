@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sample_bank import SampleBank, select_sample
+from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -151,3 +152,111 @@ def render_sample_events(
         "normalization_applied": round(normalization, 5),
         "source": "recorded_sample_bank",
     }
+
+
+def build_composition_events(
+    plan: dict[str, Any],
+    *,
+    instruments: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Translate the current MEHRAN plan into sample-playback events.
+
+    Instrument names are bank slugs. Defaults are piano for melody/chords,
+    bass for bass notes, and drums for General MIDI percussion samples.
+    """
+    if not isinstance(plan, dict) or not isinstance(plan.get("composition"), dict):
+        raise ValueError("A valid MEHRAN composition plan is required")
+    composition = plan["composition"]
+    bpm = composition.get("tempo_bpm")
+    melody = composition.get("melody")
+    chords = composition.get("chord_progression")
+    if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
+        raise ValueError("Plan tempo must be an integer from 50 to 200 BPM")
+    if not isinstance(melody, list) or not melody or not isinstance(chords, list) or not chords:
+        raise ValueError("Plan must include melody phrases and a chord progression")
+    names = {"melody": "piano", "chords": "piano", "bass": "bass", "drums": "drums"}
+    if instruments is not None:
+        if not isinstance(instruments, dict):
+            raise ValueError("instruments must be a mapping of part names to bank slugs")
+        for part, name in instruments.items():
+            if part not in names or not isinstance(name, str) or not name:
+                raise ValueError("Unknown part or invalid instrument-bank name")
+            names[part] = name
+
+    seconds_per_tick = 60.0 / bpm / PPQ
+    events: list[dict[str, Any]] = []
+    phrase_tick = 0
+    chord_index = 0
+    previous_voicing = None
+
+    def add(part: str, note: int, start_tick: int, duration_ticks: int, velocity: int) -> None:
+        events.append({
+            "instrument": names[part],
+            "midi_note": note,
+            "start_seconds": round(start_tick * seconds_per_tick, 6),
+            "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
+            "velocity": velocity,
+        })
+
+    for phrase in melody:
+        if not isinstance(phrase, dict):
+            raise ValueError("Every melody phrase must be an object")
+        notes = phrase.get("midi_notes")
+        durations = phrase.get("note_durations_ticks")
+        bars = phrase.get("bar_count")
+        if (not isinstance(notes, list) or not notes or
+                any(isinstance(note, bool) or not isinstance(note, int) or not 48 <= note <= 96 for note in notes)):
+            raise ValueError("Every phrase needs MIDI notes from 48 to 96")
+        if (not isinstance(durations, list) or len(durations) != len(notes) or
+                any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in durations)):
+            raise ValueError("Every phrase needs positive note durations")
+        if isinstance(bars, bool) or not isinstance(bars, int) or not 1 <= bars <= 3:
+            raise ValueError("Phrase bar_count must be from 1 to 3")
+        phrase_ticks = bars * 4 * PPQ
+        if sum(durations) != phrase_ticks:
+            raise ValueError("Phrase note durations must exactly fill its bars")
+        cursor = phrase_tick
+        for note, duration in zip(notes, durations):
+            add("melody", note, cursor, max(1, int(duration * 0.88)), 88)
+            cursor += duration
+
+        for bar in range(bars):
+            bar_start = phrase_tick + bar * 4 * PPQ
+            symbol = chords[chord_index % len(chords)]
+            root_pc, _ = _parse_chord(symbol)
+            voicing = _voice_lead_chord(symbol, previous_voicing)
+            previous_voicing = voicing
+            for note in voicing:
+                add("chords", note, bar_start, 4 * PPQ - 24, 58)
+            root = 36 + root_pc
+            add("bass", root, bar_start, 2 * PPQ - 36, 82)
+            add("bass", root + 7, bar_start + 2 * PPQ, PPQ - 36, 82)
+            add("bass", root, bar_start + 3 * PPQ, PPQ - 36, 82)
+            add("drums", 36, bar_start, 48, 112)
+            add("drums", 36, bar_start + 2 * PPQ, 48, 104)
+            add("drums", 38, bar_start + PPQ, 48, 94)
+            add("drums", 38, bar_start + 3 * PPQ, 48, 100)
+            for eighth in range(8):
+                is_open_hat = phrase.get("section") == "chorus" and eighth == 7
+                add("drums", 46 if is_open_hat else 42,
+                    bar_start + eighth * (PPQ // 2), 48, 82 if is_open_hat else 72)
+            chord_index += 1
+        phrase_tick += phrase_ticks
+    if len(events) > MAX_EVENTS:
+        raise ValueError("Composition exceeds the sample renderer event limit")
+    if phrase_tick * seconds_per_tick > MAX_DURATION_SECONDS:
+        raise ValueError("Composition exceeds the 120-second sample renderer limit")
+    return events
+
+
+def render_composition_to_wav(
+    plan: dict[str, Any],
+    bank: SampleBank,
+    output_path: str | Path,
+    *,
+    instruments: dict[str, str] | None = None,
+    sample_rate: int = 44100,
+) -> dict[str, Any]:
+    """Render the current composition plan using only its recorded bank samples."""
+    events = build_composition_events(plan, instruments=instruments)
+    return render_sample_events(events, bank, output_path, sample_rate=sample_rate)
