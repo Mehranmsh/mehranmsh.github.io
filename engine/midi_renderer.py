@@ -375,10 +375,12 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         (0, 0, b"\\xff\\x51\\x03" + tempo_us.to_bytes(3, "big")),
         (0, 1, b"\\xff\\x58\\x04\\x04\\x02\\x18\\x08"),
     ], "MEHRAN Tempo")
+    melody_events.insert(0, (0, 0, bytes((0xC0, 80))))  # Lead 1 square: melody guide
     chord_events.insert(0, (0, 0, bytes((0xC1, 48))))  # String Ensemble 1
+    bass_events.insert(0, (0, 0, bytes((0xC2, 33))))  # Fingered electric bass
     guitar_events.insert(0, (0, 0, bytes((0xC3, 25))))  # Steel-string acoustic guitar
     piano_events.insert(0, (0, 0, bytes((0xC4, 0))))  # Acoustic Grand Piano
-    tracks = [conductor, _track(melody_events, "MEHRAN Melody"),
+    tracks = [conductor, _track(melody_events, "MEHRAN Melody Guide"),
               _track(chord_events, "MEHRAN Strings"),
               _track(bass_events, "MEHRAN Bass"),
               _track(drum_events, "MEHRAN Drums"),
