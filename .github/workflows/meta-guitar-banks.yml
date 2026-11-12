@@ -106,6 +106,10 @@ jobs:
           )
           selected = [event for event in events if event.get("part") in {"melody", "chords", "guitar"}]
           assert selected, "No piano/guitar composition events were planned"
+          selected_parts = {event.get("part") for event in selected}
+          selected_instruments = {event.get("instrument") for event in selected}
+          assert {"melody", "chords", "guitar"} <= selected_parts, selected_parts
+          assert {"piano", "acoustic_guitar"} <= selected_instruments, selected_instruments
           for event in selected:
               if event.get("part") == "guitar":
                   event["guitar_max_fret"] = 12
@@ -121,11 +125,24 @@ jobs:
               assert audio.getnframes() > 44100
               pcm = audio.readframes(audio.getnframes())
           assert any(pcm), "Combined piano/guitar WAV is silent"
+          import array
+          samples_pcm = array.array("h")
+          samples_pcm.frombytes(pcm)
+          peak = max(abs(value) for value in samples_pcm)
+          rms = (sum(value * value for value in samples_pcm) / len(samples_pcm)) ** 0.5
+          assert peak > 100, f"Combined WAV peak is unexpectedly quiet: {peak}"
+          assert rms > 10, f"Combined WAV RMS is unexpectedly quiet: {rms}"
+          assert report["peak_after_normalization"] > 0, report
+          assert report["clipping_samples"] == 0, report
           print("REAL_RECORDED_PIANO_GUITAR_COMPOSITION_OK", {
               "samples": len(bank.samples),
+              "parts": sorted(selected_parts),
+              "instruments": sorted(selected_instruments),
               "events": report["events_rendered"],
               "duration": report["duration_seconds"],
               "guitar_strings": len(report["guitar_string_selections"]),
+              "peak": peak,
+              "rms": round(rms, 2),
               "sample_selection": report["sample_selection"],
           })
           PY
