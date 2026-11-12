@@ -68,6 +68,55 @@ class SampleBankInstallTests(unittest.TestCase):
                 self.assertEqual(wav.getsampwidth(), 2)
                 self.assertTrue(any(wav.readframes(wav.getnframes())))
 
+    def test_installs_verified_meta_piano_bank_and_preserves_cc0_license(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "piano", root / "installed"
+            source.mkdir()
+            sample_path = source / "piano" / "sustain" / "C4.wav"
+            sample_path.parent.mkdir(parents=True)
+            with wave.open(str(sample_path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(48000)
+                wav.writeframes(b"".join(
+                    int(5000 * math.sin(2 * math.pi * 261.6 * i / 48000)).to_bytes(
+                        2, "little", signed=True
+                    ) for i in range(4800)
+                ))
+            (source / "SOURCE_LICENSE_CC0.txt").write_text(
+                "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+            )
+            session = "meta_piano_cc0"
+            (source / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "recording_sessions": {
+                    session: {"instrument_model": "Meta Piano", "performer": "Meta Audio"}
+                },
+                "samples": [{
+                    "instrument": "piano", "midi_note": 60,
+                    "velocity_min": 1, "velocity_max": 127,
+                    "articulation": "sustain",
+                    "path": "piano/sustain/C4.wav",
+                    "recording_session_id": session,
+                }],
+            }), encoding="utf-8")
+            report = install_recorded_banks([source], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(len(bank.samples), 1)
+            self.assertEqual(bank.samples[0].instrument, "piano")
+            self.assertTrue(
+                (target / "provenance" / "piano" / "SOURCE_LICENSE.txt").is_file()
+            )
+            output = root / "piano-preview.wav"
+            rendered = render_sample_events([{
+                "instrument": "piano", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.05, "velocity": 90,
+            }], bank, output, sample_rate=22050)
+            self.assertEqual(rendered["events_rendered"], 1)
+            self.assertEqual(rendered["source"], "recorded_sample_bank")
+
     def test_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
