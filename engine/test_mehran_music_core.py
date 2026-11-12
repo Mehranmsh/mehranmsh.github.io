@@ -1,0 +1,37 @@
+import unittest
+
+from mehran_music_core import analyze_lyrics, compose_plan
+
+
+class IndependentMusicCoreTests(unittest.TestCase):
+    def test_rejects_empty_lyrics(self):
+        with self.assertRaises(ValueError):
+            analyze_lyrics("  \n ")
+
+    def test_analyzes_persian_lyrics_without_external_services(self):
+        result = analyze_lyrics("دلم گرفته از این شب\nبرگرد به خانه")
+        self.assertEqual(result["language"], "fa")
+        self.assertEqual(result["line_count"], 2)
+        self.assertIn(result["mood"], {"sad", "neutral"})
+
+    def test_builds_composition_plan_and_preserves_lines(self):
+        lyrics = "دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد"
+        plan = compose_plan(lyrics, title="برگرد", target_bpm=84)
+        self.assertEqual(plan["engine"], "MEHRAN_INDEPENDENT_COMPOSITION_CORE")
+        self.assertEqual(plan["title"], "برگرد")
+        self.assertEqual(plan["composition"]["tempo_bpm"], 84)
+        self.assertEqual(len(plan["composition"]["melody"]), 4)
+        self.assertFalse(plan["audio_rendered"])
+        self.assertEqual(plan["status"], "composition_plan_only")
+
+    def test_rejects_invalid_tempo(self):
+        with self.assertRaises(ValueError):
+            compose_plan("یک شعر", target_bpm=300)
+
+    def test_deterministic_output(self):
+        lyrics = "تو در دل منی\nبهار منی"
+        self.assertEqual(compose_plan(lyrics), compose_plan(lyrics))
+
+
+if __name__ == "__main__":
+    unittest.main()
