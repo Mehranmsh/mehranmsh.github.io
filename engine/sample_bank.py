@@ -5,6 +5,8 @@ placeholder tones and does not claim to render audio.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import re
 import struct
@@ -156,6 +158,40 @@ def build_sample_recording_checklist(
         },
         "note": "Checklist targets describe planned coverage, not recordings already present.",
     }
+
+
+
+def build_sample_recording_sheet_csv(
+    catalog: dict[str, dict[str, Any]] | None = None,
+) -> str:
+    """Export planned note/velocity capture targets as an Excel-friendly CSV sheet."""
+    checklist = build_sample_recording_checklist(catalog)
+    output = io.StringIO(newline="")
+    columns = [
+        "instrument", "instrument_label", "midi_note", "velocity_layer",
+        "velocity_min", "velocity_max", "suggested_filename",
+        "recording_status", "recorded_file_path", "recording_notes",
+    ]
+    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\r\n")
+    writer.writeheader()
+    for instrument, spec in checklist["instruments"].items():
+        for target in spec["targets"]:
+            note = target["midi_note"]
+            layer = target["velocity_layer"]
+            writer.writerow({
+                "instrument": instrument,
+                "instrument_label": spec["label"],
+                "midi_note": note,
+                "velocity_layer": layer,
+                "velocity_min": target["velocity_min"],
+                "velocity_max": target["velocity_max"],
+                "suggested_filename": f"{instrument}/{note}_{layer}.wav",
+                "recording_status": "planned",
+                "recorded_file_path": "",
+                "recording_notes": "",
+            })
+    return "\\ufeff" + output.getvalue()
+
 
 
 def analyze_sample_bank_instrument_health(
