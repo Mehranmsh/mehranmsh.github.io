@@ -91,3 +91,15 @@ quarter-tone tuned. Curated modal tuning tables and instrument-specific
 recordings remain separate required work. MIDI pitch bend is applied on the
 monophonic melody channel; simultaneous independently bent notes on one
 channel are not supported by this first implementation.
+
+
+### Curated per-degree Persian tuning overrides
+
+The composition API accepts an optional `persian_degree_cents` mapping from
+scale-degree indices 0-6 to cents offsets (-100 to +100). When supplied with a
+supported `persian_dastgah`, the offsets are attached to matching melody notes
+and response-fill notes, then passed to both MIDI pitch bend and recorded-sample
+resampling. No degree offsets are assumed by default: the built-in profiles
+remain 12-TET approximations until a musician supplies or validates a tuning
+table. This keeps the engine capable of rendering curated microtonal settings
+without presenting unverified tuning values as canonical Persian practice.
