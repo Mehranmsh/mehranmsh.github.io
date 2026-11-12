@@ -166,3 +166,10 @@ Each planned melody note now carries a bounded performance profile in addition t
 The composition core assigns deterministic note-level dynamics with `natural`, `crescendo`, `decrescendo`, `arch`, and `steady` phrase curves. Each melody note carries a MIDI velocity target (1–127), a conventional dynamic mark (`pp` through `ff`), the selected curve and a decision reason. Curated Persian lexical stress can add a controlled accent only when the pronunciation lexicon supplies a trusted stress position; unknown stress remains unaccented. Phrase-final notes receive a small release reduction.
 
 Pass `dynamics_style="crescendo"` (or another supported curve) to `compose_plan`. The MIDI and recorded-sample renderers both consume the same per-note velocity target while retaining their existing beat and section shaping. The dynamics layer changes performance velocity, not the underlying recorded instrument timbre or availability of velocity-layer samples. This remains a deterministic rule-based planner, not a learned expressive-performance model.
+
+
+### Arrangement part expression and stereo placement
+
+The recorded-sample event builder now applies deterministic, section-aware stereo expression to each arrangement part. Melody, bass, kick and snare remain centered; closed hats alternate left/right; open hats and optional guitar layers receive stable positions. Chord and string width metadata follows the section arc, widening in choruses and narrowing in bridges. Existing chord-voice positions are retained and adjusted within safe pan bounds.
+
+Each sample event carries its expression profile and planner version for diagnostics. The pan value is applied by the stereo sample renderer; `stereo_width` is descriptive arrangement metadata and is not a separate DSP widening effect. This layer does not synthesize stereo recordings, replace a real instrument bank, or claim a completed mastering chain. MIDI rendering remains unchanged in this step.
