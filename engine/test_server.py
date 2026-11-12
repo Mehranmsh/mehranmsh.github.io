@@ -152,6 +152,8 @@ class StudioControlPlaneTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(denied, timeout=3)
             self.assertEqual(error.exception.code, 401)
+            error.exception.close()
+
     def test_sample_recording_requirements_endpoint_is_authenticated_and_read_only(self):
         status, report = self.request("/v1/sample-bank/requirements")
         self.assertEqual(status, 200)
