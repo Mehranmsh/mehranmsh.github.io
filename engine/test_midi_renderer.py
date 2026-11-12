@@ -364,7 +364,7 @@ class MidiRendererTests(unittest.TestCase):
             data = path.read_bytes()
         self.assertIn(bytes((0xB0, 101, 0, 0xB0, 100, 0,
                              0xB0, 6, 2, 0xB0, 38, 0)), data)
-        self.assertIn(bytes((0xE0, 0, 96)), data)
+        self.assertIn(bytes((0xE0, 0, 80)), data)
         self.assertIn("pitch_cents", result["pitch_bend_support"])
 
     def test_midi_rejects_pitch_cents_outside_configured_bend_range(self):
