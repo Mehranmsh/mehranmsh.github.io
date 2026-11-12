@@ -96,6 +96,17 @@ def _scale_velocity(velocity: int, scale: float) -> int:
     return max(1, min(127, round(velocity * scale)))
 
 
+def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
+                     section_scale: float = 1.0,
+                     is_peak: bool = False,
+                     is_cadence: bool = False) -> int:
+    """Shape melody velocity with deterministic meter, peak and cadence accents."""
+    beat = (tick_in_bar % (PPQ * 4)) // PPQ
+    beat_scale = {0: 1.08, 1: 0.96, 2: 1.03, 3: 0.97}[beat]
+    phrase_scale = (1.05 if is_peak else 1.0) * (1.03 if is_cadence else 1.0)
+    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale)
+
+
 def _section_dynamics(section: str) -> dict[str, float]:
     """Return track-level velocity multipliers for the named song section."""
     name = section.lower()
@@ -214,9 +225,14 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         section = str(phrase.get("section", "verse"))
         dynamics = _section_dynamics(section)
         cursor = phrase_start
-        for note, duration in zip(notes, durations):
+        peak_index = phrase.get("peak_note_index")
+        for note_index, (note, duration) in enumerate(zip(notes, durations)):
             gate = max(1, int(duration * 0.88))
-            melody_events.append((cursor, 2, _note_on(0, note, _scale_velocity(88, dynamics["melody"]))))
+            velocity = _melody_velocity(
+                88, cursor, section_scale=dynamics["melody"],
+                is_peak=(isinstance(peak_index, int) and note_index == peak_index),
+                is_cadence=(note_index == len(notes) - 1))
+            melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
             note_count += 1
