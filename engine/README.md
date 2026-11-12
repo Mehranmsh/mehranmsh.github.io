@@ -159,3 +159,10 @@ The renderers now consume these labels with deliberately different guarantees:\n
 ### Articulation-aware note shaping
 
 Each planned melody note now carries a bounded performance profile in addition to its sample articulation: gate_ratio controls the sounding portion of the notated duration, and release_ms controls the final fade. Short articulations receive tighter gates and releases; sustained or bowed articulations retain more of the written duration and a longer release. The MIDI renderer applies the gate to note-off timing and preserves both values in marker metadata. The recorded-sample renderer applies the same gate and uses the selected release duration for its amplitude envelope. Older plans and hand-authored events retain the previous 0.88 gate and 25 ms release defaults. These controls shape playback only; they do not manufacture missing instrument recordings or replace exact articulation sample matching.
+
+
+### Per-note musical dynamics
+
+The composition core assigns deterministic note-level dynamics with `natural`, `crescendo`, `decrescendo`, `arch`, and `steady` phrase curves. Each melody note carries a MIDI velocity target (1–127), a conventional dynamic mark (`pp` through `ff`), the selected curve and a decision reason. Curated Persian lexical stress can add a controlled accent only when the pronunciation lexicon supplies a trusted stress position; unknown stress remains unaccented. Phrase-final notes receive a small release reduction.
+
+Pass `dynamics_style="crescendo"` (or another supported curve) to `compose_plan`. The MIDI and recorded-sample renderers both consume the same per-note velocity target while retaining their existing beat and section shaping. The dynamics layer changes performance velocity, not the underlying recorded instrument timbre or availability of velocity-layer samples. This remains a deterministic rule-based planner, not a learned expressive-performance model.
