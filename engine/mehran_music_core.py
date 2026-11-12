@@ -102,10 +102,13 @@ def _chord_pitch_classes(symbol: str) -> tuple[int, ...]:
 
 
 def _melody_for_line(syllables: int, tonic: int, scale: list[int],
-                     line_index: int, chord: str) -> list[int]:
-    """Shape a phrase around its harmony and resolve its final note to a chord tone."""
+                     line_index: int, chord: str, section: str = "verse") -> list[int]:
+    """Build a section-shaped phrase with a clear peak and harmonic cadence."""
     count = max(2, min(24, syllables))
-    degrees = [0, 2, 4, 2, 1, 3, 4, 5]
+    is_chorus = "chorus" in section
+    verse_contour = [0, 2, 3, 2, 4, 3, 2, 1]
+    chorus_contour = [2, 3, 4, 5, 6, 5, 4, 3]
+    contour = chorus_contour if is_chorus else verse_contour
     chord_classes = set(_chord_pitch_classes(chord))
     scale_notes = [tonic + interval + octave
                    for octave in (0, 12, 24)
@@ -115,11 +118,18 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     if not chord_notes:
         chord_notes = scale_notes
     notes = []
+    peak_index = max(0, min(count - 1, round((count - 1) * (0.62 if is_chorus else 0.48))))
     for i in range(count):
-        degree = degrees[(i + line_index) % len(degrees)]
-        target = tonic + scale[degree % len(scale)] + (12 if i >= count - 2 and line_index % 4 == 3 else 0)
-        pool = chord_notes if i == 0 or i == count - 1 else scale_notes
+        degree = contour[(i + line_index % 3) % len(contour)]
+        lift = 12 if is_chorus and i >= max(1, count // 3) and i <= peak_index else 0
+        target = tonic + scale[degree % len(scale)] + lift
+        pool = chord_notes if i in (0, count - 1) else scale_notes
         notes.append(min(pool, key=lambda note: (abs(note - target), note)))
+    # Let the final note settle instead of leaving the phrase hanging at its peak.
+    if count >= 3 and notes[-1] > notes[-2]:
+        lower_cadences = [note for note in chord_notes if note <= notes[-2]]
+        if lower_cadences:
+            notes[-1] = min(lower_cadences, key=lambda note: (abs(note - tonic - 12), note))
     return notes
 
 
@@ -129,7 +139,7 @@ def _phrase_durations(syllables: int, note_count: int) -> tuple[int, list[int]]:
     total_ticks = bars * 4 * 480
     weights = [1.0] * note_count
     if note_count >= 2:
-        weights[-1] = 1.6
+        weights[-1] = 2.0
     weight_total = sum(weights)
     durations = [int(total_ticks * weight / weight_total) for weight in weights]
     durations[-1] += total_ticks - sum(durations)
@@ -165,7 +175,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
              if section["start_line"] <= index < section["end_line"]),
             "verse",
         )
-        notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord)
+        notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes))
         melody.append({
             "line_index": index,
@@ -177,7 +187,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "duration_ticks": bars * 4 * 480,
             "chord": chord,
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
-            "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
+            "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),\n            "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",\n            "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),\n            "cadence_note": notes[-1],
         })
     arrangement = {
         "intro": ["soft piano", "acoustic guitar"],
@@ -188,7 +198,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.3.1",
+        "engine_version": "0.4.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
