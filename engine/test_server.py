@@ -185,8 +185,8 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(report["read_only"])
         checklist = report["recording_checklist"]
         self.assertEqual(checklist["instrument_count"], 35)
-            self.assertIn("tar", checklist["instruments"])
-            self.assertIn("violin", checklist["instruments"])
+        self.assertIn("tar", checklist["instruments"])
+        self.assertIn("violin", checklist["instruments"])
         self.assertGreater(checklist["total_recording_targets"], 0)
         self.assertEqual(checklist["format_requirements"]["container"], "WAV")
         status, denied = self.request("/v1/sample-bank/requirements", token=False)
