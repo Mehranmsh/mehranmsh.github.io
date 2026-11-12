@@ -69,6 +69,19 @@ class IndependentMusicCoreTests(unittest.TestCase):
             self.assertTrue(phrase["phrase_end_is_chord_tone"])
             self.assertGreaterEqual(len(phrase["midi_notes"]), 2)
 
+    def test_punctuation_extends_phrase_ending(self):
+        from mehran_music_core import _phrase_durations
+        _, plain = _phrase_durations(4, 4, "دل من")
+        _, paused = _phrase_durations(4, 4, "دل من،")
+        self.assertGreater(paused[-1], plain[-1])
+
+    def test_word_boundaries_are_reflected_in_phrase_timing(self):
+        from mehran_music_core import _phrase_durations
+        _, durations = _phrase_durations(5, 5, "دلم گرفته")
+        self.assertEqual(len(durations), 5)
+        self.assertEqual(sum(durations) % 1920, 0)
+        self.assertGreater(durations[-1], durations[0])
+
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
