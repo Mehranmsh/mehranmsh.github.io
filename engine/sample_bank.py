@@ -434,12 +434,6 @@ def rank_sample_candidates(
     by_path = {
         item["path"]: item for item in measurements if "path" in item
     }
-    # Quality reports intentionally use relative paths to keep output portable.
-    if not by_path:
-        by_path = {
-            sample.path: item
-            for sample, item in zip(bank.samples, measurements)
-        }
     ranked = []
     penalties = {
         "silent_sample": 100,
@@ -449,15 +443,8 @@ def rank_sample_candidates(
         "loop_boundary_discontinuity": 15,
     }
     for sample in exact:
-        measurement = by_path.get(sample.path)
-        if measurement is None:
-            measurement = next(
-                item for item in measurements
-                if item["instrument"] == sample.instrument
-                and item["midi_note"] == sample.midi_note
-                and item["velocity_range"] == [sample.velocity_min, sample.velocity_max]
-                and item.get("articulation", "sustain") == sample.articulation
-            )
+        relative_path = sample.path.relative_to(bank.root).as_posix()
+        measurement = by_path[relative_path]
         warnings = list(measurement["warnings"])
         deductions = {
             warning: points for warning, points in penalties.items()
