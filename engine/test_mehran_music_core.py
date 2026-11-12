@@ -767,6 +767,18 @@ class IndependentMusicCoreTests(unittest.TestCase):
                                "pizzicato", "tremolo"})
                 self.assertTrue(note["articulation_reason"])
 
+    def test_composition_attaches_deterministic_per_note_dynamics(self):
+        plan = compose_plan("دلم گرفته از این شب\\nبرگرد به خانه", dynamics_style="crescendo")
+        composition = plan["composition"]
+        self.assertEqual(plan["engine_version"], "0.8.0")
+        self.assertEqual(composition["melody_performance"]["dynamics_style"], "crescendo")
+        for phrase in composition["melody"]:
+            for item in phrase["note_lyric_map"]:
+                self.assertTrue(1 <= item["dynamics_velocity"] <= 127)
+                self.assertIn(item["dynamic_mark"], {"pp", "p", "mp", "mf", "f", "ff"})
+        self.assertEqual(composition["melody_performance"]["dynamics_planner"],
+                         "deterministic_phrase_dynamics_v1")
+
     def test_composition_rejects_unknown_melody_instrument(self):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر کوتاه", melody_instrument="made_up")
