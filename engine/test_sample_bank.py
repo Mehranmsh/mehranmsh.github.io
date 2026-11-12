@@ -230,6 +230,29 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual((root / "piano" / "c4.wav").read_bytes(), before)
 
 
+    def test_coverage_requires_each_requested_articulation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c4_sustain.wav")
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 60,
+                "path": "piano/c4_sustain.wav", "articulation": "sustain",
+            }])
+            report = analyze_sample_bank_coverage(
+                load_sample_bank(root),
+                {"piano": {
+                    "label": "Fixture piano", "note_range": [60, 60],
+                    "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+                }},
+                {"piano": ["sustain", "staccato"]},
+            )
+            piano = report["instruments"]["piano"]
+            self.assertFalse(report["ready"])
+            self.assertEqual(report["required_requirements"], 2)
+            self.assertEqual(report["covered_requirements"], 1)
+            self.assertEqual(piano["missing_articulations"], ["staccato"])
+            self.assertEqual(piano["missing_velocity_layers"][0]["articulation"], "staccato")
+
     def test_recording_checklist_expands_note_and_velocity_targets(self):
         checklist = build_sample_recording_checklist()
         piano = checklist["instruments"]["piano"]
