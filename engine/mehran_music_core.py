@@ -143,8 +143,12 @@ def _syllables(word: str) -> int:
 
 
 def _ending(line: str) -> str:
+    """Extract a lightweight rhyme key without Persian vowel marks."""
     words = WORD_PATTERN.findall(line)
-    return words[-1][-2:] if words else ""
+    if not words:
+        return ""
+    canonical = _canonical_word(words[-1])
+    return canonical[-2:]
 
 
 def analyze_lyrics(lyrics: str) -> dict[str, Any]:
