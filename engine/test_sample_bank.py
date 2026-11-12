@@ -606,6 +606,12 @@ class SampleBankTests(unittest.TestCase):
             self.assertAlmostEqual(measured["deviation_cents"], 20.0, delta=3.0)
             self.assertFalse(measured["within_tolerance"])
             self.assertEqual(report["instrument_profiles"]["piano"]["outside_tolerance_samples"], 1)
+            ranked = rank_sample_candidates(load_sample_bank(root), "piano", 69, 80)
+            pitch = ranked["candidates"][0]["acoustic_diagnostics"]["pitch"]
+            self.assertEqual(pitch["status"], "estimated")
+            self.assertEqual(len(pitch["segment_pitch_estimates_hz"]), 3)
+            self.assertIsNotNone(pitch["pitch_stability_cents"])
+            self.assertLess(pitch["pitch_stability_cents"], 5.0)
 
     def test_tuning_analysis_skips_percussion_without_pitch_claim(self):
         with tempfile.TemporaryDirectory() as folder:
