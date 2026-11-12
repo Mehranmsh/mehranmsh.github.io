@@ -389,3 +389,24 @@ required. If automatic first-position coverage is unavailable, rendering is
 blocked with a diagnostic rather than silently choosing a distant fret or
 transposing a different string's recording. Velocity-layer blending is
 performed only among recordings from the selected string.
+
+
+## Verified CC0 guitar banks
+
+The guitar-bank bootstrap downloads the Meta Open Sound nylon and steel guitar
+collections from their upstream instrument directories. It parses the default
+playable SFZ maps, retains each physical string and recorded pitch, verifies
+every OGG against the upstream SHA256SUMS file, then converts the verified
+recording to mono PCM16 WAV at 48 kHz.
+
+- Meta Nylon Guitar: 348 recordings, with explicit `finger` and `pick`
+  articulations. The finger mode uses its dedicated full-velocity recording;
+  pick mode preserves the two overlapping velocity layers for crossfading.
+- Meta Steel Guitar: 375 recordings, with three distinct recorded velocity
+  zones and six physical string identities.
+
+Both upstream instrument directories include CC0 1.0 Universal license files.
+The build workflow publishes the verified sample banks and three real-note
+audition WAVs as a temporary CI artifact. These recordings are not committed
+to the Git repository. The renderer blocks missing exact string, note, or
+articulation coverage rather than synthesizing replacement instrument tones.
