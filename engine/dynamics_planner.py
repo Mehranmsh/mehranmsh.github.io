@@ -12,7 +12,7 @@ def _curve_velocity(index: int, count: int, curve: str, peak_index: int) -> int:
     if curve == "decrescendo": return round(104 - 42 * position)
     if curve == "arch": return round(64 + 42 * (1 - abs(2 * position - 1)))
     if curve == "steady": return 82
-    return round(72 + 16 * (1 - abs(index - peak_index) / max(1, count - 1)))
+    return 88 if index == peak_index else 84
 
 def _mark(velocity: int) -> str:
     result = "pp"
