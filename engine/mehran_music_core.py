@@ -433,6 +433,21 @@ def _phrase_durations(syllables: int, note_count: int,
     durations[-1] += total_ticks - sum(durations)
     return bars, durations
 
+def _rhythmic_value(duration_ticks: int) -> str:
+    """Label note length against the engine's 480-PPQ quarter-note grid."""
+    if duration_ticks >= 1680:
+        return "whole"
+    if duration_ticks >= 840:
+        return "half"
+    if duration_ticks >= 420:
+        return "quarter"
+    if duration_ticks >= 210:
+        return "eighth"
+    if duration_ticks >= 105:
+        return "sixteenth"
+    return "short_subdivision"
+
+
 def _phrase_pause(lyric_line: str) -> tuple[int, str]:
     """Return a conservative post-line breath in MIDI ticks from punctuation."""
     ending = lyric_line.rstrip()[-1:] if lyric_line.strip() else ""
@@ -529,6 +544,11 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             note_map["tick_start"] = note_start_tick
             note_map["tick_end"] = note_end_tick
             note_map["duration_ticks"] = note_duration
+            note_map["rhythmic_value"] = _rhythmic_value(note_duration)
+            note_map["articulation_hint"] = (
+                "sustain" if note_duration >= 840 else
+                "light" if note_duration <= 210 else "normal"
+            )
             beat_index = note_start_tick // 480
             beat_in_bar = (note_start_tick % 1920) / 480 + 1
             beat_number = int(beat_in_bar)
