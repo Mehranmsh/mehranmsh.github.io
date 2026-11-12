@@ -450,5 +450,31 @@ class MidiRendererTests(unittest.TestCase):
                     instrument_tuning_cents={"guitar": {60: 101}},
                 )
 
+
+    def test_persian_instrument_can_be_mapped_to_midi_guitar_accompaniment(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "tar-accompaniment.mid"
+            result = render_midi(
+                plan, path,
+                accompaniment_instruments={"guitar": "tar"},
+                instrument_tuning_cents={"tar": {60: 32.5}},
+            )
+            data = path.read_bytes()
+        self.assertEqual(result["accompaniment_instruments"]["guitar"], "tar")
+        channel = result["accompaniment_tuning_channels"]["guitar"]["32.5"]
+        self.assertIn(bytes((0x90 | channel, 60)), data)
+        self.assertIn(bytes((0xE0 | channel,)), data)
+
+    def test_persian_instrument_mapping_rejects_unknown_accompaniment_slot(self):
+        plan = compose_plan("یک شب آرام")
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "accompaniment_instruments"):
+                render_midi(
+                    plan, Path(folder) / "bad-slot.mid",
+                    accompaniment_instruments={"oud": "tar"},
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
