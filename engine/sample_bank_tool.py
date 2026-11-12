@@ -14,6 +14,7 @@ from typing import Any
 
 from sample_bank import (
     analyze_sample_bank_coverage,
+    analyze_recording_provenance,
     analyze_sample_bank_instrument_health,
     analyze_sample_bank_quality,
     build_sample_recording_checklist,
@@ -27,6 +28,7 @@ def inspect_sample_bank(bank_root: str | Path) -> dict[str, Any]:
     coverage = analyze_sample_bank_coverage(bank)
     quality = analyze_sample_bank_quality(bank)
     health = analyze_sample_bank_instrument_health(bank, coverage, quality)
+    provenance = analyze_recording_provenance(bank)
     ready = bool(coverage["ready"] and quality["basic_signal_checks_pass"])
     return {
         "read_only": True,
@@ -36,6 +38,7 @@ def inspect_sample_bank(bank_root: str | Path) -> dict[str, Any]:
         "coverage": coverage,
         "quality": quality,
         "instrument_health": health,
+        "recording_provenance": provenance,
         "summary": {
             "instrument_count": len(coverage["instruments"]),
             "required_targets": coverage["required_requirements"],
@@ -59,7 +62,10 @@ def export_sample_bank_progress_csv(bank_root: str | Path) -> str:
     columns = [
         "instrument", "instrument_label", "register_zone", "midi_note",
         "velocity_layer", "velocity_min", "velocity_max", "articulation",
-        "status", "sample_path",
+        "status", "sample_path", "recording_session_id",
+        "instrument_model", "instrument_serial", "performer", "tuning",
+        "reference_frequency_hz", "microphone", "microphone_position",
+        "room", "audio_interface", "preamp", "gain_db", "recorded_at", "notes",
     ]
     writer = csv.DictWriter(output, fieldnames=columns)
     writer.writeheader()
@@ -85,6 +91,8 @@ def export_sample_bank_progress_csv(bank_root: str | Path) -> str:
                 "articulation": target["articulation"],
                 "status": "recorded" if sample else "missing",
                 "sample_path": str(sample.path.relative_to(bank.root)) if sample else "",
+                "recording_session_id": sample.recording_session_id or "" if sample else "",
+                **(sample.recording_metadata if sample and sample.recording_metadata else {}),
             })
     return output.getvalue()
 
