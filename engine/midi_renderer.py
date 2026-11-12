@@ -414,6 +414,11 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                                       if note_index == len(notes) - 1 else 1.0))
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
+            lyric_map_item = lyric_map[note_index] if note_index < len(lyric_map) else {}
+            articulation = lyric_map_item.get("articulation") if isinstance(lyric_map_item, dict) else None
+            if isinstance(articulation, str) and articulation:
+                marker = f"articulation={articulation};note={note};index={note_index}".encode("ascii", "strict")
+                melody_events.append((cursor, 3, b"\\xff\\x06" + _vlq(len(marker)) + marker))
             cursor += duration
             note_count += 1
         transition = phrase.get("phrase_energy", {}).get("section_transition")
@@ -489,8 +494,14 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(midi)
+    articulation_marker_count = sum(
+        1 for _, _, message in melody_events
+        if message.startswith(b"\\xff\\x06")
+    )
     return {
         "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
+        "articulation_markers": articulation_marker_count,
+        "articulation_rendering": "MIDI marker metadata only; playback timbre depends on the instrument and player",
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
         "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
         "guitar_note_events": guitar_note_count, "piano_note_events": piano_note_count,
