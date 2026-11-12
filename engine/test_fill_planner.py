@@ -34,6 +34,27 @@ class MelodyFillPlannerTests(unittest.TestCase):
         )
         self.assertEqual(plan_melody_fill(**kwargs), plan_melody_fill(**kwargs))
 
+    def test_fill_velocity_uses_bounded_contour_from_section_level(self):
+        result = plan_melody_fill(
+            gap_start_tick=0, gap_duration_ticks=720,
+            scale_pitch_classes=[0, 2, 4, 5, 7, 9, 11],
+            chord_pitch_classes=[0, 4, 7], reference_note=60,
+            base_velocity=76,
+        )
+        velocities = [event["velocity"] for event in result["events"]]
+        self.assertEqual(velocities[0], 76)
+        self.assertEqual(velocities[1], 72)
+        self.assertTrue(all(1 <= value <= 127 for value in velocities))
+
+    def test_invalid_fill_velocity_is_rejected(self):
+        with self.assertRaises(ValueError):
+            plan_melody_fill(
+                gap_start_tick=0, gap_duration_ticks=240,
+                scale_pitch_classes=[0, 2, 4, 5, 7, 9, 11],
+                chord_pitch_classes=[0, 4, 7], reference_note=60,
+                base_velocity=128,
+            )
+
     def test_invalid_pitch_classes_are_rejected(self):
         with self.assertRaises(ValueError):
             plan_melody_fill(
