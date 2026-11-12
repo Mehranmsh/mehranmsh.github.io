@@ -7,6 +7,13 @@ from midi_renderer import PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guit
 
 
 class MidiRendererTests(unittest.TestCase):
+    def test_renderer_uses_phrase_level_cadence_chord(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        plan["composition"]["melody"][0]["chord"] = "F"
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(plan, Path(folder) / "cadence.mid")
+        self.assertEqual(result["chord_voicings"][0]["symbol"], "F")
+
     def test_renders_seven_track_standard_midi_with_arrangement(self):
         plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد",
                             title="برگرد", target_bpm=84)
