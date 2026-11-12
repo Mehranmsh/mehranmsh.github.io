@@ -28,7 +28,7 @@ class ArticulationPlannerTests(unittest.TestCase):
     def test_explicit_missing_articulation_is_blocked_not_substituted(self):
         result = choose_articulation(
             {"duration_ticks": 480, "explicit_articulation": "pizzicato"},
-            "violin", 100, available_articulations=["long_bow", "sustain"])
+            "violin", 100, available_articulations=["long_bow", "short_bow"])
         self.assertEqual(result["articulation"], "pizzicato")
         self.assertEqual(result["status"], "blocked_missing_sample")
 
