@@ -107,8 +107,21 @@ jobs:
           from sample_bank import load_sample_bank
           from sample_renderer import build_composition_events, render_sample_events
 
-          lyrics = "برگرد ای عشق، کنار من بمان\nدر این شب سرد، چراغ خانه‌مان"
-          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Test", genre="pop", target_bpm=84)
+          lyrics = "\\n".join([
+              "برگرد ای عشق، کنار من بمان",
+              "در این شب سرد، چراغ خانه‌مان",
+              "صدای باران، روی پنجره‌ها",
+              "هنوز می‌خواند، ترانه‌ی ما",
+              "قدم به قدم، به سوی روشنایی",
+              "دوباره می‌سازیم، رؤیای رهایی",
+              "اگرچه دوری، هنوز امید هست",
+              "درون این دل، صدای تو زنده است",
+              "بمان کنارم، تا صبح فردا",
+              "بخوان دوباره، از عشق و دریا",
+              "جهان اگرچه، پر از غبار است",
+              "برای قلبم، هنوز بهار است",
+          ])
+          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Extended Preview", genre="pop", target_bpm=84)
           for phrase in plan["composition"]["melody"]:
               for item in phrase.get("note_lyric_map", []):
                   if isinstance(item, dict):
@@ -122,25 +135,19 @@ jobs:
               instruments={"guitar": "acoustic_guitar"},
               response_fill_part=None,
           )
-          # Bound Python's per-sample mixing loop to a compact, audible passage.
-          # Keep the earliest five recorded events from each of the three parts.
-          preview_seconds = 6.0
-          selected = []
-          for part in ("melody", "chords", "guitar"):
-              part_events = sorted(
-                  (
-                      dict(event) for event in events
-                      if event.get("part") == part
-                      and 0 <= event.get("start_seconds", 0) < preview_seconds
-                  ),
-                  key=lambda event: event.get("start_seconds", 0),
-              )[:5]
-              selected.extend(part_events)
+          # Render a continuous 16-second passage instead of truncating the
+          # arrangement to five tiny events per part.
+          preview_seconds = 16.0
+          selected = [
+              dict(event) for event in events
+              if event.get("part") in ("melody", "chords", "guitar")
+              and 0 <= event.get("start_seconds", 0) < preview_seconds
+          ]
           for event in selected:
               remaining = preview_seconds - event["start_seconds"]
-              event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.32)
+              event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.9)
           selected = [event for event in selected if event["duration_seconds"] > 0]
-          assert selected, "No piano/guitar composition events were planned in the preview window"
+          assert len(selected) >= 40, f"Extended passage has too few events: {len(selected)}"
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "guitar"} <= selected_parts, selected_parts
@@ -157,7 +164,7 @@ jobs:
               assert audio.getnchannels() == 2
               assert audio.getsampwidth() == 2
               assert audio.getframerate() == 44100
-              assert audio.getnframes() > 44100
+              assert audio.getnframes() > 8 * 44100
               pcm = audio.readframes(audio.getnframes())
           assert any(pcm), "Combined piano/guitar WAV is silent"
           import array
@@ -173,7 +180,7 @@ jobs:
               "samples": len(bank.samples),
               "parts": sorted(selected_parts),
               "instruments": sorted(selected_instruments),
-              "events": report["events_rendered"],
+              "events": report["events_rendered"],\n              "preview_window_seconds": preview_seconds,
               "duration": report["duration_seconds"],
               "guitar_strings": len(report["guitar_string_selections"]),
               "peak": peak,
