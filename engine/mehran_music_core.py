@@ -482,6 +482,32 @@ def _phrase_durations(syllables: int, note_count: int,
                     elif any(mark in gap for mark in (",", "،")):
                         weights[boundary] *= 1.25
 
+    # Apply a restrained rhythmic lift only where lexical stress is
+    # explicitly curated. Unknown Persian stress is never inferred here.
+    if note_count >= len(words) and words and estimated_total:
+        note_cursor = 0
+        for word_index, word in enumerate(words):
+            syllable_count = estimated_counts[word_index]
+            stress_index = LEXICAL_STRESS_INDEX.get(
+                word.replace("ي", "ی").replace("ك", "ک")
+            )
+            remaining_words = len(words) - word_index - 1
+            proportional_end = round(
+                sum(estimated_counts[:word_index + 1]) * note_count / estimated_total
+            )
+            note_end = min(
+                note_count - remaining_words,
+                max(note_cursor + 1, proportional_end),
+            )
+            if stress_index is not None and syllable_count > 0:
+                word_note_count = note_end - note_cursor
+                stressed_note = note_cursor + min(
+                    word_note_count - 1,
+                    int((stress_index + 0.5) * word_note_count / syllable_count),
+                )
+                weights[stressed_note] *= 1.2
+            note_cursor = note_end
+
     if note_count >= 2:
         weights[-1] *= 1.7
         stripped = lyric_line.rstrip()
