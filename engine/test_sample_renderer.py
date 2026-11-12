@@ -630,6 +630,7 @@ class SampleRendererTests(unittest.TestCase):
 
     def test_response_fill_can_use_explicit_piano_or_strings_part(self):
         plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        plan["composition"]["melody"][0]["section"] = "chorus"
         piano = build_composition_events(plan, response_fill_part="melody")
         piano_fills = [e for e in piano if e.get("event_role") == "melodic_response_fill"]
         self.assertTrue(piano_fills)
