@@ -62,6 +62,9 @@ jobs:
               }], bank, output, sample_rate=44100)
               assert report['events_rendered'] == 1, report
               assert report['sample_selection']['guitar_string_selections'][0]['string'] == 'LowE', report
+              if articulation == 'pick':
+                  assert report['sample_selection']['equal_power_velocity_crossfade_events'] == 1, report
+                  assert report['sample_selection']['velocity_layers_rendered'] == 2, report
               with wave.open(output, 'rb') as audio:
                   assert audio.getnchannels() == 2
                   assert audio.getsampwidth() == 2
