@@ -105,6 +105,14 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
             if nylon:
                 string_name, velocity_layer, technique, note_label = match.groups()
                 articulation = technique.lower()
+                # Preserve the dedicated SFZ keyswitch modes: finger is full-range;
+                # picked layers use the pick-mode overlap (1-71 and 56-127).
+                if articulation == "finger":
+                    velocity_min, velocity_max = 1, 127
+                else:
+                    velocity_min, velocity_max = (
+                        (1, 71) if velocity_layer == "02" else (56, 127)
+                    )
             else:
                 string_name, velocity_layer, note_label = match.groups()
                 articulation = "sustain"
