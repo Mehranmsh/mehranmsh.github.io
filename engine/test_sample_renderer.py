@@ -373,6 +373,20 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(_section_kind("pre-chorus"), "pre_chorus")
         self.assertEqual(_section_kind("verse_2"), "verse")
 
+    def test_vocal_space_ducks_harmonic_layers_but_preserves_lead_and_rhythm(self):
+        plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
+        events = build_composition_events(
+            plan, instruments={"melody": "lead", "chords": "keys"})
+        lead = next(event for event in events if event["instrument"] == "lead")
+        chord = next(event for event in events if event["instrument"] == "keys")
+        bass = next(event for event in events if event["instrument"] == "electric_bass")
+        self.assertEqual(lead["vocal_space_mode"], "unaffected")
+        self.assertEqual(lead["vocal_space_gain"], 1.0)
+        self.assertEqual(chord["vocal_space_mode"], "support_under_vocal")
+        self.assertLess(chord["vocal_space_gain"], 1.0)
+        self.assertEqual(chord["vocal_space_planner"], "deterministic_vocal_space_v1")
+        self.assertEqual(bass["vocal_space_gain"], 1.0)
+
     def test_arrangement_events_include_part_expression_metadata(self):
         plan = compose_plan("دلم گرفته از این شب\\nبرگرد به خانه")
         events = build_composition_events(plan)
