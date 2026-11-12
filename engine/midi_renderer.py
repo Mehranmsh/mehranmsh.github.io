@@ -131,12 +131,14 @@ def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
                      section_scale: float = 1.0,
                      is_peak: bool = False,
                      is_cadence: bool = False,
-                     lexical_stress: bool = False) -> int:
+                     lexical_stress: bool = False,
+                     stress_beat_aligned: bool = False) -> int:
     """Shape melody velocity with meter, phrase and curated lexical-stress accents."""
     beat = (tick_in_bar % (PPQ * 4)) // PPQ
     beat_scale = {0: 1.08, 1: 0.96, 2: 1.03, 3: 0.97}[beat]
     phrase_scale = (1.05 if is_peak else 1.0) * (1.03 if is_cadence else 1.0)
-    stress_scale = 1.07 if lexical_stress else 1.0
+    stress_scale = (1.10 if stress_beat_aligned else
+                    1.07 if lexical_stress else 1.0)
     return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale * stress_scale)
 
 
@@ -376,13 +378,21 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             and item.get("is_lexically_stressed") is True
             and item.get("stress_confidence") == "curated"
         }
+        beat_aligned_stress_indices = {
+            item.get("note_index") for item in lyric_map
+            if isinstance(item, dict)
+            and item.get("is_lexically_stressed") is True
+            and item.get("stress_confidence") == "curated"
+            and item.get("stress_beat_alignment") == "aligned"
+        }
         for note_index, (note, duration) in enumerate(zip(notes, durations)):
             gate = max(1, int(duration * 0.88))
             velocity = _melody_velocity(
                 88, cursor, section_scale=dynamics["melody"],
                 is_peak=(isinstance(peak_index, int) and note_index == peak_index),
                 is_cadence=(note_index == len(notes) - 1),
-                lexical_stress=note_index in stressed_note_indices)
+                lexical_stress=note_index in stressed_note_indices,
+                stress_beat_aligned=note_index in beat_aligned_stress_indices)
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
