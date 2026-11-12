@@ -140,7 +140,7 @@ def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
     phrase_scale = (1.05 if is_peak else 1.0) * (1.03 if is_cadence else 1.0)
     stress_scale = (1.10 if stress_beat_aligned else
                     1.07 if lexical_stress else 1.0)
-    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale * stress_scale * max(0.75, min(1.0, cadence_release_scale))
+    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale * stress_scale * max(0.75, min(1.0, cadence_release_scale)))
 
 
 def _section_dynamics(section: str) -> dict[str, float]:
