@@ -342,3 +342,19 @@ python3 engine/sample_bank_preview.py sample-bank-bootstrap piano 60 sample-bank
 ```
 
 Source: [Meta Open Sound, Meta Piano](https://github.com/facebookincubator/Meta-open-sound), CC0 1.0 Universal. The downloaded OGG is SHA-256 checked against the upstream collection's `SHA256SUMS` before conversion.
+
+
+## Full 88-key CC0 Meta Piano sample bank
+
+The optional `Full CC0 Meta Piano Bank` workflow downloads the complete Meta Piano multisample set: all 88 individually recorded keys from MIDI 21 (A0) through MIDI 108 (C8), across four recorded velocity layers, for 352 source recordings. It parses the upstream SFZ map to retain the exact MIDI key and velocity bounds, verifies every OGG against the upstream SHA256SUMS file, converts each verified recording to mono 16-bit PCM WAV at 48 kHz, validates the complete MEHRAN bank, and renders a real C4 audition through the sample renderer.
+
+The full bank is published as a 30-day workflow artifact named `mehran-full-cc0-meta-piano-88-keys-4-layers`, rather than committed as hundreds of binary files to Git history. The original license, README, SFZ map, and SHA256SUMS are included in the artifact. Source collection: [Meta Open Sound / Meta Piano](https://github.com/facebookincubator/Meta-open-sound/tree/main/systems/instruments/meta-piano), licensed under CC0 1.0 Universal.
+
+Run locally with Python 3 and FFmpeg:
+
+```bash
+python3 engine/fetch_meta_piano_bank.py /path/to/sample-bank-meta-piano
+python3 engine/sample_bank_preview.py /path/to/sample-bank-meta-piano piano 60 /path/to/piano-C4-preview.wav --velocity 80 --articulation sustain
+```
+
+The source SFZ defines overlapping velocity crossfade regions. The current MEHRAN sampler retains each source region's velocity bounds and chooses a matching recorded layer, but it does not yet reproduce the SFZ equal-power crossfade curves. This is a known playback limitation, not a missing-recording claim.
