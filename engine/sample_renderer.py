@@ -302,24 +302,25 @@ def build_composition_events(
             root_pc, chord_intervals = _parse_chord(symbol)
             voicing = _voice_lead_chord(symbol, previous_voicing)
             previous_voicing = voicing
+            voice_pans = (-0.22, 0.0, 0.22) if len(voicing) == 3 else (-0.24, -0.08, 0.08, 0.24)
             if section == "bridge":
                 # Let the harmony breathe: long, quiet chord tones.
                 for voice_index, note in enumerate(voicing):
                     add("chords", note, bar_start, 4 * PPQ - 48,
                         _scaled_velocity(48, dynamics["chords"]),
-                        (-0.22, 0.0, 0.22)[voice_index])
+                        voice_pans[voice_index])
             elif section == "verse":
                 # Gentle eighth-note arpeggio, cycling through the voicing.
                 for step in range(8):
-                    voice_index = (0, 1, 2, 1, 0, 1, 2, 1)[step]
+                    voice_index = ((0, 1, 2, 1, 0, 1, 2, 1) if len(voicing) == 3 else (0, 1, 2, 3, 2, 1, 0, 1))[step]
                     add("chords", voicing[voice_index],
                         bar_start + step * (PPQ // 2), (PPQ // 2) - 18,
                         _scaled_velocity(54 if step % 2 == 0 else 46,
                                          dynamics["chords"]),
-                        (-0.18, 0.0, 0.18)[voice_index])
+                        voice_pans[voice_index])
             elif section == "pre_chorus":
                 # Quarter-note broken chords build forward motion.
-                pattern = (0, 1, 2, 1)
+                pattern = (0, 1, 2, 1) if len(voicing) == 3 else (0, 1, 2, 3)
                 for beat, voice_index in enumerate(pattern):
                     add("chords", voicing[voice_index], bar_start + beat * PPQ,
                         PPQ - 24, _scaled_velocity(56, dynamics["chords"]),
@@ -349,7 +350,7 @@ def build_composition_events(
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24,
                         _scaled_velocity(42, dynamics["chords"]),
-                        (-0.3, 0.0, 0.3)[voice_index])
+                        voice_pans[voice_index])
             if names["electric_guitar"] and phrase.get("section") == "chorus":
                 add("electric_guitar", voicing[-1], bar_start + PPQ,
                     PPQ // 2, _scaled_velocity(68, dynamics["chords"]), 0.38)
