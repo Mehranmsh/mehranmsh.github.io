@@ -69,6 +69,7 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
     nylon = instrument_id == "meta-nylon-guitar"
     velocity_min = velocity_max = None
     selected_group = False
+    master_channel = None
     mapped: dict[str, dict[str, Any]] = {}
     prefix = "INSGuitarNylon" if nylon else "INSGuitarSteel"
     pattern = (
@@ -78,10 +79,19 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
     )
     for raw_line in sfz_text.splitlines():
         line = raw_line.strip()
-        if line.startswith("<group>"):
+        if line.startswith("<master>"):
+            attrs = dict(re.findall(r"([a-z_]+)=([^\s]+)", line))
+            lochan = attrs.get("lochan", "1")
+            hichan = attrs.get("hichan", lochan)
+            master_channel = int(lochan) if lochan == hichan else None
+            selected_group = False
+            velocity_min = velocity_max = None
+        elif line.startswith("<group>"):
             attrs = dict(re.findall(r"([a-z_]+)=([^\s]+)", line))
             selected_group = (
-                attrs.get("sw_last") == "24" if nylon else "sw_last" not in attrs
+                attrs.get("sw_last") == "24"
+                if nylon
+                else master_channel == 1 and "sw_last" not in attrs
             )
             if selected_group and "lovel" in attrs and "hivel" in attrs:
                 velocity_min, velocity_max = int(attrs["lovel"]), int(attrs["hivel"])
