@@ -82,6 +82,26 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(sum(durations) % 1920, 0)
         self.assertGreater(durations[-1], durations[0])
 
+    def test_phonetic_layer_reports_written_diacritics_without_claiming_stress(self):
+        result = analyze_lyrics("مَن دِل")
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual(words[0]["explicit_short_vowel_marks"], 1)
+        self.assertEqual(words[0]["syllable_estimate"], 1)
+        self.assertEqual(words[0]["lexical_stress"], "unknown")
+        self.assertEqual(words[1]["confidence"], "low")
+
+    def test_phonetic_layer_detects_written_long_vowels(self):
+        result = analyze_lyrics("یار و روز")
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual([word["syllable_estimate"] for word in words], [1, 1, 1])
+        self.assertTrue(all(word["method"] == "written_long_vowels_only_v1" for word in words))
+
+    def test_phonetic_layer_normalizes_arabic_characters(self):
+        result = analyze_lyrics("يَك")
+        word = result["phonetic_analysis"][0]["words"][0]
+        self.assertEqual(word["word"], "یک")
+        self.assertEqual(word["explicit_short_vowel_marks"], 1)
+
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
