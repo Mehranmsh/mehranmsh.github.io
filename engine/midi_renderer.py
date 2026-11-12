@@ -157,6 +157,22 @@ def _section_dynamics(section: str) -> dict[str, float]:
     return {"melody": 0.88, "chords": 0.82, "bass": 0.86, "drums": 0.88}
 
 
+def _transition_dynamics(dynamics: dict[str, float],
+                          transition: dict[str, Any] | None,
+                          *, is_transition_bar: bool) -> dict[str, float]:
+    """Apply a subtle, bounded accompaniment lift or easing before a new section."""
+    shaped = dict(dynamics)
+    if not is_transition_bar or not isinstance(transition, dict):
+        return shaped
+    change = transition.get("energy_change")
+    if isinstance(change, bool) or not isinstance(change, (int, float)):
+        return shaped
+    anticipation = max(0.96, min(1.04, 1.0 + float(change) * 0.20))
+    for track in ("chords", "bass", "drums"):
+        shaped[track] *= anticipation
+    return shaped
+
+
 def _bass_pattern(root_pc: int, bar_start: int,
                   events: list[tuple[int, int, bytes]], *,
                   chorus: bool = False, bridge: bool = False,
@@ -400,8 +416,11 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
             note_count += 1
+        transition = phrase.get("phrase_energy", {}).get("section_transition")
         for bar in range(bars):
             bar_start = phrase_start + bar * PPQ * 4
+            bar_dynamics = _transition_dynamics(
+                dynamics, transition, is_transition_bar=(bar == bars - 1))
             phrase_chord = phrase.get("chord")
             symbol = (phrase_chord if bar == 0 and isinstance(phrase_chord, str)
                       else chords[chord_bar_index % len(chords)])
@@ -415,7 +434,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             previous_voicing = chord
             note_count += _string_pad_bar(
                 chord, bar_start, chord_events, section=section,
-                velocity_scale=dynamics["chords"])
+                velocity_scale=bar_dynamics["chords"])
             is_chorus = "chorus" in section.lower()
             is_bridge = "bridge" in section.lower()
             bass_root_pc = chord[0] % 12
@@ -428,20 +447,20 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 root_pc, bar_start, bass_events,
                 chorus=is_chorus, bridge=is_bridge, bar_index=bar,
                 third_interval=chord_intervals[1],
-                velocity_scale=dynamics["bass"],
+                velocity_scale=bar_dynamics["bass"],
                 bass_root_pc=bass_root_pc,
                 bass_third_interval=bass_intervals[0],
                 bass_fifth_interval=bass_intervals[-1])
             drum_hit_count += _drum_bar(
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
                 bar_index=bar, phrase_bars=bars,
-                velocity_scale=dynamics["drums"])
+                velocity_scale=bar_dynamics["drums"])
             guitar_note_count += _guitar_bar(
                 chord, bar_start, guitar_events, section=section,
-                velocity_scale=dynamics["chords"])
+                velocity_scale=bar_dynamics["chords"])
             piano_note_count += _piano_bar(
                 chord, bar_start, piano_events, section=section,
-                velocity_scale=dynamics["chords"])
+                velocity_scale=bar_dynamics["chords"])
             chord_bar_index += 1
         pause_ticks = phrase.get("phrase_pause_ticks", 0)
         if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
