@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
 from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
-                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health)
+                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist)
 from sample_renderer import render_composition_to_wav
 
 
@@ -129,6 +129,11 @@ class Handler(BaseHTTPRequestHandler):
                 "service": "mehran-music-studio-control",
                 "engine": engine_status(), "resources": resource_status(),
                 "external_api_calls": False, "paid_fallback": False
+            })
+        if path == "/v1/sample-bank/requirements":
+            return self.send_json(200, {
+                "recording_checklist": build_sample_recording_checklist(),
+                "read_only": True,
             })
         if path == "/v1/sample-bank/diagnostics":
             bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
