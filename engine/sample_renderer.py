@@ -207,6 +207,8 @@ def render_sample_events(
         "duration_seconds": round(frame_count / sample_rate, 3),
         "events_requested": len(checked),
         "events_rendered": rendered_events,
+        "pitch_cents_applied_events": sum(1 for item in checked if item[10] != 0.0),
+        "microtonal_pitch_offsets_rendered": rendered_events > 0 and any(item[10] != 0.0 for item in checked),
         "articulations_rendered": sorted({item[7] for item in checked}),
         "articulation_diagnostics": {
             "planner_selected": sorted({item[7] for item in checked if item[8] == "planner"}),
@@ -619,7 +621,8 @@ def build_composition_events(
                         fill["duration_ticks"], fill["velocity"], 0.18,
                         articulation=fill_articulation,
                         articulation_source="planner",
-                        release_seconds=fill["release_ms"] / 1000.0)
+                        release_seconds=fill["release_ms"] / 1000.0,
+                        pitch_cents=fill.get("pitch_cents", 0.0))
                     if len(events) > before_count:
                         events[-1]["event_role"] = fill["role"]
                         events[-1]["fill_planner"] = fill_plan["planner"]
