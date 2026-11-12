@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import struct
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -120,6 +121,70 @@ def select_sample(bank: SampleBank, instrument: str, midi_note: int,
         raise ValueError(f"No recorded sample layer for instrument: {instrument}")
     return min(candidates, key=lambda sample: (abs(sample.midi_note - midi_note),
                                                sample.midi_note))
+
+
+def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
+    """Measure recorded WAV health without pretending to judge timbre or musicianship."""
+    if not isinstance(bank, SampleBank):
+        raise ValueError("A validated SampleBank is required")
+    reports = []
+    total_samples = 0
+    total_clipped = 0
+    for sample in bank.samples:
+        count = 0
+        peak = 0
+        clipped = 0
+        sample_sum = 0
+        square_sum = 0
+        with wave.open(str(sample.path), "rb") as wav:
+            while True:
+                chunk = wav.readframes(32768)
+                if not chunk:
+                    break
+                values = struct.unpack("<" + "h" * (len(chunk) // 2), chunk)
+                count += len(values)
+                if values:
+                    peak = max(peak, max(abs(value) for value in values))
+                    clipped += sum(value in (-32768, 32767) for value in values)
+                    sample_sum += sum(values)
+                    square_sum += sum(value * value for value in values)
+        rms = (square_sum / count) ** 0.5 if count else 0.0
+        dc_offset = sample_sum / count / 32768.0 if count else 0.0
+        peak_normalized = peak / 32768.0
+        clipped_ratio = clipped / count if count else 0.0
+        warnings = []
+        if peak == 0:
+            warnings.append("silent_sample")
+        elif rms / 32768.0 < 0.005:
+            warnings.append("very_low_level")
+        if clipped:
+            warnings.append("digital_clipping")
+        if abs(dc_offset) > 0.02:
+            warnings.append("dc_offset")
+        reports.append({
+            "instrument": sample.instrument,
+            "midi_note": sample.midi_note,
+            "velocity_range": [sample.velocity_min, sample.velocity_max],
+            "duration_seconds": round(sample.frames / sample.sample_rate, 4),
+            "peak": round(peak_normalized, 5),
+            "rms": round(rms / 32768.0, 5),
+            "dc_offset": round(dc_offset, 5),
+            "clipped_samples": clipped,
+            "clipped_ratio": round(clipped_ratio, 6),
+            "warnings": warnings,
+            "basic_signal_checks_pass": not warnings,
+        })
+        total_samples += count
+        total_clipped += clipped
+    warning_count = sum(bool(item["warnings"]) for item in reports)
+    return {
+        "sample_count": len(reports),
+        "samples_with_warnings": warning_count,
+        "clipped_samples": total_clipped,
+        "basic_signal_checks_pass": warning_count == 0,
+        "measurements": reports,
+        "note": "Checks cover silence, level, clipping and DC offset only; they do not certify instrument tone, recording quality, tuning or mix readiness.",
+    }
 
 
 # Recording targets for the first practical MEHRAN instrument bank.
