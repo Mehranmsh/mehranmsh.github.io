@@ -48,7 +48,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
 
 
     def test_chorus_has_a_higher_contour_and_explicit_peak(self):
-        plan = compose_plan("دلم گرفته\\nشب سرد و خاموش\\nتو برگرد ای عشق\\nبه خانه برگرد")
+        plan = compose_plan("دلم گرفته\nشب سرد و خاموش\nتو برگرد ای عشق\nبه خانه برگرد")
         phrases = plan["composition"]["melody"]
         verse = [p for p in phrases if "chorus" not in p["section"]]
         chorus = [p for p in phrases if "chorus" in p["section"]]
@@ -63,7 +63,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         )
 
     def test_phrase_end_gets_longer_cadence(self):
-        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق")
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
             durations = phrase["note_durations_ticks"]
             self.assertGreater(durations[-1], durations[0])
