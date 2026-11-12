@@ -120,3 +120,140 @@ def select_sample(bank: SampleBank, instrument: str, midi_note: int,
         raise ValueError(f"No recorded sample layer for instrument: {instrument}")
     return min(candidates, key=lambda sample: (abs(sample.midi_note - midi_note),
                                                sample.midi_note))
+
+
+# Recording targets for the first practical MEHRAN instrument bank.
+# Notes are MIDI note numbers; velocity zones are inclusive.
+SAMPLE_INSTRUMENT_CATALOG = {
+    "piano": {
+        "label": "Acoustic grand piano",
+        "note_range": [36, 96],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 48},
+            {"name": "medium", "min": 49, "max": 88},
+            {"name": "hard", "min": 89, "max": 127},
+        ],
+    },
+    "acoustic_guitar": {
+        "label": "Steel-string acoustic guitar",
+        "note_range": [40, 88],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "electric_bass": {
+        "label": "Fingered electric bass",
+        "note_range": [28, 60],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "strings": {
+        "label": "String ensemble",
+        "note_range": [48, 84],
+        "velocity_layers": [
+            {"name": "sustain", "min": 1, "max": 127},
+        ],
+    },
+    "electric_guitar": {
+        "label": "Clean electric guitar",
+        "note_range": [40, 88],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "kick": {
+        "label": "Acoustic kick drum",
+        "note_range": [36, 36],
+        "velocity_layers": [
+            {"name": "main", "min": 1, "max": 127},
+        ],
+    },
+    "snare": {
+        "label": "Acoustic snare drum",
+        "note_range": [38, 38],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "closed_hat": {
+        "label": "Closed hi-hat",
+        "note_range": [42, 42],
+        "velocity_layers": [
+            {"name": "main", "min": 1, "max": 127},
+        ],
+    },
+    "open_hat": {
+        "label": "Open hi-hat",
+        "note_range": [46, 46],
+        "velocity_layers": [
+            {"name": "main", "min": 1, "max": 127},
+        ],
+    },
+}
+
+
+def analyze_sample_bank_coverage(
+    bank: SampleBank,
+    catalog: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Report exact recorded-note and velocity-zone coverage; never infer readiness."""
+    if not isinstance(bank, SampleBank):
+        raise ValueError("A validated SampleBank is required")
+    requirements = SAMPLE_INSTRUMENT_CATALOG if catalog is None else catalog
+    instruments: dict[str, Any] = {}
+    total_required = 0
+    total_covered = 0
+
+    for instrument, spec in requirements.items():
+        low, high = spec["note_range"]
+        layers = spec["velocity_layers"]
+        required_pairs = [
+            (note, layer["name"], layer["min"], layer["max"])
+            for note in range(low, high + 1)
+            for layer in layers
+        ]
+        recorded = [sample for sample in bank.samples if sample.instrument == instrument]
+        missing_notes = []
+        missing_layers = []
+        covered = 0
+        for note, layer_name, velocity_min, velocity_max in required_pairs:
+            matching = [
+                sample for sample in recorded
+                if sample.midi_note == note
+                and sample.velocity_min <= velocity_min
+                and sample.velocity_max >= velocity_max
+            ]
+            if matching:
+                covered += 1
+            else:
+                if note not in missing_notes:
+                    missing_notes.append(note)
+                missing_layers.append({"note": note, "layer": layer_name})
+        required = len(required_pairs)
+        total_required += required
+        total_covered += covered
+        instruments[instrument] = {
+            "label": spec["label"],
+            "note_range": [low, high],
+            "required_samples": required,
+            "covered_samples": covered,
+            "coverage_percent": round(covered * 100 / required, 2) if required else 100.0,
+            "missing_notes": missing_notes,
+            "missing_velocity_layers": missing_layers,
+            "ready": covered == required,
+        }
+
+    return {
+        "catalog_version": 1,
+        "ready": total_covered == total_required and total_required > 0,
+        "required_samples": total_required,
+        "covered_samples": total_covered,
+        "coverage_percent": round(total_covered * 100 / total_required, 2) if total_required else 0.0,
+        "instruments": instruments,
+        "note": "Coverage means recorded note/velocity assets exist; it does not certify recording quality or mixing.",
+    }
