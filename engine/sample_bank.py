@@ -118,17 +118,25 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
 
 def build_sample_recording_checklist(
     catalog: dict[str, dict[str, Any]] | None = None,
+    articulation_catalog: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Create a practical capture checklist from the required instrument catalog."""
+    """Create note, velocity and performance-technique capture targets."""
     requirements = SAMPLE_INSTRUMENT_CATALOG if catalog is None else catalog
+    articulation_requirements = (
+        SAMPLE_ARTICULATION_CATALOG if articulation_catalog is None
+        else articulation_catalog
+    )
     instruments = {}
     total_targets = 0
     for instrument, spec in requirements.items():
         low, high = spec["note_range"]
         layers = spec["velocity_layers"]
+        articulations = _articulations_for(instrument, articulation_requirements)
         targets = [
             {"midi_note": note, "velocity_layer": layer["name"],
-             "velocity_min": layer["min"], "velocity_max": layer["max"]}
+             "velocity_min": layer["min"], "velocity_max": layer["max"],
+             "articulation": articulation}
+            for articulation in articulations
             for note in range(low, high + 1)
             for layer in layers
         ]
@@ -136,21 +144,25 @@ def build_sample_recording_checklist(
         instruments[instrument] = {
             "label": spec["label"],
             "note_range": [low, high],
+            "articulations": articulations,
             "target_count": len(targets),
             "targets": targets,
             "capture_guidance": [
-                "Record one clean, isolated note for each listed target",
+                "Record every listed articulation as a distinct performance, not as an effect applied afterward",
                 "Keep microphone position and gain consistent within an instrument",
                 "Avoid clipping, background noise and unintended effects",
-                "Preserve natural attack and full decay or sustain",
-                "Document tuning, instrument, room and recording chain",
+                "Preserve the natural attack, decay, sustain and release of each technique",
+                "Document tuning, instrument, room, performer and recording chain",
                 "Use loop points only for genuinely sustained sounds and audition loop boundaries",
             ],
         }
     return {
-        "catalog_version": 1,
+        "catalog_version": 2,
         "instrument_count": len(instruments),
         "total_recording_targets": total_targets,
+        "articulation_count": sum(
+            len(item["articulations"]) for item in instruments.values()
+        ),
         "instruments": instruments,
         "format_requirements": {
             "container": "WAV",
@@ -159,37 +171,42 @@ def build_sample_recording_checklist(
             "sample_rate_hz": "8000-192000",
             "channels": [1, 2],
             "manifest": "bank.json",
+            "manifest_articulation_field": "articulation",
         },
-        "note": "Checklist targets describe planned coverage, not recordings already present.",
+        "note": "Checklist targets describe planned instrument, note, velocity and articulation coverage, not recordings already present.",
     }
 
 
 
 def build_sample_recording_sheet_csv(
     catalog: dict[str, dict[str, Any]] | None = None,
+    articulation_catalog: dict[str, list[str]] | None = None,
 ) -> str:
-    """Export planned note/velocity capture targets as an Excel-friendly CSV sheet."""
-    checklist = build_sample_recording_checklist(catalog)
+    """Export planned note, velocity and articulation targets as an Excel-friendly CSV."""
+    checklist = build_sample_recording_checklist(catalog, articulation_catalog)
     output = io.StringIO(newline="")
     columns = [
-        "instrument", "instrument_label", "midi_note", "velocity_layer",
-        "velocity_min", "velocity_max", "suggested_filename",
-        "recording_status", "recorded_file_path", "recording_notes",
+        "instrument", "instrument_label", "articulation", "midi_note",
+        "velocity_layer", "velocity_min", "velocity_max",
+        "suggested_filename", "recording_status", "recorded_file_path",
+        "recording_notes",
     ]
-    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\r\n")
+    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\\r\\n")
     writer.writeheader()
     for instrument, spec in checklist["instruments"].items():
         for target in spec["targets"]:
             note = target["midi_note"]
             layer = target["velocity_layer"]
+            articulation = target["articulation"]
             writer.writerow({
                 "instrument": instrument,
                 "instrument_label": spec["label"],
+                "articulation": articulation,
                 "midi_note": note,
                 "velocity_layer": layer,
                 "velocity_min": target["velocity_min"],
                 "velocity_max": target["velocity_max"],
-                "suggested_filename": f"{instrument}/{note}_{layer}.wav",
+                "suggested_filename": f"{instrument}/{articulation}/{note}_{layer}.wav",
                 "recording_status": "planned",
                 "recorded_file_path": "",
                 "recording_notes": "",
@@ -602,6 +619,60 @@ SAMPLE_INSTRUMENT_CATALOG = {
         "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
     },
 }
+
+
+
+SAMPLE_ARTICULATION_CATALOG = {
+    "piano": ["sustain", "staccato"],
+    "acoustic_guitar": ["fingerstyle", "pick", "palm_mute"],
+    "electric_bass": ["fingerstyle", "pick", "slap"],
+    "strings": ["sustain", "staccato", "tremolo", "pizzicato"],
+    "electric_guitar": ["sustain", "palm_mute", "harmonic", "slide"],
+    "kick": ["main"],
+    "snare": ["center_hit", "rimshot", "ghost_note"],
+    "closed_hat": ["closed_hit", "foot_closed"],
+    "open_hat": ["open_hit", "choke"],
+    "tar": ["mezrab_down", "mezrab_up", "tremolo", "vibrato"],
+    "setar": ["mezrab_down", "mezrab_up", "tremolo", "vibrato"],
+    "santur": ["soft_mallet", "hard_mallet", "roll"],
+    "ney": ["breath_attack", "sustain", "vibrato"],
+    "kamancheh": ["long_bow", "short_bow", "tremolo", "pizzicato"],
+    "oud": ["risha_down", "risha_up", "tremolo"],
+    "qanun": ["pluck", "tremolo"],
+    "daf": ["open_hit", "closed_hit", "roll"],
+    "tombak": ["tom", "bak", "roll", "riz"],
+    "violin": ["long_bow", "short_bow", "staccato", "pizzicato", "tremolo"],
+    "viola": ["long_bow", "short_bow", "staccato", "pizzicato", "tremolo"],
+    "cello": ["long_bow", "short_bow", "staccato", "pizzicato", "tremolo"],
+    "contrabass": ["long_bow", "short_bow", "pizzicato"],
+    "flute": ["breath_attack", "sustain", "staccato", "flutter_tongue"],
+    "clarinet": ["breath_attack", "sustain", "staccato", "tongued"],
+    "oboe": ["breath_attack", "sustain", "staccato"],
+    "bassoon": ["breath_attack", "sustain", "staccato"],
+    "trumpet": ["tongued", "sustain", "staccato", "mute"],
+    "trombone": ["tongued", "sustain", "staccato", "mute"],
+    "french_horn": ["sustain", "staccato", "muted"],
+    "harp": ["pluck", "harmonic", "bisbigliando"],
+    "classical_guitar": ["fingerstyle", "rest_stroke", "harmonic", "rasgueado"],
+    "mandolin": ["downstroke", "upstroke", "tremolo"],
+    "banjo": ["finger_roll", "pick", "strum"],
+    "accordion": ["bellows_attack", "sustain", "bellows_change"],
+    "harmonica": ["single_note", "chord", "bend", "vibrato"],
+}
+
+
+def _articulations_for(
+    instrument: str,
+    articulation_catalog: dict[str, list[str]],
+) -> list[str]:
+    values = articulation_catalog.get(instrument, ["sustain"])
+    if (not isinstance(values, list) or not values
+            or any(not isinstance(value, str)
+                   or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", value)
+                   for value in values)
+            or len(values) != len(set(values))):
+        raise ValueError(f"Invalid articulation requirements for instrument: {instrument}")
+    return values
 
 
 def analyze_sample_bank_coverage(
