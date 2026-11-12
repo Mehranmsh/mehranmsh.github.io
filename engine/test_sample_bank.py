@@ -590,6 +590,37 @@ class SampleBankTests(unittest.TestCase):
             self.assertGreater(windows["0_100ms"]["bucket_count"], 0)
 
 
+    def test_quality_analysis_reports_sustain_stability_windows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "violin" / "sustain.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 10000
+            values = []
+            for block in range(20):
+                amplitude = 12000 if block < 10 or block % 2 == 0 else 6000
+                values.extend(
+                    int(amplitude * math.sin(2 * math.pi * 440 * i / rate))
+                    for i in range(rate // 10)
+                )
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "violin", "midi_note": 69, "path": "violin/sustain.wav",
+            }])
+            measured = analyze_sample_bank_quality(load_sample_bank(root))["measurements"][0]
+            profile = measured["sustain_stability_profile"]
+            self.assertEqual(profile["profile_status"], "measured")
+            early = profile["windows"]["300_700ms"]
+            late = profile["windows"]["700_1500ms"]
+            self.assertLess(early["coefficient_of_variation"], 0.03)
+            self.assertGreater(late["coefficient_of_variation"], 0.1)
+            self.assertGreater(late["bucket_count"], 0)
+
+
     def test_quality_analysis_flags_active_signal_at_file_end(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
