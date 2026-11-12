@@ -234,7 +234,11 @@ precision tuner or proof of authentic instrument intonation.
 
 Quality inspection measures low-level material at the beginning and end of each
 recording, estimates attack rise (10%-90%) and release decay (90%-10%), and reports
-RMS in low-level regions. It also labels a broad envelope family (percussive,
+RMS in low-level regions. It also describes post-peak RMS decay in 0-100 ms,
+100-300 ms, and 300-700 ms windows, normalized to the maximum bucket peak.
+Short files report insufficient duration rather than fabricating missing windows.
+These windows are descriptive capture diagnostics, not instrument-specific decay
+targets or a timbre-quality score. It also labels a broad envelope family (percussive,
 plucked, bowed, or wind/bellows) for context. These measurements help locate excess
 pre-roll, tail padding, and possible room noise for human review. Family labels are
 not performance-quality grades, and a low-level region is not guaranteed to be
