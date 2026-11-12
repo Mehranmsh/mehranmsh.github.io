@@ -119,7 +119,8 @@ def choose_articulation(
                     "reason": "explicit_request_not_in_available_articulations",
                     "confidence": "high", **_performance_profile(explicit)}
         return {"articulation": explicit, "status": "planned",
-                "reason": "explicit_user_or_arranger_instruction", "confidence": "high"}
+                "reason": "explicit_user_or_arranger_instruction", "confidence": "high",
+                **_performance_profile(explicit)}
 
     beats = duration / PPQ
     previous_note = event.get("previous_note")
