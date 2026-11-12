@@ -50,3 +50,15 @@ unmapped part is skipped rather than silently replaced. Fill events carry
 articulation metadata, but still require exact matching recorded samples in the
 bank. This is planning metadata, not evidence that sample assets exist or that
 audio has rendered.
+
+
+### Persian-instrument response phrasing
+
+The response-fill planner now includes dedicated profiles for Persian tar,
+setar, santur and kamancheh. Tar and setar alternate the catalogued
+`mezrab_down` / `mezrab_up` techniques; santur uses mallet and roll
+articulations; kamancheh alternates short- and long-bow phrases. Each profile
+has a bounded register and its own note density/contour. These are exact
+articulation requests: if the matching recording is absent, the renderer
+reports the missing sample instead of substituting another technique. No
+recorded Persian-instrument assets are implied by these planner profiles.
