@@ -97,6 +97,29 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertFalse(payload["job_created"])
         self.assertFalse(payload["charged"])
 
+    def test_authenticated_compose_creates_plan_and_midi_file(self):
+        status, payload = self.request("/v1/compose", method="POST", payload={
+            "title": "برگرد", "lyrics": "دلم گرفته\\nاز این شب سرد\\nبرگرد ای عشق\\nبه خانه برگرد",
+            "genre": "pop", "bpm": 84
+        })
+        self.assertEqual(status, 201)
+        self.assertTrue(payload["composition_created"])
+        self.assertFalse(payload["audio_rendered"])
+        self.assertEqual(payload["plan"]["title"], "برگرد")
+        self.assertEqual(payload["midi"]["tracks"], 3)
+        midi_path = Path(payload["midi"]["local_path"])
+        self.assertTrue(midi_path.is_file())
+        self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
+
+    def test_compose_rejects_invalid_lyrics_and_tempo(self):
+        status, payload = self.request("/v1/compose", method="POST", payload={"lyrics": "  "})
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "invalid_lyrics")
+        status, payload = self.request("/v1/compose", method="POST",
+                                       payload={"lyrics": "یک شعر", "bpm": 999})
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "invalid_bpm")
+
     def test_authenticated_project_creation_persists(self):
         status, payload = self.request("/v1/projects", method="POST", payload={"name": "Local Demo", "kind": "song"})
         self.assertEqual(status, 201)
