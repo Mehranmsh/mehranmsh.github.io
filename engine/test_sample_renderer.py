@@ -739,6 +739,7 @@ class SampleRendererTests(unittest.TestCase):
             persian_dastgah="shur",
             persian_degree_cents={1: 50, 4: -50},
         )
+        plan["composition"]["melody"][0]["section"] = "chorus"
         plan["composition"]["melody"][0]["phrase_pause_ticks"] = 360
         events = build_composition_events(
             plan, instruments={"guitar": "tar"}, response_fill_part="guitar"
