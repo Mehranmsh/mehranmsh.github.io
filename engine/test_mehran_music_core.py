@@ -639,5 +639,28 @@ class IndependentMusicCoreTests(unittest.TestCase):
             self.assertGreater(durations[-1], durations[0])
 
 
+    def test_breath_demand_scales_with_phrase_length_and_pause(self):
+        from mehran_music_core import _breath_demand_profile
+        short = _breath_demand_profile(4, 120)
+        medium = _breath_demand_profile(8, 0)
+        long = _breath_demand_profile(12, 360)
+        very_long = _breath_demand_profile(16, 0)
+        self.assertEqual(short["level"], "low")
+        self.assertEqual(short["recovery_window"], "written_pause")
+        self.assertEqual(medium["level"], "moderate")
+        self.assertEqual(medium["recovery_window"], "next_available_gap")
+        self.assertEqual(long["support_hint"], "strong")
+        self.assertEqual(very_long["level"], "very_high")
+        self.assertEqual(long["confidence"], "syllable_estimate")
+
+    def test_composition_exposes_phrase_breath_demand(self):
+        plan = compose_plan("دلم گرفته،\\nبرگرد ای عشق؟")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["breath_demand"]["level"], "moderate")
+        self.assertEqual(phrases[0]["breath_demand"]["recovery_window"], "written_pause")
+        self.assertEqual(phrases[1]["breath_demand"]["pause_ticks"], 360)
+        self.assertEqual(phrases[1]["breath_demand"]["method"],
+                         "conservative_phrase_length_bands_v1")
+
 if __name__ == "__main__":
     unittest.main()
