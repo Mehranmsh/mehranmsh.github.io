@@ -33,6 +33,23 @@ class SampleBankTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def test_sample_selection_requires_exact_articulation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c4_sustain.wav")
+            self.write_sample(root / "piano" / "c4_staccato.wav")
+            self.write_manifest(root, [
+                {"instrument": "piano", "midi_note": 60,
+                 "path": "piano/c4_sustain.wav", "articulation": "sustain"},
+                {"instrument": "piano", "midi_note": 60,
+                 "path": "piano/c4_staccato.wav", "articulation": "staccato"},
+            ])
+            bank = load_sample_bank(root)
+            self.assertEqual(select_sample(bank, "piano", 60, 80, "sustain").articulation, "sustain")
+            self.assertEqual(select_sample(bank, "piano", 60, 80, "staccato").articulation, "staccato")
+            with self.assertRaisesRegex(ValueError, "No recorded pizzicato"):
+                select_sample(bank, "piano", 60, 80, "pizzicato")
+
     def test_loads_recorded_wav_and_selects_nearest_pitch(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
