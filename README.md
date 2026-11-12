@@ -167,3 +167,14 @@ render when any note event is outside that range. Unknown instrument registers
 remain unmodified and are reported as unknown rather than guessed. These
 catalog ranges are recording-planning targets, not universal physical limits
 for every instrument model or performer.
+
+
+## Register-zoned sample recording checklist
+
+The sample-recording checklist partitions each instrument's declared capture
+range into non-overlapping low, middle, and high zones. Single-note percussion
+targets receive a single zone. Every planned note/velocity/articulation target
+is tagged with its zone so recording sessions can be organized and reviewed
+without losing note-level coverage. These are workflow groupings within the
+catalog's planned capture range, not claims about acoustic register transitions
+or recordings already available. The checklist schema is version 3.
