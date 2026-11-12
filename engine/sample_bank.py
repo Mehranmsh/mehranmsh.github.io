@@ -23,6 +23,8 @@ class Sample:
     sample_rate: int
     channels: int
     frames: int
+    loop_start_frame: int | None = None
+    loop_end_frame: int | None = None
 
 
 @dataclass(frozen=True)
@@ -97,7 +99,8 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
         except (wave.Error, EOFError, OSError) as exc:
             raise ValueError(f"Invalid recorded WAV sample: {relative}") from exc
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
-                              velocity_max, sample_rate, channels, frames))
+                              velocity_max, sample_rate, channels, frames,
+                              loop_start, loop_end))
     return SampleBank(root, tuple(samples))
 
 
