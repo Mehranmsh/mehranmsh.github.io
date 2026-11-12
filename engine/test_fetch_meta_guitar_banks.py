@@ -48,12 +48,14 @@ class MetaGuitarMapTests(unittest.TestCase):
 
     def test_parser_rejects_filename_key_mismatch_and_duplicate_regions(self):
         mismatch = """
+<master> lochan=1 hichan=1
 <group> group=1 lovel=1 hivel=48
 <region> key=41 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg
 """
         with self.assertRaisesRegex(ValueError, "identity mismatch"):
             parse_guitar_sfz_sample_map(mismatch, "meta-steel-guitar")
         duplicate = (
+            "<master> lochan=1 hichan=1\n"
             "<group> group=1 lovel=1 hivel=48\n"
             "<region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg\n"
             "<group> group=1 lovel=49 hivel=96\n"
