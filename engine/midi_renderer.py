@@ -402,7 +402,8 @@ def _piano_bar(chord: tuple[int, ...], bar_start: int,
 def render_midi(plan: dict[str, Any], output_path: str | Path, *,
                 melody_instrument: str = "piano",
                 instrument_tuning_cents: dict[str, dict[int, float]] | None = None,
-                accompaniment_instruments: dict[str, str] | None = None) -> dict[str, Any]:
+                accompaniment_instruments: dict[str, str] | None = None,
+                accompaniment_programs: dict[str, int] | None = None) -> dict[str, Any]:
     """Render melody, chords, bass and percussion to a Standard MIDI file."""
     try:
         composition = plan["composition"]
@@ -446,6 +447,17 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
                 or not instrument.strip()):
             raise ValueError("accompaniment_instruments keys must be strings, bass, guitar or piano with non-empty instrument slugs")
         resolved_accompaniment[slot] = instrument
+    default_programs = {"strings": 48, "bass": 33, "guitar": 25, "piano": 0}
+    if accompaniment_programs is None:
+        accompaniment_programs = {}
+    if not isinstance(accompaniment_programs, dict):
+        raise ValueError("accompaniment_programs must map accompaniment slots to MIDI programs")
+    resolved_programs = dict(default_programs)
+    for slot, program in accompaniment_programs.items():
+        if (slot not in accompaniment_slots or isinstance(program, bool)
+                or not isinstance(program, int) or not 0 <= program <= 127):
+            raise ValueError("accompaniment_programs requires a valid accompaniment slot and MIDI program 0-127")
+        resolved_programs[slot] = program
     tuning_map = tuning_maps.get(melody_instrument, {})
     # Pitch bend is channel-wide. Isolate each tuning value on its own channel.
     tuning_channels = [0, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15]
@@ -659,6 +671,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
         "melody_tuning_channels": {str(cents): channel for cents, channel in channel_by_cents.items()},
         "melody_instrument": melody_instrument,
         "accompaniment_instruments": resolved_accompaniment,
+        "accompaniment_programs": resolved_programs,
         "accompaniment_tuning_channels": accompaniment_tuning_channels,
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
         "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
