@@ -40,9 +40,11 @@ class LyricLine:
 
 
 def _normalize(text: str) -> str:
+    # Normalize line endings and horizontal whitespace without flattening verses.
     text = text.replace("ي", "ی").replace("ك", "ک")
-    return re.sub(r"\s+", " ", text).strip()
-
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(re.sub(r"[ \t]+", " ", line).strip()
+                       for line in text.split("\n")).strip()
 
 def _syllables(word: str) -> int:
     # Persian short vowels are often unwritten; this is an estimate, not phonetic
