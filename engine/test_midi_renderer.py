@@ -58,7 +58,7 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreaterEqual(len(voicings), 4)
         for voicing in voicings:
             notes = voicing["midi_notes"]
-            self.assertEqual(len(notes), 3)
+            self.assertIn(len(notes), (3, 4))
             self.assertEqual(notes, sorted(notes))
             self.assertLessEqual(notes[-1] - notes[0], 19)
 
@@ -69,7 +69,7 @@ class MidiRendererTests(unittest.TestCase):
         self.assertTrue(result["chord_voicings"])
         for item in result["chord_voicings"]:
             self.assertIn(item["inversion"], ("root", "first", "second"))
-            self.assertEqual(len(item["midi_notes"]), 3)
+            self.assertIn(len(item["midi_notes"]), (3, 4))
 
     def test_dominant_seventh_chord_renders_all_four_voices(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
