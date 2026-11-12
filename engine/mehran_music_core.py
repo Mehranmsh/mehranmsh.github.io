@@ -204,7 +204,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
               for mood, keywords in MOOD_WORDS.items()}
     mood = max(counts, key=counts.get) if max(counts.values(), default=0) else "neutral"
     rhyme_analysis = []
-    rhyme_groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    rhyme_groups_by_key: dict[tuple[int, str, str], dict[str, Any]] = {}
     rhyme_labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     for index, line in enumerate(lines):
         ending_words = WORD_PATTERN.findall(line.text)
