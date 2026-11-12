@@ -103,7 +103,10 @@ class IndependentMusicCoreTests(unittest.TestCase):
         result = analyze_lyrics("یار و روز")
         words = result["phonetic_analysis"][0]["words"]
         self.assertEqual([word["syllable_estimate"] for word in words], [1, 1, 1])
-        self.assertTrue(all(word["method"] == "written_long_vowels_only_v1" for word in words))
+        by_word = {word["word"]: word for word in words}
+        self.assertEqual(by_word["یار"]["method"], "curated_lyric_pronunciation_lexicon_v1")
+        self.assertEqual(by_word["روز"]["method"], "curated_lyric_pronunciation_lexicon_v1")
+        self.assertEqual(by_word["و"]["method"], "written_long_vowels_only_v1")
 
     def test_phonetic_layer_normalizes_arabic_characters(self):
         result = analyze_lyrics("يَك")
