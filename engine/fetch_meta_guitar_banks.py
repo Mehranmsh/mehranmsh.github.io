@@ -252,6 +252,17 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
     bank = load_sample_bank(root)
     if len(bank.samples) != len(regions):
         raise ValueError(f"Validated bank should contain {len(regions)} playable regions, got {len(bank.samples)}")
+    invalid_audio = [
+        sample.path.relative_to(root).as_posix()
+        for sample in bank.samples
+        if sample.sample_rate != 48000 or sample.channels != 1
+    ]
+    if invalid_audio:
+        raise ValueError(
+            "Converted guitar WAVs must be mono PCM16 at 48 kHz; "
+            f"invalid files: {invalid_audio[:5]}"
+        )
+    unique_wav_paths = {sample.path for sample in bank.samples}
     return {
         "status": "validated",
         "instrument": "nylon_guitar" if instrument_id == "meta-nylon-guitar" else "acoustic_guitar",
@@ -266,7 +277,7 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
         "license": "CC0 1.0 Universal",
         "source": f"{SOURCE_ROOT}/{instrument_id}",
         "bank_manifest": str(root / "bank.json"),
-        "recorded_wav_bytes": sum(sample.path.stat().st_size for sample in bank.samples),
+        "recorded_wav_bytes": sum(path.stat().st_size for path in unique_wav_paths),
     }
 
 
