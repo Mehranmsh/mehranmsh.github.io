@@ -257,6 +257,24 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     return notes
 
 
+def _align_strong_beats_to_chord_tones(notes: list[int], note_map: list[dict[str, Any]],
+                                               chord: str) -> list[int]:
+    """Prefer chord tones when a melody note begins on the primary downbeat."""
+    chord_classes = set(_chord_pitch_classes(chord))
+    adjusted = list(notes)
+    for index, item in enumerate(note_map):
+        if item.get("beat_strength") != "strong":
+            continue
+        candidates = [note for note in range(55, 85)
+                      if note % 12 in chord_classes]
+        if candidates:
+            adjusted[index] = min(
+                candidates,
+                key=lambda candidate: (abs(candidate - adjusted[index]), candidate),
+            )
+    return adjusted
+
+
 def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
     """Map estimated lyric syllables onto melody notes without inventing phonemes."""
     matches = list(re.finditer(r"[\\wآ-ی]+", lyric_line, flags=re.UNICODE))
@@ -499,6 +517,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                 "secondary" if beat_number == 3 else "none"
             )
             tick_cursor = note_end_tick
+        notes = _align_strong_beats_to_chord_tones(
+            notes, lyric_alignment["note_lyric_map"], chord
+        )
         melody.append({
             "line_index": index,
             **lyric_alignment,
