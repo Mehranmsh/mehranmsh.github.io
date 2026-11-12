@@ -12,6 +12,8 @@ class FakeACEHandler(BaseHTTPRequestHandler):
     last_headers = None
     response_status = 200
     response_body = {"code": 200, "error": None, "data": {"task_id": "task_12345678", "status": "queued"}}
+    audio_response = b"RIFF-test-wav-bytes"
+    audio_content_type = "audio/wav"
 
     def log_message(self, *_args):
         return
@@ -19,6 +21,14 @@ class FakeACEHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         FakeACEHandler.last_path = self.path
         FakeACEHandler.last_headers = dict(self.headers)
+        if self.path.startswith("/v1/audio?"):
+            body = FakeACEHandler.audio_response
+            self.send_response(FakeACEHandler.response_status)
+            self.send_header("Content-Type", FakeACEHandler.audio_content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         body = json.dumps(FakeACEHandler.response_body).encode()
         self.send_response(FakeACEHandler.response_status)
         self.send_header("Content-Type", "application/json")
@@ -55,6 +65,8 @@ class ACEstepClientTests(unittest.TestCase):
     def setUp(self):
         FakeACEHandler.response_status = 200
         FakeACEHandler.response_body = {"code": 200, "error": None, "data": {"task_id": "task_12345678", "status": "queued"}}
+        FakeACEHandler.audio_response = b"RIFF-test-wav-bytes"
+        FakeACEHandler.audio_content_type = "audio/wav"
         FakeACEHandler.last_body = None
         FakeACEHandler.last_path = None
 
@@ -125,7 +137,6 @@ class ACEstepClientTests(unittest.TestCase):
             client.query_tasks(["../../outside"])
         self.assertIsNone(FakeACEHandler.last_path)
 
-
     def test_oversized_local_model_response_is_rejected(self):
         client = ACEstepLocalClient(self.url, max_response_bytes=1024)
         FakeACEHandler.response_body = {
@@ -150,6 +161,47 @@ class ACEstepClientTests(unittest.TestCase):
         client = ACEstepLocalClient(self.url)
         client.health()
         self.assertNotIn("Authorization", FakeACEHandler.last_headers)
+
+    def test_local_audio_artifact_is_downloaded_as_bytes(self):
+        client = ACEstepLocalClient(self.url, api_key="local-secret")
+        result = client.download_audio("/v1/audio?path=outputs%2Fdemo.wav")
+        self.assertEqual(result["audio"], b"RIFF-test-wav-bytes")
+        self.assertEqual(result["content_type"], "audio/wav")
+        self.assertEqual(FakeACEHandler.last_path, "/v1/audio?path=outputs%2Fdemo.wav")
+        self.assertEqual(FakeACEHandler.last_headers["Authorization"], "Bearer local-secret")
+
+    def test_audio_download_rejects_remote_or_unexpected_urls(self):
+        client = ACEstepLocalClient(self.url)
+        for value in (
+            "https://example.com/v1/audio?path=demo.wav",
+            "//example.com/v1/audio?path=demo.wav",
+            "/admin?path=demo.wav",
+            "/v1/audio",
+            "/v1/audio?path=",
+            "/v1/audio?path=a&path=b",
+            "/v1/audio?path=a#fragment",
+        ):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                client.download_audio(value)
+        self.assertIsNone(FakeACEHandler.last_path)
+
+    def test_audio_download_rejects_redirects(self):
+        client = ACEstepLocalClient(self.url)
+        FakeACEHandler.response_status = 302
+        with self.assertRaisesRegex(LocalModelError, "Redirects"):
+            client.download_audio("/v1/audio?path=demo.wav")
+
+    def test_audio_download_rejects_non_audio_content_type(self):
+        client = ACEstepLocalClient(self.url)
+        FakeACEHandler.audio_content_type = "text/html"
+        with self.assertRaisesRegex(LocalModelError, "audio content type"):
+            client.download_audio("/v1/audio?path=demo.wav")
+
+    def test_audio_download_enforces_size_limit(self):
+        client = ACEstepLocalClient(self.url, max_audio_bytes=1024)
+        FakeACEHandler.audio_response = b"x" * 2048
+        with self.assertRaisesRegex(LocalModelError, "size limit"):
+            client.download_audio("/v1/audio?path=demo.wav")
 
 
 if __name__ == "__main__":
