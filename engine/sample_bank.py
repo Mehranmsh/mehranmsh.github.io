@@ -190,7 +190,7 @@ def build_sample_recording_sheet_csv(
                 "recorded_file_path": "",
                 "recording_notes": "",
             })
-    return "\\ufeff" + output.getvalue()
+    return "\ufeff" + output.getvalue()
 
 
 
