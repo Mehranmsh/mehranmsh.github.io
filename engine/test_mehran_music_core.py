@@ -166,6 +166,15 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(all(item["syllables"] is None
                             for item in phrase["word_note_alignment"]))
 
+    def test_line_punctuation_creates_explicit_post_phrase_breath(self):
+        plan = compose_plan("دلم گرفته،\\nبرگرد ای عشق؟\\nبه خانه برگرد")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["phrase_pause_ticks"], 120)
+        self.assertEqual(phrases[0]["breath_after_phrase"], "short")
+        self.assertEqual(phrases[1]["phrase_pause_ticks"], 360)
+        self.assertEqual(phrases[1]["breath_after_phrase"], "full")
+        self.assertEqual(phrases[2]["phrase_pause_ticks"], 0)
+
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
