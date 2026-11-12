@@ -249,6 +249,10 @@ def build_composition_events(
         phrase_ticks = bars * 4 * PPQ
         if sum(durations) != phrase_ticks:
             raise ValueError("Phrase note durations must exactly fill its bars")
+        pause_ticks = phrase.get("phrase_pause_ticks", 0)
+        if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
+                or not 0 <= pause_ticks <= 960):
+            raise ValueError("phrase_pause_ticks must be an integer from 0 to 960")
         cursor = phrase_tick
         for note, duration in zip(notes, durations):
             add("melody", note, cursor, max(1, int(duration * 0.88)), 88)
@@ -292,7 +296,7 @@ def build_composition_events(
                 velocity = 82 if is_open_hat else 72
                 add(part, note, bar_start + eighth * (PPQ // 2), 48, velocity)
             chord_index += 1
-        phrase_tick += phrase_ticks
+        phrase_tick += phrase_ticks + pause_ticks
     if len(events) > MAX_EVENTS:
         raise ValueError("Composition exceeds the sample renderer event limit")
     if phrase_tick * seconds_per_tick > MAX_DURATION_SECONDS:
