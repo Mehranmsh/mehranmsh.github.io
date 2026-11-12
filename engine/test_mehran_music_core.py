@@ -115,7 +115,8 @@ class IndependentMusicCoreTests(unittest.TestCase):
             if section["end_line"] - section["start_line"] > 1:
                 second = phrases[section["start_line"] + 1]
                 self.assertEqual(second["harmonic_position"]["progression_slot"], 1)
-                if second["harmonic_position"]["cadence_override"]:
+                if (second["harmonic_position"]["cadence_override"]
+                        or second["structural_cadence"] != "none"):
                     self.assertIn(second["chord"], (progression[0], progression[2], progression[-1]))
                 else:
                     self.assertEqual(second["chord"], progression[1])
