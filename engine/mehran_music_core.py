@@ -763,7 +763,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
         raise ValueError("target_bpm must be an integer between 50 and 200")
     tonic, scale, lines = ROOTS[key], SCALES[mode], analysis["lines"]
-    modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic)
+    modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic % 12)
                      if persian_dastgah is not None else None)
     verse_end = max(1, round(len(lines) * 0.55))
     sections = [
