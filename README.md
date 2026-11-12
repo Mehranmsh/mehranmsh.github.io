@@ -141,3 +141,17 @@ MIDI easier to inspect in a DAW without pretending that the General MIDI patch
 is an authentic recording of that instrument. Non-ASCII slugs are omitted from
 the ASCII-only Standard MIDI track label; the full mapping remains available
 in the renderer result metadata.
+
+
+
+### Catalog-backed instrument register handling
+
+MIDI export now consults the sample-recording catalog for known instrument
+families and octave-folds out-of-range notes to the nearest octave-equivalent
+pitch. This preserves pitch class while keeping notes inside the catalog's
+planned capture range. The renderer reports each part's resolved range and the
+number of note-on/note-off events adjusted. Unknown instrument slugs are left
+untouched and explicitly reported as `register_not_catalogued`; the engine does
+not invent a range for them. These ranges are recording-planning targets, not a
+universal physical-instrument specification, and should be reviewed against
+the actual instrument, tuning and performer before final production.
