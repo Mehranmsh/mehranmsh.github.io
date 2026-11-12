@@ -111,3 +111,5 @@ The recording checklist and CSV sheet now expand each instrument into distinct p
 Every CSV row includes an `articulation` column, and suggested file paths are grouped by instrument and technique, for example `violin/pizzicato/60_main.wav`. The manifest's optional `articulation` field must match the requested technique exactly. Older entries default to `sustain`.
 
 Coverage diagnostics now require exact instrument, note, velocity-zone and articulation matches. A bank containing every pitch but only sustained performances will correctly remain incomplete when staccato, pizzicato or other techniques are also required. Missing articulation names are reported per instrument. The checklist is version 2; the WAV manifest remains format version 1 and is backward compatible.
+
+The authenticated exact-note preview endpoint also accepts an optional `articulation` query parameter, for example `/v1/sample-bank/preview?instrument=violin&note=60&velocity=80&articulation=pizzicato`. When omitted, it uses `sustain` for compatibility. It never previews a different articulation as a fallback.
