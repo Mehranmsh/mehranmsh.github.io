@@ -732,5 +732,21 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue(all(abs(event["pitch_cents"]) == 50.0
                             for event in melody_events))
 
+
+    def test_custom_degree_cents_are_applied_to_response_fill_events(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+            persian_degree_cents={1: 50, 4: -50},
+        )
+        plan["composition"]["melody"][0]["phrase_pause_ticks"] = 360
+        events = build_composition_events(
+            plan, instruments={"guitar": "tar"}, response_fill_part="guitar"
+        )
+        fills = [event for event in events
+                 if event.get("event_role") == "melodic_response_fill"]
+        self.assertTrue(fills)
+        self.assertTrue(any(event["pitch_cents"] != 0.0 for event in fills))
+
 if __name__ == "__main__":
     unittest.main()
