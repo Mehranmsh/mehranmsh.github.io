@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   PYTHONPATH: engine
@@ -24,6 +24,8 @@ jobs:
     steps:
       - name: Checkout MEHRAN engine
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install audio decoder
         run: |
           sudo apt-get update
@@ -52,6 +54,19 @@ jobs:
           assert any(pcm), 'Rendered preview is silent'
           print(f'REAL_SAMPLE_PREVIEW_OK frames={len(pcm)//4}')
           PY
+      - name: Commit the imported CC0 sample bank to the feature branch
+        run: |
+          git fetch origin feature/mehran-independent-music-core
+          git checkout -B feature/mehran-independent-music-core origin/feature/mehran-independent-music-core
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add sample-bank-bootstrap
+          if git diff --cached --quiet; then
+            echo 'Sample bank already imported; no commit needed.'
+          else
+            git commit -m 'Import first verified CC0 piano recording'
+            git push origin HEAD:feature/mehran-independent-music-core
+          fi
       - name: Publish sample bank and audition WAV
         uses: actions/upload-artifact@v4
         with:
