@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _section_dynamics, render_midi
+from midi_renderer import PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _parse_chord, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -70,6 +70,12 @@ class MidiRendererTests(unittest.TestCase):
         for item in result["chord_voicings"]:
             self.assertIn(item["inversion"], ("root", "first", "second"))
             self.assertIn(len(item["midi_notes"]), (3, 4))
+
+    def test_seventh_chord_qualities_have_distinct_intervals(self):
+        self.assertEqual(_parse_chord("Cmaj7")[1], (0, 4, 7, 11))
+        self.assertEqual(_parse_chord("Am7")[1], (0, 3, 7, 10))
+        self.assertEqual(_parse_chord("G7")[1], (0, 4, 7, 10))
+        self.assertEqual(_parse_chord("Bdim7")[1], (0, 3, 6, 9))
 
     def test_dominant_seventh_chord_renders_all_four_voices(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
