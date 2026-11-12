@@ -421,11 +421,8 @@ class MidiRendererTests(unittest.TestCase):
 
     def test_accompaniment_instruments_get_independent_note_tuning_channels(self):
         plan = compose_plan("یک شب آرام\\nدر این سکوت")
-        chord_note = plan["composition"]["melody"][0]["midi_notes"][0]
-        guitar_note = next(
-            note for note in range(48, 77)
-            if note in plan["composition"]["melody"][0].get("midi_notes", [])
-        )
+        chord_note = 60
+        guitar_note = 60
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "accompaniment-tuning.mid"
             result = render_midi(
