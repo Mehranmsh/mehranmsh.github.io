@@ -15,6 +15,7 @@ from typing import Any
 from sample_bank import SampleBank, select_sample
 from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
 from expression_planner import plan_part_expression
+from arrangement_planner import plan_part_arrangement
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -334,10 +335,14 @@ def build_composition_events(
             articulation: str = "sustain",
             articulation_source: str = "legacy_default",
             release_seconds: float = 0.025) -> None:
-        expression = plan_part_expression(
-            part, current_section, pan, part_event_counts[part]
-        )
+        event_index = part_event_counts[part]
         part_event_counts[part] += 1
+        arrangement = plan_part_arrangement(part, current_section, event_index)
+        if not arrangement["active"]:
+            return
+        expression = plan_part_expression(
+            part, current_section, pan, event_index
+        )
         events.append({
             "instrument": names[part],
             "articulation": articulation,
@@ -351,7 +356,11 @@ def build_composition_events(
             "stereo_width": expression["stereo_width"],
             "expression_profile": expression["profile"],
             "expression_planner": expression["planner"],
-            "gain": part_gains[part],
+            "arrangement_role": arrangement["role"],
+            "arrangement_density": arrangement["density"],
+            "arrangement_section": arrangement["section"],
+            "arrangement_planner": arrangement["planner"],
+            "gain": part_gains[part] * arrangement["gain"],
         })
 
     for phrase in melody:
