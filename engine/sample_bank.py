@@ -603,6 +603,8 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "trailing_low_level_seconds": 0.0,
             "attack_to_10_percent_seconds": None,
             "quiet_region_rms": None,
+            "ending_level_ratio": None,
+            "possible_truncated_tail": False,
             "boundary_analysis_status": "insufficient_audio",
         }
     peak = max(item[0] for item in buckets)
@@ -612,6 +614,8 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "trailing_low_level_seconds": round(sample.frames / sample.sample_rate, 4),
             "attack_to_10_percent_seconds": None,
             "quiet_region_rms": 0.0,
+            "ending_level_ratio": 0.0,
+            "possible_truncated_tail": False,
             "boundary_analysis_status": "silent",
         }
     active_threshold = max(64.0, peak * 0.01)
@@ -630,13 +634,17 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
         )
         if attack_index is not None:
             attack = round((attack_index - leading) * bucket_frames / sample.sample_rate, 4)
-    quiet = [rms for _, rms in buckets if _ <= active_threshold]
+    ending_level_ratio = buckets[-1][0] / peak
+    possible_truncated_tail = trailing == 0 and ending_level_ratio >= 0.05
+    quiet = [rms for frame_peak, rms in buckets if frame_peak <= active_threshold]
     return {
         "leading_low_level_seconds": round(leading * bucket_frames / sample.sample_rate, 4),
         "trailing_low_level_seconds": round(min(trailing * bucket_frames, sample.frames) / sample.sample_rate, 4),
         "attack_to_10_percent_seconds": attack,
         "quiet_region_rms": round((sum(value * value for value in quiet) / len(quiet)) ** 0.5 / 32768.0, 6)
         if quiet else None,
+        "ending_level_ratio": round(ending_level_ratio, 4),
+        "possible_truncated_tail": possible_truncated_tail,
         "boundary_analysis_status": "measured",
     }
 
@@ -761,7 +769,7 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         "basic_signal_checks_pass": warning_count == 0,
         "measurements": reports,
         "instrument_profiles": instrument_profiles,
-        "note": "Per-instrument profiles summarize sample-rate and channel consistency plus duration and level spread. Boundary metrics estimate low-level head/tail regions, quiet-region RMS and attack rise. They are diagnostic only: quiet regions may contain room noise, and measurements do not certify perceptual trimming, instrument tone, tuning or mix readiness.",
+        "note": "Per-instrument profiles summarize sample-rate and channel consistency plus duration and level spread. Boundary metrics estimate low-level head/tail regions, quiet-region RMS, attack rise and a possible abrupt tail. They are diagnostic only: quiet regions may contain room noise, and measurements do not certify perceptual trimming, instrument tone, tuning or mix readiness.",
     }
 
 
