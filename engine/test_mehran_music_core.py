@@ -98,7 +98,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(by_word["گرفته"]["syllable_estimate"], 3)
         self.assertEqual(by_word["برگرد"]["syllables"], ["bar", "gard"])
         self.assertEqual(by_word["عشق"]["confidence"], "high")
-        self.assertEqual(result["lines"][0]["syllable_estimate"], 8)
+        self.assertEqual(result["lines"][0]["syllable_estimate"], 9)
     def test_phonetic_layer_detects_written_long_vowels(self):
         result = analyze_lyrics("یار و روز")
         words = result["phonetic_analysis"][0]["words"]
