@@ -655,6 +655,26 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(very_long["level"], "very_high")
         self.assertEqual(long["confidence"], "syllable_estimate")
 
+    def test_phrase_energy_distinguishes_internal_section_and_song_endings(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        phrases = compose_plan(lyrics)["composition"]["melody"]
+        for index, phrase in enumerate(phrases):
+            energy = phrase["phrase_energy"]
+            if index == len(phrases) - 1:
+                self.assertEqual(energy["role"], "final_release")
+                self.assertEqual(energy["cadence_release_scale"], 0.90)
+            elif phrase["is_section_final_phrase"]:
+                self.assertEqual(energy["role"], "section_cadence")
+                self.assertEqual(energy["cadence_release_scale"], 0.97)
+            else:
+                self.assertEqual(energy["role"], "continuing")
+                self.assertEqual(energy["cadence_release_scale"], 1.0)
+
     def test_section_end_phrases_receive_breath_recovery_priority(self):
         lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
