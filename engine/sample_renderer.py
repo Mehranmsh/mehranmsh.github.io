@@ -12,7 +12,12 @@ import wave
 from pathlib import Path
 from typing import Any
 
-from sample_bank import SampleBank, rank_sample_candidates, select_sample
+from sample_bank import (
+    SampleBank,
+    analyze_sample_bank_quality,
+    rank_sample_candidates,
+    select_sample,
+)
 from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
 from expression_planner import plan_part_expression
 from arrangement_planner import plan_part_arrangement
@@ -67,6 +72,27 @@ def render_sample_events(
 
     checked = []
     end_time = 0.0
+    quality_report_cache = None
+
+    def rank_candidates(
+        selected_bank: SampleBank,
+        selected_instrument: str,
+        selected_note: int,
+        selected_velocity: int,
+        selected_articulation: str,
+    ) -> dict[str, Any]:
+        nonlocal quality_report_cache
+        if quality_report_cache is None:
+            quality_report_cache = analyze_sample_bank_quality(bank)
+        return rank_sample_candidates(
+            selected_bank,
+            selected_instrument,
+            selected_note,
+            selected_velocity,
+            selected_articulation,
+            quality_report=quality_report_cache,
+        )
+
     for event in events:
         if not isinstance(event, dict):
             raise ValueError("Each sample event must be an object")
@@ -125,7 +151,7 @@ def render_sample_events(
             if len(planned_layers) > 1:
                 # Preserve the existing technical quality gate: do not blend a
                 # layer flagged as silent or digitally clipped into a clean take.
-                candidate_report = rank_sample_candidates(
+                candidate_report = rank_candidates(
                     selection_bank, instrument, note, velocity, articulation
                 )
                 fatal_paths = {
@@ -156,7 +182,7 @@ def render_sample_events(
                 )
                 sample_selection_mode = velocity_plan["selection_mode"]
         else:
-            candidate_report = rank_sample_candidates(
+            candidate_report = rank_candidates(
                 selection_bank, instrument, note, velocity, articulation
             )
             if candidate_report["candidate_count"]:
