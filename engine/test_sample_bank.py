@@ -394,7 +394,7 @@ class SampleBankTests(unittest.TestCase):
                         {"name": "hard", "min": 65, "max": 127},
                     ],
                 },
-            })
+            }, {"piano": ["sustain"]})
             self.assertTrue(report["ready"])
             self.assertEqual(report["coverage_percent"], 100.0)
             self.assertEqual(report["recorded_samples"], 4)
