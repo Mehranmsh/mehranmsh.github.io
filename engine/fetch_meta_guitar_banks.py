@@ -310,7 +310,7 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
         "status": "validated",
         "instrument": "nylon_guitar" if instrument_id == "meta-nylon-guitar" else "acoustic_guitar",
         "sample_count": len(bank.samples),
-        "sha256_verified_files": len(verified_sources),
+        "sha256_verified_files": len(prepared),
         "playable_regions": len(samples),
         "recorded_strings": sorted({sample.string_name for sample in bank.samples}),
         "articulations": sorted({sample.articulation for sample in bank.samples}),
