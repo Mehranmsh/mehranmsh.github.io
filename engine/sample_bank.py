@@ -388,6 +388,117 @@ def analyze_sample_bank_instrument_health(
     }
 
 
+
+def rank_sample_candidates(
+    bank: SampleBank,
+    instrument: str,
+    midi_note: int,
+    velocity: int = 80,
+    articulation: str = "sustain",
+) -> dict[str, Any]:
+    """Rank only exact-note, exact-articulation, velocity-compatible recordings.
+
+    The score is a transparent technical screening aid, not a timbre or
+    musicianship rating. It never substitutes another note or articulation.
+    """
+    if not isinstance(bank, SampleBank):
+        raise ValueError("A validated SampleBank is required")
+    if not isinstance(instrument, str) or not instrument:
+        raise ValueError("instrument must be a non-empty name")
+    midi_note = _integer(midi_note, 0, 127, "midi_note")
+    velocity = _integer(velocity, 1, 127, "velocity")
+    if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
+        raise ValueError("articulation must be a lowercase slug")
+
+    exact = [
+        sample for sample in bank.samples
+        if sample.instrument == instrument
+        and sample.midi_note == midi_note
+        and sample.articulation == articulation
+        and sample.velocity_min <= velocity <= sample.velocity_max
+    ]
+    if not exact:
+        return {
+            "instrument": instrument,
+            "midi_note": midi_note,
+            "velocity": velocity,
+            "articulation": articulation,
+            "selected_sample": None,
+            "candidate_count": 0,
+            "candidates": [],
+            "selection_status": "no_exact_candidate",
+            "score_kind": "technical_screening_only",
+        }
+
+    measurements = analyze_sample_bank_quality(bank)["measurements"]
+    by_path = {
+        item["path"]: item for item in measurements if "path" in item
+    }
+    # Quality reports intentionally use relative paths to keep output portable.
+    if not by_path:
+        by_path = {
+            sample.path: item
+            for sample, item in zip(bank.samples, measurements)
+        }
+    ranked = []
+    penalties = {
+        "silent_sample": 100,
+        "digital_clipping": 40,
+        "dc_offset": 15,
+        "very_low_level": 10,
+        "loop_boundary_discontinuity": 15,
+    }
+    for sample in exact:
+        measurement = by_path.get(sample.path)
+        if measurement is None:
+            measurement = next(
+                item for item in measurements
+                if item["instrument"] == sample.instrument
+                and item["midi_note"] == sample.midi_note
+                and item["velocity_range"] == [sample.velocity_min, sample.velocity_max]
+                and item.get("articulation", "sustain") == sample.articulation
+            )
+        warnings = list(measurement["warnings"])
+        deductions = {
+            warning: points for warning, points in penalties.items()
+            if warning in warnings
+        }
+        if measurement.get("possible_truncated_tail"):
+            deductions["possible_truncated_tail"] = 20
+        score = max(0, 100 - sum(deductions.values()))
+        ranked.append({
+            "path": sample.path.relative_to(bank.root).as_posix(),
+            "instrument": sample.instrument,
+            "midi_note": sample.midi_note,
+            "velocity_range": [sample.velocity_min, sample.velocity_max],
+            "articulation": sample.articulation,
+            "score": score,
+            "warnings": warnings,
+            "score_deductions": deductions,
+            "rms": measurement["rms"],
+            "peak": measurement["peak"],
+            "dc_offset": measurement["dc_offset"],
+            "possible_truncated_tail": measurement.get("possible_truncated_tail", False),
+            "technical_checks_pass": not warnings and not measurement.get("possible_truncated_tail", False),
+        })
+    ranked.sort(key=lambda item: (-item["score"], item["path"]))
+    return {
+        "instrument": instrument,
+        "midi_note": midi_note,
+        "velocity": velocity,
+        "articulation": articulation,
+        "selected_sample": ranked[0]["path"],
+        "candidate_count": len(ranked),
+        "candidates": ranked,
+        "selection_status": "ranked_exact_candidates",
+        "score_kind": "technical_screening_only",
+        "note": (
+            "Ranking uses numerical WAV warnings and a possible-tail heuristic. "
+            "It does not judge timbre, musicality, tuning authenticity or performer quality; "
+            "the top-ranked file should be auditioned before production use."
+        ),
+    }
+
 def select_sample(bank: SampleBank, instrument: str, midi_note: int,
                   velocity: int = 80, articulation: str = "sustain") -> Sample:
     """Choose the closest recorded pitch for an exact articulation and velocity layer."""
