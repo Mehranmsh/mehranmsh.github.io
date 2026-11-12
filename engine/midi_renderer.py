@@ -218,6 +218,37 @@ def _guitar_bar(chord: tuple[int, ...], bar_start: int,
     return count
 
 
+def _string_pad_bar(chord: tuple[int, ...], bar_start: int,
+                    events: list[tuple[int, int, bytes]], *,
+                    section: str = "verse", velocity_scale: float = 1.0) -> int:
+    """Shape the string bed by section instead of repeating static piano-like chords."""
+    name = section.lower()
+    if "bridge" in name:
+        voices = (0, 2)
+        gate = PPQ * 4 - 36
+        velocity = 38
+    elif "chorus" in name:
+        voices = (0, 1, 2)
+        gate = PPQ * 4 - 48
+        velocity = 54
+    else:
+        voices = (0, 1, 2)
+        gate = PPQ * 4 - 24
+        velocity = 43
+    for voice_index in voices:
+        note = chord[voice_index]
+        events.append((bar_start, 2, _note_on(1, note,
+                                              _scale_velocity(velocity, velocity_scale))))
+        events.append((bar_start + gate, 1, _note_off(1, note)))
+    if "chorus" in name:
+        # A restrained upper octave adds lift without changing the chord identity.
+        note = chord[0] + 12
+        events.append((bar_start, 2, _note_on(1, note,
+                                              _scale_velocity(velocity - 8, velocity_scale))))
+        events.append((bar_start + gate, 1, _note_off(1, note)))
+    return len(voices) + (1 if "chorus" in name else 0)
+
+
 def _piano_bar(chord: tuple[int, ...], bar_start: int,
                events: list[tuple[int, int, bytes]], *,
                section: str = "verse", velocity_scale: float = 1.0) -> int:
@@ -312,10 +343,9 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             chord = _voice_lead_chord(symbol, previous_voicing)
             chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
             previous_voicing = chord
-            for note in chord:
-                chord_events.append((bar_start, 2, _note_on(1, note, _scale_velocity(58, dynamics["chords"]))))
-                chord_events.append((bar_start + PPQ * 4 - 24, 1, _note_off(1, note)))
-                note_count += 1
+            note_count += _string_pad_bar(
+                chord, bar_start, chord_events, section=section,
+                velocity_scale=dynamics["chords"])
             is_chorus = "chorus" in section.lower()
             is_bridge = "bridge" in section.lower()
             bass_note_count += _bass_pattern(
