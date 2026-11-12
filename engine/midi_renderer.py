@@ -63,14 +63,15 @@ def _chord_notes(symbol: str) -> tuple[int, ...]:
 
 
 def _voice_lead_chord(symbol: str, previous: tuple[int, ...] | None = None) -> tuple[int, ...]:
-    """Choose a close-position triad minimizing movement from the previous chord."""
-    pitch_classes = {note % 12 for note in _chord_notes(symbol)[:3]}
-    candidates = [note for note in range(48, 73) if note % 12 in pitch_classes]
-    voicings = [combo for combo in combinations(candidates, 3)
-                if len({note % 12 for note in combo}) == 3]
+    """Choose a close-position triad or seventh chord with minimum voice movement."""
+    pitch_classes = tuple(dict.fromkeys(note % 12 for note in _chord_notes(symbol)))
+    voice_count = len(pitch_classes)
+    candidates = [note for note in range(48, 77) if note % 12 in pitch_classes]
+    voicings = [combo for combo in combinations(candidates, voice_count)
+                if len({note % 12 for note in combo}) == voice_count]
     if not voicings:
         raise ValueError("Could not construct a chord voicing")
-    if previous is None:
+    if previous is None or len(previous) != voice_count:
         return min(voicings, key=lambda combo: (sum(abs(note - 60) for note in combo),
                                                 combo[-1] - combo[0]))
     return min(
@@ -84,16 +85,13 @@ def _voice_lead_chord(symbol: str, previous: tuple[int, ...] | None = None) -> t
 
 
 def _chord_inversion(symbol: str, voicing: tuple[int, ...]) -> str:
-    """Describe the inversion from the lowest voiced chord tone."""
+    """Describe root, first, second, or third inversion from the lowest chord tone."""
     root, intervals = _parse_chord(symbol)
     bass_pitch = voicing[0] % 12
-    chord_tones = [(root + interval) % 12 for interval in intervals[:3]]
-    if bass_pitch == chord_tones[0]:
-        return "root"
-    if bass_pitch == chord_tones[1]:
-        return "first"
-    if bass_pitch == chord_tones[2]:
-        return "second"
+    chord_tones = [(root + interval) % 12 for interval in intervals]
+    names = ("root", "first", "second", "third")
+    if bass_pitch in chord_tones:
+        return names[chord_tones.index(bass_pitch)]
     raise ValueError("Voicing bass note is not a chord tone")
 
 
