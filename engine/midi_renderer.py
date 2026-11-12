@@ -138,6 +138,46 @@ def _melody_pitch_bend_setup() -> list[tuple[int, int, bytes]]:
             for controller, value in controls]
 
 
+def _apply_instrument_tuning(
+    events: list[tuple[int, int, bytes]],
+    *,
+    instrument: str,
+    base_channel: int,
+    program: int,
+    tuning_map: dict[int, float],
+    occupied_channels: set[int],
+) -> tuple[list[tuple[int, int, bytes]], dict[str, int]]:
+    """Route one accompaniment instrument's note-specific tuning to isolated MIDI channels."""
+    if not tuning_map:
+        return events, {"0.0": base_channel}
+    channels = {0.0: base_channel}
+    output = list(events)
+    for tick, priority, message in events:
+        if len(message) < 3 or message[0] & 0xF0 not in (0x80, 0x90):
+            continue
+        note = message[1]
+        cents = round(tuning_map.get(note, 0.0), 6)
+        if cents not in channels:
+            channel = next((candidate for candidate in range(16)
+                            if candidate != 9 and candidate not in occupied_channels), None)
+            if channel is None:
+                raise ValueError(
+                    f"MIDI tuning channel capacity exhausted while tuning {instrument}; "
+                    "reduce distinct instrument tuning groups"
+                )
+            occupied_channels.add(channel)
+            channels[cents] = channel
+            output.extend(_melody_pitch_bend_setup_for_channel(channel))
+            output.append((0, 1, _pitch_bend(channel, cents)))
+            output.append((0, 0, bytes((0xC0 | channel, program))))
+        channel = channels[cents]
+        if channel != base_channel:
+            output[output.index((tick, priority, message))] = (
+                tick, priority, bytes(((message[0] & 0xF0) | channel, *message[1:]))
+            )
+    return output, {str(cents): channel for cents, channel in channels.items()}
+
+
 def _scale_velocity(velocity: int, scale: float) -> int:
     """Apply a bounded section-dynamics multiplier to a MIDI velocity."""
     return max(1, min(127, round(velocity * scale)))
@@ -381,20 +421,23 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
         raise ValueError("Plan must contain a chord progression")
     if not isinstance(melody_instrument, str) or not melody_instrument.strip():
         raise ValueError("melody_instrument must be a non-empty instrument slug")
-    tuning_map: dict[int, float] = {}
+    tuning_maps: dict[str, dict[int, float]] = {}
     if instrument_tuning_cents is not None:
         if not isinstance(instrument_tuning_cents, dict):
             raise ValueError("instrument_tuning_cents must map instrument slugs to note offsets")
-        raw_offsets = instrument_tuning_cents.get(melody_instrument, {})
-        if not isinstance(raw_offsets, dict):
-            raise ValueError("instrument tuning offsets must be a MIDI-note mapping")
-        for midi_note, cents in raw_offsets.items():
-            if (isinstance(midi_note, bool) or not isinstance(midi_note, int)
-                    or not 0 <= midi_note <= 127
-                    or isinstance(cents, bool) or not isinstance(cents, (int, float))
-                    or not math.isfinite(cents) or not -100.0 <= cents <= 100.0):
-                raise ValueError("instrument tuning offsets require MIDI notes 0-127 and finite cents from -100 to 100")
-            tuning_map[midi_note] = float(cents)
+        for instrument, raw_offsets in instrument_tuning_cents.items():
+            if not isinstance(instrument, str) or not instrument.strip() or not isinstance(raw_offsets, dict):
+                raise ValueError("instrument tuning offsets must map non-empty slugs to MIDI-note mappings")
+            checked_offsets: dict[int, float] = {}
+            for midi_note, cents in raw_offsets.items():
+                if (isinstance(midi_note, bool) or not isinstance(midi_note, int)
+                        or not 0 <= midi_note <= 127
+                        or isinstance(cents, bool) or not isinstance(cents, (int, float))
+                        or not math.isfinite(cents) or not -100.0 <= cents <= 100.0):
+                    raise ValueError("instrument tuning offsets require MIDI notes 0-127 and finite cents from -100 to 100")
+                checked_offsets[midi_note] = float(cents)
+            tuning_maps[instrument] = checked_offsets
+    tuning_map = tuning_maps.get(melody_instrument, {})
     # Pitch bend is channel-wide. Isolate each tuning value on its own channel.
     tuning_channels = [0, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15]
     channel_by_cents: dict[float, int] = {0.0: 0}
@@ -563,6 +606,28 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
     bass_events.insert(0, (0, 0, bytes((0xC2, 33))))  # Fingered electric bass
     guitar_events.insert(0, (0, 0, bytes((0xC3, 25))))  # Steel-string acoustic guitar
     piano_events.insert(0, (0, 0, bytes((0xC4, 0))))  # Acoustic Grand Piano
+    occupied_channels = {9, *channel_by_cents.values(), 1, 2, 3, 4}
+    accompaniment_tuning_channels: dict[str, dict[str, int]] = {}
+    for instrument, base_channel, program, event_list in (
+        ("strings", 1, 48, chord_events),
+        ("bass", 2, 33, bass_events),
+        ("guitar", 3, 25, guitar_events),
+        ("piano", 4, 0, piano_events),
+    ):
+        tuned, channel_map = _apply_instrument_tuning(
+            event_list, instrument=instrument, base_channel=base_channel,
+            program=program, tuning_map=tuning_maps.get(instrument, {}),
+            occupied_channels=occupied_channels,
+        )
+        if instrument == "strings":
+            chord_events = tuned
+        elif instrument == "bass":
+            bass_events = tuned
+        elif instrument == "guitar":
+            guitar_events = tuned
+        else:
+            piano_events = tuned
+        accompaniment_tuning_channels[instrument] = channel_map
     tracks = [conductor, _track(melody_events, "MEHRAN Melody Guide"),
               _track(chord_events, "MEHRAN Strings"),
               _track(bass_events, "MEHRAN Bass"),
@@ -584,6 +649,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
         "pitch_bend_support": "melody pitch_cents via isolated channel-per-tuning-group pitch bend, +/-200 cents",
         "melody_tuning_channels": {str(cents): channel for cents, channel in channel_by_cents.items()},
         "melody_instrument": melody_instrument,
+        "accompaniment_tuning_channels": accompaniment_tuning_channels,
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
         "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
         "guitar_note_events": guitar_note_count, "piano_note_events": piano_note_count,
