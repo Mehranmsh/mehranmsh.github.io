@@ -91,9 +91,29 @@ def _note_off(channel: int, note: int) -> bytes:
     return bytes((0x80 | channel, note, 0))
 
 
+def _scale_velocity(velocity: int, scale: float) -> int:
+    """Apply a bounded section-dynamics multiplier to a MIDI velocity."""
+    return max(1, min(127, round(velocity * scale)))
+
+
+def _section_dynamics(section: str) -> dict[str, float]:
+    """Return track-level velocity multipliers for the named song section."""
+    name = section.lower()
+    if "bridge" in name:
+        return {"melody": 0.88, "chords": 0.72, "bass": 0.78, "drums": 0.62}
+    if "final" in name and "chorus" in name:
+        return {"melody": 1.12, "chords": 1.18, "bass": 1.16, "drums": 1.12}
+    if "chorus" in name:
+        return {"melody": 1.08, "chords": 1.12, "bass": 1.10, "drums": 1.08}
+    if "pre_chorus" in name or "pre-chorus" in name:
+        return {"melody": 1.02, "chords": 0.96, "bass": 0.96, "drums": 0.92}
+    return {"melody": 0.88, "chords": 0.82, "bass": 0.86, "drums": 0.88}
+
+
 def _bass_pattern(root_pc: int, bar_start: int,
                   events: list[tuple[int, int, bytes]], *,
-                  chorus: bool = False, bar_index: int = 0) -> int:
+                  chorus: bool = False, bar_index: int = 0,
+                  velocity_scale: float = 1.0) -> int:
     """Create a section-aware bass pulse with restrained chorus movement."""
     root = 36 + root_pc
     fifth = root + 7
@@ -110,14 +130,15 @@ def _bass_pattern(root_pc: int, bar_start: int,
                    (PPQ * 3, root, PPQ - 36, 72)]
     for offset, note, gate, velocity in pattern:
         start = bar_start + offset
-        events.append((start, 2, _note_on(2, note, velocity)))
+        events.append((start, 2, _note_on(2, note, _scale_velocity(velocity, velocity_scale))))
         events.append((start + gate, 1, _note_off(2, note)))
     return len(pattern)
 
 
 def _drum_bar(bar_start: int, events: list[tuple[int, int, bytes]], *,
               chorus: bool = False, bridge: bool = False,
-              bar_index: int = 0, phrase_bars: int = 1) -> int:
+              bar_index: int = 0, phrase_bars: int = 1,
+              velocity_scale: float = 1.0) -> int:
     """Add distinct verse, chorus and bridge grooves plus a short phrase-end fill."""
     if bridge:
         hits = [(0, 36, 78), (PPQ * 2, 38, 68)]
@@ -141,7 +162,7 @@ def _drum_bar(bar_start: int, events: list[tuple[int, int, bytes]], *,
                      (PPQ * 3 + PPQ * 3 // 4, 47, 84)])
     for offset, note, velocity in hits:
         start = bar_start + offset
-        events.append((start, 2, _note_on(9, note, velocity)))
+        events.append((start, 2, _note_on(9, note, _scale_velocity(velocity, velocity_scale))))
         events.append((start + 48, 1, _note_off(9, note)))
     return len(hits)
 
@@ -190,10 +211,12 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 any(isinstance(d, bool) or not isinstance(d, int) or d <= 0 for d in durations) or
                 sum(durations) != phrase_ticks):
             raise ValueError("Note durations must be positive and exactly fill the phrase")
+        section = str(phrase.get("section", "verse"))
+        dynamics = _section_dynamics(section)
         cursor = phrase_start
         for note, duration in zip(notes, durations):
             gate = max(1, int(duration * 0.88))
-            melody_events.append((cursor, 2, _note_on(0, note, 88)))
+            melody_events.append((cursor, 2, _note_on(0, note, _scale_velocity(88, dynamics["melody"]))))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
             note_count += 1
@@ -205,17 +228,19 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
             previous_voicing = chord
             for note in chord:
-                chord_events.append((bar_start, 2, _note_on(1, note, 58)))
+                chord_events.append((bar_start, 2, _note_on(1, note, _scale_velocity(58, dynamics["chords"]))))
                 chord_events.append((bar_start + PPQ * 4 - 24, 1, _note_off(1, note)))
                 note_count += 1
-            is_chorus = phrase.get("section") == "chorus"
-            is_bridge = phrase.get("section") == "bridge"
+            is_chorus = "chorus" in section.lower()
+            is_bridge = "bridge" in section.lower()
             bass_note_count += _bass_pattern(
                 root_pc, bar_start, bass_events,
-                chorus=is_chorus, bar_index=bar)
+                chorus=is_chorus, bar_index=bar,
+                velocity_scale=dynamics["bass"])
             drum_hit_count += _drum_bar(
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
-                bar_index=bar, phrase_bars=bars)
+                bar_index=bar, phrase_bars=bars,
+                velocity_scale=dynamics["drums"])
             chord_bar_index += 1
         pause_ticks = phrase.get("phrase_pause_ticks", 0)
         if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
