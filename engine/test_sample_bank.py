@@ -9,6 +9,7 @@ from sample_bank import (
     SAMPLE_INSTRUMENT_CATALOG,
     analyze_sample_bank_coverage,
     analyze_sample_bank_quality,
+    analyze_sample_bank_instrument_health,
     load_sample_bank,
     select_sample,
 )
@@ -126,6 +127,34 @@ class SampleBankTests(unittest.TestCase):
             self.assertTrue(any(item["note"] == 36 and item["layer"] == "medium"
                                 for item in piano["missing_velocity_layers"]))
             self.assertIn("acoustic_guitar", report["instruments"])
+
+
+    def test_instrument_health_aggregates_coverage_signal_and_format_read_only(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c4.wav", channels=2, rate=48000)
+            self.write_sample(root / "piano" / "c4_bad.wav")
+            self.write_manifest(root, [
+                {"instrument": "piano", "midi_note": 60, "path": "piano/c4.wav",
+                 "velocity_min": 1, "velocity_max": 127},
+                {"instrument": "piano", "midi_note": 61, "path": "piano/c4_bad.wav",
+                 "velocity_min": 1, "velocity_max": 127},
+            ])
+            bank = load_sample_bank(root)
+            before = (root / "piano" / "c4.wav").read_bytes()
+            health = analyze_sample_bank_instrument_health(bank)
+            piano = health["instruments"]["piano"]
+            guitar = health["instruments"]["acoustic_guitar"]
+            self.assertTrue(health["read_only"])
+            self.assertEqual(piano["recorded_samples"], 2)
+            self.assertEqual(piano["sample_rates"], [44100, 48000])
+            self.assertEqual(piano["channel_counts"], [1, 2])
+            self.assertEqual(piano["bit_depths"], [16])
+            self.assertEqual(piano["status"], "basic_signal_checks_passed")
+            self.assertEqual(guitar["status"], "missing")
+            self.assertEqual(guitar["recorded_samples"], 0)
+            self.assertFalse(guitar["coverage_ready"])
+            self.assertEqual((root / "piano" / "c4.wav").read_bytes(), before)
 
     def test_sample_quality_diagnostics_detect_silence_clipping_and_dc_offset(self):
         with tempfile.TemporaryDirectory() as folder:
