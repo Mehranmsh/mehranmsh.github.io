@@ -106,6 +106,55 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
 
 
 
+
+def build_sample_recording_checklist(
+    catalog: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Create a practical capture checklist from the required instrument catalog."""
+    requirements = SAMPLE_INSTRUMENT_CATALOG if catalog is None else catalog
+    instruments = {}
+    total_targets = 0
+    for instrument, spec in requirements.items():
+        low, high = spec["note_range"]
+        layers = spec["velocity_layers"]
+        targets = [
+            {"midi_note": note, "velocity_layer": layer["name"],
+             "velocity_min": layer["min"], "velocity_max": layer["max"]}
+            for note in range(low, high + 1)
+            for layer in layers
+        ]
+        total_targets += len(targets)
+        instruments[instrument] = {
+            "label": spec["label"],
+            "note_range": [low, high],
+            "target_count": len(targets),
+            "targets": targets,
+            "capture_guidance": [
+                "Record one clean, isolated note for each listed target",
+                "Keep microphone position and gain consistent within an instrument",
+                "Avoid clipping, background noise and unintended effects",
+                "Preserve natural attack and full decay or sustain",
+                "Document tuning, instrument, room and recording chain",
+                "Use loop points only for genuinely sustained sounds and audition loop boundaries",
+            ],
+        }
+    return {
+        "catalog_version": 1,
+        "instrument_count": len(instruments),
+        "total_recording_targets": total_targets,
+        "instruments": instruments,
+        "format_requirements": {
+            "container": "WAV",
+            "encoding": "uncompressed PCM",
+            "bit_depth": 16,
+            "sample_rate_hz": "8000-192000",
+            "channels": [1, 2],
+            "manifest": "bank.json",
+        },
+        "note": "Checklist targets describe planned coverage, not recordings already present.",
+    }
+
+
 def analyze_sample_bank_instrument_health(
     bank: SampleBank,
     coverage: dict[str, Any] | None = None,
@@ -231,6 +280,13 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
             "midi_note": sample.midi_note,
             "velocity_range": [sample.velocity_min, sample.velocity_max],
             "duration_seconds": round(sample.frames / sample.sample_rate, 4),
+            "sample_rate": sample.sample_rate,
+            "channels": sample.channels,
+            "bit_depth": 16,
+            "loop_present": sample.loop_start_frame is not None,
+            "loop_start_frame": sample.loop_start_frame,
+            "loop_end_frame": sample.loop_end_frame,
+            "loop_duration_seconds": round((sample.loop_end_frame - sample.loop_start_frame) / sample.sample_rate, 4) if sample.loop_start_frame is not None else None,
             "peak": round(peak_normalized, 5),
             "rms": round(rms / 32768.0, 5),
             "dc_offset": round(dc_offset, 5),
