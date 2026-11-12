@@ -54,7 +54,7 @@ class MetaGuitarMapTests(unittest.TestCase):
             "<region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg\n"
             "<region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg"
         )
-        with self.assertRaisesRegex(ValueError, "Duplicate default"):
+        with self.assertRaisesRegex(ValueError, "Conflicting default"):
             parse_guitar_sfz_sample_map(duplicate, "meta-steel-guitar")
 
     def test_checksum_parser_reads_and_rejects_bad_input(self):
