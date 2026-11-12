@@ -43,7 +43,7 @@ class MidiRendererTests(unittest.TestCase):
             self.assertLessEqual(notes[-1] - notes[0], 19)
 
     def test_flat_chord_is_supported(self):
-        plan = compose_plan("فریاد خشم آتش جنگ")
+        plan = compose_plan("فریاد\nخشم\nآتش\nجنگ")
         with tempfile.TemporaryDirectory() as folder:
             result = render_midi(plan, Path(folder) / "song.mid")
         self.assertTrue(any(item["symbol"] == "Bb" for item in result["chord_voicings"]))
