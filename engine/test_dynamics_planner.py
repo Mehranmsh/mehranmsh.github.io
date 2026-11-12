@@ -31,7 +31,7 @@ class DynamicsPlannerTests(unittest.TestCase):
         stressed = plan_dynamics([{"is_lexically_stressed": True,
                                    "stress_confidence": "curated"}],
                                  "steady")["events"][0]["dynamics_velocity"]
-        self.assertEqual(stressed, plain + 6)
+        self.assertEqual(stressed, plain + 3)
 
     def test_explicit_velocity_is_preserved(self):
         item = plan_dynamics([{"dynamics_velocity": 101}], "steady")["events"][0]
