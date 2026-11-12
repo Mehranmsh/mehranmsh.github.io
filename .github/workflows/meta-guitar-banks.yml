@@ -107,7 +107,7 @@ jobs:
           from sample_bank import load_sample_bank
           from sample_renderer import build_composition_events, render_sample_events
 
-          lyrics = "\\n".join([
+          lyrics = "\n".join([
               "برگرد ای عشق، کنار من بمان",
               "در این شب سرد، چراغ خانه‌مان",
               "صدای باران، روی پنجره‌ها",
