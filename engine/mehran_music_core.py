@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from articulation_planner import plan_articulations
+from dynamics_planner import plan_dynamics
 
 PERSIAN_VOWELS = set("َُِاویآ")
 WORD_PATTERN = re.compile(r"[\wآ-ی\u064b-\u065f\u0670]+(?:\u200c[\wآ-ی\u064b-\u065f\u0670]+)*", flags=re.UNICODE)
@@ -751,7 +752,8 @@ def _harmonic_cadence(chords: tuple[str, ...], lyric_line: str) -> tuple[str | N
 def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                  target_bpm: int | None = None,
                  melody_instrument: str = "piano",
-                 articulation_style: str = "balanced") -> dict[str, Any]:
+                 articulation_style: str = "balanced",
+                 dynamics_style: str = "natural") -> dict[str, Any]:
     analysis = analyze_lyrics(lyrics)
     mood = analysis["mood"]
     chords, key, mode, suggested_bpm = PROGRESSIONS[mood]
@@ -943,6 +945,14 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             lyric_alignment["note_lyric_map"][note_index]["articulation_reason"] = item["reason"]
             lyric_alignment["note_lyric_map"][note_index]["gate_ratio"] = item["gate_ratio"]
             lyric_alignment["note_lyric_map"][note_index]["release_ms"] = item["release_ms"]
+        dynamics_plan = plan_dynamics(lyric_alignment["note_lyric_map"], curve=dynamics_style)
+        for note_index, item in enumerate(dynamics_plan["events"]):
+            lyric_alignment["note_lyric_map"][note_index].update({
+                "dynamics_velocity": item["dynamics_velocity"],
+                "dynamic_mark": item["dynamic_mark"],
+                "dynamics_curve": item["dynamics_curve"],
+                "dynamics_reason": item["dynamics_reason"],
+            })
 
         rhyme_cadence_linked = False
         if rhyme_key is not None:
@@ -1031,7 +1041,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.7.0",
+        "engine_version": "0.8.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
@@ -1046,7 +1056,10 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "melody_performance": {
                 "instrument": melody_instrument,
                 "articulation_style": articulation_style,
+                "dynamics_style": dynamics_style,
                 "planner": "deterministic_catalog_aware_v1",
+                "dynamics_planner": dynamics_plan["planner"],
+                "dynamics_event_count": dynamics_plan["event_count"],
                 "event_count": sum(len(phrase["midi_notes"]) for phrase in melody),
                 "audio_rendered": False,
             },
