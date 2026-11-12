@@ -66,6 +66,17 @@ class IndependentMusicCoreTests(unittest.TestCase):
             [0, 0, 1, 1],
         )
 
+    def test_spelling_fallback_rhyme_does_not_force_melodic_cadence(self):
+        plan = compose_plan("پرواز\nآواز")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["rhyme_cadence_group"],
+                         phrases[1]["rhyme_cadence_group"])
+        self.assertEqual(phrases[1]["rhyme_cadence_confidence"], "low")
+        self.assertFalse(phrases[0]["rhyme_cadence_linked"])
+        self.assertFalse(phrases[1]["rhyme_cadence_linked"])
+        self.assertEqual(phrases[1]["rhyme_cadence_method"],
+                         "curated_pronunciation_required")
+
     def test_repeated_stanza_rhyme_links_compatible_melodic_cadences(self):
         plan = compose_plan("خانه\nشب\nبهانه\nیار")
         phrases = plan["composition"]["melody"]
