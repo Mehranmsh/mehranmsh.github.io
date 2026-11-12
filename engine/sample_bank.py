@@ -913,8 +913,10 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
             warnings.append("loop_boundary_discontinuity")
         boundary = _analyze_sample_boundaries(sample)
         reports.append({
+            "path": sample.path.relative_to(bank.root).as_posix(),
             "instrument": sample.instrument,
             "midi_note": sample.midi_note,
+            "articulation": sample.articulation,
             "velocity_range": [sample.velocity_min, sample.velocity_max],
             "duration_seconds": round(sample.frames / sample.sample_rate, 4),
             "sample_rate": sample.sample_rate,
