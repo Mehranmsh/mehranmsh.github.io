@@ -72,6 +72,17 @@ class SampleBankTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_sample_bank(root)
 
+    def test_rejects_invalid_sustain_loop_points(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano.wav")
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 60, "path": "piano.wav",
+                "loop_start_frame": 120, "loop_end_frame": 100
+            }])
+            with self.assertRaises(ValueError):
+                load_sample_bank(root)
+
     def test_missing_instrument_sample_is_reported(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
