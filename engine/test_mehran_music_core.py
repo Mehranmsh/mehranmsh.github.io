@@ -25,7 +25,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(plan["status"], "composition_plan_only")
 
     def test_melodic_motif_restarts_at_section_boundaries(self):
-        lyrics = "\\n".join([
+        lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
             "برگرد به خانه", "هنوز چشم به راهت",
             "دلم گرفته از این شب", "صدای باران می‌آید",
