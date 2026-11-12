@@ -62,6 +62,70 @@ class SampleRendererTests(unittest.TestCase):
             self.assertEqual(result["events_rendered"], 2)
             self.assertEqual(result["source"], "recorded_sample_bank")
 
+    def test_renderer_blends_two_recorded_velocity_layers_in_overlap(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            layers = ((1, 39), (24, 71), (56, 103), (88, 127))
+            samples = []
+            for low, high in layers:
+                relative = f"piano/c4-{low}-{high}.wav"
+                self.make_wav(root / relative, rate=22050, frames=4410)
+                samples.append({
+                    "instrument": "piano", "midi_note": 60,
+                    "velocity_min": low, "velocity_max": high,
+                    "path": relative, "articulation": "sustain",
+                })
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1, "samples": samples,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "crossfade.wav"
+            result = render_sample_events([{
+                "instrument": "piano", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08,
+                "velocity": 31,
+            }], bank, output, sample_rate=22050)
+
+            self.assertEqual(result["events_rendered"], 1)
+            self.assertEqual(
+                result["sample_selection"]["equal_power_velocity_crossfade_events"], 1
+            )
+            self.assertEqual(result["sample_selection"]["velocity_layers_rendered"], 2)
+            with wave.open(str(output), "rb") as wav:
+                self.assertEqual(wav.getnchannels(), 2)
+                self.assertTrue(any(wav.readframes(wav.getnframes())))
+
+    def test_renderer_uses_one_velocity_layer_outside_overlap(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            layers = ((1, 39), (24, 71), (56, 103), (88, 127))
+            samples = []
+            for low, high in layers:
+                relative = f"piano/c4-{low}-{high}.wav"
+                self.make_wav(root / relative, rate=22050, frames=4410)
+                samples.append({
+                    "instrument": "piano", "midi_note": 60,
+                    "velocity_min": low, "velocity_max": high,
+                    "path": relative, "articulation": "sustain",
+                })
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1, "samples": samples,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "single-layer.wav"
+            result = render_sample_events([{
+                "instrument": "piano", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08,
+                "velocity": 12,
+            }], bank, output, sample_rate=22050)
+
+            self.assertEqual(
+                result["sample_selection"]["equal_power_velocity_crossfade_events"], 0
+            )
+            self.assertEqual(result["sample_selection"]["velocity_layers_rendered"], 1)
+
     def test_mix_attenuates_overloads_to_the_configured_peak_ceiling(self):
         import array
         from sample_renderer import MAX_PEAK
