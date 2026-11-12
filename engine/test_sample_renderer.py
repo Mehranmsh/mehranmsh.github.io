@@ -30,12 +30,12 @@ class SampleRendererTests(unittest.TestCase):
 
     def make_bank(self, root):
         self.make_wav(root / "piano" / "c4.wav")
-        self.make_wav(root / "bass" / "c3.wav", channels=2)
+        self.make_wav(root / "electric_bass" / "c3.wav", channels=2)
         (root / "bank.json").write_text(json.dumps({
             "format_version": 1,
             "samples": [
                 {"instrument": "piano", "midi_note": 60, "path": "piano/c4.wav"},
-                {"instrument": "bass", "midi_note": 48, "path": "bass/c3.wav"}
+                {"instrument": "electric_bass", "midi_note": 48, "path": "electric_bass/c3.wav"}
             ]
         }), encoding="utf-8")
         return load_sample_bank(root)
@@ -49,7 +49,7 @@ class SampleRendererTests(unittest.TestCase):
             result = render_sample_events([
                 {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
                  "duration_seconds": 0.08, "velocity": 100},
-                {"instrument": "bass", "midi_note": 48, "start_seconds": 0.02,
+                {"instrument": "electric_bass", "midi_note": 48, "start_seconds": 0.02,
                  "duration_seconds": 0.08, "velocity": 85},
             ], bank, output, sample_rate=22050)
             with wave.open(str(output), "rb") as wav:
@@ -65,7 +65,7 @@ class SampleRendererTests(unittest.TestCase):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         events = build_composition_events(plan)
         parts = {event["instrument"] for event in events}
-        self.assertEqual(parts, {"piano", "bass", "drums"})
+        self.assertEqual(parts, {"piano", "electric_bass", "kick", "snare", "closed_hat", "open_hat"})
         self.assertGreater(len(events), len(plan["composition"]["melody"]))
         pans = {event.get("pan", 0.0) for event in events}
         self.assertIn(-0.22, pans)
@@ -83,14 +83,18 @@ class SampleRendererTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
             root.mkdir()
-            for instrument, note in (("piano", 60), ("bass", 48), ("drums", 42)):
+            for instrument, note in (("piano", 60), ("electric_bass", 48),
+                                     ("kick", 36), ("snare", 38),
+                                     ("closed_hat", 42), ("open_hat", 46)):
                 self.make_wav(root / instrument / "sample.wav", frames=11025)
             (root / "bank.json").write_text(json.dumps({
                 "format_version": 1,
                 "samples": [
                     {"instrument": instrument, "midi_note": note,
                      "path": instrument + "/sample.wav"}
-                    for instrument, note in (("piano", 60), ("bass", 48), ("drums", 42))
+                    for instrument, note in (("piano", 60), ("electric_bass", 48),
+                                              ("kick", 36), ("snare", 38),
+                                              ("closed_hat", 42), ("open_hat", 46))
                 ]
             }), encoding="utf-8")
             bank = load_sample_bank(root)
