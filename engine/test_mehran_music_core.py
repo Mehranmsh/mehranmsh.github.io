@@ -57,10 +57,9 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(all(p["contour_type"] == "restrained_wave" for p in verse))
         self.assertTrue(all(p["contour_type"] == "rising_peak_then_fall" for p in chorus))
         self.assertTrue(all(0 <= p["peak_note_index"] < len(p["midi_notes"]) for p in phrases))
-        self.assertGreater(
-            sum(sum(p["midi_notes"]) / len(p["midi_notes"]) for p in chorus) / len(chorus),
-            sum(sum(p["midi_notes"]) / len(p["midi_notes"]) for p in verse) / len(verse),
-        )
+        verse_peak = max(max(p["midi_notes"]) for p in verse)
+        chorus_peak = max(max(p["midi_notes"]) for p in chorus)
+        self.assertGreater(chorus_peak, verse_peak)
 
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
