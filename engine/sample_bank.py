@@ -192,6 +192,12 @@ def analyze_sample_bank_instrument_health(
             status = "basic_signal_checks_passed"
         rms_values = [item["rms"] for item in measurements]
         peak_values = [item["peak"] for item in measurements]
+        loop_jumps = [item["loop_boundary_jump"] for item in measurements
+                      if item["loop_boundary_jump"] is not None]
+        loop_warning_count = sum(
+            "loop_boundary_discontinuity" in item["warnings"]
+            for item in measurements
+        )
         instruments[instrument] = {
             "label": coverage_item["label"],
             "status": status,
@@ -210,6 +216,8 @@ def analyze_sample_bank_instrument_health(
             "bit_depths": [16] if samples else [],
             "looped_samples": sum(sample.loop_start_frame is not None for sample in samples),
             "unlooped_samples": sum(sample.loop_start_frame is None for sample in samples),
+            "loop_boundary_warning_count": loop_warning_count,
+            "max_loop_boundary_jump": round(max(loop_jumps), 6) if loop_jumps else None,
             "total_duration_seconds": round(sum(sample.frames / sample.sample_rate for sample in samples), 4),
             "coverage_ready": coverage_item["ready"],
             "basic_signal_checks_pass": warning_sample_count == 0 and sample_count > 0,
@@ -218,7 +226,7 @@ def analyze_sample_bank_instrument_health(
         "read_only": True,
         "instrument_count": len(instruments),
         "instruments": instruments,
-        "note": "Per-instrument status summarizes file presence, catalog coverage and basic WAV signal checks only; it does not certify timbre, tuning, performance, loop quality or mix readiness.",
+        "note": "Per-instrument status summarizes file presence, catalog coverage, basic WAV signal checks and numerical loop-boundary jump indicators only; it does not certify perceptual loop quality, timbre, tuning, performance or mix readiness.",
     }
 
 
