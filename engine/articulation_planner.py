@@ -61,6 +61,19 @@ _PLUCKED = {"acoustic_guitar", "classical_guitar", "electric_guitar",
 _BOWED = {"strings", "violin", "viola", "cello", "contrabass",
           "kamancheh"}
 
+# Renderer-neutral profiles. They shape note duration and release only.
+_PERFORMANCE_PROFILES = {
+    "staccato": (0.62, 12), "palm_mute": (0.70, 14),
+    "short_bow": (0.74, 22), "mezrab_down": (0.82, 18),
+    "mezrab_up": (0.82, 18), "pizzicato": (0.78, 24),
+    "tremolo": (0.94, 28), "long_bow": (0.97, 65),
+    "legato": (0.98, 48), "sustain": (0.88, 25),
+}
+
+def _performance_profile(articulation: str) -> dict[str, float | int]:
+    gate_ratio, release_ms = _PERFORMANCE_PROFILES.get(articulation, (0.88, 25))
+    return {"gate_ratio": gate_ratio, "release_ms": release_ms}
+
 
 def _first_available(preferences: tuple[str, ...], available: set[str],
                      default: str = "sustain") -> str:
@@ -104,7 +117,7 @@ def choose_articulation(
         if explicit not in available:
             return {"articulation": explicit, "status": "blocked_missing_sample",
                     "reason": "explicit_request_not_in_available_articulations",
-                    "confidence": "high"}
+                    "confidence": "high", **_performance_profile(explicit)}
         return {"articulation": explicit, "status": "planned",
                 "reason": "explicit_user_or_arranger_instruction", "confidence": "high"}
 
@@ -134,7 +147,8 @@ def choose_articulation(
 
     chosen = _first_available(tuple(desired), available)
     return {"articulation": chosen, "status": "planned",
-            "reason": reason, "confidence": "medium" if chosen in desired else "low"}
+            "reason": reason, "confidence": "medium" if chosen in desired else "low",
+            **_performance_profile(chosen)}
 
 
 def plan_articulations(
