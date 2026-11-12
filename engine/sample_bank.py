@@ -455,7 +455,7 @@ def _estimate_sample_fundamental(
         score = sum(x * y for x, y in zip(left, right)) / denominator
         if score > best_score:
             best_lag, best_score = lag, score
-    if best_lag is None or best_score < 0.35:
+    if best_lag is None or best_score < 0.65:
         return {
             "status": "insufficient_periodicity",
             "expected_hz": round(expected_hz, 3),
