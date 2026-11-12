@@ -36,6 +36,20 @@ class IndependentMusicCoreTests(unittest.TestCase):
             ["ne", "ne"],
         )
 
+    def test_curated_rhymes_compare_vowel_and_coda_not_syllable_onset(self):
+        result = analyze_lyrics("خانه\nبوسه")
+        self.assertEqual(
+            [item["signature"] for item in result["rhyme_analysis"]],
+            ["ne", "se"],
+        )
+        self.assertEqual(
+            [item["rhyme_tail"] for item in result["rhyme_analysis"]],
+            ["e", "e"],
+        )
+        self.assertEqual(len(result["rhyme_groups"]), 1)
+        self.assertEqual(result["rhyme_groups"][0]["rhyme_tail"], "e")
+        self.assertEqual(result["rhyme_groups"][0]["line_indices"], [0, 1])
+
     def test_rhyme_groups_report_repeated_endings_and_line_indices(self):
         result = analyze_lyrics("خانه\nبهانه\nشب\nروز")
         self.assertEqual(len(result["rhyme_groups"]), 1)
