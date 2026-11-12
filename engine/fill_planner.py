@@ -13,8 +13,8 @@ def plan_melody_fill(
 ) -> dict[str, Any]:
     """Create a short chord-aware fill wholly contained in a vocal-rest gap.
 
-    This returns note-event metadata only. It does not claim sample availability
-    or render audio.
+    Instrument profiles shape register, contour, density and articulation.
+    This returns planning metadata only, not sample availability or rendered audio.
     """
     profiles = {
         "guitar": {"range": (48, 84), "notes": 4, "spacing": 180, "articulation": "fingerstyle", "release_ms": 24},
@@ -61,7 +61,7 @@ def plan_melody_fill(
                   if note % 12 in scale_pitch_classes]
     if not candidates:
         return {"events": [], "reason": "no_scale_notes_in_range",
-                "planner": "deterministic_melodic_fill_v1", "audio_rendered": False}
+                "planner": "instrument_shaped_melodic_fill_v2", "audio_rendered": False}
     chord = [note for note in candidates if note % 12 in chord_pitch_classes]
     ordered = sorted(chord or candidates, key=lambda note: (abs(note - base), note))
     # A compact rising-then-returning response, biased toward chord tones.
@@ -89,4 +89,4 @@ def plan_melody_fill(
                        "release_ms": profile["release_ms"], "fill_style": fill_style})
         cursor += duration
     return {"events": events, "reason": "planned_in_vocal_rest",
-            "planner": "deterministic_melodic_fill_v1", "audio_rendered": False}
+            "planner": "instrument_shaped_melodic_fill_v2", "audio_rendered": False}
