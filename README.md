@@ -358,3 +358,18 @@ python3 engine/sample_bank_preview.py /path/to/sample-bank-meta-piano piano 60 /
 ```
 
 The source SFZ defines overlapping velocity regions. MEHRAN now blends the two exact-note recordings in each overlap with a deterministic equal-power crossfade, while velocities outside overlaps use their single matching recording. The renderer reports crossfade-event and rendered-layer counts. This is MEHRAN's own equal-power approximation; it does not claim to reproduce undocumented or source-specific SFZ gain curves. It never substitutes a different pitch or articulation to fill a missing layer.
+
+
+## Recorded sample velocity-sweep audition
+
+To hear how one exact recorded note changes across its available velocity
+layers, run:
+
+`python3 engine/sample_bank_audition.py /path/to/sample-bank piano 60 /tmp/piano-c4-velocity-sweep.wav --velocities 16,31,48,64,80,96,112,127`
+
+The utility places each requested velocity in sequence in one stereo WAV.
+Every requested velocity must have an exact recorded note and articulation
+layer; missing coverage is reported as an error rather than silently replaced.
+In overlapping velocity ranges, the audition uses MEHRAN's deterministic
+equal-power blend of the two matching recordings. This is a listening and
+coverage tool, not a synthesized substitute for missing recordings.
