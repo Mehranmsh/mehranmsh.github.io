@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import render_midi
+from midi_renderer import _bass_pattern, _drum_bar, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -41,6 +41,32 @@ class MidiRendererTests(unittest.TestCase):
             self.assertEqual(len(notes), 3)
             self.assertEqual(notes, sorted(notes))
             self.assertLessEqual(notes[-1] - notes[0], 19)
+
+    def test_chorus_bass_has_more_movement_than_verse(self):
+        verse_events, chorus_events = [], []
+        verse_count = _bass_pattern(9, 0, verse_events, chorus=False)
+        chorus_count = _bass_pattern(9, 0, chorus_events, chorus=True)
+        self.assertEqual(verse_count, 3)
+        self.assertEqual(chorus_count, 4)
+        self.assertGreater(
+            max(event[2][2] for event in chorus_events if event[2][0] & 0xF0 == 0x90),
+            max(event[2][2] for event in verse_events if event[2][0] & 0xF0 == 0x90),
+        )
+
+    def test_chorus_drums_are_fuller_and_phrase_end_gets_a_fill(self):
+        verse_events, chorus_events, fill_events = [], [], []
+        verse_count = _drum_bar(0, verse_events)
+        chorus_count = _drum_bar(0, chorus_events, chorus=True)
+        fill_count = _drum_bar(
+            0, fill_events, chorus=True, bar_index=3, phrase_bars=4)
+        self.assertGreater(chorus_count, verse_count)
+        self.assertGreater(fill_count, chorus_count)
+
+    def test_bridge_drums_are_reduced(self):
+        verse_events, bridge_events = [], []
+        verse_count = _drum_bar(0, verse_events)
+        bridge_count = _drum_bar(0, bridge_events, bridge=True)
+        self.assertLess(bridge_count, verse_count)
 
     def test_flat_chord_is_supported(self):
         plan = compose_plan("فریاد\nخشم\nآتش\nجنگ")
