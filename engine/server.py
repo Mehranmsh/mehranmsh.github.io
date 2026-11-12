@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
 from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
-                         analyze_sample_bank_quality)
+                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health)
 from sample_renderer import render_composition_to_wav
 
 
@@ -144,6 +144,7 @@ class Handler(BaseHTTPRequestHandler):
                 "diagnostics_available": True,
                 "coverage": analyze_sample_bank_coverage(bank),
                 "signal_quality": analyze_sample_bank_quality(bank),
+                "instrument_health": analyze_sample_bank_instrument_health(bank),
                 "read_only": True,
             })
         if path == "/v1/projects":
