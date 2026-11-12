@@ -167,6 +167,51 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(starts["verse"], sorted(starts["verse"]))
         self.assertEqual(starts["bridge"], [0.0, 0.0, 0.0])
 
+    def test_sample_transition_lift_is_bounded_and_spares_melody(self):
+        import copy
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        plan = compose_plan(lyrics, target_bpm=84)
+        phrases = plan["composition"]["melody"]
+        target_index = next(
+            index for index, phrase in enumerate(phrases)
+            if phrase["phrase_energy"].get("section_transition")
+            and phrase["phrase_energy"]["section_transition"]["next_section"]
+        )
+        lifted = copy.deepcopy(plan)
+        neutral = copy.deepcopy(plan)
+        lifted["composition"]["melody"][target_index]["phrase_energy"]["section_transition"]["energy_change"] = 1.0
+        neutral["composition"]["melody"][target_index]["phrase_energy"]["section_transition"]["energy_change"] = 0.0
+        lifted_events = build_composition_events(lifted)
+        neutral_events = build_composition_events(neutral)
+        phrase = phrases[target_index]
+        start_tick = sum(
+            item["bar_count"] * 4 * PPQ + item.get("phrase_pause_ticks", 0)
+            for item in phrases[:target_index]
+        )
+        transition_start = start_tick + (phrase["bar_count"] - 1) * 4 * PPQ
+        transition_end = start_tick + phrase["bar_count"] * 4 * PPQ
+        start_seconds = transition_start * 60.0 / 84 / PPQ
+        end_seconds = transition_end * 60.0 / 84 / PPQ
+        def transition_events(events, instrument):
+            return [event for event in events
+                    if event["instrument"] == instrument
+                    and start_seconds <= event["start_seconds"] < end_seconds]
+        for instrument in ("electric_bass", "kick", "snare", "closed_hat",
+                           "open_hat"):
+            lifted_values = [event["velocity"] for event in transition_events(lifted_events, instrument)]
+            neutral_values = [event["velocity"] for event in transition_events(neutral_events, instrument)]
+            if lifted_values and neutral_values:
+                self.assertGreater(max(lifted_values), max(neutral_values))
+        self.assertEqual(
+            [event["velocity"] for event in transition_events(lifted_events, "piano")],
+            [event["velocity"] for event in transition_events(neutral_events, "piano")],
+        )
+
     def test_sample_guitar_alternates_downstroke_and_upstroke(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         for phrase in plan["composition"]["melody"]:
