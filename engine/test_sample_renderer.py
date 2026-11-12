@@ -107,6 +107,27 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_phrase_pause_is_preserved_between_rendered_lyric_lines(self):
+        plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        phrases = plan["composition"]["melody"]
+        self.assertGreaterEqual(len(phrases), 2)
+        phrases[0]["phrase_pause_ticks"] = 240
+        events = build_composition_events(plan)
+        boundary = (phrases[0]["bar_count"] * 4 * 480) * (60.0 / 84 / 480)
+        second_phrase_events = [
+            event for event in events
+            if event["start_seconds"] >= boundary
+        ]
+        self.assertTrue(second_phrase_events)
+        earliest = min(event["start_seconds"] for event in second_phrase_events)
+        self.assertAlmostEqual(earliest, boundary + 240 * (60.0 / 84 / 480), places=5)
+
+    def test_rejects_invalid_phrase_pause(self):
+        plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        plan["composition"]["melody"][0]["phrase_pause_ticks"] = True
+        with self.assertRaises(ValueError):
+            build_composition_events(plan)
+
     def test_looped_sample_sustains_past_original_recording_length(self):
         import struct
         with tempfile.TemporaryDirectory() as folder:
