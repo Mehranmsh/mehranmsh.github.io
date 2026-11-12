@@ -349,5 +349,35 @@ class MidiRendererTests(unittest.TestCase):
             data = target.read_bytes()
         self.assertIn(b"gate_ratio=0.62;release_ms=12", data)
 
+
+    def test_melody_pitch_cents_emits_pitch_bend_and_configures_range(self):
+        import tempfile
+        from pathlib import Path
+        from mehran_music_core import compose_plan
+        from midi_renderer import render_midi
+
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        plan["composition"]["melody"][0]["note_lyric_map"][0]["pitch_cents"] = 50
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "microtonal.mid"
+            result = render_midi(plan, path)
+            data = path.read_bytes()
+        self.assertIn(bytes((0xB0, 101, 0, 0xB0, 100, 0,
+                             0xB0, 6, 2, 0xB0, 38, 0)), data)
+        self.assertIn(bytes((0xE0, 0, 96)), data)
+        self.assertIn("pitch_cents", result["pitch_bend_support"])
+
+    def test_midi_rejects_pitch_cents_outside_configured_bend_range(self):
+        import tempfile
+        from pathlib import Path
+        from mehran_music_core import compose_plan
+        from midi_renderer import render_midi
+
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        plan["composition"]["melody"][0]["note_lyric_map"][0]["pitch_cents"] = 201
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "pitch_cents"):
+                render_midi(plan, Path(folder) / "invalid.mid")
+
 if __name__ == "__main__":
     unittest.main()
