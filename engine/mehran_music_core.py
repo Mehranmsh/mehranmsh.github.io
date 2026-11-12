@@ -945,6 +945,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             lyric_alignment["note_lyric_map"][note_index]["articulation_reason"] = item["reason"]
             lyric_alignment["note_lyric_map"][note_index]["gate_ratio"] = item["gate_ratio"]
             lyric_alignment["note_lyric_map"][note_index]["release_ms"] = item["release_ms"]
+        for note_index, note_map_item in enumerate(lyric_alignment["note_lyric_map"]):
+            note_map_item["is_melodic_peak"] = note_index == peak_index
         dynamics_plan = plan_dynamics(lyric_alignment["note_lyric_map"], curve=dynamics_style)
         for note_index, item in enumerate(dynamics_plan["events"]):
             lyric_alignment["note_lyric_map"][note_index].update({
