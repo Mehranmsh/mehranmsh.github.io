@@ -225,6 +225,10 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
         group for group in rhyme_groups_by_key.values()
         if len(group["line_indices"]) >= 2
     ]
+    repeated_group_labels = {group["label"] for group in rhyme_groups}
+    for item in rhyme_analysis:
+        if item["group"] not in repeated_group_labels:
+            item["group"] = None
     return {
         "language": "fa",
         "line_count": len(lines),
