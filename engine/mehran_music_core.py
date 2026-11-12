@@ -149,7 +149,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
             {
                 "line_index": index,
                 "words": [_word_phonetics(word) for word in
-                          re.findall(r"[\\wآ-ی]+", line.text, flags=re.UNICODE)],
+                          re.findall(r"[\wآ-ی]+", line.text, flags=re.UNICODE)],
                 "lexical_stress": "unknown",
                 "notice": "Unwritten short vowels and colloquial pronunciation cannot be recovered reliably from plain Persian text.",
             }
