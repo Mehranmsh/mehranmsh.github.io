@@ -96,14 +96,22 @@ Because MIDI pitch bend is channel-wide, the renderer assigns a separate
 melodic channel to each distinct combined tuning value, preserving independent
 pitch for overlapping notes. The available melodic channels are finite, so
 more than 11 distinct tuning groups are rejected explicitly rather than
-rendered with incorrect shared bends. The same calibration map can now target the MIDI accompaniment slugs
-`strings`, `bass`, `guitar`, and `piano`. Each accompaniment instrument
-gets isolated channels for its distinct note-tuning groups, separate from
-the melody, other instruments, and percussion channel 10. Channel capacity is
-shared across the MIDI file; if there are not enough free melodic channels,
-the renderer raises an explicit error instead of silently sharing a bend.
-These are MIDI playback instructions, not evidence of a calibrated physical
-instrument sample bank or a guaranteed soundfont tuning implementation.
+rendered with incorrect shared bends. The same calibration map can target the MIDI accompaniment slots
+`strings`, `bass`, `guitar`, and `piano`. The optional
+`accompaniment_instruments` argument maps one of those arrangement slots to
+a real instrument slug, for example `{"guitar": "tar"}`; calibration is then
+looked up under that instrument slug (for example
+`{"tar": {"60": 32.5}}`). This separates the musical arrangement role from
+the instrument identity and allows tar, setar, santur, kamancheh, oud and
+other catalogued instruments to receive their own supplied note calibrations
+without pretending that the General MIDI guitar program is an authentic tar
+timbre. Each accompaniment instrument gets isolated channels for its distinct
+note-tuning groups, separate from the melody, other instruments, and
+percussion channel 10. Channel capacity is shared across the MIDI file; if
+there are not enough free channels, the renderer raises an explicit error
+instead of silently sharing a bend. These are MIDI playback instructions, not
+evidence of a calibrated physical instrument sample bank or a guaranteed
+soundfont tuning implementation.
 
 
 ### Curated per-degree Persian tuning overrides
