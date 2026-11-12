@@ -230,6 +230,24 @@ may be inconclusive. This autocorrelation estimate is a screening aid, not a
 precision tuner or proof of authentic instrument intonation.
 
 
+## Importing real recorded samples
+
+After completing the recording-sheet CSV, mark captured rows as
+`recorded` and fill in their relative WAV paths. Place the audio files under
+one sample-bank folder, then run:
+
+```bash
+python3 engine/sample_bank_import.py /path/to/completed-recording-sheet.csv /path/to/sample-bank
+```
+
+The importer accepts only explicitly completed rows, validates each referenced
+PCM16 WAV through the same sample-bank loader, rejects duplicate targets and
+paths that escape the audio folder, and publishes `bank.json` only after all
+selected files pass validation. Existing manifests remain untouched if
+validation fails. The audio files themselves are never moved, edited,
+normalized, or synthesized. Optional `--output` can write the manifest to
+another location inside the sample-bank folder.
+
 ## Spectral brightness diagnostics
 
 Exact sample candidates now include a short-window, dependency-free FFT profile:
