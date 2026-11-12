@@ -147,6 +147,7 @@ class StudioControlPlaneTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(invalid, timeout=3)
             self.assertEqual(error.exception.code, 400)
+            error.exception.close()
             denied = urllib.request.Request(self.base + "/v1/sample-bank/preview?instrument=piano&note=60&velocity=80")
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(denied, timeout=3)
