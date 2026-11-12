@@ -48,11 +48,39 @@ def _normalize(text: str) -> str:
 SHORT_VOWEL_MARKS = set("\u064e\u0650\u064f\u064b\u064c\u064d")
 PERSIAN_DIACRITICS = SHORT_VOWEL_MARKS | {"\u0651", "\u0652", "\u0670"}
 
+# Curated pronunciations for frequent lyric words; unknown words remain estimates.
+PRONUNCIATION_LEXICON = {
+    "برگرد": ("bar", "gard"), "دلم": ("de", "lam"), "گرفته": ("ge", "ref", "te"),
+    "عشق": ("eshgh",), "خانه": ("kha", "ne"), "شب": ("shab",), "روز": ("ruz",),
+    "یار": ("yar",), "تنها": ("tan", "ha"), "امید": ("o", "mid"),
+    "فردا": ("far", "da"), "بهار": ("ba", "har"), "آزادی": ("a", "za", "di"),
+    "دلتنگ": ("del", "tang"), "اشک": ("ashk",), "تنهایی": ("tan", "ha", "yi"),
+    "رفتی": ("raf", "ti"), "عاشق": ("a", "shegh"), "دلبر": ("del", "bar"),
+    "آغوش": ("a", "ghush"), "بوسه": ("bu", "se"), "چشم": ("cheshm",),
+    "قلب": ("ghalb",), "خموش": ("kha", "mush"), "سرد": ("sard",),
+}
+
+
+def _rhythmic_syllables(word: str) -> int:
+    normalized = word.replace("ي", "ی").replace("ك", "ک")
+    known = PRONUNCIATION_LEXICON.get(normalized)
+    return len(known) if known else _syllables(normalized)
 
 def _word_phonetics(word: str) -> dict[str, Any]:
     """Conservative written-vowel scan; never invents unwritten short vowels."""
     normalized = word.replace("ي", "ی").replace("ك", "ک")
     explicit_marks = sum(1 for char in normalized if char in SHORT_VOWEL_MARKS)
+    known_pronunciation = PRONUNCIATION_LEXICON.get(normalized)
+    if known_pronunciation:
+        return {
+            "word": normalized,
+            "syllable_estimate": len(known_pronunciation),
+            "syllables": list(known_pronunciation),
+            "explicit_short_vowel_marks": explicit_marks,
+            "confidence": "high",
+            "method": "curated_lyric_pronunciation_lexicon_v1",
+            "lexical_stress": "unknown",
+        }
     nuclei = 0
     previous_base_had_vowel_mark = False
     for index, char in enumerate(normalized):
@@ -75,6 +103,7 @@ def _word_phonetics(word: str) -> dict[str, Any]:
     return {
         "word": normalized,
         "syllable_estimate": max(1, nuclei),
+        "syllables": None,
         "explicit_short_vowel_marks": explicit_marks,
         "confidence": ("medium_high" if explicit_marks >= 2 else "medium")
                       if explicit_marks else "low",
@@ -105,7 +134,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     lines = []
     for line in raw_lines[:160]:
         words = re.findall(r"[\wآ-ی]+", line, flags=re.UNICODE)
-        lines.append(LyricLine(line, len(words), sum(_syllables(w) for w in words), _ending(line)))
+        lines.append(LyricLine(line, len(words), sum(_rhythmic_syllables(w) for w in words), _ending(line)))
     counts = {mood: sum(1 for word in keywords if word in cleaned)
               for mood, keywords in MOOD_WORDS.items()}
     mood = max(counts, key=counts.get) if max(counts.values(), default=0) else "neutral"
@@ -219,7 +248,7 @@ def _phrase_durations(syllables: int, note_count: int,
     weights = [1.0] * note_count
 
     words = re.findall(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE)
-    estimated_counts = [_syllables(word) for word in words]
+    estimated_counts = [_rhythmic_syllables(word) for word in words]
     estimated_total = sum(estimated_counts)
     if note_count and estimated_total:
         cursor = 0
