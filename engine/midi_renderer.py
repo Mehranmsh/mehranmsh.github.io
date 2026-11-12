@@ -417,6 +417,10 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 stress_beat_aligned=note_index in beat_aligned_stress_indices,
                 cadence_release_scale=(phrase.get("phrase_energy", {}).get("cadence_release_scale", 1.0)
                                       if note_index == len(notes) - 1 else 1.0))
+            dynamics_velocity = lyric_map_item.get("dynamics_velocity", 84) if isinstance(lyric_map_item, dict) else 84
+            if isinstance(dynamics_velocity, bool) or not isinstance(dynamics_velocity, int) or not 1 <= dynamics_velocity <= 127:
+                raise ValueError("Melody dynamics_velocity must be an integer from 1 to 127")
+            velocity = _scale_velocity(velocity, dynamics_velocity / 84.0)
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             articulation = lyric_map_item.get("articulation") if isinstance(lyric_map_item, dict) else None
@@ -425,7 +429,9 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 raise ValueError("Melody release_ms must be an integer from 0 to 1000")
             if isinstance(articulation, str) and articulation:
                 marker = (f"articulation={articulation};note={note};index={note_index};"
-                          f"gate_ratio={gate_ratio:.2f};release_ms={release_ms}").encode("ascii", "strict")
+                          f"gate_ratio={gate_ratio:.2f};release_ms={release_ms};"
+                          f"dynamics_velocity={dynamics_velocity};"
+                          f"dynamic_mark={lyric_map_item.get('dynamic_mark', 'mf')}").encode("ascii", "strict")
                 melody_events.append((cursor, 3, b"\xff\x06" + _vlq(len(marker)) + marker))
             cursor += duration
             note_count += 1
