@@ -152,9 +152,14 @@ def render_sample_events(
     peak = max((abs(value) for value in mix), default=0.0)
     normalization = min(1.0, (32767.0 * MAX_PEAK / peak)) if peak > 0 else 1.0
     output = array.array("h")
+    clipping_samples = 0
     for value in mix:
-        clipped = max(-32768, min(32767, round(value * normalization)))
+        scaled = round(value * normalization)
+        if scaled < -32768 or scaled > 32767:
+            clipping_samples += 1
+        clipped = max(-32768, min(32767, scaled))
         output.append(clipped)
+    peak_after_normalization = max((abs(value) for value in output), default=0)
     if struct.pack("=H", 1) != struct.pack("<H", 1):
         output.byteswap()
 
@@ -176,6 +181,8 @@ def render_sample_events(
         "events_rendered": rendered_events,
         "peak_before_normalization": round(peak / 32768.0, 5),
         "normalization_applied": round(normalization, 5),
+        "peak_after_normalization": round(peak_after_normalization / 32768.0, 5),
+        "clipping_samples": clipping_samples,
         "source": "recorded_sample_bank",
     }
 
