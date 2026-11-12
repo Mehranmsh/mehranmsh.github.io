@@ -734,6 +734,11 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             {"name": "verse_2", "start_line": second, "end_line": final_chorus_start},
             {"name": "final_chorus", "start_line": final_chorus_start, "end_line": len(lines)},
         ]
+    rhyme_by_line = {
+        item["line_index"]: item
+        for item in analysis.get("rhyme_analysis", [])
+    }
+    shared_rhyme_cadences: dict[tuple[int, str], int] = {}
     melody = []
     for index, line in enumerate(lines):
         line_section = next(
@@ -812,6 +817,22 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         notes = _smooth_melodic_leaps(
             notes, lyric_alignment["note_lyric_map"], tonic, scale, peak_index
         )
+        rhyme_item = rhyme_by_line.get(index, {})
+        rhyme_group = rhyme_item.get("group")
+        rhyme_stanza = rhyme_item.get("stanza_index")
+        rhyme_key = (rhyme_stanza, rhyme_group) if rhyme_group is not None else None
+        rhyme_cadence_linked = False
+        if rhyme_key is not None:
+            shared_pitch_class = shared_rhyme_cadences.get(rhyme_key)
+            if shared_pitch_class is None:
+                shared_rhyme_cadences[rhyme_key] = notes[-1] % 12
+            elif shared_pitch_class in _chord_pitch_classes(chord):
+                compatible_notes = [note for note in notes
+                                    if note % 12 == shared_pitch_class]
+                if compatible_notes:
+                    notes[-1] = min(compatible_notes,
+                                    key=lambda note: (abs(note - notes[-1]), note))
+                    rhyme_cadence_linked = True
         melody.append({
             "line_index": index,
             **lyric_alignment,
@@ -846,6 +867,12 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "section_register": "lifted" if "chorus" in line_section else "midrange",
             "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
             "cadence_note": notes[-1],
+            "rhyme_cadence_group": rhyme_group,
+            "rhyme_cadence_linked": rhyme_cadence_linked,
+            "rhyme_cadence_method": (
+                "shared_stanza_rhyme_pitch_class_v1"
+                if rhyme_group is not None else "no_repeated_rhyme_group"
+            ),
             "prosody_timing_method": "word_boundary_internal_punctuation_and_cadence_v2",
         })
     arrangement = {
