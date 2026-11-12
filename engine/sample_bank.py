@@ -515,7 +515,10 @@ def rank_sample_candidates(
         }
 
     if quality_report is None:
-        quality_report = analyze_sample_bank_quality(bank)
+        # Rank only the exact-note candidates. Scanning every WAV in a large
+        # multi-instrument bank for a single note can stall a short audition.
+        candidate_bank = SampleBank(bank.root, tuple(exact))
+        quality_report = analyze_sample_bank_quality(candidate_bank)
     if not isinstance(quality_report, dict) or not isinstance(quality_report.get("measurements"), list):
         raise ValueError("quality_report must contain a measurements list")
     measurements = quality_report["measurements"]
