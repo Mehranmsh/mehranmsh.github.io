@@ -163,5 +163,16 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreater(max(e[2][2] for e in chorus if e[2][0] & 0xF0 == 0x90),
                            max(e[2][2] for e in verse if e[2][0] & 0xF0 == 0x90))
 
+    def test_each_arrangement_track_has_its_own_general_midi_program(self):
+        plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد")
+        with tempfile.TemporaryDirectory() as folder:
+            data = (Path(folder) / "programs.mid")
+            render_midi(plan, data)
+            midi = data.read_bytes()
+        for program_change in (bytes((0xC0, 80)), bytes((0xC1, 48)),
+                               bytes((0xC2, 33)), bytes((0xC3, 25)),
+                               bytes((0xC4, 0))):
+            self.assertIn(program_change, midi)
+
 if __name__ == "__main__":
     unittest.main()
