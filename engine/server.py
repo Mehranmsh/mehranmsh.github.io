@@ -148,13 +148,19 @@ class Handler(BaseHTTPRequestHandler):
             })
         if path == "/v1/sample-bank/preview":
             query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
-            if set(query) != {"instrument", "note", "velocity"} or any(len(values) != 1 for values in query.values()):
+            required = {"instrument", "note", "velocity"}
+            allowed = required | {"articulation"}
+            if (not required.issubset(query) or not set(query).issubset(allowed)
+                    or any(len(values) != 1 for values in query.values())):
                 return self.send_json(400, {"error": "invalid_preview_parameters"})
             instrument = query["instrument"][0]
+            articulation = query.get("articulation", ["sustain"])[0]
             try:
                 note = int(query["note"][0])
                 velocity = int(query["velocity"][0])
                 if not instrument or len(instrument) > 40 or not instrument.replace("_", "").replace("-", "").isalnum():
+                    raise ValueError
+                if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
                     raise ValueError
                 if not 0 <= note <= 127 or not 1 <= velocity <= 127:
                     raise ValueError
@@ -163,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
             bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
             try:
                 bank = load_sample_bank(bank_root)
-                sample = select_sample(bank, instrument, note, velocity)
+                sample = select_sample(bank, instrument, note, velocity, articulation)
                 if sample.midi_note != note:
                     return self.send_json(404, {"error": "exact_note_sample_unavailable"})
                 size = sample.path.stat().st_size
