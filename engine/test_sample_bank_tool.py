@@ -1,4 +1,5 @@
 import csv
+import csv
 import json
 import tempfile
 import unittest
@@ -76,6 +77,44 @@ class SampleBankToolTests(unittest.TestCase):
             )
             self.assertEqual(absent["status"], "missing")
             self.assertEqual(absent["sample_path"], "")
+
+    def test_inspection_and_csv_include_recording_session_provenance(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            sample = root / "piano" / "36.wav"
+            self.write_sample(sample)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "recording_sessions": {
+                    "session-2026-01": {
+                        "instrument_model": "Concert Grand",
+                        "performer": "Studio Player",
+                        "tuning": "A440",
+                        "microphone": "Pair XY",
+                    }
+                },
+                "samples": [{
+                    "instrument": "piano", "midi_note": 36,
+                    "path": "piano/36.wav",
+                    "recording_session_id": "session-2026-01",
+                }],
+            }), encoding="utf-8")
+            report = inspect_sample_bank(root)
+            self.assertEqual(
+                report["recording_provenance"]["linked_samples"], 1
+            )
+            rows = list(csv.DictReader(
+                export_sample_bank_progress_csv(root).splitlines()
+            ))
+            recorded = next(
+                row for row in rows
+                if row["instrument"] == "piano"
+                and row["midi_note"] == "36"
+                and row["articulation"] == "sustain"
+            )
+            self.assertEqual(recorded["recording_session_id"], "session-2026-01")
+            self.assertEqual(recorded["instrument_model"], "Concert Grand")
+            self.assertEqual(recorded["performer"], "Studio Player")
 
     def test_inspection_rejects_missing_manifest(self):
         with tempfile.TemporaryDirectory() as folder:
