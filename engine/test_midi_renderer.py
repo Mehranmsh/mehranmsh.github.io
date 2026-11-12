@@ -364,8 +364,8 @@ class MidiRendererTests(unittest.TestCase):
             data = path.read_bytes()
         for controller, value in ((101, 0), (100, 0), (6, 2), (38, 0),
                                   (101, 127), (100, 127)):
-            self.assertIn(bytes((0xB0, controller, value)), data)
-        self.assertIn(bytes((0xE0, 0, 80)), data)
+            self.assertIn(bytes((0xB5, controller, value)), data)
+        self.assertIn(bytes((0xE5, 0, 80)), data)
         self.assertIn("pitch_cents", result["pitch_bend_support"])
 
     def test_midi_rejects_pitch_cents_outside_configured_bend_range(self):
@@ -379,6 +379,45 @@ class MidiRendererTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, "pitch_cents"):
                 render_midi(plan, Path(folder) / "invalid.mid")
+
+    def test_instrument_note_tuning_uses_isolated_midi_channel(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        note = plan["composition"]["melody"][0]["midi_notes"][0]
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "instrument-tuning.mid"
+            result = render_midi(
+                plan, path, melody_instrument="tar",
+                instrument_tuning_cents={"tar": {note: 37.5}},
+            )
+            data = path.read_bytes()
+        self.assertEqual(result["melody_tuning_channels"]["37.5"], 5)
+        self.assertIn(bytes((0xE5, 0, 64)), data)
+        self.assertIn(bytes((0x95, note)), data)
+        self.assertIn(bytes((0x85, note, 0)), data)
+
+    def test_simultaneous_tuning_groups_do_not_share_pitch_bend_channel(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        phrase = plan["composition"]["melody"][0]
+        phrase["note_lyric_map"][0]["pitch_cents"] = 25
+        phrase["note_lyric_map"][1]["pitch_cents"] = -25
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "isolated-groups.mid"
+            result = render_midi(plan, path)
+            data = path.read_bytes()
+        self.assertEqual(result["melody_tuning_channels"]["25.0"], 5)
+        self.assertEqual(result["melody_tuning_channels"]["-25.0"], 6)
+        self.assertIn(bytes((0xE5, 0, 144)), data)
+        self.assertIn(bytes((0xE6, 0, 16)), data)
+
+    def test_instrument_tuning_rejects_invalid_calibration(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "instrument tuning offsets"):
+                render_midi(
+                    plan, Path(folder) / "bad-calibration.mid",
+                    melody_instrument="tar",
+                    instrument_tuning_cents={"tar": {60: 125}},
+                )
 
 if __name__ == "__main__":
     unittest.main()
