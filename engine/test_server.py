@@ -114,6 +114,16 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(midi_path.is_file())
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
 
+    def test_audio_compose_fails_closed_without_a_local_sample_bank(self):
+        status, payload = self.request("/v1/compose-audio", method="POST", payload={
+            "title": "برگرد", "lyrics": "دلم گرفته\nاز این شب سرد",
+            "genre": "pop", "bpm": 84
+        })
+        self.assertEqual(status, 503)
+        self.assertEqual(payload["error"], "sample_bank_unavailable")
+        self.assertFalse(payload["audio_rendered"])
+        self.assertFalse(payload["charged"])
+
     def test_compose_rejects_invalid_lyrics_and_tempo(self):
         status, payload = self.request("/v1/compose", method="POST", payload={"lyrics": "  "})
         self.assertEqual(status, 400)
