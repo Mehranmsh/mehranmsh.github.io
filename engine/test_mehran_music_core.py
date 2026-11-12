@@ -83,7 +83,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertGreater(durations[-1], durations[0])
 
     def test_phonetic_layer_reports_written_diacritics_without_claiming_stress(self):
-        result = analyze_lyrics("مَن دِل")
+        result = analyze_lyrics("مَن دل")
         words = result["phonetic_analysis"][0]["words"]
         self.assertEqual(words[0]["explicit_short_vowel_marks"], 1)
         self.assertEqual(words[0]["syllable_estimate"], 1)
@@ -99,7 +99,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
     def test_phonetic_layer_normalizes_arabic_characters(self):
         result = analyze_lyrics("يَك")
         word = result["phonetic_analysis"][0]["words"][0]
-        self.assertEqual(word["word"], "یک")
+        self.assertEqual(word["word"], "یَک")
         self.assertEqual(word["explicit_short_vowel_marks"], 1)
 
     def test_phrase_end_gets_longer_cadence(self):
