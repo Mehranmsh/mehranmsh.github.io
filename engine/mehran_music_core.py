@@ -180,6 +180,26 @@ def _chord_pitch_classes(symbol: str) -> tuple[int, ...]:
     return tuple((root + interval) % 12 for interval in intervals)
 
 
+def _harmonic_function(symbol: str, key: str, mode: str) -> str:
+    """Describe a chord's scale-degree role in the composition's tonal center."""
+    roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+    if not isinstance(symbol, str) or not symbol or symbol[0] not in roots:
+        return "unknown"
+    pitch = roots[symbol[0]]
+    if len(symbol) > 1 and symbol[1] == "b":
+        pitch -= 1
+    elif len(symbol) > 1 and symbol[1] == "#":
+        pitch += 1
+    degree = (pitch - roots[key]) % 12
+    major_roles = {0: "tonic", 2: "supertonic", 4: "mediant",
+                   5: "subdominant", 7: "dominant", 9: "submediant",
+                   11: "leading_tone"}
+    minor_roles = {0: "tonic", 2: "supertonic", 3: "mediant",
+                   5: "subdominant", 7: "dominant", 8: "submediant",
+                   10: "subtonic"}
+    return (minor_roles if mode == "minor" else major_roles).get(degree, "chromatic")
+
+
 def _melody_for_line(syllables: int, tonic: int, scale: list[int],
                      line_index: int, chord: str, section: str = "verse") -> list[int]:
     """Build a section-shaped phrase with an audible, bounded peak and cadence."""
@@ -421,14 +441,19 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     melody = []
     for index, line in enumerate(lines):
         chord = chords[index % len(chords)]
-        cadence_chord, cadence_type = _harmonic_cadence(chords, line["text"])
-        if cadence_chord is not None:
-            chord = cadence_chord
         line_section = next(
             (section["name"] for section in sections
              if section["start_line"] <= index < section["end_line"]),
             "verse",
         )
+        section_start = next(
+            (section["start_line"] for section in sections
+             if section["name"] == line_section), 0,
+        )
+        section_line_index = index - section_start
+        cadence_chord, cadence_type = _harmonic_cadence(chords, line["text"])
+        if cadence_chord is not None:
+            chord = cadence_chord
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         lyric_alignment = _align_words_to_notes(line["text"], len(notes))
@@ -463,6 +488,18 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "breath_after_phrase": breath_after,
             "chord": chord,
             "harmonic_cadence": cadence_type,
+            "harmonic_function": _harmonic_function(chord, key, mode),
+            "harmonic_position": {
+                "global_phrase_index": index,
+                "section_phrase_index": section_line_index,
+                "section_phrase_count": next(
+                    (section["end_line"] - section["start_line"]
+                     for section in sections if section["name"] == line_section),
+                    len(lines),
+                ),
+                "progression_slot": index % len(chords),
+                "cadence_override": cadence_chord is not None,
+            },
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
             "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
             "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",
