@@ -69,7 +69,7 @@ def install_recorded_banks(
             bank = load_sample_bank(source_root)
             instruments = sorted({sample.instrument for sample in bank.samples})
             if len(instruments) != 1 or instruments[0] not in EXPECTED_BANKS:
-                raise ValueError(f"Only validated Meta nylon/steel guitar banks are accepted: {source_root}")
+                raise ValueError(f"Only validated Meta nylon/steel guitar and piano banks are accepted: {source_root}")
             instrument = instruments[0]
             if instrument in seen_instruments:
                 raise ValueError(f"Duplicate instrument bank supplied: {instrument}")
