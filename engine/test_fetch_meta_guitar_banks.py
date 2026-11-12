@@ -1,6 +1,6 @@
 import unittest
 
-from fetch_meta_guitar_bank import parse_guitar_sfz_sample_map, parse_sha256sums
+from fetch_meta_guitar_banks import parse_guitar_sfz_sample_map, parse_sha256sums
 
 
 class MetaGuitarMapTests(unittest.TestCase):
