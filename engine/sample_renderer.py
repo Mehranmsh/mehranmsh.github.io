@@ -590,9 +590,16 @@ def build_composition_events(
                 )
                 for fill in fill_plan["events"]:
                     before_count = len(events)
+                    fill_articulation = {
+                        "acoustic_guitar": "fingerstyle",
+                        "classical_guitar": "fingerstyle",
+                        "electric_guitar": "sustain",
+                        "tar": "mezrab_down",
+                        "setar": "mezrab_down",
+                    }.get(fill_slug, fill["articulation"])
                     add(response_fill_part, fill["midi_note"], fill["start_tick"],
                         fill["duration_ticks"], fill["velocity"], 0.18,
-                        articulation=fill["articulation"],
+                        articulation=fill_articulation,
                         articulation_source="planner",
                         release_seconds=fill["release_ms"] / 1000.0)
                     if len(events) > before_count:
