@@ -180,6 +180,10 @@ class SampleRendererTests(unittest.TestCase):
             }), encoding="utf-8")
             bank = load_sample_bank(root)
             plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+            # This fixture intentionally contains sustain recordings only.
+            for phrase in plan["composition"]["melody"]:
+                for item in phrase["note_lyric_map"]:
+                    item["articulation"] = "sustain"
             output = Path(folder) / "song.wav"
             result = render_composition_to_wav(plan, bank, output, sample_rate=22050)
             with wave.open(str(output), "rb") as wav:
