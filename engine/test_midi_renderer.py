@@ -391,7 +391,7 @@ class MidiRendererTests(unittest.TestCase):
             )
             data = path.read_bytes()
         self.assertEqual(result["melody_tuning_channels"]["37.5"], 5)
-        self.assertIn(bytes((0xE5, 0, 64)), data)
+        self.assertIn(bytes((0xE5, 0, 76)), data)
         self.assertIn(bytes((0x95, note)), data)
         self.assertIn(bytes((0x85, note, 0)), data)
 
@@ -406,8 +406,8 @@ class MidiRendererTests(unittest.TestCase):
             data = path.read_bytes()
         self.assertEqual(result["melody_tuning_channels"]["25.0"], 5)
         self.assertEqual(result["melody_tuning_channels"]["-25.0"], 6)
-        self.assertIn(bytes((0xE5, 0, 144)), data)
-        self.assertIn(bytes((0xE6, 0, 16)), data)
+        self.assertIn(bytes((0xE5, 0, 72)), data)
+        self.assertIn(bytes((0xE6, 0, 56)), data)
 
     def test_instrument_tuning_rejects_invalid_calibration(self):
         plan = compose_plan("یک شب آرام\\nدر این سکوت")
