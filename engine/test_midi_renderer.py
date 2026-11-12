@@ -1,0 +1,37 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+from mehran_music_core import compose_plan
+from midi_renderer import render_midi
+
+
+class MidiRendererTests(unittest.TestCase):
+    def test_renders_valid_three_track_standard_midi(self):
+        plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد",
+                            title="برگرد", target_bpm=84)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "song.mid"
+            result = render_midi(plan, target)
+            data = target.read_bytes()
+        self.assertEqual(data[:4], b"MThd")
+        self.assertEqual(int.from_bytes(data[10:12], "big"), 3)
+        self.assertEqual(result["tracks"], 3)
+        self.assertGreater(result["note_events"], 0)
+        self.assertGreater(len(data), 40)
+
+    def test_rejects_malformed_plan(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                render_midi({}, Path(folder) / "bad.mid")
+
+    def test_rejects_out_of_range_notes(self):
+        plan = compose_plan("یک شعر")
+        plan["composition"]["melody"][0]["midi_notes"] = [120]
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                render_midi(plan, Path(folder) / "bad.mid")
+
+
+if __name__ == "__main__":
+    unittest.main()
