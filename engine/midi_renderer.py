@@ -132,14 +132,14 @@ def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
                      is_peak: bool = False,
                      is_cadence: bool = False,
                      lexical_stress: bool = False,
-                     stress_beat_aligned: bool = False) -> int:
+                     stress_beat_aligned: bool = False,\n                     cadence_release_scale: float = 1.0) -> int:
     """Shape melody velocity with meter, phrase and curated lexical-stress accents."""
     beat = (tick_in_bar % (PPQ * 4)) // PPQ
     beat_scale = {0: 1.08, 1: 0.96, 2: 1.03, 3: 0.97}[beat]
     phrase_scale = (1.05 if is_peak else 1.0) * (1.03 if is_cadence else 1.0)
     stress_scale = (1.10 if stress_beat_aligned else
                     1.07 if lexical_stress else 1.0)
-    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale * stress_scale)
+    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale * stress_scale * max(0.75, min(1.0, cadence_release_scale))
 
 
 def _section_dynamics(section: str) -> dict[str, float]:
@@ -392,7 +392,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 is_peak=(isinstance(peak_index, int) and note_index == peak_index),
                 is_cadence=(note_index == len(notes) - 1),
                 lexical_stress=note_index in stressed_note_indices,
-                stress_beat_aligned=note_index in beat_aligned_stress_indices)
+                stress_beat_aligned=note_index in beat_aligned_stress_indices,\n                cadence_release_scale=(phrase.get("phrase_energy", {}).get("cadence_release_scale", 1.0)\n                                      if note_index == len(notes) - 1 else 1.0))
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
