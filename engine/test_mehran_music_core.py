@@ -117,6 +117,25 @@ class IndependentMusicCoreTests(unittest.TestCase):
                 self.assertEqual(second["harmonic_position"]["progression_slot"], 1)
                 self.assertEqual(second["chord"], progression[1])
 
+    def test_long_song_sections_receive_structural_harmonic_cadences(self):
+        lyrics = "\n".join([
+            "بند اول یک", "بند اول دو",
+            "ترجیع یک", "ترجیع دو", "ترجیع سه",
+            "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        progression = plan["composition"]["chord_progression"]
+        section_ends = [section["end_line"] - 1
+                        for section in plan["composition"]["sections"]]
+        for phrase_index in section_ends[:-1]:
+            phrase = phrases[phrase_index]
+            self.assertEqual(phrase["structural_cadence"], "section_dominant")
+            self.assertEqual(phrase["chord"], progression[-1])
+        final_phrase = phrases[section_ends[-1]]
+        self.assertEqual(final_phrase["structural_cadence"], "final_tonic")
+        self.assertEqual(final_phrase["chord"], progression[0])
+
     def test_rejects_invalid_tempo(self):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر", target_bpm=300)
