@@ -178,7 +178,10 @@ def build_composition_events(
         raise ValueError("Plan tempo must be an integer from 50 to 200 BPM")
     if not isinstance(melody, list) or not melody or not isinstance(chords, list) or not chords:
         raise ValueError("Plan must include melody phrases and a chord progression")
-    names = {"melody": "piano", "chords": "piano", "bass": "bass", "drums": "drums"}
+    names = {
+        "melody": "piano", "chords": "piano", "bass": "bass", "drums": "drums",
+        "guitar": None, "strings": None, "electric_guitar": None,
+    }
     if instruments is not None:
         if not isinstance(instruments, dict):
             raise ValueError("instruments must be a mapping of part names to bank slugs")
@@ -230,8 +233,23 @@ def build_composition_events(
             root_pc, _ = _parse_chord(symbol)
             voicing = _voice_lead_chord(symbol, previous_voicing)
             previous_voicing = voicing
-            for note in voicing:
-                add("chords", note, bar_start, 4 * PPQ - 24, 58)
+            for voice_index, note in enumerate(voicing):
+                add("chords", note, bar_start, 4 * PPQ - 24, 58,
+                    (-0.22, 0.0, 0.22)[voice_index])
+            if names["guitar"]:
+                for beat in range(4):
+                    for voice_index, note in enumerate(voicing):
+                        add("guitar", note, bar_start + beat * PPQ + voice_index * 18,
+                            PPQ // 2, 54, (-0.35, 0.0, 0.35)[voice_index])
+            if names["strings"] and phrase.get("section") == "chorus":
+                for voice_index, note in enumerate(voicing):
+                    add("strings", note, bar_start, 4 * PPQ - 24, 42,
+                        (-0.3, 0.0, 0.3)[voice_index])
+            if names["electric_guitar"] and phrase.get("section") == "chorus":
+                add("electric_guitar", voicing[-1], bar_start + PPQ,
+                    PPQ // 2, 68, 0.38)
+                add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
+                    PPQ // 2, 72, 0.42)
             root = 36 + root_pc
             add("bass", root, bar_start, 2 * PPQ - 36, 82)
             add("bass", root + 7, bar_start + 2 * PPQ, PPQ - 36, 82)
