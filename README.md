@@ -251,10 +251,17 @@ recording level, loop-boundary discontinuity, and a possible truncated tail
 receive explicit deductions. It never substitutes a nearby note, another
 articulation, or an incompatible velocity layer. The report includes each
 candidate's warnings and score deductions so the choice can be audited.
+Each candidate also carries non-scoring acoustic diagnostics: a conservative
+pitch estimate where periodicity permits, broad envelope family, measured
+attack and release intervals, and file-boundary indicators. Percussion is
+explicitly marked as not applicable for pitched-note estimation. Inconclusive
+pitch estimates remain inconclusive and do not affect the ranking score.
+These measurements are descriptive aids, not instrument-specific acceptance
+limits or a claim of authentic timbre.
+
 This score is not a judgment of timbre, musicality, tuning authenticity, or
 performer quality. It is a diagnostic shortlist only; audition the leading
-recording before production use. The existing renderer's sample-selection
-behavior is unchanged by this diagnostic feature.
+recording before production use.
 
 
 ### Quality-ranked sample selection in the renderer
