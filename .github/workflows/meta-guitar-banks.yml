@@ -28,6 +28,7 @@ env:
 jobs:
   build-guitar-banks:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout MEHRAN engine
         uses: actions/checkout@v4
@@ -40,8 +41,10 @@ jobs:
       - name: Test safe recorded-bank installation and provenance
         run: python3 -m unittest engine.test_sample_bank_install -v
       - name: Download, verify, convert, and validate nylon guitar
+        timeout-minutes: 20
         run: python3 engine/fetch_meta_guitar_banks.py meta-nylon-guitar sample-bank-meta-nylon-guitar
       - name: Download, verify, convert, and validate steel guitar
+        timeout-minutes: 20
         run: python3 engine/fetch_meta_guitar_banks.py meta-steel-guitar sample-bank-meta-steel-guitar
       - name: Render real guitar audition notes
         run: |
@@ -79,6 +82,7 @@ jobs:
               print('REAL_GUITAR_PREVIEW_OK', filename, report['sample_selection'])
           PY
       - name: Download and verify the full CC0 piano bank
+        timeout-minutes: 20
         run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
       - name: Install all three real banks and render a piano plus guitar composition
         run: |
