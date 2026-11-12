@@ -653,6 +653,48 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(very_long["level"], "very_high")
         self.assertEqual(long["confidence"], "syllable_estimate")
 
+    def test_section_end_phrases_receive_breath_recovery_priority(self):
+        lyrics = "\\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        sections = plan["composition"]["sections"]
+        section_ends = {section["end_line"] - 1 for section in sections}
+        for index, phrase in enumerate(phrases):
+            expected = index in section_ends
+            self.assertEqual(phrase["is_section_final_phrase"], expected)
+            self.assertEqual(phrase["breath_demand"]["section_boundary"], expected)
+            self.assertEqual(
+                phrase["breath_demand"]["recovery_priority"],
+                "highest" if index == len(phrases) - 1 else
+                "elevated" if expected else "normal",
+            )
+            self.assertEqual(
+                phrase["breath_window"]["boundary"],
+                "final_song_end" if index == len(phrases) - 1 else
+                "section_end" if expected else "internal_phrase",
+            )
+
+    def test_section_boundary_does_not_invent_a_breath_pause(self):
+        lyrics = "\\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        for phrase in phrases:
+            if phrase["is_section_final_phrase"] and phrase["phrase_pause_ticks"] == 0:
+                self.assertEqual(phrase["breath_window"]["duration_ticks"], 0)
+                self.assertEqual(phrase["breath_window"]["kind"], "none")
+                self.assertEqual(phrase["breath_window"]["timing_basis"],
+                                 "written_punctuation")
+
     def test_composition_exposes_phrase_breath_demand(self):
         plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟")
         phrases = plan["composition"]["melody"]
