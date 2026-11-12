@@ -107,6 +107,17 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_sample_melody_accents_peak_and_cadence_notes(self):
+        plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        phrase = plan["composition"]["melody"][0]
+        phrase["peak_note_index"] = 0
+        events = build_composition_events(plan, instruments={"melody": "lead"})
+        melody_events = [event for event in events if event["instrument"] == "lead"]
+        self.assertEqual(len(melody_events), len(phrase["midi_notes"]))
+        self.assertGreater(melody_events[0]["velocity"], melody_events[1]["velocity"])
+        self.assertGreater(melody_events[-1]["velocity"], 0)
+        self.assertTrue(all(1 <= event["velocity"] <= 127 for event in melody_events))
+
     def test_sample_arrangement_dynamics_change_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
