@@ -66,6 +66,17 @@ class IndependentMusicCoreTests(unittest.TestCase):
             [0, 0, 1, 1],
         )
 
+    def test_repeated_stanza_rhyme_links_compatible_melodic_cadences(self):
+        plan = compose_plan("خانه\nشب\nبهانه\nیار")
+        phrases = plan["composition"]["melody"]
+        first, repeated = phrases[0], phrases[2]
+        self.assertEqual(first["rhyme_cadence_group"], repeated["rhyme_cadence_group"])
+        self.assertFalse(first["rhyme_cadence_linked"])
+        self.assertTrue(repeated["rhyme_cadence_linked"])
+        self.assertEqual(first["cadence_note"] % 12, repeated["cadence_note"] % 12)
+        self.assertEqual(repeated["rhyme_cadence_method"],
+                         "shared_stanza_rhyme_pitch_class_v1")
+
     def test_rhyme_groups_report_repeated_endings_and_line_indices(self):
         result = analyze_lyrics("خانه\nبهانه\nشب\nروز")
         self.assertEqual(len(result["rhyme_groups"]), 1)
