@@ -50,10 +50,10 @@ def _integer(value: Any, low: int, high: int, field: str) -> int:
     return value
 
 
-def load_sample_bank(bank_root: str | Path) -> SampleBank:
-    """Load bank.json and validate every referenced, recorded PCM WAV sample."""
+def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = None) -> SampleBank:
+    """Load a sample-bank manifest and validate every referenced, recorded PCM WAV sample."""
     root = Path(bank_root).resolve()
-    manifest_path = root / "bank.json"
+    manifest_path = Path(manifest_path).resolve() if manifest_path is not None else root / "bank.json"
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
