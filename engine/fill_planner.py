@@ -1,0 +1,75 @@
+"""Deterministic melodic response fills for genuine vocal-rest windows."""
+from __future__ import annotations
+
+from typing import Any
+
+
+def plan_melody_fill(
+    *, gap_start_tick: int, gap_duration_ticks: int,
+    scale_pitch_classes: list[int], chord_pitch_classes: list[int],
+    reference_note: int, instrument_range: tuple[int, int] = (48, 84),
+    max_notes: int = 4,
+) -> dict[str, Any]:
+    """Create a short chord-aware fill wholly contained in a vocal-rest gap.
+
+    This returns note-event metadata only. It does not claim sample availability
+    or render audio.
+    """
+    if isinstance(gap_start_tick, bool) or not isinstance(gap_start_tick, int) or gap_start_tick < 0:
+        raise ValueError("gap_start_tick must be a non-negative integer")
+    if isinstance(gap_duration_ticks, bool) or not isinstance(gap_duration_ticks, int) or gap_duration_ticks < 0:
+        raise ValueError("gap_duration_ticks must be a non-negative integer")
+    if not isinstance(scale_pitch_classes, list) or not scale_pitch_classes or any(
+        isinstance(pc, bool) or not isinstance(pc, int) or not 0 <= pc <= 11
+        for pc in scale_pitch_classes
+    ):
+        raise ValueError("scale_pitch_classes must contain pitch classes from 0 to 11")
+    if not isinstance(chord_pitch_classes, list) or not chord_pitch_classes or any(
+        isinstance(pc, bool) or not isinstance(pc, int) or not 0 <= pc <= 11
+        for pc in chord_pitch_classes
+    ):
+        raise ValueError("chord_pitch_classes must contain pitch classes from 0 to 11")
+    if isinstance(reference_note, bool) or not isinstance(reference_note, int) or not 0 <= reference_note <= 127:
+        raise ValueError("reference_note must be a MIDI note from 0 to 127")
+    if (not isinstance(instrument_range, tuple) or len(instrument_range) != 2
+            or any(isinstance(n, bool) or not isinstance(n, int) for n in instrument_range)
+            or not 0 <= instrument_range[0] < instrument_range[1] <= 127):
+        raise ValueError("instrument_range must be an ascending MIDI-note tuple")
+    if isinstance(max_notes, bool) or not isinstance(max_notes, int) or not 1 <= max_notes <= 8:
+        raise ValueError("max_notes must be from 1 to 8")
+    if gap_duration_ticks < 120:
+        return {"events": [], "reason": "gap_too_short", "planner": "deterministic_melodic_fill_v1",
+                "audio_rendered": False}
+
+    count = min(max_notes, max(1, gap_duration_ticks // 180))
+    base = min(max(instrument_range[0], reference_note), instrument_range[1])
+    candidates = [note for note in range(max(instrument_range[0], base - 12),
+                                         min(instrument_range[1], base + 13) + 1)
+                  if note % 12 in scale_pitch_classes]
+    if not candidates:
+        return {"events": [], "reason": "no_scale_notes_in_range",
+                "planner": "deterministic_melodic_fill_v1", "audio_rendered": False}
+    chord = [note for note in candidates if note % 12 in chord_pitch_classes]
+    ordered = sorted(chord or candidates, key=lambda note: (abs(note - base), note))
+    # A compact rising-then-returning response, biased toward chord tones.
+    chosen = []
+    for index in range(count):
+        pool = ordered if index in (0, count - 1) and chord else candidates
+        target = base + (5 if index % 2 == 0 else 2)
+        note = min(pool, key=lambda value: (abs(value - target), abs(value - base), value))
+        if chosen and note == chosen[-1] and len(pool) > 1:
+            note = min((item for item in pool if item != note),
+                       key=lambda value: (abs(value - target), abs(value - base), value))
+        chosen.append(note)
+    total = min(gap_duration_ticks, count * 180)
+    durations = [total // count] * count
+    durations[-1] += total - sum(durations)
+    cursor = gap_start_tick
+    events = []
+    for note, duration in zip(chosen, durations):
+        events.append({"midi_note": note, "start_tick": cursor,
+                       "duration_ticks": duration, "velocity": 62,
+                       "role": "melodic_response_fill"})
+        cursor += duration
+    return {"events": events, "reason": "planned_in_vocal_rest",
+            "planner": "deterministic_melodic_fill_v1", "audio_rendered": False}
