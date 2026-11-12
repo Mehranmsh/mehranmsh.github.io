@@ -44,12 +44,12 @@ def parse_sfz_sample_map(sfz_text: str) -> dict[str, dict[str, int]]:
         elif line.startswith("<region>"):
             if velocity_min is None or velocity_max is None:
                 raise ValueError("SFZ region appeared before a velocity group")
-            attrs = dict(re.findall(r"([a-z_]+)=([^\\s]+)", line))
+            attrs = dict(re.findall(r"([a-z_]+)=([^\s]+)", line))
             if "key" not in attrs or "sample" not in attrs:
                 raise ValueError("SFZ region must define key and sample")
             key = int(attrs["key"])
             sample = attrs["sample"]
-            if not 0 <= key <= 127 or not re.fullmatch(r"INSPiano_Vel0[1-4]_[A-G](?:s)?[0-8]_01\\.ogg", sample):
+            if not 0 <= key <= 127 or not re.fullmatch(r"INSPiano_Vel0[1-4]_[A-G](?:s)?[0-8]_01\.ogg", sample):
                 raise ValueError(f"Unsupported Meta Piano region: {line}")
             if sample in mapped:
                 raise ValueError(f"Duplicate SFZ sample mapping: {sample}")
@@ -66,7 +66,7 @@ def parse_sfz_sample_map(sfz_text: str) -> dict[str, dict[str, int]]:
 def parse_sha256sums(text: str) -> dict[str, str]:
     result: dict[str, str] = {}
     for line in text.splitlines():
-        match = re.fullmatch(r"([0-9a-f]{64})\\s+(.+)", line.strip())
+        match = re.fullmatch(r"([0-9a-f]{64})\s+(.+)", line.strip())
         if match:
             digest, relative = match.groups()
             result[relative] = digest
@@ -156,7 +156,7 @@ def fetch_meta_piano_bank(output_root: str | Path) -> dict[str, Any]:
         "samples": samples,
     }
     manifest_path = root / "bank.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     from sample_bank import load_sample_bank
     bank = load_sample_bank(root)
     if len(bank.samples) != 352:
