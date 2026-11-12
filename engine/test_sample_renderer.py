@@ -541,5 +541,34 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(result["articulation_diagnostics"]["sample_exact_match"])
             self.assertTrue(result["articulation_diagnostics"]["audio_rendered"])
 
+
+    def test_planned_articulation_controls_sample_gate_and_release(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        item = plan["composition"]["melody"][0]["note_lyric_map"][0]
+        item.update({"articulation": "staccato", "gate_ratio": 0.62, "release_ms": 12})
+        event = next(event for event in build_composition_events(plan)
+                     if event["instrument"] == "piano")
+        ticks = int(plan["composition"]["melody"][0]["note_durations_ticks"][0] * 0.62)
+        self.assertEqual(event["duration_seconds"], round(ticks * 60 / 84 / 480, 6))
+        self.assertEqual(event["release_seconds"], 0.012)
+
+    def test_release_seconds_is_validated_and_reported(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "release.wav"
+            with self.assertRaisesRegex(ValueError, "release_seconds"):
+                render_sample_events([
+                    {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                     "duration_seconds": 0.08, "release_seconds": 1.1}
+                ], bank, output)
+            result = render_sample_events([
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.08, "release_seconds": 0.012}
+            ], bank, output, sample_rate=22050)
+            self.assertTrue(result["articulation_diagnostics"]["performance_shaping_applied"])
+            self.assertEqual(result["articulation_diagnostics"]["release_profiles_ms"], [12])
+
 if __name__ == "__main__":
     unittest.main()
