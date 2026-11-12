@@ -62,6 +62,15 @@ class MidiRendererTests(unittest.TestCase):
             self.assertEqual(notes, sorted(notes))
             self.assertLessEqual(notes[-1] - notes[0], 19)
 
+    def test_chord_voicings_report_their_inversion(self):
+        plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد")
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(plan, Path(folder) / "inversions.mid")
+        self.assertTrue(result["chord_voicings"])
+        for item in result["chord_voicings"]:
+            self.assertIn(item["inversion"], ("root", "first", "second"))
+            self.assertEqual(len(item["midi_notes"]), 3)
+
     def test_chorus_bass_has_more_movement_than_verse(self):
         verse_events, chorus_events = [], []
         verse_count = _bass_pattern(9, 0, verse_events, chorus=False)
