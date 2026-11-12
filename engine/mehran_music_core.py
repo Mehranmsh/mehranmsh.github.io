@@ -179,11 +179,25 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     if not isinstance(lyrics, str) or not lyrics.strip():
         raise ValueError("lyrics must be a non-empty string")
     cleaned = _normalize(lyrics)
-    raw_lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    raw_lines = []
+    line_stanza_indices = []
+    stanza_index = 0
+    stanza_has_content = False
+    for raw_line in cleaned.splitlines():
+        if not raw_line.strip():
+            if stanza_has_content:
+                stanza_index += 1
+                stanza_has_content = False
+            continue
+        raw_lines.append(raw_line.strip())
+        line_stanza_indices.append(stanza_index)
+        stanza_has_content = True
     if not raw_lines:
         raise ValueError("lyrics must contain at least one non-empty line")
+    raw_lines = raw_lines[:160]
+    line_stanza_indices = line_stanza_indices[:160]
     lines = []
-    for line in raw_lines[:160]:
+    for line in raw_lines:
         words = WORD_PATTERN.findall(line)
         lines.append(LyricLine(line, len(words), sum(_rhythmic_syllables(w) for w in words), _ending(line)))
     counts = {mood: sum(1 for word in keywords if word in cleaned)
@@ -199,13 +213,14 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
         })
         group_label = None
         if signature["signature"]:
-            key = (signature["rhyme_tail"], signature["confidence"])
+            key = (line_stanza_indices[index], signature["rhyme_tail"], signature["confidence"])
             if key not in rhyme_groups_by_key:
                 label_index = len(rhyme_groups_by_key)
                 label = (rhyme_labels[label_index] if label_index < len(rhyme_labels)
                          else f"R{label_index + 1}")
                 rhyme_groups_by_key[key] = {
                     "label": label,
+                    "stanza_index": line_stanza_indices[index],
                     "signature": signature["signature"],
                     "rhyme_tail": signature["rhyme_tail"],
                     "confidence": signature["confidence"],
@@ -217,6 +232,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
             group_label = group["label"]
         rhyme_analysis.append({
             "line_index": index,
+            "stanza_index": line_stanza_indices[index],
             "ending_word": ending_words[-1] if ending_words else "",
             **signature,
             "group": group_label,
@@ -229,6 +245,25 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     for item in rhyme_analysis:
         if item["group"] not in repeated_group_labels:
             item["group"] = None
+    stanza_rhyme_schemes = []
+    for stanza in sorted(set(line_stanza_indices)):
+        stanza_items = [item for item in rhyme_analysis
+                        if item["stanza_index"] == stanza]
+        labels = {}
+        pattern = []
+        for item in stanza_items:
+            if item["group"] is None:
+                pattern.append(None)
+                continue
+            key = (item["rhyme_tail"], item["confidence"])
+            if key not in labels:
+                labels[key] = rhyme_labels[len(labels)] if len(labels) < len(rhyme_labels) else f"R{len(labels) + 1}"
+            pattern.append(labels[key])
+        stanza_rhyme_schemes.append({
+            "stanza_index": stanza,
+            "line_indices": [item["line_index"] for item in stanza_items],
+            "pattern": pattern,
+        })
     return {
         "language": "fa",
         "line_count": len(lines),
@@ -249,6 +284,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
         "rhyme_candidates": sorted({line.ending for line in lines if line.ending}),
         "rhyme_analysis": rhyme_analysis,
         "rhyme_groups": rhyme_groups,
+        "stanza_rhyme_schemes": stanza_rhyme_schemes,
         "syllable_method": "orthographic_estimate_v1",
         "phonetic_method": "conservative_written_vowel_scan_v1",
         "notice": "The phonetic layer reports written vowel evidence only; it does not claim full pronunciation, lexical stress, or prosodic meter.",
