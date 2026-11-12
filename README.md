@@ -77,3 +77,17 @@ quarter-tone inflections. Setting `composition.persian_dastgah` to one of
 `shur`, `homayun` or `mahour` activates the profile for response fills;
 unknown names are rejected rather than silently ignored. Existing major/minor
 plans remain unchanged when the field is absent.
+
+
+### Per-note pitch cents pipeline
+
+Melody note metadata may carry `pitch_cents` from -200 to +200 relative to
+its integer MIDI note. The sample renderer applies this offset during recorded
+sample playback by adjusting the resampling ratio. The MIDI renderer emits
+channel pitch-bend messages and configures a +/-2-semitone bend range using
+RPN. This is pitch-control infrastructure only: it does not invent Persian
+microtonal degree values or claim that a dastgah profile is now authentically
+quarter-tone tuned. Curated modal tuning tables and instrument-specific
+recordings remain separate required work. MIDI pitch bend is applied on the
+monophonic melody channel; simultaneous independently bent notes on one
+channel are not supported by this first implementation.
