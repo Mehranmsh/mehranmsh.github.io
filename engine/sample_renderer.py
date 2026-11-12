@@ -296,7 +296,9 @@ def build_composition_events(
 
         for bar in range(bars):
             bar_start = phrase_tick + bar * 4 * PPQ
-            symbol = chords[chord_index % len(chords)]
+            phrase_chord = phrase.get("chord")
+            symbol = (phrase_chord if bar == 0 and isinstance(phrase_chord, str)
+                      else chords[chord_index % len(chords)])
             root_pc, _ = _parse_chord(symbol)
             voicing = _voice_lead_chord(symbol, previous_voicing)
             previous_voicing = voicing
