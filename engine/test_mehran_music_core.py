@@ -67,7 +67,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(_harmonic_function("C7", "D", "minor"), "subtonic")
 
     def test_long_song_sections_separate_second_verse_and_final_chorus(self):
-        lyrics = "\\n".join([
+        lyrics = "\n".join([
             "بند اول یک", "بند اول دو",
             "ترجیع یک", "ترجیع دو", "ترجیع سه",
             "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
