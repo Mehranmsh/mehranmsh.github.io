@@ -800,5 +800,27 @@ class IndependentMusicCoreTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "persian_dastgah"):
             compose_plan("دلم گرفته از این شب", persian_dastgah="unknown")
 
+
+    def test_composition_applies_explicit_persian_degree_cents_to_melody(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+            persian_degree_cents={1: 50, 4: -50},
+        )
+        profile = plan["composition"]["persian_modal_profile"]
+        self.assertEqual(profile["tuning"], "custom_degree_cents")
+        self.assertEqual(profile["scope"], "melody_and_response_fills")
+        offsets = [
+            item.get("pitch_cents", 0.0)
+            for phrase in plan["composition"]["melody"]
+            for item in phrase["note_lyric_map"]
+        ]
+        self.assertTrue(any(value in (50.0, -50.0) for value in offsets))
+
+    def test_composition_rejects_invalid_persian_degree_cents(self):
+        with self.assertRaisesRegex(ValueError, "persian_degree_cents"):
+            compose_plan("یک شب آرام", persian_dastgah="shur",
+                         persian_degree_cents={8: 50})
+
 if __name__ == "__main__":
     unittest.main()
