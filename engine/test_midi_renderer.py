@@ -27,6 +27,18 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreaterEqual(phrase["bar_count"], 2)
         self.assertEqual(sum(phrase["note_durations_ticks"]), phrase["duration_ticks"])
 
+    def test_chord_voicings_use_close_voice_leading(self):
+        plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد")
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(plan, Path(folder) / "song.mid")
+        voicings = result["chord_voicings"]
+        self.assertGreaterEqual(len(voicings), 4)
+        for voicing in voicings:
+            notes = voicing["midi_notes"]
+            self.assertEqual(len(notes), 3)
+            self.assertEqual(notes, sorted(notes))
+            self.assertLessEqual(notes[-1] - notes[0], 19)
+
     def test_rejects_malformed_plan(self):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(ValueError):
