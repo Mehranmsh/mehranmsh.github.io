@@ -844,6 +844,54 @@ class SampleBankTests(unittest.TestCase):
             )
             self.assertNotIn("acoustic_diagnostics", result["candidates"][0]["score_deductions"])
 
+    def test_spectral_profile_describes_brightness_without_scoring_it(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            rate = 8000
+            fixtures = [
+                ("piano/fundamental.wav", 1, 63, lambda i: 9000 * math.sin(2 * math.pi * 440 * i / rate)),
+                ("piano/harmonic.wav", 64, 127, lambda i: (
+                    6500 * math.sin(2 * math.pi * 440 * i / rate)
+                    + 5500 * math.sin(2 * math.pi * 1760 * i / rate)
+                )),
+            ]
+            entries = []
+            for filename, velocity_min, velocity_max, signal in fixtures:
+                path = root / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                values = [int(signal(i)) for i in range(rate // 4)]
+                with wave.open(str(path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(rate)
+                    wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+                entries.append({
+                    "instrument": "piano", "midi_note": 69, "path": filename,
+                    "velocity_min": velocity_min, "velocity_max": velocity_max,
+                    "articulation": "sustain",
+                })
+            self.write_manifest(root, entries)
+            bank = load_sample_bank(root)
+            fundamental = rank_sample_candidates(bank, "piano", 69, 30)["candidates"][0]
+            harmonic = rank_sample_candidates(bank, "piano", 69, 100)["candidates"][0]
+            first = fundamental["acoustic_diagnostics"]["spectral_profile"]
+            second = harmonic["acoustic_diagnostics"]["spectral_profile"]
+            self.assertEqual(first["status"], "measured")
+            self.assertEqual(second["status"], "measured")
+            self.assertGreater(
+                second["spectral_centroid_hz"], first["spectral_centroid_hz"]
+            )
+            self.assertIn("spectral_rolloff_85_hz", second)
+            self.assertIn("spectral_flatness", second)
+            self.assertEqual(
+                second["interpretation"], "descriptive_only_not_a_timbre_quality_grade"
+            )
+            self.assertEqual(fundamental["score"], harmonic["score"])
+            self.assertNotIn(
+                "spectral_profile",
+                fundamental["score_deductions"],
+            )
+
     def test_candidate_ranking_does_not_fallback_to_nearby_note_or_articulation(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
