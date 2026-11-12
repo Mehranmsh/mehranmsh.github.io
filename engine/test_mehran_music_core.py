@@ -99,6 +99,24 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(all(p["contour_type"] == "restrained_wave"
                             for p in verse_two))
 
+    def test_harmonic_progression_restarts_at_each_section_boundary(self):
+        lyrics = "\\n".join([
+            "بند اول یک", "بند اول دو",
+            "ترجیع یک", "ترجیع دو", "ترجیع سه",
+            "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        progression = plan["composition"]["chord_progression"]
+        for section in plan["composition"]["sections"]:
+            first = phrases[section["start_line"]]
+            self.assertEqual(first["harmonic_position"]["progression_slot"], 0)
+            self.assertEqual(first["chord"], progression[0])
+            if section["end_line"] - section["start_line"] > 1:
+                second = phrases[section["start_line"] + 1]
+                self.assertEqual(second["harmonic_position"]["progression_slot"], 1)
+                self.assertEqual(second["chord"], progression[1])
+
     def test_rejects_invalid_tempo(self):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر", target_bpm=300)
