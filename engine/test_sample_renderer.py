@@ -190,12 +190,12 @@ class SampleRendererTests(unittest.TestCase):
         neutral_events = build_composition_events(neutral)
         phrase = phrases[target_index]
         start_tick = sum(
-            item["bar_count"] * 4 * PPQ + item.get("phrase_pause_ticks", 0)
+            item["bar_count"] * 4 * 480 + item.get("phrase_pause_ticks", 0)
             for item in phrases[:target_index]
         )
-        transition_start = start_tick + (phrase["bar_count"] - 1) * 4 * PPQ
-        transition_end = start_tick + phrase["bar_count"] * 4 * PPQ
-        start_seconds = transition_start * 60.0 / 84 / PPQ
+        transition_start = start_tick + (phrase["bar_count"] - 1) * 4 * 480
+        transition_end = start_tick + phrase["bar_count"] * 4 * 480
+        start_seconds = transition_start * 60.0 / 84 / 480
         end_seconds = transition_end * 60.0 / 84 / PPQ
         def transition_events(events, instrument):
             return [event for event in events
