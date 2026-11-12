@@ -107,6 +107,21 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_chorus_adds_snare_pickup_fills_at_phrase_ends(self):
+        import copy
+        base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        plans = {}
+        for section in ("verse", "chorus"):
+            plan = copy.deepcopy(base)
+            for phrase in plan["composition"]["melody"]:
+                phrase["section"] = section
+            plans[section] = build_composition_events(plan)
+        snare_counts = {
+            section: sum(event["instrument"] == "snare" for event in events)
+            for section, events in plans.items()
+        }
+        self.assertGreater(snare_counts["chorus"], snare_counts["verse"])
+
     def test_sample_piano_pattern_changes_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
