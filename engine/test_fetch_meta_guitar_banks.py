@@ -52,6 +52,7 @@ class MetaGuitarMapTests(unittest.TestCase):
         duplicate = (
             "<group> group=1 lovel=1 hivel=48\n"
             "<region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg\n"
+            "<group> group=1 lovel=49 hivel=96\n"
             "<region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg"
         )
         with self.assertRaisesRegex(ValueError, "Conflicting default"):
