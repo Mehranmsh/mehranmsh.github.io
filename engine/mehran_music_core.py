@@ -9,6 +9,8 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from articulation_planner import plan_articulations
+
 PERSIAN_VOWELS = set("َُِاویآ")
 WORD_PATTERN = re.compile(r"[\wآ-ی\u064b-\u065f\u0670]+(?:\u200c[\wآ-ی\u064b-\u065f\u0670]+)*", flags=re.UNICODE)
 MOOD_WORDS = {
@@ -747,7 +749,9 @@ def _harmonic_cadence(chords: tuple[str, ...], lyric_line: str) -> tuple[str | N
 
 
 def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
-                 target_bpm: int | None = None) -> dict[str, Any]:
+                 target_bpm: int | None = None,
+                 melody_instrument: str = "piano",
+                 articulation_style: str = "balanced") -> dict[str, Any]:
     analysis = analyze_lyrics(lyrics)
     mood = analysis["mood"]
     chords, key, mode, suggested_bpm = PROGRESSIONS[mood]
@@ -921,6 +925,23 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             if rhyme_group is not None and rhyme_confidence == "curated"
             else None
         )
+        articulation_plan = plan_articulations(
+            [
+                {
+                    "midi_note": note,
+                    "duration_ticks": duration,
+                    "phrase_final": note_index == len(notes) - 1,
+                }
+                for note_index, (note, duration) in enumerate(zip(notes, durations))
+            ],
+            instrument=melody_instrument,
+            tempo_bpm=bpm,
+            style=articulation_style,
+        )
+        for note_index, item in enumerate(articulation_plan["events"]):
+            lyric_alignment["note_lyric_map"][note_index]["articulation"] = item["articulation"]
+            lyric_alignment["note_lyric_map"][note_index]["articulation_reason"] = item["reason"]
+
         rhyme_cadence_linked = False
         if rhyme_key is not None:
             shared_pitch_class = shared_rhyme_cadences.get(rhyme_key)
@@ -1008,7 +1029,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.6.0",
+        "engine_version": "0.7.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
@@ -1020,6 +1041,13 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "chord_progression": list(chords),
             "sections": sections,
             "melody": melody,
+            "melody_performance": {
+                "instrument": melody_instrument,
+                "articulation_style": articulation_style,
+                "planner": "deterministic_catalog_aware_v1",
+                "event_count": sum(len(phrase["midi_notes"]) for phrase in melody),
+                "audio_rendered": False,
+            },
             "arrangement_blueprint": arrangement,
         },
         "audio_rendered": False,
