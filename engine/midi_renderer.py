@@ -168,17 +168,17 @@ def _bass_pattern(root_pc: int, bar_start: int,
     octave = root + 12
     if bridge:
         # Leave air in the bridge: root anchor, then a soft fifth response.
-        pattern = [(0, root, PPQ * 2 - 36, 62),
+        pattern = [(0, bass_root, PPQ * 2 - 36, 62),
                    (PPQ * 2, fifth, PPQ * 2 - 36, 54)]
     elif chorus:
         # Beat 1 and beat 3 reinforce the kick; the offbeat fifth adds forward motion.
-        pattern = [(0, root, PPQ - 36, 88),
+        pattern = [(0, bass_root, PPQ - 36, 88),
                    (PPQ + PPQ // 2, fifth, PPQ // 2 - 24, 72),
-                   (PPQ * 2, octave, PPQ - 36, 84),
+                   (PPQ * 2, bass_root + 12, PPQ - 36, 84),
                    (PPQ * 3, third if bar_index % 2 == 0 else fifth,
                     PPQ - 36, 78)]
     else:
-        pattern = [(0, root, PPQ * 2 - 36, 78),
+        pattern = [(0, bass_root, PPQ * 2 - 36, 78),
                    (PPQ * 2, third, PPQ - 36, 68),
                    (PPQ * 3, fifth, PPQ - 36, 72)]
     for offset, note, gate, velocity in pattern:
