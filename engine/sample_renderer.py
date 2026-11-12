@@ -17,6 +17,7 @@ from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
 from expression_planner import plan_part_expression
 from arrangement_planner import plan_part_arrangement
 from vocal_space_planner import plan_vocal_space
+from fill_planner import plan_melody_fill
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -551,6 +552,39 @@ def build_composition_events(
                     add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
                         48, _scaled_velocity(90, drum_scale))
             chord_index += 1
+        # Optional guitar response phrases occupy only the written breath/rest window.
+        # They are metadata/sample events, and are skipped unless a guitar bank is mapped.
+        if names["guitar"] and pause_ticks >= 120:
+            key_roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+            mode_intervals = {
+                "major": (0, 2, 4, 5, 7, 9, 11),
+                "minor": (0, 2, 3, 5, 7, 8, 10),
+            }
+            key_name = composition.get("key")
+            mode_name = composition.get("mode")
+            if key_name in key_roots and mode_name in mode_intervals:
+                scale_pcs = [(key_roots[key_name] + interval) % 12
+                             for interval in mode_intervals[mode_name]]
+                fill_chord = phrase.get("chord", chords[chord_index % len(chords)])
+                fill_root, fill_intervals = _parse_chord(fill_chord)
+                chord_pcs = [(fill_root + interval) % 12 for interval in fill_intervals]
+                fill_plan = plan_melody_fill(
+                    gap_start_tick=phrase_tick + phrase_ticks,
+                    gap_duration_ticks=pause_ticks,
+                    scale_pitch_classes=scale_pcs,
+                    chord_pitch_classes=chord_pcs,
+                    reference_note=notes[-1],
+                    instrument_range=(48, 84),
+                    max_notes=4,
+                )
+                for fill in fill_plan["events"]:
+                    before_count = len(events)
+                    add("guitar", fill["midi_note"], fill["start_tick"],
+                        fill["duration_ticks"], fill["velocity"], 0.18)
+                    if len(events) > before_count:
+                        events[-1]["event_role"] = fill["role"]
+                        events[-1]["fill_planner"] = fill_plan["planner"]
+                        events[-1]["fill_reason"] = fill_plan["reason"]
         phrase_tick += phrase_ticks + pause_ticks
     if len(events) > MAX_EVENTS:
         raise ValueError("Composition exceeds the sample renderer event limit")
