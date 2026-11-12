@@ -598,6 +598,22 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(phrases[1]["breath_after_phrase"], "full")
         self.assertEqual(phrases[2]["phrase_pause_ticks"], 0)
 
+    def test_breath_window_is_explicit_and_follows_phrase_end(self):
+        plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد")
+        first, second, third = plan["composition"]["melody"]
+        self.assertEqual(first["breath_window"], {
+            "start_tick": first["duration_ticks"],
+            "end_tick": first["duration_ticks"] + 120,
+            "duration_ticks": 120,
+            "kind": "short",
+            "timing_basis": "written_punctuation",
+        })
+        self.assertEqual(second["breath_window"]["kind"], "full")
+        self.assertEqual(second["breath_window"]["duration_ticks"], 360)
+        self.assertEqual(third["breath_window"]["duration_ticks"], 0)
+        self.assertEqual(third["breath_window"]["start_tick"],
+                         third["breath_window"]["end_tick"])
+
     def test_phrase_final_sustain_uses_curated_open_or_closed_syllable(self):
         plan = compose_plan("خانه\nبرگرد")
         open_phrase, closed_phrase = plan["composition"]["melody"]
