@@ -102,3 +102,12 @@ Example manifest entry:
 ```
 
 Example playback event field: `"articulation": "pizzicato"`.
+
+
+## Articulation-aware recording plan and coverage
+
+The recording checklist and CSV sheet now expand each instrument into distinct performance-technique targets as well as note and velocity targets. The 35-instrument catalog has instrument-specific technique labels, including Persian tar/setar mezrab directions and tremolo, violin-family bowing and pizzicato, guitar picking and palm muting, and percussion hit/roll variants. These are recording requirements, not claims that the techniques are already sampled or renderer-ready.
+
+Every CSV row includes an `articulation` column, and suggested file paths are grouped by instrument and technique, for example `violin/pizzicato/60_main.wav`. The manifest's optional `articulation` field must match the requested technique exactly. Older entries default to `sustain`.
+
+Coverage diagnostics now require exact instrument, note, velocity-zone and articulation matches. A bank containing every pitch but only sustained performances will correctly remain incomplete when staccato, pizzicato or other techniques are also required. Missing articulation names are reported per instrument. The checklist is version 2; the WAV manifest remains format version 1 and is backward compatible.
