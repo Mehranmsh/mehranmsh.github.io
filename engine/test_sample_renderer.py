@@ -122,6 +122,17 @@ class SampleRendererTests(unittest.TestCase):
         }
         self.assertGreater(snare_counts["chorus"], snare_counts["verse"])
 
+    def test_sample_renderer_uses_phrase_level_cadence_chord(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        plan["composition"]["melody"][0]["chord"] = "F"
+        events = build_composition_events(
+            plan, instruments={"chords": "piano", "melody": "lead"})
+        first_bar = [event for event in events
+                     if event["instrument"] == "piano" and
+                     event["start_seconds"] < 4 * 60 / 84]
+        pitch_classes = {event["midi_note"] % 12 for event in first_bar}
+        self.assertTrue({0, 5, 9}.issubset(pitch_classes))
+
     def test_sample_piano_pattern_changes_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
