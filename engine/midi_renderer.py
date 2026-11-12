@@ -132,7 +132,8 @@ def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
                      is_peak: bool = False,
                      is_cadence: bool = False,
                      lexical_stress: bool = False,
-                     stress_beat_aligned: bool = False,\n                     cadence_release_scale: float = 1.0) -> int:
+                     stress_beat_aligned: bool = False,
+                     cadence_release_scale: float = 1.0) -> int:
     """Shape melody velocity with meter, phrase and curated lexical-stress accents."""
     beat = (tick_in_bar % (PPQ * 4)) // PPQ
     beat_scale = {0: 1.08, 1: 0.96, 2: 1.03, 3: 0.97}[beat]
