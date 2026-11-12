@@ -118,9 +118,7 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
                 articulation = "sustain"
             if string_name not in STRINGS or _note_midi(note_label) != key:
                 raise ValueError(f"Guitar filename/key identity mismatch: {filename} -> {key}")
-            if filename in mapped:
-                raise ValueError(f"Duplicate default SFZ sample mapping: {filename}")
-            mapped[filename] = {
+            entry = {
                 "midi_note": key,
                 "velocity_min": velocity_min,
                 "velocity_max": velocity_max,
@@ -128,6 +126,13 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
                 "articulation": articulation,
                 "velocity_layer": int(velocity_layer),
             }
+            if filename in mapped:
+                if mapped[filename] != entry:
+                    raise ValueError(f"Conflicting default SFZ sample mapping: {filename}")
+                # The SFZ intentionally maps the same recording on the
+                # automatic channel and the dedicated-string channel.
+                continue
+            mapped[filename] = entry
     if not mapped:
         raise ValueError("No default playable guitar regions were found")
     return mapped
