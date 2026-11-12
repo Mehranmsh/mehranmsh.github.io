@@ -1,0 +1,43 @@
+import unittest
+
+from expression_planner import plan_part_expression
+
+
+class PartExpressionTests(unittest.TestCase):
+    def test_melody_and_rhythm_anchors_stay_centered(self):
+        for part in ("melody", "bass", "kick", "snare"):
+            self.assertEqual(plan_part_expression(part, "chorus", 0.5)["pan"], 0.0)
+
+    def test_chord_width_expands_in_chorus_and_narrows_in_bridge(self):
+        verse = plan_part_expression("chords", "verse", 0.3)
+        chorus = plan_part_expression("chords", "chorus", 0.3)
+        bridge = plan_part_expression("chords", "bridge", 0.3)
+        self.assertGreater(chorus["stereo_width"], verse["stereo_width"])
+        self.assertLess(bridge["stereo_width"], verse["stereo_width"])
+        self.assertGreater(chorus["pan"], verse["pan"])
+
+    def test_hat_pattern_alternates_stereo_position(self):
+        left = plan_part_expression("closed_hat", "verse", event_index=0)
+        right = plan_part_expression("closed_hat", "verse", event_index=1)
+        self.assertEqual(left["pan"], -0.14)
+        self.assertEqual(right["pan"], 0.14)
+
+    def test_optional_layers_keep_bounded_section_aware_positions(self):
+        guitar = plan_part_expression("guitar", "final_chorus", -0.5)
+        strings = plan_part_expression("strings", "chorus", 0.6)
+        self.assertLess(guitar["pan"], -0.5)
+        self.assertGreater(strings["pan"], 0.6)
+        self.assertTrue(-1.0 <= guitar["pan"] <= 1.0)
+        self.assertTrue(-1.0 <= strings["pan"] <= 1.0)
+
+    def test_invalid_inputs_are_rejected(self):
+        with self.assertRaises(ValueError):
+            plan_part_expression("unknown", "verse")
+        with self.assertRaises(ValueError):
+            plan_part_expression("melody", "intro")
+        with self.assertRaises(ValueError):
+            plan_part_expression("melody", "verse", 1.1)
+
+
+if __name__ == "__main__":
+    unittest.main()
