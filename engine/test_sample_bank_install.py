@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sample_bank import load_sample_bank
 from sample_bank_install import install_recorded_banks
+from sample_renderer import render_sample_events
 
 
 class SampleBankInstallTests(unittest.TestCase):
@@ -50,6 +51,22 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(len(bank.samples), 2)
             self.assertEqual({s.instrument for s in bank.samples}, {"nylon_guitar", "acoustic_guitar"})
             self.assertTrue((target / "provenance" / "nylon_guitar" / "SOURCE_LICENSE.txt").is_file())
+            output = root / "installed-audition.wav"
+            rendered = render_sample_events([{
+                "instrument": "nylon_guitar",
+                "midi_note": 40,
+                "start_seconds": 0,
+                "duration_seconds": 0.05,
+                "velocity": 90,
+                "articulation": "sustain",
+                "guitar_string": "LowE",
+            }], bank, output, sample_rate=22050)
+            self.assertEqual(rendered["events_rendered"], 1)
+            self.assertEqual(rendered["source"], "recorded_sample_bank")
+            with wave.open(str(output), "rb") as wav:
+                self.assertEqual(wav.getnchannels(), 2)
+                self.assertEqual(wav.getsampwidth(), 2)
+                self.assertTrue(any(wav.readframes(wav.getnframes())))
 
     def test_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
