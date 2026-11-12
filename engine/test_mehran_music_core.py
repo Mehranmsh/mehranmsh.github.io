@@ -352,7 +352,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         durations = [850, 100, 500, 470]
         note_map = [
             {"is_lexically_stressed": False},
-            {"is_lexically_stressed": True},
+            {"is_lexically_stressed": True, "stress_confidence": "curated"},
             {"is_lexically_stressed": False},
             {"is_lexically_stressed": False},
         ]
