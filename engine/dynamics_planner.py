@@ -39,7 +39,7 @@ def plan_dynamics(events: list[dict[str, Any]], curve: str = "natural") -> dict[
             velocity = _curve_velocity(index, len(events), curve)
             stressed = event.get("is_lexically_stressed") is True and event.get("stress_confidence") == "curated"
             if stressed:
-                velocity = min(127, velocity + 6)
+                velocity = min(127, velocity + 3)
             reason = curve + "_phrase_curve" + ("_plus_curated_lexical_stress" if stressed else "")
             if event.get("is_phrase_final_syllable") is True:
                 velocity = max(1, velocity - 3)
