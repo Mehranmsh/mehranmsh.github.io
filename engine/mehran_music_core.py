@@ -699,6 +699,27 @@ def _rhythmic_value(duration_ticks: int) -> str:
     return "short_subdivision"
 
 
+def _breath_demand_profile(syllables: int, pause_ticks: int) -> dict[str, Any]:
+    """Estimate phrase breath demand without claiming vocal physiology."""
+    count = max(0, int(syllables))
+    if count <= 5:
+        level, support = "low", "light"
+    elif count <= 9:
+        level, support = "moderate", "steady"
+    elif count <= 13:
+        level, support = "high", "strong"
+    else:
+        level, support = "very_high", "very_strong"
+    return {
+        "syllable_count": count,
+        "level": level,
+        "support_hint": support,
+        "recovery_window": "written_pause" if pause_ticks > 0 else "next_available_gap",
+        "pause_ticks": max(0, int(pause_ticks)),
+        "confidence": "syllable_estimate",
+        "method": "conservative_phrase_length_bands_v1",
+    }
+
 def _phrase_pause(lyric_line: str) -> tuple[int, str]:
     """Return a conservative post-line breath in MIDI ticks from punctuation."""
     ending = lyric_line.rstrip()[-1:] if lyric_line.strip() else ""
@@ -795,6 +816,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             durations, lyric_alignment["note_lyric_map"]
         )
         pause_ticks, breath_after = _phrase_pause(line["text"])
+        breath_demand = _breath_demand_profile(line["syllable_estimate"], pause_ticks)
         cadence_profile = _cadence_sustain_profile(line["text"])
         if lyric_alignment["note_lyric_map"]:
             lyric_alignment["note_lyric_map"][-1]["is_phrase_final_syllable"] = True
@@ -872,6 +894,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "duration_ticks": bars * 4 * 480,
             "phrase_pause_ticks": pause_ticks,
             "breath_after_phrase": breath_after,
+            "breath_demand": breath_demand,
             "breath_window": {
                 "start_tick": bars * 4 * 480,
                 "end_tick": bars * 4 * 480 + pause_ticks,
