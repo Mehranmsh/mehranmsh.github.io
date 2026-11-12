@@ -623,17 +623,17 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
     ], "MEHRAN Tempo")
     melody_events[0:0] = _melody_pitch_bend_setup()
     melody_events.insert(0, (0, 0, bytes((0xC0, 80))))  # Lead 1 square: melody guide
-    chord_events.insert(0, (0, 0, bytes((0xC1, 48))))  # String Ensemble 1
-    bass_events.insert(0, (0, 0, bytes((0xC2, 33))))  # Fingered electric bass
-    guitar_events.insert(0, (0, 0, bytes((0xC3, 25))))  # Steel-string acoustic guitar
-    piano_events.insert(0, (0, 0, bytes((0xC4, 0))))  # Acoustic Grand Piano
+    chord_events.insert(0, (0, 0, bytes((0xC1, resolved_programs["strings"]))))
+    bass_events.insert(0, (0, 0, bytes((0xC2, resolved_programs["bass"]))))
+    guitar_events.insert(0, (0, 0, bytes((0xC3, resolved_programs["guitar"]))))
+    piano_events.insert(0, (0, 0, bytes((0xC4, resolved_programs["piano"]))))
     occupied_channels = {9, *channel_by_cents.values(), 1, 2, 3, 4}
     accompaniment_tuning_channels: dict[str, dict[str, int]] = {}
     for instrument, base_channel, program, event_list in (
-        ("strings", 1, 48, chord_events),
-        ("bass", 2, 33, bass_events),
-        ("guitar", 3, 25, guitar_events),
-        ("piano", 4, 0, piano_events),
+        ("strings", 1, resolved_programs["strings"], chord_events),
+        ("bass", 2, resolved_programs["bass"], bass_events),
+        ("guitar", 3, resolved_programs["guitar"], guitar_events),
+        ("piano", 4, resolved_programs["piano"], piano_events),
     ):
         tuned, channel_map = _apply_instrument_tuning(
             event_list, instrument=instrument, base_channel=base_channel,
