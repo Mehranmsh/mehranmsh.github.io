@@ -432,11 +432,15 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         {"name": "chorus", "start_line": verse_end, "end_line": len(lines)},
     ]
     if len(lines) >= 8:
-        first, second = max(1, len(lines)//3), max(2, 2*len(lines)//3)
+        first = max(1, len(lines) // 3)
+        second = max(first + 1, 2 * len(lines) // 3)
+        remaining = len(lines) - second
+        final_chorus_start = second + max(1, remaining // 2)
         sections = [
             {"name": "verse_1", "start_line": 0, "end_line": first},
             {"name": "chorus", "start_line": first, "end_line": second},
-            {"name": "verse_2_and_final_chorus", "start_line": second, "end_line": len(lines)},
+            {"name": "verse_2", "start_line": second, "end_line": final_chorus_start},
+            {"name": "final_chorus", "start_line": final_chorus_start, "end_line": len(lines)},
         ]
     melody = []
     for index, line in enumerate(lines):
