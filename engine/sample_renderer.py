@@ -299,7 +299,7 @@ def build_composition_events(
             phrase_chord = phrase.get("chord")
             symbol = (phrase_chord if bar == 0 and isinstance(phrase_chord, str)
                       else chords[chord_index % len(chords)])
-            root_pc, _ = _parse_chord(symbol)
+            root_pc, chord_intervals = _parse_chord(symbol)
             voicing = _voice_lead_chord(symbol, previous_voicing)
             previous_voicing = voicing
             if section == "bridge":
@@ -356,6 +356,7 @@ def build_composition_events(
                 add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
                     PPQ // 2, _scaled_velocity(72, dynamics["chords"]), 0.42)
             root = 36 + root_pc
+            third = root + chord_intervals[1]
             bass_scale = dynamics["bass"]
             drum_scale = dynamics["drums"]
             if section == "bridge":
@@ -369,8 +370,8 @@ def build_composition_events(
                         _scaled_velocity(52, drum_scale))
             else:
                 add("bass", root, bar_start, 2 * PPQ - 36, _scaled_velocity(82, bass_scale))
-                add("bass", root + 7, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
-                add("bass", root, bar_start + 3 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("bass", third, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("bass", root + 7, bar_start + 3 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
                 add("kick", 36, bar_start, 48, _scaled_velocity(112, drum_scale))
                 add("kick", 36, bar_start + 2 * PPQ, 48, _scaled_velocity(104, drum_scale))
                 add("snare", 38, bar_start + PPQ, 48, _scaled_velocity(94, drum_scale))
