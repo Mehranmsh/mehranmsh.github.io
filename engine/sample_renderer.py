@@ -225,6 +225,7 @@ def build_composition_events(
             "start_seconds": round(start_tick * seconds_per_tick, 6),
             "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
             "velocity": velocity,
+            "pan": pan,
         })
 
     for phrase in melody:
