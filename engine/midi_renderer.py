@@ -114,6 +114,22 @@ def _note_off(channel: int, note: int) -> bytes:
     return bytes((0x80 | channel, note, 0))
 
 
+def _pitch_bend(channel: int, cents: float, *, bend_range_cents: int = 200) -> bytes:
+    """Encode pitch bend for a configured +/-2-semitone channel range."""
+    if (isinstance(cents, bool) or not isinstance(cents, (int, float))
+            or not math.isfinite(cents) or not -bend_range_cents <= cents <= bend_range_cents):
+        raise ValueError("pitch_cents must be finite and between -200 and 200")
+    value = max(0, min(16383, round(8192 + cents / bend_range_cents * 8192)))
+    return bytes((0xE0 | channel, value & 0x7F, (value >> 7) & 0x7F))
+
+
+def _melody_pitch_bend_setup() -> list[tuple[int, int, bytes]]:
+    """Set channel 1 pitch-bend sensitivity to +/-2 semitones using MIDI RPN 0."""
+    controls = ((101, 0), (100, 0), (6, 2), (38, 0), (101, 127), (100, 127))
+    return [(0, 0, bytes((0xB0, controller, value)))
+            for controller, value in controls]
+
+
 def _scale_velocity(velocity: int, scale: float) -> int:
     """Apply a bounded section-dynamics multiplier to a MIDI velocity."""
     return max(1, min(127, round(velocity * scale)))
@@ -421,8 +437,16 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             if isinstance(dynamics_velocity, bool) or not isinstance(dynamics_velocity, int) or not 1 <= dynamics_velocity <= 127:
                 raise ValueError("Melody dynamics_velocity must be an integer from 1 to 127")
             velocity = _scale_velocity(velocity, dynamics_velocity / 84.0)
+            pitch_cents = lyric_map_item.get("pitch_cents", 0.0) if isinstance(lyric_map_item, dict) else 0.0
+            if (isinstance(pitch_cents, bool) or not isinstance(pitch_cents, (int, float))
+                    or not math.isfinite(pitch_cents) or not -200.0 <= pitch_cents <= 200.0):
+                raise ValueError("Melody pitch_cents must be finite and between -200 and 200")
+            if pitch_cents:
+                melody_events.append((cursor, 2, _pitch_bend(0, pitch_cents)))
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
+            if pitch_cents:
+                melody_events.append((cursor + gate, 1, _pitch_bend(0, 0.0)))
             articulation = lyric_map_item.get("articulation") if isinstance(lyric_map_item, dict) else None
             release_ms = lyric_map_item.get("release_ms", 25) if isinstance(lyric_map_item, dict) else 25
             if isinstance(release_ms, bool) or not isinstance(release_ms, int) or not 0 <= release_ms <= 1000:
@@ -493,6 +517,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         (0, 0, b"\\xff\\x51\\x03" + tempo_us.to_bytes(3, "big")),
         (0, 1, b"\\xff\\x58\\x04\\x04\\x02\\x18\\x08"),
     ], "MEHRAN Tempo")
+    melody_events[0:0] = _melody_pitch_bend_setup()
     melody_events.insert(0, (0, 0, bytes((0xC0, 80))))  # Lead 1 square: melody guide
     chord_events.insert(0, (0, 0, bytes((0xC1, 48))))  # String Ensemble 1
     bass_events.insert(0, (0, 0, bytes((0xC2, 33))))  # Fingered electric bass
@@ -516,6 +541,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
         "articulation_markers": articulation_marker_count,
         "articulation_rendering": "MIDI marker metadata only; playback timbre depends on the instrument and player",
+        "pitch_bend_support": "per-note melody pitch_cents, +/-200 cents via MIDI channel pitch bend",
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
         "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
         "guitar_note_events": guitar_note_count, "piano_note_events": piano_note_count,
