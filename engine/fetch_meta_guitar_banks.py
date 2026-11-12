@@ -102,8 +102,14 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
                 raise ValueError("Guitar SFZ region must define key and sample")
             if velocity_min is None or velocity_max is None:
                 raise ValueError("Default guitar region has no valid velocity range")
-            key = int(attrs["key"])
             filename = attrs["sample"]
+            if "key" in attrs:
+                key = int(attrs["key"])
+            elif "lokey" in attrs and attrs.get("lokey") == attrs.get("hikey"):
+                key = int(attrs["lokey"])
+            else:
+                raise ValueError("Guitar SFZ region must define key or a single-note lokey/hikey range")
+            source_key = int(attrs.get("pitch_keycenter", key))
             match = re.fullmatch(pattern, filename)
             if not match:
                 raise ValueError(f"Unsupported Meta Guitar region: {line}")
@@ -123,23 +129,31 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
             else:
                 string_name, velocity_layer, note_label = match.groups()
                 articulation = "sustain"
-            if string_name not in STRINGS or _note_midi(note_label) != key:
-                raise ValueError(f"Guitar filename/key identity mismatch: {filename} -> {key}")
+            if string_name not in STRINGS or _note_midi(note_label) != source_key:
+                raise ValueError(f"Guitar filename/source-pitch identity mismatch: {filename} -> {source_key}")
             entry = {
                 "midi_note": key,
+                "source_midi_note": source_key,
+                "filename": filename,
                 "velocity_min": velocity_min,
                 "velocity_max": velocity_max,
                 "string": string_name,
                 "articulation": articulation,
                 "velocity_layer": int(velocity_layer),
             }
+            region_id = filename
             if filename in mapped:
-                if mapped[filename] != entry:
-                    raise ValueError(f"Conflicting default SFZ sample mapping: {filename}")
-                # The SFZ intentionally maps the same recording on the
-                # automatic channel and the dedicated-string channel.
-                continue
-            mapped[filename] = entry
+                if mapped[filename] == entry:
+                    # Same recording and same playable key exposed on another channel.
+                    continue
+                region_id = filename + "#key" + str(key)
+                if region_id in mapped:
+                    if mapped[region_id] != entry:
+                        raise ValueError(f"Conflicting default SFZ sample mapping: {filename}")
+                    continue
+                # Some SFZ maps intentionally reuse one recording for an
+                # adjacent playable key via lokey/hikey + pitch_keycenter.
+            mapped[region_id] = entry
     if not mapped:
         raise ValueError("No default playable guitar regions were found")
     return mapped
@@ -168,21 +182,26 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
     regions = parse_guitar_sfz_sample_map(sfz_path.read_text(encoding="utf-8"), instrument_id)
     checksums = parse_sha256sums(sums_path.read_text(encoding="utf-8"))
     expected_count = EXPECTED[instrument_id]
-    if len(regions) != expected_count:
-        raise ValueError(f"Expected {expected_count} default playable regions, found {len(regions)}")
-    if not all(f"ogg/{name}" in checksums for name in regions):
-        missing = [name for name in regions if f"ogg/{name}" not in checksums]
+    unique_source_names = {item["filename"] for item in regions.values()}
+    if len(unique_source_names) != expected_count:
+        raise ValueError(f"Expected {expected_count} unique source recordings, found {len(unique_source_names)}")
+    if not all(f"ogg/{name}" in checksums for name in unique_source_names):
+        missing = [name for name in unique_source_names if f"ogg/{name}" not in checksums]
         raise ValueError(f"Missing upstream checksums for {len(missing)} recordings: {missing[:3]}")
 
     samples = []
-    for filename, mapping in sorted(regions.items()):
+    verified_sources: set[str] = set()
+    for region_id, mapping in sorted(regions.items()):
+        filename = mapping["filename"]
         relative_source = f"ogg/{filename}"
         source_path = root / "source-ogg" / filename
         if not source_path.exists():
             _download(f"{base}/{relative_source}", source_path)
-        digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
-        if digest != checksums[relative_source]:
-            raise ValueError(f"SHA-256 mismatch for {filename}")
+        if filename not in verified_sources:
+            digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+            if digest != checksums[relative_source]:
+                raise ValueError(f"SHA-256 mismatch for {filename}")
+            verified_sources.add(filename)
 
         wav_name = filename.removesuffix(".ogg") + ".wav"
         relative_wav = f"{'nylon' if instrument_id == 'meta-nylon-guitar' else 'steel'}/{mapping['string']}/{wav_name}"
@@ -196,6 +215,7 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
         samples.append({
             "instrument": "nylon_guitar" if instrument_id == "meta-nylon-guitar" else "acoustic_guitar",
             "midi_note": mapping["midi_note"],
+            "source_midi_note": mapping["source_midi_note"],
             "velocity_min": mapping["velocity_min"],
             "velocity_max": mapping["velocity_max"],
             "articulation": mapping["articulation"],
@@ -230,7 +250,8 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
         "status": "validated",
         "instrument": "nylon_guitar" if instrument_id == "meta-nylon-guitar" else "acoustic_guitar",
         "sample_count": len(bank.samples),
-        "sha256_verified_files": len(samples),
+        "sha256_verified_files": len(verified_sources),
+        "playable_regions": len(samples),
         "recorded_strings": sorted({sample.string_name for sample in bank.samples}),
         "articulations": sorted({sample.articulation for sample in bank.samples}),
         "velocity_ranges": sorted({(sample.velocity_min, sample.velocity_max) for sample in bank.samples}),
