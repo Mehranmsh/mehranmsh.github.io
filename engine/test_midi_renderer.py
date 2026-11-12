@@ -66,6 +66,23 @@ class MidiRendererTests(unittest.TestCase):
             max(event[2][2] for event in verse_events if event[2][0] & 0xF0 == 0x90),
         )
 
+    def test_bass_tracks_each_chord_root_and_uses_sparse_bridge_pattern(self):
+        events = []
+        count = _bass_pattern(9, 0, events, bridge=True)
+        note_ons = [event for event in events if event[2][0] & 0xF0 == 0x90]
+        self.assertEqual(count, 2)
+        self.assertEqual([event[2][1] for event in note_ons], [45, 52])
+        self.assertEqual([event[0] for event in note_ons], [0, PPQ * 2])
+
+    def test_chorus_bass_places_a_syncopated_fifth_between_kick_anchors(self):
+        events = []
+        _bass_pattern(0, 0, events, chorus=True)
+        note_ons = [event for event in events if event[2][0] & 0xF0 == 0x90]
+        self.assertEqual([event[0] for event in note_ons],
+                         [0, PPQ + PPQ // 2, PPQ * 2, PPQ * 3])
+        self.assertEqual(note_ons[1][2][1], 43)
+        self.assertEqual(note_ons[2][2][1], 48)
+
     def test_chorus_drums_are_fuller_and_phrase_end_gets_a_fill(self):
         verse_events, chorus_events, fill_events = [], [], []
         verse_count = _drum_bar(0, verse_events)
