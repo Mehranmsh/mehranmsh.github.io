@@ -537,6 +537,22 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual(report["octave_folded_note_events"], 2)
         self.assertTrue(report["range_enforced"])
 
+    def test_register_policy_report_only_preserves_out_of_range_notes(self):
+        events = [(0, 2, bytes((0x90, 35, 80)))]
+        fitted, report = _fit_events_to_register(events, "tar", policy="report_only")
+        self.assertEqual(fitted, events)
+        self.assertEqual(report["out_of_range_note_events"], 1)
+        self.assertFalse(report["range_enforced"])
+
+    def test_register_policy_strict_rejects_out_of_range_notes(self):
+        events = [(0, 2, bytes((0x90, 35, 80)))]
+        with self.assertRaisesRegex(ValueError, "outside tar recording range"):
+            _fit_events_to_register(events, "tar", policy="strict")
+
+    def test_register_policy_rejects_unknown_policy(self):
+        with self.assertRaisesRegex(ValueError, "register_policy"):
+            _fit_events_to_register([], "tar", policy="guess")
+
     def test_unknown_instrument_register_is_reported_without_guessing(self):
         events = [(0, 2, bytes((0x90, 20, 80)))]
         fitted, report = _fit_events_to_register(events, "experimental_lute")
