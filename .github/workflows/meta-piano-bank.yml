@@ -7,6 +7,8 @@ on:
     paths:
       - 'engine/fetch_meta_piano_bank.py'
       - 'engine/test_fetch_meta_piano_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/velocity_layer_planner.py'
       - '.github/workflows/meta-piano-bank.yml'
   workflow_dispatch:
 
@@ -52,6 +54,29 @@ jobs:
               pcm = audio.readframes(audio.getnframes())
           assert any(pcm), 'Rendered C4 preview is silent'
           print('FULL_BANK_REAL_C4_PREVIEW_OK')
+          PY
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+          bank = load_sample_bank('sample-bank-meta-piano')
+          output = 'sample-bank-meta-piano/piano-C4-velocity-crossfade-preview.wav'
+          report = render_sample_events([{
+              'instrument': 'piano',
+              'midi_note': 60,
+              'start_seconds': 0,
+              'duration_seconds': 0.8,
+              'velocity': 31,
+              'articulation': 'sustain',
+          }], bank, output, sample_rate=44100)
+          selection = report['sample_selection']
+          assert selection['equal_power_velocity_crossfade_events'] == 1, selection
+          assert selection['velocity_layers_rendered'] == 2, selection
+          with wave.open(output, 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_META_PIANO_C4_VELOCITY_CROSSFADE_OK', selection)
           PY
       - name: Publish full bank and audition WAV
         uses: actions/upload-artifact@v4
