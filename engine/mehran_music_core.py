@@ -87,10 +87,18 @@ def _chord_pitch_classes(symbol: str) -> tuple[int, ...]:
     roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
     if not isinstance(symbol, str) or not symbol or symbol[0] not in roots:
         raise ValueError("Unsupported chord symbol")
-    intervals = (0, 3, 7) if symbol[1:].startswith("m") else (0, 4, 7)
-    if "7" in symbol[1:]:
+    root = roots[symbol[0]]
+    suffix = symbol[1:]
+    if suffix.startswith("b"):
+        root -= 1
+        suffix = suffix[1:]
+    elif suffix.startswith("#"):
+        root += 1
+        suffix = suffix[1:]
+    intervals = (0, 3, 7) if suffix.startswith("m") else (0, 4, 7)
+    if "7" in suffix:
         intervals += (10,)
-    return tuple((roots[symbol[0]] + interval) % 12 for interval in intervals)
+    return tuple((root + interval) % 12 for interval in intervals)
 
 
 def _melody_for_line(syllables: int, tonic: int, scale: list[int],
@@ -174,7 +182,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.3.0",
+        "engine_version": "0.3.1",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
@@ -190,5 +198,5 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         },
         "audio_rendered": False,
         "status": "composition_plan_only",
-        "next_layers": ["phonetic_prosody", "rhythmic_groove", "instrument_sound_bank", "audio_renderer", "audio_mixer"],
+        "next_layers": ["phonetic_prosody", "instrument_sound_bank", "audio_renderer", "audio_mixer"],
     }
