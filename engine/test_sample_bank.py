@@ -92,6 +92,27 @@ class SampleBankTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_sample_bank(root)
 
+    def test_rejects_malformed_loop_metadata_boundaries_and_types(self):
+        invalid_loops = [
+            {"loop_start_frame": 0},
+            {"loop_end_frame": 32},
+            {"loop_start_frame": -1, "loop_end_frame": 32},
+            {"loop_start_frame": 0, "loop_end_frame": 129},
+            {"loop_start_frame": 128, "loop_end_frame": 128},
+            {"loop_start_frame": 120, "loop_end_frame": 127},
+            {"loop_start_frame": True, "loop_end_frame": 32},
+            {"loop_start_frame": 0, "loop_end_frame": 32.0},
+        ]
+        for loop_metadata in invalid_loops:
+            with self.subTest(loop_metadata=loop_metadata), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                self.write_sample(root / "piano.wav")
+                entry = {"instrument": "piano", "midi_note": 60, "path": "piano.wav"}
+                entry.update(loop_metadata)
+                self.write_manifest(root, [entry])
+                with self.assertRaises(ValueError):
+                    load_sample_bank(root)
+
     def test_missing_instrument_sample_is_reported(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
