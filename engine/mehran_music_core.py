@@ -298,7 +298,32 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "syllable_token": syllable_token,
             "confidence": word["confidence"],
         })
-    return {"word_note_alignment": alignment, "note_lyric_map": note_map}
+    syllable_note_map = []
+    for word in alignment:
+        for local_index in range(word["syllable_estimate"]):
+            syllable_index = word["syllable_start"] + local_index
+            note_index = min(
+                note_count - 1,
+                int((syllable_index + 0.5) * note_count / total_syllables),
+            )
+            syllable_note_map.append({
+                "syllable_index": syllable_index,
+                "word_index": word["word_index"],
+                "word": word["word"],
+                "syllable_token": (
+                    word["syllables"][local_index]
+                    if word["syllables"] and local_index < len(word["syllables"])
+                    else None
+                ),
+                "note_index": note_index,
+                "mapping": "proportional_syllable_to_note_v1",
+                "confidence": word["confidence"],
+            })
+    return {
+        "word_note_alignment": alignment,
+        "note_lyric_map": note_map,
+        "syllable_note_map": syllable_note_map,
+    }
 
 
 def _phrase_durations(syllables: int, note_count: int,
@@ -384,6 +409,17 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             tick_cursor += note_duration
             lyric_alignment["note_lyric_map"][note_index]["tick_end"] = tick_cursor
             lyric_alignment["note_lyric_map"][note_index]["duration_ticks"] = note_duration
+            beat_index = tick_cursor // 480
+            beat_in_bar = (tick_cursor % 1920) / 480 + 1
+            beat_number = int(beat_in_bar)
+            lyric_alignment["note_lyric_map"][note_index]["bar_index"] = tick_cursor // 1920
+            lyric_alignment["note_lyric_map"][note_index]["beat_in_bar"] = beat_in_bar
+            lyric_alignment["note_lyric_map"][note_index]["beat_number"] = beat_number
+            lyric_alignment["note_lyric_map"][note_index]["beat_strength"] = (
+                "strong" if beat_number == 1 else
+                "medium" if beat_number == 3 else "weak"
+            )
+            lyric_alignment["note_lyric_map"][note_index]["beat_index"] = beat_index
         melody.append({
             "line_index": index,
             **lyric_alignment,
@@ -410,7 +446,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.4.0",
+        "engine_version": "0.5.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
