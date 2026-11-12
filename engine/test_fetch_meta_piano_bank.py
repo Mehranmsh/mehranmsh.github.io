@@ -29,7 +29,7 @@ class MetaPianoMapTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "before a velocity group"):
             parse_sfz_sample_map("<region> key=60 sample=INSPiano_Vel01_C4_01.ogg")
         duplicate = (
-            "<group> lovel=1 hivel=39\n"
+            "<group> lovel=1 hivel=39\\n"
             "<region> key=60 sample=INSPiano_Vel01_C4_01.ogg\\n"
             "<region> key=60 sample=INSPiano_Vel01_C4_01.ogg"
         )
