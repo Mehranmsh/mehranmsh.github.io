@@ -371,6 +371,20 @@ def _phrase_durations(syllables: int, note_count: int,
     durations[-1] += total_ticks - sum(durations)
     return bars, durations
 
+def _phrase_pause(lyric_line: str) -> tuple[int, str]:
+    """Return a conservative post-line breath in MIDI ticks from punctuation."""
+    ending = lyric_line.rstrip()[-1:] if lyric_line.strip() else ""
+    if ending in ("؟", "!", "！", "?"):
+        return 360, "full"
+    if ending in (".", "۔"):
+        return 360, "full"
+    if ending in ("؛", ";", ":"):
+        return 240, "medium"
+    if ending in (",", "،"):
+        return 120, "short"
+    return 0, "none"
+
+
 def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                  target_bpm: int | None = None) -> dict[str, Any]:
     analysis = analyze_lyrics(lyrics)
@@ -403,6 +417,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         lyric_alignment = _align_words_to_notes(line["text"], len(notes))
+        pause_ticks, breath_after = _phrase_pause(line["text"])
         tick_cursor = 0
         for note_index, note_duration in enumerate(durations):
             lyric_alignment["note_lyric_map"][note_index]["tick_start"] = tick_cursor
@@ -429,6 +444,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "note_durations_ticks": durations,
             "bar_count": bars,
             "duration_ticks": bars * 4 * 480,
+            "phrase_pause_ticks": pause_ticks,
+            "breath_after_phrase": breath_after,
             "chord": chord,
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
             "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
@@ -446,7 +463,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.5.0",
+        "engine_version": "0.6.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
