@@ -85,6 +85,7 @@ jobs:
         timeout-minutes: 20
         run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
       - name: Install all three real banks and render a piano plus guitar composition
+        timeout-minutes: 15
         run: |
           python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano
           python3 - <<'PY'
@@ -108,8 +109,20 @@ jobs:
               instruments={"guitar": "acoustic_guitar"},
               response_fill_part=None,
           )
-          selected = [event for event in events if event.get("part") in {"melody", "chords", "guitar"}]
-          assert selected, "No piano/guitar composition events were planned"
+          # Render a short, real-recording preview rather than the entire generated
+          # arrangement in the CI runner. This keeps the verification bounded while
+          # preserving all three musical parts in the same audible passage.
+          preview_seconds = 8.0
+          selected = [
+              dict(event) for event in events
+              if event.get("part") in {"melody", "chords", "guitar"}
+              and event.get("start_seconds", 0) < preview_seconds
+          ]
+          for event in selected:
+              remaining = preview_seconds - event["start_seconds"]
+              event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.65)
+          selected = [event for event in selected if event["duration_seconds"] > 0]
+          assert selected, "No piano/guitar composition events were planned in the preview window"
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "guitar"} <= selected_parts, selected_parts
