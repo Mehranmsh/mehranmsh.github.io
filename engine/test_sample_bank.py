@@ -1,5 +1,6 @@
 import csv
 import json
+import math
 import struct
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ from sample_bank import (
     analyze_recording_provenance,
     analyze_sample_bank_coverage,
     analyze_sample_bank_quality,
+    analyze_sample_bank_tuning,
     analyze_sample_bank_instrument_health,
     build_sample_recording_checklist,
     build_sample_recording_sheet_csv,
@@ -523,6 +525,62 @@ class SampleBankTests(unittest.TestCase):
             self.assertIn("digital_clipping", by_note[62]["warnings"])
             self.assertIn("dc_offset", by_note[63]["warnings"])
             self.assertFalse(report["basic_signal_checks_pass"])
+
+    def test_tuning_analysis_estimates_reference_pitch_offset(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "a4.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 48000
+            frequency = 440.0 * (2 ** (20.0 / 1200.0))
+            values = [
+                int(12000 * math.sin(2 * math.pi * frequency * i / rate))
+                for i in range(rate // 3)
+            ]
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 69, "path": "piano/a4.wav",
+            }])
+            report = analyze_sample_bank_tuning(load_sample_bank(root))
+            measured = report["measurements"][0]
+            self.assertEqual(measured["status"], "estimated")
+            self.assertAlmostEqual(measured["deviation_cents"], 20.0, delta=3.0)
+            self.assertFalse(measured["within_tolerance"])
+            self.assertEqual(report["instrument_profiles"]["piano"]["outside_tolerance_samples"], 1)
+
+    def test_tuning_analysis_skips_percussion_without_pitch_claim(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "kick" / "kick.wav")
+            self.write_manifest(root, [{
+                "instrument": "kick", "midi_note": 36, "path": "kick/kick.wav",
+            }])
+            report = analyze_sample_bank_tuning(load_sample_bank(root))
+            self.assertEqual(
+                report["measurements"][0]["status"], "not_applicable_percussion"
+            )
+            self.assertEqual(report["estimated_samples"], 0)
+
+    def test_tuning_analysis_reports_inconclusive_noise(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "noise.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            values = [((i * 7919) % 24000) - 12000 for i in range(4096)]
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(44100)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 69, "path": "piano/noise.wav",
+            }])
+            report = analyze_sample_bank_tuning(load_sample_bank(root))
+            self.assertNotEqual(report["measurements"][0]["status"], "estimated")
 
     def test_quality_report_groups_recording_profiles_by_instrument(self):
         with tempfile.TemporaryDirectory() as folder:
