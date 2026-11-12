@@ -339,13 +339,23 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
     alignment = []
     note_map = []
     syllable_cursor = 0
-    for item in words:
+    note_cursor = 0
+    for word_index, item in enumerate(words):
         start_syllable = syllable_cursor
         end_syllable = start_syllable + item["syllable_estimate"]
-        note_start = round(start_syllable * note_count / total_syllables)
-        note_end = round(end_syllable * note_count / total_syllables)
-        note_start = min(note_count - 1, max(0, note_start))
-        note_end = min(note_count, max(note_start + 1, note_end))
+        if note_count >= len(words):
+            # Reserve at least one complete note slot per word, then distribute
+            # the remaining slots proportionally to each word's syllable count.
+            remaining_words = len(words) - word_index - 1
+            proportional_end = round(end_syllable * note_count / total_syllables)
+            note_end = min(note_count - remaining_words,
+                           max(note_cursor + 1, proportional_end))
+            note_start = note_cursor
+        else:
+            note_start = min(note_count - 1, round(
+                start_syllable * note_count / total_syllables))
+            note_end = min(note_count, max(note_start + 1, round(
+                end_syllable * note_count / total_syllables)))
         alignment.append({
             **item,
             "syllable_start": start_syllable,
@@ -354,17 +364,31 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "note_end": note_end,
         })
         syllable_cursor = end_syllable
+        if note_count >= len(words):
+            note_cursor = note_end
 
     for note_index in range(note_count):
-        syllable_index = min(
-            total_syllables - 1,
-            int((note_index + 0.5) * total_syllables / note_count),
-        )
         word = next(
-            item for item in alignment
-            if item["syllable_start"] <= syllable_index < item["syllable_end"]
+            (item for item in alignment
+             if item["note_start"] <= note_index < item["note_end"]),
+            None,
         )
-        local_syllable = syllable_index - word["syllable_start"]
+        if word is None:
+            syllable_index = min(
+                total_syllables - 1,
+                int((note_index + 0.5) * total_syllables / note_count),
+            )
+            word = next(item for item in alignment
+                        if item["syllable_start"] <= syllable_index < item["syllable_end"])
+            local_syllable = syllable_index - word["syllable_start"]
+        else:
+            local_note = note_index - word["note_start"]
+            local_syllable = min(
+                word["syllable_estimate"] - 1,
+                int((local_note + 0.5) * word["syllable_estimate"]
+                    / (word["note_end"] - word["note_start"])),
+            )
+            syllable_index = word["syllable_start"] + local_syllable
         syllable_token = (
             word["syllables"][local_syllable]
             if word["syllables"] and local_syllable < len(word["syllables"])
@@ -385,12 +409,20 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
         })
     syllable_note_map = []
     for word in alignment:
+        word_note_count = word["note_end"] - word["note_start"]
         for local_index in range(word["syllable_estimate"]):
             syllable_index = word["syllable_start"] + local_index
-            note_index = min(
-                note_count - 1,
-                int((syllable_index + 0.5) * note_count / total_syllables),
-            )
+            if word_note_count:
+                note_index = word["note_start"] + min(
+                    word_note_count - 1,
+                    int((local_index + 0.5) * word_note_count
+                        / word["syllable_estimate"]),
+                )
+            else:
+                note_index = min(
+                    note_count - 1,
+                    int((syllable_index + 0.5) * note_count / total_syllables),
+                )
             syllable_note_map.append({
                 "syllable_index": syllable_index,
                 "word_index": word["word_index"],
@@ -401,7 +433,7 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
                     else None
                 ),
                 "note_index": note_index,
-                "mapping": "proportional_syllable_to_note_v1",
+                "mapping": "word_preserving_syllable_to_note_v2",
                 "is_lexically_stressed": (
                     word["lexical_stress_index"] == local_index
                     if word["lexical_stress_index"] is not None else None
