@@ -147,12 +147,12 @@ def _bass_pattern(root_pc: int, bar_start: int,
         pattern = [(0, root, PPQ - 36, 88),
                    (PPQ + PPQ // 2, fifth, PPQ // 2 - 24, 72),
                    (PPQ * 2, octave, PPQ - 36, 84),
-                   (PPQ * 3, fifth if bar_index % 2 == 0 else root,
+                   (PPQ * 3, third if bar_index % 2 == 0 else fifth,
                     PPQ - 36, 78)]
     else:
         pattern = [(0, root, PPQ * 2 - 36, 78),
-                   (PPQ * 2, fifth, PPQ - 36, 68),
-                   (PPQ * 3, root, PPQ - 36, 72)]
+                   (PPQ * 2, third, PPQ - 36, 68),
+                   (PPQ * 3, fifth, PPQ - 36, 72)]
     for offset, note, gate, velocity in pattern:
         start = bar_start + offset
         beat = (offset // PPQ) % 4
@@ -352,7 +352,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             phrase_chord = phrase.get("chord")
             symbol = (phrase_chord if bar == 0 and isinstance(phrase_chord, str)
                       else chords[chord_bar_index % len(chords)])
-            root_pc, _ = _parse_chord(symbol)
+            root_pc, chord_intervals = _parse_chord(symbol)
             chord = _voice_lead_chord(symbol, previous_voicing)
             chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
             previous_voicing = chord
@@ -364,6 +364,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             bass_note_count += _bass_pattern(
                 root_pc, bar_start, bass_events,
                 chorus=is_chorus, bridge=is_bridge, bar_index=bar,
+                third_interval=chord_intervals[1],
                 velocity_scale=dynamics["bass"])
             drum_hit_count += _drum_bar(
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
