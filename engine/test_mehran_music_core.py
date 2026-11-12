@@ -133,6 +133,12 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(alignment[0]["syllable_estimate"], 2)
         self.assertEqual(alignment[1]["syllables"], ["ge", "ref", "te"])
         self.assertEqual(note_map[0]["word"], "دلم")
+        self.assertEqual(note_map[0]["tick_start"], 0)
+        self.assertEqual(note_map[-1]["tick_end"], phrase["duration_ticks"])
+        self.assertTrue(all(item["tick_start"] < item["tick_end"]
+                            for item in note_map))
+        self.assertTrue(all(note_map[i]["tick_end"] == note_map[i + 1]["tick_start"]
+                            for i in range(len(note_map) - 1)))
         self.assertTrue(all(item["note_start"] < item["note_end"]
                             for item in alignment))
         self.assertTrue(all(item["syllable_token"] is None
