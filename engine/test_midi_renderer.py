@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _bass_pattern, _drum_bar, _melody_velocity, _section_dynamics, render_midi
+from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _melody_velocity, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -116,6 +116,14 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreater(cadence, third_beat)
         self.assertLessEqual(_melody_velocity(120, 0, section_scale=1.2), 127)
 
+
+    def test_groove_velocity_accents_downbeats_and_softens_offbeats(self):
+        downbeat = _groove_velocity(80, 0)
+        second_beat = _groove_velocity(80, 1)
+        offbeat = _groove_velocity(80, 0, subdivision=1)
+        self.assertGreater(downbeat, second_beat)
+        self.assertGreater(downbeat, offbeat)
+        self.assertLessEqual(_groove_velocity(120, 0, section_scale=1.2), 127)
 
 if __name__ == "__main__":
     unittest.main()
