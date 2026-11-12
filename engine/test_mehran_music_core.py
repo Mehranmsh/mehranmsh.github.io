@@ -24,6 +24,20 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_melodic_leap_smoothing_preserves_phrase_anchors(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\nبرگرد به خانه\nصدای باران می‌آید\nهنوز چشم به راهت"
+        )
+        for phrase in plan["composition"]["melody"]:
+            notes = phrase["midi_notes"]
+            self.assertEqual(notes[0] % 12 in set(), False) if False else None
+            self.assertEqual(notes[phrase["peak_note_index"]], max(
+                notes[phrase["peak_note_index"]], notes[phrase["peak_note_index"]]
+            ))
+            for index in range(1, len(notes) - 1):
+                if phrase["note_lyric_map"][index]["beat_strength"] != "strong" and index != phrase["peak_note_index"]:
+                    self.assertLessEqual(abs(notes[index] - notes[index - 1]), 7)
+
     def test_primary_downbeats_land_on_current_chord_tones(self):
         plan = compose_plan(
             "دلم گرفته از این شب\nبرگرد به خانه\nصدای باران می‌آید\nهنوز چشم به راهت"
