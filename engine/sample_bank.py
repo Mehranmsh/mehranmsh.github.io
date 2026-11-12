@@ -85,6 +85,15 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
                 frames = wav.getnframes()
                 if channels not in (1, 2) or not 8000 <= sample_rate <= 192000 or frames <= 0:
                     raise ValueError("Sample WAV has unsupported channels, rate, or empty audio")
+                loop_start = entry.get("loop_start_frame")
+                loop_end = entry.get("loop_end_frame")
+                if (loop_start is None) != (loop_end is None):
+                    raise ValueError("Both loop_start_frame and loop_end_frame must be provided together")
+                if loop_start is not None:
+                    loop_start = _integer(loop_start, 0, frames - 1, "loop_start_frame")
+                    loop_end = _integer(loop_end, 1, frames, "loop_end_frame")
+                    if loop_end - loop_start < 16:
+                        raise ValueError("Sample loop must contain at least 16 frames")
         except (wave.Error, EOFError, OSError) as exc:
             raise ValueError(f"Invalid recorded WAV sample: {relative}") from exc
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
