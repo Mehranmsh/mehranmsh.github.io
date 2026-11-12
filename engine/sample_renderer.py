@@ -246,6 +246,9 @@ def render_sample_events(
             "exact_note_events": sum(
                 1 for item in checked if item[11] == "exact_note"
             ),
+            "single_recorded_velocity_layer_events": sum(
+                1 for item in checked if item[11] == "single_recorded_layer"
+            ),
             "pitch_shifted_nearest_note_events": sum(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
             ),
