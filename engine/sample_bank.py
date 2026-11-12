@@ -765,6 +765,40 @@ def _envelope_family(instrument: str) -> str:
     )
 
 
+def _post_peak_decay_profile(
+    buckets: list[tuple[float, float]],
+    peak_index: int,
+    bucket_frames: int,
+    sample_rate: int,
+    peak: float,
+) -> dict[str, Any]:
+    """Describe short-window RMS decay after the strongest recorded frame."""
+    windows = ((0, 100), (100, 300), (300, 700))
+    bucket_ms = bucket_frames * 1000.0 / sample_rate
+    results = {}
+    for start_ms, end_ms in windows:
+        selected = []
+        for index in range(peak_index, len(buckets)):
+            offset_ms = (index - peak_index) * bucket_ms
+            if start_ms <= offset_ms < end_ms:
+                selected.append(buckets[index][1])
+        key = f"{start_ms}_{end_ms}ms"
+        results[key] = {
+            "mean_rms_ratio": round(
+                (sum(selected) / len(selected)) / peak, 5
+            ) if selected and peak else None,
+            "end_rms_ratio": round(selected[-1] / peak, 5)
+            if selected and peak else None,
+            "bucket_count": len(selected),
+        }
+    measured = any(item["bucket_count"] for item in results.values())
+    return {
+        "windows": results,
+        "profile_status": "measured" if measured else "insufficient_duration",
+        "normalization": "RMS relative to maximum bucket peak",
+    }
+
+
 def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
     """Measure low-level head/tail regions and the recorded attack envelope."""
     bucket_frames = max(1, int(sample.sample_rate * 0.01))
@@ -802,6 +836,7 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "attack_to_10_percent_seconds": None,
             "attack_10_to_90_seconds": None,
             "release_90_to_10_seconds": None,
+            "post_peak_decay_profile": {"windows": {}, "profile_status": "insufficient_audio"},
             "envelope_family": _envelope_family(sample.instrument),
             "quiet_region_rms": None,
             "ending_level_ratio": None,
@@ -816,6 +851,7 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "attack_to_10_percent_seconds": None,
             "attack_10_to_90_seconds": None,
             "release_90_to_10_seconds": None,
+            "post_peak_decay_profile": {"windows": {}, "profile_status": "silent"},
             "envelope_family": _envelope_family(sample.instrument),
             "quiet_region_rms": 0.0,
             "ending_level_ratio": 0.0,
@@ -867,6 +903,9 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
         )
     ending_level_ratio = buckets[-1][0] / peak
     possible_truncated_tail = trailing == 0 and ending_level_ratio >= 0.05
+    decay_profile = _post_peak_decay_profile(
+        buckets, peak_index, bucket_frames, sample.sample_rate, peak
+    )
     quiet = [rms for frame_peak, rms in buckets if frame_peak <= active_threshold]
     return {
         "leading_low_level_seconds": round(leading * bucket_frames / sample.sample_rate, 4),
@@ -874,6 +913,7 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
         "attack_to_10_percent_seconds": attack,
         "attack_10_to_90_seconds": attack_10_to_90,
         "release_90_to_10_seconds": release_90_to_10,
+        "post_peak_decay_profile": decay_profile,
         "envelope_family": _envelope_family(sample.instrument),
         "quiet_region_rms": round((sum(value * value for value in quiet) / len(quiet)) ** 0.5 / 32768.0, 6)
         if quiet else None,
