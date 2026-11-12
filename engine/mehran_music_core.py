@@ -444,7 +444,6 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         ]
     melody = []
     for index, line in enumerate(lines):
-        chord = chords[index % len(chords)]
         line_section = next(
             (section["name"] for section in sections
              if section["start_line"] <= index < section["end_line"]),
@@ -455,6 +454,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
              if section["name"] == line_section), 0,
         )
         section_line_index = index - section_start
+        progression_slot = section_line_index % len(chords)
+        chord = chords[progression_slot]
         cadence_chord, cadence_type = _harmonic_cadence(chords, line["text"])
         if cadence_chord is not None:
             chord = cadence_chord
@@ -501,7 +502,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                      for section in sections if section["name"] == line_section),
                     len(lines),
                 ),
-                "progression_slot": index % len(chords),
+                "progression_slot": progression_slot,
                 "cadence_override": cadence_chord is not None,
             },
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
