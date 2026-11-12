@@ -129,9 +129,19 @@ class StudioControlPlaneTests(unittest.TestCase):
             wav.setsampwidth(2)
             wav.setframerate(44100)
             wav.writeframes(struct.pack("<" + "h" * 128, *([2048, -2048] * 64)))
+        staccato_path = bank_root / "piano-c4-staccato.wav"
+        with wave.open(str(staccato_path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(44100)
+            wav.writeframes(struct.pack("<" + "h" * 128, *([1024, -1024] * 64)))
         (bank_root / "bank.json").write_text(json.dumps({
             "format_version": 1,
-            "samples": [{"instrument": "piano", "midi_note": 60, "path": "piano-c4.wav"}],
+            "samples": [
+                {"instrument": "piano", "midi_note": 60, "path": "piano-c4.wav"},
+                {"instrument": "piano", "midi_note": 60, "path": "piano-c4-staccato.wav",
+                 "articulation": "staccato"},
+            ],
         }), encoding="utf-8")
         with mock.patch.dict(os.environ, {"MEHRAN_SAMPLE_BANK": str(bank_root)}):
             request = urllib.request.Request(self.base + "/v1/sample-bank/preview?instrument=piano&note=60&velocity=80",
@@ -142,6 +152,20 @@ class StudioControlPlaneTests(unittest.TestCase):
             self.assertEqual(response.headers.get("Cache-Control"), "no-store")
             self.assertEqual(response.read(), sample_path.read_bytes())
             response.close()
+            staccato = urllib.request.Request(
+                self.base + "/v1/sample-bank/preview?instrument=piano&note=60&velocity=80&articulation=staccato",
+                headers={"Authorization": "Bearer " + module.TOKEN},
+            )
+            with urllib.request.urlopen(staccato, timeout=3) as response:
+                self.assertEqual(response.read(), staccato_path.read_bytes())
+            invalid_articulation = urllib.request.Request(
+                self.base + "/v1/sample-bank/preview?instrument=piano&note=60&velocity=80&articulation=bad%20label",
+                headers={"Authorization": "Bearer " + module.TOKEN},
+            )
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(invalid_articulation, timeout=3)
+            self.assertEqual(error.exception.code, 400)
+            error.exception.close()
             invalid = urllib.request.Request(self.base + "/v1/sample-bank/preview?instrument=piano&note=200&velocity=80",
                                              headers={"Authorization": "Bearer " + module.TOKEN})
             with self.assertRaises(urllib.error.HTTPError) as error:
