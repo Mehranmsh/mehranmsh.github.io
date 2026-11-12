@@ -622,10 +622,29 @@ class SampleRendererTests(unittest.TestCase):
             fills[0]["duration_seconds"],
             round(first_phrase["phrase_pause_ticks"] * seconds_per_tick, 6),
         )
-        self.assertEqual(fills[0]["fill_planner"], "deterministic_melodic_fill_v1")
+        self.assertEqual(fills[0]["fill_planner"], "instrument_shaped_melodic_fill_v2")
         self.assertEqual(fills[0]["velocity"], 54)
+        self.assertEqual(fills[0]["articulation"], "fingerstyle")
         self.assertFalse(any(event.get("event_role") == "melodic_response_fill"
                              for event in build_composition_events(plan)))
+
+    def test_response_fill_can_use_explicit_piano_or_strings_part(self):
+        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        piano = build_composition_events(plan, response_fill_part="melody")
+        piano_fills = [e for e in piano if e.get("event_role") == "melodic_response_fill"]
+        self.assertTrue(piano_fills)
+        self.assertEqual({e["articulation"] for e in piano_fills}, {"staccato"})
+        strings = build_composition_events(
+            plan, instruments={"strings": "strings"}, response_fill_part="strings"
+        )
+        string_fills = [e for e in strings if e.get("event_role") == "melodic_response_fill"]
+        self.assertTrue(string_fills)
+        self.assertEqual({e["articulation"] for e in string_fills}, {"sustain"})
+        self.assertLessEqual(len(string_fills), 2)
+        self.assertFalse(any(e.get("event_role") == "melodic_response_fill"
+                             for e in build_composition_events(
+                                 plan, response_fill_part="strings"
+                             )))
 
 if __name__ == "__main__":
     unittest.main()
