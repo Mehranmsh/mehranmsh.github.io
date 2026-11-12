@@ -748,5 +748,28 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(phrases[1]["breath_demand"]["method"],
                          "conservative_phrase_length_bands_v1")
 
+
+    def test_composition_plan_assigns_instrument_articulations_to_melody_events(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            melody_instrument="violin",
+            articulation_style="legato",
+        )
+        composition = plan["composition"]
+        self.assertEqual(composition["melody_performance"]["instrument"], "violin")
+        self.assertEqual(composition["melody_performance"]["event_count"],
+                         sum(len(phrase["midi_notes"]) for phrase in composition["melody"]))
+        self.assertFalse(composition["melody_performance"]["audio_rendered"])
+        for phrase in composition["melody"]:
+            for note in phrase["note_lyric_map"]:
+                self.assertIn(note["articulation"],
+                              {"long_bow", "sustain", "short_bow", "staccato",
+                               "pizzicato", "tremolo"})
+                self.assertTrue(note["articulation_reason"])
+
+    def test_composition_rejects_unknown_melody_instrument(self):
+        with self.assertRaises(ValueError):
+            compose_plan("یک شعر کوتاه", melody_instrument="made_up")
+
 if __name__ == "__main__":
     unittest.main()
