@@ -126,13 +126,30 @@ class SampleBankTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 select_sample(bank, "violin", 60)
 
-    def test_catalog_defines_all_current_renderer_instruments(self):
-        self.assertEqual(
-            set(SAMPLE_INSTRUMENT_CATALOG),
-            {"piano", "acoustic_guitar", "electric_bass", "strings",
-             "electric_guitar", "kick", "snare", "closed_hat", "open_hat"},
-        )
+    def test_catalog_includes_every_current_renderer_instrument(self):
+        renderer_instruments = {
+            "piano", "acoustic_guitar", "electric_bass", "strings",
+            "electric_guitar", "kick", "snare", "closed_hat", "open_hat",
+        }
+        self.assertTrue(renderer_instruments.issubset(SAMPLE_INSTRUMENT_CATALOG))
         self.assertEqual(SAMPLE_INSTRUMENT_CATALOG["piano"]["note_range"], [36, 96])
+
+    def test_catalog_expands_iranian_orchestral_and_global_instruments(self):
+        expected = {
+            "tar", "setar", "santur", "ney", "kamancheh", "oud",
+            "qanun", "daf", "tombak", "violin", "viola", "cello",
+            "contrabass", "flute", "clarinet", "oboe", "bassoon",
+            "trumpet", "trombone", "french_horn", "harp",
+            "classical_guitar", "mandolin", "banjo", "accordion",
+            "harmonica",
+        }
+        self.assertTrue(expected.issubset(SAMPLE_INSTRUMENT_CATALOG))
+        for spec in SAMPLE_INSTRUMENT_CATALOG.values():
+            low, high = spec["note_range"]
+            self.assertGreaterEqual(low, 0)
+            self.assertLessEqual(high, 127)
+            self.assertLessEqual(low, high)
+            self.assertTrue(spec["velocity_layers"])
 
     def test_incomplete_bank_reports_missing_notes_and_velocity_layers(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -198,7 +215,7 @@ class SampleBankTests(unittest.TestCase):
     def test_recording_checklist_expands_note_and_velocity_targets(self):
         checklist = build_sample_recording_checklist()
         piano = checklist["instruments"]["piano"]
-        self.assertEqual(checklist["instrument_count"], 9)
+        self.assertEqual(checklist["instrument_count"], len(SAMPLE_INSTRUMENT_CATALOG))
         self.assertEqual(piano["target_count"], 61 * 3)
         self.assertEqual(piano["targets"][0], {
             "midi_note": 36, "velocity_layer": "soft",
