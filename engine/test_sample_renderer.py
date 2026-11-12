@@ -216,6 +216,21 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(major_third["midi_note"] % 12, (45 + 4) % 12)
         self.assertEqual(minor_third["midi_note"] % 12, (45 + 3) % 12)
 
+    def test_sample_seventh_chords_support_four_voice_panning(self):
+        import copy
+        base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        for section in ("pre_chorus", "chorus"):
+            plan = copy.deepcopy(base)
+            plan["composition"]["melody"][0]["section"] = section
+            plan["composition"]["melody"][0]["chord"] = "G7"
+            events = build_composition_events(
+                plan, instruments={"chords": "chord_bank", "melody": "lead"})
+            chord_events = [event for event in events
+                            if event["instrument"] == "chord_bank"]
+            self.assertTrue(chord_events)
+            self.assertTrue(all(-0.24 <= event["pan"] <= 0.24
+                                for event in chord_events))
+
     def test_sample_arrangement_dynamics_change_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
