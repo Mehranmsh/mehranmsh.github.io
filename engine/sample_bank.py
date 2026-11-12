@@ -606,6 +606,30 @@ def analyze_sample_bank_tuning(
     }
 
 
+def _envelope_family(instrument: str) -> str:
+    """Return a broad acoustic envelope family for diagnostic context."""
+    families = {
+        "percussive": {
+            "kick", "snare", "closed_hat", "open_hat", "daf", "tombak",
+            "santur", "piano",
+        },
+        "plucked": {
+            "acoustic_guitar", "electric_guitar", "electric_bass", "tar",
+            "setar", "oud", "qanun", "harp", "classical_guitar", "mandolin",
+            "banjo",
+        },
+        "bowed": {"strings", "violin", "viola", "cello", "contrabass", "kamancheh"},
+        "wind_or_bellows": {
+            "ney", "flute", "clarinet", "oboe", "bassoon", "trumpet",
+            "trombone", "french_horn", "accordion", "harmonica",
+        },
+    }
+    return next(
+        (family for family, members in families.items() if instrument in members),
+        "unknown",
+    )
+
+
 def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
     """Measure low-level head/tail regions and the recorded attack envelope."""
     bucket_frames = max(1, int(sample.sample_rate * 0.01))
@@ -641,6 +665,9 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "leading_low_level_seconds": 0.0,
             "trailing_low_level_seconds": 0.0,
             "attack_to_10_percent_seconds": None,
+            "attack_10_to_90_seconds": None,
+            "release_90_to_10_seconds": None,
+            "envelope_family": _envelope_family(sample.instrument),
             "quiet_region_rms": None,
             "ending_level_ratio": None,
             "possible_truncated_tail": False,
@@ -652,6 +679,9 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "leading_low_level_seconds": round(sample.frames / sample.sample_rate, 4),
             "trailing_low_level_seconds": round(sample.frames / sample.sample_rate, 4),
             "attack_to_10_percent_seconds": None,
+            "attack_10_to_90_seconds": None,
+            "release_90_to_10_seconds": None,
+            "envelope_family": _envelope_family(sample.instrument),
             "quiet_region_rms": 0.0,
             "ending_level_ratio": 0.0,
             "possible_truncated_tail": False,
@@ -665,14 +695,41 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
     while trailing < len(buckets) and buckets[len(buckets) - 1 - trailing][0] <= active_threshold:
         trailing += 1
     attack = None
-    if leading < len(buckets):
-        ten_percent = max(64.0, peak * 0.1)
-        attack_index = next(
-            (index for index in range(leading, len(buckets)) if buckets[index][0] >= ten_percent),
+    attack_10_to_90 = None
+    release_90_to_10 = None
+    peak_index = max(range(len(buckets)), key=lambda index: buckets[index][0])
+    ten_percent = max(64.0, peak * 0.1)
+    ninety_percent = peak * 0.9
+    attack_index = next(
+        (index for index in range(leading, len(buckets))
+         if buckets[index][0] >= ten_percent),
+        None,
+    )
+    if attack_index is not None:
+        attack = round((attack_index - leading) * bucket_frames / sample.sample_rate, 4)
+        ninety_index = next(
+            (index for index in range(attack_index, peak_index + 1)
+             if buckets[index][0] >= ninety_percent),
             None,
         )
-        if attack_index is not None:
-            attack = round((attack_index - leading) * bucket_frames / sample.sample_rate, 4)
+        if ninety_index is not None:
+            attack_10_to_90 = round(
+                (ninety_index - attack_index) * bucket_frames / sample.sample_rate, 4
+            )
+    release_start = next(
+        (index for index in range(peak_index, len(buckets))
+         if buckets[index][0] <= ninety_percent),
+        None,
+    )
+    release_end = next(
+        (index for index in range(peak_index, len(buckets))
+         if buckets[index][0] <= ten_percent),
+        None,
+    )
+    if release_start is not None and release_end is not None:
+        release_90_to_10 = round(
+            (release_end - release_start) * bucket_frames / sample.sample_rate, 4
+        )
     ending_level_ratio = buckets[-1][0] / peak
     possible_truncated_tail = trailing == 0 and ending_level_ratio >= 0.05
     quiet = [rms for frame_peak, rms in buckets if frame_peak <= active_threshold]
@@ -680,6 +737,9 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
         "leading_low_level_seconds": round(leading * bucket_frames / sample.sample_rate, 4),
         "trailing_low_level_seconds": round(min(trailing * bucket_frames, sample.frames) / sample.sample_rate, 4),
         "attack_to_10_percent_seconds": attack,
+        "attack_10_to_90_seconds": attack_10_to_90,
+        "release_90_to_10_seconds": release_90_to_10,
+        "envelope_family": _envelope_family(sample.instrument),
         "quiet_region_rms": round((sum(value * value for value in quiet) / len(quiet)) ** 0.5 / 32768.0, 6)
         if quiet else None,
         "ending_level_ratio": round(ending_level_ratio, 4),
