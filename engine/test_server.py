@@ -120,6 +120,17 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(midi_path.is_file())
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
 
+    def test_sample_recording_requirements_endpoint_is_authenticated_and_read_only(self):
+        status, report = self.request("/v1/sample-bank/requirements")
+        self.assertEqual(status, 200)
+        self.assertTrue(report["read_only"])
+        checklist = report["recording_checklist"]
+        self.assertEqual(checklist["instrument_count"], 9)
+        self.assertGreater(checklist["total_recording_targets"], 0)
+        self.assertEqual(checklist["format_requirements"]["container"], "WAV")
+        status, denied = self.request("/v1/sample-bank/requirements", token=False)
+        self.assertEqual(status, 401)
+        self.assertEqual(denied["error"], "unauthorized")
     def test_sample_bank_diagnostics_are_authenticated_read_only_and_report_gaps(self):
         bank_root = module.ROOT / "fixture-bank"
         bank_root.mkdir()
