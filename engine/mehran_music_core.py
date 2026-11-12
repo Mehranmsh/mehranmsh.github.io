@@ -83,15 +83,35 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     }
 
 
+def _chord_pitch_classes(symbol: str) -> tuple[int, ...]:
+    roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+    if not isinstance(symbol, str) or not symbol or symbol[0] not in roots:
+        raise ValueError("Unsupported chord symbol")
+    intervals = (0, 3, 7) if symbol[1:].startswith("m") else (0, 4, 7)
+    if "7" in symbol[1:]:
+        intervals += (10,)
+    return tuple((roots[symbol[0]] + interval) % 12 for interval in intervals)
+
+
 def _melody_for_line(syllables: int, tonic: int, scale: list[int],
-                     line_index: int) -> list[int]:
+                     line_index: int, chord: str) -> list[int]:
+    """Shape a phrase around its harmony and resolve its final note to a chord tone."""
     count = max(2, min(24, syllables))
     degrees = [0, 2, 4, 2, 1, 3, 4, 5]
+    chord_classes = set(_chord_pitch_classes(chord))
+    scale_notes = [tonic + interval + octave
+                   for octave in (0, 12, 24)
+                   for interval in scale
+                   if 55 <= tonic + interval + octave <= 84]
+    chord_notes = [note for note in scale_notes if note % 12 in chord_classes]
+    if not chord_notes:
+        chord_notes = scale_notes
     notes = []
     for i in range(count):
         degree = degrees[(i + line_index) % len(degrees)]
-        notes.append(tonic + scale[degree % len(scale)] +
-                     (12 if i >= count - 2 and line_index % 4 == 3 else 0))
+        target = tonic + scale[degree % len(scale)] + (12 if i >= count - 2 and line_index % 4 == 3 else 0)
+        pool = chord_notes if i == 0 or i == count - 1 else scale_notes
+        notes.append(min(pool, key=lambda note: (abs(note - target), note)))
     return notes
 
 
@@ -131,7 +151,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         ]
     melody = []
     for index, line in enumerate(lines):
-        notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index)
+        chord = chords[index % len(chords)]
+        notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes))
         melody.append({
             "line_index": index,
@@ -140,7 +161,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "note_durations_ticks": durations,
             "bar_count": bars,
             "duration_ticks": bars * 4 * 480,
-            "chord": chords[index % len(chords)],
+            "chord": chord,
+            "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
+            "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
         })
     arrangement = {
         "intro": ["soft piano", "acoustic guitar"],
@@ -151,7 +174,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.2.0",
+        "engine_version": "0.3.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
@@ -167,5 +190,5 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         },
         "audio_rendered": False,
         "status": "composition_plan_only",
-        "next_layers": ["phonetic_prosody", "harmony_voice_leading", "instrument_sound_bank", "midi_renderer", "audio_mixer"],
+        "next_layers": ["phonetic_prosody", "rhythmic_groove", "instrument_sound_bank", "audio_renderer", "audio_mixer"],
     }
