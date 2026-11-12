@@ -356,14 +356,20 @@ def build_composition_events(
                     PPQ // 2, _scaled_velocity(68, dynamics["chords"]), 0.38)
                 add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
                     PPQ // 2, _scaled_velocity(72, dynamics["chords"]), 0.42)
-            root = 36 + root_pc
-            bass_root = 36 + (voicing[0] % 12)
-            third = root + chord_intervals[1]
+            bass_root_pc = voicing[0] % 12
+            bass_root = 36 + bass_root_pc
+            bass_intervals = sorted(
+                (root_pc + interval - bass_root_pc) % 12
+                for interval in chord_intervals
+                if (root_pc + interval - bass_root_pc) % 12
+            )
+            bass_third = bass_root + bass_intervals[0]
+            bass_fifth = bass_root + bass_intervals[-1]
             bass_scale = dynamics["bass"]
             drum_scale = dynamics["drums"]
             if section == "bridge":
                 add("bass", bass_root, bar_start, 2 * PPQ - 36, _scaled_velocity(76, bass_scale))
-                add("bass", bass_root + 7, bar_start + 2 * PPQ, 2 * PPQ - 36,
+                add("bass", bass_fifth, bar_start + 2 * PPQ, 2 * PPQ - 36,
                     _scaled_velocity(66, bass_scale))
                 add("kick", 36, bar_start, 48, _scaled_velocity(88, drum_scale))
                 add("snare", 38, bar_start + 2 * PPQ, 48, _scaled_velocity(62, drum_scale))
@@ -372,8 +378,8 @@ def build_composition_events(
                         _scaled_velocity(52, drum_scale))
             else:
                 add("bass", bass_root, bar_start, 2 * PPQ - 36, _scaled_velocity(82, bass_scale))
-                add("bass", third, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
-                add("bass", root + 7, bar_start + 3 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("bass", bass_third, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("bass", bass_fifth, bar_start + 3 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
                 add("kick", 36, bar_start, 48, _scaled_velocity(112, drum_scale))
                 add("kick", 36, bar_start + 2 * PPQ, 48, _scaled_velocity(104, drum_scale))
                 add("snare", 38, bar_start + PPQ, 48, _scaled_velocity(94, drum_scale))
