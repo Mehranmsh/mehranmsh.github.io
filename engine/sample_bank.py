@@ -474,6 +474,7 @@ def rank_sample_candidates(
             "attack_to_10_percent_seconds": measurement["attack_to_10_percent_seconds"],
             "attack_10_to_90_seconds": measurement["attack_10_to_90_seconds"],
             "release_90_to_10_seconds": measurement["release_90_to_10_seconds"],
+            "post_peak_decay_profile": measurement["post_peak_decay_profile"],
             "ending_level_ratio": measurement["ending_level_ratio"],
             "boundary_analysis_status": measurement["boundary_analysis_status"],
         }
