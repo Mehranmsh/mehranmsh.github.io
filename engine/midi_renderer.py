@@ -151,30 +151,27 @@ def _apply_instrument_tuning(
     if not tuning_map:
         return events, {"0.0": base_channel}
     channels = {0.0: base_channel}
-    output = list(events)
+    output = []
     for tick, priority, message in events:
-        if len(message) < 3 or message[0] & 0xF0 not in (0x80, 0x90):
-            continue
-        note = message[1]
-        cents = round(tuning_map.get(note, 0.0), 6)
-        if cents not in channels:
-            channel = next((candidate for candidate in range(16)
-                            if candidate != 9 and candidate not in occupied_channels), None)
-            if channel is None:
-                raise ValueError(
-                    f"MIDI tuning channel capacity exhausted while tuning {instrument}; "
-                    "reduce distinct instrument tuning groups"
-                )
-            occupied_channels.add(channel)
-            channels[cents] = channel
-            output.extend(_melody_pitch_bend_setup_for_channel(channel))
-            output.append((0, 1, _pitch_bend(channel, cents)))
-            output.append((0, 0, bytes((0xC0 | channel, program))))
-        channel = channels[cents]
-        if channel != base_channel:
-            output[output.index((tick, priority, message))] = (
-                tick, priority, bytes(((message[0] & 0xF0) | channel, *message[1:]))
-            )
+        if len(message) >= 3 and message[0] & 0xF0 in (0x80, 0x90):
+            cents = round(tuning_map.get(message[1], 0.0), 6)
+            if cents not in channels:
+                channel = next((candidate for candidate in range(16)
+                                if candidate != 9 and candidate not in occupied_channels), None)
+                if channel is None:
+                    raise ValueError(
+                        f"MIDI tuning channel capacity exhausted while tuning {instrument}; "
+                        "reduce distinct instrument tuning groups"
+                    )
+                occupied_channels.add(channel)
+                channels[cents] = channel
+                output.extend(_melody_pitch_bend_setup_for_channel(channel))
+                output.append((0, 1, _pitch_bend(channel, cents)))
+                output.append((0, 0, bytes((0xC0 | channel, program))))
+            channel = channels[cents]
+            if channel != base_channel:
+                message = bytes(((message[0] & 0xF0) | channel, *message[1:]))
+        output.append((tick, priority, message))
     return output, {str(cents): channel for cents, channel in channels.items()}
 
 
