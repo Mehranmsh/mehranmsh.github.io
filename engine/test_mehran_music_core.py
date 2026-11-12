@@ -675,6 +675,28 @@ class IndependentMusicCoreTests(unittest.TestCase):
                 self.assertEqual(energy["role"], "continuing")
                 self.assertEqual(energy["cadence_release_scale"], 1.0)
 
+    def test_section_transition_energy_intent_is_descriptive_and_non_forcing(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        phrases = compose_plan(lyrics)["composition"]["melody"]
+        transitions = [
+            phrase["phrase_energy"]["section_transition"]
+            for phrase in phrases if phrase["is_section_final_phrase"]
+        ]
+        self.assertTrue(transitions)
+        self.assertEqual(transitions[-1]["next_section"], None)
+        for transition in transitions[:-1]:
+            self.assertIsNotNone(transition["next_section"])
+            self.assertIsNotNone(transition["energy_change"])
+            self.assertEqual(transition["basis"], "section_arrangement_intent")
+        for phrase in phrases:
+            if not phrase["is_section_final_phrase"]:
+                self.assertIsNone(phrase["phrase_energy"]["section_transition"])
+
     def test_section_end_phrases_receive_breath_recovery_priority(self):
         lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
