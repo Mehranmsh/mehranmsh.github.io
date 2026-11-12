@@ -95,10 +95,12 @@ jobs:
       - name: Download and verify the full CC0 piano bank
         timeout-minutes: 20
         run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
-      - name: Install all three real banks and render a piano plus guitar composition
-        timeout-minutes: 15
+      - name: Install and validate all three real instrument banks
+        timeout-minutes: 12
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano
+      - name: Render and validate the real piano plus guitar composition
+        timeout-minutes: 12
         run: |
-          python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano
           python3 - <<'PY'
           import wave
           from mehran_music_core import compose_plan
