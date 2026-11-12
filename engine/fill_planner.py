@@ -8,7 +8,7 @@ def plan_melody_fill(
     *, gap_start_tick: int, gap_duration_ticks: int,
     scale_pitch_classes: list[int], chord_pitch_classes: list[int],
     reference_note: int, instrument_range: tuple[int, int] = (48, 84),
-    max_notes: int = 4,
+    max_notes: int = 4, base_velocity: int = 62,
 ) -> dict[str, Any]:
     """Create a short chord-aware fill wholly contained in a vocal-rest gap.
 
@@ -37,6 +37,8 @@ def plan_melody_fill(
         raise ValueError("instrument_range must be an ascending MIDI-note tuple")
     if isinstance(max_notes, bool) or not isinstance(max_notes, int) or not 1 <= max_notes <= 8:
         raise ValueError("max_notes must be from 1 to 8")
+    if isinstance(base_velocity, bool) or not isinstance(base_velocity, int) or not 1 <= base_velocity <= 127:
+        raise ValueError("base_velocity must be an integer from 1 to 127")
     if gap_duration_ticks < 120:
         return {"events": [], "reason": "gap_too_short", "planner": "deterministic_melodic_fill_v1",
                 "audio_rendered": False}
@@ -66,9 +68,11 @@ def plan_melody_fill(
     durations[-1] += total - sum(durations)
     cursor = gap_start_tick
     events = []
-    for note, duration in zip(chosen, durations):
+    contour = (0, -4, 2, -2)
+    for index, (note, duration) in enumerate(zip(chosen, durations)):
+        velocity = max(1, min(127, base_velocity + contour[index % len(contour)]))
         events.append({"midi_note": note, "start_tick": cursor,
-                       "duration_ticks": duration, "velocity": 62,
+                       "duration_ticks": duration, "velocity": velocity,
                        "role": "melodic_response_fill"})
         cursor += duration
     return {"events": events, "reason": "planned_in_vocal_rest",
