@@ -3,11 +3,11 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _melody_velocity, _section_dynamics, render_midi
+from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _melody_velocity, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
-    def test_renders_five_track_standard_midi_with_rhythm_section(self):
+    def test_renders_seven_track_standard_midi_with_arrangement(self):
         plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد",
                             title="برگرد", target_bpm=84)
         with tempfile.TemporaryDirectory() as folder:
@@ -15,8 +15,9 @@ class MidiRendererTests(unittest.TestCase):
             result = render_midi(plan, target)
             data = target.read_bytes()
         self.assertEqual(data[:4], b"MThd")
-        self.assertEqual(int.from_bytes(data[10:12], "big"), 6)
-        self.assertEqual(result["tracks"], 6)
+        self.assertEqual(int.from_bytes(data[10:12], "big"), 7)
+        self.assertEqual(result["tracks"], 7)
+        self.assertGreater(result["piano_note_events"], 0)
         self.assertGreater(result["guitar_note_events"], 0)
         self.assertGreater(result["note_events"], 0)
         self.assertGreater(result["bass_note_events"], 0)
@@ -137,6 +138,17 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual(bridge_count, 2)
         self.assertEqual(len([e for e in verse if e[2][0] & 0xF0 == 0x90]), 8)
         self.assertEqual(len([e for e in chorus if e[2][0] & 0xF0 == 0x90]), 12)
+
+    def test_piano_arrangement_changes_by_song_section(self):
+        chord = (60, 64, 67)
+        verse, chorus, bridge = [], [], []
+        verse_count = _piano_bar(chord, 0, verse, section="verse")
+        chorus_count = _piano_bar(chord, 0, chorus, section="chorus")
+        bridge_count = _piano_bar(chord, 0, bridge, section="bridge")
+        self.assertEqual(verse_count, 4)
+        self.assertEqual(chorus_count, 10)
+        self.assertEqual(bridge_count, 2)
+        self.assertTrue(all(event[2][0] & 0x0F == 4 for event in verse if event[2][0] & 0xF0 == 0x90))
 
 if __name__ == "__main__":
     unittest.main()
