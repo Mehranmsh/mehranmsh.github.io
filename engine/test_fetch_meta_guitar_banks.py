@@ -6,12 +6,16 @@ from fetch_meta_guitar_banks import parse_guitar_sfz_sample_map, parse_sha256sum
 class MetaGuitarMapTests(unittest.TestCase):
     def test_steel_map_preserves_string_note_and_three_velocity_zones(self):
         sfz = """
+<master> lochan=1 hichan=1
 <group> group=1 off_by=1 lovel=1 hivel=48
 <region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg
 <group> group=1 off_by=1 lovel=49 hivel=96
 <region> key=40 sample=INSGuitarSteel_StringLowE_Vel02_E2_01.ogg
 <group> group=1 off_by=1 lovel=97 hivel=127
 <region> key=40 sample=INSGuitarSteel_StringLowE_Vel03_E2_01.ogg
+<master> lochan=2 hichan=2
+<group> group=1 off_by=1 lovel=1 hivel=48
+<region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg
 """
         mapped = parse_guitar_sfz_sample_map(sfz, "meta-steel-guitar")
         self.assertEqual(len(mapped), 3)
