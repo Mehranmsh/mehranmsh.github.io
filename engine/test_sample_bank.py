@@ -524,6 +524,37 @@ class SampleBankTests(unittest.TestCase):
             self.assertIn("dc_offset", by_note[63]["warnings"])
             self.assertFalse(report["basic_signal_checks_pass"])
 
+    def test_quality_report_groups_recording_profiles_by_instrument(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            fixtures = [
+                ("piano/soft.wav", 1, 44100, [1000, -1000] * 64),
+                ("piano/hard.wav", 2, 48000, [12000, -12000, 8000, -8000] * 32),
+            ]
+            entries = []
+            for index, (filename, channels, rate, values) in enumerate(fixtures):
+                path = root / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(path), "wb") as wav:
+                    wav.setnchannels(channels)
+                    wav.setsampwidth(2)
+                    wav.setframerate(rate)
+                    wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+                entries.append({
+                    "instrument": "piano", "midi_note": 60 + index,
+                    "path": filename,
+                })
+            self.write_manifest(root, entries)
+            report = analyze_sample_bank_quality(load_sample_bank(root))
+            profile = report["instrument_profiles"]["piano"]
+            self.assertEqual(profile["sample_count"], 2)
+            self.assertEqual(profile["sample_rates_hz"], [44100, 48000])
+            self.assertEqual(profile["channels_present"], [1, 2])
+            self.assertFalse(profile["sample_rate_consistent"])
+            self.assertFalse(profile["channel_layout_consistent"])
+            self.assertGreater(profile["rms"]["spread"], 0)
+            self.assertEqual(profile["samples_with_warnings"], 0)
+
     def test_complete_custom_fixture_reports_ready(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
