@@ -373,3 +373,17 @@ layer; missing coverage is reported as an error rather than silently replaced.
 In overlapping velocity ranges, the audition uses MEHRAN's deterministic
 equal-power blend of the two matching recordings. This is a listening and
 coverage tool, not a synthesized substitute for missing recordings.
+
+
+## Recorded six-string guitar fingering
+
+The sample renderer recognizes string identity in Meta Nylon and Meta Steel
+Guitar recording filenames. For guitar events, it selects an exact recorded
+string/note/velocity/articulation and prefers the first available string in
+Low E, A, D, G, B, High E order when the note is within four frets of the open
+string. An event may set `guitar_string` to one explicit string and
+`guitar_max_fret` (0-24) when a deliberate higher-position fingering is
+required. If automatic first-position coverage is unavailable, rendering is
+blocked with a diagnostic rather than silently choosing a distant fret or
+transposing a different string's recording. Velocity-layer blending is
+performed only among recordings from the selected string.
