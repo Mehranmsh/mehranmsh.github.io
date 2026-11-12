@@ -1,6 +1,11 @@
+import io
+import tempfile
 import unittest
+import urllib.error
+from pathlib import Path
+from unittest.mock import patch
 
-from fetch_meta_guitar_banks import parse_guitar_sfz_sample_map, parse_sha256sums
+from fetch_meta_guitar_banks import _download, parse_guitar_sfz_sample_map, parse_sha256sums
 
 
 class MetaGuitarMapTests(unittest.TestCase):
@@ -86,6 +91,30 @@ class MetaGuitarMapTests(unittest.TestCase):
         self.assertEqual(parse_sha256sums(f"{digest}  ogg/sample.ogg"), {"ogg/sample.ogg": digest})
         with self.assertRaisesRegex(ValueError, "no valid entries"):
             parse_sha256sums("bad checksum")
+
+
+    def test_download_retries_transient_network_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "sample.ogg"
+            with patch("fetch_meta_guitar_banks.urllib.request.urlopen",
+                       side_effect=[urllib.error.URLError("temporary"), io.BytesIO(b"verified-source")]) as fetch, \
+                 patch("fetch_meta_guitar_banks.time.sleep") as sleep:
+                _download("https://example.invalid/sample.ogg", destination)
+            self.assertEqual(destination.read_bytes(), b"verified-source")
+            self.assertEqual(fetch.call_count, 2)
+            sleep.assert_called_once_with(1)
+
+    def test_download_does_not_retry_permanent_http_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "sample.ogg"
+            error = urllib.error.HTTPError("https://example.invalid/missing", 404, "Not Found", {}, None)
+            with patch("fetch_meta_guitar_banks.urllib.request.urlopen", side_effect=error) as fetch, \
+                 patch("fetch_meta_guitar_banks.time.sleep") as sleep:
+                with self.assertRaises(urllib.error.HTTPError):
+                    _download("https://example.invalid/missing", destination)
+            fetch.assert_called_once()
+            sleep.assert_not_called()
+            self.assertFalse(destination.exists())
 
 
 if __name__ == "__main__":
