@@ -159,7 +159,7 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.write_manifest()
         status = module.engine_status()
         self.assertFalse(status["ready"])
-        self.assertEqual(status["state"], "model_verified_runner_not_integrated")
+        self.assertEqual(status["state"], "independent_composition_core_only")
 
 
     def test_project_detail_update_and_delete_are_owner_authenticated(self):
@@ -200,12 +200,12 @@ class StudioControlPlaneTests(unittest.TestCase):
     def test_engine_is_honestly_unavailable_without_local_runtime(self):
         state = module.engine_status()
         self.assertFalse(state["ready"])
-        self.assertEqual(state["state"], "not_installed")
+        self.assertEqual(state["state"], "independent_composition_core_only")
 
     def test_no_paid_or_external_fallback_is_advertised(self):
         state = module.engine_status()
         self.assertFalse(state["ready"])
-        self.assertIn("No generation can be started", state["message"])
+        self.assertIn("audio generation remains disabled", state["message"])
 
     def test_project_database_persists_and_enforces_limit(self):
         db = module.database()
