@@ -200,7 +200,7 @@ def render_sample_events(
     rendered_events = 0
     velocity_crossfade_events = 0
     velocity_crossfade_layers_rendered = 0
-    for sample_layers, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode in checked:
+    for sample_layers, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode, selected_guitar_string in checked:
         if len(sample_layers) > 1:
             velocity_crossfade_events += 1
         for sample, layer_gain in sample_layers:
