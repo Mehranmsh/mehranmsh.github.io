@@ -13,6 +13,16 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreater(stressed, unstressed)
         self.assertLessEqual(stressed, 127)
 
+    def test_beat_aligned_lexical_stress_gets_controlled_extra_accent(self):
+        plain = _melody_velocity(88, 0)
+        lexical = _melody_velocity(88, 0, lexical_stress=True)
+        aligned = _melody_velocity(
+            88, 0, lexical_stress=True, stress_beat_aligned=True
+        )
+        self.assertGreater(lexical, plain)
+        self.assertGreater(aligned, lexical)
+        self.assertLessEqual(aligned, 127)
+
     def test_renderer_uses_phrase_level_cadence_chord(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
         plan["composition"]["melody"][0]["chord"] = "F"
