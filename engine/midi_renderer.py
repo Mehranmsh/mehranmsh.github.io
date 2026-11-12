@@ -130,12 +130,14 @@ def _groove_velocity(base_velocity: int, beat: int, *, subdivision: int = 0,
 def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
                      section_scale: float = 1.0,
                      is_peak: bool = False,
-                     is_cadence: bool = False) -> int:
-    """Shape melody velocity with deterministic meter, peak and cadence accents."""
+                     is_cadence: bool = False,
+                     lexical_stress: bool = False) -> int:
+    """Shape melody velocity with meter, phrase and curated lexical-stress accents."""
     beat = (tick_in_bar % (PPQ * 4)) // PPQ
     beat_scale = {0: 1.08, 1: 0.96, 2: 1.03, 3: 0.97}[beat]
     phrase_scale = (1.05 if is_peak else 1.0) * (1.03 if is_cadence else 1.0)
-    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale)
+    stress_scale = 1.07 if lexical_stress else 1.0
+    return _scale_velocity(base_velocity, section_scale * beat_scale * phrase_scale * stress_scale)
 
 
 def _section_dynamics(section: str) -> dict[str, float]:
@@ -367,12 +369,20 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         dynamics = _section_dynamics(section)
         cursor = phrase_start
         peak_index = phrase.get("peak_note_index")
+        lyric_map = phrase.get("note_lyric_map", [])
+        stressed_note_indices = {
+            item.get("note_index") for item in lyric_map
+            if isinstance(item, dict)
+            and item.get("is_lexically_stressed") is True
+            and item.get("stress_confidence") == "curated"
+        }
         for note_index, (note, duration) in enumerate(zip(notes, durations)):
             gate = max(1, int(duration * 0.88))
             velocity = _melody_velocity(
                 88, cursor, section_scale=dynamics["melody"],
                 is_peak=(isinstance(peak_index, int) and note_index == peak_index),
-                is_cadence=(note_index == len(notes) - 1))
+                is_cadence=(note_index == len(notes) - 1),
+                lexical_stress=note_index in stressed_note_indices)
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
