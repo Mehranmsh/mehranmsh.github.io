@@ -62,3 +62,18 @@ has a bounded register and its own note density/contour. These are exact
 articulation requests: if the matching recording is absent, the renderer
 reports the missing sample instead of substituting another technique. No
 recorded Persian-instrument assets are implied by these planner profiles.
+
+
+### Persian modal-aware response phrasing (first layer)
+
+A first explicit modal layer is available for Shur, Homayun and Mahour
+response fills. The profiles provide transposable pitch collections, emphasized
+degrees and a phrase-final landing tone; the final fill note is guided toward
+the profile's finalis rather than selected only from the current chord.
+These are documented 12-tone equal-temperament working approximations for
+algorithm development, not authoritative radif transcriptions or authentic
+Persian tuning. The current integer-MIDI/sample-bank path cannot render
+quarter-tone inflections. Setting `composition.persian_dastgah` to one of
+`shur`, `homayun` or `mahour` activates the profile for response fills;
+unknown names are rejected rather than silently ignored. Existing major/minor
+plans remain unchanged when the field is absent.
