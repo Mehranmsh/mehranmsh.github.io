@@ -66,6 +66,14 @@ class SampleRendererTests(unittest.TestCase):
         parts = {event["instrument"] for event in events}
         self.assertEqual(parts, {"piano", "bass", "drums"})
         self.assertGreater(len(events), len(plan["composition"]["melody"]))
+        expanded = build_composition_events(plan, instruments={
+            "guitar": "acoustic_guitar",
+            "strings": "strings",
+            "electric_guitar": "electric_guitar",
+        })
+        expanded_parts = {event["instrument"] for event in expanded}
+        self.assertTrue({"acoustic_guitar", "strings", "electric_guitar"}.issubset(expanded_parts))
+        self.assertGreater(len(expanded), len(events))
 
     def test_full_plan_renders_with_a_recorded_sample_bank(self):
         with tempfile.TemporaryDirectory() as folder:
