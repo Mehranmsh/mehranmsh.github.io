@@ -41,6 +41,16 @@ def _track(events: list[tuple[int, int, bytes]], name: str) -> bytes:
     return b"MTrk" + struct.pack(">I", len(payload)) + payload
 
 
+
+def _instrument_track_name(slot: str, instrument: str) -> str:
+    """Keep MIDI role labels while exposing the mapped instrument identity."""
+    slug = "".join(char if char.isascii() and (char.isalnum() or char in "-_")
+                   else "-" for char in instrument.strip().lower()).strip("-_")
+    if not slug or slug == slot:
+        return f"MEHRAN {slot.title()}"
+    return f"MEHRAN {slot.title()} [{slug}]"
+
+
 def _parse_chord(symbol: str) -> tuple[int, tuple[int, ...]]:
     if not isinstance(symbol, str) or not symbol or symbol[0] not in ROOTS:
         raise ValueError("Unsupported chord symbol in composition plan")
@@ -650,11 +660,11 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
             piano_events = tuned
         accompaniment_tuning_channels[instrument] = channel_map
     tracks = [conductor, _track(melody_events, "MEHRAN Melody Guide"),
-              _track(chord_events, "MEHRAN Strings"),
-              _track(bass_events, "MEHRAN Bass"),
+              _track(chord_events, _instrument_track_name("strings", resolved_accompaniment["strings"])),
+              _track(bass_events, _instrument_track_name("bass", resolved_accompaniment["bass"])),
               _track(drum_events, "MEHRAN Drums"),
-              _track(guitar_events, "MEHRAN Guitar"),
-              _track(piano_events, "MEHRAN Piano")]
+              _track(guitar_events, _instrument_track_name("guitar", resolved_accompaniment["guitar"])),
+              _track(piano_events, _instrument_track_name("piano", resolved_accompaniment["piano"]))]
     midi = b"MThd" + struct.pack(">IHHH", 6, 1, len(tracks), PPQ) + b"".join(tracks)
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
