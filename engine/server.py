@@ -34,6 +34,8 @@ LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
+from sample_bank import load_sample_bank
+from sample_renderer import render_composition_to_wav
 
 
 def database():
@@ -218,7 +220,7 @@ class Handler(BaseHTTPRequestHandler):
                     "charged": False
                 })
             return self.send_json(501, {"error": "job_runner_not_implemented", "job_created": False, "charged": False})
-        if path not in ("/v1/projects", "/v1/compose"):
+        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-audio"):
             return self.send_json(404, {"error": "not_found"})
         length = self.headers.get("Content-Length", "")
         if not length.isdigit() or int(length) > MAX_BODY:
@@ -264,6 +266,60 @@ class Handler(BaseHTTPRequestHandler):
                          "duration_seconds": midi_info["duration_seconds"],
                          "bytes": midi_info["bytes"], "local_path": str(midi_path)},
                 "message": "Composition plan and MIDI file created. Audio rendering is not implemented yet."
+            })
+        if path == "/v1/compose-audio":
+            lyrics = payload.get("lyrics")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            bpm = payload.get("bpm")
+            if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if not isinstance(title, str) or len(title) > 100 or not isinstance(genre, str) or len(genre) > 60:
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "audio_rendered": False})
+            bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
+            try:
+                bank = load_sample_bank(bank_root)
+            except ValueError as error:
+                return self.send_json(503, {
+                    "error": "sample_bank_unavailable",
+                    "detail": str(error),
+                    "audio_rendered": False,
+                    "charged": False,
+                })
+            try:
+                plan = compose_plan(lyrics, title=title, genre=genre, target_bpm=bpm)
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                wav_path = render_dir / (render_id + ".wav")
+                audio_info = render_composition_to_wav(plan, bank, wav_path)
+            except ValueError as error:
+                return self.send_json(422, {
+                    "error": "sample_render_failed",
+                    "detail": str(error),
+                    "audio_rendered": False,
+                    "charged": False,
+                })
+            except OSError:
+                return self.send_json(507, {"error": "audio_storage_unavailable", "audio_rendered": False})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": True,
+                "plan": plan,
+                "audio": {
+                    "id": render_id,
+                    "format": audio_info["format"],
+                    "sample_rate": audio_info["sample_rate"],
+                    "channels": audio_info["channels"],
+                    "duration_seconds": audio_info["duration_seconds"],
+                    "events_rendered": audio_info["events_rendered"],
+                    "local_path": str(wav_path),
+                },
+                "message": "WAV rendered from the configured local recorded-sample bank.",
             })
         name = str(payload.get("name", "")).strip()
         kind = str(payload.get("kind", "song")).strip()
