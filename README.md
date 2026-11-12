@@ -357,4 +357,4 @@ python3 engine/fetch_meta_piano_bank.py /path/to/sample-bank-meta-piano
 python3 engine/sample_bank_preview.py /path/to/sample-bank-meta-piano piano 60 /path/to/piano-C4-preview.wav --velocity 80 --articulation sustain
 ```
 
-The source SFZ defines overlapping velocity crossfade regions. The current MEHRAN sampler retains each source region's velocity bounds and chooses a matching recorded layer, but it does not yet reproduce the SFZ equal-power crossfade curves. This is a known playback limitation, not a missing-recording claim.
+The source SFZ defines overlapping velocity regions. MEHRAN now blends the two exact-note recordings in each overlap with a deterministic equal-power crossfade, while velocities outside overlaps use their single matching recording. The renderer reports crossfade-event and rendered-layer counts. This is MEHRAN's own equal-power approximation; it does not claim to reproduce undocumented or source-specific SFZ gain curves. It never substitutes a different pitch or articulation to fill a missing layer.
