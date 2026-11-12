@@ -21,11 +21,11 @@ SCALES = {
     "major": [0, 2, 4, 5, 7, 9, 11],
 }
 PROGRESSIONS = {
-    "sad": (("Am", "F", "C", "G"), "A", "minor", 82),
+    "sad": (("Am", "F", "C", "G7"), "A", "minor", 82),
     "hopeful": (("C", "G", "Am", "F"), "C", "major", 104),
-    "romantic": (("C", "Am", "F", "G"), "C", "major", 92),
-    "angry": (("Dm", "Bb", "F", "C"), "D", "minor", 118),
-    "neutral": (("Am", "F", "C", "G"), "A", "minor", 96),
+    "romantic": (("C", "Am", "F", "G7"), "C", "major", 92),
+    "angry": (("Dm", "Bb", "F", "C7"), "D", "minor", 118),
+    "neutral": (("Am", "F", "C", "G7"), "A", "minor", 96),
 }
 ROOTS = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71}
 
