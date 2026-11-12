@@ -107,7 +107,7 @@ jobs:
           from sample_bank import load_sample_bank
           from sample_renderer import build_composition_events, render_sample_events
 
-          lyrics = "\n".join([
+          lyrics = "\\n".join([
               "برگرد ای عشق، کنار من بمان",
               "در این شب سرد، چراغ خانه‌مان",
               "صدای باران، روی پنجره‌ها",
@@ -120,8 +120,20 @@ jobs:
               "بخوان دوباره، از عشق و دریا",
               "جهان اگرچه، پر از غبار است",
               "برای قلبم، هنوز بهار است",
+              "از کوچه‌های خیس شب گذشتیم",
+              "با دست‌های خسته، اما نترسیدیم",
+              "چراغ پنجره هنوز روشن مانده",
+              "صدای ساز ما به خانه برگشته",
+              "اگر سکوتی بین ما نشسته",
+              "ترانه راه تازه‌ای گشوده است",
+              "به شوق فردا، دوباره می‌خوانیم",
+              "تمام شب را، ستاره می‌کاریم",
+              "بمان که این صدا ادامه دارد",
+              "در این دل عاشق، بهار می‌ماند",
+              "کنار هم تا انتهای این رؤیا",
+              "دوباره می‌سازیم جهان فردا",
           ])
-          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Extended Preview", genre="pop", target_bpm=84)
+          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Long Preview", genre="pop", target_bpm=84)
           for phrase in plan["composition"]["melody"]:
               for item in phrase.get("note_lyric_map", []):
                   if isinstance(item, dict):
@@ -137,7 +149,7 @@ jobs:
           )
           # Render a continuous 16-second passage instead of truncating the
           # arrangement to five tiny events per part.
-          preview_seconds = 16.0
+          preview_seconds = 32.0
           selected = [
               dict(event) for event in events
               if event.get("part") in ("melody", "chords", "guitar")
@@ -147,7 +159,7 @@ jobs:
               remaining = preview_seconds - event["start_seconds"]
               event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.9)
           selected = [event for event in selected if event["duration_seconds"] > 0]
-          assert len(selected) >= 40, f"Extended passage has too few events: {len(selected)}"
+          assert len(selected) >= 80, f"Extended passage has too few events: {len(selected)}"
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "guitar"} <= selected_parts, selected_parts
@@ -164,7 +176,7 @@ jobs:
               assert audio.getnchannels() == 2
               assert audio.getsampwidth() == 2
               assert audio.getframerate() == 44100
-              assert audio.getnframes() > 8 * 44100
+              assert audio.getnframes() > 20 * 44100
               pcm = audio.readframes(audio.getnframes())
           assert any(pcm), "Combined piano/guitar WAV is silent"
           import array
