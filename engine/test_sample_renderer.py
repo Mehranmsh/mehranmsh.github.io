@@ -107,6 +107,32 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_sample_arrangement_dynamics_change_by_section(self):
+        import copy
+        base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        verse = copy.deepcopy(base)
+        final_chorus = copy.deepcopy(base)
+        bridge = copy.deepcopy(base)
+        for plan, section in ((verse, "verse"), (final_chorus, "final_chorus"),
+                              (bridge, "bridge")):
+            for phrase in plan["composition"]["melody"]:
+                phrase["section"] = section
+        verse_events = build_composition_events(verse)
+        chorus_events = build_composition_events(final_chorus)
+        bridge_events = build_composition_events(bridge)
+        average = lambda events, part: sum(e["velocity"] for e in events
+                                           if e["instrument"] == part) / sum(
+                                               1 for e in events if e["instrument"] == part)
+        self.assertGreater(average(chorus_events, "piano"),
+                           average(verse_events, "piano"))
+        self.assertGreater(average(chorus_events, "electric_bass"),
+                           average(verse_events, "electric_bass"))
+        self.assertGreater(average(chorus_events, "kick"),
+                           average(verse_events, "kick"))
+        bridge_hat_count = sum(e["instrument"] == "closed_hat" for e in bridge_events)
+        verse_hat_count = sum(e["instrument"] == "closed_hat" for e in verse_events)
+        self.assertLess(bridge_hat_count, verse_hat_count)
+
     def test_phrase_pause_is_preserved_between_rendered_lyric_lines(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         phrases = plan["composition"]["melody"]
