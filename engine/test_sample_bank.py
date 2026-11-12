@@ -551,6 +551,9 @@ class SampleBankTests(unittest.TestCase):
             self.assertAlmostEqual(measured["leading_low_level_seconds"], 0.1, delta=0.02)
             self.assertAlmostEqual(measured["trailing_low_level_seconds"], 0.1, delta=0.02)
             self.assertIsNotNone(measured["attack_to_10_percent_seconds"])
+            self.assertIsNotNone(measured["attack_10_to_90_seconds"])
+            self.assertIsNotNone(measured["release_90_to_10_seconds"])
+            self.assertEqual(measured["envelope_family"], "percussive")
             self.assertIsNotNone(measured["quiet_region_rms"])
             self.assertEqual(measured["boundary_analysis_status"], "measured")
 
