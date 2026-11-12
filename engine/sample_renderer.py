@@ -380,6 +380,12 @@ def build_composition_events(
                     velocity = 82 if is_open_hat else 72
                     add(part, note, bar_start + eighth * (PPQ // 2), 48,
                         _scaled_velocity(velocity, drum_scale))
+                if section in ("chorus", "final_chorus") and bar == bars - 1:
+                    # Short snare pickup into the next lyric phrase.
+                    add("snare", 38, bar_start + 2 * PPQ + PPQ // 2,
+                        48, _scaled_velocity(78, drum_scale))
+                    add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
+                        48, _scaled_velocity(90, drum_scale))
             chord_index += 1
         phrase_tick += phrase_ticks + pause_ticks
     if len(events) > MAX_EVENTS:
