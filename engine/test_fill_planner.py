@@ -150,5 +150,25 @@ class MelodyFillPlannerTests(unittest.TestCase):
             resolve_persian_modal_profile("invented_mode", 0)
 
 
+
+    def test_modal_degree_cents_are_attached_to_matching_fill_degrees(self):
+        result = plan_melody_fill(
+            gap_start_tick=0, gap_duration_ticks=900,
+            scale_pitch_classes=[0, 2, 4, 5, 7, 9, 11],
+            chord_pitch_classes=[0, 4, 7], reference_note=64,
+            fill_style="tar", modal_profile="shur", modal_tonic_pc=2,
+            modal_degree_cents={1: 50, 4: -50},
+        )
+        self.assertTrue(result["events"])
+        for event in result["events"]:
+            expected = {4: 50.0, 9: -50.0}.get(event["midi_note"] % 12, 0.0)
+            self.assertEqual(event["pitch_cents"], expected)
+
+    def test_modal_degree_cents_reject_invalid_values(self):
+        with self.assertRaisesRegex(ValueError, "persian_degree_cents"):
+            resolve_persian_modal_profile("shur", 0, {7: 50})
+        with self.assertRaisesRegex(ValueError, "persian_degree_cents"):
+            resolve_persian_modal_profile("shur", 0, {2: 150})
+
 if __name__ == "__main__":
     unittest.main()
