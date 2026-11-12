@@ -2,6 +2,7 @@ import importlib.util
 import json
 import hashlib
 import os
+import struct
 import wave
 import tempfile
 import threading
@@ -127,7 +128,7 @@ class StudioControlPlaneTests(unittest.TestCase):
             wav.setnchannels(1)
             wav.setsampwidth(2)
             wav.setframerate(44100)
-            wav.writeframes(b"\\x00\\x10" * 256)
+            wav.writeframes(struct.pack("<" + "h" * 256, *([4096, -4096] * 128)))
         (bank_root / "bank.json").write_text(json.dumps({
             "format_version": 1,
             "samples": [{
