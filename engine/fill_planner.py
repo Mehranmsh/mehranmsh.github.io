@@ -17,8 +17,8 @@ def plan_melody_fill(
     This returns planning metadata only, not sample availability or rendered audio.
     """
     profiles = {
-        "guitar": {"range": (48, 84), "notes": 4, "spacing": 180, "articulation": "fingerstyle", "release_ms": 24},
-        "piano": {"range": (48, 88), "notes": 5, "spacing": 144, "articulation": "staccato", "release_ms": 18},
+        "guitar": {"range": (48, 84), "notes": 4, "spacing": 180, "articulation": "fingerstyle", "release_ms": 24, "contour": (9, 7, 4, 2)},
+        "piano": {"range": (48, 88), "notes": 5, "spacing": 144, "articulation": "staccato", "release_ms": 18, "contour": (0, 4, 7, 12, 7)},
         "strings": {"range": (48, 84), "notes": 2, "spacing": 360, "articulations": ("sustain",), "release_ms": 65, "contour": (0, 5)},
         "tar": {"range": (48, 84), "notes": 4, "spacing": 180, "articulations": ("mezrab_down", "mezrab_up"), "release_ms": 18, "contour": (7, 5, 2, 5)},
         "setar": {"range": (55, 88), "notes": 4, "spacing": 210, "articulations": ("mezrab_down", "mezrab_up"), "release_ms": 22, "contour": (5, 2, 7, 4)},
