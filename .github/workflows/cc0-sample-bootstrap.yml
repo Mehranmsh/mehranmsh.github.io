@@ -1,0 +1,55 @@
+name: CC0 Real Instrument Sample Bootstrap
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_cc0_piano_sample.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/sample_bank_preview.py'
+      - '.github/workflows/cc0-sample-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  prepare-first-real-sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install audio decoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Fetch and verify CC0 piano recording
+        run: python3 engine/fetch_cc0_piano_sample.py sample-bank-bootstrap
+      - name: Validate bank and render a real recorded note
+        run: |
+          python3 engine/sample_bank_tool.py sample-bank-bootstrap
+          python3 engine/sample_bank_preview.py sample-bank-bootstrap piano 60 sample-bank-bootstrap/piano-C4-preview.wav --velocity 80 --articulation sustain
+          python3 - <<'PY'
+          import wave
+          from pathlib import Path
+          path = Path('sample-bank-bootstrap/piano-C4-preview.wav')
+          with wave.open(str(path), 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getnframes() > 0
+              pcm = audio.readframes(audio.getnframes())
+          assert any(pcm), 'Rendered preview is silent'
+          print(f'REAL_SAMPLE_PREVIEW_OK frames={len(pcm)//4}')
+          PY
+      - name: Publish sample bank and audition WAV
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-piano-first-sample
+          path: sample-bank-bootstrap/
+          if-no-files-found: error
+          retention-days: 30
