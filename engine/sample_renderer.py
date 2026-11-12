@@ -83,14 +83,19 @@ def render_sample_events(
         pan = event.get("pan", 0.0)
         if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
             raise ValueError("event pan must be between -1.0 and 1.0")
-        checked.append((sample, note, float(start), float(duration), velocity, float(pan)))
+        event_gain = event.get("gain", 1.0)
+        if (isinstance(event_gain, bool) or not isinstance(event_gain, (int, float))
+                or not math.isfinite(event_gain) or not 0.0 <= event_gain <= 2.0):
+            raise ValueError("event gain must be between 0.0 and 2.0")
+        checked.append((sample, note, float(start), float(duration), velocity,
+                        float(pan), float(event_gain)))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity, pan in checked:
+    for sample, target_note, start, duration, velocity, pan, event_gain in checked:
         pcm, source_channels, source_rate = _read_sample(sample.path)
         source_frames = len(pcm) // source_channels
         semitone_ratio = 2.0 ** ((target_note - sample.midi_note) / 12.0)
@@ -108,7 +113,7 @@ def render_sample_events(
             loop_start = loop_end = loop_length = crossfade_frames = None
         if requested_frames <= 0:
             continue
-        gain = (velocity / 127.0) ** 1.6 * 0.72
+        gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain
         pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
         attack_frames = max(1, round(sample_rate * 0.004))
         release_frames = max(1, round(sample_rate * 0.025))
@@ -213,6 +218,31 @@ def _section_sample_dynamics(section: str) -> dict[str, float]:
     return profiles.get(section, profiles["verse"])
 
 
+# Conservative per-part gain staging before the final linked-stereo peak pass.
+# These are mix-balance multipliers, independent of musical velocity and section dynamics.
+_DEFAULT_PART_GAINS = {
+    "melody": 1.0, "chords": 0.82, "bass": 0.90,
+    "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
+    "open_hat": 0.62, "guitar": 0.76, "strings": 0.70,
+    "electric_guitar": 0.76,
+}
+
+
+def _validated_part_gains(overrides: dict[str, float] | None) -> dict[str, float]:
+    gains = dict(_DEFAULT_PART_GAINS)
+    if overrides is None:
+        return gains
+    if not isinstance(overrides, dict):
+        raise ValueError("mix_gains must be a mapping of part names to gain multipliers")
+    for part, gain in overrides.items():
+        if (part not in gains or isinstance(gain, bool)
+                or not isinstance(gain, (int, float)) or not math.isfinite(gain)
+                or not 0.0 <= gain <= 2.0):
+            raise ValueError("mix_gains contains an unknown part or invalid gain")
+        gains[part] = float(gain)
+    return gains
+
+
 def _scaled_velocity(base: int, scale: float) -> int:
     return max(1, min(127, int(round(base * scale))))
 
@@ -232,6 +262,7 @@ def build_composition_events(
     plan: dict[str, Any],
     *,
     instruments: dict[str, str] | None = None,
+    mix_gains: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Translate the current MEHRAN plan into sample-playback events.
 
@@ -264,6 +295,7 @@ def build_composition_events(
                 raise ValueError("Unknown part or invalid instrument-bank name")
             names[part] = name
 
+    part_gains = _validated_part_gains(mix_gains)
     seconds_per_tick = 60.0 / bpm / PPQ
     events: list[dict[str, Any]] = []
     phrase_tick = 0
@@ -278,6 +310,7 @@ def build_composition_events(
             "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
             "velocity": velocity,
             "pan": pan,
+            "gain": part_gains[part],
         })
 
     for phrase in melody:
@@ -442,8 +475,9 @@ def render_composition_to_wav(
     output_path: str | Path,
     *,
     instruments: dict[str, str] | None = None,
+    mix_gains: dict[str, float] | None = None,
     sample_rate: int = 44100,
 ) -> dict[str, Any]:
     """Render the current composition plan using only its recorded bank samples."""
-    events = build_composition_events(plan, instruments=instruments)
+    events = build_composition_events(plan, instruments=instruments, mix_gains=mix_gains)
     return render_sample_events(events, bank, output_path, sample_rate=sample_rate)
