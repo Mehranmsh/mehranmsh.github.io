@@ -27,7 +27,8 @@ def _vlq(value: int) -> bytes:
 
 
 def _track(events: list[tuple[int, int, bytes]], name: str) -> bytes:
-    payload = bytearray(b"\x00\xff\x03" + bytes([len(name)]) + name.encode("ascii"))
+    encoded_name = name.encode("ascii")
+    payload = bytearray(b"\x00\xff\x03" + bytes([len(encoded_name)]) + encoded_name)
     previous = 0
     for tick, priority, message in sorted(events, key=lambda item: (item[0], item[1])):
         payload.extend(_vlq(tick - previous))
@@ -41,21 +42,20 @@ def _chord_notes(symbol: str) -> tuple[int, ...]:
     roots = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71}
     if not isinstance(symbol, str) or not symbol or symbol[0] not in roots:
         raise ValueError("Unsupported chord symbol in composition plan")
-    root = roots[symbol[0]]
-    suffix = symbol[1:]
+    root, suffix = roots[symbol[0]], symbol[1:]
     intervals = (0, 3, 7) if suffix.startswith("m") else (0, 4, 7)
     if "7" in suffix:
-        intervals = intervals + (10,)
+        intervals += (10,)
     return tuple(root + interval for interval in intervals)
 
 
 def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
-    """Render the plan's note/chord blueprint to a two-track MIDI file."""
+    """Render lyric-aware phrase timing and chord bars to a Standard MIDI file."""
     try:
         composition = plan["composition"]
-        bpm = composition["tempo_bpm"]
-        melody = composition["melody"]
-        chords = composition["chord_progression"]
+        bpm, melody, chords = (composition["tempo_bpm"],
+                               composition["melody"],
+                               composition["chord_progression"])
     except (KeyError, TypeError) as exc:
         raise ValueError("Invalid MEHRAN composition plan") from exc
     if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
@@ -65,38 +65,60 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     if not isinstance(chords, list) or not chords:
         raise ValueError("Plan must contain a chord progression")
     tempo_us = round(60_000_000 / bpm)
-    tempo_event = (0, 0, b"\xff\x51\x03" + tempo_us.to_bytes(3, "big"))
     melody_events: list[tuple[int, int, bytes]] = []
     chord_events: list[tuple[int, int, bytes]] = []
-    note_count = 0
-    for line_index, phrase in enumerate(melody):
+    note_count, phrase_start, chord_bar_index = 0, 0, 0
+    for phrase in melody:
+        if not isinstance(phrase, dict):
+            raise ValueError("Each melody phrase must be an object")
         notes = phrase.get("midi_notes")
-        if not isinstance(notes, list) or not notes:
-            raise ValueError("Each melody phrase must contain MIDI note numbers")
-        if any(isinstance(note, bool) or not isinstance(note, int) or not 48 <= note <= 96 for note in notes):
-            raise ValueError("Melody note is outside the supported MIDI range (48-96)")
-        bar_start = line_index * PPQ * 4
-        step = max(1, (PPQ * 4) // len(notes))
-        for index, note in enumerate(notes):
-            start = bar_start + index * step
-            end = start + max(1, min(step, PPQ))
-            melody_events.append((start, 2, bytes((0x90, note, 88))))
-            melody_events.append((end, 1, bytes((0x80, note, 0))))
+        bars = phrase.get("bar_count", 1)
+        durations = phrase.get("note_durations_ticks")
+        if (not isinstance(notes, list) or not notes or
+                any(isinstance(n, bool) or not isinstance(n, int) or not 48 <= n <= 96 for n in notes)):
+            raise ValueError("Each phrase needs MIDI notes in the supported range (48-96)")
+        if isinstance(bars, bool) or not isinstance(bars, int) or not 1 <= bars <= 3:
+            raise ValueError("Phrase bar_count must be between 1 and 3")
+        phrase_ticks = bars * PPQ * 4
+        if durations is None:
+            step = phrase_ticks // len(notes)
+            durations = [step] * len(notes)
+            durations[-1] += phrase_ticks - sum(durations)
+        if (not isinstance(durations, list) or len(durations) != len(notes) or
+                any(isinstance(d, bool) or not isinstance(d, int) or d <= 0 for d in durations) or
+                sum(durations) != phrase_ticks):
+            raise ValueError("Note durations must be positive and exactly fill the phrase")
+        cursor = phrase_start
+        for note, duration in zip(notes, durations):
+            gate = max(1, int(duration * 0.88))
+            melody_events.append((cursor, 2, bytes((0x90, note, 88))))
+            melody_events.append((cursor + gate, 1, bytes((0x80, note, 0))))
+            cursor += duration
             note_count += 1
-        chord = chords[line_index % len(chords)]
-        for note in _chord_notes(chord):
-            chord_events.append((bar_start, 2, bytes((0x91, note, 58))))
-            chord_events.append((bar_start + PPQ * 4 - 12, 1, bytes((0x81, note, 0))))
-            note_count += 1
+        for bar in range(bars):
+            bar_start = phrase_start + bar * PPQ * 4
+            chord = _chord_notes(chords[chord_bar_index % len(chords)])
+            for note in chord:
+                chord_events.append((bar_start, 2, bytes((0x91, note, 58))))
+                chord_events.append((bar_start + PPQ * 4 - 24, 1, bytes((0x81, note, 0))))
+                note_count += 1
+            chord_bar_index += 1
+        phrase_start += phrase_ticks
     if note_count > MAX_NOTES:
         raise ValueError("Composition exceeds the 4096-note safety limit")
-    conductor = _track([(0, 0, b"\xff\x51\x03" + tempo_us.to_bytes(3, "big")),
-                        (0, 1, b"\xff\x58\x04\x04\x02\x18\x08")], "MEHRAN Tempo")
+    conductor = _track([
+        (0, 0, b"\xff\x51\x03" + tempo_us.to_bytes(3, "big")),
+        (0, 1, b"\xff\x58\x04\x04\x02\x18\x08"),
+    ], "MEHRAN Tempo")
     tracks = [conductor, _track(melody_events, "MEHRAN Melody"),
               _track(chord_events, "MEHRAN Chords")]
     midi = b"MThd" + struct.pack(">IHHH", 6, 1, len(tracks), PPQ) + b"".join(tracks)
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(midi)
-    return {"path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
-            "tempo_bpm": bpm, "note_events": note_count, "bytes": len(midi)}
+    return {
+        "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
+        "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
+        "duration_seconds": round(phrase_start / PPQ * 60 / bpm, 2),
+        "bytes": len(midi),
+    }
