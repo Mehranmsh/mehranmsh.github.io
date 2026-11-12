@@ -408,6 +408,138 @@ def select_sample(bank: SampleBank, instrument: str, midi_note: int,
                                                sample.midi_note))
 
 
+def _estimate_sample_fundamental(
+    sample: Sample, reference_frequency_hz: float = 440.0
+) -> dict[str, Any]:
+    """Estimate a recorded note's fundamental near its declared MIDI pitch."""
+    expected_hz = reference_frequency_hz * (2 ** ((sample.midi_note - 69) / 12))
+    if expected_hz >= sample.sample_rate / 2:
+        return {"status": "outside_analysis_band", "expected_hz": round(expected_hz, 3)}
+    with wave.open(str(sample.path), "rb") as wav:
+        wav.setpos(min(int(sample.sample_rate * 0.025), max(0, sample.frames - 1)))
+        raw = wav.readframes(min(sample.frames, int(sample.sample_rate * 0.35)))
+    values = struct.unpack("<" + "h" * (len(raw) // 2), raw)
+    if sample.channels == 2:
+        mono = [(values[i] + values[i + 1]) / 2.0 for i in range(0, len(values) - 1, 2)]
+    else:
+        mono = [float(value) for value in values]
+    if not mono:
+        return {"status": "insufficient_audio", "expected_hz": round(expected_hz, 3)}
+    # Decimate for a bounded, deterministic analysis cost while preserving the note band.
+    stride = max(1, sample.sample_rate // 6000)
+    signal = mono[::stride][:1536]
+    if len(signal) < 96:
+        return {"status": "insufficient_audio", "expected_hz": round(expected_hz, 3)}
+    mean = sum(signal) / len(signal)
+    signal = [value - mean for value in signal]
+    energy = sum(value * value for value in signal)
+    if energy < 1.0:
+        return {"status": "insufficient_periodicity", "expected_hz": round(expected_hz, 3)}
+    analysis_rate = sample.sample_rate / stride
+    expected_period = analysis_rate / expected_hz
+    # Search a narrow +/- 100 cent window around the declared note, avoiding octave guesses.
+    min_lag = max(2, int(expected_period / (2 ** (100 / 1200))) - 1)
+    max_lag = min(len(signal) // 2, int(expected_period * (2 ** (100 / 1200))) + 1)
+    if min_lag > max_lag:
+        return {"status": "outside_analysis_band", "expected_hz": round(expected_hz, 3)}
+    best_lag, best_score = None, -1.0
+    for lag in range(min_lag, max_lag + 1):
+        left = signal[:-lag]
+        right = signal[lag:]
+        left_energy = sum(value * value for value in left)
+        right_energy = sum(value * value for value in right)
+        denominator = (left_energy * right_energy) ** 0.5
+        if denominator <= 0:
+            continue
+        score = sum(x * y for x, y in zip(left, right)) / denominator
+        if score > best_score:
+            best_lag, best_score = lag, score
+    if best_lag is None or best_score < 0.35:
+        return {
+            "status": "insufficient_periodicity",
+            "expected_hz": round(expected_hz, 3),
+            "periodicity_score": round(max(0.0, best_score), 4),
+        }
+    # Parabolic interpolation reduces integer-lag quantization for stable tones.
+    refined_lag = float(best_lag)
+    if min_lag < best_lag < max_lag:
+        def correlation(lag: int) -> float:
+            left, right = signal[:-lag], signal[lag:]
+            denominator = (sum(x*x for x in left) * sum(y*y for y in right)) ** 0.5
+            return sum(x*y for x, y in zip(left, right)) / denominator if denominator else 0.0
+        before, center, after = (
+            correlation(best_lag - 1), best_score, correlation(best_lag + 1)
+        )
+        curvature = before - 2 * center + after
+        if abs(curvature) > 1e-12:
+            refined_lag += max(-0.5, min(0.5, 0.5 * (before - after) / curvature))
+    measured_hz = analysis_rate / refined_lag
+    cents = 1200 * __import__("math").log2(measured_hz / expected_hz)
+    return {
+        "status": "estimated",
+        "expected_hz": round(expected_hz, 3),
+        "measured_hz": round(measured_hz, 3),
+        "deviation_cents": round(cents, 2),
+        "periodicity_score": round(best_score, 4),
+    }
+
+
+def analyze_sample_bank_tuning(
+    bank: SampleBank, *, tolerance_cents: float = 15.0
+) -> dict[str, Any]:
+    """Estimate pitch offsets for pitched samples; percussion is explicitly skipped."""
+    if not isinstance(bank, SampleBank):
+        raise ValueError("A validated SampleBank is required")
+    if (isinstance(tolerance_cents, bool) or not isinstance(tolerance_cents, (int, float))
+            or not 1 <= tolerance_cents <= 100):
+        raise ValueError("tolerance_cents must be a number from 1 to 100")
+    unpitched = {"kick", "snare", "closed_hat", "open_hat", "daf", "tombak"}
+    measurements = []
+    grouped: dict[str, list[float]] = {}
+    for sample in bank.samples:
+        if sample.instrument in unpitched:
+            measurements.append({
+                "instrument": sample.instrument, "midi_note": sample.midi_note,
+                "status": "not_applicable_percussion",
+            })
+            continue
+        reference = 440.0
+        metadata = sample.recording_metadata or {}
+        if "reference_frequency_hz" in metadata:
+            try:
+                candidate = float(metadata["reference_frequency_hz"])
+                if 400.0 <= candidate <= 480.0:
+                    reference = candidate
+            except (TypeError, ValueError):
+                pass
+        estimate = _estimate_sample_fundamental(sample, reference)
+        item = {"instrument": sample.instrument, "midi_note": sample.midi_note, **estimate}
+        if estimate.get("status") == "estimated":
+            deviation = estimate["deviation_cents"]
+            item["within_tolerance"] = abs(deviation) <= tolerance_cents
+            grouped.setdefault(sample.instrument, []).append(deviation)
+        measurements.append(item)
+    profiles = {}
+    for instrument, offsets in sorted(grouped.items()):
+        profiles[instrument] = {
+            "estimated_samples": len(offsets),
+            "mean_deviation_cents": round(sum(offsets) / len(offsets), 2),
+            "maximum_absolute_deviation_cents": round(max(abs(x) for x in offsets), 2),
+            "within_tolerance_samples": sum(abs(x) <= tolerance_cents for x in offsets),
+            "outside_tolerance_samples": sum(abs(x) > tolerance_cents for x in offsets),
+        }
+    estimated = sum(item.get("status") == "estimated" for item in measurements)
+    return {
+        "sample_count": len(measurements),
+        "estimated_samples": estimated,
+        "not_estimated_samples": len(measurements) - estimated,
+        "tolerance_cents": float(tolerance_cents),
+        "instrument_profiles": profiles,
+        "measurements": measurements,
+        "note": "Pitch is estimated by autocorrelation near each declared MIDI note. Percussion is skipped. This is a diagnostic estimate, not a tuner-grade certification; noisy, inharmonic, transient or multi-pitch recordings may be inconclusive.",
+    }
+
+
 def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
     """Measure recorded WAV health without pretending to judge timbre or musicianship."""
     if not isinstance(bank, SampleBank):
