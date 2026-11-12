@@ -19,6 +19,8 @@ STRING_CANONICAL = {name.lower(): name for name in STRING_ORDER}
 
 def string_for_sample(sample: Sample) -> str | None:
     """Extract a six-string identity from the source filename, if present."""
+    if sample.string_name is not None:
+        return STRING_CANONICAL.get(sample.string_name.lower())
     match = STRING_PATTERN.search(sample.path.stem)
     if not match:
         return None
