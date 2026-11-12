@@ -90,7 +90,11 @@ def plan_melody_fill(
             modal_tones = [value for value in pool if value % 12 in emphasized]
             if modal_tones:
                 pool = modal_tones + [value for value in pool if value % 12 not in emphasized]
-        note = min(pool, key=lambda value: (abs(value - target), abs(value - base), value))
+        emphasized = set(modal["emphasized_pitch_classes"]) if modal is not None else set()
+        note = min(pool, key=lambda value: (
+            abs(value - target) - (1.5 if value % 12 in emphasized else 0),
+            abs(value - base), value
+        ))
         if chosen and note == chosen[-1] and len(pool) > 1:
             note = min((item for item in pool if item != note),
                        key=lambda value: (abs(value - target), abs(value - base), value))
