@@ -196,21 +196,28 @@ class SampleRendererTests(unittest.TestCase):
         transition_start = start_tick + (phrase["bar_count"] - 1) * 4 * 480
         transition_end = start_tick + phrase["bar_count"] * 4 * 480
         start_seconds = transition_start * 60.0 / 84 / 480
-        end_seconds = transition_end * 60.0 / 84 / PPQ
-        def transition_events(events, instrument):
-            return [event for event in events
+        end_seconds = transition_end * 60.0 / 84 / 480
+
+        def select(events, predicate):
+            return [(event["instrument"], event["midi_note"], event["start_seconds"],
+                     event["duration_seconds"], event["velocity"], event["pan"])
+                    for event in events if predicate(event)]
+
+        before_transition = lambda event: event["start_seconds"] < start_seconds
+        self.assertEqual(select(lifted_events, before_transition),
+                         select(neutral_events, before_transition))
+
+        def transition_values(events, instrument):
+            return [event["velocity"] for event in events
                     if event["instrument"] == instrument
                     and start_seconds <= event["start_seconds"] < end_seconds]
+
         for instrument in ("electric_bass", "kick", "snare", "closed_hat",
                            "open_hat"):
-            lifted_values = [event["velocity"] for event in transition_events(lifted_events, instrument)]
-            neutral_values = [event["velocity"] for event in transition_events(neutral_events, instrument)]
+            lifted_values = transition_values(lifted_events, instrument)
+            neutral_values = transition_values(neutral_events, instrument)
             if lifted_values and neutral_values:
                 self.assertGreater(max(lifted_values), max(neutral_values))
-        self.assertEqual(
-            [event["velocity"] for event in transition_events(lifted_events, "piano")],
-            [event["velocity"] for event in transition_events(neutral_events, "piano")],
-        )
 
     def test_sample_guitar_alternates_downstroke_and_upstroke(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
