@@ -317,7 +317,7 @@ def _smooth_melodic_leaps(notes: list[int], note_map: list[dict[str, Any]],
 
 def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
     """Map estimated lyric syllables onto melody notes without inventing phonemes."""
-    matches = list(re.finditer(r"[\\wآ-ی]+", lyric_line, flags=re.UNICODE))
+    matches = list(re.finditer(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE))
     words = []
     for index, match in enumerate(matches):
         word = match.group(0).replace("ي", "ی").replace("ك", "ک")
