@@ -73,6 +73,36 @@ class MelodyFillPlannerTests(unittest.TestCase):
         self.assertTrue(all(e["duration_ticks"] >= 360 for e in strings["events"]))
         self.assertTrue(all(48 <= e["midi_note"] <= 88 for e in piano["events"]))
 
+    def test_persian_instrument_profiles_use_catalog_articulations_and_registers(self):
+        common = dict(
+            gap_start_tick=0, gap_duration_ticks=1000,
+            scale_pitch_classes=[0, 2, 4, 5, 7, 9, 11],
+            chord_pitch_classes=[0, 4, 7], reference_note=60,
+        )
+        expected = {
+            "tar": {"mezrab_down", "mezrab_up"},
+            "setar": {"mezrab_down", "mezrab_up"},
+            "santur": {"soft_mallet", "hard_mallet", "roll"},
+            "kamancheh": {"short_bow", "long_bow"},
+        }
+        ranges = {"tar": (48, 84), "setar": (55, 88),
+                  "santur": (55, 90), "kamancheh": (48, 84)}
+        for style, articulations in expected.items():
+            with self.subTest(style=style):
+                result = plan_melody_fill(**common, fill_style=style)
+                self.assertTrue(result["events"])
+                self.assertTrue({e["articulation"] for e in result["events"]} <= articulations)
+                self.assertTrue(all(ranges[style][0] <= e["midi_note"] <= ranges[style][1]
+                                    for e in result["events"]))
+        self.assertEqual(
+            [e["articulation"] for e in plan_melody_fill(**common, fill_style="tar")["events"]][:2],
+            ["mezrab_down", "mezrab_up"],
+        )
+        self.assertEqual(
+            [e["articulation"] for e in plan_melody_fill(**common, fill_style="kamancheh")["events"]],
+            ["short_bow", "long_bow"],
+        )
+
     def test_unknown_fill_style_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "fill_style"):
             plan_melody_fill(
