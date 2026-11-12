@@ -24,6 +24,14 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_word_alignment_tokenizes_latin_and_persian_words(self):
+        from mehran_music_core import _align_words_to_notes
+        aligned = _align_words_to_notes("hello برگرد", 4)
+        self.assertEqual([item["word"] for item in aligned["word_note_alignment"]],
+                         ["hello", "برگرد"])
+        self.assertEqual(aligned["word_note_alignment"][1]["syllables"],
+                         ["bar", "gard"])
+
     def test_melodic_motif_restarts_at_section_boundaries(self):
         lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
