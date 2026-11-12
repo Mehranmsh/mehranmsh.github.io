@@ -1,8 +1,7 @@
 """Independent MEHRAN music composition core (stdlib-only prototype).
 
-This module creates a structured, editable composition plan from Persian lyrics.
-It is a deterministic composition assistant, not a trained generative model and
-not yet an audio renderer. No external model, API, download, or paid service.
+Creates a structured, editable composition plan from Persian lyrics. This is
+not a trained generative model and is not an audio renderer.
 """
 from __future__ import annotations
 
@@ -40,15 +39,13 @@ class LyricLine:
 
 
 def _normalize(text: str) -> str:
-    # Normalize line endings and horizontal whitespace without flattening verses.
     text = text.replace("ي", "ی").replace("ك", "ک")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     return "\n".join(re.sub(r"[ \t]+", " ", line).strip()
-                       for line in text.split("\n")).strip()
+                      for line in text.split("\n")).strip()
+
 
 def _syllables(word: str) -> int:
-    # Persian short vowels are often unwritten; this is an estimate, not phonetic
-    # transcription. Keep a minimum of one syllable for each non-empty word.
     letters = [c for c in word if c.isalpha() or c in PERSIAN_VOWELS]
     nuclei = sum(1 for c in letters if c in PERSIAN_VOWELS)
     return max(1, nuclei)
@@ -70,9 +67,9 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     for line in raw_lines[:160]:
         words = re.findall(r"[\wآ-ی]+", line, flags=re.UNICODE)
         lines.append(LyricLine(line, len(words), sum(_syllables(w) for w in words), _ending(line)))
-    counts = {mood: sum(1 for word in keywords if word in cleaned) for mood, keywords in MOOD_WORDS.items()}
+    counts = {mood: sum(1 for word in keywords if word in cleaned)
+              for mood, keywords in MOOD_WORDS.items()}
     mood = max(counts, key=counts.get) if max(counts.values(), default=0) else "neutral"
-    # Preserve input order and expose approximate line lengths for later prosody work.
     return {
         "language": "fa",
         "line_count": len(lines),
@@ -86,15 +83,29 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     }
 
 
-def _melody_for_line(syllables: int, tonic: int, scale: list[int], line_index: int) -> list[int]:
+def _melody_for_line(syllables: int, tonic: int, scale: list[int],
+                     line_index: int) -> list[int]:
     count = max(2, min(24, syllables))
-    # A small contour that rises toward the end of a phrase, with bounded range.
     degrees = [0, 2, 4, 2, 1, 3, 4, 5]
     notes = []
     for i in range(count):
         degree = degrees[(i + line_index) % len(degrees)]
-        notes.append(tonic + scale[degree % len(scale)] + (12 if i >= count - 2 and line_index % 4 == 3 else 0))
+        notes.append(tonic + scale[degree % len(scale)] +
+                     (12 if i >= count - 2 and line_index % 4 == 3 else 0))
     return notes
+
+
+def _phrase_durations(syllables: int, note_count: int) -> tuple[int, list[int]]:
+    """Allocate one, two, or three 4/4 bars, lengthening the phrase ending."""
+    bars = max(1, min(3, (max(1, syllables) + 7) // 8))
+    total_ticks = bars * 4 * 480
+    weights = [1.0] * note_count
+    if note_count >= 2:
+        weights[-1] = 1.6
+    weight_total = sum(weights)
+    durations = [int(total_ticks * weight / weight_total) for weight in weights]
+    durations[-1] += total_ticks - sum(durations)
+    return bars, durations
 
 
 def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
@@ -105,27 +116,30 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     bpm = suggested_bpm if target_bpm is None else target_bpm
     if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
         raise ValueError("target_bpm must be an integer between 50 and 200")
-    tonic = ROOTS[key]
-    scale = SCALES[mode]
-    lines = analysis["lines"]
-    # Use lyric length to form sections without rewriting or discarding lines.
+    tonic, scale, lines = ROOTS[key], SCALES[mode], analysis["lines"]
     verse_end = max(1, round(len(lines) * 0.55))
     sections = [
         {"name": "verse", "start_line": 0, "end_line": verse_end},
         {"name": "chorus", "start_line": verse_end, "end_line": len(lines)},
     ]
     if len(lines) >= 8:
+        first, second = max(1, len(lines)//3), max(2, 2*len(lines)//3)
         sections = [
-            {"name": "verse_1", "start_line": 0, "end_line": max(1, len(lines)//3)},
-            {"name": "chorus", "start_line": max(1, len(lines)//3), "end_line": max(2, 2*len(lines)//3)},
-            {"name": "verse_2_and_final_chorus", "start_line": max(2, 2*len(lines)//3), "end_line": len(lines)},
+            {"name": "verse_1", "start_line": 0, "end_line": first},
+            {"name": "chorus", "start_line": first, "end_line": second},
+            {"name": "verse_2_and_final_chorus", "start_line": second, "end_line": len(lines)},
         ]
     melody = []
     for index, line in enumerate(lines):
+        notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index)
+        bars, durations = _phrase_durations(line["syllable_estimate"], len(notes))
         melody.append({
             "line_index": index,
             "syllable_estimate": line["syllable_estimate"],
-            "midi_notes": _melody_for_line(line["syllable_estimate"], tonic, scale, index),
+            "midi_notes": notes,
+            "note_durations_ticks": durations,
+            "bar_count": bars,
+            "duration_ticks": bars * 4 * 480,
             "chord": chords[index % len(chords)],
         })
     arrangement = {
@@ -137,7 +151,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
     return {
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
-        "engine_version": "0.1.0",
+        "engine_version": "0.2.0",
         "title": _normalize(title) or "Untitled",
         "genre": _normalize(genre) or "pop",
         "analysis": analysis,
