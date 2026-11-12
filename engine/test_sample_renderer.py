@@ -125,6 +125,40 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue({"acoustic_guitar", "strings", "electric_guitar"}.issubset(expanded_parts))
         self.assertGreater(len(expanded), len(events))
 
+    def test_composition_events_apply_balanced_and_overridable_part_gains(self):
+        plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        defaults = build_composition_events(plan)
+        default_gains = {
+            part: next(event["gain"] for event in defaults
+                       if event["instrument"] == instrument)
+            for part, instrument in (("melody", "piano"), ("bass", "electric_bass"),
+                                     ("kick", "kick"), ("snare", "snare"),
+                                     ("closed_hat", "closed_hat"))
+        }
+        self.assertEqual(default_gains["melody"], 1.0)
+        self.assertLess(default_gains["closed_hat"], default_gains["snare"])
+        self.assertLess(default_gains["snare"], default_gains["kick"])
+        self.assertLess(default_gains["kick"], default_gains["melody"])
+
+        custom = build_composition_events(
+            plan, mix_gains={"melody": 0.75, "closed_hat": 1.1}
+        )
+        self.assertTrue(all(event["gain"] == 0.75 for event in custom
+                            if event["instrument"] == "piano"))
+        self.assertTrue(all(event["gain"] == 1.1 for event in custom
+                            if event["instrument"] == "closed_hat"))
+
+    def test_sample_renderer_rejects_invalid_event_gain(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            with self.assertRaises(ValueError):
+                render_sample_events([
+                    {"instrument": "piano", "midi_note": 60,
+                     "start_seconds": 0, "duration_seconds": 0.1, "gain": 2.1}
+                ], bank, Path(folder) / "invalid_gain.wav")
+
     def test_full_plan_renders_with_a_recorded_sample_bank(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
