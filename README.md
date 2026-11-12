@@ -252,8 +252,11 @@ receive explicit deductions. It never substitutes a nearby note, another
 articulation, or an incompatible velocity layer. The report includes each
 candidate's warnings and score deductions so the choice can be audited.
 Each candidate also carries non-scoring acoustic diagnostics: a conservative
-pitch estimate where periodicity permits, broad envelope family, measured
-attack and release intervals, and file-boundary indicators. Percussion is
+pitch estimate where periodicity permits, including the spread between
+three short analysis windows as a pitch-stability diagnostic, broad envelope
+family, measured attack and release intervals, and file-boundary indicators.
+The stability value is descriptive and does not yet score or certify a sample.
+Percussion is
 explicitly marked as not applicable for pitched-note estimation. Inconclusive
 pitch estimates remain inconclusive and do not affect the ranking score.
 These measurements are descriptive aids, not instrument-specific acceptance
