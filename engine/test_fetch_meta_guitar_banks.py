@@ -37,7 +37,10 @@ class MetaGuitarMapTests(unittest.TestCase):
         pick = mapped["INSGuitarNylon_StringLowE_Vel02Pick_E2_01.ogg"]
         self.assertEqual(finger["articulation"], "finger")
         self.assertEqual(pick["articulation"], "pick")
-        self.assertEqual((pick["velocity_min"], pick["velocity_max"]), (35, 93))
+        self.assertEqual((finger["velocity_min"], finger["velocity_max"]), (1, 127))
+        self.assertEqual((pick["velocity_min"], pick["velocity_max"]), (1, 71))
+        firm_pick = mapped["INSGuitarNylon_StringLowE_Vel03Pick_E2_01.ogg"]
+        self.assertEqual((firm_pick["velocity_min"], firm_pick["velocity_max"]), (56, 127))
 
     def test_parser_rejects_filename_key_mismatch_and_duplicate_regions(self):
         mismatch = """
