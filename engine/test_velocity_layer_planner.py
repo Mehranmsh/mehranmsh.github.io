@@ -45,8 +45,9 @@ class VelocityLayerPlannerTests(unittest.TestCase):
         self.assertEqual(result["selection_mode"], "equal_power_velocity_crossfade")
         self.assertEqual(result["overlap"], [24, 39])
         self.assertEqual(len(result["layers"]), 2)
-        self.assertAlmostEqual(result["layers"][0]["gain"], math.sqrt(0.5))
-        self.assertAlmostEqual(result["layers"][1]["gain"], math.sqrt(0.5))
+        position = (31 - 24) / (39 - 24)
+        self.assertAlmostEqual(result["layers"][0]["gain"], math.cos(position * math.pi / 2))
+        self.assertAlmostEqual(result["layers"][1]["gain"], math.sin(position * math.pi / 2))
         self.assertAlmostEqual(
             sum(layer["gain"] ** 2 for layer in result["layers"]), 1.0
         )
