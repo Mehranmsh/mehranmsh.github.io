@@ -6,13 +6,13 @@ from typing import Any
 DYNAMIC_CURVES = {"natural", "crescendo", "decrescendo", "arch", "steady"}
 _DYNAMIC_MARKS = ((48, "pp"), (60, "p"), (72, "mp"), (86, "mf"), (102, "f"), (116, "ff"))
 
-def _curve_velocity(index: int, count: int, curve: str, peak_index: int) -> int:
+def _curve_velocity(index: int, count: int, curve: str) -> int:
     position = index / max(1, count - 1)
     if curve == "crescendo": return round(62 + 42 * position)
     if curve == "decrescendo": return round(104 - 42 * position)
     if curve == "arch": return round(64 + 42 * (1 - abs(2 * position - 1)))
     if curve == "steady": return 82
-    return 88 if index == peak_index else 84
+    return 84
 
 def _mark(velocity: int) -> str:
     result = "pp"
@@ -26,9 +26,6 @@ def plan_dynamics(events: list[dict[str, Any]], curve: str = "natural") -> dict[
         raise ValueError("events must be a non-empty list")
     if not isinstance(curve, str) or curve not in DYNAMIC_CURVES:
         raise ValueError(f"curve must be one of: {', '.join(sorted(DYNAMIC_CURVES))}")
-    peak_index = next((index for index, event in enumerate(events)
-                       if isinstance(event, dict) and event.get("is_melodic_peak") is True),
-                      round((len(events) - 1) * 0.5))
     planned = []
     for index, event in enumerate(events):
         if not isinstance(event, dict):
@@ -39,7 +36,7 @@ def plan_dynamics(events: list[dict[str, Any]], curve: str = "natural") -> dict[
                 raise ValueError("dynamics_velocity must be an integer from 1 to 127")
             velocity, reason = explicit, "explicit_velocity_preserved"
         else:
-            velocity = _curve_velocity(index, len(events), curve, peak_index)
+            velocity = _curve_velocity(index, len(events), curve)
             stressed = event.get("is_lexically_stressed") is True and event.get("stress_confidence") == "curated"
             if stressed:
                 velocity = min(127, velocity + 6)
