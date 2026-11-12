@@ -329,6 +329,16 @@ class MidiRendererTests(unittest.TestCase):
         self.assertIn("metadata only", result["articulation_rendering"])
 
 
+    def test_per_note_dynamics_velocity_is_preserved_in_midi_marker(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        item = plan["composition"]["melody"][0]["note_lyric_map"][0]
+        item.update({"dynamics_velocity": 110, "dynamic_mark": "f"})
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "dynamics.mid"
+            render_midi(plan, target)
+            data = target.read_bytes()
+        self.assertIn(b"dynamics_velocity=110;dynamic_mark=f", data)
+
     def test_articulation_performance_profile_is_preserved_in_midi_marker(self):
         plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
         item = plan["composition"]["melody"][0]["note_lyric_map"][0]
