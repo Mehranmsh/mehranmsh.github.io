@@ -107,6 +107,29 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_sample_piano_pattern_changes_by_section(self):
+        import copy
+        base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        counts = {}
+        starts = {}
+        for section in ("verse", "pre_chorus", "chorus", "bridge"):
+            plan = copy.deepcopy(base)
+            for phrase in plan["composition"]["melody"]:
+                phrase["section"] = section
+            events = build_composition_events(
+                plan, instruments={"chords": "keys", "melody": "lead"})
+            keys = [event for event in events if event["instrument"] == "keys"]
+            first_bar = [event for event in keys
+                         if event["start_seconds"] < 4 * 60 / 84]
+            counts[section] = len(first_bar)
+            starts[section] = [event["start_seconds"] for event in first_bar]
+        self.assertEqual(counts["verse"], 8)
+        self.assertEqual(counts["pre_chorus"], 4)
+        self.assertEqual(counts["chorus"], 6)
+        self.assertEqual(counts["bridge"], 3)
+        self.assertEqual(starts["verse"], sorted(starts["verse"]))
+        self.assertEqual(starts["bridge"], [0.0, 0.0, 0.0])
+
     def test_sample_guitar_alternates_downstroke_and_upstroke(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         for phrase in plan["composition"]["melody"]:
