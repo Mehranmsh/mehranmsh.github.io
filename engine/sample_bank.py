@@ -453,6 +453,29 @@ def rank_sample_candidates(
         if measurement.get("possible_truncated_tail"):
             deductions["possible_truncated_tail"] = 20
         score = max(0, 100 - sum(deductions.values()))
+        reference_frequency = 440.0
+        recording_metadata = sample.recording_metadata or {}
+        if "reference_frequency_hz" in recording_metadata:
+            try:
+                declared_reference = float(recording_metadata["reference_frequency_hz"])
+                if 400.0 <= declared_reference <= 480.0:
+                    reference_frequency = declared_reference
+            except (TypeError, ValueError):
+                pass
+        unpitched_instruments = {"kick", "snare", "closed_hat", "open_hat", "daf", "tombak"}
+        if sample.instrument in unpitched_instruments:
+            pitch_diagnostic = {"status": "not_applicable_percussion"}
+        else:
+            pitch_diagnostic = _estimate_sample_fundamental(sample, reference_frequency)
+        acoustic_diagnostics = {
+            "pitch": pitch_diagnostic,
+            "envelope_family": measurement["envelope_family"],
+            "attack_to_10_percent_seconds": measurement["attack_to_10_percent_seconds"],
+            "attack_10_to_90_seconds": measurement["attack_10_to_90_seconds"],
+            "release_90_to_10_seconds": measurement["release_90_to_10_seconds"],
+            "ending_level_ratio": measurement["ending_level_ratio"],
+            "boundary_analysis_status": measurement["boundary_analysis_status"],
+        }
         ranked.append({
             "path": sample.path.relative_to(bank.root).as_posix(),
             "instrument": sample.instrument,
