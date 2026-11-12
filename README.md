@@ -194,3 +194,16 @@ layer. Nearby pitches, partial velocity ranges, and alternate articulations do
 not count as substitutes. Empty banks therefore report zero coverage rather
 than inferred progress. These figures measure manifest coverage only; separate
 WAV health checks are still required and do not certify musical quality.
+
+
+## Recording-session provenance
+
+`bank.json` may define a top-level `recording_sessions` object and link each
+sample with `recording_session_id`. Session metadata supports instrument model
+and serial, performer, tuning and reference frequency, microphone and placement,
+room, interface, preamp, gain, recording timestamp, and notes. Unknown fields,
+invalid values, and dangling session references are rejected. Existing manifests
+remain valid without provenance, but those samples are reported as unlinked.
+The JSON inspection report summarizes metadata completeness; the CSV progress
+export carries the session ID and available metadata beside each matched target.
+This records provenance only and does not independently verify the claims.
