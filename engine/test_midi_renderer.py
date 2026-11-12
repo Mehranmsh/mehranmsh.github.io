@@ -31,7 +31,7 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual(sum(phrase["note_durations_ticks"]), phrase["duration_ticks"])
 
     def test_renderer_preserves_punctuation_breath_between_phrases(self):
-        plan = compose_plan("دلم گرفته،\\nبرگرد ای عشق؟")
+        plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟")
         phrases = plan["composition"]["melody"]
         with tempfile.TemporaryDirectory() as folder:
             result = render_midi(plan, Path(folder) / "breaths.mid")
