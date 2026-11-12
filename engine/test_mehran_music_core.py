@@ -52,7 +52,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
 
     def test_multiple_stressed_onsets_preserve_phrase_duration_and_positive_notes(self):
         from mehran_music_core import _align_stressed_onsets_to_beats
-        durations = [850, 100, 500, 470, 960]
+        durations = [850, 100, 850, 100, 1000]
         note_map = [
             {"note_index": 0, "is_lexically_stressed": False},
             {"note_index": 1, "is_lexically_stressed": True,
