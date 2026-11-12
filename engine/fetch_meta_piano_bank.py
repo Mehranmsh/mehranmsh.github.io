@@ -12,7 +12,9 @@ import json
 import re
 import shutil
 import subprocess
+import time
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -22,10 +24,46 @@ NOTE_NAMES = ("C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B")
 
 
 def _download(url: str, destination: Path) -> None:
+    """Download atomically with bounded retries so interrupted files are never reused."""
     request = urllib.request.Request(url, headers={"User-Agent": "MEHRAN-Music-Engine/1.0"})
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output)
+    temporary = destination.with_name(destination.name + ".part")
+    last_error = None
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=35) as response, temporary.open("wb") as output:
+                shutil.copyfileobj(response, output)
+            if temporary.stat().st_size == 0:
+                raise ValueError(f"Empty download: {url}")
+            temporary.replace(destination)
+            return
+        except Exception as exc:
+            last_error = exc
+            temporary.unlink(missing_ok=True)
+            if attempt < 3:
+                time.sleep(2 ** attempt)
+    raise RuntimeError(f"Download failed after 4 attempts: {url}") from last_error
+
+
+def _download_missing_piano_sources(regions: dict[str, dict[str, int]], root: Path) -> int:
+    """Fetch missing source recordings concurrently with a small bounded worker pool."""
+    pending = []
+    for source_name in regions:
+        target = root / "source-ogg" / source_name
+        if not target.exists() or target.stat().st_size == 0:
+            pending.append((f"{BASE}/ogg/{source_name}", target))
+    if not pending:
+        return 0
+    print(f"PIANO_DOWNLOAD_START missing={len(pending)} workers=8", flush=True)
+    completed = 0
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = {pool.submit(_download, url, path): path.name for url, path in pending}
+        for future in as_completed(futures):
+            future.result()
+            completed += 1
+            if completed % 16 == 0 or completed == len(pending):
+                print(f"PIANO_DOWNLOAD_PROGRESS completed={completed}/{len(pending)}", flush=True)
+    return completed
 
 
 def parse_sfz_sample_map(sfz_text: str) -> dict[str, dict[str, int]]:
@@ -104,16 +142,15 @@ def fetch_meta_piano_bank(output_root: str | Path) -> dict[str, Any]:
     if len({item["midi_note"] for item in regions.values()}) != 88:
         raise ValueError("Expected all 88 piano keys A0-C8")
 
+    downloaded = _download_missing_piano_sources(regions, root)
     samples = []
     verified = 0
-    for source_name, mapping in sorted(regions.items()):
+    for index, (source_name, mapping) in enumerate(sorted(regions.items()), start=1):
         source_relative = f"ogg/{source_name}"
         expected = checksums.get(source_relative)
         if not expected:
             raise ValueError(f"Missing upstream checksum for {source_relative}")
         source_path = root / "source-ogg" / source_name
-        if not source_path.exists():
-            _download(f"{BASE}/{source_relative}", source_path)
         digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
         if digest != expected:
             raise ValueError(f"SHA-256 mismatch for {source_name}")
@@ -128,6 +165,8 @@ def fetch_meta_piano_bank(output_root: str | Path) -> dict[str, Any]:
                 ffmpeg, "-y", "-v", "error", "-i", str(source_path),
                 "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(wav_path),
             ], check=True)
+        if index % 32 == 0 or index == len(regions):
+            print(f"PIANO_CONVERSION_PROGRESS completed={index}/{len(regions)} verified={verified}", flush=True)
         samples.append({
             "instrument": "piano",
             "midi_note": mapping["midi_note"],
@@ -169,6 +208,7 @@ def fetch_meta_piano_bank(output_root: str | Path) -> dict[str, Any]:
         "velocity_layers": 4,
         "sample_count": len(bank.samples),
         "sha256_verified_files": verified,
+        "source_files_downloaded_this_run": downloaded,
         "sample_rate_hz": 48000,
         "channels": "mono",
         "license": "CC0 1.0 Universal",
