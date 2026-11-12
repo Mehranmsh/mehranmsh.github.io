@@ -164,7 +164,7 @@ def _phrase_durations(syllables: int, note_count: int,
     total_ticks = bars * 4 * 480
     weights = [1.0] * note_count
 
-    words = re.findall(r"[\\wآ-ی]+", lyric_line, flags=re.UNICODE)
+    words = re.findall(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE)
     estimated_counts = [_syllables(word) for word in words]
     estimated_total = sum(estimated_counts)
     if note_count and estimated_total:
