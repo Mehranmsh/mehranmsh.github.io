@@ -288,12 +288,12 @@ class SampleBankTests(unittest.TestCase):
         self.assertEqual(checklist["instrument_count"], len(SAMPLE_INSTRUMENT_CATALOG))
         self.assertEqual(piano["target_count"], 61 * 3 * 2)
         self.assertEqual(piano["targets"][0], {
-            "midi_note": 36, "velocity_layer": "soft",
+            "midi_note": 36, "register_zone": "low", "velocity_layer": "soft",
             "velocity_min": 1, "velocity_max": 48,
             "articulation": "sustain",
         })
         self.assertEqual(piano["articulations"], ["sustain", "staccato"])
-        self.assertEqual(checklist["catalog_version"], 2)
+        self.assertEqual(checklist["catalog_version"], 3)
         self.assertEqual(set(SAMPLE_ARTICULATION_CATALOG), set(SAMPLE_INSTRUMENT_CATALOG))
         self.assertIn("pizzicato", checklist["instruments"]["violin"]["articulations"])
         self.assertIn("mezrab_down", checklist["instruments"]["tar"]["articulations"])
