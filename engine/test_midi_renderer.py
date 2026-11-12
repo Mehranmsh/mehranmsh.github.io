@@ -7,7 +7,7 @@ from midi_renderer import render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
-    def test_renders_valid_three_track_standard_midi(self):
+    def test_renders_five_track_standard_midi_with_rhythm_section(self):
         plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد",
                             title="برگرد", target_bpm=84)
         with tempfile.TemporaryDirectory() as folder:
@@ -15,9 +15,12 @@ class MidiRendererTests(unittest.TestCase):
             result = render_midi(plan, target)
             data = target.read_bytes()
         self.assertEqual(data[:4], b"MThd")
-        self.assertEqual(int.from_bytes(data[10:12], "big"), 3)
-        self.assertEqual(result["tracks"], 3)
+        self.assertEqual(int.from_bytes(data[10:12], "big"), 5)
+        self.assertEqual(result["tracks"], 5)
         self.assertGreater(result["note_events"], 0)
+        self.assertGreater(result["bass_note_events"], 0)
+        self.assertGreater(result["drum_hits"], 0)
+        self.assertEqual(result["drum_channel"], 10)
         self.assertGreater(len(data), 40)
         self.assertGreater(result["duration_seconds"], 0)
 
@@ -38,6 +41,12 @@ class MidiRendererTests(unittest.TestCase):
             self.assertEqual(len(notes), 3)
             self.assertEqual(notes, sorted(notes))
             self.assertLessEqual(notes[-1] - notes[0], 19)
+
+    def test_flat_chord_is_supported(self):
+        plan = compose_plan("فریاد خشم آتش جنگ")
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(plan, Path(folder) / "song.mid")
+        self.assertTrue(any(item["symbol"] == "Bb" for item in result["chord_voicings"]))
 
     def test_rejects_malformed_plan(self):
         with tempfile.TemporaryDirectory() as folder:
