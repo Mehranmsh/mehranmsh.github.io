@@ -552,6 +552,15 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(event["duration_seconds"], round(ticks * 60 / 84 / 480, 6))
         self.assertEqual(event["release_seconds"], 0.012)
 
+    def test_composition_events_use_planned_per_note_dynamics_velocity(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        item = plan["composition"]["melody"][0]["note_lyric_map"][0]
+        item["dynamics_velocity"] = 112
+        event = next(event for event in build_composition_events(plan)
+                     if event["instrument"] == "piano")
+        self.assertGreater(event["velocity"], 84)
+        self.assertLessEqual(event["velocity"], 127)
+
     def test_release_seconds_is_validated_and_reported(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
