@@ -14,6 +14,7 @@ from typing import Any
 
 from sample_bank import SampleBank, select_sample
 from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
+from expression_planner import plan_part_expression
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -325,12 +326,18 @@ def build_composition_events(
     phrase_tick = 0
     chord_index = 0
     previous_voicing = None
+    current_section = "verse"
+    part_event_counts = {part: 0 for part in names}
 
     def add(part: str, note: int, start_tick: int, duration_ticks: int,
             velocity: int, pan: float = 0.0, *,
             articulation: str = "sustain",
             articulation_source: str = "legacy_default",
             release_seconds: float = 0.025) -> None:
+        expression = plan_part_expression(
+            part, current_section, pan, part_event_counts[part]
+        )
+        part_event_counts[part] += 1
         events.append({
             "instrument": names[part],
             "articulation": articulation,
@@ -340,7 +347,10 @@ def build_composition_events(
             "start_seconds": round(start_tick * seconds_per_tick, 6),
             "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
             "velocity": velocity,
-            "pan": pan,
+            "pan": expression["pan"],
+            "stereo_width": expression["stereo_width"],
+            "expression_profile": expression["profile"],
+            "expression_planner": expression["planner"],
             "gain": part_gains[part],
         })
 
@@ -366,6 +376,7 @@ def build_composition_events(
                 or not 0 <= pause_ticks <= 960):
             raise ValueError("phrase_pause_ticks must be an integer from 0 to 960")
         section = _section_kind(phrase.get("section", "verse"))
+        current_section = section
         dynamics = _section_sample_dynamics(section)
         transition = phrase.get("phrase_energy", {}).get("section_transition")
         cursor = phrase_tick
