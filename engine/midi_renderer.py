@@ -96,6 +96,14 @@ def _scale_velocity(velocity: int, scale: float) -> int:
     return max(1, min(127, round(velocity * scale)))
 
 
+def _groove_velocity(base_velocity: int, beat: int, *, subdivision: int = 0,
+                    section_scale: float = 1.0) -> int:
+    """Deterministic groove accents for bass and percussion."""
+    beat_scale = {0: 1.08, 1: 0.94, 2: 1.02, 3: 0.96}.get(beat % 4, 1.0)
+    subdivision_scale = 0.94 if subdivision % 2 else 1.0
+    return _scale_velocity(base_velocity, section_scale * beat_scale * subdivision_scale)
+
+
 def _melody_velocity(base_velocity: int, tick_in_bar: int, *,
                      section_scale: float = 1.0,
                      is_peak: bool = False,
@@ -141,7 +149,7 @@ def _bass_pattern(root_pc: int, bar_start: int,
                    (PPQ * 3, root, PPQ - 36, 72)]
     for offset, note, gate, velocity in pattern:
         start = bar_start + offset
-        events.append((start, 2, _note_on(2, note, _scale_velocity(velocity, velocity_scale))))
+        events.append((start, 2, _note_on(2, note, _groove_velocity(velocity, offset // PPQ, section_scale=velocity_scale))))
         events.append((start + gate, 1, _note_off(2, note)))
     return len(pattern)
 
@@ -173,7 +181,7 @@ def _drum_bar(bar_start: int, events: list[tuple[int, int, bytes]], *,
                      (PPQ * 3 + PPQ * 3 // 4, 47, 84)])
     for offset, note, velocity in hits:
         start = bar_start + offset
-        events.append((start, 2, _note_on(9, note, _scale_velocity(velocity, velocity_scale))))
+        events.append((start, 2, _note_on(9, note, _groove_velocity(velocity, offset // PPQ, subdivision=(offset % PPQ) // (PPQ // 2), section_scale=velocity_scale))))
         events.append((start + 48, 1, _note_off(9, note)))
     return len(hits)
 
