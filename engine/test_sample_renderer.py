@@ -141,10 +141,11 @@ class SampleRendererTests(unittest.TestCase):
         self.assertLess(default_gains["kick"], default_gains["melody"])
 
         custom = build_composition_events(
-            plan, mix_gains={"melody": 0.75, "closed_hat": 1.1}
+            plan, instruments={"melody": "lead"},
+            mix_gains={"melody": 0.75, "closed_hat": 1.1}
         )
         self.assertTrue(all(event["gain"] == 0.75 for event in custom
-                            if event["instrument"] == "piano"))
+                            if event["instrument"] == "lead"))
         self.assertTrue(all(event["gain"] == 1.1 for event in custom
                             if event["instrument"] == "closed_hat"))
 
