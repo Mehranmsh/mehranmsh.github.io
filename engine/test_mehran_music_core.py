@@ -24,6 +24,29 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_curated_final_syllables_improve_persian_rhyme_analysis(self):
+        result = analyze_lyrics("خَانِه\nبَهانِه")
+        self.assertEqual(result["rhyme_candidates"], ["ne"])
+        self.assertEqual(
+            [item["confidence"] for item in result["rhyme_analysis"]],
+            ["curated", "curated"],
+        )
+        self.assertEqual(
+            [item["signature"] for item in result["rhyme_analysis"]],
+            ["ne", "ne"],
+        )
+
+    def test_unknown_rhyme_uses_low_confidence_spelling_fallback(self):
+        result = analyze_lyrics("پرواز\nآواز")
+        self.assertEqual(
+            [item["confidence"] for item in result["rhyme_analysis"]],
+            ["low", "low"],
+        )
+        self.assertTrue(all(
+            item["method"] == "orthographic_suffix_fallback_v1"
+            for item in result["rhyme_analysis"]
+        ))
+
     def test_rhyme_candidates_ignore_written_vowel_marks(self):
         result = analyze_lyrics("خَانِه\nبَهانِه")
         self.assertEqual(result["rhyme_candidates"], ["نه"])
