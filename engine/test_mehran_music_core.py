@@ -62,6 +62,13 @@ class IndependentMusicCoreTests(unittest.TestCase):
         chorus_peak = max(max(p["midi_notes"]) for p in chorus)
         self.assertGreater(chorus_peak, verse_peak)
 
+    def test_short_phrase_keeps_chord_tone_start_and_cadence(self):
+        plan = compose_plan("غم\nشب")
+        for phrase in plan["composition"]["melody"]:
+            self.assertTrue(phrase["phrase_start_is_chord_tone"])
+            self.assertTrue(phrase["phrase_end_is_chord_tone"])
+            self.assertGreaterEqual(len(phrase["midi_notes"]), 2)
+
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
