@@ -8,6 +8,7 @@ from pathlib import Path
 
 from sample_bank import (
     SAMPLE_INSTRUMENT_CATALOG,
+    SAMPLE_ARTICULATION_CATALOG,
     analyze_sample_bank_coverage,
     analyze_sample_bank_quality,
     analyze_sample_bank_instrument_health,
@@ -233,13 +234,40 @@ class SampleBankTests(unittest.TestCase):
         checklist = build_sample_recording_checklist()
         piano = checklist["instruments"]["piano"]
         self.assertEqual(checklist["instrument_count"], len(SAMPLE_INSTRUMENT_CATALOG))
-        self.assertEqual(piano["target_count"], 61 * 3)
+        self.assertEqual(piano["target_count"], 61 * 3 * 2)
         self.assertEqual(piano["targets"][0], {
             "midi_note": 36, "velocity_layer": "soft",
             "velocity_min": 1, "velocity_max": 48,
+            "articulation": "sustain",
         })
+        self.assertEqual(piano["articulations"], ["sustain", "staccato"])
+        self.assertEqual(checklist["catalog_version"], 2)
+        self.assertEqual(set(SAMPLE_ARTICULATION_CATALOG), set(SAMPLE_INSTRUMENT_CATALOG))
+        self.assertIn("pizzicato", checklist["instruments"]["violin"]["articulations"])
+        self.assertIn("mezrab_down", checklist["instruments"]["tar"]["articulations"])
         self.assertEqual(checklist["format_requirements"]["bit_depth"], 16)
         self.assertGreater(checklist["total_recording_targets"], 0)
+
+    def test_custom_articulation_checklist_rejects_invalid_or_duplicate_labels(self):
+        catalog = {
+            "test_instrument": {
+                "label": "Test instrument",
+                "note_range": [60, 60],
+                "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+            },
+        }
+        checklist = build_sample_recording_checklist(
+            catalog, {"test_instrument": ["sustain", "staccato"]}
+        )
+        self.assertEqual(checklist["total_recording_targets"], 2)
+        self.assertEqual(
+            [target["articulation"] for target in checklist["instruments"]["test_instrument"]["targets"]],
+            ["sustain", "staccato"],
+        )
+        with self.assertRaisesRegex(ValueError, "Invalid articulation"):
+            build_sample_recording_checklist(catalog, {"test_instrument": ["sustain", "bad label"]})
+        with self.assertRaisesRegex(ValueError, "Invalid articulation"):
+            build_sample_recording_checklist(catalog, {"test_instrument": ["sustain", "sustain"]})
 
     def test_recording_sheet_csv_expands_targets_and_marks_them_as_planned(self):
         content = build_sample_recording_sheet_csv()
@@ -247,10 +275,11 @@ class SampleBankTests(unittest.TestCase):
         checklist = build_sample_recording_checklist()
         self.assertEqual(len(rows), checklist["total_recording_targets"])
         self.assertEqual(rows[0]["instrument"], "piano")
+        self.assertEqual(rows[0]["articulation"], "sustain")
         self.assertEqual(rows[0]["midi_note"], "36")
         self.assertEqual(rows[0]["velocity_layer"], "soft")
         self.assertEqual(rows[0]["recording_status"], "planned")
-        self.assertEqual(rows[0]["suggested_filename"], "piano/36_soft.wav")
+        self.assertEqual(rows[0]["suggested_filename"], "piano/sustain/36_soft.wav")
         self.assertEqual(rows[0]["recorded_file_path"], "")
 
     def test_quality_report_includes_audio_format_and_loop_metadata(self):
