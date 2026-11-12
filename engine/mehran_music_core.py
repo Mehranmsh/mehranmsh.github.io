@@ -513,7 +513,11 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             else:
                 chord = chords[-1]
                 structural_cadence = "section_dominant"
-        notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
+        # Restart the contour motif inside each section so verse and chorus
+        # develop their own coherent melodic identity.
+        notes = _melody_for_line(
+            line["syllable_estimate"], tonic, scale, section_line_index, chord, line_section
+        )
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         lyric_alignment = _align_words_to_notes(line["text"], len(notes))
         pause_ticks, breath_after = _phrase_pause(line["text"])
@@ -579,6 +583,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
             "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
             "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",
+            "melodic_motif_scope": line_section,
+            "melodic_motif_slot": section_line_index % 3,
+            "section_register": "lifted" if "chorus" in line_section else "midrange",
             "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
             "cadence_note": notes[-1],
             "prosody_timing_method": "word_boundary_internal_punctuation_and_cadence_v2",
