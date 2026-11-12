@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _bass_pattern, _drum_bar, render_midi
+from midi_renderer import _bass_pattern, _drum_bar, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
