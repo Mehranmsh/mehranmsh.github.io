@@ -44,8 +44,8 @@ def render_one_note(
         sample_rate=sample_rate,
     )
     return {
-        "rendered": bool(result.get("audio_rendered")),
-        "source": result.get("source"),
+        "rendered": result.get("events_rendered", 0) > 0,
+        "source": "recorded_sample_bank",
         "instrument": instrument,
         "midi_note": midi_note,
         "velocity": velocity,
