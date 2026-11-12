@@ -259,8 +259,11 @@ Each candidate also carries non-scoring acoustic diagnostics: a conservative
 pitch estimate where periodicity permits, including the spread between
 three short analysis windows as a pitch-stability diagnostic, broad envelope
 family, measured attack and release intervals, post-peak decay windows, and
-file-boundary indicators. The decay profile is passed through to candidate
-shortlists but never changes the technical screening score.
+file-boundary indicators, and post-attack sustain stability windows
+(300-700 ms and 700-1500 ms). Sustain variation is descriptive only: vibrato,
+tremolo, natural decay and room sound can all change it. Both decay and sustain
+profiles are passed through to candidate shortlists but never change the
+technical screening score.
 The stability value is descriptive and does not yet score or certify a sample.
 Percussion is
 explicitly marked as not applicable for pitched-note estimation. Inconclusive
