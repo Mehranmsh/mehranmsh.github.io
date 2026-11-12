@@ -284,7 +284,8 @@ def _align_stressed_onsets_to_beats(
     adjusted = list(durations)
     metadata = [dict(item) for item in note_map]
     for index, item in enumerate(metadata):
-        if (index == 0 or item.get("is_lexically_stressed") is not True\n                or item.get("stress_confidence") != "curated"):
+        if (index == 0 or item.get("is_lexically_stressed") is not True
+                or item.get("stress_confidence") != "curated"):
             continue
         onset = sum(adjusted[:index])
         target = min(
