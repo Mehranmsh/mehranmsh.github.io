@@ -678,31 +678,39 @@ def _articulations_for(
 def analyze_sample_bank_coverage(
     bank: SampleBank,
     catalog: dict[str, dict[str, Any]] | None = None,
+    articulation_catalog: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Report exact recorded-note and velocity-zone coverage; never infer readiness."""
+    """Report exact note, velocity-zone and articulation coverage."""
     if not isinstance(bank, SampleBank):
         raise ValueError("A validated SampleBank is required")
     requirements = SAMPLE_INSTRUMENT_CATALOG if catalog is None else catalog
+    articulation_requirements = (
+        SAMPLE_ARTICULATION_CATALOG if articulation_catalog is None
+        else articulation_catalog
+    )
     instruments: dict[str, Any] = {}
     total_required = 0
     total_covered = 0
-
     for instrument, spec in requirements.items():
         low, high = spec["note_range"]
         layers = spec["velocity_layers"]
+        articulations = _articulations_for(instrument, articulation_requirements)
         required_pairs = [
-            (note, layer["name"], layer["min"], layer["max"])
+            (note, layer["name"], layer["min"], layer["max"], articulation)
+            for articulation in articulations
             for note in range(low, high + 1)
             for layer in layers
         ]
         recorded = [sample for sample in bank.samples if sample.instrument == instrument]
         missing_notes = []
         missing_layers = []
+        missing_articulations = []
         covered = 0
-        for note, layer_name, velocity_min, velocity_max in required_pairs:
+        for note, layer_name, velocity_min, velocity_max, articulation in required_pairs:
             matching = [
                 sample for sample in recorded
                 if sample.midi_note == note
+                and sample.articulation == articulation
                 and sample.velocity_min <= velocity_min
                 and sample.velocity_max >= velocity_max
             ]
@@ -711,29 +719,35 @@ def analyze_sample_bank_coverage(
             else:
                 if note not in missing_notes:
                     missing_notes.append(note)
-                missing_layers.append({"note": note, "layer": layer_name})
+                missing_layers.append({
+                    "note": note, "layer": layer_name,
+                    "articulation": articulation,
+                })
+                if articulation not in missing_articulations:
+                    missing_articulations.append(articulation)
         required = len(required_pairs)
         total_required += required
         total_covered += covered
         instruments[instrument] = {
             "label": spec["label"],
             "note_range": [low, high],
+            "articulations": articulations,
             "recorded_samples": len(recorded),
             "required_requirements": required,
             "covered_requirements": covered,
             "coverage_percent": round(covered * 100 / required, 2) if required else 100.0,
             "missing_notes": missing_notes,
             "missing_velocity_layers": missing_layers,
+            "missing_articulations": missing_articulations,
             "ready": covered == required,
         }
-
     return {
-        "catalog_version": 1,
+        "catalog_version": 2,
         "ready": total_covered == total_required and total_required > 0,
         "recorded_samples": len(bank.samples),
         "required_requirements": total_required,
         "covered_requirements": total_covered,
         "coverage_percent": round(total_covered * 100 / total_required, 2) if total_required else 0.0,
         "instruments": instruments,
-        "note": "Coverage means recorded note/velocity assets exist; it does not certify recording quality or mixing.",
+        "note": "Coverage requires exact recorded note, velocity-zone and articulation assets; it does not certify recording quality or mixing.",
     }
