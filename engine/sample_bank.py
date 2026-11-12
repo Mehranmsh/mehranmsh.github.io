@@ -706,7 +706,7 @@ def analyze_sample_bank_coverage(
     catalog: dict[str, dict[str, Any]] | None = None,
     articulation_catalog: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
-    """Report exact note, velocity-zone and articulation coverage."""
+    """Report exact coverage by note, register zone, velocity layer and articulation."""
     if not isinstance(bank, SampleBank):
         raise ValueError("A validated SampleBank is required")
     requirements = SAMPLE_INSTRUMENT_CATALOG if catalog is None else catalog
@@ -721,6 +721,26 @@ def analyze_sample_bank_coverage(
         low, high = spec["note_range"]
         layers = spec["velocity_layers"]
         articulations = _articulations_for(instrument, articulation_requirements)
+        zones = _register_zones(low, high)
+        def zone_for_note(note: int) -> str:
+            for zone in zones:
+                if zone["note_min"] <= note <= zone["note_max"]:
+                    return zone["name"]
+            raise ValueError("Coverage target falls outside its register zones")
+        zone_counts = {
+            zone["name"]: {"note_min": zone["note_min"], "note_max": zone["note_max"],
+                           "required": 0, "covered": 0}
+            for zone in zones
+        }
+        articulation_counts = {
+            articulation: {"required": 0, "covered": 0}
+            for articulation in articulations
+        }
+        velocity_counts = {
+            layer["name"]: {"velocity_min": layer["min"], "velocity_max": layer["max"],
+                            "required": 0, "covered": 0}
+            for layer in layers
+        }
         required_pairs = [
             (note, layer["name"], layer["min"], layer["max"], articulation)
             for articulation in articulations
@@ -733,6 +753,10 @@ def analyze_sample_bank_coverage(
         missing_articulations = []
         covered = 0
         for note, layer_name, velocity_min, velocity_max, articulation in required_pairs:
+            zone_name = zone_for_note(note)
+            zone_counts[zone_name]["required"] += 1
+            articulation_counts[articulation]["required"] += 1
+            velocity_counts[layer_name]["required"] += 1
             matching = [
                 sample for sample in recorded
                 if sample.midi_note == note
@@ -742,6 +766,9 @@ def analyze_sample_bank_coverage(
             ]
             if matching:
                 covered += 1
+                zone_counts[zone_name]["covered"] += 1
+                articulation_counts[articulation]["covered"] += 1
+                velocity_counts[layer_name]["covered"] += 1
             else:
                 if note not in missing_notes:
                     missing_notes.append(note)
@@ -751,6 +778,16 @@ def analyze_sample_bank_coverage(
                 })
                 if articulation not in missing_articulations:
                     missing_articulations.append(articulation)
+        def progress_items(counts: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+            return {
+                name: {
+                    **item,
+                    "missing": item["required"] - item["covered"],
+                    "coverage_percent": round(item["covered"] * 100 / item["required"], 2)
+                    if item["required"] else 100.0,
+                }
+                for name, item in counts.items()
+            }
         required = len(required_pairs)
         total_required += required
         total_covered += covered
@@ -761,19 +798,26 @@ def analyze_sample_bank_coverage(
             "recorded_samples": len(recorded),
             "required_requirements": required,
             "covered_requirements": covered,
+            "missing_requirements": required - covered,
             "coverage_percent": round(covered * 100 / required, 2) if required else 100.0,
+            "register_zone_progress": progress_items(zone_counts),
+            "articulation_progress": progress_items(articulation_counts),
+            "velocity_layer_progress": progress_items(velocity_counts),
             "missing_notes": missing_notes,
             "missing_velocity_layers": missing_layers,
             "missing_articulations": missing_articulations,
             "ready": covered == required,
         }
     return {
-        "catalog_version": 2,
+        "catalog_version": 3,
         "ready": total_covered == total_required and total_required > 0,
         "recorded_samples": len(bank.samples),
         "required_requirements": total_required,
         "covered_requirements": total_covered,
-        "coverage_percent": round(total_covered * 100 / total_required, 2) if total_required else 0.0,
+        "missing_requirements": total_required - total_covered,
+        "coverage_percent": round(total_covered * 100 / total_required, 2)
+        if total_required else 0.0,
         "instruments": instruments,
-        "note": "Coverage requires exact recorded note, velocity-zone and articulation assets; it does not certify recording quality or mixing.",
+        "read_only": True,
+        "note": "Coverage requires exact recorded note, velocity-zone and articulation assets; progress is grouped by catalog register zones and does not certify recording quality or mixing.",
     }
