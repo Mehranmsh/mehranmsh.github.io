@@ -153,18 +153,38 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
             notes[-1] = min(lower_cadences, key=lambda note: (abs(note - tonic - 12), note))
     return notes
 
-def _phrase_durations(syllables: int, note_count: int) -> tuple[int, list[int]]:
-    """Allocate one, two, or three 4/4 bars, lengthening the phrase ending."""
+def _phrase_durations(syllables: int, note_count: int,
+                      lyric_line: str = "") -> tuple[int, list[int]]:
+    """Allocate phrase timing with approximate word-boundary and punctuation cues.
+
+    Persian short vowels are often unwritten, so these positions are rhythmic
+    hints based on orthographic estimates, not verified phonetic stress.
+    """
     bars = max(1, min(3, (max(1, syllables) + 7) // 8))
     total_ticks = bars * 4 * 480
     weights = [1.0] * note_count
+
+    words = re.findall(r"[\\wآ-ی]+", lyric_line, flags=re.UNICODE)
+    estimated_counts = [_syllables(word) for word in words]
+    estimated_total = sum(estimated_counts)
+    if note_count and estimated_total:
+        cursor = 0
+        for word_count in estimated_counts:
+            cursor += max(1, round(note_count * word_count / estimated_total))
+            boundary = min(note_count - 1, cursor - 1)
+            if boundary >= 0:
+                weights[boundary] *= 1.15
+
     if note_count >= 2:
-        weights[-1] = 2.0
+        weights[-1] *= 1.7
+        stripped = lyric_line.rstrip()
+        if stripped.endswith((",", "،", ";", "؛", ":", "؟", "!", ".")):
+            weights[-1] *= 1.15
+
     weight_total = sum(weights)
     durations = [int(total_ticks * weight / weight_total) for weight in weights]
     durations[-1] += total_ticks - sum(durations)
     return bars, durations
-
 
 def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                  target_bpm: int | None = None) -> dict[str, Any]:
@@ -196,7 +216,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "verse",
         )
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
-        bars, durations = _phrase_durations(line["syllable_estimate"], len(notes))
+        bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         melody.append({
             "line_index": index,
             "section": line_section,
@@ -211,6 +231,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",
             "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
             "cadence_note": notes[-1],
+            "prosody_timing_method": "approximate_word_boundary_and_punctuation_v1",
         })
     arrangement = {
         "intro": ["soft piano", "acoustic guitar"],
