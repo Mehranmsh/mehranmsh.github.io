@@ -689,7 +689,7 @@ class SampleRendererTests(unittest.TestCase):
         )
         self.assertEqual(fills[0]["fill_planner"], "instrument_shaped_melodic_fill_v2")
         self.assertEqual(fills[0]["velocity"], 54)
-        self.assertEqual(fills[0]["articulation"], "sustain")
+        self.assertEqual(fills[0]["articulation"], "fingerstyle")
         self.assertFalse(any(event.get("event_role") == "melodic_response_fill"
                              for event in build_composition_events(plan)))
 
