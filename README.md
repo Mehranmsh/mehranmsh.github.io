@@ -217,3 +217,14 @@ warning counts, and clipping counts. A mismatch is surfaced for review rather th
 automatically resampled, normalized, or altered. Level spread is descriptive because
 different notes, articulations, and velocity layers naturally have different levels.
 These measurements do not estimate pitch accuracy or certify timbre.
+
+
+## Reference-pitch diagnostics
+
+The inspection report estimates the fundamental frequency of pitched samples near
+their declared MIDI note and compares it with the session reference frequency
+(default A4 = 440 Hz). It reports deviation in cents, a periodicity score, and a
+configurable diagnostic tolerance (15 cents by default). Percussion families are
+marked not applicable; noisy, inharmonic, transient, or multi-pitch recordings
+may be inconclusive. This autocorrelation estimate is a screening aid, not a
+precision tuner or proof of authentic instrument intonation.
