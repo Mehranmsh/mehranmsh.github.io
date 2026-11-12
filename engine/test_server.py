@@ -261,6 +261,33 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertFalse(report["diagnostics_available"])
         self.assertFalse(missing.exists())
 
+    def test_audio_compose_rejects_invalid_part_selection(self):
+        status, payload = self.request("/v1/compose-audio", method="POST", payload={
+            "lyrics": "برگرد ای عشق", "parts": ["guitar", "../outside"]
+        })
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "invalid_composition_parts")
+        self.assertFalse(payload["audio_rendered"])
+        self.assertFalse(payload["charged"])
+
+    def test_audio_compose_can_render_only_the_verified_guitar_part(self):
+        fake_audio = {
+            "format": "WAV PCM 16-bit", "sample_rate": 22050,
+            "channels": 2, "duration_seconds": 2.0, "events_rendered": 12,
+        }
+        with mock.patch.object(module, "load_sample_bank", return_value=object()), \
+             mock.patch.object(module, "compose_plan", return_value={"title": "test"}), \
+             mock.patch.object(module, "render_composition_to_wav", return_value=fake_audio) as render:
+            status, payload = self.request("/v1/compose-audio", method="POST", payload={
+                "title": "گیتار", "lyrics": "برگرد ای عشق", "parts": ["guitar"]
+            })
+        self.assertEqual(status, 201, payload)
+        self.assertTrue(payload["audio_rendered"])
+        self.assertEqual(payload["audio"]["parts"], ["guitar"])
+        render.assert_called_once()
+        self.assertEqual(render.call_args.kwargs["parts"], ["guitar"])
+        self.assertEqual(render.call_args.kwargs["instruments"], {"guitar": "acoustic_guitar"})
+
     def test_audio_compose_fails_closed_without_a_local_sample_bank(self):
         status, payload = self.request("/v1/compose-audio", method="POST", payload={
             "title": "برگرد", "lyrics": "دلم گرفته\nاز این شب سرد",
