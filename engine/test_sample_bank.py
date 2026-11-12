@@ -526,6 +526,34 @@ class SampleBankTests(unittest.TestCase):
             self.assertIn("dc_offset", by_note[63]["warnings"])
             self.assertFalse(report["basic_signal_checks_pass"])
 
+    def test_quality_analysis_measures_head_tail_silence_and_attack(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "padded.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 10000
+            silence = [0] * 1000
+            tone = [
+                int(10000 * math.sin(2 * math.pi * 440 * i / rate))
+                for i in range(3000)
+            ]
+            values = silence + tone + silence
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 69, "path": "piano/padded.wav",
+            }])
+            report = analyze_sample_bank_quality(load_sample_bank(root))
+            measured = report["measurements"][0]
+            self.assertAlmostEqual(measured["leading_low_level_seconds"], 0.1, delta=0.02)
+            self.assertAlmostEqual(measured["trailing_low_level_seconds"], 0.1, delta=0.02)
+            self.assertIsNotNone(measured["attack_to_10_percent_seconds"])
+            self.assertIsNotNone(measured["quiet_region_rms"])
+            self.assertEqual(measured["boundary_analysis_status"], "measured")
+
     def test_tuning_analysis_estimates_reference_pitch_offset(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
