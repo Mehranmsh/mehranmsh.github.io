@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _melody_velocity, _section_dynamics, render_midi
+from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _melody_velocity, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -15,8 +15,9 @@ class MidiRendererTests(unittest.TestCase):
             result = render_midi(plan, target)
             data = target.read_bytes()
         self.assertEqual(data[:4], b"MThd")
-        self.assertEqual(int.from_bytes(data[10:12], "big"), 5)
-        self.assertEqual(result["tracks"], 5)
+        self.assertEqual(int.from_bytes(data[10:12], "big"), 6)
+        self.assertEqual(result["tracks"], 6)
+        self.assertGreater(result["guitar_note_events"], 0)
         self.assertGreater(result["note_events"], 0)
         self.assertGreater(result["bass_note_events"], 0)
         self.assertGreater(result["drum_hits"], 0)
@@ -124,6 +125,18 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreater(downbeat, second_beat)
         self.assertGreater(downbeat, offbeat)
         self.assertLessEqual(_groove_velocity(120, 0, section_scale=1.2), 127)
+
+    def test_guitar_arrangement_changes_by_song_section(self):
+        chord = (60, 64, 67)
+        verse, chorus, bridge = [], [], []
+        verse_count = _guitar_bar(chord, 0, verse, section="verse")
+        chorus_count = _guitar_bar(chord, 0, chorus, section="chorus")
+        bridge_count = _guitar_bar(chord, 0, bridge, section="bridge")
+        self.assertEqual(verse_count, 8)
+        self.assertEqual(chorus_count, 12)
+        self.assertEqual(bridge_count, 2)
+        self.assertEqual(len([e for e in verse if e[2][0] & 0xF0 == 0x90]), 8)
+        self.assertEqual(len([e for e in chorus if e[2][0] & 0xF0 == 0x90]), 12)
 
 if __name__ == "__main__":
     unittest.main()
