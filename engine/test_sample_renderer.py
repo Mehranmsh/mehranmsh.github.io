@@ -115,6 +115,24 @@ class SampleRendererTests(unittest.TestCase):
                      "start_seconds": 119.9, "duration_seconds": 1}
                 ], bank, Path(folder) / "too_long.wav")
 
+    def test_pan_places_mono_sample_on_requested_side(self):
+        import struct
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "left.wav"
+            render_sample_events([
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.08, "velocity": 100, "pan": -1.0}
+            ], bank, output, sample_rate=22050)
+            with wave.open(str(output), "rb") as wav:
+                samples = struct.unpack("<" + "h" * (len(raw := wav.readframes(wav.getnframes())) // 2), raw)
+            left = sum(abs(samples[i]) for i in range(0, len(samples), 2))
+            right = sum(abs(samples[i]) for i in range(1, len(samples), 2))
+            self.assertGreater(left, 0)
+            self.assertEqual(right, 0)
+
     def test_rejects_invalid_velocity(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
