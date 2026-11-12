@@ -199,6 +199,41 @@ class SampleBankTests(unittest.TestCase):
             self.assertTrue(measurement["loop_present"])
             self.assertEqual(measurement["loop_duration_seconds"], round(128 / 44100, 4))
 
+    def test_loop_boundary_jump_diagnostics_cover_smooth_discontinuous_stereo_and_unlooped(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            fixtures = [
+                ("smooth.wav", 1, [1000] * 16 + [1200] * 16, True),
+                ("jump.wav", 1, [-12000] * 16 + [12000] * 16, True),
+                ("stereo.wav", 2, [1000, -1000] * 16 + [1000, 12000] * 16, True),
+                ("plain.wav", 1, [1000] * 32, False),
+            ]
+            entries = []
+            for filename, channels, values, has_loop in fixtures:
+                path = root / filename
+                with wave.open(str(path), "wb") as wav:
+                    wav.setnchannels(channels)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+                entry = {"instrument": "piano", "midi_note": 60 + len(entries),
+                         "path": filename}
+                if has_loop:
+                    entry.update({"loop_start_frame": 0, "loop_end_frame": 16})
+                entries.append(entry)
+            self.write_manifest(root, entries)
+            report = analyze_sample_bank_quality(load_sample_bank(root))
+            by_note = {item["midi_note"]: item for item in report["measurements"]}
+            self.assertEqual(by_note[60]["loop_boundary_jump"], 0.0)
+            self.assertNotIn("loop_boundary_discontinuity", by_note[60]["warnings"])
+            self.assertGreater(by_note[61]["loop_boundary_jump"], 0.10)
+            self.assertIn("loop_boundary_discontinuity", by_note[61]["warnings"])
+            self.assertGreater(by_note[62]["loop_boundary_jump"], 0.10)
+            self.assertIn("loop_boundary_discontinuity", by_note[62]["warnings"])
+            self.assertIsNone(by_note[63]["loop_boundary_jump"])
+            self.assertIsNone(by_note[63]["loop_boundary_jump_warning_threshold"]
+                              if by_note[63]["loop_boundary_jump"] is None else None)
+
     def test_sample_quality_diagnostics_detect_silence_clipping_and_dc_offset(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
