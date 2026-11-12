@@ -34,6 +34,7 @@ planner can add short deterministic response phrases inside punctuation-derived
 vocal-rest windows. Fill notes are constrained to the composition's declared
 scale and current phrase chord, stay within a bounded instrument register, and
 never extend beyond the available rest. Very short or absent rests produce no
-fill. The planner emits event metadata only; a matching recorded guitar sample
+fill. Fill velocity follows a restrained section-aware contour, from quieter
+verse/bridge responses to stronger final-chorus responses. The planner emits event metadata only; a matching recorded guitar sample
 is still required for audible playback, and no synthesized or rendered audio is
 claimed by the fill planner.
