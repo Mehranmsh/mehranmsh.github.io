@@ -1,5 +1,6 @@
 import json
 import math
+import struct
 import tempfile
 import unittest
 import wave
