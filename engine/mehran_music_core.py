@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 PERSIAN_VOWELS = set("َُِاویآ")
+WORD_PATTERN = re.compile(r"[\wآ-ی\u064b-\u065f\u0670]+", flags=re.UNICODE)
 MOOD_WORDS = {
     "sad": ("غم", "تنها", "اشک", "درد", "رفتی", "برگرد", "دلتنگ", "شکست"),
     "hopeful": ("امید", "فردا", "بهار", "روشن", "آزادی", "شروع", "می‌رس"),
@@ -74,16 +75,22 @@ LEXICAL_STRESS_INDEX = {
 
 
 
+def _canonical_word(word: str) -> str:
+    normalized = word.replace("ي", "ی").replace("ك", "ک")
+    return "".join(char for char in normalized if char not in PERSIAN_DIACRITICS)
+
+
 def _rhythmic_syllables(word: str) -> int:
     normalized = word.replace("ي", "ی").replace("ك", "ک")
-    known = PRONUNCIATION_LEXICON.get(normalized)
+    known = PRONUNCIATION_LEXICON.get(_canonical_word(normalized))
     return len(known) if known else _syllables(normalized)
 
 def _word_phonetics(word: str) -> dict[str, Any]:
     """Conservative written-vowel scan; never invents unwritten short vowels."""
     normalized = word.replace("ي", "ی").replace("ك", "ک")
     explicit_marks = sum(1 for char in normalized if char in SHORT_VOWEL_MARKS)
-    known_pronunciation = PRONUNCIATION_LEXICON.get(normalized)
+    canonical = _canonical_word(normalized)
+    known_pronunciation = PRONUNCIATION_LEXICON.get(canonical)
     if known_pronunciation:
         return {
             "word": normalized,
@@ -93,8 +100,8 @@ def _word_phonetics(word: str) -> dict[str, Any]:
             "confidence": "high",
             "method": "curated_lyric_pronunciation_lexicon_v1",
             "lexical_stress": {
-                "syllable_index": LEXICAL_STRESS_INDEX.get(normalized),
-                "confidence": "curated" if normalized in LEXICAL_STRESS_INDEX else "unknown",
+                "syllable_index": LEXICAL_STRESS_INDEX.get(canonical),
+                "confidence": "curated" if canonical in LEXICAL_STRESS_INDEX else "unknown",
             },
         }
     nuclei = 0
@@ -136,7 +143,7 @@ def _syllables(word: str) -> int:
 
 
 def _ending(line: str) -> str:
-    words = re.findall(r"[\wآ-ی]+", line, flags=re.UNICODE)
+    words = WORD_PATTERN.findall(line)
     return words[-1][-2:] if words else ""
 
 
@@ -165,7 +172,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
             {
                 "line_index": index,
                 "words": [_word_phonetics(word) for word in
-                          re.findall(r"[\wآ-ی]+", line.text, flags=re.UNICODE)],
+                          WORD_PATTERN.findall(line.text)],
                 "lexical_stress": "unknown",
                 "notice": "Unwritten short vowels and colloquial pronunciation cannot be recovered reliably from plain Persian text.",
             }
@@ -352,11 +359,12 @@ def _smooth_melodic_leaps(notes: list[int], note_map: list[dict[str, Any]],
 
 def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
     """Map estimated lyric syllables onto melody notes without inventing phonemes."""
-    matches = list(re.finditer(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE))
+    matches = list(WORD_PATTERN.finditer(lyric_line))
     words = []
     for index, match in enumerate(matches):
         word = match.group(0).replace("ي", "ی").replace("ك", "ک")
-        pronunciation = PRONUNCIATION_LEXICON.get(word)
+        canonical = _canonical_word(word)
+        pronunciation = PRONUNCIATION_LEXICON.get(canonical)
         count = len(pronunciation) if pronunciation else _syllables(word)
         words.append({
             "word_index": index,
@@ -364,8 +372,8 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "syllable_estimate": count,
             "syllables": list(pronunciation) if pronunciation else None,
             "confidence": "high" if pronunciation else "low",
-            "lexical_stress_index": LEXICAL_STRESS_INDEX.get(word),
-            "stress_confidence": "curated" if word in LEXICAL_STRESS_INDEX else "unknown",
+            "lexical_stress_index": LEXICAL_STRESS_INDEX.get(canonical),
+            "stress_confidence": "curated" if canonical in LEXICAL_STRESS_INDEX else "unknown",
         })
     total_syllables = sum(item["syllable_estimate"] for item in words)
     if not words or note_count <= 0 or total_syllables <= 0:
@@ -524,7 +532,7 @@ def _phrase_durations(syllables: int, note_count: int,
         for word_index, word in enumerate(words):
             syllable_count = estimated_counts[word_index]
             stress_index = LEXICAL_STRESS_INDEX.get(
-                word.replace("ي", "ی").replace("ك", "ک")
+                _canonical_word(word)
             )
             remaining_words = len(words) - word_index - 1
             proportional_end = round(
