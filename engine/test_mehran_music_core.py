@@ -598,6 +598,24 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(phrases[1]["breath_after_phrase"], "full")
         self.assertEqual(phrases[2]["phrase_pause_ticks"], 0)
 
+    def test_phrase_final_sustain_uses_curated_open_or_closed_syllable(self):
+        plan = compose_plan("خانه\nبرگرد")
+        open_phrase, closed_phrase = plan["composition"]["melody"]
+        self.assertEqual(open_phrase["cadence_syllable_type"], "open")
+        self.assertEqual(open_phrase["cadence_syllable_confidence"], "curated")
+        self.assertEqual(open_phrase["cadence_sustain_factor"], 1.9)
+        self.assertEqual(closed_phrase["cadence_syllable_type"], "closed")
+        self.assertEqual(closed_phrase["cadence_sustain_factor"], 1.55)
+        self.assertTrue(open_phrase["note_lyric_map"][-1]["is_phrase_final_syllable"])
+        self.assertTrue(closed_phrase["note_lyric_map"][-1]["is_phrase_final_syllable"])
+
+    def test_unknown_final_pronunciation_keeps_neutral_cadence_sustain(self):
+        from mehran_music_core import _cadence_sustain_profile
+        profile = _cadence_sustain_profile("واژه‌ناشناخته")
+        self.assertEqual(profile["factor"], 1.7)
+        self.assertEqual(profile["type"], "unknown")
+        self.assertEqual(profile["confidence"], "low")
+
     def test_phrase_end_gets_longer_cadence(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
         for phrase in plan["composition"]["melody"]:
