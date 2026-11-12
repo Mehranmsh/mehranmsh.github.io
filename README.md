@@ -88,9 +88,16 @@ channel pitch-bend messages and configures a +/-2-semitone bend range using
 RPN. This is pitch-control infrastructure only: it does not invent Persian
 microtonal degree values or claim that a dastgah profile is now authentically
 quarter-tone tuned. Curated modal tuning tables and instrument-specific
-recordings remain separate required work. MIDI pitch bend is applied on the
-monophonic melody channel; simultaneous independently bent notes on one
-channel are not supported by this first implementation.
+recordings remain separate required work. The MIDI renderer also accepts
+optional `melody_instrument` and `instrument_tuning_cents` arguments, where
+the latter maps instrument slugs to MIDI-note-specific cent offsets. Modal
+per-note offsets and the selected instrument's note calibration are combined.
+Because MIDI pitch bend is channel-wide, the renderer assigns a separate
+melodic channel to each distinct combined tuning value, preserving independent
+pitch for overlapping notes. The available melodic channels are finite, so
+more than 11 distinct tuning groups are rejected explicitly rather than
+rendered with incorrect shared bends. This calibration path currently applies
+to the MIDI melody instrument, not every accompaniment part.
 
 
 ### Curated per-degree Persian tuning overrides
