@@ -24,6 +24,24 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_melodic_motif_restarts_at_section_boundaries(self):
+        lyrics = "\\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        sections = plan["composition"]["sections"]
+        for section in sections:
+            phrase = phrases[section["start_line"]]
+            self.assertEqual(phrase["melodic_motif_scope"], section["name"])
+            self.assertEqual(phrase["melodic_motif_slot"], 0)
+            expected = "lifted" if "chorus" in section["name"] else "midrange"
+            self.assertEqual(phrase["section_register"], expected)
+
     def test_melodic_leap_smoothing_preserves_phrase_anchors(self):
         plan = compose_plan(
             "دلم گرفته از این شب\nبرگرد به خانه\nصدای باران می‌آید\nهنوز چشم به راهت"
