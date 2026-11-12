@@ -8,6 +8,7 @@ from typing import Any
 
 PPQ = 480
 MAX_NOTES = 4096
+ROOTS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
 
 def _vlq(value: int) -> bytes:
@@ -29,32 +30,42 @@ def _vlq(value: int) -> bytes:
 
 def _track(events: list[tuple[int, int, bytes]], name: str) -> bytes:
     encoded_name = name.encode("ascii")
-    payload = bytearray(b"\x00\xff\x03" + bytes([len(encoded_name)]) + encoded_name)
+    payload = bytearray(b"\\x00\\xff\\x03" + bytes([len(encoded_name)]) + encoded_name)
     previous = 0
     for tick, priority, message in sorted(events, key=lambda item: (item[0], item[1])):
         payload.extend(_vlq(tick - previous))
         payload.extend(message)
         previous = tick
-    payload.extend(b"\x00\xff\x2f\x00")
+    payload.extend(b"\\x00\\xff\\x2f\\x00")
     return b"MTrk" + struct.pack(">I", len(payload)) + payload
 
 
-def _chord_notes(symbol: str) -> tuple[int, ...]:
-    roots = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71}
-    if not isinstance(symbol, str) or not symbol or symbol[0] not in roots:
+def _parse_chord(symbol: str) -> tuple[int, tuple[int, ...]]:
+    if not isinstance(symbol, str) or not symbol or symbol[0] not in ROOTS:
         raise ValueError("Unsupported chord symbol in composition plan")
-    root, suffix = roots[symbol[0]], symbol[1:]
+    root = ROOTS[symbol[0]]
+    suffix = symbol[1:]
+    if suffix.startswith("b"):
+        root -= 1
+        suffix = suffix[1:]
+    elif suffix.startswith("#"):
+        root += 1
+        suffix = suffix[1:]
     intervals = (0, 3, 7) if suffix.startswith("m") else (0, 4, 7)
     if "7" in suffix:
         intervals += (10,)
-    return tuple(root + interval for interval in intervals)
+    return root % 12, intervals
+
+
+def _chord_notes(symbol: str) -> tuple[int, ...]:
+    root, intervals = _parse_chord(symbol)
+    return tuple(60 + ((root + interval) % 12) for interval in intervals)
 
 
 def _voice_lead_chord(symbol: str, previous: tuple[int, ...] | None = None) -> tuple[int, ...]:
     """Choose a close-position triad minimizing movement from the previous chord."""
-    pitch_classes = _chord_notes(symbol)
-    classes = {note % 12 for note in pitch_classes[:3]}
-    candidates = [note for note in range(48, 73) if note % 12 in classes]
+    pitch_classes = {note % 12 for note in _chord_notes(symbol)[:3]}
+    candidates = [note for note in range(48, 73) if note % 12 in pitch_classes]
     voicings = [combo for combo in combinations(candidates, 3)
                 if len({note % 12 for note in combo}) == 3]
     if not voicings:
@@ -72,8 +83,45 @@ def _voice_lead_chord(symbol: str, previous: tuple[int, ...] | None = None) -> t
     )
 
 
+def _note_on(channel: int, note: int, velocity: int) -> bytes:
+    return bytes((0x90 | channel, note, velocity))
+
+
+def _note_off(channel: int, note: int) -> bytes:
+    return bytes((0x80 | channel, note, 0))
+
+
+def _bass_pattern(root_pc: int, bar_start: int, events: list[tuple[int, int, bytes]]) -> int:
+    """Add a simple root-fifth-root bass pulse for one 4/4 bar."""
+    root = 36 + root_pc
+    fifth = root + 7
+    pattern = [(0, root, PPQ * 2 - 36), (PPQ * 2, fifth, PPQ - 36),
+               (PPQ * 3, root, PPQ - 36)]
+    for offset, note, gate in pattern:
+        start = bar_start + offset
+        events.append((start, 2, _note_on(2, note, 82)))
+        events.append((start + gate, 1, _note_off(2, note)))
+    return len(pattern)
+
+
+def _drum_bar(bar_start: int, events: list[tuple[int, int, bytes]], *,
+              chorus: bool = False) -> int:
+    """Add a deterministic GM drum groove on MIDI channel 10 (zero-based 9)."""
+    hits = [(0, 36, 112), (PPQ * 2, 36, 104),
+            (PPQ, 38, 94), (PPQ * 3, 38, 100)]
+    # Eighth-note hats; chorus opens the hat on the final eighth of each bar.
+    for eighth in range(8):
+        note = 46 if chorus and eighth == 7 else 42
+        hits.append((eighth * (PPQ // 2), note, 72 if note == 42 else 82))
+    for offset, note, velocity in hits:
+        start = bar_start + offset
+        events.append((start, 2, _note_on(9, note, velocity)))
+        events.append((start + 48, 1, _note_off(9, note)))
+    return len(hits)
+
+
 def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
-    """Render lyric-aware phrase timing and chord bars to a Standard MIDI file."""
+    """Render melody, chords, bass and percussion to a Standard MIDI file."""
     try:
         composition = plan["composition"]
         bpm, melody, chords = (composition["tempo_bpm"],
@@ -90,9 +138,12 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     tempo_us = round(60_000_000 / bpm)
     melody_events: list[tuple[int, int, bytes]] = []
     chord_events: list[tuple[int, int, bytes]] = []
+    bass_events: list[tuple[int, int, bytes]] = []
+    drum_events: list[tuple[int, int, bytes]] = []
     note_count, phrase_start, chord_bar_index = 0, 0, 0
     previous_voicing = None
     chord_voicings = []
+    bass_note_count = drum_hit_count = 0
     for phrase in melody:
         if not isinstance(phrase, dict):
             raise ValueError("Each melody phrase must be an object")
@@ -116,30 +167,37 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         cursor = phrase_start
         for note, duration in zip(notes, durations):
             gate = max(1, int(duration * 0.88))
-            melody_events.append((cursor, 2, bytes((0x90, note, 88))))
-            melody_events.append((cursor + gate, 1, bytes((0x80, note, 0))))
+            melody_events.append((cursor, 2, _note_on(0, note, 88)))
+            melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
             note_count += 1
         for bar in range(bars):
             bar_start = phrase_start + bar * PPQ * 4
             symbol = chords[chord_bar_index % len(chords)]
+            root_pc, _ = _parse_chord(symbol)
             chord = _voice_lead_chord(symbol, previous_voicing)
             chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
             previous_voicing = chord
             for note in chord:
-                chord_events.append((bar_start, 2, bytes((0x91, note, 58))))
-                chord_events.append((bar_start + PPQ * 4 - 24, 1, bytes((0x81, note, 0))))
+                chord_events.append((bar_start, 2, _note_on(1, note, 58)))
+                chord_events.append((bar_start + PPQ * 4 - 24, 1, _note_off(1, note)))
                 note_count += 1
+            bass_note_count += _bass_pattern(root_pc, bar_start, bass_events)
+            drum_hit_count += _drum_bar(bar_start, drum_events,
+                                        chorus=(phrase.get("section") == "chorus"))
             chord_bar_index += 1
         phrase_start += phrase_ticks
+    note_count += bass_note_count + drum_hit_count
     if note_count > MAX_NOTES:
         raise ValueError("Composition exceeds the 4096-note safety limit")
     conductor = _track([
-        (0, 0, b"\xff\x51\x03" + tempo_us.to_bytes(3, "big")),
-        (0, 1, b"\xff\x58\x04\x04\x02\x18\x08"),
+        (0, 0, b"\\xff\\x51\\x03" + tempo_us.to_bytes(3, "big")),
+        (0, 1, b"\\xff\\x58\\x04\\x04\\x02\\x18\\x08"),
     ], "MEHRAN Tempo")
     tracks = [conductor, _track(melody_events, "MEHRAN Melody"),
-              _track(chord_events, "MEHRAN Chords")]
+              _track(chord_events, "MEHRAN Chords"),
+              _track(bass_events, "MEHRAN Bass"),
+              _track(drum_events, "MEHRAN Drums")]
     midi = b"MThd" + struct.pack(">IHHH", 6, 1, len(tracks), PPQ) + b"".join(tracks)
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -147,7 +205,8 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     return {
         "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
-        "chord_voicings": chord_voicings,
+        "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
+        "drum_channel": 10, "chord_voicings": chord_voicings,
         "duration_seconds": round(phrase_start / PPQ * 60 / bpm, 2),
         "bytes": len(midi),
     }
