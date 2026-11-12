@@ -8,6 +8,8 @@ on:
       - 'engine/fetch_meta_piano_bank.py'
       - 'engine/test_fetch_meta_piano_bank.py'
       - 'engine/sample_renderer.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_bank_install.py'
       - 'engine/velocity_layer_planner.py'
       - '.github/workflows/meta-piano-bank.yml'
   workflow_dispatch:
@@ -77,6 +79,34 @@ jobs:
               assert audio.getsampwidth() == 2
               assert any(audio.readframes(audio.getnframes()))
           print('REAL_META_PIANO_C4_VELOCITY_CROSSFADE_OK', selection)
+          PY
+      - name: Install the real piano bank and render from the installed copy
+        run: |
+          python3 engine/sample_bank_install.py sample-bank-installed-piano sample-bank-meta-piano
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-installed-piano')
+          assert len(bank.samples) == 352, len(bank.samples)
+          assert {sample.instrument for sample in bank.samples} == {'piano'}
+          output = 'sample-bank-installed-piano/piano-C4-installed-preview.wav'
+          report = render_sample_events([{
+              'instrument': 'piano',
+              'midi_note': 60,
+              'start_seconds': 0,
+              'duration_seconds': 0.8,
+              'velocity': 80,
+              'articulation': 'sustain',
+          }], bank, output, sample_rate=44100)
+          assert report['events_rendered'] == 1, report
+          assert report['source'] == 'recorded_sample_bank', report
+          with wave.open(output, 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert any(audio.readframes(audio.getnframes())), 'Installed piano render is silent'
+          print('INSTALLED_REAL_META_PIANO_C4_RENDER_OK', report['sample_selection'])
           PY
       - name: Publish full bank and audition WAV
         uses: actions/upload-artifact@v4
