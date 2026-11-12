@@ -31,6 +31,17 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual([item["word"] for item in words],
                          ["بَرگَرد", "به", "خَانِه"])
 
+    def test_persian_zwnj_compounds_remain_single_lyric_words(self):
+        from mehran_music_core import _align_words_to_notes
+        result = analyze_lyrics("می‌رسم به خانه")
+        self.assertEqual(result["word_count"], 3)
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual([item["word"] for item in words],
+                         ["می‌رسم", "به", "خانه"])
+        aligned = _align_words_to_notes("می‌رسم به خانه", 5)
+        self.assertEqual([item["word"] for item in aligned["word_note_alignment"]],
+                         ["می‌رسم", "به", "خانه"])
+
     def test_vocalized_lexicon_words_keep_curated_pronunciation_and_stress(self):
         from mehran_music_core import _align_words_to_notes, _word_phonetics
         phonetics = _word_phonetics("بَرگَرد")
