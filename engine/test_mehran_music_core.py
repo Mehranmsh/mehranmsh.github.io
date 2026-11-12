@@ -50,6 +50,52 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(aligned["word_note_alignment"][1]["syllables"],
                          ["bar", "gard"])
 
+    def test_multiple_stressed_onsets_preserve_phrase_duration_and_positive_notes(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 500, 470, 960]
+        note_map = [
+            {"note_index": 0, "is_lexically_stressed": False},
+            {"note_index": 1, "is_lexically_stressed": True,
+             "stress_confidence": "curated"},
+            {"note_index": 2, "is_lexically_stressed": False},
+            {"note_index": 3, "is_lexically_stressed": True,
+             "stress_confidence": "curated"},
+            {"note_index": 4, "is_lexically_stressed": False},
+        ]
+        adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(sum(adjusted), sum(durations))
+        self.assertTrue(all(value >= 120 for value in adjusted))
+        self.assertEqual(len(adjusted), len(durations))
+        self.assertEqual(len(metadata), len(note_map))
+
+    def test_stress_alignment_skips_when_phrase_end_cannot_fund_shift(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 500, 120]
+        note_map = [
+            {"note_index": 0, "is_lexically_stressed": False},
+            {"note_index": 1, "is_lexically_stressed": True,
+             "stress_confidence": "curated"},
+            {"note_index": 2, "is_lexically_stressed": False},
+            {"note_index": 3, "is_lexically_stressed": False},
+        ]
+        adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(adjusted, durations)
+        self.assertNotIn("stress_beat_alignment", metadata[1])
+
+    def test_unknown_stress_is_never_beat_aligned(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 500, 470]
+        note_map = [
+            {"note_index": 0, "is_lexically_stressed": False},
+            {"note_index": 1, "is_lexically_stressed": True,
+             "stress_confidence": "unknown"},
+            {"note_index": 2, "is_lexically_stressed": False},
+            {"note_index": 3, "is_lexically_stressed": False},
+        ]
+        adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(adjusted, durations)
+        self.assertNotIn("stress_beat_alignment", metadata[1])
+
     def test_melodic_motif_restarts_at_section_boundaries(self):
         lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
