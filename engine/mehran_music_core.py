@@ -1060,6 +1060,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "key": key,
             "mode": mode,
             "persian_dastgah": persian_dastgah,
+            "persian_degree_cents": (modal_context["degree_cents"] if modal_context else None),
             "persian_modal_profile": ({
                 "name": modal_context["name"],
                 "tuning": modal_context["tuning"],
