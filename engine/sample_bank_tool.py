@@ -17,6 +17,7 @@ from sample_bank import (
     analyze_recording_provenance,
     analyze_sample_bank_instrument_health,
     analyze_sample_bank_quality,
+    analyze_sample_bank_tuning,
     build_sample_recording_checklist,
     load_sample_bank,
 )
@@ -27,6 +28,7 @@ def inspect_sample_bank(bank_root: str | Path) -> dict[str, Any]:
     bank = load_sample_bank(bank_root)
     coverage = analyze_sample_bank_coverage(bank)
     quality = analyze_sample_bank_quality(bank)
+    tuning = analyze_sample_bank_tuning(bank)
     health = analyze_sample_bank_instrument_health(bank, coverage, quality)
     provenance = analyze_recording_provenance(bank)
     ready = bool(coverage["ready"] and quality["basic_signal_checks_pass"])
@@ -37,6 +39,7 @@ def inspect_sample_bank(bank_root: str | Path) -> dict[str, Any]:
         "recorded_samples": len(bank.samples),
         "coverage": coverage,
         "quality": quality,
+        "tuning": tuning,
         "instrument_health": health,
         "recording_provenance": provenance,
         "summary": {
