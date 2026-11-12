@@ -16,13 +16,15 @@ class MetaGuitarMapTests(unittest.TestCase):
 <master> lochan=2 hichan=2
 <group> group=1 off_by=1 lovel=1 hivel=48
 <region> key=40 sample=INSGuitarSteel_StringLowE_Vel01_E2_01.ogg
+<region> key=45 sample=INSGuitarSteel_StringA_Vel01_A2_01.ogg
 """
         mapped = parse_guitar_sfz_sample_map(sfz, "meta-steel-guitar")
-        self.assertEqual(len(mapped), 3)
+        self.assertEqual(len(mapped), 4)
         first = mapped["INSGuitarSteel_StringLowE_Vel01_E2_01.ogg"]
         self.assertEqual(first["midi_note"], 40)
         self.assertEqual(first["string"], "LowE")
         self.assertEqual((first["velocity_min"], first["velocity_max"]), (1, 48))
+        self.assertEqual(mapped["INSGuitarSteel_StringA_Vel01_A2_01.ogg"]["string"], "A")
 
     def test_nylon_map_uses_default_auto_keyswitch_and_preserves_articulation(self):
         sfz = """
