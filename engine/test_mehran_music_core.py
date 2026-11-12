@@ -654,7 +654,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(long["confidence"], "syllable_estimate")
 
     def test_section_end_phrases_receive_breath_recovery_priority(self):
-        lyrics = "\\n".join([
+        lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
             "برگرد به خانه", "هنوز چشم به راهت",
             "دوباره برگرد ای عشق", "چراغ خانه روشن است",
@@ -680,7 +680,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
             )
 
     def test_section_boundary_does_not_invent_a_breath_pause(self):
-        lyrics = "\\n".join([
+        lyrics = "\n".join([
             "دلم گرفته از این شب", "صدای باران می‌آید",
             "برگرد به خانه", "هنوز چشم به راهت",
             "دوباره برگرد ای عشق", "چراغ خانه روشن است",
