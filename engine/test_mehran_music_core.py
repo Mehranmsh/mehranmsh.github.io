@@ -24,6 +24,25 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_vocalized_persian_words_remain_single_tokens(self):
+        result = analyze_lyrics("بَرگَرد به خَانِه")
+        self.assertEqual(result["word_count"], 3)
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual([item["word"] for item in words],
+                         ["بَرگَرد", "به", "خَانِه"])
+
+    def test_vocalized_lexicon_words_keep_curated_pronunciation_and_stress(self):
+        from mehran_music_core import _align_words_to_notes, _word_phonetics
+        phonetics = _word_phonetics("بَرگَرد")
+        self.assertEqual(phonetics["syllables"], ["bar", "gard"])
+        self.assertEqual(phonetics["lexical_stress"]["syllable_index"], 1)
+        aligned = _align_words_to_notes("بَرگَرد", 2)
+        self.assertEqual(aligned["word_note_alignment"][0]["stress_confidence"],
+                         "curated")
+        self.assertEqual([item["is_lexically_stressed"]
+                          for item in aligned["syllable_note_map"]],
+                         [False, True])
+
     def test_word_note_ranges_are_contiguous_and_do_not_overlap(self):
         from mehran_music_core import _align_words_to_notes
         aligned = _align_words_to_notes("دلم گرفته برگرد ای عشق", 9)
