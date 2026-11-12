@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any
 
 
+LOOP_BOUNDARY_JUMP_WARNING_THRESHOLD = 0.10
+
+
 @dataclass(frozen=True)
 class Sample:
     instrument: str
@@ -266,6 +269,17 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         dc_offset = sample_sum / count / 32768.0 if count else 0.0
         peak_normalized = peak / 32768.0
         clipped_ratio = clipped / count if count else 0.0
+        loop_boundary_jump = None
+        if sample.loop_start_frame is not None:
+            with wave.open(str(sample.path), "rb") as wav:
+                wav.setpos(sample.loop_start_frame)
+                first_frame = struct.unpack("<" + "h" * sample.channels, wav.readframes(1))
+                wav.setpos(sample.loop_end_frame - 1)
+                last_frame = struct.unpack("<" + "h" * sample.channels, wav.readframes(1))
+            loop_boundary_jump = max(
+                abs(first - last) / 32768.0
+                for first, last in zip(first_frame, last_frame)
+            )
         warnings = []
         if peak == 0:
             warnings.append("silent_sample")
@@ -275,6 +289,9 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
             warnings.append("digital_clipping")
         if abs(dc_offset) > 0.02:
             warnings.append("dc_offset")
+        if (loop_boundary_jump is not None
+                and loop_boundary_jump > LOOP_BOUNDARY_JUMP_WARNING_THRESHOLD):
+            warnings.append("loop_boundary_discontinuity")
         reports.append({
             "instrument": sample.instrument,
             "midi_note": sample.midi_note,
@@ -287,6 +304,8 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
             "loop_start_frame": sample.loop_start_frame,
             "loop_end_frame": sample.loop_end_frame,
             "loop_duration_seconds": round((sample.loop_end_frame - sample.loop_start_frame) / sample.sample_rate, 4) if sample.loop_start_frame is not None else None,
+            "loop_boundary_jump": round(loop_boundary_jump, 6) if loop_boundary_jump is not None else None,
+            "loop_boundary_jump_warning_threshold": LOOP_BOUNDARY_JUMP_WARNING_THRESHOLD,
             "peak": round(peak_normalized, 5),
             "rms": round(rms / 32768.0, 5),
             "dc_offset": round(dc_offset, 5),
@@ -304,7 +323,7 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         "clipped_samples": total_clipped,
         "basic_signal_checks_pass": warning_count == 0,
         "measurements": reports,
-        "note": "Checks cover silence, level, clipping and DC offset only; they do not certify instrument tone, recording quality, tuning or mix readiness.",
+        "note": "Checks cover silence, level, clipping, DC offset and a numerical loop-boundary jump indicator only; they do not certify perceptual loop quality, instrument tone, recording quality, tuning or mix readiness.",
     }
 
 
