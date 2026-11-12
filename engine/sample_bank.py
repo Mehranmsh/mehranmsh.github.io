@@ -477,6 +477,8 @@ def rank_sample_candidates(
     midi_note: int,
     velocity: int = 80,
     articulation: str = "sustain",
+    *,
+    quality_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Rank only exact-note, exact-articulation, velocity-compatible recordings.
 
@@ -512,7 +514,11 @@ def rank_sample_candidates(
             "score_kind": "technical_screening_only",
         }
 
-    measurements = analyze_sample_bank_quality(bank)["measurements"]
+    if quality_report is None:
+        quality_report = analyze_sample_bank_quality(bank)
+    if not isinstance(quality_report, dict) or not isinstance(quality_report.get("measurements"), list):
+        raise ValueError("quality_report must contain a measurements list")
+    measurements = quality_report["measurements"]
     by_path = {
         item["path"]: item for item in measurements if "path" in item
     }
