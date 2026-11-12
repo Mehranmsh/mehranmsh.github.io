@@ -34,7 +34,7 @@ LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
-from sample_bank import load_sample_bank
+from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,\n                         analyze_sample_bank_quality)
 from sample_renderer import render_composition_to_wav
 
 
@@ -128,6 +128,22 @@ class Handler(BaseHTTPRequestHandler):
                 "service": "mehran-music-studio-control",
                 "engine": engine_status(), "resources": resource_status(),
                 "external_api_calls": False, "paid_fallback": False
+            })
+        if path == "/v1/sample-bank/diagnostics":
+            bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
+            try:
+                bank = load_sample_bank(bank_root)
+            except ValueError as error:
+                return self.send_json(503, {
+                    "error": "sample_bank_unavailable",
+                    "detail": str(error),
+                    "diagnostics_available": False,
+                })
+            return self.send_json(200, {
+                "diagnostics_available": True,
+                "coverage": analyze_sample_bank_coverage(bank),
+                "signal_quality": analyze_sample_bank_quality(bank),
+                "read_only": True,
             })
         if path == "/v1/projects":
             with db_session() as db:
