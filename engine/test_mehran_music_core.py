@@ -24,6 +24,19 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_punctuation_guides_harmonic_phrase_cadence(self):
+        plan = compose_plan(
+            "دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد؛\nشب سرد و خاموش"
+        )
+        phrases = plan["composition"]["melody"]
+        progression = plan["composition"]["chord_progression"]
+        self.assertEqual(phrases[0]["harmonic_cadence"], "dominant_suspension")
+        self.assertEqual(phrases[0]["chord"], progression[-1])
+        self.assertEqual(phrases[1]["harmonic_cadence"], "tonic_resolution")
+        self.assertEqual(phrases[1]["chord"], progression[0])
+        self.assertEqual(phrases[2]["harmonic_cadence"], "mid_phrase_lift")
+        self.assertEqual(phrases[3]["harmonic_cadence"], "continuing")
+
     def test_melody_phrase_starts_and_resolves_on_chord_tones(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق\nبه خانه برگرد")
         for phrase in plan["composition"]["melody"]:
