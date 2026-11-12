@@ -208,7 +208,7 @@ class SampleBankTests(unittest.TestCase):
 
     def test_recording_sheet_csv_expands_targets_and_marks_them_as_planned(self):
         content = build_sample_recording_sheet_csv()
-        rows = list(csv.DictReader(content.lstrip("\\ufeff").splitlines()))
+        rows = list(csv.DictReader(content.lstrip("\ufeff").splitlines()))
         checklist = build_sample_recording_checklist()
         self.assertEqual(len(rows), checklist["total_recording_targets"])
         self.assertEqual(rows[0]["instrument"], "piano")
