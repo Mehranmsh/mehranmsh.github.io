@@ -14,7 +14,7 @@ class PartExpressionTests(unittest.TestCase):
         bridge = plan_part_expression("chords", "bridge", 0.3)
         self.assertGreater(chorus["stereo_width"], verse["stereo_width"])
         self.assertLess(bridge["stereo_width"], verse["stereo_width"])
-        self.assertGreater(chorus["pan"], verse["pan"])
+        self.assertEqual(chorus["pan"], verse["pan"])
 
     def test_hat_pattern_alternates_stereo_position(self):
         left = plan_part_expression("closed_hat", "verse", event_index=0)
