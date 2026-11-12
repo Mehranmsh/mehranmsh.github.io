@@ -12,6 +12,8 @@ class ArticulationPlannerTests(unittest.TestCase):
     def test_short_piano_note_prefers_staccato(self):
         result = choose_articulation({"duration_ticks": 180}, "piano", 110)
         self.assertEqual(result["articulation"], "staccato")
+        self.assertEqual(result["gate_ratio"], 0.62)
+        self.assertEqual(result["release_ms"], 12)
 
     def test_repeated_guitar_note_prefers_muted_attack(self):
         result = choose_articulation(
