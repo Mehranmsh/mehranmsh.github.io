@@ -11,6 +11,7 @@ from sample_bank import (
     analyze_sample_bank_quality,
     analyze_sample_bank_instrument_health,
     build_sample_recording_checklist,
+    build_sample_recording_sheet_csv,
     load_sample_bank,
     select_sample,
 )
@@ -204,6 +205,18 @@ class SampleBankTests(unittest.TestCase):
         })
         self.assertEqual(checklist["format_requirements"]["bit_depth"], 16)
         self.assertGreater(checklist["total_recording_targets"], 0)
+
+    def test_recording_sheet_csv_expands_targets_and_marks_them_as_planned(self):
+        content = build_sample_recording_sheet_csv()
+        rows = list(csv.DictReader(content.lstrip("\\ufeff").splitlines()))
+        checklist = build_sample_recording_checklist()
+        self.assertEqual(len(rows), checklist["total_recording_targets"])
+        self.assertEqual(rows[0]["instrument"], "piano")
+        self.assertEqual(rows[0]["midi_note"], "36")
+        self.assertEqual(rows[0]["velocity_layer"], "soft")
+        self.assertEqual(rows[0]["recording_status"], "planned")
+        self.assertEqual(rows[0]["suggested_filename"], "piano/36_soft.wav")
+        self.assertEqual(rows[0]["recorded_file_path"], "")
 
     def test_quality_report_includes_audio_format_and_loop_metadata(self):
         with tempfile.TemporaryDirectory() as folder:
