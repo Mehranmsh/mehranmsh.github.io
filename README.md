@@ -240,3 +240,18 @@ pre-roll, tail padding, and possible room noise for human review. Family labels 
 not performance-quality grades, and a low-level region is not guaranteed to be
 digital silence. An active final region is flagged as a possible truncated tail,
 not a definitive editing error. The diagnostics never trim or rewrite source audio.
+
+
+## Exact-match sample candidate ranking
+
+The sample-bank API can rank multiple recordings that all match the requested
+instrument, exact MIDI note, articulation, and velocity. It uses a transparent
+technical screening score: digital clipping, DC offset, silence, very low
+recording level, loop-boundary discontinuity, and a possible truncated tail
+receive explicit deductions. It never substitutes a nearby note, another
+articulation, or an incompatible velocity layer. The report includes each
+candidate's warnings and score deductions so the choice can be audited.
+This score is not a judgment of timbre, musicality, tuning authenticity, or
+performer quality. It is a diagnostic shortlist only; audition the leading
+recording before production use. The existing renderer's sample-selection
+behavior is unchanged by this diagnostic feature.
