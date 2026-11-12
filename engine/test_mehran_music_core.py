@@ -66,6 +66,39 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(_harmonic_function("Bb", "D", "minor"), "submediant")
         self.assertEqual(_harmonic_function("C7", "D", "minor"), "subtonic")
 
+    def test_long_song_sections_separate_second_verse_and_final_chorus(self):
+        lyrics = "\\n".join([
+            "بند اول یک", "بند اول دو",
+            "ترجیع یک", "ترجیع دو", "ترجیع سه",
+            "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
+        ])
+        plan = compose_plan(lyrics)
+        sections = plan["composition"]["sections"]
+        self.assertEqual(
+            [section["name"] for section in sections],
+            ["verse_1", "chorus", "verse_2", "final_chorus"],
+        )
+        self.assertEqual(sections[0]["start_line"], 0)
+        self.assertEqual(sections[-1]["end_line"], 8)
+        self.assertTrue(all(
+            sections[index]["end_line"] == sections[index + 1]["start_line"]
+            for index in range(len(sections) - 1)
+        ))
+        phrases = plan["composition"]["melody"]
+        self.assertTrue(all(
+            phrases[index]["section"] == section["name"]
+            for section in sections
+            for index in range(section["start_line"], section["end_line"])
+        ))
+        final_phrases = [p for p in phrases if p["section"] == "final_chorus"]
+        verse_two = [p for p in phrases if p["section"] == "verse_2"]
+        self.assertTrue(final_phrases)
+        self.assertTrue(verse_two)
+        self.assertTrue(all(p["contour_type"] == "rising_peak_then_fall"
+                            for p in final_phrases))
+        self.assertTrue(all(p["contour_type"] == "restrained_wave"
+                            for p in verse_two))
+
     def test_rejects_invalid_tempo(self):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر", target_bpm=300)
