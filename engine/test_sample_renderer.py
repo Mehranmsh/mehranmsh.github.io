@@ -813,5 +813,45 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(first_melody["pitch_cents"], 12.5)
 
 
+    def test_renderer_prefers_quality_ranked_exact_note_over_nearer_fallback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            self.make_wav(root / "piano" / "exact_clean.wav", frames=2205)
+            self.make_wav(root / "piano" / "nearby.wav", frames=2205)
+            clipped_path = root / "piano" / "exact_clipped.wav"
+            clipped_path.parent.mkdir(parents=True, exist_ok=True)
+            with wave.open(str(clipped_path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(22050)
+                wav.writeframes(struct.pack("<" + "h" * 2205, *([32767] * 2205)))
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [
+                    {"instrument": "piano", "midi_note": 60,
+                     "path": "piano/exact_clean.wav",
+                     "velocity_min": 1, "velocity_max": 100},
+                    {"instrument": "piano", "midi_note": 60,
+                     "path": "piano/exact_clipped.wav",
+                     "velocity_min": 50, "velocity_max": 127},
+                    {"instrument": "piano", "midi_note": 61,
+                     "path": "piano/nearby.wav"},
+                ],
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            result = render_sample_events([{
+                "instrument": "piano", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.05,
+                "velocity": 80,
+            }], bank, Path(folder) / "ranked.wav", sample_rate=22050)
+            self.assertEqual(
+                result["sample_selection"]["exact_note_quality_ranked_events"], 1
+            )
+            self.assertEqual(
+                result["sample_selection"]["pitch_shifted_nearest_note_events"], 0
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
