@@ -228,3 +228,13 @@ configurable diagnostic tolerance (15 cents by default). Percussion families are
 marked not applicable; noisy, inharmonic, transient, or multi-pitch recordings
 may be inconclusive. This autocorrelation estimate is a screening aid, not a
 precision tuner or proof of authentic instrument intonation.
+
+
+## Sample boundary and quiet-region diagnostics
+
+Quality inspection measures low-level material at the beginning and end of each
+recording, estimates the time from first detected activity to 10% of peak level,
+and reports RMS in low-level regions. These values help locate excess pre-roll,
+tail padding, and possible room noise for human review. A low-level region is not
+guaranteed to be digital silence, and the attack estimate is envelope-based rather
+than a transient-quality judgment. The diagnostics never trim or rewrite source audio.
