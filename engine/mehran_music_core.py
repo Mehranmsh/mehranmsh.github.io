@@ -457,8 +457,20 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         progression_slot = section_line_index % len(chords)
         chord = chords[progression_slot]
         cadence_chord, cadence_type = _harmonic_cadence(chords, line["text"])
+        structural_cadence = "none"
+        section_end = next(
+            (section["end_line"] for section in sections
+             if section["name"] == line_section), len(lines),
+        )
         if cadence_chord is not None:
             chord = cadence_chord
+        elif index + 1 == section_end and len(lines) >= 8:
+            if line_section == "final_chorus":
+                chord = chords[0]
+                structural_cadence = "final_tonic"
+            else:
+                chord = chords[-1]
+                structural_cadence = "section_dominant"
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         lyric_alignment = _align_words_to_notes(line["text"], len(notes))
@@ -493,6 +505,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "breath_after_phrase": breath_after,
             "chord": chord,
             "harmonic_cadence": cadence_type,
+            "structural_cadence": structural_cadence,
             "harmonic_function": _harmonic_function(chord, key, mode),
             "harmonic_position": {
                 "global_phrase_index": index,
