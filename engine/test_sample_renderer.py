@@ -99,6 +99,32 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_looped_sample_sustains_past_original_recording_length(self):
+        import struct
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            self.make_wav(root / "piano" / "loop.wav", frames=2205)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [{
+                    "instrument": "piano", "midi_note": 60,
+                    "path": "piano/loop.wav",
+                    "loop_start_frame": 200, "loop_end_frame": 2000
+                }]
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "sustain.wav"
+            render_sample_events([
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.35, "velocity": 90}
+            ], bank, output, sample_rate=22050)
+            with wave.open(str(output), "rb") as wav:
+                self.assertEqual(wav.getnframes(), round(0.35 * 22050))
+                raw = wav.readframes(wav.getnframes())
+            samples = struct.unpack("<" + "h" * (len(raw) // 2), raw)
+            self.assertTrue(any(samples[5000:]))
+
     def test_rejects_missing_instrument_before_creating_output(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
