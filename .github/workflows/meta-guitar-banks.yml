@@ -22,6 +22,11 @@ on:
 permissions:
   contents: read
 
+# A newer run supersedes a stale render attempt on this branch.
+concurrency:
+  group: meta-guitar-banks-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHONPATH: engine
 
@@ -109,18 +114,23 @@ jobs:
               instruments={"guitar": "acoustic_guitar"},
               response_fill_part=None,
           )
-          # Render a short, real-recording preview rather than the entire generated
-          # arrangement in the CI runner. This keeps the verification bounded while
-          # preserving all three musical parts in the same audible passage.
-          preview_seconds = 8.0
-          selected = [
-              dict(event) for event in events
-              if event.get("part") in {"melody", "chords", "guitar"}
-              and event.get("start_seconds", 0) < preview_seconds
-          ]
+          # Bound Python's per-sample mixing loop to a compact, audible passage.
+          # Keep the earliest five recorded events from each of the three parts.
+          preview_seconds = 6.0
+          selected = []
+          for part in ("melody", "chords", "guitar"):
+              part_events = sorted(
+                  (
+                      dict(event) for event in events
+                      if event.get("part") == part
+                      and 0 <= event.get("start_seconds", 0) < preview_seconds
+                  ),
+                  key=lambda event: event.get("start_seconds", 0),
+              )[:5]
+              selected.extend(part_events)
           for event in selected:
               remaining = preview_seconds - event["start_seconds"]
-              event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.65)
+              event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.32)
           selected = [event for event in selected if event["duration_seconds"] > 0]
           assert selected, "No piano/guitar composition events were planned in the preview window"
           selected_parts = {event.get("part") for event in selected}
