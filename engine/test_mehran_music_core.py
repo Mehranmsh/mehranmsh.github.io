@@ -31,7 +31,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
             self.assertTrue(phrase["phrase_end_is_chord_tone"])
 
     def test_flat_chord_melody_resolves_to_correct_flat_chord_tones(self):
-        plan = compose_plan("فریاد خشم آتش جنگ")
+        plan = compose_plan("فریاد\nخشم\nآتش\nجنگ")
         phrases = plan["composition"]["melody"]
         self.assertEqual(plan["analysis"]["mood"], "angry")
         self.assertEqual(phrases[1]["chord"], "Bb")
