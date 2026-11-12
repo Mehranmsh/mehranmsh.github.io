@@ -637,7 +637,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
     ):
         tuned, channel_map = _apply_instrument_tuning(
             event_list, instrument=instrument, base_channel=base_channel,
-            program=program, tuning_map=tuning_maps.get(instrument, {}),
+            program=program, tuning_map=tuning_maps.get(resolved_accompaniment[instrument], {}),
             occupied_channels=occupied_channels,
         )
         if instrument == "strings":
