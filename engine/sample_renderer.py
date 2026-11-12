@@ -324,14 +324,14 @@ def build_composition_events(
                 for beat, voice_index in enumerate(pattern):
                     add("chords", voicing[voice_index], bar_start + beat * PPQ,
                         PPQ - 24, _scaled_velocity(56, dynamics["chords"]),
-                        (-0.18, 0.0, 0.18)[voice_index])
+                        voice_pans[voice_index])
             else:
                 # Choruses use fuller chord punches on the main beats.
                 for beat in (0, 2):
                     for voice_index, note in enumerate(voicing):
                         add("chords", note, bar_start + beat * PPQ,
                             PPQ - 24, _scaled_velocity(64, dynamics["chords"]),
-                            (-0.22, 0.0, 0.22)[voice_index])
+                            voice_pans[voice_index])
             if names["guitar"]:
                 # Alternate down/up strums: downbeats sweep low-to-high,
                 # offbeats reverse the sweep and sit lighter in the groove.
