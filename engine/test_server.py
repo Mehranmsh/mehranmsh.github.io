@@ -141,7 +141,8 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(report["diagnostics_available"])
         self.assertTrue(report["read_only"])
         self.assertFalse(report["coverage"]["ready"])
-        self.assertEqual(report["coverage"]["covered_samples"], 1)
+        self.assertEqual(report["coverage"]["recorded_samples"], 1)
+        self.assertEqual(report["coverage"]["covered_requirements"], 3)
         self.assertTrue(report["signal_quality"]["basic_signal_checks_pass"])
         self.assertTrue(sample_path.is_file())
 
