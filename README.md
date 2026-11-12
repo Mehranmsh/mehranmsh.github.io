@@ -255,3 +255,17 @@ This score is not a judgment of timbre, musicality, tuning authenticity, or
 performer quality. It is a diagnostic shortlist only; audition the leading
 recording before production use. The existing renderer's sample-selection
 behavior is unchanged by this diagnostic feature.
+
+
+### Quality-ranked sample selection in the renderer
+
+For each playback event, the renderer now checks for candidates matching the
+exact instrument, MIDI note, articulation and requested velocity. When one or
+more exact-note recordings exist, it uses the highest-ranked candidate from
+the technical sample diagnostics. The render report counts events selected by
+exact-note quality ranking. If no exact-note asset exists, the existing
+nearest-recorded-note pitch-shift behavior remains available only within the
+same instrument, articulation and velocity-compatible layer, and is counted
+separately as `pitch_shifted_nearest_note_events`. Missing articulation or
+velocity coverage still raises an explicit error. This preserves the useful
+pitch-transposition workflow without disguising it as an exact-note recording.
