@@ -67,6 +67,9 @@ class SampleRendererTests(unittest.TestCase):
         parts = {event["instrument"] for event in events}
         self.assertEqual(parts, {"piano", "bass", "drums"})
         self.assertGreater(len(events), len(plan["composition"]["melody"]))
+        pans = {event.get("pan", 0.0) for event in events}
+        self.assertIn(-0.22, pans)
+        self.assertIn(0.22, pans)
         expanded = build_composition_events(plan, instruments={
             "guitar": "acoustic_guitar",
             "strings": "strings",
