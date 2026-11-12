@@ -1,6 +1,8 @@
 import importlib.util
 import json
 import hashlib
+import os
+import wave
 import tempfile
 import threading
 import unittest
@@ -116,6 +118,41 @@ class StudioControlPlaneTests(unittest.TestCase):
         midi_path = Path(payload["midi"]["local_path"])
         self.assertTrue(midi_path.is_file())
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
+
+    def test_sample_bank_diagnostics_are_authenticated_read_only_and_report_gaps(self):
+        bank_root = module.ROOT / "fixture-bank"
+        bank_root.mkdir()
+        sample_path = bank_root / "piano-c4.wav"
+        with wave.open(str(sample_path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(44100)
+            wav.writeframes(b"\\x00\\x10" * 256)
+        (bank_root / "bank.json").write_text(json.dumps({
+            "format_version": 1,
+            "samples": [{
+                "instrument": "piano", "midi_note": 60,
+                "path": "piano-c4.wav",
+            }],
+        }), encoding="utf-8")
+        with mock.patch.dict(os.environ, {"MEHRAN_SAMPLE_BANK": str(bank_root)}):
+            status, report = self.request("/v1/sample-bank/diagnostics")
+        self.assertEqual(status, 200)
+        self.assertTrue(report["diagnostics_available"])
+        self.assertTrue(report["read_only"])
+        self.assertFalse(report["coverage"]["ready"])
+        self.assertEqual(report["coverage"]["covered_samples"], 1)
+        self.assertTrue(report["signal_quality"]["basic_signal_checks_pass"])
+        self.assertTrue(sample_path.is_file())
+
+    def test_sample_bank_diagnostics_fail_closed_when_bank_is_missing(self):
+        missing = module.ROOT / "missing-bank"
+        with mock.patch.dict(os.environ, {"MEHRAN_SAMPLE_BANK": str(missing)}):
+            status, report = self.request("/v1/sample-bank/diagnostics")
+        self.assertEqual(status, 503)
+        self.assertEqual(report["error"], "sample_bank_unavailable")
+        self.assertFalse(report["diagnostics_available"])
+        self.assertFalse(missing.exists())
 
     def test_audio_compose_fails_closed_without_a_local_sample_bank(self):
         status, payload = self.request("/v1/compose-audio", method="POST", payload={
