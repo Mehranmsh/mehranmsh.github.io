@@ -50,7 +50,7 @@ def build_velocity_sweep_events(
         events.append({
             "instrument": instrument,
             "midi_note": midi_note,
-            "start_seconds": index * (float(note_duration) + float(gap_seconds)),
+            "start_seconds": round(index * (float(note_duration) + float(gap_seconds)), 9),
             "duration_seconds": float(note_duration),
             "velocity": velocity,
             "articulation": articulation,
