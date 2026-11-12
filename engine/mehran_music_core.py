@@ -819,8 +819,15 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         )
         rhyme_item = rhyme_by_line.get(index, {})
         rhyme_group = rhyme_item.get("group")
+        rhyme_confidence = rhyme_item.get("confidence", "unknown")
         rhyme_stanza = rhyme_item.get("stanza_index")
-        rhyme_key = (rhyme_stanza, rhyme_group) if rhyme_group is not None else None
+        # Only curated pronunciation evidence can drive melodic linkage.
+        # Orthographic fallback remains useful for analysis, not composition.
+        rhyme_key = (
+            (rhyme_stanza, rhyme_group)
+            if rhyme_group is not None and rhyme_confidence == "curated"
+            else None
+        )
         rhyme_cadence_linked = False
         if rhyme_key is not None:
             shared_pitch_class = shared_rhyme_cadences.get(rhyme_key)
@@ -868,9 +875,12 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
             "cadence_note": notes[-1],
             "rhyme_cadence_group": rhyme_group,
+            "rhyme_cadence_confidence": rhyme_confidence,
             "rhyme_cadence_linked": rhyme_cadence_linked,
             "rhyme_cadence_method": (
                 "shared_stanza_rhyme_pitch_class_v1"
+                if rhyme_key is not None else
+                "curated_pronunciation_required"
                 if rhyme_group is not None else "no_repeated_rhyme_group"
             ),
             "prosody_timing_method": "word_boundary_internal_punctuation_and_cadence_v2",
