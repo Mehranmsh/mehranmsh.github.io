@@ -134,6 +134,8 @@ def analyze_sample_bank_instrument_health(
             status = "missing"
         elif warning_sample_count:
             status = "needs_attention"
+        elif not coverage_item["ready"]:
+            status = "incomplete_coverage"
         else:
             status = "basic_signal_checks_passed"
         rms_values = [item["rms"] for item in measurements]
