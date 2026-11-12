@@ -102,7 +102,7 @@ class StudioControlPlaneTests(unittest.TestCase):
             "title": "برگرد", "lyrics": "دلم گرفته\\nاز این شب سرد\\nبرگرد ای عشق\\nبه خانه برگرد",
             "genre": "pop", "bpm": 84
         })
-        self.assertEqual(status, 201)
+        self.assertEqual(status, 201, payload)
         self.assertTrue(payload["composition_created"])
         self.assertFalse(payload["audio_rendered"])
         self.assertEqual(payload["plan"]["title"], "برگرد")
