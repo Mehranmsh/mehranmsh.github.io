@@ -301,6 +301,20 @@ class IndependentMusicCoreTests(unittest.TestCase):
         _, paused = _phrase_durations(4, 4, "دل، من")
         self.assertGreater(paused[1], plain[1])
 
+    def test_curated_stress_receives_rhythmic_weight(self):
+        from mehran_music_core import _phrase_durations
+        _, durations = _phrase_durations(3, 4, "برگرد شب")
+        self.assertEqual(len(durations), 4)
+        self.assertGreater(durations[2], durations[0])
+        self.assertEqual(sum(durations), 1920)
+
+    def test_unknown_word_stress_is_not_guessed_for_rhythm(self):
+        from mehran_music_core import _phrase_durations
+        _, plain = _phrase_durations(3, 4, "پرواز خیالی")
+        _, punctuated = _phrase_durations(3, 4, "پرواز، خیالی")
+        self.assertEqual(len(plain), len(punctuated))
+        self.assertEqual(sum(plain), sum(punctuated))
+
     def test_word_boundaries_are_reflected_in_phrase_timing(self):
         from mehran_music_core import _phrase_durations
         _, durations = _phrase_durations(5, 5, "دلم گرفته")
