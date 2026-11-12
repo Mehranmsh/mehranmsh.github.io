@@ -918,5 +918,84 @@ class SampleRendererTests(unittest.TestCase):
             )
 
 
+    def test_renderer_selects_first_position_guitar_string(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            entries = []
+            for string_name in ("LowE", "G", "B"):
+                relative = f"guitar/INSGuitarSteel_String{string_name}_Vel01_C4_01.wav"
+                self.make_wav(root / relative, rate=22050, frames=4410)
+                entries.append({
+                    "instrument": "acoustic_guitar", "midi_note": 60,
+                    "velocity_min": 1, "velocity_max": 127,
+                    "articulation": "sustain", "path": relative,
+                })
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1, "samples": entries,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "guitar-string.wav"
+            result = render_sample_events([{
+                "instrument": "acoustic_guitar", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08,
+                "velocity": 90,
+            }], bank, output, sample_rate=22050)
+            self.assertEqual(
+                result["guitar_string_selections"],
+                [{"midi_note": 60, "string": "B"}],
+            )
+            self.assertEqual(result["events_rendered"], 1)
+            with wave.open(str(output), "rb") as wav:
+                self.assertTrue(any(wav.readframes(wav.getnframes())))
+
+    def test_renderer_honors_explicit_guitar_string(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            entries = []
+            for string_name in ("LowE", "B"):
+                relative = f"guitar/INSGuitarSteel_String{string_name}_Vel01_C4_01.wav"
+                self.make_wav(root / relative, rate=22050, frames=4410)
+                entries.append({
+                    "instrument": "acoustic_guitar", "midi_note": 60,
+                    "articulation": "sustain", "path": relative,
+                })
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1, "samples": entries,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            result = render_sample_events([{
+                "instrument": "acoustic_guitar", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08,
+                "velocity": 90, "guitar_string": "LowE", "guitar_max_fret": 24,
+            }], bank, Path(folder) / "explicit-string.wav", sample_rate=22050)
+            self.assertEqual(
+                result["guitar_string_selections"],
+                [{"midi_note": 60, "string": "LowE"}],
+            )
+
+    def test_renderer_blocks_guitar_string_without_first_position_match(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            relative = "guitar/INSGuitarSteel_StringLowE_Vel01_C4_01.wav"
+            self.make_wav(root / relative, rate=22050, frames=4410)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [{
+                    "instrument": "acoustic_guitar", "midi_note": 60,
+                    "articulation": "sustain", "path": relative,
+                }],
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            with self.assertRaisesRegex(ValueError, "Guitar string selection blocked"):
+                render_sample_events([{
+                    "instrument": "acoustic_guitar", "midi_note": 60,
+                    "start_seconds": 0, "duration_seconds": 0.08,
+                    "velocity": 90,
+                }], bank, Path(folder) / "blocked.wav", sample_rate=22050)
+
+
 if __name__ == "__main__":
     unittest.main()
