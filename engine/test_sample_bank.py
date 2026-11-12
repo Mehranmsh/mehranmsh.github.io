@@ -565,6 +565,28 @@ class SampleBankTests(unittest.TestCase):
             )
             self.assertEqual(report["estimated_samples"], 0)
 
+    def test_tuning_analysis_rejects_weak_periodicity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "weak.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 44100
+            # A short decaying transient is not a stable pitched sustain.
+            values = [
+                int(14000 * math.exp(-i / 180.0) * (1 if i % 2 else -1))
+                for i in range(4096)
+            ]
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 69, "path": "piano/weak.wav",
+            }])
+            report = analyze_sample_bank_tuning(load_sample_bank(root))
+            self.assertNotEqual(report["measurements"][0]["status"], "estimated")
+
     def test_tuning_analysis_reports_inconclusive_noise(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
