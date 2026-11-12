@@ -120,7 +120,7 @@ class SampleRendererTests(unittest.TestCase):
                  "duration_seconds": 0.35, "velocity": 90}
             ], bank, output, sample_rate=22050)
             with wave.open(str(output), "rb") as wav:
-                self.assertEqual(wav.getnframes(), __import__("math").ceil(0.35 * 22050))
+                self.assertEqual(wav.getnframes(), math.ceil(0.35 * 22050))
                 raw = wav.readframes(wav.getnframes())
             samples = struct.unpack("<" + "h" * (len(raw) // 2), raw)
             self.assertTrue(any(samples[5000:]))
