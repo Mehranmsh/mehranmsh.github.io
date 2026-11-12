@@ -19,12 +19,16 @@ def plan_melody_fill(
     profiles = {
         "guitar": {"range": (48, 84), "notes": 4, "spacing": 180, "articulation": "fingerstyle", "release_ms": 24},
         "piano": {"range": (48, 88), "notes": 5, "spacing": 144, "articulation": "staccato", "release_ms": 18},
-        "strings": {"range": (48, 84), "notes": 2, "spacing": 360, "articulation": "sustain", "release_ms": 65},
+        "strings": {"range": (48, 84), "notes": 2, "spacing": 360, "articulations": ("sustain",), "release_ms": 65, "contour": (0, 5)},
+        "tar": {"range": (48, 84), "notes": 4, "spacing": 180, "articulations": ("mezrab_down", "mezrab_up"), "release_ms": 18, "contour": (7, 5, 2, 5)},
+        "setar": {"range": (55, 88), "notes": 4, "spacing": 210, "articulations": ("mezrab_down", "mezrab_up"), "release_ms": 22, "contour": (5, 2, 7, 4)},
+        "santur": {"range": (55, 90), "notes": 5, "spacing": 144, "articulations": ("soft_mallet", "soft_mallet", "roll", "hard_mallet", "roll"), "release_ms": 16, "contour": (0, 4, 7, 12, 7)},
+        "kamancheh": {"range": (48, 84), "notes": 2, "spacing": 360, "articulations": ("short_bow", "long_bow"), "release_ms": 65, "contour": (0, 5)},
     }
     if fill_style not in profiles:
-        raise ValueError("fill_style must be guitar, piano or strings")
+        raise ValueError("unsupported fill_style")
     profile = profiles[fill_style]
-    if instrument_range == (48, 84) and fill_style == "piano":
+    if instrument_range == (48, 84):
         instrument_range = profile["range"]
     if isinstance(gap_start_tick, bool) or not isinstance(gap_start_tick, int) or gap_start_tick < 0:
         raise ValueError("gap_start_tick must be a non-negative integer")
@@ -68,7 +72,7 @@ def plan_melody_fill(
     chosen = []
     for index in range(count):
         pool = ordered if index in (0, count - 1) and chord else candidates
-        offsets = (0, 4, 7, 12, 7) if fill_style == "piano" else ((0, 5) if fill_style == "strings" else (5, 2, 7, 3))
+        offsets = profile.get("contour", (5, 2, 7, 3))
         target = base + offsets[index % len(offsets)]
         note = min(pool, key=lambda value: (abs(value - target), abs(value - base), value))
         if chosen and note == chosen[-1] and len(pool) > 1:
@@ -80,12 +84,14 @@ def plan_melody_fill(
     durations[-1] += total - sum(durations)
     cursor = gap_start_tick
     events = []
-    contour = (0, -4, 2, -2)
+    velocity_contour = (0, -4, 2, -2)
+    articulations = profile.get("articulations", (profile.get("articulation", "sustain"),))
     for index, (note, duration) in enumerate(zip(chosen, durations)):
-        velocity = max(1, min(127, base_velocity + contour[index % len(contour)]))
+        velocity = max(1, min(127, base_velocity + velocity_contour[index % len(velocity_contour)]))
         events.append({"midi_note": note, "start_tick": cursor,
                        "duration_ticks": duration, "velocity": velocity,
-                       "role": "melodic_response_fill", "articulation": profile["articulation"],
+                       "role": "melodic_response_fill",
+                       "articulation": articulations[index % len(articulations)],
                        "release_ms": profile["release_ms"], "fill_style": fill_style})
         cursor += duration
     return {"events": events, "reason": "planned_in_vocal_rest",
