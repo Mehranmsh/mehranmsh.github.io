@@ -169,6 +169,35 @@ class SampleBankTests(unittest.TestCase):
             self.assertLessEqual(low, high)
             self.assertTrue(spec["velocity_layers"])
 
+    def test_recording_checklist_groups_targets_into_low_middle_high_zones(self):
+        checklist = build_sample_recording_checklist()
+        piano = checklist["instruments"]["piano"]
+        self.assertEqual(
+            [zone["name"] for zone in piano["register_zones"]],
+            ["low", "middle", "high"],
+        )
+        self.assertEqual(piano["register_zones"][0]["note_min"], 36)
+        self.assertEqual(piano["register_zones"][-1]["note_max"], 96)
+        self.assertEqual(
+            {target["register_zone"] for target in piano["targets"]},
+            {"low", "middle", "high"},
+        )
+        self.assertEqual(
+            checklist["instruments"]["kick"]["register_zones"],
+            [{"name": "single", "note_min": 36, "note_max": 36}],
+        )
+        self.assertEqual(checklist["catalog_version"], 3)
+
+    def test_register_zone_partition_has_no_gaps_or_overlaps(self):
+        from sample_bank import _register_zones
+        for low, high in ((24, 96), (40, 88), (48, 84), (36, 36)):
+            zones = _register_zones(low, high)
+            covered = [
+                note for zone in zones
+                for note in range(zone["note_min"], zone["note_max"] + 1)
+            ]
+            self.assertEqual(covered, list(range(low, high + 1)))
+
     def test_incomplete_bank_reports_missing_notes_and_velocity_layers(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
