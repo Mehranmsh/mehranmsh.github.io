@@ -7,6 +7,8 @@ from itertools import combinations, permutations
 from pathlib import Path
 from typing import Any
 
+from instrument_register import fit_note_to_register, resolve_register
+
 PPQ = 480
 MAX_NOTES = 4096
 ROOTS = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
@@ -39,6 +41,31 @@ def _track(events: list[tuple[int, int, bytes]], name: str) -> bytes:
         previous = tick
     payload.extend(b"\\x00\\xff\\x2f\\x00")
     return b"MTrk" + struct.pack(">I", len(payload)) + payload
+
+
+
+
+def _fit_events_to_register(
+    events: list[tuple[int, int, bytes]],
+    instrument: str,
+) -> tuple[list[tuple[int, int, bytes]], dict[str, Any]]:
+    """Octave-fold note events into a known catalog register, preserving pitch class."""
+    register = resolve_register(instrument)
+    note_range = register["note_range"]
+    if note_range is None:
+        return events, register
+    fitted = []
+    changed = 0
+    for tick, priority, message in events:
+        if len(message) >= 3 and message[0] & 0xF0 in (0x80, 0x90):
+            note = fit_note_to_register(message[1], note_range)
+            if note != message[1]:
+                changed += 1
+                message = bytes((message[0], note, *message[2:]))
+        fitted.append((tick, priority, message))
+    register["octave_folded_note_events"] = changed
+    register["range_enforced"] = True
+    return fitted, register
 
 
 
@@ -637,6 +664,26 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
     bass_events.insert(0, (0, 0, bytes((0xC2, resolved_programs["bass"]))))
     guitar_events.insert(0, (0, 0, bytes((0xC3, resolved_programs["guitar"]))))
     piano_events.insert(0, (0, 0, bytes((0xC4, resolved_programs["piano"]))))
+    melody_events, melody_register = _fit_events_to_register(
+        melody_events, melody_instrument
+    )
+    register_reports = {"melody": melody_register}
+    for slot, event_list in (
+        ("strings", chord_events), ("bass", bass_events),
+        ("guitar", guitar_events), ("piano", piano_events),
+    ):
+        fitted, report = _fit_events_to_register(
+            event_list, resolved_accompaniment[slot]
+        )
+        register_reports[slot] = report
+        if slot == "strings":
+            chord_events = fitted
+        elif slot == "bass":
+            bass_events = fitted
+        elif slot == "guitar":
+            guitar_events = fitted
+        else:
+            piano_events = fitted
     occupied_channels = {9, *channel_by_cents.values(), 1, 2, 3, 4}
     accompaniment_tuning_channels: dict[str, dict[str, int]] = {}
     for instrument, base_channel, program, event_list in (
@@ -679,7 +726,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
         "articulation_rendering": "MIDI marker metadata only; playback timbre depends on the instrument and player",
         "pitch_bend_support": "melody pitch_cents via isolated channel-per-tuning-group pitch bend, +/-200 cents",
         "melody_tuning_channels": {str(cents): channel for cents, channel in channel_by_cents.items()},
-        "melody_instrument": melody_instrument,
+        "melody_instrument": melody_instrument,\n        "instrument_registers": register_reports,
         "accompaniment_instruments": resolved_accompaniment,
         "accompaniment_programs": resolved_programs,
         "accompaniment_tuning_channels": accompaniment_tuning_channels,
