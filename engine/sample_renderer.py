@@ -576,6 +576,10 @@ def build_composition_events(
                     reference_note=notes[-1],
                     instrument_range=(48, 84),
                     max_notes=4,
+                    base_velocity={
+                        "verse": 54, "pre_chorus": 62, "chorus": 70,
+                        "bridge": 48, "final_chorus": 76,
+                    }.get(section, 60),
                 )
                 for fill in fill_plan["events"]:
                     before_count = len(events)
