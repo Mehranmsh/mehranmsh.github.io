@@ -434,6 +434,19 @@ def _estimate_sample_fundamental(
     mean = sum(signal) / len(signal)
     signal = [value - mean for value in signal]
     energy = sum(value * value for value in signal)
+    zero_crossings = sum(
+        1 for left, right in zip(signal, signal[1:])
+        if (left < 0 <= right) or (right < 0 <= left)
+    )
+    zero_crossing_rate = zero_crossings / max(1, len(signal) - 1)
+    expected_crossing_rate = min(1.0, 2.0 * expected_hz / (sample.sample_rate / stride))
+    max_pitched_crossing_rate = min(0.98, max(0.45, expected_crossing_rate * 2.5 + 0.12))
+    if zero_crossing_rate > max_pitched_crossing_rate:
+        return {
+            "status": "insufficient_periodicity",
+            "expected_hz": round(expected_hz, 3),
+            "zero_crossing_rate": round(zero_crossing_rate, 4),
+        }
     if energy < 1.0:
         return {"status": "insufficient_periodicity", "expected_hz": round(expected_hz, 3)}
     analysis_rate = sample.sample_rate / stride
@@ -533,6 +546,7 @@ def _estimate_sample_fundamental(
         "deviation_cents": round(cents, 2),
         "periodicity_score": round(best_score, 4),
         "spectral_concentration": round(spectral_concentration, 4),
+        "zero_crossing_rate": round(zero_crossing_rate, 4),
     }
 
 
