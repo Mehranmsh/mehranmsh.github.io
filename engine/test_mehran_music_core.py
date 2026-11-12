@@ -312,7 +312,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         ]
         adjusted, mapped = _align_stressed_onsets_to_beats(durations, note_map)
         self.assertEqual(sum(adjusted), sum(durations))
-        self.assertEqual(sum(adjusted[:2]), 960)
+        self.assertEqual(adjusted[0], 960)
         self.assertEqual(mapped[1]["stress_beat_alignment"], "aligned")
 
     def test_unknown_stress_does_not_change_beat_timing(self):
