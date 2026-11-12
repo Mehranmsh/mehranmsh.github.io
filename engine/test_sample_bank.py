@@ -757,6 +757,12 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(result["candidates"][0]["score"], 80)
             self.assertIn("digital_clipping", result["candidates"][1]["warnings"])
             self.assertEqual(result["selection_status"], "ranked_exact_candidates")
+            acoustic = result["candidates"][0]["acoustic_diagnostics"]
+            self.assertIn("status", acoustic["pitch"])
+            self.assertEqual(acoustic["envelope_family"], "percussive")
+            self.assertIn("attack_10_to_90_seconds", acoustic)
+            self.assertIn("release_90_to_10_seconds", acoustic)
+            self.assertNotIn("acoustic_diagnostics", result["candidates"][0]["score_deductions"])
 
     def test_candidate_ranking_does_not_fallback_to_nearby_note_or_articulation(self):
         with tempfile.TemporaryDirectory() as folder:
