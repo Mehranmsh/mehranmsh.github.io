@@ -6,6 +6,7 @@ placeholder tones and does not claim to render audio.
 from __future__ import annotations
 
 import csv
+import cmath
 import io
 import json
 import math
@@ -389,6 +390,80 @@ def analyze_sample_bank_instrument_health(
 
 
 
+
+def _analyze_spectral_profile(sample: Sample) -> dict[str, Any]:
+    """Describe a short recorded window's spectral brightness without grading timbre."""
+    window_size = 1024
+    with wave.open(str(sample.path), "rb") as wav:
+        start = min(int(sample.sample_rate * 0.04), max(0, sample.frames - 1))
+        wav.setpos(start)
+        raw = wav.readframes(min(window_size, sample.frames - start))
+    values = struct.unpack("<" + "h" * (len(raw) // 2), raw)
+    if sample.channels == 2:
+        mono = [(values[i] + values[i + 1]) / 2.0 for i in range(0, len(values) - 1, 2)]
+    else:
+        mono = [float(value) for value in values]
+    if len(mono) < 128:
+        return {"status": "insufficient_audio", "window_samples": len(mono)}
+    mean = sum(mono) / len(mono)
+    signal = [complex((value - mean) * (
+        0.5 - 0.5 * math.cos(2.0 * math.pi * index / (len(mono) - 1))
+    ), 0.0) for index, value in enumerate(mono)]
+    size = 1 << (len(signal).bit_length() - 1)
+    signal = signal[:size]
+    # Iterative radix-2 FFT keeps this diagnostic dependency-free and bounded.
+    j = 0
+    for i in range(1, size):
+        bit = size >> 1
+        while j & bit:
+            j ^= bit
+            bit >>= 1
+        j ^= bit
+        if i < j:
+            signal[i], signal[j] = signal[j], signal[i]
+    length = 2
+    while length <= size:
+        angle = -2.0 * math.pi / length
+        root = complex(math.cos(angle), math.sin(angle))
+        half = length // 2
+        for offset in range(0, size, length):
+            factor = 1.0 + 0.0j
+            for index in range(offset, offset + half):
+                even = signal[index]
+                odd = signal[index + half] * factor
+                signal[index] = even + odd
+                signal[index + half] = even - odd
+                factor *= root
+        length *= 2
+    powers = [abs(value) ** 2 for value in signal[:size // 2 + 1]]
+    if len(powers) <= 1 or max(powers[1:], default=0.0) <= 1.0:
+        return {"status": "silent_or_low_energy", "window_samples": size}
+    usable = powers[1:]
+    total_power = sum(usable)
+    if total_power <= 0:
+        return {"status": "silent_or_low_energy", "window_samples": size}
+    centroid_bin = sum((index + 1) * power for index, power in enumerate(usable)) / total_power
+    cumulative = 0.0
+    rolloff_bin = len(usable)
+    for index, power in enumerate(usable, start=1):
+        cumulative += power
+        if cumulative >= total_power * 0.85:
+            rolloff_bin = index
+            break
+    positive = [power for power in usable if power > 0.0]
+    geometric = math.exp(sum(math.log(power) for power in positive) / len(positive)) if positive else 0.0
+    arithmetic = total_power / len(usable)
+    return {
+        "status": "measured",
+        "window_samples": size,
+        "window_ms": round(size * 1000.0 / sample.sample_rate, 2),
+        "spectral_centroid_hz": round(centroid_bin * sample.sample_rate / size, 2),
+        "spectral_rolloff_85_hz": round(rolloff_bin * sample.sample_rate / size, 2),
+        "spectral_flatness": round(geometric / arithmetic, 6) if arithmetic > 0 else 0.0,
+        "frequency_resolution_hz": round(sample.sample_rate / size, 2),
+        "interpretation": "descriptive_only_not_a_timbre_quality_grade",
+    }
+
 def rank_sample_candidates(
     bank: SampleBank,
     instrument: str,
@@ -469,6 +544,7 @@ def rank_sample_candidates(
             pitch_diagnostic = _estimate_sample_fundamental(sample, reference_frequency)
         acoustic_diagnostics = {
             "pitch": pitch_diagnostic,
+            "spectral_profile": _analyze_spectral_profile(sample),
             "pitch_stability_cents": pitch_diagnostic.get("pitch_stability_cents"),
             "envelope_family": measurement["envelope_family"],
             "attack_to_10_percent_seconds": measurement["attack_to_10_percent_seconds"],
