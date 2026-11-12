@@ -160,10 +160,16 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     melody = []
     for index, line in enumerate(lines):
         chord = chords[index % len(chords)]
+        line_section = next(
+            (section["name"] for section in sections
+             if section["start_line"] <= index < section["end_line"]),
+            "verse",
+        )
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes))
         melody.append({
             "line_index": index,
+            "section": line_section,
             "syllable_estimate": line["syllable_estimate"],
             "midi_notes": notes,
             "note_durations_ticks": durations,
