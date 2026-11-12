@@ -604,5 +604,27 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(result["articulation_diagnostics"]["performance_shaping_applied"])
             self.assertEqual(result["articulation_diagnostics"]["release_profiles_ms"], [12])
 
+
+    def test_guitar_melodic_fill_uses_only_written_vocal_rest(self):
+        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        events = build_composition_events(
+            plan, instruments={"guitar": "acoustic_guitar"}
+        )
+        fills = [event for event in events
+                 if event.get("event_role") == "melodic_response_fill"]
+        self.assertTrue(fills)
+        first_phrase = plan["composition"]["melody"][0]
+        gap_start_tick = first_phrase["bar_count"] * 4 * 480
+        seconds_per_tick = 60 / 84 / 480
+        self.assertEqual(fills[0]["start_seconds"],
+                         round(gap_start_tick * seconds_per_tick, 6))
+        self.assertLessEqual(
+            fills[0]["duration_seconds"],
+            round(first_phrase["phrase_pause_ticks"] * seconds_per_tick, 6),
+        )
+        self.assertEqual(fills[0]["fill_planner"], "deterministic_melodic_fill_v1")
+        self.assertFalse(any(event.get("event_role") == "melodic_response_fill"
+                             for event in build_composition_events(plan)))
+
 if __name__ == "__main__":
     unittest.main()
