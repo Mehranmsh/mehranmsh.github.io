@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
 from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
-                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist, select_sample)
+                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist, build_sample_recording_sheet_csv, select_sample)
 from sample_renderer import render_composition_to_wav
 
 
@@ -130,6 +130,17 @@ class Handler(BaseHTTPRequestHandler):
                 "engine": engine_status(), "resources": resource_status(),
                 "external_api_calls": False, "paid_fallback": False
             })
+        if path == "/v1/sample-bank/recording-sheet.csv":
+            content = build_sample_recording_sheet_csv().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Content-Disposition", 'attachment; filename="mehran-sample-recording-sheet.csv"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(content)
+            return
         if path == "/v1/sample-bank/requirements":
             return self.send_json(200, {
                 "recording_checklist": build_sample_recording_checklist(),
