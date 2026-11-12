@@ -755,7 +755,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                  melody_instrument: str = "piano",
                  articulation_style: str = "balanced",
                  dynamics_style: str = "natural",
-                 persian_dastgah: str | None = None) -> dict[str, Any]:
+                 persian_dastgah: str | None = None,
+                 persian_degree_cents: dict[int, float] | None = None) -> dict[str, Any]:
     analysis = analyze_lyrics(lyrics)
     mood = analysis["mood"]
     chords, key, mode, suggested_bpm = PROGRESSIONS[mood]
@@ -763,7 +764,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
         raise ValueError("target_bpm must be an integer between 50 and 200")
     tonic, scale, lines = ROOTS[key], SCALES[mode], analysis["lines"]
-    modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic % 12)
+    modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic % 12, persian_degree_cents)
                      if persian_dastgah is not None else None)
     verse_end = max(1, round(len(lines) * 0.55))
     sections = [
@@ -920,6 +921,12 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         notes = _smooth_melodic_leaps(
             notes, lyric_alignment["note_lyric_map"], tonic, scale, peak_index
         )
+        if modal_context is not None:
+            cents_by_pc = modal_context["degree_cents_by_pitch_class"]
+            for note_index, note in enumerate(notes):
+                cents = cents_by_pc.get(note % 12, 0.0)
+                if cents:
+                    lyric_alignment["note_lyric_map"][note_index]["pitch_cents"] = cents
         rhyme_item = rhyme_by_line.get(index, {})
         rhyme_group = rhyme_item.get("group")
         rhyme_confidence = rhyme_item.get("confidence", "unknown")
@@ -1056,7 +1063,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "persian_modal_profile": ({
                 "name": modal_context["name"],
                 "tuning": modal_context["tuning"],
-                "scope": "response_fills_only",
+                "degree_cents": modal_context["degree_cents"],
+                "scope": "melody_and_response_fills",
                 "microtonal_audio_rendered": False,
             } if modal_context else None),
             "tempo_bpm": bpm,
