@@ -19,6 +19,13 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual(result["tracks"], 3)
         self.assertGreater(result["note_events"], 0)
         self.assertGreater(len(data), 40)
+        self.assertGreater(result["duration_seconds"], 0)
+
+    def test_long_lyric_line_gets_more_than_one_bar(self):
+        plan = compose_plan("این یک مصرع بسیار بلند است که باید زمان بیشتری بگیرد")
+        phrase = plan["composition"]["melody"][0]
+        self.assertGreaterEqual(phrase["bar_count"], 2)
+        self.assertEqual(sum(phrase["note_durations_ticks"]), phrase["duration_ticks"])
 
     def test_rejects_malformed_plan(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -28,6 +35,13 @@ class MidiRendererTests(unittest.TestCase):
     def test_rejects_out_of_range_notes(self):
         plan = compose_plan("یک شعر")
         plan["composition"]["melody"][0]["midi_notes"] = [120]
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                render_midi(plan, Path(folder) / "bad.mid")
+
+    def test_rejects_duration_mismatch(self):
+        plan = compose_plan("یک شعر کوتاه")
+        plan["composition"]["melody"][0]["note_durations_ticks"] = [1]
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(ValueError):
                 render_midi(plan, Path(folder) / "bad.mid")
