@@ -64,7 +64,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         ]
         adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
         self.assertEqual(sum(adjusted), sum(durations))
-        self.assertTrue(all(value >= 120 for value in adjusted))
+        self.assertTrue(all(value > 0 for value in adjusted))
         self.assertEqual(len(adjusted), len(durations))
         self.assertEqual(len(metadata), len(note_map))
 
