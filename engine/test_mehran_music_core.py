@@ -57,6 +57,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(all(p["contour_type"] == "restrained_wave" for p in verse))
         self.assertTrue(all(p["contour_type"] == "rising_peak_then_fall" for p in chorus))
         self.assertTrue(all(0 <= p["peak_note_index"] < len(p["midi_notes"]) for p in phrases))
+        self.assertTrue(all(p["midi_notes"][p["peak_note_index"]] == max(p["midi_notes"]) for p in phrases))
         verse_peak = max(max(p["midi_notes"]) for p in verse)
         chorus_peak = max(max(p["midi_notes"]) for p in chorus)
         self.assertGreater(chorus_peak, verse_peak)
