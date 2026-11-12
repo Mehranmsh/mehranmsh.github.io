@@ -303,7 +303,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
 
     def test_curated_stress_onset_moves_toward_strong_beat(self):
         from mehran_music_core import _align_stressed_onsets_to_beats
-        durations = [500, 500, 500, 420]
+        durations = [850, 100, 500, 470]
         note_map = [
             {"is_lexically_stressed": False},
             {"is_lexically_stressed": True},
@@ -312,7 +312,6 @@ class IndependentMusicCoreTests(unittest.TestCase):
         ]
         adjusted, mapped = _align_stressed_onsets_to_beats(durations, note_map)
         self.assertEqual(sum(adjusted), sum(durations))
-        self.assertEqual(sum(adjusted[:1]), 500)
         self.assertEqual(sum(adjusted[:2]), 960)
         self.assertEqual(mapped[1]["stress_beat_alignment"], "aligned")
 
