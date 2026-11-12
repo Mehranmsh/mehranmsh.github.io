@@ -597,6 +597,21 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
     }
 
 
+def _cadence_sustain_profile(lyric_line: str) -> dict[str, Any]:
+    """Estimate phrase-final syllable openness from curated pronunciation only."""
+    words = WORD_PATTERN.findall(lyric_line)
+    if not words:
+        return {"factor": 1.7, "type": "unknown", "confidence": "unknown"}
+    canonical = _canonical_word(words[-1])
+    pronunciation = PRONUNCIATION_LEXICON.get(canonical)
+    if not pronunciation:
+        return {"factor": 1.7, "type": "unknown", "confidence": "low"}
+    final_syllable = pronunciation[-1].lower()
+    if final_syllable and final_syllable[-1] in "aeiou":
+        return {"factor": 1.9, "type": "open", "confidence": "curated"}
+    return {"factor": 1.55, "type": "closed", "confidence": "curated"}
+
+
 def _phrase_durations(syllables: int, note_count: int,
                       lyric_line: str = "") -> tuple[int, list[int]]:
     """Allocate phrase timing with approximate word-boundary and punctuation cues.
@@ -657,8 +672,9 @@ def _phrase_durations(syllables: int, note_count: int,
                 weights[stressed_note] *= 1.2
             note_cursor = note_end
 
+    cadence_profile = _cadence_sustain_profile(lyric_line)
     if note_count >= 2:
-        weights[-1] *= 1.7
+        weights[-1] *= cadence_profile["factor"]
         stripped = lyric_line.rstrip()
         if stripped.endswith((",", "،", ";", "؛", ":", "؟", "!", ".")):
             weights[-1] *= 1.15
@@ -779,6 +795,11 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             durations, lyric_alignment["note_lyric_map"]
         )
         pause_ticks, breath_after = _phrase_pause(line["text"])
+        cadence_profile = _cadence_sustain_profile(line["text"])
+        if lyric_alignment["note_lyric_map"]:
+            lyric_alignment["note_lyric_map"][-1]["is_phrase_final_syllable"] = True
+            lyric_alignment["note_lyric_map"][-1]["cadence_syllable_type"] = cadence_profile["type"]
+            lyric_alignment["note_lyric_map"][-1]["cadence_syllable_confidence"] = cadence_profile["confidence"]
         tick_cursor = 0
         for note_index, note_duration in enumerate(durations):
             note_start_tick = tick_cursor
@@ -874,6 +895,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "section_register": "lifted" if "chorus" in line_section else "midrange",
             "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)))),
             "cadence_note": notes[-1],
+            "cadence_syllable_type": cadence_profile["type"],
+            "cadence_syllable_confidence": cadence_profile["confidence"],
+            "cadence_sustain_factor": cadence_profile["factor"],
             "rhyme_cadence_group": rhyme_group,
             "rhyme_cadence_confidence": rhyme_confidence,
             "rhyme_cadence_linked": rhyme_cadence_linked,
