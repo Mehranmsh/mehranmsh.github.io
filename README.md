@@ -317,3 +317,14 @@ same instrument, articulation and velocity-compatible layer, and is counted
 separately as `pitch_shifted_nearest_note_events`. Missing articulation or
 velocity coverage still raises an explicit error. This preserves the useful
 pitch-transposition workflow without disguising it as an exact-note recording.
+
+
+## Auditioning one recorded note
+
+After importing a real WAV sample, render a one-note audition through the same PCM sample renderer used by the composition pipeline:
+
+```bash
+python3 engine/sample_bank_preview.py /path/to/sample-bank piano 69 /path/to/a4-preview.wav --velocity 90 --articulation sustain
+```
+
+The command requires an exact recorded instrument, MIDI note, velocity-compatible layer, and articulation. It deliberately refuses nearest-note pitch shifting so the audition proves which exact recording was played. The output is a stereo 16-bit PCM WAV rendered from the recorded sample; it is not an oscillator tone or a synthesized substitute. The repository contains no production instrument recordings by default, so a real instrument audition still requires the user to record or provide WAV files and import them first.
