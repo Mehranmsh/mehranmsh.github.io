@@ -356,6 +356,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(400, {"error": "invalid_composition_fields"})
             if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
                 return self.send_json(400, {"error": "invalid_bpm"})
+            requested_parts = payload.get("parts")
+            if requested_parts is not None:
+                allowed_parts = {
+                    "melody", "chords", "bass", "kick", "snare", "closed_hat",
+                    "open_hat", "guitar", "strings", "electric_guitar",
+                }
+                if (not isinstance(requested_parts, list) or not requested_parts
+                        or any(not isinstance(part, str) or part not in allowed_parts
+                               for part in requested_parts)
+                        or len(set(requested_parts)) != len(requested_parts)):
+                    return self.send_json(400, {"error": "invalid_composition_parts",
+                                                "audio_rendered": False, "charged": False})
             if not resource_status()["within_limit"]:
                 return self.send_json(507, {"error": "resource_limit_reached", "audio_rendered": False})
             bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
@@ -374,7 +386,16 @@ class Handler(BaseHTTPRequestHandler):
                 render_dir = ROOT / "renders"
                 render_dir.mkdir(parents=True, exist_ok=True)
                 wav_path = render_dir / (render_id + ".wav")
-                audio_info = render_composition_to_wav(plan, bank, wav_path)
+                render_options = {}
+                if requested_parts is not None:
+                    render_options["parts"] = requested_parts
+                if requested_parts is not None and "guitar" in requested_parts:
+                    # The currently verified real-recording bank is steel/nylon
+                    # guitar; never silently route this part to an oscillator.
+                    render_options["instruments"] = {"guitar": "acoustic_guitar"}
+                audio_info = render_composition_to_wav(
+                    plan, bank, wav_path, **render_options
+                )
             except ValueError as error:
                 return self.send_json(422, {
                     "error": "sample_render_failed",
@@ -396,6 +417,7 @@ class Handler(BaseHTTPRequestHandler):
                     "duration_seconds": audio_info["duration_seconds"],
                     "events_rendered": audio_info["events_rendered"],
                     "local_path": str(wav_path),
+                    "parts": requested_parts if requested_parts is not None else "all",
                 },
                 "message": "WAV rendered from the configured local recorded-sample bank.",
             })
