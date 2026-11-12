@@ -686,5 +686,37 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue(all(e["microtonal_audio_rendered"] is False for e in fills))
         self.assertEqual(fills[-1]["midi_note"] % 12, 2)
 
+
+    def test_sample_renderer_applies_cents_offset_to_recorded_sample(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "detuned.wav"
+            result = render_sample_events([{
+                "instrument": "piano", "midi_note": 60, "pitch_cents": 50,
+                "start_seconds": 0, "duration_seconds": 0.05, "velocity": 90,
+            }], bank, output, sample_rate=22050)
+            self.assertEqual(result["events_rendered"], 1)
+            self.assertTrue(output.exists())
+
+    def test_sample_renderer_rejects_pitch_cents_outside_range(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            with self.assertRaisesRegex(ValueError, "pitch_cents"):
+                render_sample_events([{
+                    "instrument": "piano", "midi_note": 60, "pitch_cents": 201,
+                    "start_seconds": 0, "duration_seconds": 0.05, "velocity": 90,
+                }], bank, Path(folder) / "invalid.wav", sample_rate=22050)
+
+    def test_composition_pitch_cents_reaches_sample_event(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        plan["composition"]["melody"][0]["note_lyric_map"][0]["pitch_cents"] = -50
+        events = build_composition_events(plan)
+        first_melody = next(event for event in events if event["instrument"] == "piano")
+        self.assertEqual(first_melody["pitch_cents"], -50.0)
+
 if __name__ == "__main__":
     unittest.main()
