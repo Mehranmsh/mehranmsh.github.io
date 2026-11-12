@@ -38,3 +38,15 @@ fill. Fill velocity follows a restrained section-aware contour, from quieter
 verse/bridge responses to stronger final-chorus responses. The planner emits event metadata only; a matching recorded guitar sample
 is still required for audible playback, and no synthesized or rendered audio is
 claimed by the fill planner.
+
+
+### Instrument-shaped melodic response fills
+
+Vocal-rest response fills have distinct deterministic phrasing profiles for
+guitar, piano and sustained strings. Guitar uses compact fingerstyle gestures,
+piano uses a wider broken-figure contour, and strings use at most two longer
+sustained notes. The selected part is explicit (`response_fill_part`); an
+unmapped part is skipped rather than silently replaced. Fill events carry
+articulation metadata, but still require exact matching recorded samples in the
+bank. This is planning metadata, not evidence that sample assets exist or that
+audio has rendered.
