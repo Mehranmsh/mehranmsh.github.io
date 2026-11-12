@@ -497,5 +497,45 @@ class SampleRendererTests(unittest.TestCase):
                 ], bank, Path(folder) / "bad.wav")
 
 
+
+    def test_composition_events_carry_planned_melody_articulation(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        phrase = plan["composition"]["melody"][0]
+        phrase["note_lyric_map"][0]["articulation"] = "staccato"
+        events = build_composition_events(plan)
+        melody_event = next(event for event in events if event["instrument"] == "piano")
+        self.assertEqual(melody_event["articulation"], "staccato")
+        self.assertEqual(melody_event["articulation_source"], "planner")
+
+    def test_missing_exact_articulation_sample_is_blocked_without_fallback(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "blocked.wav"
+            with self.assertRaisesRegex(ValueError, "planner_selected=pizzicato"):
+                render_sample_events([
+                    {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                     "duration_seconds": 0.08, "articulation": "pizzicato",
+                     "articulation_source": "planner"}
+                ], bank, output)
+            self.assertFalse(output.exists())
+
+    def test_legacy_event_defaults_to_sustain_and_reports_render_status(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "legacy.wav"
+            result = render_sample_events([
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.08}
+            ], bank, output, sample_rate=22050)
+            self.assertEqual(result["articulations_rendered"], ["sustain"])
+            self.assertEqual(result["articulation_diagnostics"]["legacy_defaulted"], ["sustain"])
+            self.assertTrue(result["articulation_diagnostics"]["renderer_supports_exact_match"])
+            self.assertTrue(result["articulation_diagnostics"]["sample_exact_match"])
+            self.assertTrue(result["articulation_diagnostics"]["audio_rendered"])
+
 if __name__ == "__main__":
     unittest.main()
