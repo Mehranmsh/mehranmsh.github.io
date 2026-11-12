@@ -1,6 +1,7 @@
 import unittest
 
 from fill_planner import plan_melody_fill
+from persian_modal_planner import resolve_persian_modal_profile
 
 
 class MelodyFillPlannerTests(unittest.TestCase):
@@ -119,6 +120,34 @@ class MelodyFillPlannerTests(unittest.TestCase):
                 scale_pitch_classes=[0, 12], chord_pitch_classes=[0, 4, 7],
                 reference_note=60,
             )
+
+
+    def test_persian_modal_profiles_have_distinct_transposed_pitch_sets(self):
+        shur = resolve_persian_modal_profile("shur", 0)
+        homayun = resolve_persian_modal_profile("homayun", 0)
+        mahour_g = resolve_persian_modal_profile("mahour", 7)
+        self.assertNotEqual(shur["scale_pitch_classes"], homayun["scale_pitch_classes"])
+        self.assertEqual(mahour_g["scale_pitch_classes"], (7, 9, 11, 0, 2, 4, 6))
+        self.assertEqual(shur["final_pitch_class"], 0)
+        self.assertEqual(shur["tuning"], "12tet_approximation")
+        self.assertFalse(shur["microtonal_audio_rendered"])
+
+    def test_modal_fill_ends_on_the_profile_finalis(self):
+        result = plan_melody_fill(
+            gap_start_tick=0, gap_duration_ticks=900,
+            scale_pitch_classes=[0, 2, 4, 5, 7, 9, 11],
+            chord_pitch_classes=[0, 4, 7], reference_note=64,
+            fill_style="tar", modal_profile="shur", modal_tonic_pc=2,
+        )
+        self.assertTrue(result["events"])
+        self.assertEqual(result["events"][-1]["midi_note"] % 12, 2)
+        self.assertEqual(result["modal_profile"], "shur")
+        self.assertEqual(result["modal_tuning"], "12tet_approximation")
+        self.assertFalse(result["microtonal_audio_rendered"])
+
+    def test_unknown_persian_modal_profile_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "persian_dastgah"):
+            resolve_persian_modal_profile("invented_mode", 0)
 
 
 if __name__ == "__main__":
