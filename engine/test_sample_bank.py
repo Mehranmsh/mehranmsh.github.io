@@ -334,6 +334,43 @@ class SampleBankTests(unittest.TestCase):
         self.assertEqual(rows[0]["suggested_filename"], "piano/sustain/36_soft.wav")
         self.assertEqual(rows[0]["recorded_file_path"], "")
 
+    def test_coverage_progress_is_broken_down_by_register_articulation_and_velocity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "fixture" / "low_soft.wav")
+            self.write_sample(root / "fixture" / "middle_hard.wav")
+            self.write_manifest(root, [
+                {"instrument": "fixture", "midi_note": 60,
+                 "path": "fixture/low_soft.wav", "velocity_min": 1,
+                 "velocity_max": 63, "articulation": "sustain"},
+                {"instrument": "fixture", "midi_note": 61,
+                 "path": "fixture/middle_hard.wav", "velocity_min": 64,
+                 "velocity_max": 127, "articulation": "sustain"},
+            ])
+            catalog = {"fixture": {
+                "label": "Fixture instrument",
+                "note_range": [60, 62],
+                "velocity_layers": [
+                    {"name": "soft", "min": 1, "max": 63},
+                    {"name": "hard", "min": 64, "max": 127},
+                ],
+            }}
+            report = analyze_sample_bank_coverage(
+                load_sample_bank(root), catalog, {"fixture": ["sustain"]}
+            )
+            item = report["instruments"]["fixture"]
+            self.assertEqual(report["catalog_version"], 3)
+            self.assertEqual(report["required_requirements"], 6)
+            self.assertEqual(report["covered_requirements"], 2)
+            self.assertEqual(report["missing_requirements"], 4)
+            self.assertEqual(item["register_zone_progress"]["low"]["covered"], 1)
+            self.assertEqual(item["register_zone_progress"]["middle"]["covered"], 1)
+            self.assertEqual(item["register_zone_progress"]["high"]["missing"], 2)
+            self.assertEqual(item["articulation_progress"]["sustain"]["covered"], 2)
+            self.assertEqual(item["velocity_layer_progress"]["soft"]["covered"], 1)
+            self.assertEqual(item["velocity_layer_progress"]["hard"]["covered"], 1)
+            self.assertFalse(item["ready"])
+
     def test_quality_report_includes_audio_format_and_loop_metadata(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
