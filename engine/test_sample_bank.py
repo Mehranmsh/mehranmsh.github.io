@@ -554,6 +554,29 @@ class SampleBankTests(unittest.TestCase):
             self.assertIsNotNone(measured["quiet_region_rms"])
             self.assertEqual(measured["boundary_analysis_status"], "measured")
 
+    def test_quality_analysis_flags_active_signal_at_file_end(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "cut.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 10000
+            values = [
+                int(12000 * math.sin(2 * math.pi * 440 * i / rate))
+                for i in range(3000)
+            ]
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 69, "path": "piano/cut.wav",
+            }])
+            report = analyze_sample_bank_quality(load_sample_bank(root))
+            measured = report["measurements"][0]
+            self.assertTrue(measured["possible_truncated_tail"])
+            self.assertGreater(measured["ending_level_ratio"], 0.05)
+
     def test_tuning_analysis_estimates_reference_pitch_offset(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
