@@ -178,6 +178,41 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
     counts = {mood: sum(1 for word in keywords if word in cleaned)
               for mood, keywords in MOOD_WORDS.items()}
     mood = max(counts, key=counts.get) if max(counts.values(), default=0) else "neutral"
+    rhyme_analysis = []
+    rhyme_groups_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    rhyme_labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    for index, line in enumerate(lines):
+        ending_words = WORD_PATTERN.findall(line.text)
+        signature = (_rhyme_signature(ending_words[-1]) if ending_words else {
+            "signature": "", "confidence": "unknown", "method": "no_ending_word",
+        })
+        group_label = None
+        if signature["signature"]:
+            key = (signature["signature"], signature["confidence"])
+            if key not in rhyme_groups_by_key:
+                label_index = len(rhyme_groups_by_key)
+                label = (rhyme_labels[label_index] if label_index < len(rhyme_labels)
+                         else f"R{label_index + 1}")
+                rhyme_groups_by_key[key] = {
+                    "label": label,
+                    "signature": signature["signature"],
+                    "confidence": signature["confidence"],
+                    "method": signature["method"],
+                    "line_indices": [],
+                }
+            group = rhyme_groups_by_key[key]
+            group["line_indices"].append(index)
+            group_label = group["label"]
+        rhyme_analysis.append({
+            "line_index": index,
+            "ending_word": ending_words[-1] if ending_words else "",
+            **signature,
+            "group": group_label,
+        })
+    rhyme_groups = [
+        group for group in rhyme_groups_by_key.values()
+        if len(group["line_indices"]) >= 2
+    ]
     return {
         "language": "fa",
         "line_count": len(lines),
@@ -196,19 +231,8 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
             for index, line in enumerate(lines)
         ],
         "rhyme_candidates": sorted({line.ending for line in lines if line.ending}),
-        "rhyme_analysis": [
-            {
-                "line_index": index,
-                "ending_word": (WORD_PATTERN.findall(line.text)[-1]
-                                if WORD_PATTERN.findall(line.text) else ""),
-                **(_rhyme_signature(WORD_PATTERN.findall(line.text)[-1])
-                   if WORD_PATTERN.findall(line.text) else {
-                       "signature": "", "confidence": "unknown",
-                       "method": "no_ending_word",
-                   }),
-            }
-            for index, line in enumerate(lines)
-        ],
+        "rhyme_analysis": rhyme_analysis,
+        "rhyme_groups": rhyme_groups,
         "syllable_method": "orthographic_estimate_v1",
         "phonetic_method": "conservative_written_vowel_scan_v1",
         "notice": "The phonetic layer reports written vowel evidence only; it does not claim full pronunciation, lexical stress, or prosodic meter.",
