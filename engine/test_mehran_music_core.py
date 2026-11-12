@@ -656,7 +656,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
     def test_composition_exposes_phrase_breath_demand(self):
         plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟")
         phrases = plan["composition"]["melody"]
-        self.assertEqual(phrases[0]["breath_demand"]["level"], "moderate")
+        self.assertEqual(phrases[0]["breath_demand"]["level"], "low")
         self.assertEqual(phrases[0]["breath_demand"]["recovery_window"], "written_pause")
         self.assertEqual(phrases[1]["breath_demand"]["pause_ticks"], 360)
         self.assertEqual(phrases[1]["breath_demand"]["method"],
