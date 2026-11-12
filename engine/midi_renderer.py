@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import struct
+from itertools import combinations, permutations
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +50,28 @@ def _chord_notes(symbol: str) -> tuple[int, ...]:
     return tuple(root + interval for interval in intervals)
 
 
+def _voice_lead_chord(symbol: str, previous: tuple[int, ...] | None = None) -> tuple[int, ...]:
+    """Choose a close-position triad minimizing movement from the previous chord."""
+    pitch_classes = _chord_notes(symbol)
+    classes = {note % 12 for note in pitch_classes[:3]}
+    candidates = [note for note in range(48, 73) if note % 12 in classes]
+    voicings = [combo for combo in combinations(candidates, 3)
+                if len({note % 12 for note in combo}) == 3]
+    if not voicings:
+        raise ValueError("Could not construct a chord voicing")
+    if previous is None:
+        return min(voicings, key=lambda combo: (sum(abs(note - 60) for note in combo),
+                                                combo[-1] - combo[0]))
+    return min(
+        voicings,
+        key=lambda combo: (
+            min(sum(abs(a - b) for a, b in zip(order, combo))
+                for order in permutations(previous)),
+            sum(abs(note - 60) for note in combo),
+        ),
+    )
+
+
 def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
     """Render lyric-aware phrase timing and chord bars to a Standard MIDI file."""
     try:
@@ -68,6 +91,8 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     melody_events: list[tuple[int, int, bytes]] = []
     chord_events: list[tuple[int, int, bytes]] = []
     note_count, phrase_start, chord_bar_index = 0, 0, 0
+    previous_voicing = None
+    chord_voicings = []
     for phrase in melody:
         if not isinstance(phrase, dict):
             raise ValueError("Each melody phrase must be an object")
@@ -97,7 +122,10 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             note_count += 1
         for bar in range(bars):
             bar_start = phrase_start + bar * PPQ * 4
-            chord = _chord_notes(chords[chord_bar_index % len(chords)])
+            symbol = chords[chord_bar_index % len(chords)]
+            chord = _voice_lead_chord(symbol, previous_voicing)
+            chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
+            previous_voicing = chord
             for note in chord:
                 chord_events.append((bar_start, 2, bytes((0x91, note, 58))))
                 chord_events.append((bar_start + PPQ * 4 - 24, 1, bytes((0x81, note, 0))))
@@ -119,6 +147,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     return {
         "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
+        "chord_voicings": chord_voicings,
         "duration_seconds": round(phrase_start / PPQ * 60 / bpm, 2),
         "bytes": len(midi),
     }
