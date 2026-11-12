@@ -68,6 +68,7 @@ def render_sample_events(
         start = event.get("start_seconds")
         duration = event.get("duration_seconds")
         velocity = event.get("velocity", 90)
+        articulation = event.get("articulation", "sustain")
         if not isinstance(instrument, str) or not instrument:
             raise ValueError("event instrument must be a non-empty string")
         if isinstance(note, bool) or not isinstance(note, int) or not 0 <= note <= 127:
@@ -78,7 +79,7 @@ def render_sample_events(
             raise ValueError("event duration_seconds must be finite and positive")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("event velocity must be an integer from 1 to 127")
-        sample = select_sample(bank, instrument, note, velocity)
+        sample = select_sample(bank, instrument, note, velocity, articulation)
         end_time = max(end_time, float(start) + float(duration))
         pan = event.get("pan", 0.0)
         if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
@@ -88,14 +89,14 @@ def render_sample_events(
                 or not math.isfinite(event_gain) or not 0.0 <= event_gain <= 2.0):
             raise ValueError("event gain must be between 0.0 and 2.0")
         checked.append((sample, note, float(start), float(duration), velocity,
-                        float(pan), float(event_gain)))
+                        float(pan), float(event_gain), articulation))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity, pan, event_gain in checked:
+    for sample, target_note, start, duration, velocity, pan, event_gain, articulation in checked:
         pcm, source_channels, source_rate = _read_sample(sample.path)
         source_frames = len(pcm) // source_channels
         semitone_ratio = 2.0 ** ((target_note - sample.midi_note) / 12.0)
@@ -184,6 +185,7 @@ def render_sample_events(
         "duration_seconds": round(frame_count / sample_rate, 3),
         "events_requested": len(checked),
         "events_rendered": rendered_events,
+        "articulations_rendered": sorted({item[7] for item in checked}),
         "peak_before_normalization": round(peak / 32768.0, 5),
         "normalization_applied": round(normalization, 5),
         "peak_after_normalization": round(peak_after_normalization / 32768.0, 5),
