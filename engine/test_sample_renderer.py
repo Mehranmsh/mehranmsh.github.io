@@ -672,9 +672,9 @@ class SampleRendererTests(unittest.TestCase):
 
 
     def test_persian_dastgah_profile_controls_response_fill_and_metadata(self):
-        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84,
+                            persian_dastgah="shur")
         plan["composition"]["melody"][0]["section"] = "chorus"
-        plan["composition"]["persian_dastgah"] = "shur"
         plan["composition"]["key"] = "D"
         events = build_composition_events(
             plan, instruments={"guitar": "tar"}, response_fill_part="guitar"
