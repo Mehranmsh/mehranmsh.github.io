@@ -171,12 +171,14 @@ class StudioControlPlaneTests(unittest.TestCase):
     def test_engine_is_honestly_unavailable_without_local_runtime(self):
         state = module.engine_status()
         self.assertFalse(state["ready"])
-        self.assertEqual(state["state"], "independent_composition_core_only")
+        self.assertEqual(state["state"], "independent_composition_and_sample_renderer_prototype")
+        self.assertEqual(state["audio_renderer"], "recorded_sample_wav_prototype_available")
+        self.assertFalse(state["audio_generation_enabled"])
 
     def test_no_paid_or_external_fallback_is_advertised(self):
         state = module.engine_status()
         self.assertFalse(state["ready"])
-        self.assertIn("audio generation remains disabled", state["message"])
+        self.assertIn("public job runner remains disabled", state["message"])
 
     def test_project_database_persists_and_enforces_limit(self):
         db = module.database()
