@@ -30,6 +30,14 @@ class IndependentMusicCoreTests(unittest.TestCase):
             self.assertTrue(phrase["phrase_start_is_chord_tone"])
             self.assertTrue(phrase["phrase_end_is_chord_tone"])
 
+    def test_flat_chord_melody_resolves_to_correct_flat_chord_tones(self):
+        plan = compose_plan("فریاد خشم آتش جنگ")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(plan["analysis"]["mood"], "angry")
+        self.assertEqual(phrases[1]["chord"], "Bb")
+        self.assertTrue(phrases[1]["phrase_start_is_chord_tone"])
+        self.assertTrue(phrases[1]["phrase_end_is_chord_tone"])
+
     def test_rejects_invalid_tempo(self):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر", target_bpm=300)
