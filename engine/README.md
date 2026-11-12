@@ -137,3 +137,20 @@ result = plan_articulations(
 ```
 
 The planner returns per-event technique choices, reasons, confidence and counts. An explicitly requested technique is preserved; if it is not listed among the available recordings, the event is marked `blocked_missing_sample` rather than silently replaced. The default available set represents catalog capability only. Pass `available_articulations` from verified bank coverage when planning against a real bank. This layer currently produces planning metadata and is not yet wired into automatic composition rendering. It does not create audio or imply that recordings exist.
+
+
+### Melody-linked articulation planning
+
+The composition core now accepts optional `melody_instrument` and `articulation_style` arguments (defaults: `piano` and `balanced`). It runs the deterministic articulation planner on each generated melody phrase and attaches the selected technique and decision reason to each note's lyric-alignment metadata. The composition also reports a `melody_performance` summary with instrument, style, planner version and event count.
+
+Example:
+
+```python
+plan = compose_plan(
+    lyrics,
+    melody_instrument="violin",
+    articulation_style="legato",
+)
+```
+
+This is a real connection to the composition-plan generation path, but remains descriptive performance metadata. The MIDI and sample renderers do not yet consume these articulation labels, and no audio is rendered by this planner. Playback must wait until a renderer explicitly supports the technique and a verified matching sample exists.
