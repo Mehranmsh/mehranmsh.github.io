@@ -373,6 +373,17 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(_section_kind("pre-chorus"), "pre_chorus")
         self.assertEqual(_section_kind("verse_2"), "verse")
 
+    def test_arrangement_events_include_part_expression_metadata(self):
+        plan = compose_plan("دلم گرفته از این شب\\nبرگرد به خانه")
+        events = build_composition_events(plan)
+        melody = next(event for event in events if event["expression_profile"].endswith("_melody_stereo_v1"))
+        hats = [event for event in events if event["instrument"] == "closed_hat"]
+        self.assertEqual(melody["pan"], 0.0)
+        self.assertEqual(melody["expression_planner"], "deterministic_part_expression_v1")
+        self.assertTrue(hats)
+        self.assertEqual(hats[0]["pan"], -0.14)
+        self.assertEqual(hats[1]["pan"], 0.14)
+
     def test_sample_arrangement_dynamics_change_by_section(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
