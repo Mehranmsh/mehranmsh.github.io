@@ -749,5 +749,32 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue(fills)
         self.assertTrue(any(event["pitch_cents"] != 0.0 for event in fills))
 
+
+    def test_recorded_sample_renderer_actually_applies_modal_pitch_offset(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            plain_path = Path(folder) / "plain.wav"
+            tuned_path = Path(folder) / "tuned.wav"
+            common = {
+                "instrument": "piano", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08,
+                "velocity": 90,
+            }
+            plain = render_sample_events(
+                [{**common, "pitch_cents": 0.0}], bank, plain_path,
+                sample_rate=22050,
+            )
+            tuned = render_sample_events(
+                [{**common, "pitch_cents": 50.0}], bank, tuned_path,
+                sample_rate=22050,
+            )
+            self.assertEqual(plain["pitch_cents_applied_events"], 0)
+            self.assertFalse(plain["microtonal_pitch_offsets_rendered"])
+            self.assertEqual(tuned["pitch_cents_applied_events"], 1)
+            self.assertTrue(tuned["microtonal_pitch_offsets_rendered"])
+            self.assertNotEqual(plain_path.read_bytes(), tuned_path.read_bytes())
+
 if __name__ == "__main__":
     unittest.main()
