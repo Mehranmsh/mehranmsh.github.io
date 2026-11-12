@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _bass_pattern, _drum_bar, _section_dynamics, render_midi
+from midi_renderer import _bass_pattern, _drum_bar, _melody_velocity, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -103,6 +103,18 @@ class MidiRendererTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             with self.assertRaises(ValueError):
                 render_midi(plan, Path(folder) / "bad.mid")
+
+    def test_melody_velocity_accents_strong_beats_peak_and_cadence(self):
+        downbeat = _melody_velocity(88, 0)
+        second_beat = _melody_velocity(88, 480)
+        third_beat = _melody_velocity(88, 960)
+        peak = _melody_velocity(88, 960, is_peak=True)
+        cadence = _melody_velocity(88, 960, is_cadence=True)
+        self.assertGreater(downbeat, second_beat)
+        self.assertGreater(third_beat, second_beat)
+        self.assertGreater(peak, third_beat)
+        self.assertGreater(cadence, third_beat)
+        self.assertLessEqual(_melody_velocity(120, 0, section_scale=1.2), 127)
 
 
 if __name__ == "__main__":
