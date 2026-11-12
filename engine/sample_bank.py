@@ -541,6 +541,80 @@ def analyze_sample_bank_tuning(
     }
 
 
+def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
+    """Measure low-level head/tail regions and the recorded attack envelope."""
+    bucket_frames = max(1, int(sample.sample_rate * 0.01))
+    buckets: list[tuple[float, float]] = []
+    bucket_peak = 0
+    bucket_square_sum = 0
+    bucket_value_count = 0
+    with wave.open(str(sample.path), "rb") as wav:
+        while True:
+            chunk = wav.readframes(8192)
+            if not chunk:
+                break
+            values = struct.unpack("<" + "h" * (len(chunk) // 2), chunk)
+            for offset in range(0, len(values), sample.channels):
+                frame = values[offset:offset + sample.channels]
+                if len(frame) != sample.channels:
+                    continue
+                frame_peak = max(abs(value) for value in frame)
+                bucket_peak = max(bucket_peak, frame_peak)
+                bucket_square_sum += sum(value * value for value in frame) / sample.channels
+                bucket_value_count += 1
+                if bucket_value_count >= bucket_frames:
+                    rms = (bucket_square_sum / bucket_value_count) ** 0.5
+                    buckets.append((float(bucket_peak), rms))
+                    bucket_peak = 0
+                    bucket_square_sum = 0.0
+                    bucket_value_count = 0
+    if bucket_value_count:
+        rms = (bucket_square_sum / bucket_value_count) ** 0.5
+        buckets.append((float(bucket_peak), rms))
+    if not buckets:
+        return {
+            "leading_low_level_seconds": 0.0,
+            "trailing_low_level_seconds": 0.0,
+            "attack_to_10_percent_seconds": None,
+            "quiet_region_rms": None,
+            "boundary_analysis_status": "insufficient_audio",
+        }
+    peak = max(item[0] for item in buckets)
+    if peak <= 0:
+        return {
+            "leading_low_level_seconds": round(sample.frames / sample.sample_rate, 4),
+            "trailing_low_level_seconds": round(sample.frames / sample.sample_rate, 4),
+            "attack_to_10_percent_seconds": None,
+            "quiet_region_rms": 0.0,
+            "boundary_analysis_status": "silent",
+        }
+    active_threshold = max(64.0, peak * 0.01)
+    leading = 0
+    while leading < len(buckets) and buckets[leading][0] <= active_threshold:
+        leading += 1
+    trailing = 0
+    while trailing < len(buckets) and buckets[len(buckets) - 1 - trailing][0] <= active_threshold:
+        trailing += 1
+    attack = None
+    if leading < len(buckets):
+        ten_percent = max(64.0, peak * 0.1)
+        attack_index = next(
+            (index for index in range(leading, len(buckets)) if buckets[index][0] >= ten_percent),
+            None,
+        )
+        if attack_index is not None:
+            attack = round((attack_index - leading) * bucket_frames / sample.sample_rate, 4)
+    quiet = [rms for _, rms in buckets if _ <= active_threshold]
+    return {
+        "leading_low_level_seconds": round(leading * bucket_frames / sample.sample_rate, 4),
+        "trailing_low_level_seconds": round(min(trailing * bucket_frames, sample.frames) / sample.sample_rate, 4),
+        "attack_to_10_percent_seconds": attack,
+        "quiet_region_rms": round((sum(value * value for value in quiet) / len(quiet)) ** 0.5 / 32768.0, 6)
+        if quiet else None,
+        "boundary_analysis_status": "measured",
+    }
+
+
 def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
     """Measure recorded WAV health without pretending to judge timbre or musicianship."""
     if not isinstance(bank, SampleBank):
@@ -593,6 +667,7 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         if (loop_boundary_jump is not None
                 and loop_boundary_jump > LOOP_BOUNDARY_JUMP_WARNING_THRESHOLD):
             warnings.append("loop_boundary_discontinuity")
+        boundary = _analyze_sample_boundaries(sample)
         reports.append({
             "instrument": sample.instrument,
             "midi_note": sample.midi_note,
@@ -612,6 +687,7 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
             "dc_offset": round(dc_offset, 5),
             "clipped_samples": clipped,
             "clipped_ratio": round(clipped_ratio, 6),
+            **boundary,
             "warnings": warnings,
             "basic_signal_checks_pass": not warnings,
         })
@@ -659,7 +735,7 @@ def analyze_sample_bank_quality(bank: SampleBank) -> dict[str, Any]:
         "basic_signal_checks_pass": warning_count == 0,
         "measurements": reports,
         "instrument_profiles": instrument_profiles,
-        "note": "Per-instrument profiles summarize sample-rate and channel consistency plus duration and level spread. Checks cover silence, level, clipping, DC offset and a numerical loop-boundary jump indicator only; they do not certify perceptual loop quality, instrument tone, recording quality, tuning or mix readiness.",
+        "note": "Per-instrument profiles summarize sample-rate and channel consistency plus duration and level spread. Boundary metrics estimate low-level head/tail regions, quiet-region RMS and attack rise. They are diagnostic only: quiet regions may contain room noise, and measurements do not certify perceptual trimming, instrument tone, tuning or mix readiness.",
     }
 
 
