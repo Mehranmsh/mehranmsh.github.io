@@ -142,18 +142,29 @@ def _syllables(word: str) -> int:
     return max(1, nuclei)
 
 
+def _phonetic_rhyme_tail(final_syllable: str) -> str:
+    """Return the vowel-and-coda portion of a curated Latin syllable."""
+    vowel_positions = [index for index, char in enumerate(final_syllable.lower())
+                       if char in "aeiou"]
+    return final_syllable[vowel_positions[-1]:] if vowel_positions else final_syllable
+
+
 def _rhyme_signature(word: str) -> dict[str, str]:
-    """Prefer a curated final syllable; otherwise expose a cautious spelling key."""
+    """Prefer curated phonetic evidence; unknown words keep a low-confidence spelling key."""
     canonical = _canonical_word(word)
     pronunciation = PRONUNCIATION_LEXICON.get(canonical)
     if pronunciation:
+        final_syllable = pronunciation[-1]
         return {
-            "signature": pronunciation[-1],
+            "signature": final_syllable,
+            "rhyme_tail": _phonetic_rhyme_tail(final_syllable),
             "confidence": "curated",
-            "method": "curated_final_syllable_v1",
+            "method": "curated_vowel_and_coda_v1",
         }
+    fallback = canonical[-2:]
     return {
-        "signature": canonical[-2:],
+        "signature": fallback,
+        "rhyme_tail": fallback,
         "confidence": "low",
         "method": "orthographic_suffix_fallback_v1",
     }
@@ -188,7 +199,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
         })
         group_label = None
         if signature["signature"]:
-            key = (signature["signature"], signature["confidence"])
+            key = (signature["rhyme_tail"], signature["confidence"])
             if key not in rhyme_groups_by_key:
                 label_index = len(rhyme_groups_by_key)
                 label = (rhyme_labels[label_index] if label_index < len(rhyme_labels)
@@ -196,6 +207,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
                 rhyme_groups_by_key[key] = {
                     "label": label,
                     "signature": signature["signature"],
+                    "rhyme_tail": signature["rhyme_tail"],
                     "confidence": signature["confidence"],
                     "method": signature["method"],
                     "line_indices": [],
