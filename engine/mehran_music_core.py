@@ -275,6 +275,30 @@ def _align_strong_beats_to_chord_tones(notes: list[int], note_map: list[dict[str
     return adjusted
 
 
+def _smooth_melodic_leaps(notes: list[int], note_map: list[dict[str, Any]],
+                         tonic: int, scale: list[int], peak_index: int) -> list[int]:
+    """Reduce avoidable interior leaps while preserving phrase anchors and beat accents."""
+    adjusted = list(notes)
+    scale_classes = {(tonic + interval) % 12 for interval in scale}
+    for index in range(1, len(adjusted) - 1):
+        if index == peak_index or note_map[index].get("beat_strength") == "strong":
+            continue
+        previous = adjusted[index - 1]
+        current = adjusted[index]
+        if abs(current - previous) <= 7:
+            continue
+        candidates = [
+            candidate for candidate in range(max(55, previous - 7), min(84, previous + 7) + 1)
+            if candidate % 12 in scale_classes
+        ]
+        if candidates:
+            adjusted[index] = min(
+                candidates,
+                key=lambda candidate: (abs(candidate - current), abs(candidate - previous), candidate),
+            )
+    return adjusted
+
+
 def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
     """Map estimated lyric syllables onto melody notes without inventing phonemes."""
     matches = list(re.finditer(r"[\\wآ-ی]+", lyric_line, flags=re.UNICODE))
@@ -519,6 +543,12 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             tick_cursor = note_end_tick
         notes = _align_strong_beats_to_chord_tones(
             notes, lyric_alignment["note_lyric_map"], chord
+        )
+        peak_index = max(0, min(len(notes) - 1, round(
+            (len(notes) - 1) * (0.62 if "chorus" in line_section else 0.48)
+        )))
+        notes = _smooth_melodic_leaps(
+            notes, lyric_alignment["note_lyric_map"], tonic, scale, peak_index
         )
         melody.append({
             "line_index": index,
