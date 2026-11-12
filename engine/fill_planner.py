@@ -12,7 +12,7 @@ def plan_melody_fill(
     reference_note: int, instrument_range: tuple[int, int] = (48, 84),
     max_notes: int = 4, base_velocity: int = 62,
     fill_style: str = "guitar", modal_profile: str | None = None,
-    modal_tonic_pc: int = 0,
+    modal_tonic_pc: int = 0, modal_degree_cents: dict[int, float] | None = None,
 ) -> dict[str, Any]:
     """Create a short chord-aware fill wholly contained in a vocal-rest gap.
 
@@ -31,7 +31,7 @@ def plan_melody_fill(
     if fill_style not in profiles:
         raise ValueError("unsupported fill_style")
     profile = profiles[fill_style]
-    modal = (resolve_persian_modal_profile(modal_profile, modal_tonic_pc)
+    modal = (resolve_persian_modal_profile(modal_profile, modal_tonic_pc, modal_degree_cents)
              if modal_profile is not None else None)
     if modal is not None:
         scale_pitch_classes = list(modal["scale_pitch_classes"])
@@ -115,6 +115,7 @@ def plan_melody_fill(
                        "release_ms": profile["release_ms"], "fill_style": fill_style,
                        "modal_profile": modal["name"] if modal else None,
                        "modal_tuning": modal["tuning"] if modal else None,
+                       "pitch_cents": modal["degree_cents_by_pitch_class"].get(note % 12, 0.0) if modal else 0.0,
                        "microtonal_audio_rendered": False if modal else None})
         cursor += duration
     return {"events": events, "reason": "planned_in_vocal_rest",
