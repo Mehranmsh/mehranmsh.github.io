@@ -23,6 +23,29 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreater(aligned, lexical)
         self.assertLessEqual(aligned, 127)
 
+    def test_section_transition_shapes_only_the_final_accompaniment_bar(self):
+        base = {"melody": 1.0, "chords": 0.9, "bass": 0.8, "drums": 0.7}
+        transition = {"energy_change": 0.12}
+        unchanged = _transition_dynamics(
+            base, transition, is_transition_bar=False
+        )
+        lifted = _transition_dynamics(
+            base, transition, is_transition_bar=True
+        )
+        self.assertEqual(unchanged, base)
+        self.assertGreater(lifted["chords"], base["chords"])
+        self.assertGreater(lifted["bass"], base["bass"])
+        self.assertGreater(lifted["drums"], base["drums"])
+        self.assertEqual(lifted["melody"], base["melody"])
+        eased = _transition_dynamics(
+            base, {"energy_change": -0.5}, is_transition_bar=True
+        )
+        self.assertGreaterEqual(eased["drums"], base["drums"] * 0.96)
+        capped = _transition_dynamics(
+            base, {"energy_change": 1.0}, is_transition_bar=True
+        )
+        self.assertLessEqual(capped["drums"], base["drums"] * 1.04)
+
     def test_renderer_uses_phrase_level_cadence_chord(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
         plan["composition"]["melody"][0]["chord"] = "F"
