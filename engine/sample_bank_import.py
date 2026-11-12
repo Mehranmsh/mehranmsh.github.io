@@ -121,28 +121,8 @@ def build_sample_bank_manifest(
 
 
 def load_sample_bank_from_manifest(root: Path, manifest_path: Path):
-    """Temporarily swap only the manifest filename for the existing validator."""
-    canonical = root / "bank.json"
-    if manifest_path.parent != root:
-        raise ValueError("Temporary manifest must be in the audio folder")
-    staged = root / ".bank-import-validation.json"
-    staged.write_bytes(manifest_path.read_bytes())
-    try:
-        # Reuse the canonical validator without changing the user's current bank.
-        original = canonical
-        staged.replace(canonical) if not original.exists() else None
-        if original.exists():
-            backup = root / ".bank-import-previous.json"
-            original.replace(backup)
-            try:
-                staged.replace(canonical)
-                return load_sample_bank(root)
-            finally:
-                canonical.unlink(missing_ok=True)
-                backup.replace(canonical)
-        return load_sample_bank(root)
-    finally:
-        staged.unlink(missing_ok=True)
+    """Validate staged metadata against the original audio files without replacing bank.json."""
+    return load_sample_bank(root, manifest_path=manifest_path)
 
 
 def main(argv: list[str] | None = None) -> int:
