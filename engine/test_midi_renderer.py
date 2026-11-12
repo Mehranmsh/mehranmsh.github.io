@@ -114,6 +114,14 @@ class MidiRendererTests(unittest.TestCase):
         note_on = next(event for event in events if event[2][0] & 0xF0 == 0x90)
         self.assertEqual(note_on[2][1], 40)
 
+    def test_inverted_bass_uses_chord_tones_relative_to_bass_note(self):
+        events = []
+        _bass_pattern(0, 0, events, bass_root_pc=4,
+                      bass_third_interval=3, bass_fifth_interval=8)
+        note_ons = [message[1] for _, _, message in events
+                    if message[0] & 0xF0 == 0x90]
+        self.assertEqual(note_ons, [40, 43, 48])
+
     def test_bass_uses_major_or_minor_third_from_chord_quality(self):
         major_events, minor_events = [], []
         _bass_pattern(9, 0, major_events, third_interval=4)
