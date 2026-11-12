@@ -443,6 +443,157 @@ SAMPLE_INSTRUMENT_CATALOG = {
             {"name": "main", "min": 1, "max": 127},
         ],
     },
+    # Iranian instruments: capture requirements only, not renderer support claims.
+    "tar": {
+        "label": "Persian tar",
+        "note_range": [40, 88],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "setar": {
+        "label": "Persian setar",
+        "note_range": [48, 88],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "santur": {
+        "label": "Persian santur",
+        "note_range": [48, 96],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "ney": {
+        "label": "Persian ney",
+        "note_range": [48, 84],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "kamancheh": {
+        "label": "Persian kamancheh",
+        "note_range": [48, 84],
+        "velocity_layers": [{"name": "sustain", "min": 1, "max": 127}],
+    },
+    "oud": {
+        "label": "Oud",
+        "note_range": [40, 84],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "qanun": {
+        "label": "Qanun",
+        "note_range": [48, 90],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "daf": {
+        "label": "Persian daf",
+        "note_range": [35, 60],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "tombak": {
+        "label": "Persian tombak",
+        "note_range": [35, 60],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    # Orchestral instruments.
+    "violin": {
+        "label": "Violin",
+        "note_range": [55, 96],
+        "velocity_layers": [{"name": "sustain", "min": 1, "max": 127}],
+    },
+    "viola": {
+        "label": "Viola",
+        "note_range": [48, 84],
+        "velocity_layers": [{"name": "sustain", "min": 1, "max": 127}],
+    },
+    "cello": {
+        "label": "Cello",
+        "note_range": [36, 76],
+        "velocity_layers": [{"name": "sustain", "min": 1, "max": 127}],
+    },
+    "contrabass": {
+        "label": "Double bass",
+        "note_range": [28, 60],
+        "velocity_layers": [{"name": "sustain", "min": 1, "max": 127}],
+    },
+    "flute": {
+        "label": "Concert flute",
+        "note_range": [60, 96],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "clarinet": {
+        "label": "B-flat clarinet",
+        "note_range": [50, 91],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "oboe": {
+        "label": "Oboe",
+        "note_range": [58, 88],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "bassoon": {
+        "label": "Bassoon",
+        "note_range": [34, 75],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "trumpet": {
+        "label": "Trumpet",
+        "note_range": [55, 84],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "trombone": {
+        "label": "Trombone",
+        "note_range": [40, 72],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "french_horn": {
+        "label": "French horn",
+        "note_range": [41, 77],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "harp": {
+        "label": "Concert harp",
+        "note_range": [24, 96],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    # Additional plucked and free-reed instruments.
+    "classical_guitar": {
+        "label": "Nylon-string classical guitar",
+        "note_range": [40, 84],
+        "velocity_layers": [
+            {"name": "soft", "min": 1, "max": 64},
+            {"name": "hard", "min": 65, "max": 127},
+        ],
+    },
+    "mandolin": {
+        "label": "Mandolin",
+        "note_range": [55, 88],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "banjo": {
+        "label": "Five-string banjo",
+        "note_range": [48, 88],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "accordion": {
+        "label": "Piano accordion",
+        "note_range": [48, 84],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
+    "harmonica": {
+        "label": "Diatonic harmonica",
+        "note_range": [48, 84],
+        "velocity_layers": [{"name": "main", "min": 1, "max": 127}],
+    },
 }
 
 
