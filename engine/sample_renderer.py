@@ -16,6 +16,7 @@ from sample_bank import SampleBank, select_sample
 from midi_renderer import PPQ, _parse_chord, _voice_lead_chord
 from expression_planner import plan_part_expression
 from arrangement_planner import plan_part_arrangement
+from vocal_space_planner import plan_vocal_space
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -330,6 +331,7 @@ def build_composition_events(
     previous_voicing = None
     current_section = "verse"
     part_event_counts = {part: 0 for part in names}
+    current_vocal_intervals: list[tuple[int, int]] = []
 
     def add(part: str, note: int, start_tick: int, duration_ticks: int,
             velocity: int, pan: float = 0.0, *,
@@ -343,6 +345,9 @@ def build_composition_events(
             return
         expression = plan_part_expression(
             part, current_section, pan, event_index
+        )
+        vocal_space = plan_vocal_space(
+            part, start_tick, duration_ticks, current_vocal_intervals
         )
         events.append({
             "instrument": names[part],
@@ -361,8 +366,13 @@ def build_composition_events(
             "arrangement_density": arrangement["density"],
             "arrangement_section": arrangement["section"],
             "arrangement_planner": arrangement["planner"],
-            "gain": (part_gains[part] if part in explicit_mix_overrides
-                     else part_gains[part] * arrangement["gain"]),
+            "vocal_space_gain": vocal_space["gain"],
+            "vocal_space_mode": vocal_space["mode"],
+            "vocal_overlap_ratio": vocal_space["overlap_ratio"],
+            "vocal_space_planner": vocal_space["planner"],
+            "gain": ((part_gains[part] if part in explicit_mix_overrides
+                      else part_gains[part] * arrangement["gain"])
+                     * vocal_space["gain"]),
         })
 
     for phrase in melody:
@@ -389,6 +399,13 @@ def build_composition_events(
         section = _section_kind(phrase.get("section", "verse"))
         current_section = section
         dynamics = _section_sample_dynamics(section)
+        vocal_cursor = phrase_tick
+        current_vocal_intervals = []
+        for vocal_duration in durations:
+            current_vocal_intervals.append(
+                (vocal_cursor, vocal_cursor + vocal_duration)
+            )
+            vocal_cursor += vocal_duration
         transition = phrase.get("phrase_energy", {}).get("section_transition")
         cursor = phrase_tick
         peak_index = phrase.get("peak_note_index")
