@@ -83,6 +83,17 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual(note_ons[1][2][1], 43)
         self.assertEqual(note_ons[2][2][1], 48)
 
+    def test_chorus_bass_reinforces_main_kick_positions(self):
+        bass_events, drum_events = [], []
+        _bass_pattern(0, 0, bass_events, chorus=True)
+        _drum_bar(0, drum_events, chorus=True)
+        bass_starts = {tick for tick, _, message in bass_events
+                       if message[0] & 0xF0 == 0x90}
+        kick_starts = {tick for tick, _, message in drum_events
+                       if message[0] & 0xF0 == 0x90 and message[1] == 36}
+        self.assertTrue({0, PPQ + PPQ // 2, PPQ * 2}.issubset(bass_starts))
+        self.assertTrue({0, PPQ + PPQ // 2, PPQ * 2}.issubset(kick_starts))
+
     def test_chorus_drums_are_fuller_and_phrase_end_gets_a_fill(self):
         verse_events, chorus_events, fill_events = [], [], []
         verse_count = _drum_bar(0, verse_events)
