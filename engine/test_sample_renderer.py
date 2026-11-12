@@ -6,7 +6,7 @@ import wave
 from pathlib import Path
 
 from sample_bank import load_sample_bank
-from sample_renderer import build_composition_events, render_composition_to_wav, render_sample_events
+from sample_renderer import _section_kind, build_composition_events, render_composition_to_wav, render_sample_events
 from mehran_music_core import compose_plan
 
 
@@ -230,6 +230,11 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(chord_events)
             self.assertTrue(all(-0.24 <= event["pan"] <= 0.24
                                 for event in chord_events))
+
+    def test_descriptive_final_chorus_label_uses_final_arrangement_profile(self):
+        self.assertEqual(_section_kind("verse_2_and_final_chorus"), "final_chorus")
+        self.assertEqual(_section_kind("pre-chorus"), "pre_chorus")
+        self.assertEqual(_section_kind("verse_2"), "verse")
 
     def test_sample_arrangement_dynamics_change_by_section(self):
         import copy
