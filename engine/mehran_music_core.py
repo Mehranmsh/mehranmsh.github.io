@@ -385,6 +385,18 @@ def _phrase_pause(lyric_line: str) -> tuple[int, str]:
     return 0, "none"
 
 
+def _harmonic_cadence(chords: tuple[str, ...], lyric_line: str) -> tuple[str | None, str]:
+    """Choose a conservative phrase-ending chord from written punctuation."""
+    ending = lyric_line.rstrip()[-1:] if lyric_line.strip() else ""
+    if ending in ("؟", "?", "!", "！", ".", "۔"):
+        return chords[0], "tonic_resolution"
+    if ending in (",", "،"):
+        return chords[-1], "dominant_suspension"
+    if ending in ("؛", ";", ":"):
+        return chords[min(2, len(chords) - 1)], "mid_phrase_lift"
+    return None, "continuing"
+
+
 def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                  target_bpm: int | None = None) -> dict[str, Any]:
     analysis = analyze_lyrics(lyrics)
@@ -409,6 +421,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     melody = []
     for index, line in enumerate(lines):
         chord = chords[index % len(chords)]
+        cadence_chord, cadence_type = _harmonic_cadence(chords, line["text"])
+        if cadence_chord is not None:
+            chord = cadence_chord
         line_section = next(
             (section["name"] for section in sections
              if section["start_line"] <= index < section["end_line"]),
@@ -447,6 +462,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "phrase_pause_ticks": pause_ticks,
             "breath_after_phrase": breath_after,
             "chord": chord,
+            "harmonic_cadence": cadence_type,
             "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
             "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
             "contour_type": "rising_peak_then_fall" if "chorus" in line_section else "restrained_wave",
