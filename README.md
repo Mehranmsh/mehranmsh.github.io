@@ -207,3 +207,13 @@ remain valid without provenance, but those samples are reported as unlinked.
 The JSON inspection report summarizes metadata completeness; the CSV progress
 export carries the session ID and available metadata beside each matched target.
 This records provenance only and does not independently verify the claims.
+
+
+## Per-instrument recording quality profiles
+
+The read-only inspection report groups numerical capture diagnostics by instrument:
+sample-rate and channel-layout consistency, duration range, RMS and peak spread,
+warning counts, and clipping counts. A mismatch is surfaced for review rather than
+automatically resampled, normalized, or altered. Level spread is descriptive because
+different notes, articulations, and velocity layers naturally have different levels.
+These measurements do not estimate pitch accuracy or certify timbre.
