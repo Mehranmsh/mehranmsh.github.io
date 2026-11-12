@@ -19,7 +19,7 @@ from sample_bank import load_sample_bank
 
 
 EXPECTED_BANKS = {
-    "nylon_guitar": ("Meta Nylon Guitar", "meta-nylon-guitar"),
+    "nylon_guitar": ("Meta Nylon Guitar", "meta-nylon-guitar", "meta-nylon-guitar"),
     "acoustic_guitar": ("Meta Steel Guitar", "meta-steel-guitar", "meta-steel-guitar"),
     "piano": ("Meta Piano", "meta-piano", "meta_piano"),
 }
