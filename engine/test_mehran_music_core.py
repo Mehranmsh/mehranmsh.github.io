@@ -51,6 +51,21 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(phrases[1]["phrase_start_is_chord_tone"])
         self.assertTrue(phrases[1]["phrase_end_is_chord_tone"])
 
+    def test_harmonic_metadata_explains_tonal_function_and_phrase_position(self):
+        plan = compose_plan("دلم گرفته\nشب سرد\nبرگرد ای عشق\nبه خانه برگرد")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["harmonic_function"], "tonic")
+        self.assertEqual(phrases[0]["harmonic_position"]["global_phrase_index"], 0)
+        self.assertEqual(phrases[0]["harmonic_position"]["section_phrase_index"], 0)
+        self.assertEqual(phrases[1]["harmonic_position"]["progression_slot"], 1)
+        self.assertIsInstance(phrases[1]["harmonic_position"]["cadence_override"], bool)
+        self.assertTrue(all(p["harmonic_function"] != "unknown" for p in phrases))
+
+    def test_harmonic_function_handles_flat_scale_degrees(self):
+        from mehran_music_core import _harmonic_function
+        self.assertEqual(_harmonic_function("Bb", "D", "minor"), "submediant")
+        self.assertEqual(_harmonic_function("C7", "D", "minor"), "subtonic")
+
     def test_rejects_invalid_tempo(self):
         with self.assertRaises(ValueError):
             compose_plan("یک شعر", target_bpm=300)
