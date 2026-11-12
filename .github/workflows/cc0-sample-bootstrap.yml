@@ -57,13 +57,15 @@ jobs:
       - name: Commit the imported CC0 sample bank to the feature branch
         run: |
           git fetch origin feature/mehran-independent-music-core
-          git checkout -B feature/mehran-independent-music-core origin/feature/mehran-independent-music-core
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add sample-bank-bootstrap
-          if git diff --cached --quiet; then
-            echo 'Sample bank already imported; no commit needed.'
+          if git ls-tree -r --name-only origin/feature/mehran-independent-music-core -- sample-bank-bootstrap | grep -q .; then
+            echo 'Sample bank is already committed on the feature branch.'
           else
+            mv sample-bank-bootstrap "$RUNNER_TEMP/sample-bank-bootstrap"
+            git checkout -B feature/mehran-independent-music-core origin/feature/mehran-independent-music-core
+            mv "$RUNNER_TEMP/sample-bank-bootstrap" sample-bank-bootstrap
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add sample-bank-bootstrap
             git commit -m 'Import first verified CC0 piano recording'
             git push origin HEAD:feature/mehran-independent-music-core
           fi
