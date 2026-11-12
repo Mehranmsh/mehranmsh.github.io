@@ -18,6 +18,7 @@ from expression_planner import plan_part_expression
 from arrangement_planner import plan_part_arrangement
 from vocal_space_planner import plan_vocal_space
 from fill_planner import plan_melody_fill
+from persian_modal_planner import resolve_persian_modal_profile
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -565,9 +566,14 @@ def build_composition_events(
             }
             key_name = composition.get("key")
             mode_name = composition.get("mode")
-            if key_name in key_roots and mode_name in mode_intervals:
-                scale_pcs = [(key_roots[key_name] + interval) % 12
-                             for interval in mode_intervals[mode_name]]
+            persian_dastgah = composition.get("persian_dastgah")
+            tonic_pc = key_roots.get(key_name, 0)
+            modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic_pc)
+                             if persian_dastgah is not None else None)
+            if modal_context is not None or (key_name in key_roots and mode_name in mode_intervals):
+                scale_pcs = (list(modal_context["scale_pitch_classes"]) if modal_context
+                             else [(tonic_pc + interval) % 12
+                                   for interval in mode_intervals[mode_name]])
                 fill_chord = phrase.get("chord", chords[chord_index % len(chords)])
                 fill_root, fill_intervals = _parse_chord(fill_chord)
                 chord_pcs = [(fill_root + interval) % 12 for interval in fill_intervals]
@@ -588,6 +594,8 @@ def build_composition_events(
                         "bridge": 48, "final_chorus": 76,
                     }.get(section, 60),
                     fill_style=fill_style,
+                    modal_profile=persian_dastgah,
+                    modal_tonic_pc=tonic_pc,
                 )
                 for fill in fill_plan["events"]:
                     before_count = len(events)
@@ -605,6 +613,10 @@ def build_composition_events(
                         events[-1]["event_role"] = fill["role"]
                         events[-1]["fill_planner"] = fill_plan["planner"]
                         events[-1]["fill_reason"] = fill_plan["reason"]
+                        if fill_plan.get("modal_profile"):
+                            events[-1]["modal_profile"] = fill_plan["modal_profile"]
+                            events[-1]["modal_tuning"] = fill_plan["modal_tuning"]
+                            events[-1]["microtonal_audio_rendered"] = False
         phrase_tick += phrase_ticks + pause_ticks
     if len(events) > MAX_EVENTS:
         raise ValueError("Composition exceeds the sample renderer event limit")
