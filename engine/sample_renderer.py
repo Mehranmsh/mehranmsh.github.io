@@ -180,6 +180,22 @@ def render_sample_events(
     }
 
 
+def _section_sample_dynamics(section: str) -> dict[str, float]:
+    """Sample-layer velocity profile for the song's arrangement sections."""
+    profiles = {
+        "bridge": {"melody": 0.88, "chords": 0.72, "bass": 0.78, "drums": 0.62},
+        "verse": {"melody": 0.88, "chords": 0.82, "bass": 0.86, "drums": 0.88},
+        "pre_chorus": {"melody": 1.02, "chords": 0.96, "bass": 0.96, "drums": 0.92},
+        "chorus": {"melody": 1.08, "chords": 1.12, "bass": 1.10, "drums": 1.08},
+        "final_chorus": {"melody": 1.12, "chords": 1.18, "bass": 1.16, "drums": 1.12},
+    }
+    return profiles.get(section, profiles["verse"])
+
+
+def _scaled_velocity(base: int, scale: float) -> int:
+    return max(1, min(127, int(round(base * scale))))
+
+
 def build_composition_events(
     plan: dict[str, Any],
     *,
@@ -253,9 +269,12 @@ def build_composition_events(
         if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
                 or not 0 <= pause_ticks <= 960):
             raise ValueError("phrase_pause_ticks must be an integer from 0 to 960")
+        section = phrase.get("section", "verse")
+        dynamics = _section_sample_dynamics(section)
         cursor = phrase_tick
         for note, duration in zip(notes, durations):
-            add("melody", note, cursor, max(1, int(duration * 0.88)), 88)
+            add("melody", note, cursor, max(1, int(duration * 0.88)),
+                _scaled_velocity(88, dynamics["melody"]))
             cursor += duration
 
         for bar in range(bars):
@@ -265,7 +284,8 @@ def build_composition_events(
             voicing = _voice_lead_chord(symbol, previous_voicing)
             previous_voicing = voicing
             for voice_index, note in enumerate(voicing):
-                add("chords", note, bar_start, 4 * PPQ - 24, 58,
+                add("chords", note, bar_start, 4 * PPQ - 24,
+                    _scaled_velocity(58, dynamics["chords"]),
                     (-0.22, 0.0, 0.22)[voice_index])
             if names["guitar"]:
                 for beat in range(4):
@@ -282,19 +302,32 @@ def build_composition_events(
                 add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
                     PPQ // 2, 72, 0.42)
             root = 36 + root_pc
-            add("bass", root, bar_start, 2 * PPQ - 36, 82)
-            add("bass", root + 7, bar_start + 2 * PPQ, PPQ - 36, 82)
-            add("bass", root, bar_start + 3 * PPQ, PPQ - 36, 82)
-            add("kick", 36, bar_start, 48, 112)
-            add("kick", 36, bar_start + 2 * PPQ, 48, 104)
-            add("snare", 38, bar_start + PPQ, 48, 94)
-            add("snare", 38, bar_start + 3 * PPQ, 48, 100)
-            for eighth in range(8):
-                is_open_hat = phrase.get("section") == "chorus" and eighth == 7
-                part = "open_hat" if is_open_hat else "closed_hat"
-                note = 46 if is_open_hat else 42
-                velocity = 82 if is_open_hat else 72
-                add(part, note, bar_start + eighth * (PPQ // 2), 48, velocity)
+            bass_scale = dynamics["bass"]
+            drum_scale = dynamics["drums"]
+            if section == "bridge":
+                add("bass", root, bar_start, 2 * PPQ - 36, _scaled_velocity(76, bass_scale))
+                add("bass", root + 7, bar_start + 2 * PPQ, 2 * PPQ - 36,
+                    _scaled_velocity(66, bass_scale))
+                add("kick", 36, bar_start, 48, _scaled_velocity(88, drum_scale))
+                add("snare", 38, bar_start + 2 * PPQ, 48, _scaled_velocity(62, drum_scale))
+                for eighth in (0, 4):
+                    add("closed_hat", 42, bar_start + eighth * (PPQ // 2), 48,
+                        _scaled_velocity(52, drum_scale))
+            else:
+                add("bass", root, bar_start, 2 * PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("bass", root + 7, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("bass", root, bar_start + 3 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+                add("kick", 36, bar_start, 48, _scaled_velocity(112, drum_scale))
+                add("kick", 36, bar_start + 2 * PPQ, 48, _scaled_velocity(104, drum_scale))
+                add("snare", 38, bar_start + PPQ, 48, _scaled_velocity(94, drum_scale))
+                add("snare", 38, bar_start + 3 * PPQ, 48, _scaled_velocity(100, drum_scale))
+                for eighth in range(8):
+                    is_open_hat = section in ("chorus", "final_chorus") and eighth == 7
+                    part = "open_hat" if is_open_hat else "closed_hat"
+                    note = 46 if is_open_hat else 42
+                    velocity = 82 if is_open_hat else 72
+                    add(part, note, bar_start + eighth * (PPQ // 2), 48,
+                        _scaled_velocity(velocity, drum_scale))
             chord_index += 1
         phrase_tick += phrase_ticks + pause_ticks
     if len(events) > MAX_EVENTS:
