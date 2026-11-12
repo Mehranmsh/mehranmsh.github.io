@@ -349,7 +349,9 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
             note_count += 1
         for bar in range(bars):
             bar_start = phrase_start + bar * PPQ * 4
-            symbol = chords[chord_bar_index % len(chords)]
+            phrase_chord = phrase.get("chord")
+            symbol = (phrase_chord if bar == 0 and isinstance(phrase_chord, str)
+                      else chords[chord_bar_index % len(chords)])
             root_pc, _ = _parse_chord(symbol)
             chord = _voice_lead_chord(symbol, previous_voicing)
             chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
