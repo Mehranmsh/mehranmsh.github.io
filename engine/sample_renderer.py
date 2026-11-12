@@ -345,7 +345,7 @@ def build_composition_events(
                             bar_start + beat * PPQ + strum_step * 12,
                             PPQ // 2 - 12,
                             _scaled_velocity(base_velocity, dynamics["chords"]),
-                            (-0.35, 0.0, 0.35)[voice_index])
+                            voice_pans[voice_index])
             if names["strings"] and phrase.get("section") == "chorus":
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24,
