@@ -50,6 +50,22 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(result["rhyme_groups"][0]["rhyme_tail"], "e")
         self.assertEqual(result["rhyme_groups"][0]["line_indices"], [0, 1])
 
+    def test_rhyme_schemes_are_scoped_to_blank_line_stanzas(self):
+        result = analyze_lyrics("خانه\nبهانه\n\nپرواز\nآواز")
+        self.assertEqual(len(result["stanza_rhyme_schemes"]), 2)
+        self.assertEqual(
+            [item["pattern"] for item in result["stanza_rhyme_schemes"]],
+            [["A", "A"], ["A", "A"]],
+        )
+        self.assertEqual(
+            [group["stanza_index"] for group in result["rhyme_groups"]],
+            [0, 1],
+        )
+        self.assertEqual(
+            [item["stanza_index"] for item in result["rhyme_analysis"]],
+            [0, 0, 1, 1],
+        )
+
     def test_rhyme_groups_report_repeated_endings_and_line_indices(self):
         result = analyze_lyrics("خانه\nبهانه\nشب\nروز")
         self.assertEqual(len(result["rhyme_groups"]), 1)
