@@ -4,6 +4,8 @@ These interval sets are computational approximations, not authoritative radif
 transcriptions or a substitute for regional performance practice.
 """
 from __future__ import annotations
+
+import math
 from typing import Any
 
 PERSIAN_MODAL_PROFILES: dict[str, dict[str, Any]] = {
@@ -28,7 +30,7 @@ def resolve_persian_modal_profile(name: str, tonic_pc: int = 0, degree_cents: di
     for degree, cents in degree_cents.items():
         if (isinstance(degree, bool) or not isinstance(degree, int) or not 0 <= degree <= 6
                 or isinstance(cents, bool) or not isinstance(cents, (int, float))
-                or not __import__("math").isfinite(cents) or not -100.0 <= cents <= 100.0):
+                or not math.isfinite(cents) or not -100.0 <= cents <= 100.0):
             raise ValueError("persian_degree_cents keys must be 0-6 and values finite from -100 to 100")
         normalized_cents[degree] = float(cents)
     cents_by_pc = {
