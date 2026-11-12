@@ -230,6 +230,17 @@ may be inconclusive. This autocorrelation estimate is a screening aid, not a
 precision tuner or proof of authentic instrument intonation.
 
 
+## Spectral brightness diagnostics
+
+Exact sample candidates now include a short-window, dependency-free FFT profile:
+spectral centroid, 85% spectral rolloff, spectral flatness, window length and
+frequency resolution. The profile is descriptive only and is deliberately
+excluded from technical ranking deductions. A brighter spectrum is not
+automatically better: instrument identity, microphone placement, playing
+technique, room acoustics and the note itself all affect these measurements.
+The report is a compact comparison aid for recorded candidates, not an
+automatic timbre classifier or a substitute for listening.
+
 ## Sample boundary and quiet-region diagnostics
 
 Quality inspection measures low-level material at the beginning and end of each
