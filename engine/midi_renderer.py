@@ -394,7 +394,8 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 is_cadence=(note_index == len(notes) - 1),
                 lexical_stress=note_index in stressed_note_indices,
                 stress_beat_aligned=note_index in beat_aligned_stress_indices,
-                cadence_release_scale=(phrase.get("phrase_energy", {}).get("cadence_release_scale", 1.0)\n                                      if note_index == len(notes) - 1 else 1.0))
+                cadence_release_scale=(phrase.get("phrase_energy", {}).get("cadence_release_scale", 1.0)
+                                      if note_index == len(notes) - 1 else 1.0))
             melody_events.append((cursor, 2, _note_on(0, note, velocity)))
             melody_events.append((cursor + gate, 1, _note_off(0, note)))
             cursor += duration
