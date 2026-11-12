@@ -20,12 +20,17 @@ from sample_bank import load_sample_bank
 
 EXPECTED_BANKS = {
     "nylon_guitar": ("Meta Nylon Guitar", "meta-nylon-guitar"),
-    "acoustic_guitar": ("Meta Steel Guitar", "meta-steel-guitar"),
+    "acoustic_guitar": ("Meta Steel Guitar", "meta-steel-guitar", "meta-steel-guitar"),
+    "piano": ("Meta Piano", "meta-piano", "meta_piano"),
 }
 
 
 def _source_license(root: Path) -> str:
-    candidates = (root / "source" / "SOURCE_LICENSE.txt", root / "SOURCE_LICENSE.txt")
+    candidates = (
+        root / "source" / "SOURCE_LICENSE.txt",
+        root / "SOURCE_LICENSE.txt",
+        root / "SOURCE_LICENSE_CC0.txt",
+    )
     for candidate in candidates:
         if candidate.is_file():
             text = candidate.read_text(encoding="utf-8")
@@ -69,13 +74,13 @@ def install_recorded_banks(
             if instrument in seen_instruments:
                 raise ValueError(f"Duplicate instrument bank supplied: {instrument}")
             seen_instruments.add(instrument)
-            label, source_id = EXPECTED_BANKS[instrument]
+            label, source_id, session_prefix = EXPECTED_BANKS[instrument]
             license_text = _source_license(source_root)
             session_ids = {sample.recording_session_id for sample in bank.samples}
             if None in session_ids or len(session_ids) != 1:
                 raise ValueError(f"{instrument} samples must share one declared recording session")
             session_id = next(iter(session_ids))
-            if not session_id.startswith(source_id):
+            if not session_id.startswith(session_prefix):
                 raise ValueError(f"Unexpected recording session provenance for {instrument}")
             license_dir = staged / "provenance" / instrument
             license_dir.mkdir(parents=True, exist_ok=True)
@@ -150,7 +155,7 @@ def install_recorded_banks(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Install validated recorded MEHRAN guitar banks.")
+    parser = argparse.ArgumentParser(description="Install validated recorded MEHRAN instrument banks.")
     parser.add_argument("destination", type=Path)
     parser.add_argument("bank_roots", nargs="+", type=Path)
     args = parser.parse_args(argv)
