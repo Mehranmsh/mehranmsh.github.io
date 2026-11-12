@@ -193,8 +193,12 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     # Keep the peak unambiguous rather than allowing an earlier note to tie it.
     for i, note in enumerate(notes):
         if i != peak_index and note >= peak_note:
-            lower = [candidate for candidate in scale_notes if candidate < peak_note]
-            notes[i] = min(lower, key=lambda candidate: (abs(candidate - note), candidate))
+            # Phrase boundaries must remain chord tones even when a short
+            # phrase needs its peak lowered into the same octave.
+            source_pool = chord_notes if i in (0, count - 1) else scale_notes
+            lower = [candidate for candidate in source_pool if candidate < peak_note]
+            if lower:
+                notes[i] = min(lower, key=lambda candidate: (abs(candidate - note), candidate))
 
     # The last note resolves to the current chord, below the peak whenever possible.
     if count >= 2:
