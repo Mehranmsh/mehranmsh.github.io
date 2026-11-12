@@ -1,0 +1,63 @@
+name: Full CC0 Meta Piano Bank
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_meta_piano_bank.py'
+      - 'engine/test_fetch_meta_piano_bank.py'
+      - '.github/workflows/meta-piano-bank.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-full-piano-bank:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test SFZ mapping and checksum parser
+        run: python3 -m unittest engine.test_fetch_meta_piano_bank -v
+      - name: Download and verify all 352 piano recordings
+        run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
+      - name: Validate full 88-key bank and render an actual C4 note
+        run: |
+          python3 - <<'PY'
+          from sample_bank import load_sample_bank
+          bank = load_sample_bank('sample-bank-meta-piano')
+          assert len(bank.samples) == 352, len(bank.samples)
+          assert len({sample.midi_note for sample in bank.samples}) == 88
+          assert min(sample.midi_note for sample in bank.samples) == 21
+          assert max(sample.midi_note for sample in bank.samples) == 108
+          assert all(sum(s.midi_note == note for s in bank.samples) == 4 for note in range(21, 109))
+          print('FULL_88_KEY_4_LAYER_BANK_OK', len(bank.samples))
+          PY
+          python3 engine/sample_bank_preview.py sample-bank-meta-piano piano 60 sample-bank-meta-piano/piano-C4-preview.wav --velocity 80 --articulation sustain
+          python3 - <<'PY'
+          import wave
+          path = 'sample-bank-meta-piano/piano-C4-preview.wav'
+          with wave.open(path, 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              pcm = audio.readframes(audio.getnframes())
+          assert any(pcm), 'Rendered C4 preview is silent'
+          print('FULL_BANK_REAL_C4_PREVIEW_OK')
+          PY
+      - name: Publish full bank and audition WAV
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-full-cc0-meta-piano-88-keys-4-layers
+          path: sample-bank-meta-piano/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
