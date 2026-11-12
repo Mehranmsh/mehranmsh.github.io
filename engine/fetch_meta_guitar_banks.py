@@ -212,19 +212,30 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
         missing = [name for name in unique_source_names if f"ogg/{name}" not in checksums]
         raise ValueError(f"Missing upstream checksums for {len(missing)} recordings: {missing[:3]}")
 
-    samples = []
-    verified_sources: set[str] = set()
-    for region_id, mapping in sorted(regions.items()):
-        filename = mapping["filename"]
+    # Prepare unique recordings concurrently. The upstream banks contain
+    # hundreds of small assets; serial network + ffmpeg work needlessly
+    # stretches CI and makes transient network stalls dominate the job.
+    from concurrent.futures import ThreadPoolExecutor
+
+    recordings = {
+        item["filename"]: item
+        for item in regions.values()
+    }
+
+    def prepare_recording(filename: str, mapping: dict[str, Any]) -> tuple[str, str]:
         relative_source = f"ogg/{filename}"
+        expected_digest = checksums[relative_source]
         source_path = root / "source-ogg" / filename
+        if source_path.exists():
+            actual_digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+            if actual_digest != expected_digest:
+                source_path.unlink()
         if not source_path.exists():
             _download(f"{base}/{relative_source}", source_path)
-        if filename not in verified_sources:
-            digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
-            if digest != checksums[relative_source]:
-                raise ValueError(f"SHA-256 mismatch for {filename}")
-            verified_sources.add(filename)
+        digest = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        if digest != expected_digest:
+            source_path.unlink(missing_ok=True)
+            raise ValueError(f"SHA-256 mismatch for {filename}")
 
         wav_name = filename.removesuffix(".ogg") + ".wav"
         relative_wav = f"{'nylon' if instrument_id == 'meta-nylon-guitar' else 'steel'}/{mapping['string']}/{wav_name}"
@@ -235,6 +246,21 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
                 ffmpeg, "-y", "-v", "error", "-i", str(source_path),
                 "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(wav_path),
             ], check=True)
+        return filename, relative_wav
+
+    prepared: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {
+            executor.submit(prepare_recording, filename, mapping): filename
+            for filename, mapping in recordings.items()
+        }
+        for future in futures:
+            filename, relative_wav = future.result()
+            prepared[filename] = relative_wav
+
+    samples = []
+    for region_id, mapping in sorted(regions.items()):
+        filename = mapping["filename"]
         samples.append({
             "instrument": "nylon_guitar" if instrument_id == "meta-nylon-guitar" else "acoustic_guitar",
             "midi_note": mapping["midi_note"],
@@ -243,7 +269,7 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
             "velocity_max": mapping["velocity_max"],
             "articulation": mapping["articulation"],
             "string": mapping["string"],
-            "path": relative_wav,
+            "path": prepared[filename],
             "recording_session_id": f"{instrument_id}_cc0",
         })
 
