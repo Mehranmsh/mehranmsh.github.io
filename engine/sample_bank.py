@@ -305,8 +305,9 @@ def analyze_sample_bank_coverage(
         instruments[instrument] = {
             "label": spec["label"],
             "note_range": [low, high],
-            "required_samples": required,
-            "covered_samples": covered,
+            "recorded_samples": len(recorded),
+            "required_requirements": required,
+            "covered_requirements": covered,
             "coverage_percent": round(covered * 100 / required, 2) if required else 100.0,
             "missing_notes": missing_notes,
             "missing_velocity_layers": missing_layers,
@@ -316,8 +317,9 @@ def analyze_sample_bank_coverage(
     return {
         "catalog_version": 1,
         "ready": total_covered == total_required and total_required > 0,
-        "required_samples": total_required,
-        "covered_samples": total_covered,
+        "recorded_samples": len(bank.samples),
+        "required_requirements": total_required,
+        "covered_requirements": total_covered,
         "coverage_percent": round(total_covered * 100 / total_required, 2) if total_required else 0.0,
         "instruments": instruments,
         "note": "Coverage means recorded note/velocity assets exist; it does not certify recording quality or mixing.",
