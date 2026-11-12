@@ -83,6 +83,20 @@ def _voice_lead_chord(symbol: str, previous: tuple[int, ...] | None = None) -> t
     )
 
 
+def _chord_inversion(symbol: str, voicing: tuple[int, ...]) -> str:
+    """Describe the inversion from the lowest voiced chord tone."""
+    root, intervals = _parse_chord(symbol)
+    bass_pitch = voicing[0] % 12
+    chord_tones = [(root + interval) % 12 for interval in intervals[:3]]
+    if bass_pitch == chord_tones[0]:
+        return "root"
+    if bass_pitch == chord_tones[1]:
+        return "first"
+    if bass_pitch == chord_tones[2]:
+        return "second"
+    raise ValueError("Voicing bass note is not a chord tone")
+
+
 def _note_on(channel: int, note: int, velocity: int) -> bytes:
     return bytes((0x90 | channel, note, velocity))
 
@@ -357,7 +371,11 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                       else chords[chord_bar_index % len(chords)])
             root_pc, chord_intervals = _parse_chord(symbol)
             chord = _voice_lead_chord(symbol, previous_voicing)
-            chord_voicings.append({"symbol": symbol, "midi_notes": list(chord)})
+            chord_voicings.append({
+                "symbol": symbol,
+                "midi_notes": list(chord),
+                "inversion": _chord_inversion(symbol, chord),
+            })
             previous_voicing = chord
             note_count += _string_pad_bar(
                 chord, bar_start, chord_events, section=section,
