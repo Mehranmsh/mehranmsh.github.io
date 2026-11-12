@@ -737,7 +737,7 @@ class SampleRendererTests(unittest.TestCase):
         plan = compose_plan(
             "دلم گرفته از این شب\\nبرگرد به خانه",
             persian_dastgah="shur",
-            persian_degree_cents={1: 50, 4: -50},
+            persian_degree_cents={0: 50, 1: 50, 2: 50, 3: 50, 4: 50, 5: 50, 6: 50},
         )
         plan["composition"]["melody"][0]["section"] = "chorus"
         plan["composition"]["melody"][0]["phrase_pause_ticks"] = 360
