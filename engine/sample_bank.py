@@ -32,6 +32,8 @@ class Sample:
     loop_start_frame: int | None = None
     loop_end_frame: int | None = None
     articulation: str = "sustain"
+    recording_session_id: str | None = None
+    recording_metadata: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,31 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
         raise ValueError("Could not read a valid sample-bank bank.json") from exc
     if not isinstance(manifest, dict) or manifest.get("format_version") != 1:
         raise ValueError("Unsupported sample-bank manifest version")
+    sessions = manifest.get("recording_sessions", {})
+    if not isinstance(sessions, dict):
+        raise ValueError("recording_sessions must be an object keyed by session ID")
+    allowed_metadata = {
+        "instrument_model", "instrument_serial", "performer", "tuning",
+        "reference_frequency_hz", "microphone", "microphone_position",
+        "room", "audio_interface", "preamp", "gain_db", "recorded_at", "notes",
+    }
+    validated_sessions: dict[str, dict[str, str]] = {}
+    for session_id, metadata in sessions.items():
+        if (not isinstance(session_id, str)
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,63}", session_id)):
+            raise ValueError("Recording session IDs must be 2-64 safe characters")
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Recording session {session_id} must contain an object")
+        unknown = set(metadata) - allowed_metadata
+        if unknown:
+            raise ValueError(f"Unknown recording metadata fields: {', '.join(sorted(unknown))}")
+        clean = {}
+        for field, value in metadata.items():
+            if not isinstance(value, str) or not value.strip() or len(value) > 500:
+                raise ValueError(f"Recording metadata {field} must be a non-empty string up to 500 characters")
+            clean[field] = value.strip()
+        validated_sessions[session_id] = clean
+
     entries = manifest.get("samples")
     if not isinstance(entries, list) or not entries or len(entries) > 4096:
         raise ValueError("Sample bank must contain 1 to 4096 sample entries")
@@ -80,6 +107,12 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
         if not candidate.is_relative_to(root) or candidate == root:
             raise ValueError("Sample path must remain inside the sample-bank directory")
         articulation = entry.get("articulation", "sustain")
+        session_id = entry.get("recording_session_id")
+        if session_id is not None and (
+            not isinstance(session_id, str) or session_id not in validated_sessions
+        ):
+            raise ValueError("recording_session_id must reference a declared recording session")
+        recording_metadata = validated_sessions.get(session_id) if session_id else None
         if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
             raise ValueError("articulation must be a lowercase slug")
         identity = (instrument, midi_note, velocity_min, velocity_max, articulation)
@@ -110,10 +143,51 @@ def load_sample_bank(bank_root: str | Path) -> SampleBank:
             raise ValueError(f"Invalid recorded WAV sample: {relative}") from exc
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
                               velocity_max, sample_rate, channels, frames,
-                              loop_start, loop_end, articulation))
+                              loop_start, loop_end, articulation, session_id, recording_metadata))
     return SampleBank(root, tuple(samples))
 
 
+
+
+def analyze_recording_provenance(bank: SampleBank) -> dict[str, Any]:
+    """Summarize sample recording-session metadata without guessing missing values."""
+    fields = (
+        "instrument_model", "instrument_serial", "performer", "tuning",
+        "reference_frequency_hz", "microphone", "microphone_position",
+        "room", "audio_interface", "preamp", "gain_db", "recorded_at", "notes",
+    )
+    by_field = {
+        field: sum(
+            1 for sample in bank.samples
+            if sample.recording_metadata and field in sample.recording_metadata
+        )
+        for field in fields
+    }
+    linked = sum(1 for sample in bank.samples if sample.recording_session_id)
+    return {
+        "sample_count": len(bank.samples),
+        "linked_samples": linked,
+        "unlinked_samples": len(bank.samples) - linked,
+        "session_count": len({
+            sample.recording_session_id for sample in bank.samples
+            if sample.recording_session_id
+        }),
+        "metadata_field_coverage": {
+            field: {
+                "recorded_samples": count,
+                "missing_samples": len(bank.samples) - count,
+                "coverage_percent": round(count * 100 / len(bank.samples), 2)
+                if bank.samples else 0.0,
+            }
+            for field, count in by_field.items()
+        },
+        "complete_provenance": bool(bank.samples) and all(
+            sample.recording_session_id and sample.recording_metadata
+            and all(field in sample.recording_metadata for field in fields)
+            for sample in bank.samples
+        ),
+        "read_only": True,
+    }
 
 
 def _register_zones(low: int, high: int) -> list[dict[str, Any]]:
