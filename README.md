@@ -129,3 +129,15 @@ resampling. No degree offsets are assumed by default: the built-in profiles
 remain 12-TET approximations until a musician supplies or validates a tuning
 table. This keeps the engine capable of rendering curated microtonal settings
 without presenting unverified tuning values as canonical Persian practice.
+
+
+
+### MIDI track identity for mapped instruments
+
+When an accompaniment slot is mapped to a named instrument family (for example,
+`guitar: tar` or `strings: kamancheh`), the exported MIDI track keeps its
+arrangement role and adds the mapped slug to the track name. This makes the
+MIDI easier to inspect in a DAW without pretending that the General MIDI patch
+is an authentic recording of that instrument. Non-ASCII slugs are omitted from
+the ASCII-only Standard MIDI track label; the full mapping remains available
+in the renderer result metadata.
