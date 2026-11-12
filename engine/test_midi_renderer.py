@@ -30,6 +30,17 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreaterEqual(phrase["bar_count"], 2)
         self.assertEqual(sum(phrase["note_durations_ticks"]), phrase["duration_ticks"])
 
+    def test_renderer_preserves_punctuation_breath_between_phrases(self):
+        plan = compose_plan("دلم گرفته،\\nبرگرد ای عشق؟")
+        phrases = plan["composition"]["melody"]
+        with tempfile.TemporaryDirectory() as folder:
+            result = render_midi(plan, Path(folder) / "breaths.mid")
+        expected_ticks = sum(p["duration_ticks"] + p["phrase_pause_ticks"]
+                             for p in phrases)
+        self.assertEqual(result["duration_ticks"], expected_ticks)
+        self.assertEqual(phrases[0]["phrase_pause_ticks"], 120)
+        self.assertEqual(phrases[1]["phrase_pause_ticks"], 360)
+
     def test_chord_voicings_use_close_voice_leading(self):
         plan = compose_plan("دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد")
         with tempfile.TemporaryDirectory() as folder:
