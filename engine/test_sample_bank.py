@@ -9,6 +9,7 @@ from pathlib import Path
 from sample_bank import (
     SAMPLE_INSTRUMENT_CATALOG,
     SAMPLE_ARTICULATION_CATALOG,
+    analyze_recording_provenance,
     analyze_sample_bank_coverage,
     analyze_sample_bank_quality,
     analyze_sample_bank_instrument_health,
@@ -33,6 +34,68 @@ class SampleBankTests(unittest.TestCase):
             json.dumps({"format_version": 1, "samples": samples}),
             encoding="utf-8",
         )
+
+    def test_recording_session_metadata_is_linked_and_reported(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c2.wav")
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 36,
+                "path": "piano/c2.wav",
+                "recording_session_id": "session-001",
+            }])
+            manifest = json.loads((root / "bank.json").read_text(encoding="utf-8"))
+            manifest["recording_sessions"] = {
+                "session-001": {
+                    "instrument_model": "Grand Piano Model X",
+                    "performer": "Studio Performer",
+                    "tuning": "A440",
+                    "microphone": "Stereo Pair",
+                }
+            }
+            self.write_manifest(root, manifest["samples"])
+            manifest_path = root / "bank.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            bank = load_sample_bank(root)
+            report = analyze_recording_provenance(bank)
+            self.assertEqual(bank.samples[0].recording_session_id, "session-001")
+            self.assertEqual(bank.samples[0].recording_metadata["tuning"], "A440")
+            self.assertEqual(report["linked_samples"], 1)
+            self.assertEqual(report["unlinked_samples"], 0)
+            self.assertEqual(report["session_count"], 1)
+            self.assertEqual(
+                report["metadata_field_coverage"]["performer"]["recorded_samples"], 1
+            )
+            self.assertFalse(report["complete_provenance"])
+
+    def test_recording_session_reference_must_exist(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c2.wav")
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 36,
+                "path": "piano/c2.wav",
+                "recording_session_id": "missing-session",
+            }])
+            with self.assertRaisesRegex(ValueError, "recording_session_id"):
+                load_sample_bank(root)
+
+    def test_recording_session_metadata_rejects_unknown_fields(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "c2.wav")
+            manifest = {
+                "format_version": 1,
+                "recording_sessions": {"session-01": {"secret": "not allowed"}},
+                "samples": [{
+                    "instrument": "piano", "midi_note": 36,
+                    "path": "piano/c2.wav",
+                    "recording_session_id": "session-01",
+                }],
+            }
+            (root / "bank.json").write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Unknown recording metadata"):
+                load_sample_bank(root)
 
     def test_sample_selection_requires_exact_articulation(self):
         with tempfile.TemporaryDirectory() as folder:
