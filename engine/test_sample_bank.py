@@ -1,4 +1,5 @@
 import json
+import struct
 import tempfile
 import unittest
 import wave
@@ -7,6 +8,7 @@ from pathlib import Path
 from sample_bank import (
     SAMPLE_INSTRUMENT_CATALOG,
     analyze_sample_bank_coverage,
+    analyze_sample_bank_quality,
     load_sample_bank,
     select_sample,
 )
@@ -123,6 +125,40 @@ class SampleBankTests(unittest.TestCase):
             self.assertTrue(any(item["note"] == 36 and item["layer"] == "medium"
                                 for item in piano["missing_velocity_layers"]))
             self.assertIn("acoustic_guitar", report["instruments"])
+
+    def test_sample_quality_diagnostics_detect_silence_clipping_and_dc_offset(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            fixtures = {
+                "good": [4096, -4096, 8192, -8192] * 64,
+                "silent": [0] * 256,
+                "clipped": [-32768, 32767] * 128,
+                "dc": [4096] * 256,
+            }
+            entries = []
+            for note, (name, values) in enumerate(fixtures.items(), start=60):
+                path = root / "piano" / f"{name}.wav"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+                entries.append({
+                    "instrument": "piano", "midi_note": note,
+                    "path": f"piano/{name}.wav",
+                })
+            self.write_manifest(root, entries)
+            report = analyze_sample_bank_quality(load_sample_bank(root))
+            self.assertEqual(report["sample_count"], 4)
+            self.assertEqual(report["samples_with_warnings"], 3)
+            self.assertGreater(report["clipped_samples"], 0)
+            by_note = {item["midi_note"]: item for item in report["measurements"]}
+            self.assertTrue(by_note[60]["basic_signal_checks_pass"])
+            self.assertIn("silent_sample", by_note[61]["warnings"])
+            self.assertIn("digital_clipping", by_note[62]["warnings"])
+            self.assertIn("dc_offset", by_note[63]["warnings"])
+            self.assertFalse(report["basic_signal_checks_pass"])
 
     def test_complete_custom_fixture_reports_ready(self):
         with tempfile.TemporaryDirectory() as folder:
