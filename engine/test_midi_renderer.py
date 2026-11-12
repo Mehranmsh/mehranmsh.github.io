@@ -7,6 +7,12 @@ from midi_renderer import PPQ, _bass_pattern, _drum_bar, _groove_velocity, _guit
 
 
 class MidiRendererTests(unittest.TestCase):
+    def test_curated_lexical_stress_receives_midi_velocity_accent(self):
+        unstressed = _melody_velocity(88, 0, lexical_stress=False)
+        stressed = _melody_velocity(88, 0, lexical_stress=True)
+        self.assertGreater(stressed, unstressed)
+        self.assertLessEqual(stressed, 127)
+
     def test_renderer_uses_phrase_level_cadence_chord(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
         plan["composition"]["melody"][0]["chord"] = "F"
