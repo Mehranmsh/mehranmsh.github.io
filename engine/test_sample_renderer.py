@@ -107,6 +107,25 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(audio))
             self.assertGreater(result["events_rendered"], 0)
 
+    def test_sample_guitar_alternates_downstroke_and_upstroke(self):
+        plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        for phrase in plan["composition"]["melody"]:
+            phrase["section"] = "verse"
+        events = build_composition_events(
+            plan, instruments={"guitar": "acoustic_guitar"})
+        guitar = [event for event in events
+                  if event["instrument"] == "acoustic_guitar"]
+        self.assertGreaterEqual(len(guitar), 12)
+        downstroke = guitar[:3]
+        upstroke = guitar[3:6]
+        self.assertEqual([e["midi_note"] for e in downstroke],
+                         sorted(e["midi_note"] for e in downstroke))
+        self.assertEqual([e["midi_note"] for e in upstroke],
+                         sorted((e["midi_note"] for e in upstroke), reverse=True))
+        self.assertGreater(sum(e["velocity"] for e in downstroke),
+                           sum(e["velocity"] for e in upstroke))
+        self.assertTrue(all(1 <= e["velocity"] <= 127 for e in guitar))
+
     def test_sample_melody_accents_peak_and_cadence_notes(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         phrase = plan["composition"]["melody"][0]
