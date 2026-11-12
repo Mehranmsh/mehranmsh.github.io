@@ -12,6 +12,8 @@ import json
 import re
 import shutil
 import subprocess
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -27,10 +29,25 @@ EXPECTED = {
 
 
 def _download(url: str, destination: Path) -> None:
+    """Download a source asset with bounded retries and no partial-file reuse."""
     request = urllib.request.Request(url, headers={"User-Agent": "MEHRAN-Music-Engine/1.0"})
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output)
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as output:
+                shutil.copyfileobj(response, output)
+            return
+        except urllib.error.HTTPError as exc:
+            destination.unlink(missing_ok=True)
+            if exc.code not in {408, 425, 429} and not 500 <= exc.code <= 599:
+                raise
+            if attempt == 3:
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
+            destination.unlink(missing_ok=True)
+            if attempt == 3:
+                raise
+        time.sleep(2 ** attempt)
 
 
 def parse_sha256sums(text: str) -> dict[str, str]:
