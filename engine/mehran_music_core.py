@@ -67,7 +67,9 @@ def _word_phonetics(word: str) -> dict[str, Any]:
         elif char in "وی":
             later_vowel = any(ch in "اآوی" for ch in normalized[index + 1:]
                               if ch not in PERSIAN_DIACRITICS)
-            if not (index == 0 and later_vowel) and not previous_base_had_vowel_mark:
+            has_short_mark = (index + 1 < len(normalized)
+                              and normalized[index + 1] in SHORT_VOWEL_MARKS)
+            if not (index == 0 and (later_vowel or has_short_mark)) and not previous_base_had_vowel_mark:
                 nuclei += 1
         previous_base_had_vowel_mark = False
     return {
