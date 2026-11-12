@@ -42,6 +42,8 @@ def plan_part_expression(
         pan = -0.14 if event_index % 2 == 0 else 0.14
     elif part == "open_hat":
         pan = 0.24
+    elif part == "chords":
+        pan = float(base_pan)
     elif part in ("guitar", "electric_guitar"):
         pan = max(-0.85, min(0.85, float(base_pan) * width))
     elif part == "strings":
