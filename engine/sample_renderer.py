@@ -180,6 +180,20 @@ def render_sample_events(
     }
 
 
+def _section_kind(section: str) -> str:
+    """Normalize descriptive section labels to the renderer's arrangement profiles."""
+    name = section.lower().replace("-", "_").replace(" ", "_")
+    if "bridge" in name:
+        return "bridge"
+    if "final" in name and "chorus" in name:
+        return "final_chorus"
+    if "pre_chorus" in name:
+        return "pre_chorus"
+    if "chorus" in name:
+        return "chorus"
+    return "verse"
+
+
 def _section_sample_dynamics(section: str) -> dict[str, float]:
     """Sample-layer velocity profile for the song's arrangement sections."""
     profiles = {
@@ -280,7 +294,7 @@ def build_composition_events(
         if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
                 or not 0 <= pause_ticks <= 960):
             raise ValueError("phrase_pause_ticks must be an integer from 0 to 960")
-        section = phrase.get("section", "verse")
+        section = _section_kind(phrase.get("section", "verse"))
         dynamics = _section_sample_dynamics(section)
         cursor = phrase_tick
         peak_index = phrase.get("peak_note_index")
@@ -346,12 +360,12 @@ def build_composition_events(
                             PPQ // 2 - 12,
                             _scaled_velocity(base_velocity, dynamics["chords"]),
                             voice_pans[voice_index])
-            if names["strings"] and phrase.get("section") == "chorus":
+            if names["strings"] and section in ("chorus", "final_chorus"):
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24,
                         _scaled_velocity(42, dynamics["chords"]),
                         voice_pans[voice_index])
-            if names["electric_guitar"] and phrase.get("section") == "chorus":
+            if names["electric_guitar"] and section in ("chorus", "final_chorus"):
                 add("electric_guitar", voicing[-1], bar_start + PPQ,
                     PPQ // 2, _scaled_velocity(68, dynamics["chords"]), 0.38)
                 add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
