@@ -1,6 +1,9 @@
 import csv
 import csv
 import json
+import math
+import struct
+import wave
 import tempfile
 import unittest
 import wave
@@ -77,6 +80,32 @@ class SampleBankToolTests(unittest.TestCase):
             )
             self.assertEqual(absent["status"], "missing")
             self.assertEqual(absent["sample_path"], "")
+
+    def test_inspection_includes_tuning_diagnostics(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            path = root / "piano" / "a4.wav"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            rate = 44100
+            values = [
+                int(10000 * math.sin(2 * math.pi * 440 * i / rate))
+                for i in range(rate // 4)
+            ]
+            with wave.open(str(path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(rate)
+                wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [{
+                    "instrument": "piano", "midi_note": 69,
+                    "path": "piano/a4.wav",
+                }],
+            }), encoding="utf-8")
+            report = inspect_sample_bank(root)
+            self.assertEqual(report["tuning"]["estimated_samples"], 1)
+            self.assertEqual(report["tuning"]["measurements"][0]["status"], "estimated")
 
     def test_inspection_and_csv_include_recording_session_provenance(self):
         with tempfile.TemporaryDirectory() as folder:
