@@ -24,6 +24,28 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_primary_downbeats_land_on_current_chord_tones(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\nبرگرد به خانه\nصدای باران می‌آید\nهنوز چشم به راهت"
+        )
+        for phrase in plan["composition"]["melody"]:
+            chord_classes = set()
+            chord = phrase["chord"]
+            roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+            root = roots[chord[0]]
+            suffix = chord[1:]
+            if suffix.startswith("b"):
+                root -= 1
+            elif suffix.startswith("#"):
+                root += 1
+            intervals = (0, 3, 7) if suffix.startswith("m") else (0, 4, 7)
+            if "7" in suffix:
+                intervals += (10,)
+            chord_classes = {(root + interval) % 12 for interval in intervals}
+            for note, item in zip(phrase["midi_notes"], phrase["note_lyric_map"]):
+                if item["beat_strength"] == "strong":
+                    self.assertIn(note % 12, chord_classes)
+
     def test_note_beat_metadata_uses_note_onset_not_note_end(self):
         plan = compose_plan("دلم گرفته از این شب")
         phrase = plan["composition"]["melody"][0]
