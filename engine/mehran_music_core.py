@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 PERSIAN_VOWELS = set("َُِاویآ")
-WORD_PATTERN = re.compile(r"[\wآ-ی\u064b-\u065f\u0670]+", flags=re.UNICODE)
+WORD_PATTERN = re.compile(r"[\wآ-ی\u064b-\u065f\u0670]+(?:\u200c[\wآ-ی\u064b-\u065f\u0670]+)*", flags=re.UNICODE)
 MOOD_WORDS = {
     "sad": ("غم", "تنها", "اشک", "درد", "رفتی", "برگرد", "دلتنگ", "شکست"),
     "hopeful": ("امید", "فردا", "بهار", "روشن", "آزادی", "شروع", "می‌رس"),
@@ -156,7 +156,7 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
         raise ValueError("lyrics must contain at least one non-empty line")
     lines = []
     for line in raw_lines[:160]:
-        words = re.findall(r"[\wآ-ی]+", line, flags=re.UNICODE)
+        words = WORD_PATTERN.findall(line)
         lines.append(LyricLine(line, len(words), sum(_rhythmic_syllables(w) for w in words), _ending(line)))
     counts = {mood: sum(1 for word in keywords if word in cleaned)
               for mood, keywords in MOOD_WORDS.items()}
@@ -502,7 +502,7 @@ def _phrase_durations(syllables: int, note_count: int,
     total_ticks = bars * 4 * 480
     weights = [1.0] * note_count
 
-    word_matches = list(re.finditer(r"[\wآ-ی]+", lyric_line, flags=re.UNICODE))
+    word_matches = list(WORD_PATTERN.finditer(lyric_line))
     words = [match.group(0) for match in word_matches]
     estimated_counts = [_rhythmic_syllables(word) for word in words]
     estimated_total = sum(estimated_counts)
