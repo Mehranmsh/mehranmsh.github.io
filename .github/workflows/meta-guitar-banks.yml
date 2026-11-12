@@ -1,0 +1,80 @@
+name: Full CC0 Meta Guitar Banks
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_meta_guitar_banks.py'
+      - 'engine/test_fetch_meta_guitar_banks.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/guitar_string_planner.py'
+      - 'engine/velocity_layer_planner.py'
+      - '.github/workflows/meta-guitar-banks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-guitar-banks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test SFZ guitar maps and checksum parser
+        run: python3 -m unittest engine.test_fetch_meta_guitar_banks -v
+      - name: Download, verify, convert, and validate nylon guitar
+        run: python3 engine/fetch_meta_guitar_banks.py meta-nylon-guitar sample-bank-meta-nylon-guitar
+      - name: Download, verify, convert, and validate steel guitar
+        run: python3 engine/fetch_meta_guitar_banks.py meta-steel-guitar sample-bank-meta-steel-guitar
+      - name: Render real guitar audition notes
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          cases = [
+              ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'finger', 40, 64, 'nylon-E2-finger.wav'),
+              ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'pick', 40, 100, 'nylon-E2-pick.wav'),
+              ('sample-bank-meta-steel-guitar', 'acoustic_guitar', 'sustain', 40, 70, 'steel-E2.wav'),
+          ]
+          for root, instrument, articulation, note, velocity, filename in cases:
+              bank = load_sample_bank(root)
+              output = f'{root}/{filename}'
+              report = render_sample_events([{
+                  'instrument': instrument,
+                  'midi_note': note,
+                  'start_seconds': 0,
+                  'duration_seconds': 0.8,
+                  'velocity': velocity,
+                  'articulation': articulation,
+                  'guitar_string': 'LowE',
+              }], bank, output, sample_rate=44100)
+              assert report['events_rendered'] == 1, report
+              assert report['sample_selection']['guitar_string_selections'][0]['string'] == 'LowE', report
+              with wave.open(output, 'rb') as audio:
+                  assert audio.getnchannels() == 2
+                  assert audio.getsampwidth() == 2
+                  assert any(audio.readframes(audio.getnframes())), filename
+              print('REAL_GUITAR_PREVIEW_OK', filename, report['sample_selection'])
+          PY
+      - name: Publish verified guitar banks and audition WAVs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-real-nylon-and-steel-guitar-banks
+          path: |
+            sample-bank-meta-nylon-guitar/
+            sample-bank-meta-steel-guitar/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
