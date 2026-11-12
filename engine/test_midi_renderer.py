@@ -328,5 +328,16 @@ class MidiRendererTests(unittest.TestCase):
         self.assertGreaterEqual(result["articulation_markers"], 1)
         self.assertIn("metadata only", result["articulation_rendering"])
 
+
+    def test_articulation_performance_profile_is_preserved_in_midi_marker(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        item = plan["composition"]["melody"][0]["note_lyric_map"][0]
+        item.update({"articulation": "staccato", "gate_ratio": 0.62, "release_ms": 12})
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "performance.mid"
+            render_midi(plan, target)
+            data = target.read_bytes()
+        self.assertIn(b"gate_ratio=0.62;release_ms=12", data)
+
 if __name__ == "__main__":
     unittest.main()
