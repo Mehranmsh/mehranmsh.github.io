@@ -69,11 +69,12 @@ def db_session():
 def engine_status():
     return {
         "ready": False,
-        "state": "independent_composition_core_only",
+        "state": "independent_composition_and_sample_renderer_prototype",
         "composition_core": "available",
-        "audio_renderer": "not_implemented",
+        "audio_renderer": "recorded_sample_wav_prototype_available",
+        "audio_generation_enabled": False,
         "external_model_dependencies": False,
-        "message": "The independent MEHRAN composition core can create structured plans. Instrument rendering, vocal synthesis, mixing, and mastering are not implemented; audio generation remains disabled.",
+        "message": "The independent MEHRAN composition core and an offline recorded-sample WAV prototype are available. A complete licensed instrument bank, production mixing, mastering, and vocal synthesis are not implemented; the public job runner remains disabled.",
     }
 
 
