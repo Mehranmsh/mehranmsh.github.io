@@ -66,6 +66,21 @@ class MetaGuitarMapTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Conflicting default"):
             parse_guitar_sfz_sample_map(duplicate, "meta-steel-guitar")
 
+    def test_steel_map_supports_single_key_range_and_pitch_keycenter(self):
+        sfz = """
+<master> lochan=1 hichan=1
+<group> group=1 lovel=1 hivel=48
+<region> key=46 sample=INSGuitarSteel_StringLowE_Vel01_As2_01.ogg
+<region> lokey=47 hikey=47 pitch_keycenter=46 sample=INSGuitarSteel_StringLowE_Vel01_As2_01.ogg
+"""
+        mapped = parse_guitar_sfz_sample_map(sfz, "meta-steel-guitar")
+        self.assertEqual(len(mapped), 2)
+        base = mapped["INSGuitarSteel_StringLowE_Vel01_As2_01.ogg"]
+        adjacent = mapped["INSGuitarSteel_StringLowE_Vel01_As2_01.ogg#key47"]
+        self.assertEqual(base["midi_note"], 46)
+        self.assertEqual(adjacent["midi_note"], 47)
+        self.assertEqual(adjacent["source_midi_note"], 46)
+
     def test_checksum_parser_reads_and_rejects_bad_input(self):
         digest = "b" * 64
         self.assertEqual(parse_sha256sums(f"{digest}  ogg/sample.ogg"), {"ogg/sample.ogg": digest})
