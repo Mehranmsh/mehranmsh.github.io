@@ -455,15 +455,17 @@ class MidiRendererTests(unittest.TestCase):
         plan = compose_plan("یک شب آرام\\nدر این سکوت")
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "tar-accompaniment.mid"
+            preview = render_midi(plan, path)
+            note = preview["chord_voicings"][0]["midi_notes"][0]
             result = render_midi(
                 plan, path,
                 accompaniment_instruments={"guitar": "tar"},
-                instrument_tuning_cents={"tar": {60: 32.5}},
+                instrument_tuning_cents={"tar": {note: 32.5}},
             )
             data = path.read_bytes()
         self.assertEqual(result["accompaniment_instruments"]["guitar"], "tar")
         channel = result["accompaniment_tuning_channels"]["guitar"]["32.5"]
-        self.assertIn(bytes((0x90 | channel, 60)), data)
+        self.assertIn(bytes((0x90 | channel, note)), data)
         self.assertIn(bytes((0xE0 | channel,)), data)
 
     def test_persian_instrument_mapping_rejects_unknown_accompaniment_slot(self):
