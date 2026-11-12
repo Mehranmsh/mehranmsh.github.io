@@ -100,7 +100,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
                             for p in verse_two))
 
     def test_harmonic_progression_restarts_at_each_section_boundary(self):
-        lyrics = "\\n".join([
+        lyrics = "\n".join([
             "بند اول یک", "بند اول دو",
             "ترجیع یک", "ترجیع دو", "ترجیع سه",
             "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
