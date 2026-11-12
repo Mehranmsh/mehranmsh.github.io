@@ -160,6 +160,25 @@ class StudioControlPlaneTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 401)
             error.exception.close()
 
+    def test_sample_recording_sheet_csv_is_authenticated_read_only_and_downloadable(self):
+        request = urllib.request.Request(
+            self.base + "/v1/sample-bank/recording-sheet.csv",
+            headers={"Authorization": "Bearer " + module.TOKEN},
+        )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            content = response.read().decode("utf-8-sig")
+            self.assertEqual(response.status, 200)
+            self.assertIn("text/csv", response.headers.get("Content-Type", ""))
+            self.assertIn("attachment;", response.headers.get("Content-Disposition", ""))
+            self.assertIn("instrument,instrument_label,midi_note", content)
+            self.assertIn("piano,Acoustic grand piano,36,soft,1,48", content)
+            self.assertIn("planned", content)
+        denied = urllib.request.Request(self.base + "/v1/sample-bank/recording-sheet.csv")
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(denied, timeout=3)
+        self.assertEqual(error.exception.code, 401)
+        error.exception.close()
+
     def test_sample_recording_requirements_endpoint_is_authenticated_and_read_only(self):
         status, report = self.request("/v1/sample-bank/requirements")
         self.assertEqual(status, 200)
