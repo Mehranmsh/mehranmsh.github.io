@@ -244,8 +244,8 @@ def fetch_meta_guitar_bank(instrument_id: str, output_root: str | Path) -> dict[
     (root / "bank.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     from sample_bank import load_sample_bank
     bank = load_sample_bank(root)
-    if len(bank.samples) != expected_count:
-        raise ValueError(f"Validated bank should contain {expected_count} samples, got {len(bank.samples)}")
+    if len(bank.samples) != len(regions):
+        raise ValueError(f"Validated bank should contain {len(regions)} playable regions, got {len(bank.samples)}")
     return {
         "status": "validated",
         "instrument": "nylon_guitar" if instrument_id == "meta-nylon-guitar" else "acoustic_guitar",
