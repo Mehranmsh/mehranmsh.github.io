@@ -378,6 +378,12 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         notes = _melody_for_line(line["syllable_estimate"], tonic, scale, index, chord, line_section)
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         lyric_alignment = _align_words_to_notes(line["text"], len(notes))
+        tick_cursor = 0
+        for note_index, note_duration in enumerate(durations):
+            lyric_alignment["note_lyric_map"][note_index]["tick_start"] = tick_cursor
+            tick_cursor += note_duration
+            lyric_alignment["note_lyric_map"][note_index]["tick_end"] = tick_cursor
+            lyric_alignment["note_lyric_map"][note_index]["duration_ticks"] = note_duration
         melody.append({
             "line_index": index,
             **lyric_alignment,
