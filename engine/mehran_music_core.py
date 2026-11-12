@@ -45,6 +45,43 @@ def _normalize(text: str) -> str:
                       for line in text.split("\n")).strip()
 
 
+SHORT_VOWEL_MARKS = set("\u064e\u0650\u064f\u064b\u064c\u064d")
+PERSIAN_DIACRITICS = SHORT_VOWEL_MARKS | {"\u0651", "\u0652", "\u0670"}
+
+
+def _word_phonetics(word: str) -> dict[str, Any]:
+    """Conservative written-vowel scan; never invents unwritten short vowels."""
+    normalized = word.replace("ي", "ی").replace("ك", "ک")
+    explicit_marks = sum(1 for char in normalized if char in SHORT_VOWEL_MARKS)
+    nuclei = 0
+    previous_base_had_vowel_mark = False
+    for index, char in enumerate(normalized):
+        if char in PERSIAN_DIACRITICS:
+            if char in SHORT_VOWEL_MARKS:
+                nuclei += 1
+                previous_base_had_vowel_mark = True
+            continue
+        if char in "اآ":
+            if not previous_base_had_vowel_mark:
+                nuclei += 1
+        elif char in "وی":
+            later_vowel = any(ch in "اآوی" for ch in normalized[index + 1:]
+                              if ch not in PERSIAN_DIACRITICS)
+            if not (index == 0 and later_vowel) and not previous_base_had_vowel_mark:
+                nuclei += 1
+        previous_base_had_vowel_mark = False
+    return {
+        "word": normalized,
+        "syllable_estimate": max(1, nuclei),
+        "explicit_short_vowel_marks": explicit_marks,
+        "confidence": ("medium_high" if explicit_marks >= 2 else "medium")
+                      if explicit_marks else "low",
+        "method": "written_diacritics_and_long_vowels_v1" if explicit_marks
+                  else "written_long_vowels_only_v1",
+        "lexical_stress": "unknown",
+    }
+
+
 def _syllables(word: str) -> int:
     letters = [c for c in word if c.isalpha() or c in PERSIAN_VOWELS]
     nuclei = sum(1 for c in letters if c in PERSIAN_VOWELS)
@@ -77,9 +114,20 @@ def analyze_lyrics(lyrics: str) -> dict[str, Any]:
         "mood": mood,
         "mood_scores": counts,
         "lines": [asdict(line) for line in lines],
+        "phonetic_analysis": [
+            {
+                "line_index": index,
+                "words": [_word_phonetics(word) for word in
+                          re.findall(r"[\\wآ-ی]+", line.text, flags=re.UNICODE)],
+                "lexical_stress": "unknown",
+                "notice": "Unwritten short vowels and colloquial pronunciation cannot be recovered reliably from plain Persian text.",
+            }
+            for index, line in enumerate(lines)
+        ],
         "rhyme_candidates": sorted({line.ending for line in lines if line.ending}),
         "syllable_method": "orthographic_estimate_v1",
-        "notice": "Syllable counts are approximate; Persian pronunciation and poetic meter need a later phonetic layer.",
+        "phonetic_method": "conservative_written_vowel_scan_v1",
+        "notice": "The phonetic layer reports written vowel evidence only; it does not claim full pronunciation, lexical stress, or prosodic meter.",
     }
 
 
