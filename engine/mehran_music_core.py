@@ -651,6 +651,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         )
         bars, durations = _phrase_durations(line["syllable_estimate"], len(notes), line["text"])
         lyric_alignment = _align_words_to_notes(line["text"], len(notes))
+        durations, lyric_alignment["note_lyric_map"] = _align_stressed_onsets_to_beats(
+            durations, lyric_alignment["note_lyric_map"]
+        )
         pause_ticks, breath_after = _phrase_pause(line["text"])
         tick_cursor = 0
         for note_index, note_duration in enumerate(durations):
