@@ -301,6 +301,29 @@ class IndependentMusicCoreTests(unittest.TestCase):
         _, paused = _phrase_durations(4, 4, "دل، من")
         self.assertGreater(paused[1], plain[1])
 
+    def test_curated_stress_onset_moves_toward_strong_beat(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [500, 500, 500, 420]
+        note_map = [
+            {"is_lexically_stressed": False},
+            {"is_lexically_stressed": True},
+            {"is_lexically_stressed": False},
+            {"is_lexically_stressed": False},
+        ]
+        adjusted, mapped = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(sum(adjusted), sum(durations))
+        self.assertEqual(sum(adjusted[:1]), 500)
+        self.assertEqual(sum(adjusted[:2]), 960)
+        self.assertEqual(mapped[1]["stress_beat_alignment"], "aligned")
+
+    def test_unknown_stress_does_not_change_beat_timing(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [500, 500, 500, 420]
+        note_map = [{"is_lexically_stressed": None} for _ in durations]
+        adjusted, mapped = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(adjusted, durations)
+        self.assertNotIn("stress_beat_alignment", mapped[1])
+
     def test_curated_stress_receives_rhythmic_weight(self):
         from mehran_music_core import _phrase_durations
         _, durations = _phrase_durations(3, 4, "برگرد شب")
