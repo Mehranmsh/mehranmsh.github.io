@@ -97,11 +97,40 @@ def render_sample_events(
             bank, instrument, note, velocity, articulation
         )
         if velocity_plan["layers"]:
-            sample_layers = tuple(
-                (layer["sample"], layer["gain"])
-                for layer in velocity_plan["layers"]
-            )
-            sample_selection_mode = velocity_plan["selection_mode"]
+            planned_layers = velocity_plan["layers"]
+            if len(planned_layers) > 1:
+                # Preserve the existing technical quality gate: do not blend a
+                # layer flagged as silent or digitally clipped into a clean take.
+                candidate_report = rank_sample_candidates(
+                    bank, instrument, note, velocity, articulation
+                )
+                fatal_paths = {
+                    candidate["path"] for candidate in candidate_report["candidates"]
+                    if {"silent_sample", "digital_clipping"}.intersection(candidate["warnings"])
+                }
+                if any(
+                    layer["sample"].path.relative_to(bank.root).as_posix() in fatal_paths
+                    for layer in planned_layers
+                ):
+                    selected_path = candidate_report["selected_sample"]
+                    selected_sample = next(
+                        item for item in bank.samples
+                        if item.path.relative_to(bank.root).as_posix() == selected_path
+                    )
+                    sample_layers = ((selected_sample, 1.0),)
+                    sample_selection_mode = "exact_note_quality_ranked"
+                else:
+                    sample_layers = tuple(
+                        (layer["sample"], layer["gain"])
+                        for layer in planned_layers
+                    )
+                    sample_selection_mode = velocity_plan["selection_mode"]
+            else:
+                sample_layers = tuple(
+                    (layer["sample"], layer["gain"])
+                    for layer in planned_layers
+                )
+                sample_selection_mode = velocity_plan["selection_mode"]
         else:
             candidate_report = rank_sample_candidates(
                 bank, instrument, note, velocity, articulation
