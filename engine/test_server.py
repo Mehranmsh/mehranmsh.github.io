@@ -185,6 +185,7 @@ class StudioControlPlaneTests(unittest.TestCase):
             "samples": [{
                 "instrument": "piano", "midi_note": 60,
                 "path": "piano-c4.wav",
+                "loop_start_frame": 0, "loop_end_frame": 16,
             }],
         }), encoding="utf-8")
         with mock.patch.dict(os.environ, {"MEHRAN_SAMPLE_BANK": str(bank_root)}):
@@ -198,7 +199,10 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(report["signal_quality"]["basic_signal_checks_pass"])
         self.assertTrue(report["instrument_health"]["read_only"])
         self.assertEqual(report["instrument_health"]["instruments"]["piano"]["recorded_samples"], 1)
-        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["status"], "incomplete_coverage")
+        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["status"], "needs_attention")
+        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["looped_samples"], 1)
+        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["loop_boundary_warning_count"], 1)
+        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["max_loop_boundary_jump"], 0.25)
         self.assertEqual(report["instrument_health"]["instruments"]["acoustic_guitar"]["status"], "missing")
         self.assertTrue(sample_path.is_file())
 
