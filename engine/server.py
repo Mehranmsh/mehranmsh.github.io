@@ -256,8 +256,12 @@ class Handler(BaseHTTPRequestHandler):
                 "plan": plan,
                 "midi": {"id": render_id, "format": midi_info["format"],
                          "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
-                         "note_events": midi_info["note_events"], "bytes": midi_info["bytes"],
-                         "local_path": str(midi_path)},
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
                 "message": "Composition plan and MIDI file created. Audio rendering is not implemented yet."
             })
         name = str(payload.get("name", "")).strip()
