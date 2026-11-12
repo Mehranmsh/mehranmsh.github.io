@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 from mehran_music_core import compose_plan
-from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _melody_velocity, _section_dynamics, render_midi
+from midi_renderer import _bass_pattern, _drum_bar, _groove_velocity, _guitar_bar, _piano_bar, _string_pad_bar, _melody_velocity, _section_dynamics, render_midi
 
 
 class MidiRendererTests(unittest.TestCase):
@@ -149,6 +149,19 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual(chorus_count, 10)
         self.assertEqual(bridge_count, 2)
         self.assertTrue(all(event[2][0] & 0x0F == 4 for event in verse if event[2][0] & 0xF0 == 0x90))
+
+    def test_string_pad_changes_voicing_density_by_section(self):
+        chord = (60, 64, 67)
+        verse, chorus, bridge = [], [], []
+        verse_count = _string_pad_bar(chord, 0, verse, section="verse")
+        chorus_count = _string_pad_bar(chord, 0, chorus, section="chorus")
+        bridge_count = _string_pad_bar(chord, 0, bridge, section="bridge")
+        self.assertEqual(verse_count, 3)
+        self.assertEqual(chorus_count, 4)
+        self.assertEqual(bridge_count, 2)
+        self.assertTrue(all(event[2][0] & 0x0F == 1 for event in verse if event[2][0] & 0xF0 == 0x90))
+        self.assertGreater(max(e[2][2] for e in chorus if e[2][0] & 0xF0 == 0x90),
+                           max(e[2][2] for e in verse if e[2][0] & 0xF0 == 0x90))
 
 if __name__ == "__main__":
     unittest.main()
