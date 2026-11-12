@@ -196,6 +196,17 @@ def _scaled_velocity(base: int, scale: float) -> int:
     return max(1, min(127, int(round(base * scale))))
 
 
+def _melody_sample_velocity(base: int, tick_in_bar: int, *,
+                             section_scale: float = 1.0,
+                             is_peak: bool = False,
+                             is_cadence: bool = False) -> int:
+    """Mirror MIDI melody accents in the recorded-sample playback path."""
+    beat = (tick_in_bar % (PPQ * 4)) // PPQ
+    beat_scale = {0: 1.08, 1: 0.96, 2: 1.03, 3: 0.97}[beat]
+    phrase_scale = (1.05 if is_peak else 1.0) * (1.03 if is_cadence else 1.0)
+    return _scaled_velocity(base, section_scale * beat_scale * phrase_scale)
+
+
 def build_composition_events(
     plan: dict[str, Any],
     *,
@@ -272,9 +283,15 @@ def build_composition_events(
         section = phrase.get("section", "verse")
         dynamics = _section_sample_dynamics(section)
         cursor = phrase_tick
-        for note, duration in zip(notes, durations):
-            add("melody", note, cursor, max(1, int(duration * 0.88)),
-                _scaled_velocity(88, dynamics["melody"]))
+        peak_index = phrase.get("peak_note_index")
+        for note_index, (note, duration) in enumerate(zip(notes, durations)):
+            velocity = _melody_sample_velocity(
+                88, cursor, section_scale=dynamics["melody"],
+                is_peak=(isinstance(peak_index, int) and not isinstance(peak_index, bool)
+                         and note_index == peak_index),
+                is_cadence=(note_index == len(notes) - 1),
+            )
+            add("melody", note, cursor, max(1, int(duration * 0.88)), velocity)
             cursor += duration
 
         for bar in range(bars):
@@ -291,16 +308,18 @@ def build_composition_events(
                 for beat in range(4):
                     for voice_index, note in enumerate(voicing):
                         add("guitar", note, bar_start + beat * PPQ + voice_index * 18,
-                            PPQ // 2, 54, (-0.35, 0.0, 0.35)[voice_index])
+                            PPQ // 2, _scaled_velocity(54, dynamics["chords"]),
+                            (-0.35, 0.0, 0.35)[voice_index])
             if names["strings"] and phrase.get("section") == "chorus":
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24, 42,
+                        _scaled_velocity(42, dynamics["chords"]),
                         (-0.3, 0.0, 0.3)[voice_index])
             if names["electric_guitar"] and phrase.get("section") == "chorus":
                 add("electric_guitar", voicing[-1], bar_start + PPQ,
-                    PPQ // 2, 68, 0.38)
+                    PPQ // 2, _scaled_velocity(68, dynamics["chords"]), 0.38)
                 add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
-                    PPQ // 2, 72, 0.42)
+                    PPQ // 2, _scaled_velocity(72, dynamics["chords"]), 0.42)
             root = 36 + root_pc
             bass_scale = dynamics["bass"]
             drum_scale = dynamics["drums"]
