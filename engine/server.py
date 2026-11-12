@@ -20,7 +20,7 @@ import time
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(os.environ.get("MEHRAN_STUDIO_HOME", Path.home() / ".mehran-music-studio")).expanduser()
 DB_PATH = ROOT / "studio.sqlite3"
@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
 from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
-                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist)
+                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist, select_sample)
 from sample_renderer import render_composition_to_wav
 
 
@@ -135,6 +135,39 @@ class Handler(BaseHTTPRequestHandler):
                 "recording_checklist": build_sample_recording_checklist(),
                 "read_only": True,
             })
+        if path == "/v1/sample-bank/preview":
+            query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+            if set(query) != {"instrument", "note", "velocity"} or any(len(values) != 1 for values in query.values()):
+                return self.send_json(400, {"error": "invalid_preview_parameters"})
+            instrument = query["instrument"][0]
+            try:
+                note = int(query["note"][0])
+                velocity = int(query["velocity"][0])
+                if not instrument or len(instrument) > 40 or not instrument.replace("_", "").replace("-", "").isalnum():
+                    raise ValueError
+                if not 0 <= note <= 127 or not 1 <= velocity <= 127:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return self.send_json(400, {"error": "invalid_preview_parameters"})
+            bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
+            try:
+                bank = load_sample_bank(bank_root)
+                sample = select_sample(bank, instrument, note, velocity)
+                size = sample.path.stat().st_size
+                if size > 32 * 1024 * 1024:
+                    return self.send_json(413, {"error": "sample_preview_too_large"})
+                audio = sample.path.read_bytes()
+            except (ValueError, OSError):
+                return self.send_json(404, {"error": "sample_preview_unavailable"})
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(audio)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Disposition", "inline; filename=sample-preview.wav")
+            self.end_headers()
+            self.wfile.write(audio)
+            return
         if path == "/v1/sample-bank/diagnostics":
             bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
             try:
