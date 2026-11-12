@@ -30,10 +30,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         )
         for phrase in plan["composition"]["melody"]:
             notes = phrase["midi_notes"]
-            self.assertEqual(notes[0] % 12 in set(), False) if False else None
-            self.assertEqual(notes[phrase["peak_note_index"]], max(
-                notes[phrase["peak_note_index"]], notes[phrase["peak_note_index"]]
-            ))
+            self.assertTrue(all(0 <= note <= 127 for note in notes))
             for index in range(1, len(notes) - 1):
                 if phrase["note_lyric_map"][index]["beat_strength"] != "strong" and index != phrase["peak_note_index"]:
                     self.assertLessEqual(abs(notes[index] - notes[index - 1]), 7)
