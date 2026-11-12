@@ -61,6 +61,46 @@ class SampleRendererTests(unittest.TestCase):
             self.assertEqual(result["events_rendered"], 2)
             self.assertEqual(result["source"], "recorded_sample_bank")
 
+    def test_mix_attenuates_overloads_to_the_configured_peak_ceiling(self):
+        import array
+        from sample_renderer import MAX_PEAK
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "hot_mix.wav"
+            events = [
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.08, "velocity": 127}
+                for _ in range(12)
+            ]
+            result = render_sample_events(events, bank, output, sample_rate=22050)
+
+            with wave.open(str(output), "rb") as wav:
+                pcm = array.array("h")
+                pcm.frombytes(wav.readframes(wav.getnframes()))
+            measured_peak = max(abs(value) for value in pcm)
+
+            self.assertGreater(result["peak_before_normalization"], MAX_PEAK)
+            self.assertLess(result["normalization_applied"], 1.0)
+            self.assertLessEqual(measured_peak, round(32767 * MAX_PEAK) + 1)
+            self.assertGreater(measured_peak, 0)
+
+    def test_mix_never_amplifies_quiet_audio_during_peak_management(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            bank = self.make_bank(root)
+            output = Path(folder) / "quiet_mix.wav"
+            result = render_sample_events([
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.08, "velocity": 20},
+            ], bank, output, sample_rate=22050)
+
+            self.assertLess(result["peak_before_normalization"], 0.92)
+            self.assertEqual(result["normalization_applied"], 1.0)
+
     def test_composition_plan_becomes_sample_events(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         events = build_composition_events(plan)
