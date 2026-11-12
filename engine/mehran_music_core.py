@@ -295,9 +295,9 @@ def _align_stressed_onsets_to_beats(
         if abs(shift) > tolerance:
             continue
         previous_minimum = 120
-        if adjusted[index - 1] - shift < previous_minimum:
+        if adjusted[index - 1] + shift < previous_minimum:
             continue
-        adjusted[index - 1] -= shift
+        adjusted[index - 1] += shift
         item["stress_beat_alignment"] = "aligned"
         item["stress_onset_shift_ticks"] = shift
     return adjusted, metadata
