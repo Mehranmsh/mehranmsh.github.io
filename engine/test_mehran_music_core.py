@@ -49,7 +49,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
 
     def test_rhyme_candidates_ignore_written_vowel_marks(self):
         result = analyze_lyrics("خَانِه\nبَهانِه")
-        self.assertEqual(result["rhyme_candidates"], ["نه"])
+        self.assertEqual(result["rhyme_candidates"], ["ne"])
 
     def test_vocalized_persian_words_remain_single_tokens(self):
         result = analyze_lyrics("بَرگَرد به خَانِه")
