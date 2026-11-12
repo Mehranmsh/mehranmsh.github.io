@@ -86,7 +86,7 @@ def parse_guitar_sfz_sample_map(sfz_text: str, instrument_id: str) -> dict[str, 
             selected_group = False
             velocity_min = velocity_max = None
         elif line.startswith("<group>"):
-            attrs = dict(re.findall(r"([a-z_]+)=([^\\s]+)", line))
+            attrs = dict(re.findall(r"([a-z_]+)=([^\s]+)", line))
             selected_group = (
                 attrs.get("sw_last") == "24" if nylon else "sw_last" not in attrs
             )
