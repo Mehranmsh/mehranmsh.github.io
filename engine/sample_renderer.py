@@ -72,8 +72,6 @@ def render_sample_events(
 
     checked = []
     end_time = 0.0
-    quality_report_cache = None
-
     def rank_candidates(
         selected_bank: SampleBank,
         selected_instrument: str,
@@ -81,16 +79,14 @@ def render_sample_events(
         selected_velocity: int,
         selected_articulation: str,
     ) -> dict[str, Any]:
-        nonlocal quality_report_cache
-        if quality_report_cache is None:
-            quality_report_cache = analyze_sample_bank_quality(bank)
+        # Candidate-only quality analysis is performed by rank_sample_candidates.
+        # Avoid a full-bank WAV scan for a short multi-instrument preview.
         return rank_sample_candidates(
             selected_bank,
             selected_instrument,
             selected_note,
             selected_velocity,
             selected_articulation,
-            quality_report=quality_report_cache,
         )
 
     for event in events:
