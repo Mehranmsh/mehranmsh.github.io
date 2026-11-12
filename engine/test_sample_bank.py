@@ -908,5 +908,35 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(result["selection_status"], "no_exact_candidate")
 
 
+    def test_guitar_samples_can_share_note_velocity_and_articulation_across_strings(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            entries = []
+            for string_name in ("LowE", "B"):
+                filename = f"guitar/{string_name}.wav"
+                self.write_sample(root / filename)
+                entries.append({
+                    "instrument": "acoustic_guitar", "midi_note": 60,
+                    "velocity_min": 1, "velocity_max": 127,
+                    "articulation": "sustain", "string": string_name,
+                    "path": filename,
+                })
+            self.write_manifest(root, entries)
+            bank = load_sample_bank(root)
+            self.assertEqual(len(bank.samples), 2)
+            self.assertEqual({sample.string_name for sample in bank.samples}, {"LowE", "B"})
+
+    def test_sample_bank_rejects_unknown_guitar_string_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "guitar.wav")
+            self.write_manifest(root, [{
+                "instrument": "acoustic_guitar", "midi_note": 60,
+                "string": "E", "path": "guitar.wav",
+            }])
+            with self.assertRaisesRegex(ValueError, "string must be"):
+                load_sample_bank(root)
+
+
 if __name__ == "__main__":
     unittest.main()
