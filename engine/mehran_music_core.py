@@ -273,6 +273,36 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     return notes
 
 
+def _align_stressed_onsets_to_beats(
+    durations: list[int], note_map: list[dict[str, Any]], tolerance: int = 180
+) -> tuple[list[int], list[dict[str, Any]]]:
+    """Nudge curated stressed-syllable onsets toward beats 1 or 3.
+
+    Timing is redistributed from the immediately preceding note, preserving
+    the phrase's total duration. Unknown stress and large adjustments are skipped.
+    """
+    adjusted = list(durations)
+    metadata = [dict(item) for item in note_map]
+    for index, item in enumerate(metadata):
+        if index == 0 or item.get("is_lexically_stressed") is not True:
+            continue
+        onset = sum(adjusted[:index])
+        target = min(
+            (round(onset / 960) * 960, max(0, round(onset / 1920) * 1920 + 960)),
+            key=lambda beat: abs(beat - onset),
+        )
+        shift = target - onset
+        if abs(shift) > tolerance:
+            continue
+        previous_minimum = 120
+        if adjusted[index - 1] - shift < previous_minimum:
+            continue
+        adjusted[index - 1] -= shift
+        item["stress_beat_alignment"] = "aligned"
+        item["stress_onset_shift_ticks"] = shift
+    return adjusted, metadata
+
+
 def _align_strong_beats_to_chord_tones(notes: list[int], note_map: list[dict[str, Any]],
                                                chord: str) -> list[int]:
     """Prefer chord tones when a melody note begins on the primary downbeat."""
