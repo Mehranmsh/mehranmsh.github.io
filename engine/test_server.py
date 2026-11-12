@@ -194,8 +194,8 @@ class StudioControlPlaneTests(unittest.TestCase):
             self.assertEqual(response.status, 200)
             self.assertIn("text/csv", response.headers.get("Content-Type", ""))
             self.assertIn("attachment;", response.headers.get("Content-Disposition", ""))
-            self.assertIn('"instrument","instrument_label","articulation","midi_note"', content)
-            self.assertIn('"piano","Acoustic grand piano","sustain",36,soft,1,48', content)
+            self.assertIn("instrument,instrument_label,articulation,midi_note", content)
+            self.assertIn("piano,Acoustic grand piano,sustain,36,soft,1,48", content)
             self.assertIn("planned", content)
         denied = urllib.request.Request(self.base + "/v1/sample-bank/recording-sheet.csv")
         with self.assertRaises(urllib.error.HTTPError) as error:
