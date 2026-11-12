@@ -670,5 +670,21 @@ class SampleRendererTests(unittest.TestCase):
                                  plan, response_fill_part="strings"
                              )))
 
+
+    def test_persian_dastgah_profile_controls_response_fill_and_metadata(self):
+        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        plan["composition"]["melody"][0]["section"] = "chorus"
+        plan["composition"]["persian_dastgah"] = "shur"
+        plan["composition"]["key"] = "D"
+        events = build_composition_events(
+            plan, instruments={"guitar": "tar"}, response_fill_part="guitar"
+        )
+        fills = [e for e in events if e.get("event_role") == "melodic_response_fill"]
+        self.assertTrue(fills)
+        self.assertTrue(all(e["modal_profile"] == "shur" for e in fills))
+        self.assertTrue(all(e["modal_tuning"] == "12tet_approximation" for e in fills))
+        self.assertTrue(all(e["microtonal_audio_rendered"] is False for e in fills))
+        self.assertEqual(fills[-1]["midi_note"] % 12, 2)
+
 if __name__ == "__main__":
     unittest.main()
