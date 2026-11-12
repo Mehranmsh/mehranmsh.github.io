@@ -296,6 +296,7 @@ def build_composition_events(
             raise ValueError("phrase_pause_ticks must be an integer from 0 to 960")
         section = _section_kind(phrase.get("section", "verse"))
         dynamics = _section_sample_dynamics(section)
+        transition = phrase.get("phrase_energy", {}).get("section_transition")
         cursor = phrase_tick
         peak_index = phrase.get("peak_note_index")
         for note_index, (note, duration) in enumerate(zip(notes, durations)):
@@ -310,6 +311,14 @@ def build_composition_events(
 
         for bar in range(bars):
             bar_start = phrase_tick + bar * 4 * PPQ
+            bar_dynamics = dict(dynamics)
+            if bar == bars - 1 and isinstance(transition, dict):
+                change = transition.get("energy_change")
+                if (not isinstance(change, bool)
+                        and isinstance(change, (int, float))):
+                    anticipation = max(0.96, min(1.04, 1.0 + float(change) * 0.20))
+                    for track in ("chords", "bass", "drums"):
+                        bar_dynamics[track] *= anticipation
             phrase_chord = phrase.get("chord")
             symbol = (phrase_chord if bar == 0 and isinstance(phrase_chord, str)
                       else chords[chord_index % len(chords)])
@@ -321,7 +330,7 @@ def build_composition_events(
                 # Let the harmony breathe: long, quiet chord tones.
                 for voice_index, note in enumerate(voicing):
                     add("chords", note, bar_start, 4 * PPQ - 48,
-                        _scaled_velocity(48, dynamics["chords"]),
+                        _scaled_velocity(48, bar_dynamics["chords"]),
                         voice_pans[voice_index])
             elif section == "verse":
                 # Gentle eighth-note arpeggio, cycling through the voicing.
@@ -330,21 +339,21 @@ def build_composition_events(
                     add("chords", voicing[voice_index],
                         bar_start + step * (PPQ // 2), (PPQ // 2) - 18,
                         _scaled_velocity(54 if step % 2 == 0 else 46,
-                                         dynamics["chords"]),
+                                         bar_dynamics["chords"]),
                         voice_pans[voice_index])
             elif section == "pre_chorus":
                 # Quarter-note broken chords build forward motion.
                 pattern = (0, 1, 2, 1) if len(voicing) == 3 else (0, 1, 2, 3)
                 for beat, voice_index in enumerate(pattern):
                     add("chords", voicing[voice_index], bar_start + beat * PPQ,
-                        PPQ - 24, _scaled_velocity(56, dynamics["chords"]),
+                        PPQ - 24, _scaled_velocity(56, bar_dynamics["chords"]),
                         voice_pans[voice_index])
             else:
                 # Choruses use fuller chord punches on the main beats.
                 for beat in (0, 2):
                     for voice_index, note in enumerate(voicing):
                         add("chords", note, bar_start + beat * PPQ,
-                            PPQ - 24, _scaled_velocity(64, dynamics["chords"]),
+                            PPQ - 24, _scaled_velocity(64, bar_dynamics["chords"]),
                             voice_pans[voice_index])
             if names["guitar"]:
                 # Alternate down/up strums: downbeats sweep low-to-high,
@@ -358,18 +367,18 @@ def build_composition_events(
                         add("guitar", note,
                             bar_start + beat * PPQ + strum_step * 12,
                             PPQ // 2 - 12,
-                            _scaled_velocity(base_velocity, dynamics["chords"]),
+                            _scaled_velocity(base_velocity, bar_dynamics["chords"]),
                             voice_pans[voice_index])
             if names["strings"] and section in ("chorus", "final_chorus"):
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24,
-                        _scaled_velocity(42, dynamics["chords"]),
+                        _scaled_velocity(42, bar_dynamics["chords"]),
                         voice_pans[voice_index])
             if names["electric_guitar"] and section in ("chorus", "final_chorus"):
                 add("electric_guitar", voicing[-1], bar_start + PPQ,
-                    PPQ // 2, _scaled_velocity(68, dynamics["chords"]), 0.38)
+                    PPQ // 2, _scaled_velocity(68, bar_dynamics["chords"]), 0.38)
                 add("electric_guitar", voicing[-1] + 12, bar_start + 3 * PPQ,
-                    PPQ // 2, _scaled_velocity(72, dynamics["chords"]), 0.42)
+                    PPQ // 2, _scaled_velocity(72, bar_dynamics["chords"]), 0.42)
             bass_root_pc = voicing[0] % 12
             bass_root = 36 + bass_root_pc
             bass_intervals = sorted(
@@ -379,8 +388,8 @@ def build_composition_events(
             )
             bass_third = bass_root + bass_intervals[0]
             bass_fifth = bass_root + bass_intervals[-1]
-            bass_scale = dynamics["bass"]
-            drum_scale = dynamics["drums"]
+            bass_scale = bar_dynamics["bass"]
+            drum_scale = bar_dynamics["drums"]
             if section == "bridge":
                 add("bass", bass_root, bar_start, 2 * PPQ - 36, _scaled_velocity(76, bass_scale))
                 add("bass", bass_fifth, bar_start + 2 * PPQ, 2 * PPQ - 36,
