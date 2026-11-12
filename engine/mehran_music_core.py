@@ -122,9 +122,7 @@ def _melody_for_line(syllables: int, tonic: int, scale: list[int],
     # Set a deliberate section-specific register target. The chorus peak is
     # higher, while every phrase remains inside the engine's safe MIDI range.
     peak_degree = scale[5] if is_chorus else scale[4]
-    peak_target = tonic + 12 + peak_degree
-    if is_chorus:
-        peak_target += 12
+    peak_target = tonic + (12 if is_chorus else 0) + peak_degree
     peak_target = min(84, max(55, peak_target))
     peak_note = min(scale_notes, key=lambda note: (abs(note - peak_target), note))
 
