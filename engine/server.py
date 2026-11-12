@@ -261,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
                          "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
                          "note_events": midi_info["note_events"],
                          "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
                          "drum_hits": midi_info["drum_hits"],
                          "drum_channel": midi_info["drum_channel"],
                          "duration_seconds": midi_info["duration_seconds"],
