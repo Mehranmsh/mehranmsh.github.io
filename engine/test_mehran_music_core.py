@@ -793,7 +793,7 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertEqual(plan["composition"]["persian_modal_profile"]["tuning"],
                          "12tet_approximation")
         self.assertEqual(plan["composition"]["persian_modal_profile"]["scope"],
-                         "response_fills_only")
+                         "melody_and_response_fills")
         self.assertFalse(plan["composition"]["persian_modal_profile"]["microtonal_audio_rendered"])
 
     def test_composition_rejects_unknown_persian_dastgah(self):
