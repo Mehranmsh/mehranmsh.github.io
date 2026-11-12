@@ -120,6 +120,37 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(midi_path.is_file())
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
 
+    def test_sample_preview_serves_only_selected_authenticated_wav(self):
+        bank_root = module.ROOT / "preview-bank"
+        bank_root.mkdir()
+        sample_path = bank_root / "piano-c4.wav"
+        with wave.open(str(sample_path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(44100)
+            wav.writeframes(struct.pack("<" + "h" * 128, *([2048, -2048] * 64)))
+        (bank_root / "bank.json").write_text(json.dumps({
+            "format_version": 1,
+            "samples": [{"instrument": "piano", "midi_note": 60, "path": "piano-c4.wav"}],
+        }), encoding="utf-8")
+        with mock.patch.dict(os.environ, {"MEHRAN_SAMPLE_BANK": str(bank_root)}):
+            request = urllib.request.Request(self.base + "/v1/sample-bank/preview?instrument=piano&note=60&velocity=80",
+                                            headers={"Authorization": "Bearer " + module.TOKEN})
+            response = urllib.request.urlopen(request, timeout=3)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get("Content-Type"), "audio/wav")
+            self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+            self.assertEqual(response.read(), sample_path.read_bytes())
+            response.close()
+            invalid = urllib.request.Request(self.base + "/v1/sample-bank/preview?instrument=piano&note=200&velocity=80",
+                                             headers={"Authorization": "Bearer " + module.TOKEN})
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(invalid, timeout=3)
+            self.assertEqual(error.exception.code, 400)
+            denied = urllib.request.Request(self.base + "/v1/sample-bank/preview?instrument=piano&note=60&velocity=80")
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(denied, timeout=3)
+            self.assertEqual(error.exception.code, 401)
     def test_sample_recording_requirements_endpoint_is_authenticated_and_read_only(self):
         status, report = self.request("/v1/sample-bank/requirements")
         self.assertEqual(status, 200)
