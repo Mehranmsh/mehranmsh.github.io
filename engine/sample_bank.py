@@ -800,6 +800,43 @@ def _post_peak_decay_profile(
     }
 
 
+def _sustain_stability_profile(
+    buckets: list[tuple[float, float]],
+    peak_index: int,
+    bucket_frames: int,
+    sample_rate: int,
+    peak: float,
+) -> dict[str, Any]:
+    """Describe RMS steadiness after the initial attack; never score it."""
+    windows = ((300, 700), (700, 1500))
+    bucket_ms = bucket_frames * 1000.0 / sample_rate
+    results = {}
+    for start_ms, end_ms in windows:
+        values = [
+            rms for index, (_, rms) in enumerate(buckets)
+            if start_ms <= (index - peak_index) * bucket_ms < end_ms
+        ]
+        mean = sum(values) / len(values) if values else None
+        variance = (
+            sum((value - mean) ** 2 for value in values) / len(values)
+            if values and mean is not None else None
+        )
+        results[f"{start_ms}_{end_ms}ms"] = {
+            "mean_rms_ratio": round(mean / peak, 5) if mean is not None and peak else None,
+            "coefficient_of_variation": round(variance ** 0.5 / mean, 5)
+            if variance is not None and mean else None,
+            "minimum_to_maximum_ratio": round(min(values) / max(values), 5)
+            if values and max(values) else None,
+            "bucket_count": len(values),
+        }
+    measured = any(item["bucket_count"] for item in results.values())
+    return {
+        "windows": results,
+        "profile_status": "measured" if measured else "insufficient_duration",
+        "note": "RMS variation is descriptive only; natural decay, vibrato, tremolo and room sound affect it.",
+    }
+
+
 def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
     """Measure low-level head/tail regions and the recorded attack envelope."""
     bucket_frames = max(1, int(sample.sample_rate * 0.01))
@@ -838,6 +875,7 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "attack_10_to_90_seconds": None,
             "release_90_to_10_seconds": None,
             "post_peak_decay_profile": {"windows": {}, "profile_status": "insufficient_audio"},
+            "sustain_stability_profile": {"windows": {}, "profile_status": "insufficient_audio"},
             "envelope_family": _envelope_family(sample.instrument),
             "quiet_region_rms": None,
             "ending_level_ratio": None,
@@ -853,6 +891,7 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
             "attack_10_to_90_seconds": None,
             "release_90_to_10_seconds": None,
             "post_peak_decay_profile": {"windows": {}, "profile_status": "silent"},
+            "sustain_stability_profile": {"windows": {}, "profile_status": "silent"},
             "envelope_family": _envelope_family(sample.instrument),
             "quiet_region_rms": 0.0,
             "ending_level_ratio": 0.0,
@@ -907,6 +946,9 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
     decay_profile = _post_peak_decay_profile(
         buckets, peak_index, bucket_frames, sample.sample_rate, peak
     )
+    sustain_profile = _sustain_stability_profile(
+        buckets, peak_index, bucket_frames, sample.sample_rate, peak
+    )
     quiet = [rms for frame_peak, rms in buckets if frame_peak <= active_threshold]
     return {
         "leading_low_level_seconds": round(leading * bucket_frames / sample.sample_rate, 4),
@@ -915,6 +957,7 @@ def _analyze_sample_boundaries(sample: Sample) -> dict[str, Any]:
         "attack_10_to_90_seconds": attack_10_to_90,
         "release_90_to_10_seconds": release_90_to_10,
         "post_peak_decay_profile": decay_profile,
+        "sustain_stability_profile": sustain_profile,
         "envelope_family": _envelope_family(sample.instrument),
         "quiet_region_rms": round((sum(value * value for value in quiet) / len(quiet)) ** 0.5 / 32768.0, 6)
         if quiet else None,
