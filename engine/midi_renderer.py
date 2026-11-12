@@ -228,7 +228,7 @@ def _guitar_bar(chord: tuple[int, ...], bar_start: int,
         gate, base_velocity = PPQ * 3 // 4, 66
     else:
         # Eight-note arpeggio, alternating root, fifth and inner chord tones.
-        order = (0, 2, 1, 2, 0, 2, 1, 2)
+        order = (0, 2, 1, 3, 0, 2, 1, 3) if len(chord) > 3 else (0, 2, 1, 2, 0, 2, 1, 2)
         pattern = [(step * (PPQ // 2), order[step]) for step in range(8)]
         gate, base_velocity = PPQ // 2 - 36, 54
     for offset, voice_index in pattern:
@@ -254,11 +254,11 @@ def _string_pad_bar(chord: tuple[int, ...], bar_start: int,
         gate = PPQ * 4 - 36
         velocity = 38
     elif "chorus" in name:
-        voices = (0, 1, 2)
+        voices = tuple(range(len(chord))) if len(chord) > 3 else (0, 1, 2)
         gate = PPQ * 4 - 48
         velocity = 54
     else:
-        voices = (0, 1, 2)
+        voices = tuple(range(len(chord))) if len(chord) > 3 else (0, 1, 2)
         gate = PPQ * 4 - 24
         velocity = 43
     for voice_index in voices:
