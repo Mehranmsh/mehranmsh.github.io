@@ -191,7 +191,7 @@ def build_sample_recording_sheet_csv(
         "suggested_filename", "recording_status", "recorded_file_path",
         "recording_notes",
     ]
-    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\\r\\n")
+    writer = csv.DictWriter(output, fieldnames=columns, lineterminator="\r\n")
     writer.writeheader()
     for instrument, spec in checklist["instruments"].items():
         for target in spec["targets"]:
