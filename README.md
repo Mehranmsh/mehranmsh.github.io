@@ -233,8 +233,10 @@ precision tuner or proof of authentic instrument intonation.
 ## Sample boundary and quiet-region diagnostics
 
 Quality inspection measures low-level material at the beginning and end of each
-recording, estimates the time from first detected activity to 10% of peak level,
-and reports RMS in low-level regions. These values help locate excess pre-roll,
-tail padding, and possible room noise for human review. A low-level region is not
-guaranteed to be digital silence, and the attack estimate is envelope-based rather
-than a transient-quality judgment. The diagnostics never trim or rewrite source audio.
+recording, estimates attack rise (10%-90%) and release decay (90%-10%), and reports
+RMS in low-level regions. It also labels a broad envelope family (percussive,
+plucked, bowed, or wind/bellows) for context. These measurements help locate excess
+pre-roll, tail padding, and possible room noise for human review. Family labels are
+not performance-quality grades, and a low-level region is not guaranteed to be
+digital silence. An active final region is flagged as a possible truncated tail,
+not a definitive editing error. The diagnostics never trim or rewrite source audio.
