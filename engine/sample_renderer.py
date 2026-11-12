@@ -19,6 +19,7 @@ from arrangement_planner import plan_part_arrangement
 from vocal_space_planner import plan_vocal_space
 from fill_planner import plan_melody_fill
 from persian_modal_planner import resolve_persian_modal_profile
+from velocity_layer_planner import plan_velocity_layers
 
 MAX_EVENTS = 20000
 MAX_DURATION_SECONDS = 120.0
@@ -92,28 +93,39 @@ def render_sample_events(
             raise ValueError("event duration_seconds must be finite and positive")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("event velocity must be an integer from 1 to 127")
-        candidate_report = rank_sample_candidates(
+        velocity_plan = plan_velocity_layers(
             bank, instrument, note, velocity, articulation
         )
-        if candidate_report["candidate_count"]:
-            selected_path = candidate_report["selected_sample"]
-            sample = next(
-                item for item in bank.samples
-                if item.path.relative_to(bank.root).as_posix() == selected_path
+        if velocity_plan["layers"]:
+            sample_layers = tuple(
+                (layer["sample"], layer["gain"])
+                for layer in velocity_plan["layers"]
             )
-            sample_selection_mode = "exact_note_quality_ranked"
+            sample_selection_mode = velocity_plan["selection_mode"]
         else:
-            try:
-                sample = select_sample(bank, instrument, note, velocity, articulation)
-            except ValueError as exc:
-                raise ValueError(
-                    f"Articulation blocked: instrument={instrument}, note={note}, "
-                    f"planner_selected={articulation}, sample_exact_articulation_velocity_match=False"
-                ) from exc
-            sample_selection_mode = (
-                "pitch_shifted_nearest_note"
-                if sample.midi_note != note else "exact_note"
+            candidate_report = rank_sample_candidates(
+                bank, instrument, note, velocity, articulation
             )
+            if candidate_report["candidate_count"]:
+                selected_path = candidate_report["selected_sample"]
+                sample = next(
+                    item for item in bank.samples
+                    if item.path.relative_to(bank.root).as_posix() == selected_path
+                )
+                sample_selection_mode = "exact_note_quality_ranked"
+            else:
+                try:
+                    sample = select_sample(bank, instrument, note, velocity, articulation)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Articulation blocked: instrument={instrument}, note={note}, "
+                        f"planner_selected={articulation}, sample_exact_articulation_velocity_match=False"
+                    ) from exc
+                sample_selection_mode = (
+                    "pitch_shifted_nearest_note"
+                    if sample.midi_note != note else "exact_note"
+                )
+            sample_layers = ((sample, 1.0),)
         end_time = max(end_time, float(start) + float(duration))
         pan = event.get("pan", 0.0)
         if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
@@ -122,7 +134,7 @@ def render_sample_events(
         if (isinstance(event_gain, bool) or not isinstance(event_gain, (int, float))
                 or not math.isfinite(event_gain) or not 0.0 <= event_gain <= 2.0):
             raise ValueError("event gain must be between 0.0 and 2.0")
-        checked.append((sample, note, float(start), float(duration), velocity,
+        checked.append((sample_layers, note, float(start), float(duration), velocity,
                         float(pan), float(event_gain), articulation,
                         event.get("articulation_source", "legacy_default"),
                         float(release_seconds), float(pitch_cents), sample_selection_mode))
@@ -132,63 +144,69 @@ def render_sample_events(
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode in checked:
-        pcm, source_channels, source_rate = _read_sample(sample.path)
-        source_frames = len(pcm) // source_channels
-        semitone_ratio = 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents) / 1200.0)
-        source_step = source_rate / sample_rate * semitone_ratio
-        start_frame = round(start * sample_rate)
-        if sample.loop_start_frame is not None and sample.loop_end_frame is not None:
-            requested_frames = round(duration * sample_rate)
-            loop_start = sample.loop_start_frame
-            loop_end = sample.loop_end_frame
-            loop_length = loop_end - loop_start
-            crossfade_frames = min(max(1, round(source_rate * 0.008)), loop_length // 4)
-        else:
-            requested_frames = min(round(duration * sample_rate),
-                                   math.ceil(source_frames / source_step))
-            loop_start = loop_end = loop_length = crossfade_frames = None
-        if requested_frames <= 0:
-            continue
-        gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain
-        pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
-        attack_frames = max(1, round(sample_rate * 0.004))
-        release_frames = min(requested_frames, max(1, round(sample_rate * release_seconds))) if release_seconds else 1
-        for out_index in range(requested_frames):
-            source_position = out_index * source_step
-            if loop_start is not None and loop_end is not None and source_position >= loop_end:
-                source_position = loop_start + ((source_position - loop_end) % loop_length)
-            source_index = int(source_position)
-            if source_index >= source_frames:
-                break
-            fraction = source_position - source_index
-            next_index = min(source_index + 1, source_frames - 1)
-            if out_index < attack_frames:
-                envelope = out_index / attack_frames
-            elif requested_frames - out_index <= release_frames:
-                envelope = max(0.0, (requested_frames - out_index) / release_frames)
+    velocity_crossfade_events = 0
+    velocity_crossfade_layers_rendered = 0
+    for sample_layers, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode in checked:
+        if len(sample_layers) > 1:
+            velocity_crossfade_events += 1
+        for sample, layer_gain in sample_layers:
+            velocity_crossfade_layers_rendered += 1
+            pcm, source_channels, source_rate = _read_sample(sample.path)
+            source_frames = len(pcm) // source_channels
+            semitone_ratio = 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents) / 1200.0)
+            source_step = source_rate / sample_rate * semitone_ratio
+            start_frame = round(start * sample_rate)
+            if sample.loop_start_frame is not None and sample.loop_end_frame is not None:
+                requested_frames = round(duration * sample_rate)
+                loop_start = sample.loop_start_frame
+                loop_end = sample.loop_end_frame
+                loop_length = loop_end - loop_start
+                crossfade_frames = min(max(1, round(source_rate * 0.008)), loop_length // 4)
             else:
-                envelope = 1.0
-            frame_gain = gain * envelope
-            for channel in range(2):
-                source_channel = 0 if source_channels == 1 else channel
-                a = pcm[source_index * source_channels + source_channel]
-                b = pcm[next_index * source_channels + source_channel]
-                sample_value = a + (b - a) * fraction
-                if (loop_start is not None and loop_end is not None and
-                        crossfade_frames and source_position >= loop_end - crossfade_frames):
-                    blend = (source_position - (loop_end - crossfade_frames)) / crossfade_frames
-                    head_position = loop_start + (source_position - (loop_end - crossfade_frames))
-                    head_index = min(int(head_position), loop_end - 1)
-                    head_next = min(head_index + 1, loop_end - 1)
-                    head_fraction = head_position - head_index
-                    head_a = pcm[head_index * source_channels + source_channel]
-                    head_b = pcm[head_next * source_channels + source_channel]
-                    head_value = head_a + (head_b - head_a) * head_fraction
-                    sample_value = sample_value * (1.0 - blend) + head_value * blend
-                value = sample_value * frame_gain * pan_gains[channel]
-                destination = (start_frame + out_index) * 2 + channel
-                mix[destination] += value
+                requested_frames = min(round(duration * sample_rate),
+                                       math.ceil(source_frames / source_step))
+                loop_start = loop_end = loop_length = crossfade_frames = None
+            if requested_frames <= 0:
+                continue
+            gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain * layer_gain
+            pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
+            attack_frames = max(1, round(sample_rate * 0.004))
+            release_frames = min(requested_frames, max(1, round(sample_rate * release_seconds))) if release_seconds else 1
+            for out_index in range(requested_frames):
+                source_position = out_index * source_step
+                if loop_start is not None and loop_end is not None and source_position >= loop_end:
+                    source_position = loop_start + ((source_position - loop_end) % loop_length)
+                source_index = int(source_position)
+                if source_index >= source_frames:
+                    break
+                fraction = source_position - source_index
+                next_index = min(source_index + 1, source_frames - 1)
+                if out_index < attack_frames:
+                    envelope = out_index / attack_frames
+                elif requested_frames - out_index <= release_frames:
+                    envelope = max(0.0, (requested_frames - out_index) / release_frames)
+                else:
+                    envelope = 1.0
+                frame_gain = gain * envelope
+                for channel in range(2):
+                    source_channel = 0 if source_channels == 1 else channel
+                    a = pcm[source_index * source_channels + source_channel]
+                    b = pcm[next_index * source_channels + source_channel]
+                    sample_value = a + (b - a) * fraction
+                    if (loop_start is not None and loop_end is not None and
+                            crossfade_frames and source_position >= loop_end - crossfade_frames):
+                        blend = (source_position - (loop_end - crossfade_frames)) / crossfade_frames
+                        head_position = loop_start + (source_position - (loop_end - crossfade_frames))
+                        head_index = min(int(head_position), loop_end - 1)
+                        head_next = min(head_index + 1, loop_end - 1)
+                        head_fraction = head_position - head_index
+                        head_a = pcm[head_index * source_channels + source_channel]
+                        head_b = pcm[head_next * source_channels + source_channel]
+                        head_value = head_a + (head_b - head_a) * head_fraction
+                        sample_value = sample_value * (1.0 - blend) + head_value * blend
+                    value = sample_value * frame_gain * pan_gains[channel]
+                    destination = (start_frame + out_index) * 2 + channel
+                    mix[destination] += value
         rendered_events += 1
 
     peak = max((abs(value) for value in mix), default=0.0)
@@ -231,6 +249,8 @@ def render_sample_events(
             "pitch_shifted_nearest_note_events": sum(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
             ),
+            "equal_power_velocity_crossfade_events": velocity_crossfade_events,
+            "velocity_layers_rendered": velocity_crossfade_layers_rendered,
             "quality_ranking": "technical_screening_only",
         },
         "pitch_cents_applied_events": sum(1 for item in checked if item[10] != 0.0),
