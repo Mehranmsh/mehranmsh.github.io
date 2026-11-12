@@ -572,7 +572,8 @@ def build_composition_events(
                 fill_root, fill_intervals = _parse_chord(fill_chord)
                 chord_pcs = [(fill_root + interval) % 12 for interval in fill_intervals]
                 fill_slug = names[response_fill_part]
-                fill_style = ("strings" if response_fill_part == "strings"
+                fill_style = (fill_slug if fill_slug in ("tar", "setar", "santur", "kamancheh")
+                              else "strings" if response_fill_part == "strings"
                               else "piano" if response_fill_part == "melody" or fill_slug == "piano"
                               else "guitar")
                 fill_plan = plan_melody_fill(
@@ -581,7 +582,7 @@ def build_composition_events(
                     scale_pitch_classes=scale_pcs,
                     chord_pitch_classes=chord_pcs,
                     reference_note=notes[-1],
-                    max_notes=5 if fill_style == "piano" else 4,
+                    max_notes=5 if fill_style in ("piano", "santur") else 4,
                     base_velocity={
                         "verse": 54, "pre_chorus": 62, "chorus": 70,
                         "bridge": 48, "final_chorus": 76,
@@ -594,8 +595,6 @@ def build_composition_events(
                         "acoustic_guitar": "fingerstyle",
                         "classical_guitar": "fingerstyle",
                         "electric_guitar": "sustain",
-                        "tar": "mezrab_down",
-                        "setar": "mezrab_down",
                     }.get(fill_slug, fill["articulation"])
                     add(response_fill_part, fill["midi_note"], fill["start_tick"],
                         fill["duration_ticks"], fill["velocity"], 0.18,
