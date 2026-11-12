@@ -34,7 +34,8 @@ LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mehran_music_core import compose_plan
 from midi_renderer import render_midi
-from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,\n                         analyze_sample_bank_quality)
+from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
+                         analyze_sample_bank_quality)
 from sample_renderer import render_composition_to_wav
 
 
