@@ -377,8 +377,10 @@ coverage tool, not a synthesized substitute for missing recordings.
 
 ## Recorded six-string guitar fingering
 
-The sample renderer recognizes string identity in Meta Nylon and Meta Steel
-Guitar recording filenames. For guitar events, it selects an exact recorded
+The sample bank accepts an optional validated `string` field (`LowE`, `A`,
+`D`, `G`, `B`, or `HighE`) and can also infer it from Meta Nylon and Meta
+Steel Guitar recording filenames. This keeps the same pitch and velocity layer
+on different physical strings as distinct recordings. For guitar events, it selects an exact recorded
 string/note/velocity/articulation and prefers the first available string in
 Low E, A, D, G, B, High E order when the note is within four frets of the open
 string. An event may set `guitar_string` to one explicit string and
