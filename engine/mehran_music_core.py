@@ -52,7 +52,7 @@ PERSIAN_DIACRITICS = SHORT_VOWEL_MARKS | {"\u0651", "\u0652", "\u0670"}
 PRONUNCIATION_LEXICON = {
     "برگرد": ("bar", "gard"), "دلم": ("de", "lam"), "گرفته": ("ge", "ref", "te"),
     "عشق": ("eshgh",), "خانه": ("kha", "ne"), "شب": ("shab",), "روز": ("ruz",),
-    "یار": ("yar",), "تنها": ("tan", "ha"), "امید": ("o", "mid"),
+    "یار": ("yar",), "ای": ("ey",), "تنها": ("tan", "ha"), "امید": ("o", "mid"),
     "فردا": ("far", "da"), "بهار": ("ba", "har"), "آزادی": ("a", "za", "di"),
     "دلتنگ": ("del", "tang"), "اشک": ("ashk",), "تنهایی": ("tan", "ha", "yi"),
     "رفتی": ("raf", "ti"), "عاشق": ("a", "shegh"), "دلبر": ("del", "bar"),
