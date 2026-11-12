@@ -91,28 +91,54 @@ def _note_off(channel: int, note: int) -> bytes:
     return bytes((0x80 | channel, note, 0))
 
 
-def _bass_pattern(root_pc: int, bar_start: int, events: list[tuple[int, int, bytes]]) -> int:
-    """Add a simple root-fifth-root bass pulse for one 4/4 bar."""
+def _bass_pattern(root_pc: int, bar_start: int,
+                  events: list[tuple[int, int, bytes]], *,
+                  chorus: bool = False, bar_index: int = 0) -> int:
+    """Create a section-aware bass pulse with restrained chorus movement."""
     root = 36 + root_pc
     fifth = root + 7
-    pattern = [(0, root, PPQ * 2 - 36), (PPQ * 2, fifth, PPQ - 36),
-               (PPQ * 3, root, PPQ - 36)]
-    for offset, note, gate in pattern:
+    octave = root + 12
+    if chorus:
+        pattern = [(0, root, PPQ - 24, 88),
+                   (PPQ, fifth, PPQ // 2 - 18, 76),
+                   (PPQ * 2, octave, PPQ // 2 - 18, 84),
+                   (PPQ * 3, fifth if bar_index % 2 == 0 else root,
+                    PPQ - 24, 82)]
+    else:
+        pattern = [(0, root, PPQ * 2 - 36, 78),
+                   (PPQ * 2, fifth, PPQ - 36, 68),
+                   (PPQ * 3, root, PPQ - 36, 72)]
+    for offset, note, gate, velocity in pattern:
         start = bar_start + offset
-        events.append((start, 2, _note_on(2, note, 82)))
+        events.append((start, 2, _note_on(2, note, velocity)))
         events.append((start + gate, 1, _note_off(2, note)))
     return len(pattern)
 
 
 def _drum_bar(bar_start: int, events: list[tuple[int, int, bytes]], *,
-              chorus: bool = False) -> int:
-    """Add a deterministic GM drum groove on MIDI channel 10 (zero-based 9)."""
-    hits = [(0, 36, 112), (PPQ * 2, 36, 104),
-            (PPQ, 38, 94), (PPQ * 3, 38, 100)]
-    # Eighth-note hats; chorus opens the hat on the final eighth of each bar.
-    for eighth in range(8):
-        note = 46 if chorus and eighth == 7 else 42
-        hits.append((eighth * (PPQ // 2), note, 72 if note == 42 else 82))
+              chorus: bool = False, bridge: bool = False,
+              bar_index: int = 0, phrase_bars: int = 1) -> int:
+    """Add distinct verse, chorus and bridge grooves plus a short phrase-end fill."""
+    if bridge:
+        hits = [(0, 36, 78), (PPQ * 2, 38, 68)]
+        hat_steps = (0, 2, 4, 6)
+    elif chorus:
+        hits = [(0, 36, 112), (PPQ + PPQ // 2, 36, 88),
+                (PPQ * 2, 36, 104), (PPQ, 38, 98),
+                (PPQ * 3, 38, 104)]
+        hat_steps = tuple(range(8))
+    else:
+        hits = [(0, 36, 96), (PPQ * 2, 36, 82),
+                (PPQ, 38, 82), (PPQ * 3, 38, 90)]
+        hat_steps = (0, 2, 4, 6)
+    for eighth in hat_steps:
+        is_open = chorus and eighth == 7
+        hits.append((eighth * (PPQ // 2), 46 if is_open else 42,
+                     78 if is_open else (68 if bridge else 72)))
+    # A compact snare/tom pickup on the final bar of a multi-bar phrase.
+    if chorus and phrase_bars > 1 and bar_index == phrase_bars - 1:
+        hits.extend([(PPQ * 3 + PPQ // 2, 45, 76),
+                     (PPQ * 3 + PPQ * 3 // 4, 47, 84)])
     for offset, note, velocity in hits:
         start = bar_start + offset
         events.append((start, 2, _note_on(9, note, velocity)))
@@ -182,9 +208,14 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 chord_events.append((bar_start, 2, _note_on(1, note, 58)))
                 chord_events.append((bar_start + PPQ * 4 - 24, 1, _note_off(1, note)))
                 note_count += 1
-            bass_note_count += _bass_pattern(root_pc, bar_start, bass_events)
-            drum_hit_count += _drum_bar(bar_start, drum_events,
-                                        chorus=(phrase.get("section") == "chorus"))
+            is_chorus = phrase.get("section") == "chorus"
+            is_bridge = phrase.get("section") == "bridge"
+            bass_note_count += _bass_pattern(
+                root_pc, bar_start, bass_events,
+                chorus=is_chorus, bar_index=bar)
+            drum_hit_count += _drum_bar(
+                bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
+                bar_index=bar, phrase_bars=bars)
             chord_bar_index += 1
         phrase_start += phrase_ticks
     note_count += bass_note_count + drum_hit_count
