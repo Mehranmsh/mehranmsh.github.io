@@ -130,7 +130,7 @@ def render_sample_events(
         gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain
         pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
         attack_frames = max(1, round(sample_rate * 0.004))
-        release_frames = max(1, round(sample_rate * release_seconds)) if release_seconds else 1
+        release_frames = min(requested_frames, max(1, round(sample_rate * release_seconds))) if release_seconds else 1
         for out_index in range(requested_frames):
             source_position = out_index * source_step
             if loop_start is not None and loop_end is not None and source_position >= loop_end:
@@ -381,6 +381,10 @@ def build_composition_events(
                 is_cadence=(note_index == len(notes) - 1),
             )
             lyric_item = lyric_map[note_index] if note_index < len(lyric_map) else {}
+            dynamics_velocity = lyric_item.get("dynamics_velocity", 84) if isinstance(lyric_item, dict) else 84
+            if isinstance(dynamics_velocity, bool) or not isinstance(dynamics_velocity, int) or not 1 <= dynamics_velocity <= 127:
+                raise ValueError("Melody dynamics_velocity must be an integer from 1 to 127")
+            velocity = _scaled_velocity(velocity, dynamics_velocity / 84.0)
             articulation = lyric_item.get("articulation", "sustain") if isinstance(lyric_item, dict) else "sustain"
             gate_ratio = lyric_item.get("gate_ratio", 0.88) if isinstance(lyric_item, dict) else 0.88
             release_ms = lyric_item.get("release_ms", 25) if isinstance(lyric_item, dict) else 25
