@@ -48,23 +48,46 @@ def _track(events: list[tuple[int, int, bytes]], name: str) -> bytes:
 def _fit_events_to_register(
     events: list[tuple[int, int, bytes]],
     instrument: str,
+    *,
+    policy: str = "octave_fold",
 ) -> tuple[list[tuple[int, int, bytes]], dict[str, Any]]:
-    """Octave-fold note events into a known catalog register, preserving pitch class."""
+    """Apply an explicit policy to notes outside a catalog recording range."""
+    if policy not in ("octave_fold", "report_only", "strict"):
+        raise ValueError("register_policy must be octave_fold, report_only, or strict")
     register = resolve_register(instrument)
     note_range = register["note_range"]
+    register["policy"] = policy
     if note_range is None:
+        register.update({
+            "out_of_range_note_events": 0,
+            "octave_folded_note_events": 0,
+            "range_enforced": False,
+        })
         return events, register
     fitted = []
     changed = 0
+    out_of_range = 0
     for tick, priority, message in events:
         if len(message) >= 3 and message[0] & 0xF0 in (0x80, 0x90):
-            note = fit_note_to_register(message[1], note_range)
-            if note != message[1]:
+            original = message[1]
+            if not note_range[0] <= original <= note_range[1]:
+                out_of_range += 1
+                if policy == "strict":
+                    raise ValueError(
+                        f"Note {original} is outside {instrument} recording range "
+                        f"{note_range[0]}-{note_range[1]}"
+                    )
+            note = (fit_note_to_register(original, note_range)
+                    if policy == "octave_fold" else original)
+            if note != original:
                 changed += 1
                 message = bytes((message[0], note, *message[2:]))
         fitted.append((tick, priority, message))
-    register["octave_folded_note_events"] = changed
-    register["range_enforced"] = True
+    register.update({
+        "out_of_range_note_events": out_of_range,
+        "octave_folded_note_events": changed,
+        "range_enforced": policy == "octave_fold",
+    })
     return fitted, register
 
 
@@ -440,8 +463,14 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
                 melody_instrument: str = "piano",
                 instrument_tuning_cents: dict[str, dict[int, float]] | None = None,
                 accompaniment_instruments: dict[str, str] | None = None,
-                accompaniment_programs: dict[str, int] | None = None) -> dict[str, Any]:
-    """Render melody, chords, bass and percussion to a Standard MIDI file."""
+                accompaniment_programs: dict[str, int] | None = None,
+                register_policy: str = "octave_fold") -> dict[str, Any]:
+    """Render melody, chords, bass and percussion to a Standard MIDI file.
+
+    register_policy is octave_fold, report_only, or strict.
+    """
+    if register_policy not in ("octave_fold", "report_only", "strict"):
+        raise ValueError("register_policy must be octave_fold, report_only, or strict")
     try:
         composition = plan["composition"]
         bpm, melody, chords = (composition["tempo_bpm"],
@@ -665,7 +694,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
     guitar_events.insert(0, (0, 0, bytes((0xC3, resolved_programs["guitar"]))))
     piano_events.insert(0, (0, 0, bytes((0xC4, resolved_programs["piano"]))))
     melody_events, melody_register = _fit_events_to_register(
-        melody_events, melody_instrument
+        melody_events, melody_instrument, policy=register_policy
     )
     register_reports = {"melody": melody_register}
     for slot, event_list in (
@@ -673,7 +702,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path, *,
         ("guitar", guitar_events), ("piano", piano_events),
     ):
         fitted, report = _fit_events_to_register(
-            event_list, resolved_accompaniment[slot]
+            event_list, resolved_accompaniment[slot], policy=register_policy
         )
         register_reports[slot] = report
         if slot == "strings":
