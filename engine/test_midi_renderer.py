@@ -220,6 +220,21 @@ class MidiRendererTests(unittest.TestCase):
         self.assertLessEqual(_melody_velocity(120, 0, section_scale=1.2), 127)
 
 
+    def test_structural_cadence_release_softens_only_as_a_bounded_scale(self):
+        normal = _melody_velocity(88, 960, is_cadence=True)
+        section_end = _melody_velocity(
+            88, 960, is_cadence=True, cadence_release_scale=0.97
+        )
+        final_end = _melody_velocity(
+            88, 960, is_cadence=True, cadence_release_scale=0.90
+        )
+        self.assertGreater(normal, section_end)
+        self.assertGreater(section_end, final_end)
+        self.assertGreater(
+            _melody_velocity(88, 960, is_cadence=True, cadence_release_scale=0.1),
+            0,
+        )
+
     def test_groove_velocity_accents_downbeats_and_softens_offbeats(self):
         downbeat = _groove_velocity(80, 0)
         second_beat = _groove_velocity(80, 1)
