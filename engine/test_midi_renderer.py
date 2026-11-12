@@ -362,8 +362,9 @@ class MidiRendererTests(unittest.TestCase):
             path = Path(folder) / "microtonal.mid"
             result = render_midi(plan, path)
             data = path.read_bytes()
-        self.assertIn(bytes((0xB0, 101, 0, 0xB0, 100, 0,
-                             0xB0, 6, 2, 0xB0, 38, 0)), data)
+        for controller, value in ((101, 0), (100, 0), (6, 2), (38, 0),
+                                  (101, 127), (100, 127)):
+            self.assertIn(bytes((0xB0, controller, value)), data)
         self.assertIn(bytes((0xE0, 0, 80)), data)
         self.assertIn("pitch_cents", result["pitch_bend_support"])
 
