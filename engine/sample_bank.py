@@ -36,6 +36,7 @@ class Sample:
     articulation: str = "sustain"
     recording_session_id: str | None = None
     recording_metadata: dict[str, str] | None = None
+    string_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,9 +118,14 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         recording_metadata = validated_sessions.get(session_id) if session_id else None
         if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
             raise ValueError("articulation must be a lowercase slug")
-        identity = (instrument, midi_note, velocity_min, velocity_max, articulation)
+        string_name = entry.get("string")
+        if string_name is not None and string_name not in {
+            "LowE", "A", "D", "G", "B", "HighE"
+        }:
+            raise ValueError("string must be LowE, A, D, G, B, HighE, or omitted")
+        identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name)
         if identity in seen:
-            raise ValueError("Duplicate instrument, note, velocity layer, and articulation")
+            raise ValueError("Duplicate instrument, string, note, velocity layer, and articulation")
         seen.add(identity)
         if not candidate.is_file():
             raise ValueError(f"Recorded sample file is missing: {relative}")
@@ -145,7 +151,8 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
             raise ValueError(f"Invalid recorded WAV sample: {relative}") from exc
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
                               velocity_max, sample_rate, channels, frames,
-                              loop_start, loop_end, articulation, session_id, recording_metadata))
+                              loop_start, loop_end, articulation, session_id, recording_metadata,
+                              string_name))
     return SampleBank(root, tuple(samples))
 
 
