@@ -51,9 +51,20 @@ def _parse_chord(symbol: str) -> tuple[int, tuple[int, ...]]:
     elif suffix.startswith("#"):
         root += 1
         suffix = suffix[1:]
-    intervals = (0, 3, 7) if suffix.startswith("m") else (0, 4, 7)
-    if "7" in suffix:
-        intervals += (10,)
+    if suffix.startswith("maj7") or suffix.startswith("M7"):
+        intervals = (0, 4, 7, 11)
+    elif suffix.startswith("m7"):
+        intervals = (0, 3, 7, 10)
+    elif suffix.startswith("dim7"):
+        intervals = (0, 3, 6, 9)
+    elif suffix.startswith("m"):
+        intervals = (0, 3, 7)
+        if "7" in suffix:
+            intervals += (10,)
+    else:
+        intervals = (0, 4, 7)
+        if "7" in suffix:
+            intervals += (10,)
     return root % 12, intervals
 
 
