@@ -32,7 +32,13 @@ jobs:
         run: python3 engine/fetch_cc0_piano_sample.py sample-bank-bootstrap
       - name: Validate bank and render a real recorded note
         run: |
-          python3 engine/sample_bank_tool.py sample-bank-bootstrap
+          python3 - <<'PY'
+          from sample_bank import load_sample_bank
+          bank = load_sample_bank('sample-bank-bootstrap')
+          assert len(bank.samples) == 1
+          assert bank.samples[0].midi_note == 60
+          print('SAMPLE_BANK_VALIDATED', len(bank.samples))
+          PY
           python3 engine/sample_bank_preview.py sample-bank-bootstrap piano 60 sample-bank-bootstrap/piano-C4-preview.wav --velocity 80 --articulation sustain
           python3 - <<'PY'
           import wave
