@@ -24,6 +24,18 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_note_beat_metadata_uses_note_onset_not_note_end(self):
+        plan = compose_plan("دلم گرفته از این شب")
+        phrase = plan["composition"]["melody"][0]
+        note_map = phrase["note_lyric_map"]
+        self.assertEqual(note_map[0]["tick_start"], 0)
+        self.assertEqual(note_map[0]["bar_index"], 0)
+        self.assertEqual(note_map[0]["beat_number"], 1)
+        self.assertEqual(note_map[0]["beat_strength"], "strong")
+        self.assertEqual(note_map[0]["onset_accent"], "primary")
+        for previous, current in zip(note_map, note_map[1:]):
+            self.assertEqual(previous["tick_end"], current["tick_start"])
+
     def test_punctuation_guides_harmonic_phrase_cadence(self):
         plan = compose_plan(
             "دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد؛\nشب سرد و خاموش"
