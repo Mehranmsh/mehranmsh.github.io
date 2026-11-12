@@ -144,6 +144,18 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(all(item["syllable_token"] is None
                             or isinstance(item["syllable_token"], str)
                             for item in note_map))
+        syllable_map = phrase["syllable_note_map"]
+        self.assertEqual(len(syllable_map), phrase["syllable_estimate"])
+        self.assertEqual([item["syllable_index"] for item in syllable_map],
+                         list(range(phrase["syllable_estimate"])))
+        self.assertTrue(all(0 <= item["note_index"] < len(note_map)
+                            for item in syllable_map))
+        self.assertEqual(note_map[0]["bar_index"], 0)
+        self.assertEqual(note_map[0]["beat_number"], 1)
+        self.assertEqual(note_map[0]["beat_strength"], "strong")
+        self.assertTrue(all(item["beat_number"] in (1, 2, 3, 4)
+                            for item in note_map))
+        self.assertTrue(all(item["bar_index"] >= 0 for item in note_map))
 
     def test_unknown_words_are_aligned_without_fake_phonetic_tokens(self):
         plan = compose_plan("پرواز خیالی")
