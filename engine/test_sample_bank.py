@@ -19,6 +19,7 @@ from sample_bank import (
     build_sample_recording_sheet_csv,
     load_sample_bank,
     select_sample,
+    rank_sample_candidates,
 )
 
 
@@ -717,6 +718,60 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(report["recorded_samples"], 4)
             self.assertEqual(report["covered_requirements"], 4)
             self.assertEqual(report["instruments"]["piano"]["missing_velocity_layers"], [])
+
+
+    def test_candidate_ranking_prefers_clean_exact_recording_only(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            entries = []
+            fixtures = [
+                ("piano/clean.wav", 8000, 1, 100),
+                ("piano/clipped.wav", 32767, 50, 127),
+                ("piano/wrong_note.wav", 8000, 1, 127),
+                ("piano/wrong_articulation.wav", 8000, 1, 127),
+            ]
+            for filename, amplitude, velocity_min, velocity_max in fixtures:
+                path = root / filename
+                path.parent.mkdir(parents=True, exist_ok=True)
+                values = [amplitude, -amplitude] * 128
+                with wave.open(str(path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(struct.pack("<" + "h" * len(values), *values))
+                entries.append({
+                    "instrument": "piano",
+                    "midi_note": 60 if "wrong_note" not in filename else 61,
+                    "path": filename,
+                    "velocity_min": velocity_min,
+                    "velocity_max": velocity_max,
+                    "articulation": (
+                        "staccato" if "wrong_articulation" in filename else "sustain"
+                    ),
+                })
+            self.write_manifest(root, entries)
+            bank = load_sample_bank(root)
+            result = rank_sample_candidates(bank, "piano", 60, 80, "sustain")
+            self.assertEqual(result["candidate_count"], 2)
+            self.assertEqual(result["selected_sample"], "piano/clean.wav")
+            self.assertEqual(result["candidates"][0]["score"], 80)
+            self.assertIn("digital_clipping", result["candidates"][1]["warnings"])
+            self.assertEqual(result["selection_status"], "ranked_exact_candidates")
+
+    def test_candidate_ranking_does_not_fallback_to_nearby_note_or_articulation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "piano" / "nearby.wav")
+            self.write_manifest(root, [{
+                "instrument": "piano", "midi_note": 61,
+                "path": "piano/nearby.wav", "articulation": "staccato",
+            }])
+            result = rank_sample_candidates(
+                load_sample_bank(root), "piano", 60, 80, "sustain"
+            )
+            self.assertEqual(result["candidate_count"], 0)
+            self.assertIsNone(result["selected_sample"])
+            self.assertEqual(result["selection_status"], "no_exact_candidate")
 
 
 if __name__ == "__main__":
