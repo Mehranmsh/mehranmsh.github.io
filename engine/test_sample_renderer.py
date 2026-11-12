@@ -5,7 +5,8 @@ import wave
 from pathlib import Path
 
 from sample_bank import load_sample_bank
-from sample_renderer import render_sample_events
+from sample_renderer import build_composition_events, render_composition_to_wav, render_sample_events
+from mehran_music_core import compose_plan
 
 
 class SampleRendererTests(unittest.TestCase):
@@ -58,6 +59,37 @@ class SampleRendererTests(unittest.TestCase):
             self.assertTrue(any(raw))
             self.assertEqual(result["events_rendered"], 2)
             self.assertEqual(result["source"], "recorded_sample_bank")
+
+    def test_composition_plan_becomes_sample_events(self):
+        plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+        events = build_composition_events(plan)
+        parts = {event["instrument"] for event in events}
+        self.assertEqual(parts, {"piano", "bass", "drums"})
+        self.assertGreater(len(events), len(plan["composition"]["melody"]))
+
+    def test_full_plan_renders_with_a_recorded_sample_bank(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            for instrument, note in (("piano", 60), ("bass", 48), ("drums", 42)):
+                self.make_wav(root / instrument / "sample.wav", frames=11025)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [
+                    {"instrument": instrument, "midi_note": note,
+                     "path": instrument + "/sample.wav"}
+                    for instrument, note in (("piano", 60), ("bass", 48), ("drums", 42))
+                ]
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
+            output = Path(folder) / "song.wav"
+            result = render_composition_to_wav(plan, bank, output, sample_rate=22050)
+            with wave.open(str(output), "rb") as wav:
+                audio = wav.readframes(wav.getnframes())
+                self.assertEqual(wav.getnchannels(), 2)
+            self.assertTrue(any(audio))
+            self.assertGreater(result["events_rendered"], 0)
 
     def test_rejects_missing_instrument_before_creating_output(self):
         with tempfile.TemporaryDirectory() as folder:
