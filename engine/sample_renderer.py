@@ -96,8 +96,16 @@ def render_sample_events(
         semitone_ratio = 2.0 ** ((target_note - sample.midi_note) / 12.0)
         source_step = source_rate / sample_rate * semitone_ratio
         start_frame = round(start * sample_rate)
-        requested_frames = min(round(duration * sample_rate),
-                               math.ceil(source_frames / source_step))
+        if sample.loop_start_frame is not None and sample.loop_end_frame is not None:
+            requested_frames = round(duration * sample_rate)
+            loop_start = sample.loop_start_frame
+            loop_end = sample.loop_end_frame
+            loop_length = loop_end - loop_start
+            crossfade_frames = min(max(1, round(source_rate * 0.008)), loop_length // 4)
+        else:
+            requested_frames = min(round(duration * sample_rate),
+                                   math.ceil(source_frames / source_step))
+            loop_start = loop_end = loop_length = crossfade_frames = None
         if requested_frames <= 0:
             continue
         gain = (velocity / 127.0) ** 1.6 * 0.72
@@ -106,6 +114,8 @@ def render_sample_events(
         release_frames = max(1, round(sample_rate * 0.025))
         for out_index in range(requested_frames):
             source_position = out_index * source_step
+            if loop_start is not None and loop_end is not None and source_position >= loop_end:
+                source_position = loop_start + ((source_position - loop_end) % loop_length)
             source_index = int(source_position)
             if source_index >= source_frames:
                 break
@@ -122,7 +132,19 @@ def render_sample_events(
                 source_channel = 0 if source_channels == 1 else channel
                 a = pcm[source_index * source_channels + source_channel]
                 b = pcm[next_index * source_channels + source_channel]
-                value = (a + (b - a) * fraction) * frame_gain * pan_gains[channel]
+                sample_value = a + (b - a) * fraction
+                if (loop_start is not None and loop_end is not None and
+                        crossfade_frames and source_position >= loop_end - crossfade_frames):
+                    blend = (source_position - (loop_end - crossfade_frames)) / crossfade_frames
+                    head_position = loop_start + (source_position - (loop_end - crossfade_frames))
+                    head_index = min(int(head_position), loop_end - 1)
+                    head_next = min(head_index + 1, loop_end - 1)
+                    head_fraction = head_position - head_index
+                    head_a = pcm[head_index * source_channels + source_channel]
+                    head_b = pcm[head_next * source_channels + source_channel]
+                    head_value = head_a + (head_b - head_a) * head_fraction
+                    sample_value = sample_value * (1.0 - blend) + head_value * blend
+                value = sample_value * frame_gain * pan_gains[channel]
                 destination = (start_frame + out_index) * 2 + channel
                 mix[destination] += value
         rendered_events += 1
