@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 import re
 import struct
 import wave
@@ -474,7 +475,7 @@ def _estimate_sample_fundamental(
         if abs(curvature) > 1e-12:
             refined_lag += max(-0.5, min(0.5, 0.5 * (before - after) / curvature))
     measured_hz = analysis_rate / refined_lag
-    cents = 1200 * __import__("math").log2(measured_hz / expected_hz)
+    cents = 1200 * math.log2(measured_hz / expected_hz)
     return {
         "status": "estimated",
         "expected_hz": round(expected_hz, 3),
