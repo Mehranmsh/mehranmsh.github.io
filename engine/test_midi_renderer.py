@@ -419,5 +419,39 @@ class MidiRendererTests(unittest.TestCase):
                     instrument_tuning_cents={"tar": {60: 125}},
                 )
 
+    def test_accompaniment_instruments_get_independent_note_tuning_channels(self):
+        plan = compose_plan("یک شب آرام\\nدر این سکوت")
+        chord_note = plan["composition"]["melody"][0]["midi_notes"][0]
+        guitar_note = next(
+            note for note in range(48, 77)
+            if note in plan["composition"]["melody"][0].get("midi_notes", [])
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "accompaniment-tuning.mid"
+            result = render_midi(
+                plan, path,
+                instrument_tuning_cents={
+                    "guitar": {guitar_note: 35.0},
+                    "strings": {chord_note: -25.0},
+                },
+            )
+            data = path.read_bytes()
+        guitar_channel = result["accompaniment_tuning_channels"]["guitar"]["35.0"]
+        strings_channel = result["accompaniment_tuning_channels"]["strings"]["-25.0"]
+        self.assertNotEqual(guitar_channel, strings_channel)
+        self.assertIn(bytes((0x90 | guitar_channel, guitar_note)), data)
+        self.assertIn(bytes((0x90 | strings_channel, chord_note)), data)
+        self.assertIn(bytes((0xE0 | guitar_channel,)), data)
+        self.assertIn(bytes((0xE0 | strings_channel,)), data)
+
+    def test_accompaniment_tuning_rejects_invalid_instrument_calibration(self):
+        plan = compose_plan("یک شب آرام")
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "instrument tuning offsets"):
+                render_midi(
+                    plan, Path(folder) / "bad-accompaniment-tuning.mid",
+                    instrument_tuning_cents={"guitar": {60: 101}},
+                )
+
 if __name__ == "__main__":
     unittest.main()
