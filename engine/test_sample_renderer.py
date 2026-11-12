@@ -929,7 +929,7 @@ class SampleRendererTests(unittest.TestCase):
                 entries.append({
                     "instrument": "acoustic_guitar", "midi_note": 60,
                     "velocity_min": 1, "velocity_max": 127,
-                    "articulation": "sustain", "path": relative,
+                    "articulation": "sustain", "string": string_name, "path": relative,
                 })
             (root / "bank.json").write_text(json.dumps({
                 "format_version": 1, "samples": entries,
@@ -959,7 +959,7 @@ class SampleRendererTests(unittest.TestCase):
                 self.make_wav(root / relative, rate=22050, frames=4410)
                 entries.append({
                     "instrument": "acoustic_guitar", "midi_note": 60,
-                    "articulation": "sustain", "path": relative,
+                    "articulation": "sustain", "string": string_name, "path": relative,
                 })
             (root / "bank.json").write_text(json.dumps({
                 "format_version": 1, "samples": entries,
