@@ -5,6 +5,8 @@ The validator is read-only. It never creates, moves, edits, or deletes audio fil
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import sys
 from pathlib import Path
@@ -14,6 +16,7 @@ from sample_bank import (
     analyze_sample_bank_coverage,
     analyze_sample_bank_instrument_health,
     analyze_sample_bank_quality,
+    build_sample_recording_checklist,
     load_sample_bank,
 )
 
@@ -47,13 +50,56 @@ def inspect_sample_bank(bank_root: str | Path) -> dict[str, Any]:
     }
 
 
+
+def export_sample_bank_progress_csv(bank_root: str | Path) -> str:
+    """Export every catalog target as recorded or missing, using exact asset matching."""
+    bank = load_sample_bank(bank_root)
+    checklist = build_sample_recording_checklist()
+    output = io.StringIO(newline="")
+    columns = [
+        "instrument", "instrument_label", "register_zone", "midi_note",
+        "velocity_layer", "velocity_min", "velocity_max", "articulation",
+        "status", "sample_path",
+    ]
+    writer = csv.DictWriter(output, fieldnames=columns)
+    writer.writeheader()
+    for instrument, spec in checklist["instruments"].items():
+        recorded = [sample for sample in bank.samples if sample.instrument == instrument]
+        for target in spec["targets"]:
+            matches = [
+                sample for sample in recorded
+                if sample.midi_note == target["midi_note"]
+                and sample.articulation == target["articulation"]
+                and sample.velocity_min <= target["velocity_min"]
+                and sample.velocity_max >= target["velocity_max"]
+            ]
+            sample = matches[0] if matches else None
+            writer.writerow({
+                "instrument": instrument,
+                "instrument_label": spec["label"],
+                "register_zone": target["register_zone"],
+                "midi_note": target["midi_note"],
+                "velocity_layer": target["velocity_layer"],
+                "velocity_min": target["velocity_min"],
+                "velocity_max": target["velocity_max"],
+                "articulation": target["articulation"],
+                "status": "recorded" if sample else "missing",
+                "sample_path": str(sample.path.relative_to(bank.root)) if sample else "",
+            })
+    return output.getvalue()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Read-only validation of a recorded MEHRAN PCM WAV sample bank."
     )
     parser.add_argument("bank_root", type=Path, help="Directory containing bank.json and recorded WAV files")
+    parser.add_argument("--format", choices=("json", "csv"), default="json", help="Report format")
     args = parser.parse_args(argv)
     try:
+        if args.format == "csv":
+            print(export_sample_bank_progress_csv(args.bank_root), end="")
+            return 0
         report = inspect_sample_bank(args.bank_root)
     except (OSError, ValueError) as exc:
         print(json.dumps({"ready": False, "error": str(exc)}, ensure_ascii=False, indent=2))
