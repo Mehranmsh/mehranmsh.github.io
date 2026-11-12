@@ -25,3 +25,15 @@ bass, and core drum events are not ducked by this planner. Every event carries
 the overlap ratio, applied gain, mode, and planner identifier for inspection.
 This is event-level arrangement gain shaping, not a compressor or sidechain
 audio effect; it does not create vocal recordings or synthesize missing audio.
+
+
+## Vocal-rest melodic response fills
+
+When a guitar sample-bank instrument is explicitly mapped, the sample-event
+planner can add short deterministic response phrases inside punctuation-derived
+vocal-rest windows. Fill notes are constrained to the composition's declared
+scale and current phrase chord, stay within a bounded instrument register, and
+never extend beyond the available rest. Very short or absent rests produce no
+fill. The planner emits event metadata only; a matching recorded guitar sample
+is still required for audible playback, and no synthesized or rendered audio is
+claimed by the fill planner.
