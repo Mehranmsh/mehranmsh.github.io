@@ -69,6 +69,10 @@ def render_sample_events(
         duration = event.get("duration_seconds")
         velocity = event.get("velocity", 90)
         articulation = event.get("articulation", "sustain")
+        release_seconds = event.get("release_seconds", 0.025)
+        if (isinstance(release_seconds, bool) or not isinstance(release_seconds, (int, float))
+                or not math.isfinite(release_seconds) or not 0.0 <= release_seconds <= 1.0):
+            raise ValueError("event release_seconds must be between 0 and 1.0")
         if not isinstance(instrument, str) or not instrument:
             raise ValueError("event instrument must be a non-empty string")
         if isinstance(note, bool) or not isinstance(note, int) or not 0 <= note <= 127:
@@ -97,14 +101,15 @@ def render_sample_events(
             raise ValueError("event gain must be between 0.0 and 2.0")
         checked.append((sample, note, float(start), float(duration), velocity,
                         float(pan), float(event_gain), articulation,
-                        event.get("articulation_source", "legacy_default")))
+                        event.get("articulation_source", "legacy_default"),
+                        float(release_seconds)))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
     frame_count = max(1, math.ceil(end_time * sample_rate))
     mix = array.array("f", [0.0]) * (frame_count * 2)
     rendered_events = 0
-    for sample, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source in checked:
+    for sample, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds in checked:
         pcm, source_channels, source_rate = _read_sample(sample.path)
         source_frames = len(pcm) // source_channels
         semitone_ratio = 2.0 ** ((target_note - sample.midi_note) / 12.0)
@@ -125,7 +130,7 @@ def render_sample_events(
         gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain
         pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
         attack_frames = max(1, round(sample_rate * 0.004))
-        release_frames = max(1, round(sample_rate * 0.025))
+        release_frames = max(1, round(sample_rate * release_seconds)) if release_seconds else 1
         for out_index in range(requested_frames):
             source_position = out_index * source_step
             if loop_start is not None and loop_end is not None and source_position >= loop_end:
@@ -199,6 +204,8 @@ def render_sample_events(
             "legacy_defaulted": sorted({item[7] for item in checked if item[8] == "legacy_default"}),
             "renderer_supports_exact_match": True,
             "sample_exact_match": True,
+            "performance_shaping_applied": True,
+            "release_profiles_ms": sorted({round(item[9] * 1000) for item in checked}),
             "audio_rendered": rendered_events > 0,
         },
         "peak_before_normalization": round(peak / 32768.0, 5),
@@ -322,11 +329,13 @@ def build_composition_events(
     def add(part: str, note: int, start_tick: int, duration_ticks: int,
             velocity: int, pan: float = 0.0, *,
             articulation: str = "sustain",
-            articulation_source: str = "legacy_default") -> None:
+            articulation_source: str = "legacy_default",
+            release_seconds: float = 0.025) -> None:
         events.append({
             "instrument": names[part],
             "articulation": articulation,
             "articulation_source": articulation_source,
+            "release_seconds": release_seconds,
             "midi_note": note,
             "start_seconds": round(start_tick * seconds_per_tick, 6),
             "duration_seconds": round(duration_ticks * seconds_per_tick, 6),
@@ -373,11 +382,18 @@ def build_composition_events(
             )
             lyric_item = lyric_map[note_index] if note_index < len(lyric_map) else {}
             articulation = lyric_item.get("articulation", "sustain") if isinstance(lyric_item, dict) else "sustain"
+            gate_ratio = lyric_item.get("gate_ratio", 0.88) if isinstance(lyric_item, dict) else 0.88
+            release_ms = lyric_item.get("release_ms", 25) if isinstance(lyric_item, dict) else 25
             if not isinstance(articulation, str) or not articulation:
                 raise ValueError("Planned melody articulation must be a non-empty string")
-            add("melody", note, cursor, max(1, int(duration * 0.88)), velocity,
+            if isinstance(gate_ratio, bool) or not isinstance(gate_ratio, (int, float)) or not 0.1 <= gate_ratio <= 1.0:
+                raise ValueError("Planned melody gate_ratio must be between 0.1 and 1.0")
+            if isinstance(release_ms, bool) or not isinstance(release_ms, int) or not 0 <= release_ms <= 1000:
+                raise ValueError("Planned melody release_ms must be an integer from 0 to 1000")
+            add("melody", note, cursor, max(1, int(duration * gate_ratio)), velocity,
                 articulation=articulation,
-                articulation_source="planner" if isinstance(lyric_item, dict) and "articulation" in lyric_item else "legacy_default")
+                articulation_source="planner" if isinstance(lyric_item, dict) and "articulation" in lyric_item else "legacy_default",
+                release_seconds=release_ms / 1000.0)
             cursor += duration
 
         for bar in range(bars):
