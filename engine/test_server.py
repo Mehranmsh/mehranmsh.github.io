@@ -145,6 +145,10 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(report["coverage"]["recorded_samples"], 1)
         self.assertEqual(report["coverage"]["covered_requirements"], 3)
         self.assertTrue(report["signal_quality"]["basic_signal_checks_pass"])
+        self.assertTrue(report["instrument_health"]["read_only"])
+        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["recorded_samples"], 1)
+        self.assertEqual(report["instrument_health"]["instruments"]["piano"]["status"], "basic_signal_checks_passed")
+        self.assertEqual(report["instrument_health"]["instruments"]["acoustic_guitar"]["status"], "missing")
         self.assertTrue(sample_path.is_file())
 
     def test_sample_bank_diagnostics_fail_closed_when_bank_is_missing(self):
