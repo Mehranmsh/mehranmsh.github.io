@@ -322,6 +322,7 @@ def build_composition_events(
             names[part] = name
 
     part_gains = _validated_part_gains(mix_gains)
+    explicit_mix_overrides = set(mix_gains or {})
     seconds_per_tick = 60.0 / bpm / PPQ
     events: list[dict[str, Any]] = []
     phrase_tick = 0
@@ -360,7 +361,8 @@ def build_composition_events(
             "arrangement_density": arrangement["density"],
             "arrangement_section": arrangement["section"],
             "arrangement_planner": arrangement["planner"],
-            "gain": part_gains[part] * arrangement["gain"],
+            "gain": (part_gains[part] if part in explicit_mix_overrides
+                     else part_gains[part] * arrangement["gain"]),
         })
 
     for phrase in melody:
