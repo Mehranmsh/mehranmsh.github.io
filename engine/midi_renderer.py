@@ -186,6 +186,38 @@ def _drum_bar(bar_start: int, events: list[tuple[int, int, bytes]], *,
     return len(hits)
 
 
+def _guitar_bar(chord: tuple[int, ...], bar_start: int,
+                events: list[tuple[int, int, bytes]], *,
+                section: str = "verse", velocity_scale: float = 1.0) -> int:
+    """Add a restrained picked verse, strummed chorus, or sparse bridge guitar."""
+    name = section.lower()
+    count = 0
+    if "bridge" in name:
+        pattern = [(0, 0), (PPQ * 2, 1)]
+        gate, base_velocity = PPQ - 36, 48
+    elif "chorus" in name:
+        # Four compact down-strums, with a small natural string-to-string rake.
+        pattern = [(beat * PPQ, voice)
+                   for beat in range(4) for voice in range(len(chord))]
+        gate, base_velocity = PPQ * 3 // 4, 66
+    else:
+        # Eight-note arpeggio, alternating root, fifth and inner chord tones.
+        order = (0, 2, 1, 2, 0, 2, 1, 2)
+        pattern = [(step * (PPQ // 2), order[step]) for step in range(8)]
+        gate, base_velocity = PPQ // 2 - 36, 54
+    for offset, voice_index in pattern:
+        note = chord[voice_index % len(chord)]
+        velocity = _groove_velocity(
+            base_velocity, offset // PPQ,
+            subdivision=(offset % PPQ) // (PPQ // 2),
+            section_scale=velocity_scale)
+        start = bar_start + offset + (voice_index * 12 if "chorus" in name else 0)
+        events.append((start, 2, _note_on(3, note, velocity)))
+        events.append((start + gate, 1, _note_off(3, note)))
+        count += 1
+    return count
+
+
 def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
     """Render melody, chords, bass and percussion to a Standard MIDI file."""
     try:
@@ -206,10 +238,11 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
     chord_events: list[tuple[int, int, bytes]] = []
     bass_events: list[tuple[int, int, bytes]] = []
     drum_events: list[tuple[int, int, bytes]] = []
+    guitar_events: list[tuple[int, int, bytes]] = []
     note_count, phrase_start, chord_bar_index = 0, 0, 0
     previous_voicing = None
     chord_voicings = []
-    bass_note_count = drum_hit_count = 0
+    bass_note_count = drum_hit_count = guitar_note_count = 0
     for phrase in melody:
         if not isinstance(phrase, dict):
             raise ValueError("Each melody phrase must be an object")
@@ -265,23 +298,28 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
                 bar_start, drum_events, chorus=is_chorus, bridge=is_bridge,
                 bar_index=bar, phrase_bars=bars,
                 velocity_scale=dynamics["drums"])
+            guitar_note_count += _guitar_bar(
+                chord, bar_start, guitar_events, section=section,
+                velocity_scale=dynamics["chords"])
             chord_bar_index += 1
         pause_ticks = phrase.get("phrase_pause_ticks", 0)
         if (isinstance(pause_ticks, bool) or not isinstance(pause_ticks, int)
                 or pause_ticks < 0 or pause_ticks > PPQ * 2):
             raise ValueError("phrase_pause_ticks must be an integer between 0 and 960")
         phrase_start += phrase_ticks + pause_ticks
-    note_count += bass_note_count + drum_hit_count
+    note_count += bass_note_count + drum_hit_count + guitar_note_count
     if note_count > MAX_NOTES:
         raise ValueError("Composition exceeds the 4096-note safety limit")
     conductor = _track([
         (0, 0, b"\\xff\\x51\\x03" + tempo_us.to_bytes(3, "big")),
         (0, 1, b"\\xff\\x58\\x04\\x04\\x02\\x18\\x08"),
     ], "MEHRAN Tempo")
+    guitar_events.insert(0, (0, 0, bytes((0xC3, 25))))  # Steel-string acoustic guitar
     tracks = [conductor, _track(melody_events, "MEHRAN Melody"),
               _track(chord_events, "MEHRAN Chords"),
               _track(bass_events, "MEHRAN Bass"),
-              _track(drum_events, "MEHRAN Drums")]
+              _track(drum_events, "MEHRAN Drums"),
+              _track(guitar_events, "MEHRAN Guitar")]
     midi = b"MThd" + struct.pack(">IHHH", 6, 1, len(tracks), PPQ) + b"".join(tracks)
     target = Path(output_path)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -290,6 +328,7 @@ def render_midi(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]
         "path": str(target), "format": "Standard MIDI File", "tracks": len(tracks),
         "tempo_bpm": bpm, "note_events": note_count, "duration_ticks": phrase_start,
         "bass_note_events": bass_note_count, "drum_hits": drum_hit_count,
+        "guitar_note_events": guitar_note_count,
         "drum_channel": 10, "chord_voicings": chord_voicings,
         "duration_seconds": round(phrase_start / PPQ * 60 / bpm, 2),
         "bytes": len(midi),
