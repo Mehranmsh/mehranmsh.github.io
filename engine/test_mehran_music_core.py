@@ -24,6 +24,24 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertFalse(plan["audio_rendered"])
         self.assertEqual(plan["status"], "composition_plan_only")
 
+    def test_word_note_ranges_are_contiguous_and_do_not_overlap(self):
+        from mehran_music_core import _align_words_to_notes
+        aligned = _align_words_to_notes("دلم گرفته برگرد ای عشق", 9)
+        words = aligned["word_note_alignment"]
+        self.assertEqual(words[0]["note_start"], 0)
+        self.assertEqual(words[-1]["note_end"], 9)
+        for previous, current in zip(words, words[1:]):
+            self.assertEqual(previous["note_end"], current["note_start"])
+        for item in aligned["note_lyric_map"]:
+            word = words[item["word_index"]]
+            self.assertGreaterEqual(item["note_index"], word["note_start"])
+            self.assertLess(item["note_index"], word["note_end"])
+        for syllable in aligned["syllable_note_map"]:
+            word = words[syllable["word_index"]]
+            self.assertGreaterEqual(syllable["note_index"], word["note_start"])
+            self.assertLess(syllable["note_index"], word["note_end"])
+            self.assertEqual(syllable["mapping"], "word_preserving_syllable_to_note_v2")
+
     def test_word_alignment_tokenizes_latin_and_persian_words(self):
         from mehran_music_core import _align_words_to_notes
         aligned = _align_words_to_notes("hello برگرد", 4)
