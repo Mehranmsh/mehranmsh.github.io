@@ -81,6 +81,15 @@ class MidiRendererTests(unittest.TestCase):
         self.assertEqual([event[2][1] for event in note_ons], [45, 52])
         self.assertEqual([event[0] for event in note_ons], [0, PPQ * 2])
 
+    def test_bass_uses_major_or_minor_third_from_chord_quality(self):
+        major_events, minor_events = [], []
+        _bass_pattern(9, 0, major_events, third_interval=4)
+        _bass_pattern(9, 0, minor_events, third_interval=3)
+        major_on = [e for e in major_events if e[2][0] & 0xF0 == 0x90]
+        minor_on = [e for e in minor_events if e[2][0] & 0xF0 == 0x90]
+        self.assertEqual(major_on[1][2][1] % 12, (45 + 4) % 12)
+        self.assertEqual(minor_on[1][2][1] % 12, (45 + 3) % 12)
+
     def test_chorus_bass_places_a_syncopated_fifth_between_kick_anchors(self):
         events = []
         _bass_pattern(0, 0, events, chorus=True)
