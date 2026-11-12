@@ -578,7 +578,7 @@ def build_composition_events(
             mode_name = composition.get("mode")
             persian_dastgah = composition.get("persian_dastgah")
             tonic_pc = key_roots.get(key_name, 0)
-            modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic_pc)
+            modal_context = (resolve_persian_modal_profile(persian_dastgah, tonic_pc, composition.get("persian_degree_cents"))
                              if persian_dastgah is not None else None)
             if modal_context is not None or (key_name in key_roots and mode_name in mode_intervals):
                 scale_pcs = (list(modal_context["scale_pitch_classes"]) if modal_context
@@ -606,6 +606,7 @@ def build_composition_events(
                     fill_style=fill_style,
                     modal_profile=persian_dastgah,
                     modal_tonic_pc=tonic_pc,
+                    modal_degree_cents=composition.get("persian_degree_cents"),
                 )
                 for fill in fill_plan["events"]:
                     before_count = len(events)
