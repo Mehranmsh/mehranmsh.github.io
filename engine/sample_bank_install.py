@@ -144,7 +144,7 @@ def install_recorded_banks(
 
             combined_sessions[session_id] = dict(metadata)
             for instrument in instruments:
-                label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument]
+                label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
                 source_records.append({
                     "instrument": instrument,
                     "label": label,
