@@ -72,14 +72,14 @@ def main():
                 page.locator("#projectTempo").fill("96")
                 page.evaluate("localStorage.setItem('msh_admin_session', 'test-owner-session-token')")
                 engine_requests = []
-                async def mock_engine(route):
+                def mock_engine(route):
                     request = route.request
                     import json
                     engine_requests.append({
                         "authorization": request.headers.get("authorization"),
                         "payload": json.loads(request.post_data or "{}")
                     })
-                    await route.fulfill(status=201, content_type="application/json", body=json.dumps({
+                    route.fulfill(status=201, content_type="application/json", body=json.dumps({
                         "success": True,
                         "composition_created": True,
                         "composition_mode": "co_creation",
@@ -96,7 +96,7 @@ def main():
                             "bytes": 12
                         }
                     }))
-                awaitable = page.route("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose", mock_engine)
+                page.route("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose", mock_engine)
                 page.locator("#composeWithEngine").click()
                 page.wait_for_function("document.querySelector('#engineComposeStatus')?.textContent.includes('با موفقیت')")
                 assert engine_requests and engine_requests[0]["authorization"] == "Bearer test-owner-session-token", "Composition request did not use the owner session token."
@@ -108,7 +108,7 @@ def main():
                 downloaded_midi = midi_download.value
                 assert downloaded_midi.suggested_filename == "Engine-Integration-QA.mid", "Editable MIDI download filename is incorrect."
                 page.evaluate("localStorage.removeItem('msh_admin_session')")
-                awaitable = page.unroute("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose")
+                page.unroute("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose")
 
                 # Import a phone-recorded vocal through Vocal Lab and verify it becomes a real audio track.
                 page.locator('[data-view="vocals"]').first.click()
