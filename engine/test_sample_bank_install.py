@@ -11,7 +11,7 @@ from sample_renderer import render_sample_events
 
 
 class SampleBankInstallTests(unittest.TestCase):
-    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 44100, session_id: str | None = None, articulation: str = "sustain"):
+    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000, session_id: str | None = None, articulation: str = "sustain"):
         sample_path = root / "samples" / "e2.wav"
         sample_path.parent.mkdir(parents=True)
         with wave.open(str(sample_path), "wb") as wav:
@@ -78,9 +78,9 @@ class SampleBankInstallTests(unittest.TestCase):
             with wave.open(str(sample_path), "wb") as wav:
                 wav.setnchannels(1)
                 wav.setsampwidth(2)
-                wav.setframerate(44100)
+                wav.setframerate(48000)
                 wav.writeframes(b"".join(
-                    int(5000 * math.sin(2 * math.pi * 261.6 * i / 44100)).to_bytes(
+                    int(5000 * math.sin(2 * math.pi * 261.6 * i / 48000)).to_bytes(
                         2, "little", signed=True
                     ) for i in range(4800)
                 ))
@@ -117,7 +117,7 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(rendered["events_rendered"], 1)
             self.assertEqual(rendered["source"], "recorded_sample_bank")
 
-    def test_installs_cc0_electric_bass_fingerstyle_and_pick_banks(self):
+    def test_installs_cc0_karoryfer_babyblue_electric_bass_bank(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             source, target = root / "electric-bass", root / "installed"
@@ -166,7 +166,7 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(report["instrument_count"], 1)
             self.assertEqual(report["sample_count"], 2)
             self.assertEqual({sample.articulation for sample in bank.samples},
-                             {"fingerstyle", "pick"})
+                             {"picked"})
             self.assertEqual(
                 {(sample.playable_key_min, sample.playable_key_max) for sample in bank.samples},
                 {(35, 35), (47, 47)},
