@@ -2,7 +2,7 @@
 
 This register distinguishes independent sample-bank packages from playable instrument IDs. A multi-instrument package must never be counted as one playable instrument, and a sample count must never be presented as an instrument count.
 
-## Integrated in the ten-bank ensemble workflow
+## Integrated in the twelve-bank ensemble workflow
 
 | Independent bank | Playable instrument IDs | Recorded samples | Recorded content |
 |---|---|---:|---|
@@ -17,9 +17,9 @@ This register distinguishes independent sample-bank packages from playable instr
 | VSCO 2 CE CC0 Solo Violin | solo_violin | 74 | 30 arco-vibrato and 44 pizzicato recordings, 15 pitch centers |
 | VSCO 2 CE CC0 Concert Flute | concert_flute | 27 | 13 sustain-vibrato and 14 expressive-vibrato recordings, 10 pitch centers |
 
-The ten packages above expose thirteen playable instrument IDs. The drum package contributes four IDs; nylon and steel guitars contribute two more.
+The twelve packages above expose fifteen playable instrument IDs. The drum package contributes four IDs; nylon and steel guitars contribute two more.
 
-## Additional validated banks, not yet part of the ten-bank ensemble workflow
+## Integration status
 
 | Independent bank | Playable instrument ID | Recorded samples | Recorded content |
 |---|---|---:|---|
@@ -33,4 +33,4 @@ The ten packages above expose thirteen playable instrument IDs. The drum package
 - Recorded articulations, velocity zones, and repeated takes are represented explicitly. Missing source layers are not fabricated.
 - The renderer plays recorded PCM samples; it does not synthesize substitute instrument tones.
 - A CI success proves the tested fetch, conversion, manifest, load, and render paths. It is not a substitute for a human listening review of timbre and musical phrasing.
-- The combined ten-bank ensemble is still an integration preview, not a claim that every instrument has complete chromatic coverage, every articulation, or production-grade round-robin depth.
+- The combined twelve-bank ensemble is an integration preview, not a claim that every instrument has complete chromatic coverage, every articulation, or production-grade round-robin depth. The current preview explicitly uses fourteen of the fifteen installed instrument IDs; the nylon-guitar part is being added as an exact-string recording path.
