@@ -36,7 +36,7 @@ def plan_part_expression(
     if isinstance(event_index, bool) or not isinstance(event_index, int) or event_index < 0:
         raise ValueError("event_index must be a non-negative integer")
     width = _SECTION_WIDTH[section]
-    if part in ("melody", "bass", "kick", "snare"):
+    if part in ("melody", "bass", "kick", "snare", "cajon"):
         pan = 0.0
     elif part == "closed_hat":
         pan = -0.14 if event_index % 2 == 0 else 0.14
