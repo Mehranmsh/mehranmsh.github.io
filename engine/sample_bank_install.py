@@ -35,7 +35,7 @@ EXPECTED_BANKS = {
     "concert_flute": ("VSCO 2 CE Concert Flute", "vsco2-ce-concert-flute", "vsco2_concert_flute", 44100),
     "dan_tranh": ("VCSL Dan Tranh Normal", "vcsl-dan-tranh-normal", "vcsl_dan_tranh_normal", 44100),
     "baroque_soprano_recorder": ("VCSL Baroque Soprano Recorder", "vcsl-baroque-soprano-recorder", "vcsl_baroque_soprano_recorder", 44100),
-    "concert_harp": ("VCSL Concert Harp", "vcsl-concert-harp", "vcsl_concert_harp_cc0", 44100),
+    "concert_harp": ("VCSL Concert Harp", "vcsl-concert-harp", "vcsl_concert_harp_cc0", 44100, 2),
 }
 
 
@@ -104,7 +104,7 @@ def install_recorded_banks(
             copied_by_instrument: dict[str, int] = {}
 
             for instrument in instruments:
-                label, source_id, session_prefix, _expected_rate = EXPECTED_BANKS[instrument]
+                label, source_id, session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
                 if not session_id.startswith(session_prefix):
                     raise ValueError(f"Unexpected recording session provenance for {instrument}")
                 license_dir = staged / "provenance" / instrument
@@ -173,7 +173,8 @@ def install_recorded_banks(
             sample.path.relative_to(staged).as_posix()
             for sample in validated.samples
             if (sample.sample_rate != EXPECTED_BANKS[sample.instrument][3]
-                or sample.channels != 1)
+                or sample.channels != (EXPECTED_BANKS[sample.instrument][4]
+                                       if len(EXPECTED_BANKS[sample.instrument]) > 4 else 1))
         ]
         if invalid:
             raise ValueError(
