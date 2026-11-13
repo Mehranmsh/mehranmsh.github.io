@@ -133,6 +133,8 @@ def install_recorded_banks(
                     "playable_key_min": sample.playable_key_min,
                     "playable_key_max": sample.playable_key_max,
                     "offset_frames": sample.offset_frames,
+                    "velocity_fade_in": list(sample.velocity_fade_in) if sample.velocity_fade_in else None,
+                    "velocity_fade_out": list(sample.velocity_fade_out) if sample.velocity_fade_out else None,
                     "path": destination_relative.as_posix(),
                     "recording_session_id": session_id,
                 })
