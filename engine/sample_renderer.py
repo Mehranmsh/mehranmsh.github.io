@@ -499,7 +499,7 @@ def _section_sample_dynamics(section: str) -> dict[str, float]:
 _DEFAULT_PART_GAINS = {
     "melody": 1.0, "chords": 0.82, "bass": 0.90,
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
-    "open_hat": 0.62, "guitar": 0.76, "strings": 0.70,
+    "open_hat": 0.62, "cajon": 0.64, "guitar": 0.76, "strings": 0.70,
     "electric_guitar": 0.76,
 }
 
@@ -580,7 +580,7 @@ def build_composition_events(
     names = {
         "melody": "piano", "chords": "piano", "bass": "electric_bass",
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
-        "open_hat": "open_hat", "guitar": None, "strings": None,
+        "open_hat": "open_hat", "cajon": None, "guitar": None, "strings": None,
         "electric_guitar": None,
     }
     if instruments is not None:
@@ -628,9 +628,12 @@ def build_composition_events(
             articulation_source: str = "legacy_default",
             release_seconds: float = 0.025, pitch_cents: float = 0.0) -> None:
         instrument_slug = names[part]
-        articulation, articulation_source = _resolve_part_articulation(
-            part, articulation, articulation_source
-        )
+        if part == "bass" and instrument_slug == "contrabass" and articulation == "sustain":
+            articulation, articulation_source = "pizzicato", "instrument_default"
+        else:
+            articulation, articulation_source = _resolve_part_articulation(
+                part, articulation, articulation_source
+            )
         tuning_offset = normalized_instrument_tuning.get(instrument_slug, {}).get(note, 0.0)
         combined_pitch_cents = float(pitch_cents) + tuning_offset
         if not -200.0 <= combined_pitch_cents <= 200.0:
@@ -855,6 +858,24 @@ def build_composition_events(
                         48, _scaled_velocity(78, drum_scale))
                     add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
                         48, _scaled_velocity(90, drum_scale))
+            if names["cajon"] is not None:
+                if section == "bridge":
+                    add("cajon", 60, bar_start, 48,
+                        _scaled_velocity(74, drum_scale),
+                        articulation="bass", articulation_source="percussion_default")
+                    add("cajon", 61, bar_start + 2 * PPQ, 48,
+                        _scaled_velocity(56, drum_scale),
+                        articulation="slap", articulation_source="percussion_default")
+                else:
+                    add("cajon", 60, bar_start, 48,
+                        _scaled_velocity(88, drum_scale),
+                        articulation="bass", articulation_source="percussion_default")
+                    add("cajon", 61, bar_start + PPQ, 48,
+                        _scaled_velocity(82, drum_scale),
+                        articulation="slap", articulation_source="percussion_default")
+                    add("cajon", 62, bar_start + 3 * PPQ, 48,
+                        _scaled_velocity(72, drum_scale),
+                        articulation="tone", articulation_source="percussion_default")
             chord_index += 1
         # One explicitly selected part may answer in the written vocal-rest window.
         # No alternate instrument is silently substituted when that part is unmapped.
