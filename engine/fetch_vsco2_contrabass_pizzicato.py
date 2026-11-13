@@ -146,7 +146,7 @@ def import_vsco2_contrabass_pizzicato(output_root: str | Path) -> dict[str, Any]
         for item in tree_data.get("tree", [])
         if item.get("type") == "blob"
     }
-    required = [MAP_PATH, LICENSE_PATH, *[x["source_path"] for x in EXPECTED.values()]]
+    required = [MAP_PATH, LICENSE_PATH, *[f"{SAMPLE_DIR}/{filename}" for filename in EXPECTED]]
     missing = [path for path in required if path not in tree]
     if missing:
         raise ValueError(f"Pinned VSCO 2 CE source is missing files: {missing}")
