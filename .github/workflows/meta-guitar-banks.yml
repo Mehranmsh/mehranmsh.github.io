@@ -214,7 +214,7 @@ jobs:
           nylon_added = 0
           for note in nylon_notes:
               string_plan = plan_guitar_string(
-                  bank, "nylon_guitar", note, 82, "sustain", max_fret=12
+                  bank, "nylon_guitar", note, 82, "finger", max_fret=12
               )
               if string_plan["status"] != "exact_recorded_string":
                   continue
