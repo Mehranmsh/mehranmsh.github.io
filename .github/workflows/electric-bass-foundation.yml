@@ -27,6 +27,8 @@ on:
       - 'engine/fetch_freepats_electric_bass.py'
       - 'engine/test_fetch_freepats_electric_bass.py'
       - 'engine/test_sample_bank_install.py'
+      - 'engine/build_contrabass_supplement_banks.py'
+      - 'engine/test_build_contrabass_supplement_banks.py'
       - 'engine/sample_bank_install.py'
       - 'engine/sample_bank.py'
       - 'engine/sample_renderer.py'
