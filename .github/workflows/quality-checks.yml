@@ -171,8 +171,21 @@ jobs:
               assert result["composition_mode"] == case["composition_mode"]
               assert result["audio_rendered"] is False
               midi = base64.b64decode(result["midi"]["content_base64"], validate=True)
-              assert midi.startswith(b"MThd"), case["composition_mode"]
-              assert len(midi) > 26, case["composition_mode"]
+              assert midi[:4] == b"MThd", case["composition_mode"]
+              assert len(midi) >= 26, case["composition_mode"]
+              assert int.from_bytes(midi[4:8], "big") == 6, case["composition_mode"]
+              midi_format = int.from_bytes(midi[8:10], "big")
+              track_count = int.from_bytes(midi[10:12], "big")
+              assert midi_format in (0, 1), case["composition_mode"]
+              assert track_count >= 1, case["composition_mode"]
+              offset = 14
+              for _ in range(track_count):
+                  assert midi[offset:offset + 4] == b"MTrk", case["composition_mode"]
+                  track_length = int.from_bytes(midi[offset + 4:offset + 8], "big")
+                  offset += 8 + track_length
+                  assert offset <= len(midi), case["composition_mode"]
+              assert offset == len(midi), case["composition_mode"]
+              assert result["plan"]["source_mode"] == case["composition_mode"]
               assert result["midi"]["note_events"] > 0, case["composition_mode"]
               print(
                   case["composition_mode"],
