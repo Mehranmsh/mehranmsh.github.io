@@ -25,6 +25,7 @@ class InstrumentBankAuditTests(unittest.TestCase):
             self.sample(35, 64, 127, 0),
             self.sample(47, 1, 63, 0, zone=(47, 59)),
             self.sample(47, 1, 63, 1, zone=(47, 59)),
+            self.sample(47, 64, 127, 0, zone=(47, 59)),
         ))
         report = build_instrument_bank_audit(bank)
         item = report["instruments"]["electric_bass"]
@@ -36,7 +37,7 @@ class InstrumentBankAuditTests(unittest.TestCase):
             {"min": 1, "max": 63}, {"min": 64, "max": 127}
         ])
         self.assertEqual(item["velocity_gaps_by_recorded_note_and_articulation"], [])
-        self.assertEqual(item["round_robin"]["depth_distribution"], {"1": 1, "2": 2})
+        self.assertEqual(item["round_robin"]["depth_distribution"], {"1": 2, "2": 2})
         self.assertEqual(item["declared_playable_key_zones"], [
             {"min": 35, "max": 47}, {"min": 47, "max": 59}
         ])
