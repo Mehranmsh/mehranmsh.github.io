@@ -52,7 +52,11 @@ def _verified_download(url_root: str, path: str, expected_sha: str, destination:
     return data
 
 
-def parse_kalimba_websfz(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def parse_kalimba_websfz(
+    payload: dict[str, Any], *, require_complete: bool = True
+) -> list[dict[str, Any]]:
+    if not isinstance(require_complete, bool):
+        raise ValueError("require_complete must be a boolean")
     if not isinstance(payload, dict) or not isinstance(payload.get("meta"), dict):
         raise ValueError("Kalimba mapping must contain source metadata")
     meta = payload["meta"]
@@ -111,9 +115,9 @@ def parse_kalimba_websfz(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "tuning_cents": float(tuning_cents), "gain_db": float(gain_db),
                 "seq_length": seq_length,
             })
-    if len(regions) != 14:
+    if require_complete and len(regions) != 14:
         raise ValueError(f"Expected 14 mapped Kalimba, Kenya recordings, got {len(regions)}")
-    if sorted({x["midi_note"] for x in regions}) != EXPECTED_NOTES:
+    if require_complete and sorted({x["midi_note"] for x in regions}) != EXPECTED_NOTES:
         raise ValueError("Kalimba map does not cover the expected recorded pitch centers")
     if len({x["source_path"] for x in regions}) != len(regions):
         raise ValueError("Duplicate Kalimba source sample path")
