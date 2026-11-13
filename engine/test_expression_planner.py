@@ -36,6 +36,12 @@ class PartExpressionTests(unittest.TestCase):
         self.assertGreater(harp["pan"], 0.4)
         self.assertLess(cello["pan"], -0.4)
 
+    def test_recorder_and_dan_tranh_have_distinct_stereo_profiles(self):
+        recorder = plan_part_expression("recorder", "chorus", 0.25)
+        dan_tranh = plan_part_expression("dan_tranh", "chorus", 0.25)
+        self.assertNotEqual(recorder["profile"], dan_tranh["profile"])
+        self.assertNotEqual(recorder["pan"], dan_tranh["pan"])
+
     def test_invalid_inputs_are_rejected(self):
         with self.assertRaises(ValueError):
             plan_part_expression("unknown", "verse")
