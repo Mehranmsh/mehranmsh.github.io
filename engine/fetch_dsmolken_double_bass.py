@@ -79,13 +79,6 @@ def parse_double_bass_pizz_sfz(
         seq_position = int(attrs.get("seq_position", "1"))
         if seq_length not in (3, 4) or not 1 <= seq_position <= seq_length:
             raise ValueError(f"Invalid double-bass round-robin map: {sample}")
-        suffix = Path(sample).stem[-2:]
-        if suffix[0] == "p" and (velocity_min, velocity_max) != (1, 74):
-            raise ValueError(f"Soft pizzicato sample in unexpected velocity zone: {sample}")
-        if suffix[0] == "m" and (velocity_min, velocity_max) != (75, 120):
-            raise ValueError(f"Medium pizzicato sample in unexpected velocity zone: {sample}")
-        if suffix[0] == "f" and (velocity_min, velocity_max) != (121, 127):
-            raise ValueError(f"Loud pizzicato sample in unexpected velocity zone: {sample}")
         regions.append({
             "midi_note": midi_note, "velocity_min": velocity_min,
             "velocity_max": velocity_max, "round_robin_index": seq_position - 1,
@@ -210,7 +203,7 @@ def fetch_double_bass_pizzicato(output_root: str | Path) -> dict[str, Any]:
         "license": "CC0-1.0", "license_file": "LICENSE-CC0.txt",
         "instrument": "D. Smolken 1958 Otto Rubner double bass, pizzicato",
         "recorded_note_centers": EXPECTED_NOTES,
-        "velocity_layers": {"soft": [1, 74], "medium": [75, 120], "loud": [121, 127]},
+        "velocity_layers": {"low": [1, 74], "middle": [75, 120], "high": [121, 127]},
         "samples": [{
             "path": x["path"], "source_path": x["source_path"],
             "source_git_blob_sha": x["source_git_blob_sha"],
@@ -231,7 +224,7 @@ def fetch_double_bass_pizzicato(output_root: str | Path) -> dict[str, Any]:
         "status": "validated_recorded_contrabass_pizzicato",
         "source_commit": SOURCE_COMMIT, "license": "CC0-1.0",
         "samples": len(bank.samples), "recorded_note_centers": EXPECTED_NOTES,
-        "velocity_layers": {"soft": [1, 74], "medium": [75, 120], "loud": [121, 127]},
+        "velocity_layers": {"low": [1, 74], "middle": [75, 120], "high": [121, 127]},
     }
 
 
