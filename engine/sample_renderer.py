@@ -364,7 +364,7 @@ def render_sample_events(
                 crossfade_frames = min(max(1, round(source_rate * 0.008)), loop_length // 4)
             else:
                 requested_frames = min(round(duration * sample_rate),
-                                       math.ceil(source_frames / source_step))
+                                       math.ceil(max(0, source_frames - sample.offset_frames) / source_step))
                 loop_start = loop_end = loop_length = crossfade_frames = None
             if requested_frames <= 0:
                 continue
@@ -374,7 +374,7 @@ def render_sample_events(
             effective_release = min(release_seconds, 0.012) if is_one_shot else release_seconds
             release_frames = min(requested_frames, max(1, round(sample_rate * effective_release))) if effective_release else 1
             for out_index in range(requested_frames):
-                source_position = out_index * source_step
+                source_position = sample.offset_frames + out_index * source_step
                 if loop_start is not None and loop_end is not None and source_position >= loop_end:
                     source_position = loop_start + ((source_position - loop_end) % loop_length)
                 source_index = int(source_position)
