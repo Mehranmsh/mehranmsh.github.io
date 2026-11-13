@@ -1,11 +1,16 @@
 import unittest
 
-from fetch_karoryfer_meatbass import parse_meatbass_pizz_sfz
+from fetch_karoryfer_meatbass import EXPECTED_NOTES, parse_meatbass_pizz_sfz
 
 
-def fixture():
+NOTE_NAMES = ["a0", "c1", "eb1", "gb1", "a1", "c2", "eb2", "gb2",
+              "a2", "c3", "eb3", "gb3", "a3", "c4"]
+
+
+def fixture(missing=None):
     lines = []
-    for note_name, midi, low, high in (("a0", 21, 12, 22),):
+    for note_name, midi in zip(NOTE_NAMES, EXPECTED_NOTES):
+        low, high = (12, 22) if midi == 21 else (midi - 1, midi + 1)
         for layer, (vmin, vmax) in enumerate(((1, 32), (33, 64), (65, 96), (97, 127)), 1):
             lines.extend([
                 "<group>", f"lokey={low}", f"hikey={high}",
@@ -14,14 +19,16 @@ def fixture():
                 f"pitch_keycenter={midi}",
             ])
             for rr in range(1, 5):
-                lines.extend(["<region>", f"sample=..\\Samples\\pizz\\{note_name}_vl{layer}_rr{rr}.wav"])
+                name = f"{note_name}_vl{layer}_rr{rr}.wav"
+                if name != missing:
+                    lines.extend(["<region>", f"sample=..\\Samples\\pizz\\{name}"])
     return "\n".join(lines)
 
 
 class MeatbassPizzTests(unittest.TestCase):
     def test_parses_four_velocity_layers_and_four_round_robins(self):
-        samples = parse_meatbass_pizz_sfz(fixture(), require_complete=False)
-        self.assertEqual(len(samples), 16)
+        samples = parse_meatbass_pizz_sfz(fixture(), require_complete=True)
+        self.assertEqual(len(samples), 224)
         self.assertEqual({(x["velocity_min"], x["velocity_max"]) for x in samples},
                          {(1, 32), (33, 64), (65, 96), (97, 127)})
         self.assertEqual({x["round_robin_index"] for x in samples}, {0, 1, 2, 3})
@@ -32,8 +39,8 @@ class MeatbassPizzTests(unittest.TestCase):
             parse_meatbass_pizz_sfz(text, require_complete=False)
 
     def test_requires_all_four_round_robin_takes(self):
-        text = fixture().replace("sample=..\\Samples\\pizz\\a0_vl4_rr4.wav", "")
-        with self.assertRaisesRegex(ValueError, "Expected 64 mapped"):
+        text = fixture(missing="a0_vl4_rr4.wav")
+        with self.assertRaisesRegex(ValueError, "Expected 224 mapped"):
             parse_meatbass_pizz_sfz(text, require_complete=True)
 
 
