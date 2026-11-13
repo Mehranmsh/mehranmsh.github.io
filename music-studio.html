@@ -110,6 +110,7 @@
     <div class="field"><label for="lyricsEditor">LYRICS</label><textarea id="lyricsEditor" maxlength="20000" style="min-height:360px" placeholder="[Verse 1]\nWrite your first verse…\n\n[Chorus]\nWrite your hook…"></textarea></div>
     <div class="two"><span id="lyricsCount" style="color:var(--muted);font-size:11px">0 words · 0 characters</span><span id="lyricsSaveState" style="color:var(--muted);font-size:11px;text-align:right">Not saved</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn" id="saveLyrics">Save lyrics to project</button><button class="btn secondary" id="exportLyrics">Export .txt</button></div>
+    <div class="notice" style="margin-top:12px"><b>Lyrics → Arrangement:</b> ساختار شعر را مستقیم به تایم‌لاین آهنگ تبدیل کن؛ حتی اگر اول موسیقی را ساخته باشی، می‌توانی بعداً شعر را به آن وصل کنی.</div><button class="btn secondary" id="buildArrangementFromLyrics" type="button">♫ ساخت تایم‌لاین از روی شعر</button><p id="lyricsArrangementStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا شعر را ذخیره کن، سپس ساختار Intro، Verse، Chorus و Bridge را به تنظیم منتقل کن.</p>
    </div>
    <div class="panel"><h3>Song structure</h3><p style="color:var(--muted);font-size:11px">Insert a section marker at the cursor. Build the arrangement in your own order.</p>
     <div class="projects" id="lyricSections">
@@ -1090,6 +1091,42 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   $("lyricsSaveState").textContent="Unsaved generated draft";
   editor.focus();
  }
+ function buildArrangementFromLyrics(){
+  const p=projects.find(x=>x.id===$("lyricsProject").value),status=$("lyricsArrangementStatus");
+  if(!p){status.textContent="اول پروژه را در Lyrics Lab انتخاب کن.";return;}
+  const lyrics=$("lyricsEditor").value.trim();
+  if(!lyrics){status.textContent="متن شعر خالی است؛ ابتدا شعر یا ساختار بخش‌ها را وارد کن.";return;}
+  const lines=lyrics.split(/\\r?\\n/),sections=[];
+  const aliases=[
+   [/^\\s*\\[(?:intro|مقدمه)\\]/i,"Intro",4],
+   [/^\\s*\\[(?:verse\\s*1|verse|بند\\s*اول|بند\\s*۱)\\]/i,"Verse 1",8],
+   [/^\\s*\\[(?:pre[- ]?chorus|پیش\\s*ترجیع)\\]/i,"Pre-Chorus",4],
+   [/^\\s*\\[(?:chorus|ترجیع|کورس)\\]/i,"Chorus",8],
+   [/^\\s*\\[(?:verse\\s*2|بند\\s*دوم|بند\\s*۲)\\]/i,"Verse 2",8],
+   [/^\\s*\\[(?:bridge|پل)\\]/i,"Bridge",8],
+   [/^\\s*\\[(?:instrumental|سولو|میان\\s*نوازی)\\]/i,"Instrumental",4],
+   [/^\\s*\\[(?:outro|پایان)\\]/i,"Outro",4]
+  ];
+  for(const line of lines){const match=aliases.find(([re])=>re.test(line));if(match)sections.push({name:match[1],bars:match[2]});}
+  if(!sections.length){
+   status.textContent="برچسب استانداردی پیدا نشد. از [Verse 1]، [Chorus]، [Bridge] و [Outro] استفاده کن.";
+   return;
+  }
+  if(sections.length>24){status.textContent="تعداد بخش‌ها از سقف ۲۴ بخش بیشتر است.";return;}
+  const total=sections.reduce((n,x)=>n+x.bars,0);
+  if(total>256){status.textContent="طول تایم‌لاین از سقف ۲۵۶ میزان بیشتر است.";return;}
+  if(Array.isArray(p.arrangement)&&p.arrangement.length&&!confirm("تایم‌لاین فعلی این پروژه با ساختار تازهٔ شعر جایگزین شود؟"))return;
+  const previous=p.arrangement;
+  let startBar=1;
+  p.arrangement=sections.map((item,index)=>{const row={id:"lyrics-section-"+Date.now()+"-"+index,name:item.name,bars:item.bars,startBar};startBar+=item.bars;return row;});
+  p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);
+  p.lyrics=lyrics.slice(0,20000);p.updated=Date.now();
+  if(!save()){p.arrangement=previous;status.textContent="ذخیره انجام نشد؛ فضای ذخیره‌سازی مرورگر را بررسی کن.";return;}
+  refreshMixProjects(p.id);
+  $("mixProject").value=p.id;renderArrangementTimeline();
+  status.textContent="تایم‌لاین ساخته شد: "+sections.map(x=>x.name).join(" → ")+" · "+total+" میزان. حالا بخش‌های سازبندی را به آن اختصاص بده.";
+  show("mix");
+ }
  function saveLyrics(){const p=projects.find(x=>x.id===$("lyricsProject").value);if(!p){alert("Choose a project first.");return;}const previous={lyricsTitle:p.lyricsTitle,lyrics:p.lyrics,updated:p.updated};p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);p.lyrics=$("lyricsEditor").value.slice(0,20000);p.updated=Date.now();if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}render();refreshLyricsProjects(p.id);$("lyricsProject").dataset.previous=p.id;$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;$("lyricsSaveState").textContent="Saved locally · "+new Date().toLocaleTimeString();}
  function exportLyrics(){const title=$("lyricsTitle").value.trim()||"lyrics";const safe=title.replace(/[^a-z0-9\-_ ]/gi,"").trim().replace(/\s+/g,"-").slice(0,60)||"lyrics";const blob=new Blob([$("lyricsEditor").value],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=safe+".txt";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
  function insertLyricSection(section){const t=$("lyricsEditor");const start=t.selectionStart,end=t.selectionEnd;const before=t.value.slice(0,start),after=t.value.slice(end);const prefix=before&&!before.endsWith("\n")?"\n\n":"";const addition=prefix+section+"\n";t.value=before+addition+after;t.focus();const pos=(before+addition).length;t.setSelectionRange(pos,pos);updateLyricsCount();}
@@ -1167,7 +1204,7 @@ $("resetPattern").addEventListener("click",resetPattern);$("exportPatternMidi").
  $("generateSongLyrics").addEventListener("click",generateSongLyrics);
  $("useSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(false));
  $("appendSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(true));
- $("saveLyrics").addEventListener("click",saveLyrics);
+ $("saveLyrics").addEventListener("click",saveLyrics);$("buildArrangementFromLyrics").addEventListener("click",buildArrangementFromLyrics);
  $("exportLyrics").addEventListener("click",exportLyrics);
  document.querySelectorAll("[data-lyric-section]").forEach(b=>b.addEventListener("click",()=>insertLyricSection(b.dataset.lyricSection)));
  const originalShow=show;
