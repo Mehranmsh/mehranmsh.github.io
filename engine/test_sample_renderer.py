@@ -822,6 +822,14 @@ class SampleRendererTests(unittest.TestCase):
             for e in build_composition_events(plan, response_fill_part="guitar")
         ))
 
+    def test_nylon_guitar_generates_exact_fingerpicked_events(self):
+        plan = compose_plan("برگرد ای عشق، کنار من بمان", title="Nylon", genre="folk", target_bpm=84)
+        events = build_composition_events(plan, instruments={"nylon_guitar": "nylon_guitar"})
+        nylon = [event for event in events if event["part"] == "nylon_guitar"]
+        self.assertTrue(nylon)
+        self.assertTrue(all(event["instrument"] == "nylon_guitar" for event in nylon))
+        self.assertTrue(all(event["articulation"] == "finger" for event in nylon))
+
     def test_harp_and_cello_generate_independent_recorded_part_events(self):
         plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
         plan["composition"]["melody"][0]["section"] = "chorus"
