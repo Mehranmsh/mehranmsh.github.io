@@ -1004,7 +1004,7 @@ def build_composition_events(
                     _scaled_velocity(82, bass_scale))
                 add("bass", bass_fifth, bar_start + 3 * PPQ, PPQ // 2 - 24,
                     _scaled_velocity(76, bass_scale))
-                if instrument_slug != "contrabass":
+                if names["bass"] != "contrabass":
                     add("bass", bass_root, bar_start + int(3.5 * PPQ), PPQ // 2 - 24,
                         _scaled_velocity(70, bass_scale))
             else:
@@ -1017,7 +1017,7 @@ def build_composition_events(
                     _scaled_velocity(84, bass_scale))
                 add("bass", bass_fifth, bar_start + 3 * PPQ, PPQ // 2 - 24,
                     _scaled_velocity(82, bass_scale))
-                if instrument_slug != "contrabass":
+                if names["bass"] != "contrabass":
                     add("bass", bass_root, bar_start + int(3.5 * PPQ), PPQ // 2 - 24,
                         _scaled_velocity(78, bass_scale))
 
