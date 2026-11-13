@@ -147,7 +147,7 @@ class StudioControlPlaneTests(unittest.TestCase):
         payload = {
             "title": "همراه", "genre": "pop", "mood": "hopeful",
             "bpm": 104, "phrase_count": 8,
-            "lyrics": "فردا دوباره می‌رسد\\nآفتاب از راه می‌رسد\\nدست من را رها نکن\\nتا بهار خانه مانده",
+            "lyrics": "فردا دوباره می‌رسد\nآفتاب از راه می‌رسد\nدست من را رها نکن\nتا بهار خانه مانده",
         }
         status, result = self.request("/v1/co-create", method="POST", payload=payload)
         self.assertEqual(status, 201, result)
@@ -170,7 +170,7 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
 
     def test_co_creation_rejects_lyrics_beyond_melody_capacity_and_requires_auth(self):
-        too_many_lines = "\\n".join(["یک خط"] * 9)
+        too_many_lines = "\n".join(["یک خط"] * 9)
         status, result = self.request(
             "/v1/co-create", method="POST",
             payload={"lyrics": too_many_lines, "phrase_count": 8},
