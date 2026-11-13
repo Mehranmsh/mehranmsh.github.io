@@ -267,8 +267,15 @@ test("music engine proxy forwards all three composition modes with mode-safe lyr
     }
     globalThis.fetch = async () => new Response(JSON.stringify({
       composition_created: true,
+      composition_mode: "lyrics_first",
       plan: { source_mode: "lyrics_first" },
-      midi: { id: "bad-midi", content_base64: "not-valid-midi", note_events: 1, bytes: 14 }
+      midi: {
+        id: "bad-midi",
+        format: "Standard MIDI",
+        content_base64: "not-valid-midi",
+        note_events: 1,
+        bytes: 14
+      }
     }), { status: 201, headers: { "Content-Type": "application/json" } });
     const invalidResponse = await request("/music/engine/compose", {
       method: "POST",
