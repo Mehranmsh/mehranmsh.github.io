@@ -56,14 +56,19 @@ def parse_dan_tranh_websfz(payload:dict[str,Any],require_complete:bool=True)->li
 def fetch_dan_tranh(output_root):
     root=Path(output_root).resolve(); ffmpeg=shutil.which("ffmpeg")
     if not ffmpeg: raise RuntimeError("ffmpeg is required")
-    st=json.loads(request(f"https://api.github.com/repos/{SOURCE_REPOSITORY}/git/trees/{SOURCE_COMMIT}?recursive=1"))
-    mt=json.loads(request(f"https://api.github.com/repos/{MAP_REPOSITORY}/git/trees/{MAP_COMMIT}?recursive=1"))
-    if st.get("truncated") or mt.get("truncated"): raise ValueError("Pinned source tree truncated")
-    sf={x["path"]:x["sha"] for x in st["tree"] if x.get("type")=="blob"}; mf={x["path"]:x["sha"] for x in mt["tree"] if x.get("type")=="blob"}
-    if "LICENSE" not in sf or MAP_PATH not in mf: raise ValueError("Missing pinned license or SFZ mapping")
+    api=f"https://api.github.com/repos/{SOURCE_REPOSITORY}/contents/"
+    normal_path="Chordophones/Zithers/Dan Tranh/Normal"
+    source_files=json.loads(request(api+quote(normal_path,safe="/")+f"?ref={SOURCE_COMMIT}"))
+    license_meta=json.loads(request(api+f"LICENSE?ref={SOURCE_COMMIT}"))
+    map_api=f"https://api.github.com/repos/{MAP_REPOSITORY}/contents/"+quote(MAP_PATH,safe="/")+f"?ref={MAP_COMMIT}"
+    map_meta=json.loads(request(map_api))
+    sf={normal_path+"/"+x["name"]:x["sha"] for x in source_files if x.get("type")=="file"}
+    if license_meta.get("type")!="file" or map_meta.get("type")!="file": raise ValueError("Missing pinned license or SFZ mapping")
+    mf={MAP_PATH:map_meta["sha"]}
+    if not sf: raise ValueError("Pinned Dan Tranh Normal folder contains no recordings")
     mapping=verified(MAP_ROOT,MAP_PATH,mf[MAP_PATH],root/"source-map"/Path(MAP_PATH).name)
     regions=parse_dan_tranh_websfz(json.loads(mapping))
-    verified(SOURCE_ROOT,"LICENSE",sf["LICENSE"],root/"LICENSE-CC0.txt")
+    verified(SOURCE_ROOT,"LICENSE",license_meta["sha"],root/"LICENSE-CC0.txt")
     for x in regions:
         matches=[p for p in sf if p.casefold()==x["source_path"].casefold()]
         if len(matches)!=1: raise ValueError(f"Expected one case-insensitive VCSL source match for {x['source_path']}, found {len(matches)}")
