@@ -528,7 +528,8 @@ class SampleRendererTests(unittest.TestCase):
             counts[section] = len(first_bar)
             starts[section] = [event["start_seconds"] for event in first_bar]
         self.assertEqual(counts["verse"], 8)
-        self.assertEqual(counts["pre_chorus"], 4)
+        self.assertEqual(counts["pre_chorus"], 5)
+        self.assertIn(3.5 * 60 / 84, starts["pre_chorus"])
         self.assertEqual(counts["chorus"], 6)
         self.assertEqual(counts["bridge"], 3)
         self.assertEqual(starts["verse"], sorted(starts["verse"]))
