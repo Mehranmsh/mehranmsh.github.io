@@ -569,6 +569,7 @@ _DEFAULT_PART_GAINS = {
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
     "open_hat": 0.62, "cajon": 0.64, "kalimba": 0.46, "guitar": 0.76, "strings": 0.70,
     "electric_guitar": 0.76, "harp": 0.52, "cello": 0.42,
+    "recorder": 0.48, "dan_tranh": 0.46,
 }
 
 
@@ -620,6 +621,8 @@ def _resolve_part_articulation(
         # articulation so a selected strings layer can render without fallback.
         "strings": ("arco_vibrato", "instrument_default"),
         "cello": ("sustain_vibrato", "instrument_default"),
+        "recorder": ("sustain", "instrument_default"),
+        "dan_tranh": ("pluck", "instrument_default"),
     }
     if part in part_defaults:
         return part_defaults[part]
@@ -656,6 +659,7 @@ def build_composition_events(
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
         "open_hat": "open_hat", "contrabass": None, "cajon": None, "kalimba": None, "guitar": None, "strings": None,
         "electric_guitar": None, "harp": None, "cello": None,
+        "recorder": None, "dan_tranh": None,
     }
     if instruments is not None:
         if not isinstance(instruments, dict):
@@ -897,6 +901,33 @@ def build_composition_events(
                         -0.18 + voice_index * 0.16,
                         articulation="sustain_vibrato",
                         articulation_source="instrument_default")
+            if names["recorder"]:
+                # Use only exact recorded pitch centers from the pinned soprano-recorder bank.
+                recorder_pitch_centers = {60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 79, 82, 84}
+                recorder_candidates = [int(note) for note in voicing
+                                       if int(note) in recorder_pitch_centers]
+                if recorder_candidates:
+                    recorder_note = recorder_candidates[min(bar, len(recorder_candidates) - 1)]
+                    recorder_articulation = "staccato" if section == "pre_chorus" else "sustain"
+                    add("recorder", recorder_note, bar_start, PPQ - 36,
+                        _scaled_velocity(48 if section == "bridge" else 58,
+                                         bar_dynamics["melody"]),
+                        0.12, articulation=recorder_articulation,
+                        articulation_source="instrument_default")
+            if names["dan_tranh"]:
+                # Trigger only at verified recorded pitch centers; source velocity layers stay intact.
+                dan_tranh_pitch_centers = {47, 49, 51, 54, 56, 59, 61, 63,
+                                           66, 68, 71, 73, 75, 78, 80, 83}
+                dan_tranh_notes = [int(note) for note in voicing
+                                   if int(note) in dan_tranh_pitch_centers]
+                for note_index, note in enumerate(dan_tranh_notes[:3]):
+                    add("dan_tranh", note, bar_start + note_index * PPQ,
+                        PPQ // 2 - 18,
+                        _scaled_velocity(54 + note_index * 5,
+                                         bar_dynamics["chords"]),
+                        0.22 + note_index * 0.08,
+                        articulation="pluck",
+                        articulation_source="instrument_default")
             if names["harp"]:
                 # A distinct broken-chord figure uses the full documented
                 # concert-harp key range (MIDI 28-102).
@@ -1088,6 +1119,7 @@ def render_composition_to_wav(
         allowed_parts = {
             "melody", "chords", "bass", "kick", "snare", "closed_hat",
             "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
+            "harp", "cello", "recorder", "dan_tranh",
         }
         if (not isinstance(parts, list) or not parts
                 or any(not isinstance(part, str) or part not in allowed_parts for part in parts)
