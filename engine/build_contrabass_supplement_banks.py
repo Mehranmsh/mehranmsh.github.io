@@ -14,7 +14,6 @@ def _build_one(
     output_root: Path,
     session_id: str,
     entries: list[dict],
-    source_subdir: str,
     exact_root: int,
     expected_count: int,
     expected_velocity: tuple[int, int],
@@ -109,11 +108,11 @@ def build_contrabass_supplement_banks(
 
     meatbass_report = _build_one(
         meatbass_root, meatbass_output, "karoryfer_meatbass_pizzicato",
-        meatbass_entries, "meatbass-supplement", 27, 4, (97, 127),
+        meatbass_entries, 27, 4, (97, 127),
     )
     vsco2_report = _build_one(
         vsco2_root, vsco2_output, "vsco2_ce_contrabass_pizzicato",
-        vsco2_entries, "vsco2-supplement", 34, 2, (63, 127),
+        vsco2_entries, 34, 2, (63, 127),
     )
     return {
         "status": "validated_separate_contrabass_supplement_banks",
