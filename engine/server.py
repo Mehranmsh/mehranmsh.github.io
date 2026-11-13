@@ -361,7 +361,7 @@ class Handler(BaseHTTPRequestHandler):
                 allowed_parts = {
                     "melody", "chords", "bass", "kick", "snare", "closed_hat",
                     "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
-                    "harp", "cello", "recorder", "dan_tranh", "flute",
+                    "harp", "cello", "recorder", "dan_tranh", "flute", "nylon_guitar",
                 }
                 if (not isinstance(requested_parts, list) or not requested_parts
                         or any(not isinstance(part, str) or part not in allowed_parts
@@ -396,6 +396,7 @@ class Handler(BaseHTTPRequestHandler):
                     # or synthesized fallback is allowed.
                     verified_part_banks = {
                         "guitar": "acoustic_guitar",
+                        "nylon_guitar": "nylon_guitar",
                         "strings": "solo_violin",
                         "contrabass": "contrabass",
                         "cajon": "cajon",
