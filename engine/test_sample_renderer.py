@@ -310,8 +310,9 @@ class SampleRendererTests(unittest.TestCase):
                 self.assertTrue(all(event["articulation"] == "pizzicato"
                                     and event["articulation_source"] == "instrument_default"
                                     for event in first_bar_contrabass))
+                reference_events = build_composition_events(plan)
                 first_bar_electric_bass = [
-                    event for event in events
+                    event for event in reference_events
                     if event["instrument"] == "electric_bass"
                     and event["start_seconds"] < 4 * beat_seconds
                 ]
