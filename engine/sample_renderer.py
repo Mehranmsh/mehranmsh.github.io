@@ -302,6 +302,8 @@ def render_sample_events(
                         and candidate.velocity_min == selected.velocity_min
                         and candidate.velocity_max == selected.velocity_max
                         and candidate.string_name == selected.string_name
+                        and candidate.velocity_fade_in == selected.velocity_fade_in
+                        and candidate.velocity_fade_out == selected.velocity_fade_out
                     ),
                     key=lambda candidate: (candidate.round_robin_index, candidate.path.as_posix()),
                 )
@@ -312,6 +314,7 @@ def render_sample_events(
                     rr_key = (
                         selected.instrument, selected.midi_note, selected.articulation,
                         selected.velocity_min, selected.velocity_max,
+                        selected.velocity_fade_in, selected.velocity_fade_out,
                     )
                     rr_position = round_robin_counters.get(rr_key, 0)
                     selected = candidates[rr_position % len(candidates)]
