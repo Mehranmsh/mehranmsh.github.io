@@ -11,7 +11,7 @@ from sample_renderer import render_sample_events
 
 
 class SampleBankInstallTests(unittest.TestCase):
-    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000):
+    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000, session_id: str | None = None):
         sample_path = root / "samples" / "e2.wav"
         sample_path.parent.mkdir(parents=True)
         with wave.open(str(sample_path), "wb") as wav:
@@ -26,7 +26,7 @@ class SampleBankInstallTests(unittest.TestCase):
         (root / "source" / "SOURCE_LICENSE.txt").write_text(
             "CC0 1.0 Universal. To the extent possible under law, waived all copyright.", encoding="utf-8"
         )
-        session = source_id + "_cc0"
+        session = session_id or source_id + "_cc0"
         (root / "bank.json").write_text(json.dumps({
             "format_version": 1,
             "recording_sessions": {session: {"instrument_model": instrument, "performer": "Recorded source"}},
@@ -291,6 +291,41 @@ class SampleBankInstallTests(unittest.TestCase):
                              {"solo_violin", "concert_flute"})
             self.assertTrue((target / "provenance" / "solo_violin" / "SOURCE_LICENSE.txt").is_file())
             self.assertTrue((target / "provenance" / "concert_flute" / "SOURCE_LICENSE.txt").is_file())
+
+
+    def test_installs_dan_tranh_and_baroque_recorder_banks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            dan_tranh, recorder, target = root / "dan-tranh", root / "recorder", root / "installed"
+            dan_tranh.mkdir(); recorder.mkdir()
+            self.make_bank(
+                dan_tranh, "dan_tranh", "vcsl-dan-tranh", 44100,
+                "vcsl_dan_tranh_normal",
+            )
+            self.make_bank(
+                recorder, "baroque_soprano_recorder", "vcsl-recorder", 44100,
+                "vcsl_baroque_soprano_recorder",
+            )
+            report = install_recorded_banks([dan_tranh, recorder], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["instrument_count"], 2)
+            self.assertEqual(report["sample_count"], 2)
+            self.assertEqual(
+                {sample.instrument for sample in bank.samples},
+                {"dan_tranh", "baroque_soprano_recorder"},
+            )
+            self.assertTrue((target / "provenance" / "dan_tranh" / "SOURCE_LICENSE.txt").is_file())
+            self.assertTrue((target / "provenance" / "baroque_soprano_recorder" / "SOURCE_LICENSE.txt").is_file())
+            rendered = render_sample_events([
+                {"instrument": "dan_tranh", "midi_note": 40, "articulation": "pluck",
+                 "start_seconds": 0, "duration_seconds": 0.1, "velocity": 90},
+                {"instrument": "baroque_soprano_recorder", "midi_note": 40,
+                 "articulation": "sustain", "start_seconds": 0.2,
+                 "duration_seconds": 0.1, "velocity": 90},
+            ], bank, root / "world-instruments.wav", sample_rate=22050)
+            self.assertEqual(rendered["events_rendered"], 2)
+            self.assertEqual(rendered["source"], "recorded_sample_bank")
 
     def test_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
