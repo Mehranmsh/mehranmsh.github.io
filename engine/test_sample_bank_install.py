@@ -146,6 +146,7 @@ class SampleBankInstallTests(unittest.TestCase):
                     "instrument": "electric_bass", "midi_note": note,
                     "velocity_min": 1, "velocity_max": 127,
                     "articulation": articulation, "round_robin_index": 0,
+                    "playable_key_min": note, "playable_key_max": note,
                     "one_shot": False, "path": relative,
                     "recording_session_id": session,
                 })
@@ -166,6 +167,10 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(report["sample_count"], 2)
             self.assertEqual({sample.articulation for sample in bank.samples},
                              {"fingerstyle", "pick"})
+            self.assertEqual(
+                {(sample.playable_key_min, sample.playable_key_max) for sample in bank.samples},
+                {(28, 28), (33, 33)},
+            )
             self.assertTrue(
                 (target / "provenance" / "electric_bass" / "SOURCE_LICENSE.txt").is_file()
             )
