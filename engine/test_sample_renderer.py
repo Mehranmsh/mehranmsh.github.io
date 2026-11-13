@@ -1289,6 +1289,34 @@ class SampleRendererTests(unittest.TestCase):
             self.assertEqual(first_pcm, second_pcm)
             self.assertEqual(first_report["events_rendered"], second_report["events_rendered"])
 
+    def test_renderer_keeps_sfz_velocity_crossfade_layers_separate_from_round_robin(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "harp"
+            root.mkdir()
+            self.make_wav(root / "mf.wav", rate=22050, frames=4410)
+            self.make_wav(root / "f.wav", rate=22050, frames=4410)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [
+                    {"instrument": "concert_harp", "midi_note": 60, "path": "mf.wav",
+                     "velocity_fade_out": [70, 100]},
+                    {"instrument": "concert_harp", "midi_note": 60, "path": "f.wav",
+                     "velocity_fade_in": [70, 100]},
+                ],
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "harp-crossfade.wav"
+            report = render_sample_events([{
+                "instrument": "concert_harp", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08, "velocity": 85,
+            }], bank, output, sample_rate=22050)
+            self.assertEqual(report["events_rendered"], 1)
+            self.assertEqual(report["sample_selection"]["equal_power_velocity_crossfade_events"], 1)
+            with wave.open(str(output), "rb") as audio:
+                self.assertEqual((audio.getnchannels(), audio.getsampwidth(), audio.getframerate()),
+                                 (2, 2, 22050))
+                self.assertTrue(any(audio.readframes(audio.getnframes())))
+
 
 if __name__ == "__main__":
     unittest.main()
