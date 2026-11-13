@@ -69,6 +69,12 @@ class CelloSectionMapTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "five official"):
             parse_cello_section_maps({key: fixture_map(key) for key in list(MAPS)[:-1]})
 
+    def test_rejects_sequence_metadata_on_non_rr_articulation(self):
+        maps = {key: fixture_map(key) for key in MAPS}
+        maps["sustain_quiet"] = maps["sustain_quiet"].replace("<group>", "<group>\nseq_length=2", 1)
+        with self.assertRaisesRegex(ValueError, "sequence metadata"):
+            parse_cello_section_maps(maps)
+
     def test_rejects_a_mismatched_filename_root(self):
         maps = {key: fixture_map(key) for key in MAPS}
         maps["pizzicato"] = maps["pizzicato"].replace("pitch_keycenter=57\nlokey=57\nhikey=57", "pitch_keycenter=58\nlokey=58\nhikey=58", 1)
