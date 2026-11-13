@@ -45,7 +45,7 @@ def _request(url: str, timeout: int = 90) -> bytes:
 
 def _download_verified(path: str, expected_sha: str, destination: Path) -> None:
     data = _request(f"{RAW_ROOT}/{path}")
-    actual = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\\0" + data).hexdigest()
+    actual = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
     if actual != expected_sha:
         raise ValueError(f"Pinned Git blob SHA-1 mismatch: {path}")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -61,11 +61,11 @@ def parse_babyblue_map(
         raise ValueError("require_complete must be a boolean")
     spec = MAPS[layer]
     regions: list[dict[str, Any]] = []
-    for block in re.split(r"<region>\\s*", sfz_text)[1:]:
-        attrs = dict(re.findall(r"^\\s*([a-z_]+)\\s*=\\s*([^\\s]+)", block, re.MULTILINE))
-        sample = attrs.get("sample", "").replace("\\\\", "/")
+    for block in re.split(r"<region>\s*", sfz_text)[1:]:
+        attrs = dict(re.findall(r"^\s*([a-z_]+)\s*=\s*([^\s]+)", block, re.MULTILINE))
+        sample = attrs.get("sample", "").replace("\\", "/")
         match = re.fullmatch(
-            rf"\\.\\./Samples/babyblue/reg/babyblue_[a-z0-9]+_{layer}_rr([1-{spec['expected_rr']}])\\.wav",
+            rf"\.\./Samples/babyblue/reg/babyblue_[a-z0-9]+_{layer}_rr([1-{spec['expected_rr']}])\.wav",
             sample,
         )
         if not match:
@@ -180,7 +180,7 @@ def fetch_babyblue_bass(output_root: str | Path) -> dict[str, Any]:
             "one_shot": False, "recording_session_id": session_id, "path": x["path"],
         } for x in prepared],
     }
-    (root / "bank.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    (root / "bank.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     provenance = {
         "source_repository": SOURCE_REPOSITORY, "source_commit": SOURCE_COMMIT,
         "license": "CC0-1.0", "license_file": "LICENSE-CC0.txt",
@@ -193,7 +193,7 @@ def fetch_babyblue_bass(output_root: str | Path) -> dict[str, Any]:
             "round_robin_index": x["round_robin_index"],
         } for x in prepared],
     }
-    (root / "provenance.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    (root / "provenance.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     from sample_bank import load_sample_bank
     bank = load_sample_bank(root)
     if len(bank.samples) != 492:
