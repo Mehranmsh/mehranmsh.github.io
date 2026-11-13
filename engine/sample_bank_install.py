@@ -102,8 +102,11 @@ def install_recorded_banks(
                     f"Only validated CC0 recorded instrument banks are accepted: {source_root}"
                 )
             duplicates = seen_instruments.intersection(instruments)
-            if duplicates - {"contrabass"}:
-                raise ValueError(f"Duplicate instrument bank supplied: {', '.join(sorted(duplicates - {'contrabass'}))}")
+            unexpected_duplicates = duplicates - {"contrabass"}
+            if unexpected_duplicates:
+                raise ValueError(
+                    f"Duplicate instrument bank supplied: {', '.join(sorted(unexpected_duplicates))}"
+                )
 
             session_ids = {sample.recording_session_id for sample in bank.samples}
             if None in session_ids or len(session_ids) != 1:
