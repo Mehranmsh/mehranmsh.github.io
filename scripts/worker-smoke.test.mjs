@@ -263,6 +263,21 @@ test("music engine proxy forwards all three composition modes with mode-safe lyr
       assert.equal(payload.plan.source_mode, input.composition_mode);
       assert.equal("local_path" in payload.midi, false);
     }
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      composition_created: true,
+      plan: { source_mode: "lyrics_first" },
+      midi: { id: "bad-midi", content_base64: "not-valid-midi", note_events: 1, bytes: 14 }
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+    const invalidResponse = await request("/music/engine/compose", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + "c".repeat(48) },
+      body: cases[0]
+    }, {
+      DB: db,
+      MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+      MEHRAN_ENGINE_TOKEN: engineToken
+    });
+    assert.equal(invalidResponse.status, 502);
   } finally {
     globalThis.fetch = originalFetch;
   }
