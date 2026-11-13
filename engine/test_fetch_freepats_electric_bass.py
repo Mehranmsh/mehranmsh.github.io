@@ -4,6 +4,7 @@ from __future__ import annotations
 import unittest
 
 from fetch_freepats_electric_bass import parse_freepats_bass_sfz
+from sample_renderer import _resolve_part_articulation
 
 
 class FreePatsBassTests(unittest.TestCase):
@@ -34,12 +35,19 @@ sample=samples/pick/E.flac
 """
         self.assertEqual(
             parse_freepats_bass_sfz(finger, "finger", require_complete=False)[0]["articulation"],
-            "finger",
+            "fingerstyle",
         )
         self.assertEqual(
             parse_freepats_bass_sfz(pick, "pick", require_complete=False)[0]["articulation"],
             "pick",
         )
+
+    def test_composition_bass_part_defaults_to_recorded_fingerstyle(self):
+        articulation, source = _resolve_part_articulation(
+            "bass", "sustain", "legacy_default"
+        )
+        self.assertEqual(articulation, "fingerstyle")
+        self.assertEqual(source, "instrument_default")
 
     def test_parser_rejects_filename_pitch_mismatch(self):
         sfz = """
