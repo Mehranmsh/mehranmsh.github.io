@@ -476,7 +476,7 @@
   let offset=44,outputPeak=0;for(let i=0;i<length;i++)for(let c=0;c<channels;c++){const v=Math.max(-1,Math.min(1,buffer.getChannelData(c)[i]*gain));outputPeak=Math.max(outputPeak,Math.abs(v));view.setInt16(offset,v<0?v*32768:v*32767,true);offset+=2;}
   const wav=new Blob([view],{type:"audio/wav"});wav.samplePeakDb=outputPeak>0?20*Math.log10(outputPeak):-Infinity;wav.appliedGainDb=20*Math.log10(Math.max(1e-12,gain));return wav;
  }
- async async function runVocalPolish(){
+ async function runVocalPolish(){
   const file=$("vocalPolishFile").files?.[0],button=$("runVocalPolish"),status=$("vocalPolishStatus");
   if(!file){status.textContent="اول فایل ضبط‌شده را انتخاب کن.";return;}
   if(file.size>MAX_AUDIO_BYTES){status.textContent="حجم فایل از سقف ۱۰۰ مگابایت بیشتر است.";return;}
