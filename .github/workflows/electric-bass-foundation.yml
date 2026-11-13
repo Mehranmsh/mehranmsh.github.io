@@ -10,7 +10,6 @@ on:
       - 'engine/fetch_vsco2_contrabass_pizzicato.py'
       - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
       - 'engine/build_contrabass_velocity_supplement.py'
-      - 'engine/build_meatbass_contrabass_supplement.py'
       - 'engine/velocity_layer_planner.py'
       - 'engine/sample_bank.py'
       - 'engine/test_velocity_layer_planner.py'
