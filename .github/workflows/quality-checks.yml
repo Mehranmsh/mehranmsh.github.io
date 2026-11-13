@@ -132,7 +132,7 @@ jobs:
                   "mood": "reflective",
                   "bpm": 84,
                   "phrase_count": 4,
-                  "lyrics": "دلم گرفته\\nاز این شب سرد",
+                  "lyrics": "دلم گرفته\nاز این شب سرد",
               },
               {
                   "composition_mode": "instrumental_first",
@@ -149,7 +149,7 @@ jobs:
                   "mood": "warm",
                   "bpm": 88,
                   "phrase_count": 4,
-                  "lyrics": "دلم گرفته\\nاز این شب سرد",
+                  "lyrics": "دلم گرفته\nاز این شب سرد",
               },
           ]
 
