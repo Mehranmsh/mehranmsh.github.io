@@ -654,7 +654,7 @@ def build_composition_events(
         "melody": "piano", "chords": "piano", "bass": "electric_bass",
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
         "open_hat": "open_hat", "contrabass": None, "cajon": None, "kalimba": None, "guitar": None, "strings": None,
-        "electric_guitar": None,
+        "electric_guitar": None, "harp": None, "cello": None,
     }
     if instruments is not None:
         if not isinstance(instruments, dict):
