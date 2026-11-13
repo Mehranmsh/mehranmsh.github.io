@@ -1,0 +1,87 @@
+name: MEHRAN Concert Harp Foundation
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_freepats_concert_harp.py'
+      - 'engine/test_fetch_freepats_concert_harp.py'
+      - 'engine/sfz_region_parser.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - '.github/workflows/concert-harp-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: concert-harp-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-concert-harp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test Concert Harp SFZ importer
+        run: python3 -m unittest engine.test_fetch_freepats_concert_harp engine.test_sfz_region_parser -v
+      - name: Fetch, verify, convert, and validate official CC0 Concert Harp bank
+        timeout-minutes: 5
+        run: python3 engine/fetch_freepats_concert_harp.py sample-bank-freepats-concert-harp
+      - name: Render and verify recorded low, middle, and high harp notes
+        run: |
+          python3 - <<'PY'
+          import json
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-freepats-concert-harp')
+          notes = sorted({sample.midi_note for sample in bank.samples})
+          selected = [notes[0], notes[len(notes) // 2], notes[-1]]
+          events = [
+              {'instrument': 'concert_harp', 'midi_note': note,
+               'start_seconds': index * 0.8, 'duration_seconds': 0.65,
+               'velocity': velocity}
+              for index, (note, velocity) in enumerate(zip(selected, [60, 95, 115]))
+          ]
+          output = 'sample-bank-freepats-concert-harp/concert-harp-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == 3, report
+          assert report['source'] == 'recorded_sample_bank', report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 2 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          provenance = json.load(open('sample-bank-freepats-concert-harp/provenance.json', encoding='utf-8'))
+          print('REAL_CONCERT_HARP_AUDITION_OK', {
+              'regions': provenance['region_count'],
+              'unique_recorded_samples': provenance['unique_recorded_samples'],
+              'key_range': [provenance['coverage']['midi_min'], provenance['coverage']['midi_max']],
+              'selection': report['sample_selection'],
+          })
+          PY
+      - name: Publish verified CC0 Concert Harp bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-freepats-concert-harp
+          path: |
+            sample-bank-freepats-concert-harp/bank.json
+            sample-bank-freepats-concert-harp/LICENSE-CC0.txt
+            sample-bank-freepats-concert-harp/provenance.json
+            sample-bank-freepats-concert-harp/samples/
+            sample-bank-freepats-concert-harp/concert-harp-audition.wav
+          if-no-files-found: error
+          retention-days: 30
