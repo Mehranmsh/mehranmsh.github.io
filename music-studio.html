@@ -1096,16 +1096,16 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   if(!p){status.textContent="اول پروژه را در Lyrics Lab انتخاب کن.";return;}
   const lyrics=$("lyricsEditor").value.trim();
   if(!lyrics){status.textContent="متن شعر خالی است؛ ابتدا شعر یا ساختار بخش‌ها را وارد کن.";return;}
-  const lines=lyrics.split(/\\r?\\n/),sections=[];
+  const lines=lyrics.split(/\r?\n/),sections=[];
   const aliases=[
-   [/^\\s*\\[(?:intro|مقدمه)\\]/i,"Intro",4],
-   [/^\\s*\\[(?:verse\\s*1|verse|بند\\s*اول|بند\\s*۱)\\]/i,"Verse 1",8],
-   [/^\\s*\\[(?:pre[- ]?chorus|پیش\\s*ترجیع)\\]/i,"Pre-Chorus",4],
-   [/^\\s*\\[(?:chorus|ترجیع|کورس)\\]/i,"Chorus",8],
-   [/^\\s*\\[(?:verse\\s*2|بند\\s*دوم|بند\\s*۲)\\]/i,"Verse 2",8],
-   [/^\\s*\\[(?:bridge|پل)\\]/i,"Bridge",8],
-   [/^\\s*\\[(?:instrumental|سولو|میان\\s*نوازی)\\]/i,"Instrumental",4],
-   [/^\\s*\\[(?:outro|پایان)\\]/i,"Outro",4]
+   [/^\s*\[(?:intro|مقدمه)\]/i,"Intro",4],
+   [/^\s*\[(?:verse\s*1|verse|بند\s*اول|بند\s*۱)\]/i,"Verse 1",8],
+   [/^\s*\[(?:pre[- ]?chorus|پیش\s*ترجیع)\]/i,"Pre-Chorus",4],
+   [/^\s*\[(?:chorus|ترجیع|کورس)\]/i,"Chorus",8],
+   [/^\s*\[(?:verse\s*2|بند\s*دوم|بند\s*۲)\]/i,"Verse 2",8],
+   [/^\s*\[(?:bridge|پل)\]/i,"Bridge",8],
+   [/^\s*\[(?:instrumental|سولو|میان\s*نوازی)\]/i,"Instrumental",4],
+   [/^\s*\[(?:outro|پایان)\]/i,"Outro",4]
   ];
   for(const line of lines){const match=aliases.find(([re])=>re.test(line));if(match)sections.push({name:match[1],bars:match[2]});}
   if(!sections.length){
