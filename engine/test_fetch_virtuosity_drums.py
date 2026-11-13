@@ -71,7 +71,7 @@ seq_length=4
 seq_position=2
 """
         with self.assertRaisesRegex(ValueError, "mismatch"):
-            parse_virtuosity_sfz_map(sfz, "kick", keymap_text=KEYMAP)
+            parse_virtuosity_sfz_map(sfz, "kick", keymap_text=KEYMAP, require_complete=False)
 
     def test_parser_rejects_velocity_gaps(self):
         sfz = """
