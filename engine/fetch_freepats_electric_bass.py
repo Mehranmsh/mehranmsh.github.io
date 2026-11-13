@@ -21,7 +21,7 @@ RAW_ROOT = f"https://raw.githubusercontent.com/{SOURCE_REPOSITORY}/{SOURCE_COMMI
 EXPECTED_COUNTS = {"finger": 12, "pick": 13}
 EXPECTED_RANGES = {"finger": (26, 45), "pick": (26, 46)}
 NOTE_MIDI = {
-    "C": 24, "C#": 25, "D": 26, "D#": 27, "E": 28,
+    "C": 36, "C#": 37, "D": 38, "D#": 39, "E": 28,
     "F": 29, "F#": 30, "G": 31, "G#": 32, "A": 33,
     "A#": 34, "B": 35, "E2": 40,
 }
