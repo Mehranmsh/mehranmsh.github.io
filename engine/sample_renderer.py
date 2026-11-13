@@ -488,7 +488,7 @@ def _resolve_part_articulation(
     if articulation != "sustain":
         return articulation, articulation_source
     part_defaults = {
-        "bass": ("finger", "instrument_default"),
+        "bass": ("fingerstyle", "instrument_default"),
         "kick": ("snares_on", "percussion_default"),
         "snare": ("center", "percussion_default"),
         "closed_hat": ("closed", "percussion_default"),
