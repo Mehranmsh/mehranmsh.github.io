@@ -11,6 +11,8 @@ on:
       - 'engine/velocity_layer_planner.py'
       - 'engine/sample_bank.py'
       - 'engine/test_velocity_layer_planner.py'
+      - 'engine/sample_bank_install.py'
+      - 'engine/test_sample_bank_install.py'
       - '.github/workflows/electric-bass-foundation.yml'
   push:
     branches:
