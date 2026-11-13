@@ -1,0 +1,92 @@
+name: MEHRAN Percussion Foundation
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_virtuosity_drums.py'
+      - 'engine/test_fetch_virtuosity_drums.py'
+      - 'engine/test_percussion_round_robin.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - '.github/workflows/percussion-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: percussion-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-percussion-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+      - name: Test one-shot rendering and SFZ parsing
+        run: python3 -m unittest engine.test_percussion_round_robin engine.test_fetch_virtuosity_drums -v
+      - name: Fetch and validate pinned CC0 Virtuosity drum recordings
+        timeout-minutes: 12
+        run: python3 engine/fetch_virtuosity_drums.py sample-bank-virtuosity-drums
+      - name: Render and verify real percussion audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-virtuosity-drums')
+          cases = [
+              ('kick', 36, 'snares_on', 0.0),
+              ('kick', 36, 'snares_on', 2.0),
+              ('snare', 38, 'center', 4.0),
+              ('closed_hat', 42, 'closed', 6.0),
+              ('open_hat', 42, 'open', 8.0),
+          ]
+          events = [{
+              'instrument': instrument, 'midi_note': note,
+              'articulation': articulation, 'start_seconds': start,
+              'duration_seconds': 0.01, 'velocity': 100,
+          } for instrument, note, articulation, start in cases]
+          report = render_sample_events(
+              events, bank, 'sample-bank-virtuosity-drums/percussion-audition.wav',
+              sample_rate=44100,
+          )
+          assert report['events_rendered'] == len(cases), report
+          assert report['sample_selection']['one_shot_round_robin_events'] == len(cases), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          with wave.open('sample-bank-virtuosity-drums/percussion-audition.wav', 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getframerate() == 44100
+              assert audio.getnframes() > 8 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_PERCUSSION_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified compact percussion bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-virtuosity-percussion-bank
+          path: |
+            sample-bank-virtuosity-drums/bank.json
+            sample-bank-virtuosity-drums/LICENSE-CC0.txt
+            sample-bank-virtuosity-drums/provenance.json
+            sample-bank-virtuosity-drums/kick/
+            sample-bank-virtuosity-drums/snare/
+            sample-bank-virtuosity-drums/closed_hat/
+            sample-bank-virtuosity-drums/open_hat/
+            sample-bank-virtuosity-drums/percussion-audition.wav
+          if-no-files-found: error
+          retention-days: 30
