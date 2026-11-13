@@ -72,7 +72,6 @@ jobs:
           python3 - <<'PY'
           import wave
           from sample_bank import load_sample_bank
-          from instrument_bank_audit import build_instrument_bank_audit
           from sample_renderer import render_sample_events
 
           bank = load_sample_bank('sample-bank-freepats-electric-bass')
@@ -302,6 +301,7 @@ jobs:
           from sample_renderer import render_sample_events
           from velocity_layer_planner import plan_velocity_layers
 
+          from instrument_bank_audit import build_instrument_bank_audit
           bank = load_sample_bank('sample-bank-contrabass-velocity-supplement')
           checks = {
               'midi27_low': plan_velocity_layers(bank, 'contrabass', 27, 100, 'pizzicato'),
