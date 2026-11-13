@@ -39,6 +39,8 @@ on:
       - 'engine/test_fetch_vsco2_violin.py'
       - 'engine/fetch_vsco2_violin_spiccato.py'
       - 'engine/test_fetch_vsco2_violin_spiccato.py'
+      - 'engine/fetch_vsco2_cello_section.py'
+      - 'engine/test_fetch_vsco2_cello_section.py'
       - 'engine/fetch_vsco2_flute.py'
       - 'engine/test_fetch_vsco2_flute.py'
       - 'engine/fetch_vcsl_dan_tranh.py'
@@ -202,9 +204,14 @@ jobs:
         run: |
           python3 -m unittest engine.test_fetch_vcsl_concert_harp -v
           python3 engine/fetch_vcsl_concert_harp.py sample-bank-vcsl-concert-harp
-      - name: Install and validate fifteen independent real instrument source banks
-        timeout-minutes: 22
-        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-meatbass-contrabass-supplement sample-bank-vsco2-contrabass-supplement sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp
+      - name: Fetch and validate real CC0 VSCO 2 CE cello-section bank
+        timeout-minutes: 18
+        run: |
+          python3 -m unittest engine.test_fetch_vsco2_cello_section -v
+          python3 engine/fetch_vsco2_cello_section.py sample-bank-vsco2-cello-section
+      - name: Install and validate sixteen independent real instrument source banks
+        timeout-minutes: 24
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-meatbass-contrabass-supplement sample-bank-vsco2-contrabass-supplement sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp sample-bank-vsco2-cello-section
       - name: Audit actual roots, articulations, velocity layers and round robins
         run: |
           python3 -m unittest engine.test_instrument_bank_audit -v
@@ -217,7 +224,7 @@ jobs:
           assert bass['effective_velocity_gaps_after_source_priority'] == [], bass
           print('CONTRABASS_EFFECTIVE_VELOCITY_COVERAGE_OK', bass['selection_priority_policies'])
           PY
-      - name: Render and validate the real thirteen-bank recorded ensemble
+      - name: Render and validate the real sixteen-bank recorded ensemble
         timeout-minutes: 12
         run: |
           python3 - <<'PY'
@@ -259,11 +266,11 @@ jobs:
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 378 + 80 + 492 + 17 + 14 + 123 + 4 + 2 + 134 + 27 + 47 + 25 + 45, len(bank.samples)
+          assert len(bank.samples) >= 2259, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
           assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
                   "kick", "snare", "closed_hat", "open_hat", "cajon",
-                  "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp"} <= available, available
+                  "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp", "cello_section"} <= available, available
           events = build_composition_events(
               plan,
               instruments={"guitar": "acoustic_guitar", "contrabass": "contrabass"},
@@ -332,6 +339,19 @@ jobs:
                       })
                       spiccato_added += 1
           assert spiccato_added == 8
+          # Exercise all five official cello-section articulations at exact roots.
+          cello_notes = sorted({sample.midi_note for sample in bank.samples
+                                if sample.instrument == "cello_section"})
+          assert len(cello_notes) >= 10, cello_notes
+          cello_articulations = ("sustain_vibrato_quiet", "sustain_vibrato", "pizzicato", "spiccato", "tremolo")
+          for index, articulation in enumerate(cello_articulations):
+              selected.append({
+                  "instrument": "cello_section", "part": "cello_section",
+                  "midi_note": cello_notes[index], "articulation": articulation,
+                  "start_seconds": 43.0 + index * 0.62,
+                  "duration_seconds": 0.55,
+                  "velocity": (42, 88, 70, 96, 84)[index],
+              })
           for index, note in enumerate(flute_notes[:10]):
               selected.append({
                   "instrument": "concert_flute", "part": "concert_flute",
@@ -470,9 +490,9 @@ jobs:
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
-                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "violin_spiccato", "concert_flute", "dan_tranh", "recorder", "concert_harp"} <= selected_parts, selected_parts
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "violin_spiccato", "concert_flute", "dan_tranh", "recorder", "concert_harp", "cello_section"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
-                  "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp"} <= selected_instruments, selected_instruments
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp", "cello_section"} <= selected_instruments, selected_instruments
           for event in selected:
               # Babyblue replaced the old FreePats bank. Keep the composed bass
               # MIDI notes intact: its recorded roots span MIDI 35-75, so an
@@ -485,7 +505,7 @@ jobs:
                   event["articulation"] = "open"
               if event.get("part") == "guitar":
                   event["guitar_max_fret"] = 12
-          output = "sample-bank-installed-all/mehran-thirteen-bank-recorded-ensemble.wav"
+          output = "sample-bank-installed-all/mehran-sixteen-bank-recorded-ensemble.wav"
           report = render_sample_events(selected, bank, output, sample_rate=44100)
           assert report["sample_selection"]["one_shot_round_robin_events"] > 0, report
           # The final note may end a few milliseconds before the requested
@@ -521,7 +541,7 @@ jobs:
               assert audio.getframerate() == 44100
               assert audio.getnframes() == round(preview_seconds * 44100)
               pcm = audio.readframes(audio.getnframes())
-          assert any(pcm), "Combined thirteen-bank ensemble WAV is silent"
+          assert any(pcm), "Combined sixteen-bank ensemble WAV is silent"
           import array
           samples_pcm = array.array("h")
           samples_pcm.frombytes(pcm)
@@ -544,18 +564,18 @@ jobs:
               "sample_selection": report["sample_selection"],
           })
           PY
-      - name: Publish compact thirteen-bank recorded ensemble preview WAV
+      - name: Publish compact sixteen-bank recorded ensemble preview WAV
         uses: actions/upload-artifact@v4
         with:
-          name: mehran-thirteen-bank-recorded-ensemble-preview-wav
-          path: sample-bank-installed-all/mehran-thirteen-bank-recorded-ensemble.wav
+          name: mehran-sixteen-bank-recorded-ensemble-preview-wav
+          path: sample-bank-installed-all/mehran-sixteen-bank-recorded-ensemble.wav
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
       - name: Publish verified guitar banks and audition WAVs
         uses: actions/upload-artifact@v4
         with:
-          name: mehran-thirteen-cc0-banks-and-installed-ensemble
+          name: mehran-sixteen-cc0-banks-and-installed-ensemble
           path: |
             sample-bank-meta-nylon-guitar/
             sample-bank-meta-steel-guitar/

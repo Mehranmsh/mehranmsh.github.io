@@ -32,6 +32,7 @@ EXPECTED_BANKS = {
     "kalimba": ("VCSL Kalimba Kenya", "vcsl-kalimba-kenya", "vcsl_kalimba_kenya", 44100),
     "contrabass": ("Rubner Contrabass Pizzicato", "rubner-contrabass-pizzicato", "d_smolken_rubner_pizzicato", 44100),
     "solo_violin": ("VSCO 2 CE Solo Violin", "vsco2-ce-solo-violin", "vsco2_solo_violin", 44100),
+    "cello_section": ("VSCO 2 CE Cello Section", "vsco2-ce-cello-section", "vsco2_cello_section", 44100),
     "concert_flute": ("VSCO 2 CE Concert Flute", "vsco2-ce-concert-flute", "vsco2_concert_flute", 44100),
     "dan_tranh": ("VCSL Dan Tranh Normal", "vcsl-dan-tranh-normal", "vcsl_dan_tranh_normal", 44100),
     "baroque_soprano_recorder": ("VCSL Baroque Soprano Recorder", "vcsl-baroque-soprano-recorder", "vcsl_baroque_soprano_recorder", 44100),
