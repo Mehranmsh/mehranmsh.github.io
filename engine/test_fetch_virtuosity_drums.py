@@ -40,7 +40,7 @@ lovel=32
 hivel=127
 seq_length=1
 """
-        regions = parse_virtuosity_sfz_map(sfz, "kick", keymap_text=KEYMAP)
+        regions = parse_virtuosity_sfz_map(sfz, "kick", keymap_text=KEYMAP, require_complete=False)
         self.assertEqual(len(regions), 3)
         self.assertEqual(regions[0]["midi_note"], 36)
         self.assertEqual(regions[0]["round_robin_index"], 0)
@@ -58,7 +58,7 @@ sample=../Samples/kickmic/snare/kickmic_snare_center_vl2.flac
 lovel=4
 hivel=127
 """
-        regions = parse_virtuosity_sfz_map(sfz, "snare", keymap_text=KEYMAP)
+        regions = parse_virtuosity_sfz_map(sfz, "snare", keymap_text=KEYMAP, require_complete=False)
         self.assertEqual([item["round_robin_index"] for item in regions], [0, 0])
         self.assertEqual(regions[0]["articulation"], "center")
 
