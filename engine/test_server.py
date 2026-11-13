@@ -100,6 +100,53 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertFalse(payload["job_created"])
         self.assertFalse(payload["charged"])
 
+    def test_unified_composition_mode_dispatches_all_three_workflows(self):
+        common = {
+            "title": "مسیر مشترک", "genre": "pop", "mood": "hopeful",
+            "bpm": 96, "phrase_count": 8,
+        }
+        lyrics = "فردا دوباره می‌رسد\\nآفتاب از راه می‌رسد\\nدست من را رها نکن\\nتا بهار خانه مانده"
+        cases = (
+            ("lyrics_first", {"lyrics": lyrics}, "lyrics_first"),
+            ("instrumental_first", {}, "instrumental_first"),
+            ("co_creation", {"lyrics": lyrics}, "co_creation"),
+        )
+        for mode, extra, expected_source in cases:
+            with self.subTest(mode=mode):
+                status, result = self.request(
+                    "/v1/compose-by-mode", method="POST",
+                    payload={**common, **extra, "composition_mode": mode},
+                )
+                self.assertEqual(status, 201, result)
+                self.assertTrue(result["composition_created"])
+                self.assertEqual(result["composition_mode"], mode)
+                self.assertEqual(result["plan"]["source_mode"], expected_source)
+                self.assertFalse(result["audio_rendered"])
+                self.assertEqual(result["midi"]["tracks"], 7)
+                midi_path = Path(result["midi"]["local_path"])
+                self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
+
+    def test_unified_composition_mode_validates_mode_and_lyrics_requirements(self):
+        invalid_cases = (
+            ({"composition_mode": "unknown"}, "invalid_composition_mode"),
+            ({"composition_mode": "lyrics_first"}, "invalid_lyrics"),
+            ({"composition_mode": "co_creation", "lyrics": "  "}, "invalid_lyrics"),
+            ({"composition_mode": "instrumental_first", "lyrics": "unexpected"}, "instrumental_mode_does_not_accept_lyrics"),
+        )
+        for payload, expected_error in invalid_cases:
+            with self.subTest(payload=payload):
+                status, result = self.request(
+                    "/v1/compose-by-mode", method="POST", payload=payload
+                )
+                self.assertEqual(status, 400, result)
+                self.assertEqual(result["error"], expected_error)
+        status, result = self.request(
+            "/v1/compose-by-mode", method="POST",
+            payload={"composition_mode": "instrumental_first"}, token=False,
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(result["error"], "unauthorized")
+
     def test_authenticated_compose_creates_plan_and_midi_file(self):
         status, payload = self.request("/v1/compose", method="POST", payload={
             "title": "برگرد", "lyrics": "دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد",
