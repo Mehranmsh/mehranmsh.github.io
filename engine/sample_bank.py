@@ -37,6 +37,8 @@ class Sample:
     recording_session_id: str | None = None
     recording_metadata: dict[str, str] | None = None
     string_name: str | None = None
+    round_robin_index: int = 0
+    one_shot: bool = False
 
 
 @dataclass(frozen=True)
@@ -123,9 +125,15 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
             "LowE", "A", "D", "G", "B", "HighE"
         }:
             raise ValueError("string must be LowE, A, D, G, B, HighE, or omitted")
-        identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name)
+        round_robin_index = _integer(entry.get("round_robin_index", 0), 0, 255, "round_robin_index")
+        one_shot = entry.get("one_shot", False)
+        if not isinstance(one_shot, bool):
+            raise ValueError("one_shot must be a boolean")
+        if one_shot and (entry.get("loop_start_frame") is not None or entry.get("loop_end_frame") is not None):
+            raise ValueError("One-shot percussion samples cannot define sustain loops")
+        identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name, round_robin_index)
         if identity in seen:
-            raise ValueError("Duplicate instrument, string, note, velocity layer, and articulation")
+            raise ValueError("Duplicate instrument, string, note, velocity layer, articulation, and round-robin index")
         seen.add(identity)
         if not candidate.is_file():
             raise ValueError(f"Recorded sample file is missing: {relative}")
@@ -152,7 +160,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
                               velocity_max, sample_rate, channels, frames,
                               loop_start, loop_end, articulation, session_id, recording_metadata,
-                              string_name))
+                              string_name, round_robin_index, one_shot))
     return SampleBank(root, tuple(samples))
 
 
