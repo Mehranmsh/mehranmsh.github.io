@@ -29,16 +29,28 @@ def plan_velocity_layers(
     if not isinstance(articulation, str) or not articulation:
         raise ValueError("articulation must be a non-empty name")
 
-    candidates = sorted(
-        (
-            sample for sample in bank.samples
-            if sample.instrument == instrument
-            and sample.midi_note == midi_note
-            and sample.articulation == articulation
-            and sample.velocity_min <= velocity <= sample.velocity_max
-        ),
-        key=lambda sample: (sample.velocity_min, sample.velocity_max),
-    )
+    matching_samples = [
+        sample for sample in bank.samples
+        if sample.instrument == instrument
+        and sample.midi_note == midi_note
+        and sample.articulation == articulation
+        and sample.velocity_min <= velocity <= sample.velocity_max
+    ]
+    # Multiple recorded round-robin takes share one velocity zone. Collapse
+    # each zone to a representative here; the renderer rotates the takes
+    # after velocity-layer planning so they are never mistaken for extra
+    # dynamic layers.
+    zones = sorted({
+        (sample.velocity_min, sample.velocity_max) for sample in matching_samples
+    })
+    candidates = [
+        min(
+            (sample for sample in matching_samples
+             if (sample.velocity_min, sample.velocity_max) == zone),
+            key=lambda sample: (sample.round_robin_index, sample.path.as_posix()),
+        )
+        for zone in zones
+    ]
     if not candidates:
         return {
             "instrument": instrument,
