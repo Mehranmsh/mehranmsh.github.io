@@ -195,6 +195,12 @@ jobs:
                   "start_seconds": index * 2.5, "duration_seconds": 0.01,
                   "velocity": (72, 96, 108)[index % 3],
               })
+          for index in range(8):
+              selected.append({
+                  "instrument": "open_hat", "part": "open_hat", "midi_note": 42,
+                  "articulation": "open", "start_seconds": 3.0 + index * 7.0,
+                  "duration_seconds": 0.01, "velocity": 82,
+              })
           for index, note in enumerate([63, 66, 68, 71, 75, 78, 81, 78, 75, 71, 68, 66]):
               selected.append({
                   "instrument": "kalimba", "part": "kalimba", "midi_note": note,
@@ -204,7 +210,7 @@ jobs:
           for index in range(20):
               selected.append({
                   "instrument": "contrabass", "part": "contrabass",
-                  "midi_note": [36, 43, 40, 31][index % 4],
+                  "midi_note": [38, 45, 41, 31][index % 4],
                   "articulation": "pizzicato", "start_seconds": index * 2.8,
                   "duration_seconds": 0.65, "velocity": 86,
               })
@@ -220,7 +226,7 @@ jobs:
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
                   "cajon", "kalimba", "contrabass"} <= selected_parts, selected_parts
-          assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat",
+          assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
                   "cajon", "kalimba", "contrabass"} <= selected_instruments, selected_instruments
           for event in selected:
               if event.get("part") == "guitar":
