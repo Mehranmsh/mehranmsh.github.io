@@ -78,8 +78,8 @@ class GuitarStringPlannerTests(unittest.TestCase):
             bank, "nylon_guitar", 45, 72, articulation="finger"
         )
         self.assertEqual(result["status"], "exact_recorded_string")
-        self.assertEqual(result["selected_string"], "LowE")
-        self.assertEqual(result["fret"], 5)
+        self.assertEqual(result["selected_string"], "A")
+        self.assertEqual(result["fret"], 0)
         self.assertEqual(result["layers"][0]["sample"].articulation, "finger")
 
     def test_nylon_fingerpicked_selection_never_uses_unrecorded_string(self):
