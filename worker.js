@@ -5310,6 +5310,7 @@ export default {
       }
 
       if (path === "/music/engine/compose" && method === "POST") {
+        await ensureSocialTables(env);
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Verified owner session required for engine access", 403);
 
