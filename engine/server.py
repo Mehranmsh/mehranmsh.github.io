@@ -360,7 +360,7 @@ class Handler(BaseHTTPRequestHandler):
             if requested_parts is not None:
                 allowed_parts = {
                     "melody", "chords", "bass", "kick", "snare", "closed_hat",
-                    "open_hat", "guitar", "strings", "electric_guitar",
+                    "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
                 }
                 if (not isinstance(requested_parts, list) or not requested_parts
                         or any(not isinstance(part, str) or part not in allowed_parts
@@ -389,10 +389,22 @@ class Handler(BaseHTTPRequestHandler):
                 render_options = {}
                 if requested_parts is not None:
                     render_options["parts"] = requested_parts
-                if requested_parts is not None and "guitar" in requested_parts:
-                    # The currently verified real-recording bank is steel/nylon
-                    # guitar; never silently route this part to an oscillator.
-                    render_options["instruments"] = {"guitar": "acoustic_guitar"}
+                if requested_parts is not None:
+                    # These optional parts are routed only to their exact,
+                    # separately recorded bank slugs. No substitute instrument
+                    # or synthesized fallback is allowed.
+                    verified_part_banks = {
+                        "guitar": "acoustic_guitar",
+                        "contrabass": "contrabass",
+                        "cajon": "cajon",
+                        "kalimba": "kalimba",
+                    }
+                    selected_banks = {
+                        part: slug for part, slug in verified_part_banks.items()
+                        if part in requested_parts
+                    }
+                    if selected_banks:
+                        render_options["instruments"] = selected_banks
                 audio_info = render_composition_to_wav(
                     plan, bank, wav_path, **render_options
                 )
