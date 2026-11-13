@@ -33,7 +33,7 @@ PORT = int(os.environ.get("MEHRAN_STUDIO_PORT", "8765"))
 TOKEN = os.environ.get("MEHRAN_STUDIO_TOKEN", "")
 LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mehran_music_core import compose_plan
+from mehran_music_core import compose_plan, compose_instrumental_plan
 from midi_renderer import render_midi
 from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
                          analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist, build_sample_recording_sheet_csv, select_sample)
@@ -296,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
                     "charged": False
                 })
             return self.send_json(501, {"error": "job_runner_not_implemented", "job_created": False, "charged": False})
-        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-audio"):
+        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-instrumental", "/v1/compose-audio"):
             return self.send_json(404, {"error": "not_found"})
         length = self.headers.get("Content-Length", "")
         if not length.isdigit() or int(length) > MAX_BODY:
@@ -307,6 +307,50 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "invalid_json"})
         if not isinstance(payload, dict):
             return self.send_json(400, {"error": "invalid_payload"})
+        if path == "/v1/compose-instrumental":
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            mood = payload.get("mood", "neutral")
+            bpm = payload.get("bpm")
+            phrase_count = payload.get("phrase_count", 8)
+            if (not isinstance(title, str) or len(title) > 100
+                    or not isinstance(genre, str) or len(genre) > 60
+                    or not isinstance(mood, str)):
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if isinstance(phrase_count, bool) or not isinstance(phrase_count, int) or not 4 <= phrase_count <= 16:
+                return self.send_json(400, {"error": "invalid_phrase_count"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                plan = compose_instrumental_plan(
+                    title=title, genre=genre, mood=mood,
+                    target_bpm=bpm, phrase_count=phrase_count,
+                )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except (ValueError, OSError) as error:
+                return self.send_json(400, {"error": "composition_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Instrumental-first composition plan and MIDI file created. No lyrics or audio were generated."
+            })
         if path == "/v1/compose":
             lyrics = payload.get("lyrics")
             title = payload.get("title", "Untitled")
