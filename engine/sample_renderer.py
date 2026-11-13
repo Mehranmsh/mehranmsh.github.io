@@ -487,14 +487,15 @@ def _resolve_part_articulation(
     """Map generic drum hits to the exact articulations exposed by the CC0 kit."""
     if articulation != "sustain":
         return articulation, articulation_source
-    percussion_defaults = {
-        "kick": "snares_on",
-        "snare": "center",
-        "closed_hat": "closed",
-        "open_hat": "open",
+    part_defaults = {
+        "bass": ("finger", "instrument_default"),
+        "kick": ("snares_on", "percussion_default"),
+        "snare": ("center", "percussion_default"),
+        "closed_hat": ("closed", "percussion_default"),
+        "open_hat": ("open", "percussion_default"),
     }
-    if part in percussion_defaults:
-        return percussion_defaults[part], "percussion_default"
+    if part in part_defaults:
+        return part_defaults[part]
     return articulation, articulation_source
 
 
