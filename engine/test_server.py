@@ -91,6 +91,22 @@ class StudioControlPlaneTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 module.main()
 
+    def test_container_deployment_keeps_engine_port_private(self):
+        root = Path(__file__).resolve().parents[1]
+        compose = (root / "docker-compose.engine.yml").read_text(encoding="utf-8")
+        dockerfile = (root / "engine" / "Dockerfile").read_text(encoding="utf-8")
+        env_example = (root / ".env.example").read_text(encoding="utf-8")
+        self.assertIn("expose:", compose)
+        self.assertNotIn("ports:", compose)
+        self.assertIn("read_only: true", compose)
+        self.assertIn("cap_drop:", compose)
+        self.assertIn("condition: service_healthy", compose)
+        self.assertIn("cloudflare/cloudflared", compose)
+        self.assertIn("USER 10001:10001", dockerfile)
+        self.assertIn("MEHRAN_STUDIO_TOKEN=REPLACE_", env_example)
+        self.assertIn("CLOUDFLARE_TUNNEL_TOKEN=REPLACE_", env_example)
+        self.assertNotIn("Bearer ", compose + dockerfile + env_example)
+
     def test_http_authentication_is_required(self):
         status, payload = self.request("/health", token=False)
         self.assertEqual(status, 401)
