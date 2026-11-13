@@ -1255,7 +1255,9 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue(all(event["part"] != "bass" for event in contrabass))
     def test_recorder_and_dan_tranh_render_as_independent_exact_pitch_parts(self):
         plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
-        plan["composition"]["chord_progression"] = ["D"]
+        plan["composition"]["chord_progression"] = ["B"]
+        for phrase in plan["composition"]["melody"]:
+            phrase["chord"] = "B"
         events = build_composition_events(
             plan,
             instruments={
