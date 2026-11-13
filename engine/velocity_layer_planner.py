@@ -39,6 +39,16 @@ def plan_velocity_layers(
         and sample.articulation == articulation
         and sample.velocity_min <= velocity <= sample.velocity_max
     ]
+    # Explicit source priorities resolve overlaps between independent recorded
+    # sources without blending their PCM. The priority is metadata policy, not
+    # a claim about the source recording's velocity range.
+    if matching_samples:
+        highest_priority = max(sample.selection_priority for sample in matching_samples)
+        matching_samples = [
+            sample for sample in matching_samples
+            if sample.selection_priority == highest_priority
+        ]
+
     # Multiple recorded round-robin takes share one velocity zone. Collapse
     # each zone to a representative here; the renderer rotates the takes
     # after velocity-layer planning so they are never mistaken for extra
