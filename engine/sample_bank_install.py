@@ -35,6 +35,7 @@ EXPECTED_BANKS = {
     "concert_flute": ("VSCO 2 CE Concert Flute", "vsco2-ce-concert-flute", "vsco2_concert_flute", 44100),
     "dan_tranh": ("VCSL Dan Tranh Normal", "vcsl-dan-tranh-normal", "vcsl_dan_tranh_normal", 44100),
     "baroque_soprano_recorder": ("VCSL Baroque Soprano Recorder", "vcsl-baroque-soprano-recorder", "vcsl_baroque_soprano_recorder", 44100),
+    "concert_harp": ("VCSL Concert Harp", "vcsl-concert-harp", "vcsl_concert_harp_cc0", 44100),
 }
 
 
