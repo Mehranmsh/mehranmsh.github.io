@@ -41,6 +41,8 @@ class Sample:
     one_shot: bool = False
     tuning_cents: float = 0.0
     gain_db: float = 0.0
+    playable_key_min: int | None = None
+    playable_key_max: int | None = None
 
 
 @dataclass(frozen=True)
@@ -141,6 +143,15 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         if (isinstance(gain_db, bool) or not isinstance(gain_db, (int, float))
                 or not math.isfinite(gain_db) or not -24.0 <= gain_db <= 24.0):
             raise ValueError("gain_db must be finite and between -24 and 24")
+        playable_key_min = entry.get("playable_key_min")
+        playable_key_max = entry.get("playable_key_max")
+        if (playable_key_min is None) != (playable_key_max is None):
+            raise ValueError("playable_key_min and playable_key_max must be provided together")
+        if playable_key_min is not None:
+            playable_key_min = _integer(playable_key_min, 0, 127, "playable_key_min")
+            playable_key_max = _integer(playable_key_max, 0, 127, "playable_key_max")
+            if playable_key_min > playable_key_max or not playable_key_min <= midi_note <= playable_key_max:
+                raise ValueError("playable key range must include the recorded root MIDI note")
         identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name, round_robin_index)
         if identity in seen:
             raise ValueError("Duplicate instrument, string, note, velocity layer, articulation, and round-robin index")
@@ -171,7 +182,8 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
                               velocity_max, sample_rate, channels, frames,
                               loop_start, loop_end, articulation, session_id, recording_metadata,
                               string_name, round_robin_index, one_shot,
-                              float(tuning_cents), float(gain_db)))
+                              float(tuning_cents), float(gain_db),
+                              playable_key_min, playable_key_max))
     return SampleBank(root, tuple(samples))
 
 
@@ -641,6 +653,15 @@ def select_sample(bank: SampleBank, instrument: str, midi_note: int,
                   and sample.velocity_min <= velocity <= sample.velocity_max]
     if not candidates:
         raise ValueError(f"No recorded {articulation} sample layer for instrument: {instrument}")
+    zoned = [sample for sample in candidates
+             if sample.playable_key_min is not None
+             and sample.playable_key_min <= midi_note <= sample.playable_key_max]
+    if zoned:
+        candidates = zoned
+    elif any(sample.playable_key_min is not None for sample in candidates):
+        raise ValueError(
+            f"No recorded playable key zone for instrument={instrument}, midi_note={midi_note}"
+        )
     return min(candidates, key=lambda sample: (abs(sample.midi_note - midi_note),
                                                sample.midi_note))
 
