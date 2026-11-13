@@ -426,6 +426,36 @@ def _align_stressed_onsets_to_beats(
     return adjusted, metadata
 
 
+def _apply_lexical_stress_emphasis(note_map: list[dict[str, Any]],
+                                  accent_delta: int = 8) -> list[dict[str, Any]]:
+    """Apply a restrained dynamic accent only to curated lexical stress.
+
+    Unknown stress is deliberately left untouched. The original dynamics value
+    is retained for auditability, and no timing, pitch, harmony, or note count
+    is changed by this pass.
+    """
+    adjusted = [dict(item) for item in note_map]
+    for item in adjusted:
+        role = item.get("stress_role")
+        if role == "lexically_stressed" and item.get("stress_confidence") == "curated":
+            base = item.get("dynamics_velocity")
+            if isinstance(base, int) and not isinstance(base, bool):
+                item["base_dynamics_velocity"] = base
+                item["prosodic_accent_velocity_delta"] = accent_delta
+                item["dynamics_velocity"] = min(127, base + accent_delta)
+                item["prosodic_emphasis"] = "curated_lexical_stress"
+            else:
+                item["prosodic_accent_velocity_delta"] = 0
+                item["prosodic_emphasis"] = "stress_detected_no_velocity_data"
+        elif role == "unstressed":
+            item["prosodic_accent_velocity_delta"] = 0
+            item["prosodic_emphasis"] = "unstressed"
+        else:
+            item["prosodic_accent_velocity_delta"] = 0
+            item["prosodic_emphasis"] = "unknown"
+    return adjusted
+
+
 def _align_strong_beats_to_chord_tones(notes: list[int], note_map: list[dict[str, Any]],
                                                chord: str) -> list[int]:
     """Prefer chord tones when a melody note begins on the primary downbeat."""
@@ -987,6 +1017,9 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
                 "dynamics_curve": item["dynamics_curve"],
                 "dynamics_reason": item["dynamics_reason"],
             })
+        lyric_alignment["note_lyric_map"] = _apply_lexical_stress_emphasis(
+            lyric_alignment["note_lyric_map"]
+        )
 
         rhyme_cadence_linked = False
         if rhyme_key is not None:
