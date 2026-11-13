@@ -59,7 +59,7 @@ jobs:
           assert report['events_rendered'] == len(events), report
           assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
           assert report['sample_selection']['pitched_round_robin_events'] == 6, report
-          assert report['sample_selection']['sample_tuning_cents_applied_events'] >= 5, report
+          assert report['sample_tuning_cents_applied_events'] >= 5, report
           with wave.open(output, 'rb') as audio:
               assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
               assert audio.getnframes() > 4 * 44100
