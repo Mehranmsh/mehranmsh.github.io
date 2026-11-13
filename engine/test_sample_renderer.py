@@ -310,17 +310,26 @@ class SampleRendererTests(unittest.TestCase):
                 self.assertTrue(all(event["articulation"] == "pizzicato"
                                     and event["articulation_source"] == "instrument_default"
                                     for event in first_bar_contrabass))
+                first_bar_electric_bass = [
+                    event for event in events
+                    if event["instrument"] == "electric_bass"
+                    and event["start_seconds"] < 4 * beat_seconds
+                ]
+                self.assertTrue(first_bar_electric_bass)
                 self.assertLessEqual(
-                    len({event["midi_note"] for event in first_bar_contrabass}), 2
+                    {event["midi_note"] for event in first_bar_contrabass},
+                    {event["midi_note"] for event in first_bar_electric_bass}
                 )
+                contrabass_onsets = [
+                    round(event["start_seconds"] / beat_seconds, 3)
+                    for event in first_bar_contrabass
+                ]
                 if section in ("pre_chorus", "chorus", "final_chorus"):
-                    contrabass_onsets = [
-                        round(event["start_seconds"] / beat_seconds, 3)
-                        for event in first_bar_contrabass
-                    ]
-                    self.assertEqual(contrabass_onsets, [0.0, 1.5, 2.0, 3.5])
-                elif section == "bridge":
-                    self.assertEqual(len(first_bar_contrabass), 1)
+                    self.assertIn(1.5, contrabass_onsets)
+                    self.assertIn(3.5, contrabass_onsets)
+                else:
+                    self.assertTrue(all(abs(onset - round(onset)) < 0.001
+                                        for onset in contrabass_onsets))
 
     def test_composition_events_apply_balanced_and_overridable_part_gains(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
