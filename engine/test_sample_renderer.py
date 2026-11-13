@@ -229,6 +229,18 @@ class SampleRendererTests(unittest.TestCase):
         expanded_parts = {event["instrument"] for event in expanded}
         self.assertTrue({"acoustic_guitar", "strings", "electric_guitar"}.issubset(expanded_parts))
         self.assertGreater(len(expanded), len(events))
+        recorded_strings = build_composition_events(
+            plan, instruments={"strings": "solo_violin"}
+        )
+        violin_events = [
+            event for event in recorded_strings
+            if event["instrument"] == "solo_violin"
+        ]
+        self.assertTrue(violin_events)
+        self.assertTrue(all(event["articulation"] == "arco_vibrato"
+                            for event in violin_events))
+        self.assertTrue(all(event["articulation_source"] == "instrument_default"
+                            for event in violin_events))
         rhythm_and_bass = build_composition_events(plan, instruments={
             "cajon": "cajon",
             "bass": "contrabass",
