@@ -260,6 +260,43 @@ def render_sample_events(
                     if sample.midi_note != note else "exact_note"
                 )
             sample_layers = ((sample, 1.0),)
+        pitched_rr_selected = False
+        pitched_rr_for_event: list[dict[str, Any]] = []
+        if not is_one_shot and sample_layers:
+            rotated_layers = []
+            for selected, layer_gain in sample_layers:
+                candidates = sorted(
+                    (
+                        candidate for candidate in selection_bank.samples
+                        if not candidate.one_shot
+                        and candidate.instrument == selected.instrument
+                        and candidate.midi_note == selected.midi_note
+                        and candidate.articulation == selected.articulation
+                        and candidate.velocity_min == selected.velocity_min
+                        and candidate.velocity_max == selected.velocity_max
+                        and candidate.string_name == selected.string_name
+                    ),
+                    key=lambda candidate: (candidate.round_robin_index, candidate.path.as_posix()),
+                )
+                if len(candidates) > 1:
+                    indices = [candidate.round_robin_index for candidate in candidates]
+                    if len(indices) != len(set(indices)):
+                        raise ValueError("Pitched round-robin indices must be unique within a recorded layer")
+                    rr_key = (
+                        selected.instrument, selected.midi_note, selected.articulation,
+                        selected.velocity_min, selected.velocity_max,
+                    )
+                    rr_position = round_robin_counters.get(rr_key, 0)
+                    selected = candidates[rr_position % len(candidates)]
+                    round_robin_counters[rr_key] = rr_position + 1
+                    pitched_rr_selected = True
+                    pitched_rr_for_event.append({
+                        "instrument": selected.instrument,
+                        "midi_note": selected.midi_note,
+                        "round_robin_index": selected.round_robin_index,
+                    })
+                rotated_layers.append((selected, layer_gain))
+            sample_layers = tuple(rotated_layers)
         end_time = max(end_time, float(start) + float(duration))
         pan = event.get("pan", 0.0)
         if isinstance(pan, bool) or not isinstance(pan, (int, float)) or not math.isfinite(pan) or not -1.0 <= pan <= 1.0:
@@ -272,7 +309,8 @@ def render_sample_events(
                         float(pan), float(event_gain), articulation,
                         event.get("articulation_source", "legacy_default"),
                         float(release_seconds), float(pitch_cents), sample_selection_mode,
-                        selected_guitar_string, is_one_shot))
+                        selected_guitar_string, is_one_shot, pitched_rr_selected,
+                        pitched_rr_for_event))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
@@ -389,6 +427,10 @@ def render_sample_events(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
             ),
             "one_shot_round_robin_events": sum(1 for item in checked if item[13]),
+            "pitched_round_robin_events": sum(1 for item in checked if item[14]),
+            "pitched_round_robin_selections": [
+                selection for item in checked for selection in item[15]
+            ],
             "one_shot_round_robin_selections": [
                 {
                     "instrument": sample.instrument,
