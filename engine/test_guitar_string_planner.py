@@ -58,6 +58,45 @@ class GuitarStringPlannerTests(unittest.TestCase):
         )
         self.assertEqual(string_for_sample(nylon), "A")
 
+    def test_nylon_fingerpicked_part_selects_exact_recorded_string_and_fret(self):
+        nylon_samples = (
+            Sample(
+                instrument="nylon_guitar", midi_note=45,
+                path=Path("INSGuitarNylon_StringA_Vel01Finger_A2_01.wav"),
+                velocity_min=1, velocity_max=127, sample_rate=48000,
+                channels=1, frames=1000, articulation="finger",
+            ),
+            Sample(
+                instrument="nylon_guitar", midi_note=45,
+                path=Path("INSGuitarNylon_StringLowE_Vel01Finger_A2_01.wav"),
+                velocity_min=1, velocity_max=127, sample_rate=48000,
+                channels=1, frames=1000, articulation="finger",
+            ),
+        )
+        bank = SampleBank(Path(tempfile.gettempdir()), nylon_samples)
+        result = plan_guitar_string(
+            bank, "nylon_guitar", 45, 72, articulation="finger"
+        )
+        self.assertEqual(result["status"], "exact_recorded_string")
+        self.assertEqual(result["selected_string"], "LowE")
+        self.assertEqual(result["fret"], 5)
+        self.assertEqual(result["layers"][0]["sample"].articulation, "finger")
+
+    def test_nylon_fingerpicked_selection_never_uses_unrecorded_string(self):
+        nylon = Sample(
+            instrument="nylon_guitar", midi_note=45,
+            path=Path("INSGuitarNylon_StringA_Vel01Finger_A2_01.wav"),
+            velocity_min=1, velocity_max=127, sample_rate=48000,
+            channels=1, frames=1000, articulation="finger",
+        )
+        result = plan_guitar_string(
+            SampleBank(Path(tempfile.gettempdir()), (nylon,)),
+            "nylon_guitar", 45, 72, articulation="finger",
+            preferred_string="LowE",
+        )
+        self.assertEqual(result["status"], "no_first_position_match")
+        self.assertIsNone(result["selected_string"])
+
     def test_invalid_string_is_rejected(self):
         with self.assertRaises(ValueError):
             plan_guitar_string(self.bank, "acoustic_guitar", 60, 64, preferred_string="E")
