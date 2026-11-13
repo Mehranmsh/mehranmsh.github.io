@@ -306,5 +306,60 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
 
+    def test_installs_cajon_kalimba_and_contrabass_with_playback_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            specifications = [
+                ("cajon", "vcsl_cajon_recordings", 60, "bass", True, 0.0, 0.0),
+                ("kalimba", "vcsl_kalimba_kenya", 63, "pluck", False, -12.5, -1.5),
+                ("contrabass", "d_smolken_rubner_pizzicato", 38, "pizzicato", False, 0.0, 0.0),
+            ]
+            sources = []
+            for instrument, session, note, articulation, one_shot, tuning, gain in specifications:
+                source = root / instrument
+                source.mkdir()
+                (source / "LICENSE-CC0.txt").write_text(
+                    "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+                )
+                relative = "samples/note.wav"
+                sample_path = source / relative
+                sample_path.parent.mkdir(parents=True)
+                with wave.open(str(sample_path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(b"".join(
+                        int(5000 * math.sin(2 * math.pi * 220 * i / 44100)).to_bytes(
+                            2, "little", signed=True
+                        ) for i in range(2205)
+                    ))
+                (source / "bank.json").write_text(json.dumps({
+                    "format_version": 1,
+                    "recording_sessions": {
+                        session: {"instrument_model": instrument, "performer": "Recorded source"}
+                    },
+                    "samples": [{
+                        "instrument": instrument, "midi_note": note,
+                        "velocity_min": 1, "velocity_max": 127,
+                        "articulation": articulation, "round_robin_index": 0,
+                        "one_shot": one_shot, "tuning_cents": tuning, "gain_db": gain,
+                        "path": relative, "recording_session_id": session,
+                    }],
+                }), encoding="utf-8")
+                sources.append(source)
+
+            target = root / "combined"
+            report = install_recorded_banks(sources, target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["instrument_count"], 3)
+            self.assertEqual(report["sample_count"], 3)
+            by_instrument = {sample.instrument: sample for sample in bank.samples}
+            self.assertTrue(by_instrument["cajon"].one_shot)
+            self.assertEqual(by_instrument["kalimba"].tuning_cents, -12.5)
+            self.assertEqual(by_instrument["kalimba"].gain_db, -1.5)
+            self.assertEqual(by_instrument["contrabass"].articulation, "pizzicato")
+
+
 if __name__ == "__main__":
     unittest.main()
