@@ -993,6 +993,21 @@ class SampleBankTests(unittest.TestCase):
             bank = load_sample_bank(root)
             self.assertEqual(bank.samples[0].offset_frames, 37)
 
+    def test_sfz_region_controls_are_preserved_in_sample_bank(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "harp.wav")
+            self.write_manifest(root, [{
+                "instrument": "concert_harp", "midi_note": 60,
+                "offset_frames": 12, "sfz_volume_db": 33.7,
+                "velocity_fade_out": [70, 100], "path": "harp.wav",
+            }])
+            sample = load_sample_bank(root).samples[0]
+            self.assertEqual(sample.offset_frames, 12)
+            self.assertEqual(sample.sfz_volume_db, 33.7)
+            self.assertEqual(sample.velocity_fade_out, (70, 100))
+            self.assertIsNone(sample.velocity_fade_in)
+
     def test_recorded_sample_start_offset_must_be_inside_audio(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
