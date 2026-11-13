@@ -28,6 +28,10 @@ on:
       - 'engine/test_fetch_vsco2_violin.py'
       - 'engine/fetch_vsco2_flute.py'
       - 'engine/test_fetch_vsco2_flute.py'
+      - 'engine/fetch_vcsl_dan_tranh.py'
+      - 'engine/test_fetch_vcsl_dan_tranh.py'
+      - 'engine/fetch_vcsl_recorder.py'
+      - 'engine/test_fetch_vcsl_recorder.py'
       - 'engine/velocity_layer_planner.py'
       - '.github/workflows/meta-guitar-banks.yml'
   workflow_dispatch:
@@ -130,10 +134,16 @@ jobs:
           python3 -m unittest engine.test_fetch_vsco2_violin engine.test_fetch_vsco2_flute -v
           python3 engine/fetch_vsco2_violin.py sample-bank-vsco2-violin
           python3 engine/fetch_vsco2_flute.py sample-bank-vsco2-flute
-      - name: Install and validate all ten independent real instrument banks
-        timeout-minutes: 15
-        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-freepats-electric-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-vsco2-violin sample-bank-vsco2-flute
-      - name: Render and validate the real piano plus guitar composition
+      - name: Fetch and validate real CC0 Dan Tranh and Baroque soprano recorder banks
+        timeout-minutes: 20
+        run: |
+          python3 -m unittest engine.test_fetch_vcsl_dan_tranh engine.test_fetch_vcsl_recorder -v
+          python3 engine/fetch_vcsl_dan_tranh.py sample-bank-vcsl-dan-tranh
+          python3 engine/fetch_vcsl_recorder.py sample-bank-vcsl-recorder
+      - name: Install and validate all twelve independent real instrument banks
+        timeout-minutes: 18
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-freepats-electric-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder
+      - name: Render and validate the real twelve-bank recorded ensemble
         timeout-minutes: 12
         run: |
           python3 - <<'PY'
@@ -168,17 +178,17 @@ jobs:
               "کنار هم تا انتهای این رؤیا",
               "دوباره می‌سازیم جهان فردا",
           ])
-          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Bass Drums 60 Second Preview", genre="pop", target_bpm=84)
+          plan = compose_plan(lyrics, title="MEHRAN Twelve-Bank Recorded Ensemble 60 Second Preview", genre="pop", target_bpm=84)
           for phrase in plan["composition"]["melody"]:
               for item in phrase.get("note_lyric_map", []):
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 375 + 80 + 25 + 17 + 14 + 123 + 74 + 27, len(bank.samples)
+          assert len(bank.samples) >= 352 + 348 + 375 + 80 + 25 + 17 + 14 + 123 + 74 + 27 + 47 + 25, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
           assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
                   "kick", "snare", "closed_hat", "open_hat", "cajon",
-                  "kalimba", "contrabass", "solo_violin", "concert_flute"} <= available, available
+                  "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= available, available
           events = build_composition_events(
               plan,
               instruments={"guitar": "acoustic_guitar", "contrabass": "contrabass"},
@@ -240,6 +250,32 @@ jobs:
                   "articulation": "pluck", "start_seconds": 1.0 + index * 1.1,
                   "duration_seconds": 0.48, "velocity": 88,
               })
+          dan_tranh_notes = sorted({sample.midi_note for sample in bank.samples
+                                    if sample.instrument == "dan_tranh"})
+          recorder_notes = sorted({sample.midi_note for sample in bank.samples
+                                   if sample.instrument == "baroque_soprano_recorder"})
+          assert len(dan_tranh_notes) >= 16 and len(recorder_notes) >= 13
+          for index, note in enumerate(dan_tranh_notes):
+              selected.append({
+                  "instrument": "dan_tranh", "part": "dan_tranh",
+                  "midi_note": note, "articulation": "pluck",
+                  "start_seconds": 2.0 + index * 2.6,
+                  "duration_seconds": 0.7, "velocity": 90,
+              })
+          for index, note in enumerate(recorder_notes):
+              selected.append({
+                  "instrument": "baroque_soprano_recorder", "part": "recorder",
+                  "midi_note": note, "articulation": "sustain",
+                  "start_seconds": 5.0 + index * 3.0,
+                  "duration_seconds": 0.9, "velocity": 88,
+              })
+          for index, note in enumerate(recorder_notes[:-1]):
+              selected.append({
+                  "instrument": "baroque_soprano_recorder", "part": "recorder",
+                  "midi_note": note, "articulation": "staccato",
+                  "start_seconds": 7.0 + index * 3.2,
+                  "duration_seconds": 0.22, "velocity": 92,
+              })
           for index in range(20):
               selected.append({
                   "instrument": "contrabass", "part": "contrabass",
@@ -258,9 +294,9 @@ jobs:
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
-                  "cajon", "kalimba", "contrabass", "violin", "concert_flute"} <= selected_parts, selected_parts
+                  "cajon", "kalimba", "contrabass", "violin", "concert_flute", "dan_tranh", "recorder"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
-                  "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute"} <= selected_instruments, selected_instruments
+                  "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= selected_instruments, selected_instruments
           for event in selected:
               if event.get("part") == "open_hat":
                   # Virtuosity records the open hi-hat at MIDI key 42.
@@ -270,7 +306,7 @@ jobs:
                   event["articulation"] = "open"
               if event.get("part") == "guitar":
                   event["guitar_max_fret"] = 12
-          output = "sample-bank-installed-all/mehran-piano-guitar-bass-drums-composition.wav"
+          output = "sample-bank-installed-all/mehran-twelve-bank-recorded-ensemble.wav"
           report = render_sample_events(selected, bank, output, sample_rate=44100)
           assert report["sample_selection"]["one_shot_round_robin_events"] > 0, report
           # The final note may end a few milliseconds before the requested
@@ -304,7 +340,7 @@ jobs:
               assert audio.getframerate() == 44100
               assert audio.getnframes() == round(preview_seconds * 44100)
               pcm = audio.readframes(audio.getnframes())
-          assert any(pcm), "Combined piano/guitar/bass/drums WAV is silent"
+          assert any(pcm), "Combined twelve-bank ensemble WAV is silent"
           import array
           samples_pcm = array.array("h")
           samples_pcm.frombytes(pcm)
@@ -314,7 +350,7 @@ jobs:
           assert rms > 10, f"Combined WAV RMS is unexpectedly quiet: {rms}"
           assert report["peak_after_normalization"] > 0, report
           assert report["clipping_samples"] == 0, report
-          print("REAL_RECORDED_NINE_INSTRUMENT_ENSEMBLE_OK", {
+          print("REAL_RECORDED_TWELVE_BANK_ENSEMBLE_OK", {
               "samples": len(bank.samples),
               "parts": sorted(selected_parts),
               "instruments": sorted(selected_instruments),
@@ -327,10 +363,10 @@ jobs:
               "sample_selection": report["sample_selection"],
           })
           PY
-      - name: Publish compact real piano, guitar, bass and drums preview WAV
+      - name: Publish compact twelve-bank recorded ensemble preview WAV
         uses: actions/upload-artifact@v4
         with:
-          name: mehran-real-piano-guitar-bass-drums-preview-wav
+          name: mehran-twelve-bank-recorded-ensemble-preview-wav
           path: sample-bank-installed-all/mehran-piano-guitar-bass-drums-composition.wav
           if-no-files-found: error
           compression-level: 0
