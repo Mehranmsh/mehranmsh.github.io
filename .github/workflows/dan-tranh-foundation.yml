@@ -1,0 +1,62 @@
+name: MEHRAN Dan Tranh Foundation
+on:
+  push:
+    branches: [feature/mehran-independent-music-core]
+    paths:
+      - 'engine/fetch_vcsl_dan_tranh.py'
+      - 'engine/test_fetch_vcsl_dan_tranh.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - '.github/workflows/dan-tranh-foundation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dan-tranh-foundation-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONPATH: engine
+jobs:
+  build-dan-tranh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test Dan Tranh mapping and bank support
+        run: python3 -m unittest engine.test_fetch_vcsl_dan_tranh engine.test_sample_bank -v
+      - name: Fetch and validate pinned CC0 VCSL Dan Tranh bank
+        timeout-minutes: 12
+        run: python3 engine/fetch_vcsl_dan_tranh.py sample-bank-vcsl-dan-tranh
+      - name: Render real Dan Tranh audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+          bank=load_sample_bank('sample-bank-vcsl-dan-tranh')
+          notes=[47,49,51,54,56,59,61,63,66,68,71,73,75,78,80,83]
+          events=[{'instrument':'dan_tranh','midi_note':n,'start_seconds':i*0.38,'duration_seconds':0.3,'velocity':(55,82,112)[i%3],'articulation':'pluck'} for i,n in enumerate(notes)]
+          output='sample-bank-vcsl-dan-tranh/dan-tranh-audition.wav'
+          report=render_sample_events(events,bank,output,sample_rate=44100)
+          assert report['events_rendered']==len(events),report
+          with wave.open(output,'rb') as audio:
+            assert (audio.getnchannels(),audio.getsampwidth(),audio.getframerate())==(2,2,44100)
+            assert any(audio.readframes(audio.getnframes()))
+          print('REAL_VCSL_DAN_TRANH_AUDITION_OK',report['sample_selection'])
+          PY
+      - name: Publish verified CC0 Dan Tranh bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-vcsl-dan-tranh
+          path: |
+            sample-bank-vcsl-dan-tranh/bank.json
+            sample-bank-vcsl-dan-tranh/LICENSE-CC0.txt
+            sample-bank-vcsl-dan-tranh/provenance.json
+            sample-bank-vcsl-dan-tranh/plucks/
+            sample-bank-vcsl-dan-tranh/dan-tranh-audition.wav
+          if-no-files-found: error
+          retention-days: 30
