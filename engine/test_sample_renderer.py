@@ -1012,6 +1012,34 @@ class SampleRendererTests(unittest.TestCase):
             )
 
 
+    def test_pitch_shift_diagnostics_identify_instrument_and_note_mapping(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            relative = "piano/recorded-c4.wav"
+            self.make_wav(root / relative, rate=22050, frames=4410)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [{
+                    "instrument": "piano", "midi_note": 60,
+                    "articulation": "sustain", "path": relative,
+                }],
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            result = render_sample_events([{
+                "instrument": "piano", "midi_note": 62,
+                "start_seconds": 0, "duration_seconds": 0.05,
+                "velocity": 80,
+            }], bank, Path(folder) / "shifted.wav", sample_rate=22050)
+            diagnostics = result["sample_selection"]["pitch_shifted_by_instrument"]
+            self.assertEqual(diagnostics["piano"]["events"], 1)
+            self.assertEqual(diagnostics["piano"]["note_mappings"], [{
+                "requested_midi_note": 62,
+                "recorded_midi_note": 60,
+                "semitone_offset": 2,
+                "articulation": "sustain",
+            }])
+
     def test_renderer_selects_first_position_guitar_string(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
