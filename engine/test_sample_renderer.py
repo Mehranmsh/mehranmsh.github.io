@@ -293,9 +293,8 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(len(pickup_chords), 1)
         self.assertTrue(pickup_guitar)
         self.assertEqual(len(pickup_cajon), 0)  # Cajon is opt-in, never substituted.
-        self.assertTrue(all(event["midi_note"] in {note for note in phrase["midi_notes"]}
-                            for event in pickup_chords + pickup_guitar) is False
-                        or all(event["midi_note"] >= 48 for event in pickup_chords + pickup_guitar))
+        self.assertIn(pickup_chords[0]["midi_note"],
+                      {event["midi_note"] for event in pickup_guitar})
 
     def test_cajon_and_contrabass_grooves_vary_by_section_without_new_pitches(self):
         beat_seconds = 60 / 84
