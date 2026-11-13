@@ -630,7 +630,7 @@
   const output=context.createBuffer(buffer.numberOfChannels,buffer.length,buffer.sampleRate);
   const amount=Math.max(0,Math.min(1,strength)),floor=0.12+0.16*(1-amount);
   for(let c=0;c<buffer.numberOfChannels;c++){
-   const input=buffer.getChannelData(c),out=output.getChannelData(c),sum=new Float64Array(buffer.length),weight=new Float64Array(buffer.length);
+   const input=buffer.getChannelData(c),out=output.getChannelData(c),sum=new Float64Array(buffer.length),weight=new Float64Array(buffer.length),previousGain=new Float64Array(n/2+1).fill(1);
    for(let start=-hop;start<buffer.length;start+=hop){
     const re=new Float64Array(n),im=new Float64Array(n);
     for(let i=0;i<n;i++){const ix=start+i;re[i]=(ix>=0&&ix<input.length?input[ix]:0)*win[i];}
@@ -642,7 +642,7 @@
     }
     for(let k=0;k<=n/2;k++){
      const left=rawGain[Math.max(0,k-1)],center=rawGain[k],right=rawGain[Math.min(n/2,k+1)];
-     smoothGain[k]=left*.25+center*.5+right*.25;
+     const frequencySmoothed=left*.25+center*.5+right*.25;smoothGain[k]=previousGain[k]*.28+frequencySmoothed*.72;previousGain[k]=smoothGain[k];
     }
     for(let k=0;k<=n/2;k++){
      re[k]*=smoothGain[k];im[k]*=smoothGain[k];
