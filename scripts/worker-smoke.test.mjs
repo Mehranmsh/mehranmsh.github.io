@@ -173,7 +173,7 @@ test("music engine proxy forwards an owner request and strips private filesystem
     assert.equal(payload.success, true);
     assert.equal(payload.plan.source_mode, "instrumental_first");
     assert.equal(payload.midi.id, "safe-midi-id");
-    assert.equal(payload.midi.content_base64, "TVRoZAAAAAYAAAAB");
+    assert.equal(payload.midi.content_base64, "TVRoZAAAAAYAAQABAeA=");
     assert.equal("local_path" in payload.midi, false);
     assert.equal(upstreamRequest.url, "https://private-engine.example/v1/compose-by-mode");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer " + engineToken);
