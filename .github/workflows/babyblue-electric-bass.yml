@@ -1,0 +1,81 @@
+name: MEHRAN Babyblue Electric Bass Bank
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_karoryfer_babyblue_bass.py'
+      - 'engine/test_fetch_karoryfer_babyblue_bass.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - '.github/workflows/babyblue-electric-bass.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: babyblue-electric-bass-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-electric-bass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test pinned Babyblue SFZ parser
+        run: python3 -m unittest engine.test_fetch_karoryfer_babyblue_bass -v
+      - name: Fetch and validate CC0 Babyblue picked electric bass
+        timeout-minutes: 25
+        run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-babyblue-electric-bass
+      - name: Render and verify recorded electric-bass audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-babyblue-electric-bass')
+          events = [
+              {'instrument': 'electric_bass', 'midi_note': note,
+               'start_seconds': index * 0.65, 'duration_seconds': 0.45,
+               'velocity': velocity, 'articulation': 'picked'}
+              for index, (note, velocity) in enumerate([
+                  (35, 42), (38, 42), (43, 42), (47, 42),
+                  (50, 90), (55, 90), (59, 90), (64, 90),
+              ])
+          ]
+          report = render_sample_events(
+              events, bank, 'sample-bank-babyblue-electric-bass/electric-bass-audition.wav',
+              sample_rate=44100,
+          )
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          with wave.open('sample-bank-babyblue-electric-bass/electric-bass-audition.wav', 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 4 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_ELECTRIC_BASS_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified electric-bass bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-babyblue-picked-electric-bass
+          path: |
+            sample-bank-babyblue-electric-bass/bank.json
+            sample-bank-babyblue-electric-bass/LICENSE-CC0.txt
+            sample-bank-babyblue-electric-bass/provenance.json
+            sample-bank-babyblue-electric-bass/picked/
+            sample-bank-babyblue-electric-bass/electric-bass-audition.wav
+          if-no-files-found: error
+          retention-days: 30
