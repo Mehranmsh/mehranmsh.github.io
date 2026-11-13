@@ -32,7 +32,10 @@ def plan_velocity_layers(
     matching_samples = [
         sample for sample in bank.samples
         if sample.instrument == instrument
-        and sample.midi_note == midi_note
+        and (sample.midi_note == midi_note or (
+            sample.playable_key_min is not None
+            and sample.playable_key_min <= midi_note <= sample.playable_key_max
+        ))
         and sample.articulation == articulation
         and sample.velocity_min <= velocity <= sample.velocity_max
     ]
