@@ -562,6 +562,7 @@ def _resolve_part_articulation(
         "snare": ("center", "percussion_default"),
         "closed_hat": ("closed", "percussion_default"),
         "open_hat": ("open", "percussion_default"),
+        "contrabass": ("pizzicato", "instrument_default"),
     }
     if part in part_defaults:
         return part_defaults[part]
