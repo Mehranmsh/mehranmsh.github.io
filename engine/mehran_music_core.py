@@ -485,6 +485,7 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "confidence": "high" if pronunciation else "low",
             "lexical_stress_index": LEXICAL_STRESS_INDEX.get(canonical),
             "stress_confidence": "curated" if canonical in LEXICAL_STRESS_INDEX else "unknown",
+            "prosody_method": "curated_lyric_pronunciation_lexicon_v1" if pronunciation else "orthographic_estimate_v1",
         })
     total_syllables = sum(item["syllable_estimate"] for item in words)
     if not words or note_count <= 0 or total_syllables <= 0:
@@ -548,6 +549,14 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             if word["syllables"] and local_syllable < len(word["syllables"])
             else None
         )
+        # This describes the curated transliteration's written syllable shape,
+        # not a complete phonological quantity analysis of Persian speech.
+        syllable_shape = ("open" if syllable_token[-1:].lower() in "aeiou"
+                          else "closed") if syllable_token else "unknown"
+        is_stressed = (
+            word["lexical_stress_index"] == local_syllable
+            if word["lexical_stress_index"] is not None else None
+        )
         note_map.append({
             "note_index": note_index,
             "word_index": word["word_index"],
@@ -555,11 +564,13 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
             "syllable_index": syllable_index,
             "syllable_token": syllable_token,
             "confidence": word["confidence"],
-            "is_lexically_stressed": (
-                word["lexical_stress_index"] == local_syllable
-                if word["lexical_stress_index"] is not None else None
-            ),
+            "is_lexically_stressed": is_stressed,
             "stress_confidence": word["stress_confidence"],
+            "stress_role": ("lexically_stressed" if is_stressed else "unstressed")
+                           if is_stressed is not None else "unknown",
+            "syllable_shape_hint": syllable_shape,
+            "shape_confidence": "curated_transliteration" if syllable_token else "unknown",
+            "prosody_method": word["prosody_method"],
         })
     syllable_note_map = []
     for word in alignment:
@@ -594,6 +605,17 @@ def _align_words_to_notes(lyric_line: str, note_count: int) -> dict[str, Any]:
                 ),
                 "stress_confidence": word["stress_confidence"],
                 "confidence": word["confidence"],
+                "stress_role": (
+                    "lexically_stressed"
+                    if word["lexical_stress_index"] == local_index
+                    else "unstressed"
+                ) if word["lexical_stress_index"] is not None else "unknown",
+                "syllable_shape_hint": (
+                    "open" if word["syllables"][local_index][-1:].lower() in "aeiou"
+                    else "closed"
+                ) if word["syllables"] else "unknown",
+                "shape_confidence": "curated_transliteration" if word["syllables"] else "unknown",
+                "prosody_method": word["prosody_method"],
             })
     return {
         "word_note_alignment": alignment,
