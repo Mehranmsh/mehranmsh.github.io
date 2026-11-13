@@ -5365,12 +5365,30 @@ export default {
               "Authorization": "Bearer " + engineToken
             },
             body: JSON.stringify(enginePayload),
+            redirect: "error",
             signal: AbortSignal.timeout(30000)
           });
-          const responseText = await upstream.text();
-          if (new TextEncoder().encode(responseText).byteLength > 2 * 1024 * 1024) {
-            return error("Composition engine response exceeded the safety limit", 502);
+          const responseReader = upstream.body?.getReader();
+          if (!responseReader) return error("Composition engine returned an empty response", 502);
+          const responseChunks = [];
+          let responseSize = 0;
+          while (true) {
+            const chunk = await responseReader.read();
+            if (chunk.done) break;
+            responseSize += chunk.value.byteLength;
+            if (responseSize > 2 * 1024 * 1024) {
+              await responseReader.cancel();
+              return error("Composition engine response exceeded the safety limit", 502);
+            }
+            responseChunks.push(chunk.value);
           }
+          const responseBytes = new Uint8Array(responseSize);
+          let responseOffset = 0;
+          for (const chunk of responseChunks) {
+            responseBytes.set(chunk, responseOffset);
+            responseOffset += chunk.byteLength;
+          }
+          const responseText = new TextDecoder().decode(responseBytes);
           let result;
           try { result = JSON.parse(responseText); } catch {
             return error("Composition engine returned an invalid response", 502);
