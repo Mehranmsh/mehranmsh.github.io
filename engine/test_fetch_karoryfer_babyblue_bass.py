@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import unittest
 
-from fetch_karoryfer_babyblue_bass import parse_babyblue_map
+from fetch_karoryfer_babyblue_bass import _request, parse_babyblue_map
 
 
 def fixture(layer: str) -> str:
@@ -19,6 +19,22 @@ def fixture(layer: str) -> str:
 
 
 class BabyblueSFZTests(unittest.TestCase):
+    def test_github_api_request_uses_scoped_token_when_available(self):
+        captured = {}
+
+        def fake_urlopen(request, timeout=90):
+            captured["headers"] = request.headers
+            captured["timeout"] = timeout
+            return BytesIO(b'{"tree": []}')
+
+        with patch.dict("os.environ", {"GITHUB_TOKEN": "test-scoped-token"}):
+            with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+                payload = _request("https://api.github.com/repos/example/project/git/trees/main")
+
+        self.assertEqual(payload, b'{"tree": []}')
+        self.assertEqual(captured["headers"].get("Authorization"), "Bearer test-scoped-token")
+        self.assertEqual(captured["headers"].get("Accept"), "application/vnd.github+json")
+
     def test_low_velocity_layer_collapses_four_unique_takes(self):
         samples = parse_babyblue_map(fixture("f"), "f", require_complete=False)
         self.assertEqual(len(samples), 4)
