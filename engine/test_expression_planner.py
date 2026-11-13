@@ -42,6 +42,11 @@ class PartExpressionTests(unittest.TestCase):
         self.assertNotEqual(recorder["profile"], dan_tranh["profile"])
         self.assertNotEqual(recorder["pan"], dan_tranh["pan"])
 
+    def test_flute_uses_a_separate_stereo_position(self):
+        flute = plan_part_expression("flute", "chorus", -0.18)
+        self.assertLess(flute["pan"], 0)
+        self.assertIn("flute", flute["profile"])
+
     def test_invalid_inputs_are_rejected(self):
         with self.assertRaises(ValueError):
             plan_part_expression("unknown", "verse")
