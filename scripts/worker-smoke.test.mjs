@@ -181,6 +181,98 @@ test("music engine proxy forwards an owner request and strips private filesystem
   }
 });
 
+test("music engine proxy forwards all three composition modes with mode-safe lyric payloads", async () => {
+  const engineToken = "server-only-engine-token-".padEnd(40, "x");
+  const forwarded = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          }
+          if (sql.includes("INSERT INTO social_auth_limits")) return { attempts: 1, blocked_until: null };
+          throw new Error("Unexpected SQL in composition-mode proxy test: " + sql);
+        }
+      };
+    }
+  };
+  const cases = [
+    {
+      composition_mode: "lyrics_first",
+      title: "Lyrics first",
+      genre: "pop",
+      mood: "hopeful",
+      phrase_count: 8,
+      lyrics: "فردا دوباره می‌رسد"
+    },
+    {
+      composition_mode: "instrumental_first",
+      title: "Instrumental first",
+      genre: "cinematic",
+      mood: "hopeful",
+      phrase_count: 8
+    },
+    {
+      composition_mode: "co_creation",
+      title: "Co-creation",
+      genre: "pop",
+      mood: "hopeful",
+      phrase_count: 8,
+      lyrics: "فردا دوباره می‌رسد"
+    }
+  ];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    forwarded.push({ url: String(url), authorization: options.headers.Authorization, body });
+    return new Response(JSON.stringify({
+      composition_created: true,
+      composition_mode: body.composition_mode,
+      audio_rendered: false,
+      plan: { source_mode: body.composition_mode },
+      midi: {
+        id: "mode-midi",
+        format: "Standard MIDI",
+        content_base64: "TVRoZAAAAAYAAAAB",
+        local_path: "/private/renders/mode-midi.mid"
+      },
+      message: "MIDI created"
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    for (const input of cases) {
+      const response = await request("/music/engine/compose", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + "c".repeat(48) },
+        body: input
+      }, {
+        DB: db,
+        MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+        MEHRAN_ENGINE_TOKEN: engineToken
+      });
+      assert.equal(response.status, 201, input.composition_mode);
+      const payload = await response.json();
+      assert.equal(payload.success, true);
+      assert.equal(payload.composition_mode, input.composition_mode);
+      assert.equal(payload.plan.source_mode, input.composition_mode);
+      assert.equal("local_path" in payload.midi, false);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(forwarded.length, 3);
+  for (let index = 0; index < cases.length; index += 1) {
+    assert.equal(forwarded[index].url, "https://private-engine.example/v1/compose-by-mode");
+    assert.equal(forwarded[index].authorization, "Bearer " + engineToken);
+    assert.equal(forwarded[index].body.composition_mode, cases[index].composition_mode);
+    assert.equal("lyrics" in forwarded[index].body, cases[index].composition_mode !== "instrumental_first");
+  }
+});
+
 test("music engine proxy keeps the private engine credential out of the public studio", () => {
   assert.match(workerSource, /env\.MEHRAN_ENGINE_COMPOSE_URL/);
   assert.match(workerSource, /env\.MEHRAN_ENGINE_TOKEN/);
