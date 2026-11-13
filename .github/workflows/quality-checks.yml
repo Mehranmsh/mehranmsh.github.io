@@ -96,6 +96,25 @@ jobs:
         env:
           MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
         run: |
+          set -euo pipefail
+          docker run -d --name mehran-engine-compose-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            -p 127.0.0.1:18766:8765 \
+            -e MEHRAN_STUDIO_TOKEN="$MEHRAN_STUDIO_TOKEN" \
+            -e MEHRAN_STUDIO_HOME=/tmp/mehran-compose-ci \
+            -e MEHRAN_STUDIO_HOST=0.0.0.0 \
+            -e MEHRAN_STUDIO_PORT=8765 \
+            -e MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1 \
+            mehran-music-engine:ci
+          trap 'docker rm -f mehran-engine-compose-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail -H "Authorization: Bearer $MEHRAN_STUDIO_TOKEN" \
+              http://127.0.0.1:18766/health -o /tmp/mehran-compose-health.json; then
+              break
+            fi
+            sleep 2
+          done
           python - <<'PY'
           import base64
           import json
@@ -103,7 +122,7 @@ jobs:
           import urllib.error
           import urllib.request
 
-          base = "http://127.0.0.1:18765"
+          base = "http://127.0.0.1:18766"
           token = os.environ["MEHRAN_STUDIO_TOKEN"]
           cases = [
               {
