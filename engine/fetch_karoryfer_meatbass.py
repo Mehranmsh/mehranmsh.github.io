@@ -212,6 +212,8 @@ def import_meatbass_pizzicato(output_root: str | Path) -> dict[str, Any]:
             "velocity_max": item["velocity_max"],
             "articulation": "pizzicato",
             "round_robin_index": item["round_robin_index"],
+            "playable_key_min": item["low_key"],
+            "playable_key_max": item["high_key"],
             "one_shot": False,
             "recording_session_id": session_id,
             "path": item["path"],
