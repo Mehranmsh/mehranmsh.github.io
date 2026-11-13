@@ -1,8 +1,8 @@
 """Safely combine validated MEHRAN recorded instrument banks for local runtime use.
 
 The installer copies only manifest-referenced WAV files into a fresh staging
-directory, preserves source license/provenance, validates the combined bank,
-and publishes it atomically. Existing destinations are never overwritten.
+directory, preserves source license/provenance and percussion playback metadata,
+validates the combined bank, and publishes it atomically.
 """
 from __future__ import annotations
 
@@ -18,10 +18,15 @@ from typing import Any
 from sample_bank import load_sample_bank
 
 
+# label, source id, recording-session prefix, required source sample rate
 EXPECTED_BANKS = {
-    "nylon_guitar": ("Meta Nylon Guitar", "meta-nylon-guitar", "meta-nylon-guitar"),
-    "acoustic_guitar": ("Meta Steel Guitar", "meta-steel-guitar", "meta-steel-guitar"),
-    "piano": ("Meta Piano", "meta-piano", "meta_piano"),
+    "nylon_guitar": ("Meta Nylon Guitar", "meta-nylon-guitar", "meta-nylon-guitar", 48000),
+    "acoustic_guitar": ("Meta Steel Guitar", "meta-steel-guitar", "meta-steel-guitar", 48000),
+    "piano": ("Meta Piano", "meta-piano", "meta_piano", 48000),
+    "kick": ("Virtuosity Kick", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
+    "snare": ("Virtuosity Snare", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
+    "closed_hat": ("Virtuosity Closed Hi-Hat", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
+    "open_hat": ("Virtuosity Open Hi-Hat", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
 }
 
 
@@ -30,6 +35,7 @@ def _source_license(root: Path) -> str:
         root / "source" / "SOURCE_LICENSE.txt",
         root / "SOURCE_LICENSE.txt",
         root / "SOURCE_LICENSE_CC0.txt",
+        root / "LICENSE-CC0.txt",
     )
     for candidate in candidates:
         if candidate.is_file():
@@ -44,7 +50,7 @@ def install_recorded_banks(
     bank_roots: list[str | Path],
     destination: str | Path,
 ) -> dict[str, Any]:
-    """Install one or more validated CC0 Meta banks as a combined sample bank."""
+    """Install validated CC0 Meta and Virtuosity banks as one combined sample bank."""
     if not bank_roots:
         raise ValueError("At least one source bank is required")
     target = Path(destination).expanduser()
@@ -60,7 +66,7 @@ def install_recorded_banks(
     combined_samples = []
     combined_sessions: dict[str, dict[str, str]] = {}
     source_records = []
-    seen_instruments = set()
+    seen_instruments: set[str] = set()
     try:
         for raw_root in bank_roots:
             source_root = Path(raw_root).expanduser().resolve(strict=True)
@@ -68,58 +74,69 @@ def install_recorded_banks(
                 raise ValueError(f"Source bank is not a directory: {source_root}")
             bank = load_sample_bank(source_root)
             instruments = sorted({sample.instrument for sample in bank.samples})
-            if len(instruments) != 1 or instruments[0] not in EXPECTED_BANKS:
-                raise ValueError(f"Only validated Meta nylon/steel guitar and piano banks are accepted: {source_root}")
-            instrument = instruments[0]
-            if instrument in seen_instruments:
-                raise ValueError(f"Duplicate instrument bank supplied: {instrument}")
-            seen_instruments.add(instrument)
-            label, source_id, session_prefix = EXPECTED_BANKS[instrument]
-            license_text = _source_license(source_root)
+            if not instruments or any(instrument not in EXPECTED_BANKS for instrument in instruments):
+                raise ValueError(
+                    f"Only validated Meta piano/guitars and Virtuosity percussion are accepted: {source_root}"
+                )
+            duplicates = seen_instruments.intersection(instruments)
+            if duplicates:
+                raise ValueError(f"Duplicate instrument bank supplied: {', '.join(sorted(duplicates))}")
+            seen_instruments.update(instruments)
+
             session_ids = {sample.recording_session_id for sample in bank.samples}
             if None in session_ids or len(session_ids) != 1:
-                raise ValueError(f"{instrument} samples must share one declared recording session")
+                raise ValueError("All samples in a source bank must share one declared recording session")
             session_id = next(iter(session_ids))
-            if not session_id.startswith(session_prefix):
-                raise ValueError(f"Unexpected recording session provenance for {instrument}")
-            license_dir = staged / "provenance" / instrument
-            license_dir.mkdir(parents=True, exist_ok=True)
-            (license_dir / "SOURCE_LICENSE.txt").write_text(license_text, encoding="utf-8")
-            copied = 0
+            metadata = next(
+                sample.recording_metadata for sample in bank.samples
+                if sample.recording_metadata is not None
+            )
+            license_text = _source_license(source_root)
+            copied_by_instrument: dict[str, int] = {}
+
+            for instrument in instruments:
+                label, source_id, session_prefix, _expected_rate = EXPECTED_BANKS[instrument]
+                if not session_id.startswith(session_prefix):
+                    raise ValueError(f"Unexpected recording session provenance for {instrument}")
+                license_dir = staged / "provenance" / instrument
+                license_dir.mkdir(parents=True, exist_ok=True)
+                (license_dir / "SOURCE_LICENSE.txt").write_text(license_text, encoding="utf-8")
+                copied_by_instrument[instrument] = 0
+
             for sample in bank.samples:
                 relative = sample.path.relative_to(source_root)
                 if relative.is_absolute() or ".." in relative.parts:
                     raise ValueError("Unsafe sample path in validated source bank")
-                destination_relative = Path(instrument) / relative
+                destination_relative = Path(sample.instrument) / relative
                 output_path = staged / destination_relative
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(sample.path, output_path)
-                entry = {
+                combined_samples.append({
                     "instrument": sample.instrument,
                     "midi_note": sample.midi_note,
                     "velocity_min": sample.velocity_min,
                     "velocity_max": sample.velocity_max,
                     "articulation": sample.articulation,
                     "string": sample.string_name,
+                    "round_robin_index": sample.round_robin_index,
+                    "one_shot": sample.one_shot,
                     "path": destination_relative.as_posix(),
                     "recording_session_id": session_id,
-                }
-                combined_samples.append(entry)
-                copied += 1
-            metadata = next(
-                sample.recording_metadata for sample in bank.samples
-                if sample.recording_metadata is not None
-            )
+                })
+                copied_by_instrument[sample.instrument] += 1
+
             combined_sessions[session_id] = dict(metadata)
-            source_records.append({
-                "instrument": instrument,
-                "label": label,
-                "source_id": source_id,
-                "license": "CC0 1.0 Universal",
-                "source_sample_count": len(bank.samples),
-                "copied_sample_count": copied,
-                "source_root_name": source_root.name,
-            })
+            for instrument in instruments:
+                label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument]
+                source_records.append({
+                    "instrument": instrument,
+                    "label": label,
+                    "source_id": source_id,
+                    "license": "CC0 1.0 Universal",
+                    "source_sample_count": copied_by_instrument[instrument],
+                    "copied_sample_count": copied_by_instrument[instrument],
+                    "source_root_name": source_root.name,
+                })
 
         manifest = {
             "format_version": 1,
@@ -135,10 +152,17 @@ def install_recorded_banks(
         validated = load_sample_bank(staged)
         if len(validated.samples) != len(combined_samples):
             raise ValueError("Combined bank validation count mismatch")
-        for sample in validated.samples:
-            if sample.sample_rate != 48000 or sample.channels != 1:
-                raise ValueError("Installed guitar samples must be mono PCM16 at 48 kHz")
-        # A same-filesystem rename publishes the complete bank in one operation.
+        invalid = [
+            sample.path.relative_to(staged).as_posix()
+            for sample in validated.samples
+            if (sample.sample_rate != EXPECTED_BANKS[sample.instrument][3]
+                or sample.channels != 1)
+        ]
+        if invalid:
+            raise ValueError(
+                "Installed sample rate/channel validation failed for instrument source requirements: "
+                + ", ".join(invalid[:5])
+            )
         os.replace(staged, target)
         return {
             "installed": True,
