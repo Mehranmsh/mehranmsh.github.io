@@ -175,8 +175,8 @@ def import_vsco2_contrabass_pizzicato(output_root: str | Path) -> dict[str, Any]
             "velocity_max": item["velocity_max"],
             "articulation": "pizzicato",
             "round_robin_index": item["round_robin_index"],
-            "playable_key_min": item["low_key"],
-            "playable_key_max": item["high_key"],
+            "playable_key_min": item["midi_note"],
+            "playable_key_max": item["midi_note"],
             "sfz_volume_db": item["sfz_volume_db"],
             "selection_priority": 10,
             "selection_priority_min_velocity": 121,
@@ -193,8 +193,9 @@ def import_vsco2_contrabass_pizzicato(output_root: str | Path) -> dict[str, Any]
                 "notes": (
                     "Pinned CC0 VSCO 2 CE pizzicato source. The SFZ declares exact "
                     "recorded MIDI 34, velocity 63-127, and two recorded takes. "
-                    "The sample is selected only for the incumbent MIDI 34 upper gap "
-                    "at velocities 121-127."
+                    "The source SFZ zone is 33-34, but engine playback is deliberately "
+                    "restricted to exact recorded root MIDI 34. The sample is "
+                    "selected only for the incumbent upper gap at velocities 121-127."
                 ),
             }
         },
@@ -224,7 +225,8 @@ def import_vsco2_contrabass_pizzicato(output_root: str | Path) -> dict[str, Any]
             "velocity_min": item["velocity_min"],
             "velocity_max": item["velocity_max"],
             "round_robin_index": item["round_robin_index"],
-            "playable_key_range": [item["low_key"], item["high_key"]],
+            "source_sfz_playable_key_range": [item["low_key"], item["high_key"]],
+            "engine_playable_key_range": [item["midi_note"], item["midi_note"]],
             "sfz_volume_db": item["sfz_volume_db"],
         } for sample, item in zip(samples, regions)],
     }
