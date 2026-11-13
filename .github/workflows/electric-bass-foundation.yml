@@ -39,6 +39,8 @@ on:
       - 'engine/fetch_vsco2_contrabass_pizzicato.py'
       - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
       - 'engine/build_contrabass_velocity_supplement.py'
+      - 'engine/instrument_bank_audit.py'
+      - 'engine/test_instrument_bank_audit.py'
       - '.github/workflows/electric-bass-foundation.yml'
   workflow_dispatch:
 
