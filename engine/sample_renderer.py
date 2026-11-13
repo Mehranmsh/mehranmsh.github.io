@@ -886,6 +886,33 @@ def build_composition_events(
                     add("strings", note, bar_start, 4 * PPQ - 24,
                         _scaled_velocity(42, bar_dynamics["chords"]),
                         voice_pans[voice_index])
+            if names["cello"] and section in ("chorus", "final_chorus", "bridge"):
+                # Cello section sustains the middle chord voices independently
+                # from the solo-violin strings layer.
+                cello_voices = voicing[:3]
+                for voice_index, note in enumerate(cello_voices):
+                    add("cello", note, bar_start, 4 * PPQ - 36,
+                        _scaled_velocity(38 if section == "bridge" else 48,
+                                         bar_dynamics["chords"]),
+                        -0.18 + voice_index * 0.16,
+                        articulation="sustain_vibrato",
+                        articulation_source="instrument_default")
+            if names["harp"]:
+                # A distinct broken-chord figure uses the full documented
+                # concert-harp key range (MIDI 28-102).
+                harp_notes = [
+                    min(102, max(28, int(voicing[0]) - 12)),
+                    min(102, max(28, int(voicing[1]))),
+                    min(102, max(28, int(voicing[-1]) + 12)),
+                ]
+                for note_index, note in enumerate(harp_notes):
+                    add("harp", note, bar_start + note_index * PPQ,
+                        PPQ - 24,
+                        _scaled_velocity(46 + note_index * 4,
+                                         bar_dynamics["chords"]),
+                        0.12 + note_index * 0.08,
+                        articulation="sustain",
+                        articulation_source="instrument_default")
             if names["electric_guitar"] and section in ("chorus", "final_chorus"):
                 add("electric_guitar", voicing[-1], bar_start + PPQ,
                     PPQ // 2, _scaled_velocity(68, bar_dynamics["chords"]), 0.38)
