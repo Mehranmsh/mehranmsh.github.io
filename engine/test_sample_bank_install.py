@@ -99,6 +99,8 @@ class SampleBankInstallTests(unittest.TestCase):
                     "articulation": "sustain",
                     "path": "piano/sustain/C4.wav",
                     "recording_session_id": session,
+                    "selection_priority": 7,
+                    "selection_priority_min_velocity": 121,
                 }],
             }), encoding="utf-8")
             report = install_recorded_banks([source], target)
@@ -106,6 +108,8 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertTrue(report["installed"])
             self.assertEqual(len(bank.samples), 1)
             self.assertEqual(bank.samples[0].instrument, "piano")
+            self.assertEqual(bank.samples[0].selection_priority, 7)
+            self.assertEqual(bank.samples[0].selection_priority_min_velocity, 121)
             self.assertTrue(
                 (target / "provenance" / "piano" / "SOURCE_LICENSE.txt").is_file()
             )
