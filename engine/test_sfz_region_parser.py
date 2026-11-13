@@ -49,6 +49,12 @@ class SfzRegionParserTests(unittest.TestCase):
         self.assertIsNone(regions[3]["crossfade"])
         self.assertIsNone(regions[4]["crossfade"])
 
+    def test_sample_paths_may_contain_spaces(self):
+        regions = parse_sfz_regions(
+            "<region>\\nsample=Concert Harp/E1 f1.wav pitch_keycenter=28 lokey=28 hikey=29"
+        )
+        self.assertEqual(regions[0]["sample"], "Concert Harp/E1 f1.wav")
+
     def test_rejects_unsupported_playback_opcode(self):
         with self.assertRaisesRegex(ValueError, "Unsupported SFZ region opcode"):
             parse_sfz_regions("<region>\nsample=a.wav pitch_keycenter=60 lokey=60 hikey=60 cutoff=12000")
