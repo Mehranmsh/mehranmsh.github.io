@@ -524,6 +524,34 @@ class SampleRendererTests(unittest.TestCase):
         self.assertEqual(major_third["midi_note"] % 12, (45 + 4) % 12)
         self.assertEqual(minor_third["midi_note"] % 12, (45 + 3) % 12)
 
+    def test_bass_groove_adds_section_specific_syncopation(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        phrase = plan["composition"]["melody"][0]
+        phrase["chord"] = "A"
+        phrase["section"] = "pre_chorus"
+        events = build_composition_events(
+            plan, instruments={"bass": "bass", "melody": "lead"})
+        bass = [event for event in events if event["instrument"] == "bass"]
+        beat_seconds = 60 / 84
+        onsets = [round(event["start_seconds"] / beat_seconds, 3) for event in bass]
+        self.assertIn(1.5, onsets)
+        self.assertIn(3.5, onsets)
+        self.assertTrue(all(event["midi_note"] % 12 in {0, 4, 7} for event in bass))
+
+    def test_chorus_bass_has_syncopated_chord_tone_pulse(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
+        phrase = plan["composition"]["melody"][0]
+        phrase["chord"] = "Am"
+        phrase["section"] = "chorus"
+        events = build_composition_events(
+            plan, instruments={"bass": "bass", "melody": "lead"})
+        bass = [event for event in events if event["instrument"] == "bass"]
+        beat_seconds = 60 / 84
+        onsets = [round(event["start_seconds"] / beat_seconds, 3) for event in bass]
+        self.assertIn(1.5, onsets)
+        self.assertIn(3.5, onsets)
+        self.assertTrue(all(event["midi_note"] % 12 in {0, 3, 7} for event in bass))
+
     def test_sample_seventh_chords_support_four_voice_panning(self):
         import copy
         base = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
