@@ -1093,6 +1093,71 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
     }
 
 
+
+def compose_co_creation_plan(
+    lyrics: str,
+    title: str = "Untitled",
+    genre: str = "pop",
+    mood: str = "neutral",
+    target_bpm: int | None = None,
+    phrase_count: int = 8,
+) -> dict[str, Any]:
+    """Fit supplied lyrics to a deterministic instrumental draft without replacing its music."""
+    if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+        raise ValueError("lyrics must be a non-empty string of at most 20000 characters")
+    plan = compose_instrumental_plan(
+        title=title, genre=genre, mood=mood,
+        target_bpm=target_bpm, phrase_count=phrase_count,
+    )
+    analysis = analyze_lyrics(lyrics)
+    lines = analysis["lines"]
+    melody = plan["composition"]["melody"]
+    if len(lines) > len(melody):
+        raise ValueError("lyrics contain more lines than the available melody phrases")
+
+    for index, phrase in enumerate(melody):
+        if index >= len(lines):
+            phrase["note_lyric_map"] = []
+            phrase["syllable_estimate"] = None
+            phrase["lyric_line"] = None
+            continue
+        line = lines[index]
+        alignment = _align_words_to_notes(line["text"], len(phrase["midi_notes"]))
+        note_map = alignment["note_lyric_map"]
+        cursor = 0
+        for note_index, item in enumerate(note_map):
+            duration = phrase["note_durations_ticks"][note_index]
+            item["tick_start"] = cursor
+            item["tick_end"] = cursor + duration
+            item["duration_ticks"] = duration
+            item["rhythmic_value"] = _rhythmic_value(duration)
+            item["articulation_hint"] = "sustain" if duration >= 840 else "light" if duration <= 210 else "normal"
+            item["bar_index"] = cursor // 1920
+            item["beat_in_bar"] = (cursor % 1920) / 480 + 1
+            item["beat_number"] = int(item["beat_in_bar"])
+            cursor += duration
+        phrase["note_lyric_map"] = note_map
+        phrase["syllable_estimate"] = line["syllable_estimate"]
+        phrase["lyric_line"] = line["text"]
+        phrase["lyric_alignment"] = alignment["word_note_alignment"]
+    plan.update({
+        "source_mode": "co_creation",
+        "lyric_status": "provided_and_aligned",
+        "lyrics": _normalize(lyrics),
+        "analysis": analysis,
+        "co_creation": {
+            "music_preserved_during_lyric_fit": True,
+            "melody_note_events_changed": False,
+            "harmony_changed": False,
+            "arrangement_blueprint_preserved": True,
+            "aligned_lyric_lines": len(lines),
+            "available_melody_phrases": len(melody),
+            "alignment_method": "existing_phrase_note_slots_v1",
+            "notice": "Lyrics were fitted to the existing deterministic melody note slots. No audio or vocal performance was rendered.",
+        },
+    })
+    return plan
+
 def compose_instrumental_plan(
     title: str = "Untitled",
     genre: str = "pop",
