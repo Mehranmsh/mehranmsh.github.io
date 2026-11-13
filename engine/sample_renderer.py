@@ -238,7 +238,11 @@ def render_sample_events(
                         (layer["sample"], layer["gain"])
                         for layer in planned_layers
                     )
-                    sample_selection_mode = velocity_plan["selection_mode"]
+                    sample_selection_mode = (
+                    "pitch_shifted_nearest_note"
+                    if any(layer["sample"].midi_note != note for layer in planned_layers)
+                    else velocity_plan["selection_mode"]
+                )
             else:
                 sample_layers = tuple(
                     (layer["sample"], layer["gain"])
@@ -262,7 +266,7 @@ def render_sample_events(
                 except ValueError as exc:
                     raise ValueError(
                         f"Articulation blocked: instrument={instrument}, note={note}, "
-                        f"planner_selected={articulation}, sample_exact_articulation_velocity_match=False"
+                        f"planner_selected={articulation}, sample_exact_articulation_velocity_match=False, reason={exc}"
                     ) from exc
                 sample_selection_mode = (
                     "pitch_shifted_nearest_note"
