@@ -14,13 +14,15 @@ This register separates independent source-bank packages, playable instrument ID
 | VCSL CC0 Cajón | cajon | 17 | Recorded bass, slap and tone articulations |
 | VCSL CC0 Kalimba | kalimba | 14 | Ten pitch centers and recorded repeated takes |
 | Rubner CC0 Contrabass | contrabass | 123 | Pizzicato, three velocity zones and four round robins |
+| Karoryfer Meatbass CC0 Contrabass Supplement | contrabass | 4 | Exact MIDI 27 high-layer supplement, four round robins; original 97–127 zone, selected at 121–127 |
+| VSCO 2 CE CC0 Contrabass Supplement | contrabass | 2 | Exact MIDI 34 high-layer supplement, two round robins; original 63–127 zone, selected at 121–127 |
 | VSCO 2 CE CC0 Solo Violin | solo_violin | 74 | 30 arco-vibrato and 44 pizzicato recordings, 15 pitch centers |
 | VSCO 2 CE CC0 Concert Flute | concert_flute | 27 | 13 sustain-vibrato and 14 expressive-vibrato recordings, 10 pitch centers |
 | VCSL CC0 Dan Tranh | dan_tranh | 47 | 16 pitch centers and source-defined velocity groupings |
 | VCSL CC0 Baroque Soprano Recorder | baroque_soprano_recorder | 25 | 13 sustain and 12 staccato recordings |
 | VCSL CC0 Concert Harp | concert_harp | 45 | 45 original stereo SFZ regions with preserved offsets and velocity crossfade metadata |
 
-**Verified source totals:** 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The latest full ensemble installation and render completed successfully on 2026-11-13 (workflow run 43367190202). The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The combined-bank installer and manifest validation passed.
+**Verified source totals:** the original baseline has 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The current feature-branch combined installation adds two contrabass supplement packages, for **15 independent source packages, 16 playable instrument IDs, and 2,028 recorded sample entries**. Installation and the effective-coverage audit passed in workflow run 43376257628. The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The two contrabass supplements do not create new playable instrument IDs.
 
 ## Latest per-note audit (2026-11-13, workflow run 43369733464)
 
@@ -88,6 +90,6 @@ A second CC0 source has passed its dedicated import, manifest, load, and recorde
 - The combined non-destructive supplement passed CI in workflow run 43375767615, including the read-only effective-coverage audit. It contains 123 Rubner baseline entries, four Meatbass MIDI 27 upper-layer takes, and two VSCO MIDI 34 upper-layer takes (129 entries total). Both added sources retain their original recorded velocity bounds and are selected only at velocity 121–127, so Rubner remains selected at velocity 100. No cross-source blend is used.
 - The four-event audition rendered MIDI 27 and MIDI 34 at both lower and upper velocities, with zero pitch-shifted key-zone events, zero nearest-note fallbacks, and zero equal-power crossfades. The checks also confirmed that MIDI 33 cannot borrow the VSCO MIDI 34 sample through its broader source key zone.
 - The effective audit reported zero uncovered velocity ranges after source-priority selection for the exact recorded roots MIDI 27 and 34. The raw per-source gap report remains intact, so the original banks' incomplete upper layers are still visible rather than erased.
-- Integration decision: this six-sample overlay is technically validated as a separate artifact, but it has not yet been installed into the thirteen-bank combined production baseline. The complete 224-entry Meatbass candidate is not a replacement for the current Rubner bank.
+- Integration decision: the six supplemental recordings have now been installed as two separate CC0 source packages in the feature branch's combined bank. Rubner remains intact as the incumbent source below velocity 121; Meatbass and VSCO are selected only for the missing upper range. The 224-entry Meatbass candidate itself is still not used wholesale.
 
-The Meatbass candidate and 129-entry supplement are not part of the 13-bank / 2,022-entry installed baseline. CI success verifies the tested technical path; it does not constitute human listening approval or authorize integration into the main bank.
+The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,028 entries. The feature branch and PR remain unmerged; the main branch is unchanged. CI installation and audit success are not human listening approval, and the 60-second ensemble preview is still being validated.
