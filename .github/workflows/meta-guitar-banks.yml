@@ -10,6 +10,10 @@ on:
       - 'engine/sample_bank.py'
       - 'engine/sample_renderer.py'
       - 'engine/test_percussion_round_robin.py'
+      - 'engine/fetch_virtuosity_drums.py'
+      - 'engine/test_fetch_virtuosity_drums.py'
+      - 'engine/fetch_freepats_electric_bass.py'
+      - 'engine/test_fetch_freepats_electric_bass.py'
       - 'engine/sample_bank_install.py'
       - 'engine/test_sample_bank_install.py'
       - 'engine/guitar_string_planner.py'
@@ -54,6 +58,8 @@ jobs:
         run: python3 -m unittest engine.test_sample_bank_install -v
       - name: Test one-shot percussion and round-robin rendering
         run: python3 -m unittest engine.test_percussion_round_robin -v
+      - name: Test CC0 percussion and electric bass SFZ maps
+        run: python3 -m unittest engine.test_fetch_virtuosity_drums engine.test_fetch_freepats_electric_bass -v
       - name: Download, verify, convert, and validate nylon guitar
         timeout-minutes: 20
         run: python3 engine/fetch_meta_guitar_banks.py meta-nylon-guitar sample-bank-meta-nylon-guitar
@@ -98,9 +104,15 @@ jobs:
       - name: Download and verify the full CC0 piano bank
         timeout-minutes: 20
         run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
-      - name: Install and validate all three real instrument banks
+      - name: Download and validate the CC0 Virtuosity rhythm bank
         timeout-minutes: 12
-        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano
+        run: python3 engine/fetch_virtuosity_drums.py sample-bank-virtuosity-drums
+      - name: Download and validate the CC0 FreePats electric bass bank
+        timeout-minutes: 8
+        run: python3 engine/fetch_freepats_electric_bass.py sample-bank-freepats-electric-bass
+      - name: Install and validate all five real instrument banks
+        timeout-minutes: 12
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-freepats-electric-bass
       - name: Render and validate the real piano plus guitar composition
         timeout-minutes: 12
         run: |
@@ -136,15 +148,16 @@ jobs:
               "کنار هم تا انتهای این رؤیا",
               "دوباره می‌سازیم جهان فردا",
           ])
-          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar 60 Second Preview", genre="pop", target_bpm=84)
+          plan = compose_plan(lyrics, title="MEHRAN Piano Guitar Bass Drums 60 Second Preview", genre="pop", target_bpm=84)
           for phrase in plan["composition"]["melody"]:
               for item in phrase.get("note_lyric_map", []):
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 375, len(bank.samples)
+          assert len(bank.samples) >= 352 + 348 + 375 + 80 + 25, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
-          assert {"piano", "nylon_guitar", "acoustic_guitar"} <= available, available
+          assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
+                  "kick", "snare", "closed_hat"} <= available, available
           events = build_composition_events(
               plan,
               instruments={"guitar": "acoustic_guitar"},
@@ -153,24 +166,33 @@ jobs:
           # Render a continuous 16-second passage instead of truncating the
           # arrangement to five tiny events per part.
           preview_seconds = 60.0
+          rhythm_parts = {"kick", "snare", "closed_hat", "open_hat"}
           selected = [
               dict(event) for event in events
-              if event.get("part") in ("melody", "chords", "guitar")
-              and 0 <= event.get("start_seconds", 0) < preview_seconds
+              if event.get("part") in (
+                  "melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat"
+              )
+              and 0 <= event.get("start_seconds", 0) <
+                  preview_seconds - (1.5 if event.get("part") in rhythm_parts else 0)
           ]
           for event in selected:
               remaining = preview_seconds - event["start_seconds"]
-              event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.9)
+              if event.get("part") in rhythm_parts:
+                  event["duration_seconds"] = min(event["duration_seconds"], remaining)
+              else:
+                  event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.9)
           selected = [event for event in selected if event["duration_seconds"] > 0]
           assert len(selected) >= 150, f"60-second passage has too few events: {len(selected)}"
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
-          assert {"melody", "chords", "guitar"} <= selected_parts, selected_parts
-          assert {"piano", "acoustic_guitar"} <= selected_instruments, selected_instruments
+          assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat"} <= selected_parts, selected_parts
+          assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat"} <= selected_instruments, selected_instruments
+          assert report["sample_selection"]["one_shot_round_robin_events"] > 0, report
+          assert report["sample_selection"]["pitch_shifted_nearest_note_events"] > 0, report
           for event in selected:
               if event.get("part") == "guitar":
                   event["guitar_max_fret"] = 12
-          output = "sample-bank-installed-all/mehran-piano-guitar-composition.wav"
+          output = "sample-bank-installed-all/mehran-piano-guitar-bass-drums-composition.wav"
           report = render_sample_events(selected, bank, output, sample_rate=44100)
           # The final note may end a few milliseconds before the requested
           # preview boundary. Pad only the tail with digital silence so the
@@ -203,7 +225,7 @@ jobs:
               assert audio.getframerate() == 44100
               assert audio.getnframes() == round(preview_seconds * 44100)
               pcm = audio.readframes(audio.getnframes())
-          assert any(pcm), "Combined piano/guitar WAV is silent"
+          assert any(pcm), "Combined piano/guitar/bass/drums WAV is silent"
           import array
           samples_pcm = array.array("h")
           samples_pcm.frombytes(pcm)
@@ -213,7 +235,7 @@ jobs:
           assert rms > 10, f"Combined WAV RMS is unexpectedly quiet: {rms}"
           assert report["peak_after_normalization"] > 0, report
           assert report["clipping_samples"] == 0, report
-          print("REAL_RECORDED_PIANO_GUITAR_COMPOSITION_OK", {
+          print("REAL_RECORDED_PIANO_GUITAR_BASS_DRUMS_COMPOSITION_OK", {
               "samples": len(bank.samples),
               "parts": sorted(selected_parts),
               "instruments": sorted(selected_instruments),
@@ -226,11 +248,11 @@ jobs:
               "sample_selection": report["sample_selection"],
           })
           PY
-      - name: Publish compact real piano and guitar preview WAV
+      - name: Publish compact real piano, guitar, bass and drums preview WAV
         uses: actions/upload-artifact@v4
         with:
-          name: mehran-real-piano-guitar-preview-wav
-          path: sample-bank-installed-all/mehran-piano-guitar-composition.wav
+          name: mehran-real-piano-guitar-bass-drums-preview-wav
+          path: sample-bank-installed-all/mehran-piano-guitar-bass-drums-composition.wav
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
@@ -242,6 +264,8 @@ jobs:
             sample-bank-meta-nylon-guitar/
             sample-bank-meta-steel-guitar/
             sample-bank-meta-piano/
+            sample-bank-virtuosity-drums/
+            sample-bank-freepats-electric-bass/
             sample-bank-installed-all/
           if-no-files-found: error
           compression-level: 0
