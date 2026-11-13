@@ -468,13 +468,13 @@
  
  let vocalPolishBlob=null,vocalPolishUrl=null;
  function vocalPolishWav(buffer){
-  const channels=buffer.numberOfChannels,length=buffer.length,rate=buffer.sampleRate;let peak=0;
-  for(let c=0;c<channels;c++){const d=buffer.getChannelData(c);for(let i=0;i<length;i++)peak=Math.max(peak,Math.abs(d[i]));}
-  const gain=peak>0?Math.min(1.122,Math.pow(10,-1/20)/peak):1,bytes=44+length*channels*2,view=new DataView(new ArrayBuffer(bytes));
+  const channels=Math.max(1,Math.min(2,buffer.numberOfChannels)),length=buffer.length,rate=buffer.sampleRate;let inputPeak=0;
+  for(let c=0;c<channels;c++){const d=buffer.getChannelData(c);for(let i=0;i<length;i++)inputPeak=Math.max(inputPeak,Math.abs(d[i]));}
+  const ceiling=Math.pow(10,-1/20),gain=inputPeak>0?Math.min(1.122,ceiling/inputPeak):1,bytes=44+length*channels*2,view=new DataView(new ArrayBuffer(bytes));
   const write=(o,t)=>{for(let i=0;i<t.length;i++)view.setUint8(o+i,t.charCodeAt(i));};
   write(0,"RIFF");view.setUint32(4,bytes-8,true);write(8,"WAVE");write(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,rate,true);view.setUint32(28,rate*channels*2,true);view.setUint16(32,channels*2,true);view.setUint16(34,16,true);write(36,"data");view.setUint32(40,bytes-44,true);
-  let offset=44;for(let i=0;i<length;i++)for(let c=0;c<channels;c++){const v=Math.max(-1,Math.min(1,buffer.getChannelData(c)[i]*gain));view.setInt16(offset,v<0?v*32768:v*32767,true);offset+=2;}
-  return new Blob([view],{type:"audio/wav"});
+  let offset=44,outputPeak=0;for(let i=0;i<length;i++)for(let c=0;c<channels;c++){const v=Math.max(-1,Math.min(1,buffer.getChannelData(c)[i]*gain));outputPeak=Math.max(outputPeak,Math.abs(v));view.setInt16(offset,v<0?v*32768:v*32767,true);offset+=2;}
+  const wav=new Blob([view],{type:"audio/wav"});wav.samplePeakDb=outputPeak>0?20*Math.log10(outputPeak):-Infinity;wav.appliedGainDb=20*Math.log10(Math.max(1e-12,gain));return wav;
  }
  async function runVocalPolish(){
   const file=$("vocalPolishFile").files?.[0],button=$("runVocalPolish"),status=$("vocalPolishStatus");
@@ -499,7 +499,7 @@
    source.connect(hp);hp.connect(body);body.connect(clarity);clarity.connect(deEssLow);deEssLow.connect(deEssSum);clarity.connect(deEssHigh);deEssHigh.connect(deEssComp);deEssComp.connect(deEssSum);deEssSum.connect(air);air.connect(comp);comp.connect(limiter);limiter.connect(ctx.destination);source.start(0);
    status.textContent="در حال رندر زنجیرهٔ EQ و داینامیک…";const rendered=await ctx.startRendering();vocalPolishBlob=vocalPolishWav(rendered);
    if(vocalPolishUrl)URL.revokeObjectURL(vocalPolishUrl);vocalPolishUrl=URL.createObjectURL(vocalPolishBlob);$("vocalPolishPreview").src=vocalPolishUrl;$("vocalPolishResult").classList.remove("hidden");
-   status.textContent="پردازش تمام شد. فایل اصلی تغییر نکرده؛ پیش‌نمایش و WAV خروجی آماده‌اند.";
+   status.textContent="پردازش تمام شد. فایل اصلی تغییر نکرده؛ WAV آماده است · peak "+(Number.isFinite(vocalPolishBlob.samplePeakDb)?vocalPolishBlob.samplePeakDb.toFixed(1):"-∞")+" dBFS · output gain "+vocalPolishBlob.appliedGainDb.toFixed(1)+" dB. این فقط کنترل سطح پیک است، نه لیمیتر True Peak.";
   }catch(error){status.textContent="پردازش انجام نشد: "+error.message;}
   finally{if(decodeCtx)await decodeCtx.close().catch(()=>{});button.disabled=false;}
  }
