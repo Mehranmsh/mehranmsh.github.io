@@ -176,7 +176,7 @@ def fetch_babyblue_bass(output_root: str | Path) -> dict[str, Any]:
         "samples": [{
             "instrument": "electric_bass", "midi_note": x["midi_note"],
             "velocity_min": x["velocity_min"], "velocity_max": x["velocity_max"],
-            "articulation": "picked", "round_robin_index": x["round_robin_index"],
+            "articulation": "pick", "round_robin_index": x["round_robin_index"],
             "one_shot": False, "recording_session_id": session_id, "path": x["path"],
         } for x in prepared],
     }
