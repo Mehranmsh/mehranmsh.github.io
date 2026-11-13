@@ -488,7 +488,8 @@
    decodeCtx=new Ctx();const decoded=await decodeCtx.decodeAudioData(await file.arrayBuffer());
    if(decoded.duration>600)throw Error("برای نسخهٔ اول، طول فایل باید کمتر از ۱۰ دقیقه باشد.");
    const channels=Math.min(2,decoded.numberOfChannels),ctx=new Offline(channels,decoded.length,decoded.sampleRate),source=ctx.createBufferSource();source.buffer=decoded;
-   const amount=Number($("vocalPolishAmount").value)/100,profile=$("vocalPolishProfile").value;
+   const amount=Math.max(0,Math.min(1,Number($("vocalPolishAmount").value)/100)),profile=$("vocalPolishProfile").value;
+   const dry=ctx.createGain();dry.gain.value=1-amount;source.connect(dry);
    const hp=ctx.createBiquadFilter();hp.type="highpass";hp.frequency.value=profile==="warm"?65:82;hp.Q.value=.707;
    const body=ctx.createBiquadFilter();body.type="peaking";body.frequency.value=profile==="warm"?180:220;body.Q.value=.85;body.gain.value=(profile==="warm"?2.2:profile==="bright"?.4:1.1)*amount;
    const clarity=ctx.createBiquadFilter();clarity.type="peaking";clarity.frequency.value=profile==="bright"?4200:3200;clarity.Q.value=1;clarity.gain.value=(profile==="bright"?3.2:2)*amount;
@@ -496,7 +497,7 @@
    const air=ctx.createBiquadFilter();air.type="highshelf";air.frequency.value=10500;air.gain.value=(profile==="bright"?1.8:.8)*amount;
    const comp=ctx.createDynamicsCompressor();comp.threshold.value=-24;comp.knee.value=18;comp.ratio.value=2.2+amount*2.1;comp.attack.value=.008;comp.release.value=.16;
    const limiter=ctx.createDynamicsCompressor();limiter.threshold.value=-2;limiter.knee.value=0;limiter.ratio.value=12;limiter.attack.value=.003;limiter.release.value=.1;
-   source.connect(hp);hp.connect(body);body.connect(clarity);clarity.connect(deEssLow);deEssLow.connect(deEssSum);clarity.connect(deEssHigh);deEssHigh.connect(deEssComp);deEssComp.connect(deEssSum);deEssSum.connect(air);air.connect(comp);comp.connect(limiter);limiter.connect(ctx.destination);source.start(0);
+   dry.connect(limiter);source.connect(hp);hp.connect(body);body.connect(clarity);clarity.connect(deEssLow);deEssLow.connect(deEssSum);clarity.connect(deEssHigh);deEssHigh.connect(deEssComp);deEssComp.connect(deEssSum);deEssSum.connect(air);air.connect(comp);const wet=ctx.createGain();wet.gain.value=amount;comp.connect(wet);wet.connect(limiter);limiter.connect(ctx.destination);source.start(0);
    status.textContent="در حال رندر زنجیرهٔ EQ و داینامیک…";const rendered=await ctx.startRendering();vocalPolishBlob=vocalPolishWav(rendered);
    if(vocalPolishUrl)URL.revokeObjectURL(vocalPolishUrl);vocalPolishUrl=URL.createObjectURL(vocalPolishBlob);$("vocalPolishPreview").src=vocalPolishUrl;$("vocalPolishResult").classList.remove("hidden");
    status.textContent="پردازش تمام شد. فایل اصلی تغییر نکرده؛ WAV آماده است · peak "+(Number.isFinite(vocalPolishBlob.samplePeakDb)?vocalPolishBlob.samplePeakDb.toFixed(1):"-∞")+" dBFS · output gain "+vocalPolishBlob.appliedGainDb.toFixed(1)+" dB. این فقط کنترل سطح پیک است، نه لیمیتر True Peak.";
