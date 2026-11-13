@@ -29,7 +29,7 @@ class InstrumentBankAuditTests(unittest.TestCase):
         ))
         report = build_instrument_bank_audit(bank)
         item = report["instruments"]["electric_bass"]
-        self.assertEqual(report["bank_sample_entries"], 5)
+        self.assertEqual(report["bank_sample_entries"], 6)
         self.assertEqual(item["recorded_pitch_centers"], 2)
         self.assertEqual(item["recorded_midi_notes"], [35, 47])
         self.assertEqual(item["articulations"], ["pick"])
