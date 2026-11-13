@@ -34,6 +34,8 @@ on:
       - 'engine/fetch_vcsl_recorder.py'
       - 'engine/test_fetch_vcsl_recorder.py'
       - 'engine/velocity_layer_planner.py'
+      - 'engine/sfz_region_parser.py'
+      - 'engine/test_sfz_region_parser.py'
       - '.github/workflows/meta-guitar-banks.yml'
   workflow_dispatch:
 
@@ -66,7 +68,35 @@ jobs:
             ffmpeg -version | head -n 1
           fi
       - name: Test SFZ guitar maps and checksum parser
-        run: python3 -m unittest engine.test_fetch_meta_guitar_banks -v
+        run: python3 -m unittest engine.test_fetch_meta_guitar_banks engine.test_sfz_region_parser -v
+      - name: Validate the pinned 45-region Concert Harp SFZ map
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          from sfz_region_parser import parse_sfz_regions
+
+          url = 'https://raw.githubusercontent.com/danigb/samples/eae8c5c7a10f4b0e06281211e704c36c30e25342/audio/vcsl/Composite%20Chordophones/Concert%20Harp.sfz'
+          request = urllib.request.Request(url, headers={'User-Agent': 'MEHRAN-SFZ-validator/1.0'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              source = response.read().decode('utf-8')
+          regions = parse_sfz_regions(source)
+          assert len(regions) == 45, len(regions)
+          assert sum(item['crossfade'] and item['crossfade']['direction'] == 'out' for item in regions) == 21
+          assert sum(item['crossfade'] and item['crossfade']['direction'] == 'in' for item in regions) == 21
+          assert sum(item['velocity_range'] == [0, 100] for item in regions) == 1
+          assert sum(item['velocity_range'] == [101, 127] for item in regions) == 1
+          assert min(item['key_range'][0] for item in regions) == 28
+          assert max(item['key_range'][1] for item in regions) == 102
+          assert any(item['offset_sample_points'] > 0 for item in regions)
+          assert any(item['tune_cents'] != 0 for item in regions)
+          print('CONCERT_HARP_SFZ_MAP_OK', {
+              'regions': len(regions),
+              'crossfade_out_regions': 21,
+              'crossfade_in_regions': 21,
+              'hard_velocity_split_regions': 2,
+              'midi_key_range': [28, 102],
+          })
+          PY
       - name: Test sample renderer and pitch coverage diagnostics
         run: python3 -m unittest engine.test_sample_renderer -v
       - name: Test safe recorded-bank installation and provenance
