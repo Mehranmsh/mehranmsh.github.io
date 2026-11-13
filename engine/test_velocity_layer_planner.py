@@ -7,7 +7,7 @@ from sample_bank import Sample, SampleBank
 from velocity_layer_planner import plan_velocity_layers
 
 
-def sample(low, high, note=60, fade_in=None, fade_out=None, rr=0):
+def sample(low, high, note=60, fade_in=None, fade_out=None, rr=0, priority=0):
     return Sample(
         instrument="piano",
         midi_note=note,
@@ -21,6 +21,7 @@ def sample(low, high, note=60, fade_in=None, fade_out=None, rr=0):
         velocity_fade_in=fade_in,
         velocity_fade_out=fade_out,
         round_robin_index=rr,
+        selection_priority=priority,
     )
 
 
@@ -103,6 +104,22 @@ class VelocityLayerPlannerTests(unittest.TestCase):
         result = plan_velocity_layers(bank, "piano", 60, 85)
         self.assertEqual(len(result["layers"]), 2)
         self.assertEqual(result["selection_mode"], "sfz_velocity_crossfade")
+
+    def test_explicit_source_priority_selects_one_recorded_source_without_blending(self):
+        bank = SampleBank(
+            root=Path("/bank"),
+            samples=(
+                sample(75, 120, note=27, rr=0, priority=0),
+                sample(97, 127, note=27, rr=0, priority=10),
+                sample(97, 127, note=27, rr=1, priority=10),
+            ),
+        )
+        for velocity in (100, 120, 121, 127):
+            result = plan_velocity_layers(bank, "piano", 27, velocity)
+            self.assertEqual(result["selection_mode"], "single_recorded_layer")
+            self.assertEqual(len(result["layers"]), 1)
+            self.assertEqual(result["layers"][0]["sample"].velocity_min, 97)
+            self.assertEqual(result["layers"][0]["sample"].selection_priority, 10)
 
     def test_missing_exact_note_returns_no_layer_without_pitch_fallback(self):
         result = plan_velocity_layers(self.bank, "piano", 61, 80)
