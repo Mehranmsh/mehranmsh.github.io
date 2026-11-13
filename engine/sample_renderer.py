@@ -96,6 +96,21 @@ def render_sample_events(
             selected_articulation,
         )
 
+    def classify_layer_selection(layers: tuple, requested_note: int, fallback: str) -> str:
+        shifted = [sample for sample, _gain in layers if sample.midi_note != requested_note]
+        if not shifted:
+            return fallback
+        # A root-note transposition explicitly declared by an SFZ playable key
+        # zone is a valid mapped-zone selection, not a nearest-note fallback.
+        if all(
+            sample.playable_key_min is not None
+            and sample.playable_key_max is not None
+            and sample.playable_key_min <= requested_note <= sample.playable_key_max
+            for sample in shifted
+        ):
+            return "pitch_shifted_key_zone"
+        return "pitch_shifted_nearest_note"
+
     for event in events:
         if not isinstance(event, dict):
             raise ValueError("Each sample event must be an object")
@@ -238,20 +253,16 @@ def render_sample_events(
                         (layer["sample"], layer["gain"])
                         for layer in planned_layers
                     )
-                    sample_selection_mode = (
-                    "pitch_shifted_nearest_note"
-                    if any(layer["sample"].midi_note != note for layer in planned_layers)
-                    else velocity_plan["selection_mode"]
+                    sample_selection_mode = classify_layer_selection(
+                    sample_layers, note, velocity_plan["selection_mode"]
                 )
             else:
                 sample_layers = tuple(
                     (layer["sample"], layer["gain"])
                     for layer in planned_layers
                 )
-                sample_selection_mode = (
-                    "pitch_shifted_nearest_note"
-                    if any(layer["sample"].midi_note != note for layer in planned_layers)
-                    else velocity_plan["selection_mode"]
+                sample_selection_mode = classify_layer_selection(
+                    sample_layers, note, velocity_plan["selection_mode"]
                 )
         else:
             candidate_report = rank_candidates(
@@ -272,9 +283,8 @@ def render_sample_events(
                         f"Articulation blocked: instrument={instrument}, note={note}, "
                         f"planner_selected={articulation}, sample_exact_articulation_velocity_match=False, reason={exc}"
                     ) from exc
-                sample_selection_mode = (
-                    "pitch_shifted_nearest_note"
-                    if sample.midi_note != note else "exact_note"
+                sample_selection_mode = classify_layer_selection(
+                    ((sample, 1.0),), note, "exact_note"
                 )
             sample_layers = ((sample, 1.0),)
         pitched_rr_selected = False
@@ -424,7 +434,7 @@ def render_sample_events(
 
     pitch_shifted_by_instrument: dict[str, dict[str, Any]] = {}
     for item in checked:
-        if item[11] != "pitch_shifted_nearest_note":
+        if item[11] not in ("pitch_shifted_nearest_note", "pitch_shifted_key_zone"):
             continue
         selected_sample = item[0][0][0]
         instrument = selected_sample.instrument
@@ -438,6 +448,7 @@ def render_sample_events(
             "recorded_midi_note": selected_sample.midi_note,
             "semitone_offset": item[1] - selected_sample.midi_note,
             "articulation": selected_sample.articulation,
+            "mapping_type": item[11],
         })
     for detail in pitch_shifted_by_instrument.values():
         detail["note_mappings"].sort(
@@ -465,6 +476,9 @@ def render_sample_events(
             ),
             "single_recorded_velocity_layer_events": sum(
                 1 for item in checked if item[11] == "single_recorded_layer"
+            ),
+            "pitch_shifted_key_zone_events": sum(
+                1 for item in checked if item[11] == "pitch_shifted_key_zone"
             ),
             "pitch_shifted_nearest_note_events": sum(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
