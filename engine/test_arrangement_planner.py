@@ -27,6 +27,12 @@ class ArrangementPlannerTests(unittest.TestCase):
             self.assertTrue(plan_part_arrangement(part, "chorus")["active"])
             self.assertTrue(plan_part_arrangement(part, "final_chorus")["active"])
 
+    def test_nylon_guitar_has_its_own_fingerpicked_arrangement_role(self):
+        self.assertEqual(plan_part_arrangement("nylon_guitar", "verse")["role"], "fingerpicked_harmony")
+        self.assertTrue(plan_part_arrangement("nylon_guitar", "verse")["active"])
+        self.assertGreater(plan_part_arrangement("nylon_guitar", "final_chorus")["gain"],
+                           plan_part_arrangement("nylon_guitar", "verse")["gain"])
+
     def test_harp_and_cello_have_distinct_section_entries(self):
         self.assertTrue(plan_part_arrangement("harp", "verse")["active"])
         self.assertFalse(plan_part_arrangement("cello", "verse")["active"])
