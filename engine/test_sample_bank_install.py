@@ -418,6 +418,52 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(by_instrument["kalimba"].gain_db, -1.5)
             self.assertEqual(by_instrument["contrabass"].articulation, "pizzicato")
 
+    def test_installs_vcsl_concert_harp_and_preserves_velocity_crossfades(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "harp", root / "installed"
+            source.mkdir()
+            (source / "LICENSE-CC0.txt").write_text(
+                "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+            )
+            session = "vcsl_concert_harp_cc0"
+            samples = []
+            for filename, fade_field in (("mf.wav", "velocity_fade_out"),
+                                         ("f.wav", "velocity_fade_in")):
+                sample_path = source / "samples" / filename
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(sample_path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(b"\\x00\\x00" * 4410)
+                entry = {
+                    "instrument": "concert_harp", "midi_note": 60,
+                    "velocity_min": 1, "velocity_max": 127,
+                    "articulation": "sustain", "path": f"samples/{filename}",
+                    "recording_session_id": session,
+                    fade_field: [70, 100],
+                }
+                samples.append(entry)
+            (source / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "recording_sessions": {session: {"performer": "VCSL recording"}},
+                "samples": samples,
+            }), encoding="utf-8")
+            report = install_recorded_banks([source], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual({sample.instrument for sample in bank.samples}, {"concert_harp"})
+            self.assertEqual(len(bank.samples), 2)
+            self.assertEqual(
+                {sample.velocity_fade_in for sample in bank.samples if sample.velocity_fade_in},
+                {(70, 100)},
+            )
+            self.assertEqual(
+                {sample.velocity_fade_out for sample in bank.samples if sample.velocity_fade_out},
+                {(70, 100)},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
