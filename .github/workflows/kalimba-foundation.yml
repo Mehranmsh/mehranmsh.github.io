@@ -1,0 +1,80 @@
+name: MEHRAN Kalimba Foundation
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_vcsl_kalimba.py'
+      - 'engine/test_fetch_vcsl_kalimba.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/test_sample_bank.py'
+      - '.github/workflows/kalimba-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kalimba-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-kalimba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test Kalimba mapping and sample tuning support
+        run: |
+          python3 -m unittest engine.test_fetch_vcsl_kalimba engine.test_sample_bank engine.test_velocity_layer_planner -v
+      - name: Fetch and validate pinned CC0 VCSL Kalimba, Kenya
+        timeout-minutes: 12
+        run: python3 engine/fetch_vcsl_kalimba.py sample-bank-vcsl-kalimba
+      - name: Render and verify real Kalimba audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-vcsl-kalimba')
+          events = [
+              {'instrument': 'kalimba', 'midi_note': note,
+               'start_seconds': index * 0.55, 'duration_seconds': 0.42,
+               'velocity': 88, 'articulation': 'pluck'}
+              for index, note in enumerate([63, 63, 66, 66, 68, 71, 75, 78, 81])
+          ]
+          output = 'sample-bank-vcsl-kalimba/kalimba-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          assert report['sample_selection']['pitched_round_robin_events'] == 8, report
+          assert report['sample_selection']['sample_tuning_cents_applied_events'] >= 5, report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 4 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_VCSL_KALIMBA_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified CC0 Kalimba bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-vcsl-kalimba-kenya
+          path: |
+            sample-bank-vcsl-kalimba/bank.json
+            sample-bank-vcsl-kalimba/LICENSE-CC0.txt
+            sample-bank-vcsl-kalimba/provenance.json
+            sample-bank-vcsl-kalimba/pluck/
+            sample-bank-vcsl-kalimba/kalimba-audition.wav
+          if-no-files-found: error
+          retention-days: 30
