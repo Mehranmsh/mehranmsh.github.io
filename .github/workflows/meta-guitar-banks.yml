@@ -11,6 +11,7 @@ on:
       - 'engine/sample_renderer.py'
       - 'engine/test_percussion_round_robin.py'
       - 'engine/fetch_virtuosity_drums.py'
+      - 'engine/data/virtuosity_drums_source_manifest.json'
       - 'engine/test_fetch_virtuosity_drums.py'
       - 'engine/fetch_freepats_electric_bass.py'
       - 'engine/test_fetch_freepats_electric_bass.py'
