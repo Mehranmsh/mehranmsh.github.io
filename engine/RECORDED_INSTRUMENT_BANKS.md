@@ -68,3 +68,15 @@ All other audited note/articulation combinations reported no velocity gaps. The 
 - The renderer plays recorded PCM samples; it does not synthesize substitute instrument tones. Some non-harp events may use explicitly declared source key zones; nearest-note fallback was zero in the latest ensemble report.
 - A CI success proves the tested fetch, conversion, manifest, load, and render paths. It is not a substitute for a human listening review of timbre, tuning, balance, and musical phrasing.
 - The combined ensemble is an integration preview, not a claim that every instrument has complete chromatic coverage, every articulation, or production-grade round-robin depth.
+
+
+## Contrabass expansion candidate (under validation)
+
+A second CC0 source is being evaluated before changing the current installed contrabass bank:
+
+- Source: Karoryfer Meatbass, pinned repository revision `ac9e859564bda286ab5ec672d00ff1aa2fef2895`.
+- License: CC0 1.0 Universal, retained from the pinned source repository.
+- Mapping: `Programs/pizz_basic_map.sfz`, with original source blob verification.
+- Expected mapping: 14 recorded pitch centers (MIDI 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60), four recorded velocity layers (1–32, 33–64, 65–96, 97–127), and four round-robin takes per note/layer.
+- The candidate importer and strict mapping tests have been added. A dedicated CI job is currently validating import, manifest loading, and a recorded-sample audition across all four velocity layers.
+- This candidate is not yet part of the 13-bank / 2,022-entry baseline. Do not replace the current D. Smolken bank or report the candidate as accepted until its CI job succeeds and its audition is reviewed.
