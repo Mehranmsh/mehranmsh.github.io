@@ -5385,6 +5385,21 @@ export default {
               !result.midi || typeof result.midi !== "object") {
             return error("Composition engine response is incomplete", 502);
           }
+          const midiBase64 = typeof result.midi.content_base64 === "string"
+            ? result.midi.content_base64 : "";
+          if (!midiBase64 || midiBase64.length > 1800000 ||
+              !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(midiBase64) ||
+              !Number.isInteger(result.midi.note_events) || result.midi.note_events < 1) {
+            return error("Composition engine returned invalid MIDI data", 502);
+          }
+          let midiBinary;
+          try { midiBinary = atob(midiBase64); } catch {
+            return error("Composition engine returned invalid MIDI data", 502);
+          }
+          if (midiBinary.length < 14 || midiBinary.slice(0, 4) !== "MThd" ||
+              (Number.isInteger(result.midi.bytes) && result.midi.bytes !== midiBinary.length)) {
+            return error("Composition engine returned invalid MIDI data", 502);
+          }
           const { local_path: _privateMidiPath, ...safeMidi } = result.midi;
           return json({
             success: true,
