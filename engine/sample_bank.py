@@ -39,6 +39,7 @@ class Sample:
     string_name: str | None = None
     round_robin_index: int = 0
     one_shot: bool = False
+    tuning_cents: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -131,6 +132,10 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
             raise ValueError("one_shot must be a boolean")
         if one_shot and (entry.get("loop_start_frame") is not None or entry.get("loop_end_frame") is not None):
             raise ValueError("One-shot percussion samples cannot define sustain loops")
+        tuning_cents = entry.get("tuning_cents", 0.0)
+        if (isinstance(tuning_cents, bool) or not isinstance(tuning_cents, (int, float))
+                or not math.isfinite(tuning_cents) or not -100.0 <= tuning_cents <= 100.0):
+            raise ValueError("tuning_cents must be finite and between -100 and 100")
         identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name, round_robin_index)
         if identity in seen:
             raise ValueError("Duplicate instrument, string, note, velocity layer, articulation, and round-robin index")
@@ -160,7 +165,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
                               velocity_max, sample_rate, channels, frames,
                               loop_start, loop_end, articulation, session_id, recording_metadata,
-                              string_name, round_robin_index, one_shot))
+                              string_name, round_robin_index, one_shot, float(tuning_cents)))
     return SampleBank(root, tuple(samples))
 
 
