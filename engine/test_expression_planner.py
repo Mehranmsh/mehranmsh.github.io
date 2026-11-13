@@ -30,6 +30,12 @@ class PartExpressionTests(unittest.TestCase):
         self.assertTrue(-1.0 <= guitar["pan"] <= 1.0)
         self.assertTrue(-1.0 <= strings["pan"] <= 1.0)
 
+    def test_harp_and_cello_have_separate_stereo_positions(self):
+        harp = plan_part_expression("harp", "chorus", 0.4)
+        cello = plan_part_expression("cello", "chorus", -0.4)
+        self.assertGreater(harp["pan"], 0.4)
+        self.assertLess(cello["pan"], -0.4)
+
     def test_invalid_inputs_are_rejected(self):
         with self.assertRaises(ValueError):
             plan_part_expression("unknown", "verse")
