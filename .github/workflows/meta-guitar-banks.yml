@@ -220,7 +220,7 @@ jobs:
                   continue
               selected.append({
                   "instrument": "nylon_guitar", "part": "nylon_guitar",
-                  "midi_note": note, "articulation": "sustain",
+                  "midi_note": note, "articulation": "finger",
                   "start_seconds": 1.5 + nylon_added * 2.2,
                   "duration_seconds": 0.72, "velocity": 82,
                   "guitar_string": string_plan["selected_string"],
