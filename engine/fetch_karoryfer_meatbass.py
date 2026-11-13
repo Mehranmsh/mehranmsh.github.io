@@ -219,7 +219,7 @@ def import_meatbass_pizzicato(output_root: str | Path) -> dict[str, Any]:
         } for item in prepared],
     }
     (root / "bank.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8"
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     provenance = {
         "source_repository": SOURCE_REPOSITORY,
@@ -240,7 +240,7 @@ def import_meatbass_pizzicato(output_root: str | Path) -> dict[str, Any]:
         } for item in prepared],
     }
     (root / "provenance.json").write_text(
-        json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8"
+        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     from sample_bank import load_sample_bank
     bank = load_sample_bank(root)
