@@ -33,7 +33,7 @@ class SampleBankInstallTests(unittest.TestCase):
             "samples": [{
                 "instrument": instrument, "midi_note": 40,
                 "velocity_min": 1, "velocity_max": 127,
-                "articulation": "sustain", "string": "LowE",
+                "articulation": "sustain", "string": "LowE" if instrument in ("nylon_guitar", "acoustic_guitar") else None,
                 "path": "samples/e2.wav", "recording_session_id": session,
             }],
         }), encoding="utf-8")
