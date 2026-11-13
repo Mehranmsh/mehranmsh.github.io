@@ -44,12 +44,15 @@ def plan_velocity_layers(
     # after velocity-layer planning so they are never mistaken for extra
     # dynamic layers.
     zones = sorted({
-        (sample.velocity_min, sample.velocity_max) for sample in matching_samples
-    })
+        (sample.velocity_min, sample.velocity_max,
+         sample.velocity_fade_in, sample.velocity_fade_out)
+        for sample in matching_samples
+    }, key=repr)
     candidates = [
         min(
             (sample for sample in matching_samples
-             if (sample.velocity_min, sample.velocity_max) == zone),
+             if (sample.velocity_min, sample.velocity_max,
+                 sample.velocity_fade_in, sample.velocity_fade_out) == zone),
             key=lambda sample: (sample.round_robin_index, sample.path.as_posix()),
         )
         for zone in zones
@@ -65,6 +68,29 @@ def plan_velocity_layers(
         }
     if len(candidates) > 2:
         raise ValueError("More than two velocity layers overlap; explicit blend mapping is required")
+    if any(sample.velocity_fade_in is not None or sample.velocity_fade_out is not None
+           for sample in candidates):
+        layers = []
+        for sample in candidates:
+            gain = 1.0
+            if sample.velocity_fade_in is not None:
+                low, high = sample.velocity_fade_in
+                position = min(1.0, max(0.0, (velocity - low) / (high - low)))
+                gain = math.sin(position * math.pi / 2.0)
+            elif sample.velocity_fade_out is not None:
+                low, high = sample.velocity_fade_out
+                position = min(1.0, max(0.0, (velocity - low) / (high - low)))
+                gain = math.cos(position * math.pi / 2.0)
+            layers.append({"sample": sample, "gain": gain})
+        return {
+            "instrument": instrument,
+            "midi_note": midi_note,
+            "velocity": velocity,
+            "articulation": articulation,
+            "layers": layers,
+            "selection_mode": "sfz_velocity_crossfade",
+        }
+
     if len(candidates) == 1:
         return {
             "instrument": instrument,
