@@ -137,6 +137,8 @@ jobs:
           python3 -m unittest engine.test_fetch_karoryfer_babyblue_bass engine.test_percussion_round_robin -v
       - name: Fetch and validate pinned CC0 Babyblue picked electric bass
         timeout-minutes: 25
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-babyblue-electric-bass
       - name: Render and verify recorded electric-bass audition
         run: |
