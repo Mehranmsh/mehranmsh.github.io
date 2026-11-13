@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import quote
 from typing import Any
 
 SOURCE_REPOSITORY = "sgossner/VCSL"
@@ -61,7 +62,7 @@ def _request(url: str, timeout: int = 90) -> bytes:
 
 
 def _download_verified(path: str, expected_sha: str, destination: Path) -> None:
-    data = _request(f"{RAW_ROOT}/{path}")
+    data = _request(f"{RAW_ROOT}/{quote(path, safe='/')}")
     actual = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
     if actual != expected_sha:
         raise ValueError(f"Pinned VCSL Git blob SHA-1 mismatch: {path}")
