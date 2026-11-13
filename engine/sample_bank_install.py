@@ -149,7 +149,6 @@ def install_recorded_banks(
                     license_dir = staged / "provenance" / instrument
                 license_dir.mkdir(parents=True, exist_ok=True)
                 (license_dir / "SOURCE_LICENSE.txt").write_text(license_text, encoding="utf-8")
-                copied_by_instrument[instrument] = 0
             seen_instruments.update(instruments)
 
             for sample in bank.samples:
