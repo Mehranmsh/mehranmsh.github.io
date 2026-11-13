@@ -189,6 +189,20 @@ class SampleRendererTests(unittest.TestCase):
         expanded_parts = {event["instrument"] for event in expanded}
         self.assertTrue({"acoustic_guitar", "strings", "electric_guitar"}.issubset(expanded_parts))
         self.assertGreater(len(expanded), len(events))
+        rhythm_and_bass = build_composition_events(plan, instruments={
+            "cajon": "cajon",
+            "bass": "contrabass",
+        })
+        cajon_events = [event for event in rhythm_and_bass if event["instrument"] == "cajon"]
+        contrabass_events = [event for event in rhythm_and_bass if event["instrument"] == "contrabass"]
+        self.assertTrue(cajon_events)
+        self.assertEqual({event["articulation"] for event in cajon_events},
+                         {"bass", "slap", "tone"})
+        self.assertTrue(all(event["articulation_source"] == "percussion_default"
+                            for event in cajon_events))
+        self.assertTrue(contrabass_events)
+        self.assertTrue(all(event["articulation"] == "pizzicato"
+                            for event in contrabass_events))
 
     def test_composition_events_apply_balanced_and_overridable_part_gains(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
