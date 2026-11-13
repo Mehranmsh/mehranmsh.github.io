@@ -135,6 +135,7 @@ def install_recorded_banks(
                     "offset_frames": sample.offset_frames,
                     "velocity_fade_in": list(sample.velocity_fade_in) if sample.velocity_fade_in else None,
                     "velocity_fade_out": list(sample.velocity_fade_out) if sample.velocity_fade_out else None,
+                    "sfz_volume_db": sample.sfz_volume_db,
                     "path": destination_relative.as_posix(),
                     "recording_session_id": session_id,
                 })
