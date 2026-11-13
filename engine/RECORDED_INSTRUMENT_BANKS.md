@@ -16,17 +16,17 @@ This register separates independent source-bank packages, playable instrument ID
 | Rubner CC0 Contrabass | contrabass | 123 | Pizzicato, three velocity zones and four round robins |
 | Karoryfer Meatbass CC0 Contrabass Supplement | contrabass | 4 | Exact MIDI 27 high-layer supplement, four round robins; original 97–127 zone, selected at 121–127 |
 | VSCO 2 CE CC0 Contrabass Supplement | contrabass | 2 | Exact MIDI 34 high-layer supplement, two round robins; original 63–127 zone, selected at 121–127 |
-| VSCO 2 CE CC0 Solo Violin | solo_violin | 74 | 30 arco-vibrato and 44 pizzicato recordings, 15 pitch centers |
+| VSCO 2 CE CC0 Solo Violin | solo_violin | 134 | 30 arco-vibrato, 44 pizzicato, and 60 spiccato recordings; spiccato has 15 pitch centers, two velocity layers, and two round robins per layer |
 | VSCO 2 CE CC0 Concert Flute | concert_flute | 27 | 13 sustain-vibrato and 14 expressive-vibrato recordings, 10 pitch centers |
 | VCSL CC0 Dan Tranh | dan_tranh | 48 | 16 pitch centers, source-defined velocity groupings, and restored exact-root B4 ff layer |
 | VCSL CC0 Baroque Soprano Recorder | baroque_soprano_recorder | 25 | 13 sustain and 12 staccato recordings |
 | VCSL CC0 Concert Harp | concert_harp | 45 | 45 original stereo SFZ regions with preserved offsets and velocity crossfade metadata |
 
-**Verified source totals:** the original baseline has 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The current feature-branch combined installation adds two contrabass supplement packages and the verified Dan Tranh B4 ff source recording, for **15 independent source packages, 16 playable instrument IDs, and 2,029 recorded sample entries**. The latest full integration passed in workflow run 43426076183. The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The two contrabass supplements do not create new playable instrument IDs.
+**Verified source totals:** the original baseline has 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The current feature-branch combined installation adds two contrabass supplement packages and the verified Dan Tranh B4 ff source recording, for **15 independent source packages, 16 playable instrument IDs, and 2,089 recorded sample entries**. The latest full integration passed in workflow run 43430245741 on commit `d40130d7030d2f388dcf761e5cd8c236883b14c4`. The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The two contrabass supplements do not create new playable instrument IDs.
 
-## Latest per-note audit (2026-11-13, workflow run 43426076183)
+## Latest per-note audit (2026-11-13, workflow run 43430245741)
 
-The read-only audit ran against the installed combined bank after installation and passed all three audit unit tests. It counted 2,029 sample entries across 16 playable IDs. Velocity gaps below are reported per recorded note and articulation; a gap is not a claim that the entire instrument is unusable.
+The read-only audit ran against the installed combined bank after installation and passed all three audit unit tests. It counted 2,089 sample entries across 16 playable IDs. Velocity gaps below are reported per recorded note and articulation; a gap is not a claim that the entire instrument is unusable.
 
 | Instrument | Recorded roots | Articulations | Per-note velocity gaps |
 |---|---:|---|---:|
@@ -37,7 +37,7 @@ The read-only audit ran against the installed combined bank after installation a
 | Cajón | 3 | bass, slap, tone | 0 |
 | Kalimba | 10 | pluck | 0 |
 | Contrabass | 11 | pizzicato | 2 |
-| Solo violin | 15 (MIDI 55–96) | arco-vibrato, pizzicato | 3 |
+| Solo violin | 15 (MIDI 55–96) | arco-vibrato, pizzicato, spiccato | 3 |
 | Concert flute | 10 | sustain-vibrato, expressive-vibrato | 0 |
 | Dan Tranh | 16 | pluck | 0 |
 | Baroque soprano recorder | 13 | sustain, staccato | 0 |
@@ -52,10 +52,12 @@ All other audited note/articulation combinations reported no velocity gaps. The 
 
 ## Ensemble integration status
 
-- The latest successful full integration run (workflow run 43426076183, commit `ae4596d8c0a57ea50931b5f861088de2141f5901`) installed 15 independent source packages, 16 playable instrument IDs, and 2,029 recorded sample entries. It rendered 1,052 events across all 16 playable IDs in a 60-second preview.
+- The latest successful full integration run (workflow run 43430245741, commit `d40130d7030d2f388dcf761e5cd8c236883b14c4`) installed 15 independent source packages, 16 playable instrument IDs, and 2,089 recorded sample entries. It rendered 1,060 events across all 16 playable IDs in a 60-second preview.
 - The preview is stereo, 44.1 kHz, 16-bit PCM, with an exact 60-second duration and zero clipping samples.
-- The renderer reported 288 one-shot round-robin events, 98 pitched round-robin events, 158 equal-power velocity-crossfade events, and 1,210 rendered velocity layers.
-- The renderer reported zero nearest-note fallback events, zero pitch-shifted key-zone events, and zero pitch-shifted nearest-note events. The preview includes the new exact-root MIDI 27 and MIDI 34 contrabass upper-velocity sources. Babyblue's recorded roots are MIDI 35–75; ensemble bass events are rendered against those recorded notes.
+- The renderer reported 288 one-shot round-robin events, 106 pitched round-robin events, 158 equal-power velocity-crossfade events, and 1,218 rendered velocity layers.
+- The renderer reported zero nearest-note fallback events, zero pitch-shifted key-zone events, and zero pitch-shifted nearest-note events. It selected six exact-note quality-ranked events; 608 events used a single recorded velocity layer.
+- The 60-sample spiccato addition is mapped from the official VSCO 2 CE SViolinSpic.sfz map: 15 pitch centers, two velocity layers, and two round-robin takes per layer. Original key zones and SFZ gain are retained. This separate spiccato session does not fill the three missing soft pizzicato layers.
+- The preview artifact mehran-thirteen-bank-recorded-ensemble-preview-wav.zip was published as artifact 14040136513: https://github.com/Mehranmsh/mehranmsh.github.io/actions/runs/43430245741/artifacts/14040136513 The preview includes the new exact-root MIDI 27 and MIDI 34 contrabass upper-velocity sources. Babyblue's recorded roots are MIDI 35–75; ensemble bass events are rendered against those recorded notes.
 - Harp composition events use only exact recorded root notes. Chord tones without an exact recorded harp root are omitted rather than pitch-shifted from a neighboring root.
 - The quality-ranking field is technical screening only. No human listening review has been completed.
 
@@ -91,4 +93,4 @@ A second CC0 source has passed its dedicated import, manifest, load, and recorde
 - The effective audit reported zero uncovered velocity ranges after source-priority selection for the exact recorded roots MIDI 27 and 34. The raw per-source gap report remains intact, so the original banks' incomplete upper layers are still visible rather than erased.
 - Integration decision: the six supplemental recordings have now been installed as two separate CC0 source packages in the feature branch's combined bank. Rubner remains intact as the incumbent source below velocity 121; Meatbass and VSCO are selected only for the missing upper range. The 224-entry Meatbass candidate itself is still not used wholesale.
 
-The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,029 entries, and the latest read-only audit confirms zero remaining Dan Tranh velocity gaps. The feature branch and PR remain unmerged; the main branch is unchanged. The 60-second ensemble preview passed technical rendering checks, but this is not human listening approval.
+The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,089 entries, and the latest read-only audit confirms zero remaining Dan Tranh velocity gaps. The feature branch and PR remain unmerged; the main branch is unchanged. The 60-second ensemble preview passed technical rendering checks, but this is not human listening approval.
