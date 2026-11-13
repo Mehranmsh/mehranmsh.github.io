@@ -995,10 +995,34 @@ def build_composition_events(
                 for eighth in (0, 4):
                     add("closed_hat", 42, bar_start + eighth * (PPQ // 2), 48,
                         _scaled_velocity(52, drum_scale))
-            else:
+            elif section == "verse":
                 add("bass", bass_root, bar_start, 2 * PPQ - 36, _scaled_velocity(82, bass_scale))
                 add("bass", bass_third, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
                 add("bass", bass_fifth, bar_start + 3 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
+            elif section == "pre_chorus":
+                # A restrained off-beat fifth creates forward pull without
+                # introducing notes outside the active chord.
+                add("bass", bass_root, bar_start, int(1.5 * PPQ), _scaled_velocity(82, bass_scale))
+                add("bass", bass_fifth, bar_start + int(1.5 * PPQ), PPQ // 2 - 24,
+                    _scaled_velocity(66, bass_scale))
+                add("bass", bass_third, bar_start + 2 * PPQ, PPQ - 36,
+                    _scaled_velocity(82, bass_scale))
+                add("bass", bass_fifth, bar_start + 3 * PPQ, PPQ // 2 - 24,
+                    _scaled_velocity(76, bass_scale))
+                add("bass", bass_root, bar_start + int(3.5 * PPQ), PPQ // 2 - 24,
+                    _scaled_velocity(70, bass_scale))
+            else:
+                # Choruses use a tighter syncopated pulse; every pitch remains
+                # a chord tone derived from the current harmony.
+                add("bass", bass_root, bar_start, int(1.5 * PPQ), _scaled_velocity(88, bass_scale))
+                add("bass", bass_fifth, bar_start + int(1.5 * PPQ), PPQ // 2 - 24,
+                    _scaled_velocity(72, bass_scale))
+                add("bass", bass_third, bar_start + 2 * PPQ, PPQ - 36,
+                    _scaled_velocity(84, bass_scale))
+                add("bass", bass_fifth, bar_start + 3 * PPQ, PPQ // 2 - 24,
+                    _scaled_velocity(82, bass_scale))
+                add("bass", bass_root, bar_start + int(3.5 * PPQ), PPQ // 2 - 24,
+                    _scaled_velocity(78, bass_scale))
                 add("kick", 36, bar_start, 48, _scaled_velocity(112, drum_scale))
                 add("kick", 36, bar_start + 2 * PPQ, 48, _scaled_velocity(104, drum_scale))
                 add("snare", 38, bar_start + PPQ, 48, _scaled_velocity(94, drum_scale))
