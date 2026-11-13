@@ -42,7 +42,7 @@ def _request(url: str, timeout: int = 90) -> bytes:
 def _download_verified(path: str, expected_sha: str, destination: Path) -> bytes:
     data = _request(f"{SOURCE_ROOT}/{path}")
     actual = hashlib.sha1(
-        b"blob " + str(len(data)).encode("ascii") + b"\\0" + data
+        b"blob " + str(len(data)).encode("ascii") + b"\0" + data
     ).hexdigest()
     if actual != expected_sha:
         raise ValueError(f"Pinned Git blob SHA-1 mismatch: {path}")
@@ -63,12 +63,12 @@ def parse_meatbass_pizz_sfz(sfz_text: str, *, require_complete: bool = True) -> 
         if region is None:
             return
         attrs = {**group, **region}
-        sample = attrs.get("sample", "").replace("\\\\", "/")
+        sample = attrs.get("sample", "").replace("\\", "/")
         if not sample.startswith("../Samples/pizz/"):
             return
         filename = Path(sample).name
         import re
-        match = re.fullmatch(r"([a-z]+\\d)_vl([1-4])_rr([1-4])\\.wav", filename)
+        match = re.fullmatch(r"([a-z]+\d)_vl([1-4])_rr([1-4])\.wav", filename)
         if not match:
             raise ValueError(f"Unexpected Meatbass pizzicato sample name: {filename}")
         note_name, layer, rr = match.groups()
@@ -113,7 +113,7 @@ def parse_meatbass_pizz_sfz(sfz_text: str, *, require_complete: bool = True) -> 
             region = {}
         else:
             import re
-            match = re.fullmatch(r"([a-zA-Z0-9_]+)\\s*=\\s*(\\S+)", token)
+            match = re.fullmatch(r"([a-zA-Z0-9_]+)\s*=\s*(\\S+)", token)
             if match:
                 if region is None:
                     group[match.group(1)] = match.group(2)
