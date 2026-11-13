@@ -1038,6 +1038,7 @@ class SampleRendererTests(unittest.TestCase):
                 "recorded_midi_note": 60,
                 "semitone_offset": 2,
                 "articulation": "sustain",
+                "mapping_type": "pitch_shifted_nearest_note",
             }])
 
     def test_sample_selection_honors_recorded_playable_key_zones(self):
@@ -1074,6 +1075,7 @@ class SampleRendererTests(unittest.TestCase):
                 "recorded_midi_note": 39,
                 "semitone_offset": 4,
                 "articulation": "fingerstyle",
+                "mapping_type": "pitch_shifted_key_zone",
             })
             with self.assertRaisesRegex(ValueError, "No recorded playable key zone"):
                 render_sample_events([{
