@@ -45,7 +45,7 @@ def plan_part_expression(
     elif part == "chords":
         pan = float(base_pan)
     elif part in ("guitar", "electric_guitar", "nylon_guitar"):
-        pan = max(-0.85, min(0.85, float(base_pan) * width))
+        pan = max(-0.85, min(0.85, _PART_BASE[part] + float(base_pan) * width))
     elif part == "strings":
         pan = max(-0.75, min(0.75, float(base_pan) * width))
     else:
