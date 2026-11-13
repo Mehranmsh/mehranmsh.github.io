@@ -568,7 +568,7 @@ _DEFAULT_PART_GAINS = {
     "melody": 1.0, "chords": 0.82, "bass": 0.90, "contrabass": 0.48,
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
     "open_hat": 0.62, "cajon": 0.64, "kalimba": 0.46, "guitar": 0.76, "strings": 0.70,
-    "electric_guitar": 0.76, "harp": 0.52, "cello": 0.42,
+    "electric_guitar": 0.76, "nylon_guitar": 0.58, "harp": 0.52, "cello": 0.42,
     "recorder": 0.48, "dan_tranh": 0.46, "flute": 0.50,
 }
 
@@ -623,6 +623,7 @@ def _resolve_part_articulation(
         "cello": ("sustain_vibrato", "instrument_default"),
         "recorder": ("sustain", "instrument_default"),
         "dan_tranh": ("pluck", "instrument_default"),
+        "nylon_guitar": ("finger", "instrument_default"),
         "flute": ("sustain_vibrato", "instrument_default"),
     }
     if part in part_defaults:
@@ -659,7 +660,7 @@ def build_composition_events(
         "melody": "piano", "chords": "piano", "bass": "electric_bass",
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
         "open_hat": "open_hat", "contrabass": None, "cajon": None, "kalimba": None, "guitar": None, "strings": None,
-        "electric_guitar": None, "harp": None, "cello": None,
+        "electric_guitar": None, "nylon_guitar": None, "harp": None, "cello": None,
         "recorder": None, "dan_tranh": None, "flute": None,
     }
     if instruments is not None:
@@ -886,6 +887,16 @@ def build_composition_events(
                             PPQ // 2 - 12,
                             _scaled_velocity(base_velocity, bar_dynamics["chords"]),
                             voice_pans[voice_index])
+            if names["nylon_guitar"]:
+                # A separate fingerpicked nylon figure, not a relabelled steel strum.
+                finger_pattern = (0, 2, 1, 2)
+                for beat, voice_index in enumerate(finger_pattern):
+                    if voice_index < len(voicing):
+                        add("nylon_guitar", voicing[voice_index],
+                            bar_start + beat * PPQ, PPQ - 30,
+                            _scaled_velocity((48, 42, 46, 40)[beat], bar_dynamics["chords"]),
+                            0.10 + voice_index * 0.08,
+                            articulation="finger", articulation_source="instrument_default")
             if names["strings"] and section in ("chorus", "final_chorus"):
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24,
