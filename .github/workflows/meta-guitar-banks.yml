@@ -187,13 +187,13 @@ jobs:
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat"} <= selected_instruments, selected_instruments
-          assert report["sample_selection"]["one_shot_round_robin_events"] > 0, report
-          assert report["sample_selection"]["pitch_shifted_nearest_note_events"] > 0, report
           for event in selected:
               if event.get("part") == "guitar":
                   event["guitar_max_fret"] = 12
           output = "sample-bank-installed-all/mehran-piano-guitar-bass-drums-composition.wav"
           report = render_sample_events(selected, bank, output, sample_rate=44100)
+          assert report["sample_selection"]["one_shot_round_robin_events"] > 0, report
+          assert report["sample_selection"]["pitch_shifted_nearest_note_events"] > 0, report
           # The final note may end a few milliseconds before the requested
           # preview boundary. Pad only the tail with digital silence so the
           # published preview has an exact, predictable one-minute duration.
