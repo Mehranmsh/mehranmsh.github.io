@@ -109,17 +109,28 @@ def install_recorded_banks(
                 )
 
             session_ids = {sample.recording_session_id for sample in bank.samples}
-            if None in session_ids or len(session_ids) != 1:
-                raise ValueError("All samples in a source bank must share one declared recording session")
-            session_id = next(iter(session_ids))
-            if session_id in combined_sessions:
-                raise ValueError(f"Duplicate recording session supplied: {session_id}")
-            metadata = next(
-                sample.recording_metadata for sample in bank.samples
-                if sample.recording_metadata is not None
-            )
+            if None in session_ids or not session_ids:
+                raise ValueError("Every sample in a source bank must reference a declared recording session")
+            if len(session_ids) > 1 and instruments != ["solo_violin"]:
+                raise ValueError("Only the solo violin source bank may contain multiple recording sessions")
+            duplicates_sessions = session_ids.intersection(combined_sessions)
+            if duplicates_sessions:
+                raise ValueError(
+                    "Duplicate recording session supplied: " + ", ".join(sorted(duplicates_sessions))
+                )
+            session_metadata: dict[str, dict[str, str]] = {}
+            for sample in bank.samples:
+                sample_session_id = sample.recording_session_id
+                if sample_session_id is None or sample.recording_metadata is None:
+                    raise ValueError("Every sample must have declared recording-session metadata")
+                metadata = dict(sample.recording_metadata)
+                if sample_session_id in session_metadata and session_metadata[sample_session_id] != metadata:
+                    raise ValueError(f"Inconsistent recording metadata for session: {sample_session_id}")
+                session_metadata[sample_session_id] = metadata
+            session_id = next(iter(session_ids)) if len(session_ids) == 1 else None
             license_text = _source_license(source_root)
             copied_by_instrument: dict[str, int] = {}
+            copied_by_session: dict[str, int] = {item: 0 for item in session_ids}
 
             for instrument in instruments:
                 if instrument == "contrabass":
@@ -131,7 +142,7 @@ def install_recorded_banks(
                         license_dir = license_dir / session_id
                 else:
                     label, source_id, session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
-                    if not session_id.startswith(session_prefix):
+                    if not all(item.startswith(session_prefix) for item in session_ids):
                         raise ValueError(f"Unexpected recording session provenance for {instrument}")
                     license_dir = staged / "provenance" / instrument
                 license_dir.mkdir(parents=True, exist_ok=True)
@@ -141,10 +152,15 @@ def install_recorded_banks(
 
             for sample in bank.samples:
                 relative = sample.path.relative_to(source_root)
+                sample_session_id = sample.recording_session_id
                 if relative.is_absolute() or ".." in relative.parts:
                     raise ValueError("Unsafe sample path in validated source bank")
-                if (sample.instrument == "contrabass" and session_id != "d_smolken_rubner_pizzicato"):
-                    destination_relative = Path(sample.instrument) / session_id / relative
+                if sample_session_id not in session_ids:
+                    raise ValueError("Sample references a session outside its source bank")
+                if sample.instrument == "contrabass" and sample_session_id != "d_smolken_rubner_pizzicato":
+                    destination_relative = Path(sample.instrument) / sample_session_id / relative
+                elif len(session_ids) > 1:
+                    destination_relative = Path(sample.instrument) / sample_session_id / relative
                 else:
                     destination_relative = Path(sample.instrument) / relative
                 output_path = staged / destination_relative
@@ -170,26 +186,31 @@ def install_recorded_banks(
                     "selection_priority": sample.selection_priority,
                     "selection_priority_min_velocity": sample.selection_priority_min_velocity,
                     "path": destination_relative.as_posix(),
-                    "recording_session_id": session_id,
+                    "recording_session_id": sample_session_id,
                 })
                 copied_by_instrument[sample.instrument] += 1
+                copied_by_session[sample_session_id] += 1
 
-            combined_sessions[session_id] = dict(metadata)
+            combined_sessions.update(session_metadata)
             for instrument in instruments:
-                if instrument == "contrabass":
-                    label, source_id, _expected_rate, _expected_channels = CONTRABASS_SESSION_SPECS[session_id]
-                else:
-                    label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
-                source_records.append({
-                    "instrument": instrument,
-                    "label": label,
-                    "source_id": source_id,
-                    "recording_session_id": session_id,
-                    "license": "CC0 1.0 Universal",
-                    "source_sample_count": copied_by_instrument[instrument],
-                    "copied_sample_count": copied_by_instrument[instrument],
-                    "source_root_name": source_root.name,
-                })
+                for source_session_id in sorted(session_ids):
+                    if instrument == "contrabass":
+                        label, source_id, _expected_rate, _expected_channels = CONTRABASS_SESSION_SPECS[source_session_id]
+                    else:
+                        label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
+                        if instrument == "solo_violin" and source_session_id.endswith("_spiccato"):
+                            label = "VSCO 2 CE Solo Violin Spiccato"
+                            source_id = "vsco2-ce-solo-violin-spiccato"
+                    source_records.append({
+                        "instrument": instrument,
+                        "label": label,
+                        "source_id": source_id,
+                        "recording_session_id": source_session_id,
+                        "license": "CC0 1.0 Universal",
+                        "source_sample_count": copied_by_session[source_session_id],
+                        "copied_sample_count": copied_by_session[source_session_id],
+                        "source_root_name": source_root.name,
+                    })
 
         manifest = {
             "format_version": 1,
