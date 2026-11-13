@@ -10,6 +10,8 @@ on:
       - 'engine/test_percussion_round_robin.py'
       - 'engine/sample_bank.py'
       - 'engine/sample_renderer.py'
+      - 'engine/fetch_vcsl_cajon.py'
+      - 'engine/test_fetch_vcsl_cajon.py'
       - '.github/workflows/percussion-foundation.yml'
   workflow_dispatch:
 
@@ -88,5 +90,62 @@ jobs:
             sample-bank-virtuosity-drums/closed_hat/
             sample-bank-virtuosity-drums/open_hat/
             sample-bank-virtuosity-drums/percussion-audition.wav
+          if-no-files-found: error
+          retention-days: 30
+
+  build-cajon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test VCSL cajón region map
+        run: python3 -m unittest engine.test_fetch_vcsl_cajon -v
+      - name: Fetch and validate pinned CC0 VCSL cajón recordings
+        timeout-minutes: 10
+        run: python3 engine/fetch_vcsl_cajon.py sample-bank-vcsl-cajon
+      - name: Render and verify recorded cajón strokes
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-vcsl-cajon')
+          events = [
+              {'instrument': 'cajon', 'midi_note': note,
+               'articulation': articulation, 'start_seconds': index * 0.42,
+               'duration_seconds': 0.01, 'velocity': velocity}
+              for index, (note, articulation, velocity) in enumerate([
+                  (60, 'bass', 42), (60, 'bass', 82), (60, 'bass', 112),
+                  (61, 'slap', 42), (61, 'slap', 82), (61, 'slap', 112),
+                  (62, 'tone', 42), (62, 'tone', 82), (62, 'tone', 112),
+              ])
+          ]
+          output = 'sample-bank-vcsl-cajon/cajon-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['one_shot_round_robin_events'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 3 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_VCSL_CAJON_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified CC0 cajón bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-vcsl-cajon
+          path: |
+            sample-bank-vcsl-cajon/bank.json
+            sample-bank-vcsl-cajon/LICENSE-CC0.txt
+            sample-bank-vcsl-cajon/provenance.json
+            sample-bank-vcsl-cajon/one-shots/
+            sample-bank-vcsl-cajon/cajon-audition.wav
           if-no-files-found: error
           retention-days: 30
