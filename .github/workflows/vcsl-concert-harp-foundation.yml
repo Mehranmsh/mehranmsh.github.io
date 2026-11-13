@@ -31,10 +31,16 @@ jobs:
     steps:
       - name: Checkout MEHRAN engine
         uses: actions/checkout@v4
-      - name: Install FFmpeg
+      - name: Ensure FFmpeg is available
+        timeout-minutes: 6
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -n 1
+          else
+            sudo timeout 240 apt-get update
+            sudo timeout 120 apt-get install -y ffmpeg
+            ffmpeg -version | head -n 1
+          fi
       - name: Test VCSL Concert Harp SFZ mapping
         run: python3 -m unittest engine.test_fetch_vcsl_concert_harp engine.test_sfz_region_parser -v
       - name: Fetch, verify, convert, and validate 45 original CC0 VCSL harp samples
