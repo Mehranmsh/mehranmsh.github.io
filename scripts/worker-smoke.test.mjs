@@ -76,6 +76,59 @@ test("database-backed routes fail closed when the DB binding is missing", async 
   }
 });
 
+test("music engine proxy requires a verified owner session", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          throw new Error("Unexpected SQL in music engine auth test: " + sql);
+        }
+      };
+    }
+  };
+  const response = await request("/music/engine/compose", {
+    method: "POST",
+    body: { composition_mode: "instrumental_first", title: "Test", genre: "pop", mood: "hopeful" }
+  }, { DB: db, MEHRAN_ENGINE_COMPOSE_URL: "https://engine.example/v1/compose-by-mode", MEHRAN_ENGINE_TOKEN: "x".repeat(40) });
+  assert.equal(response.status, 403);
+  const payload = await response.json();
+  assert.match(payload.error, /Verified owner session required/);
+});
+
+test("music engine proxy fails closed when private server credentials are not configured", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          }
+          throw new Error("Unexpected SQL in music engine config test: " + sql);
+        }
+      };
+    }
+  };
+  const response = await request("/music/engine/compose", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + "a".repeat(48) },
+    body: { composition_mode: "instrumental_first", title: "Test", genre: "pop", mood: "hopeful" }
+  }, { DB: db });
+  assert.equal(response.status, 503);
+  const payload = await response.json();
+  assert.match(payload.error, /not configured on the server/);
+});
+
+test("music engine proxy keeps the private engine credential out of the public studio", () => {
+  assert.match(workerSource, /env\.MEHRAN_ENGINE_COMPOSE_URL/);
+  assert.match(workerSource, /env\.MEHRAN_ENGINE_TOKEN/);
+  assert.match(workerSource, /Authorization: "Bearer " \+ engineToken/);
+  assert.match(workerSource, /local_path: _privateMidiPath/);
+  assert.doesNotMatch(musicStudioSource, /MEHRAN_ENGINE_TOKEN|MEHRAN_ENGINE_COMPOSE_URL/);
+});
+
 test("unknown routes return a structured 404 response", async () => {
   const response = await request("/this-route-does-not-exist");
   assert.equal(response.status, 404);
