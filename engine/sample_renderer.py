@@ -414,6 +414,32 @@ def render_sample_events(
         wav.setframerate(sample_rate)
         wav.writeframes(output.tobytes())
 
+    pitch_shifted_by_instrument: dict[str, dict[str, Any]] = {}
+    for item in checked:
+        if item[11] != "pitch_shifted_nearest_note":
+            continue
+        selected_sample = item[0][0][0]
+        instrument = selected_sample.instrument
+        detail = pitch_shifted_by_instrument.setdefault(instrument, {
+            "events": 0,
+            "note_mappings": [],
+        })
+        detail["events"] += 1
+        detail["note_mappings"].append({
+            "requested_midi_note": item[1],
+            "recorded_midi_note": selected_sample.midi_note,
+            "semitone_offset": item[1] - selected_sample.midi_note,
+            "articulation": selected_sample.articulation,
+        })
+    for detail in pitch_shifted_by_instrument.values():
+        detail["note_mappings"].sort(
+            key=lambda mapping: (
+                mapping["requested_midi_note"],
+                mapping["recorded_midi_note"],
+                mapping["articulation"],
+            )
+        )
+
     return {
         "path": str(target),
         "format": "WAV PCM 16-bit",
@@ -435,6 +461,7 @@ def render_sample_events(
             "pitch_shifted_nearest_note_events": sum(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
             ),
+            "pitch_shifted_by_instrument": pitch_shifted_by_instrument,
             "one_shot_round_robin_events": sum(1 for item in checked if item[13]),
             "pitched_round_robin_events": sum(1 for item in checked if item[14]),
             "pitched_round_robin_selections": [
