@@ -13,6 +13,7 @@ class DanTranhTests(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,"Duplicate"): parse_dan_tranh_websfz(d)
  def test_restores_exact_root_b4_ff_from_verified_source_inventory(self):
   regions=parse_dan_tranh_websfz(fixture(),False)
+  regions.extend([{"filename":"B4_mf_1.wav","source_path":"Dan Tranh/Normal/B4_mf_1.wav","midi_note":83,"low_key":82,"high_key":84,"velocity_min":1,"velocity_max":65,"gain_db":19.0},{"filename":"B4_f_1.wav","source_path":"Dan Tranh/Normal/B4_f_1.wav","midi_note":83,"low_key":82,"high_key":84,"velocity_min":66,"velocity_max":99,"gain_db":7.0}])
   # Add representative peer ff mappings so the inferred layer is guarded by
   # the same 100-127 interval used throughout the pinned instrument map.
   for note in (47,49,51):
@@ -24,10 +25,12 @@ class DanTranhTests(unittest.TestCase):
   self.assertEqual((b4[-1]["low_key"],b4[-1]["high_key"]),(82,84))
  def test_refuses_to_infer_when_peer_velocity_mapping_changes(self):
   regions=parse_dan_tranh_websfz(fixture(),False)
+  regions.extend([{"filename":"B4_mf_1.wav","source_path":"Dan Tranh/Normal/B4_mf_1.wav","midi_note":83,"low_key":82,"high_key":84,"velocity_min":1,"velocity_max":65,"gain_db":19.0},{"filename":"B4_f_1.wav","source_path":"Dan Tranh/Normal/B4_f_1.wav","midi_note":83,"low_key":82,"high_key":84,"velocity_min":66,"velocity_max":99,"gain_db":7.0}])
   with self.assertRaisesRegex(ValueError,"Cannot corroborate"):
    append_verified_b4_ff_region(regions,{"Chordophones/Zithers/Dan Tranh/Normal/B4_ff_1.wav":"abc"})
  def test_requires_exact_root_source_recording(self):
   regions=parse_dan_tranh_websfz(fixture(),False)
+  regions.extend([{"filename":"B4_mf_1.wav","source_path":"Dan Tranh/Normal/B4_mf_1.wav","midi_note":83,"low_key":82,"high_key":84,"velocity_min":1,"velocity_max":65,"gain_db":19.0},{"filename":"B4_f_1.wav","source_path":"Dan Tranh/Normal/B4_f_1.wav","midi_note":83,"low_key":82,"high_key":84,"velocity_min":66,"velocity_max":99,"gain_db":7.0}])
   with self.assertRaisesRegex(ValueError,"exact-root"):
    append_verified_b4_ff_region(regions,{})
  def test_requires_full_bank(self):
