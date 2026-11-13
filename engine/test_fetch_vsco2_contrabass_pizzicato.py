@@ -5,19 +5,18 @@ from fetch_vsco2_contrabass_pizzicato import parse_vsco2_contrabass_pizz_sfz
 
 def fixture():
     groups = []
-    for low, high in ((0.0, 0.5), (0.5, 1.0)):
-        lines = ["<group>", f"lorand={low}", f"hirand={high}"]
-        for rr in (1, 2):
-            lines.extend([
-                "<region>",
-                f"sample=BKCtbss_Pizz_A#0_v3_rr{rr}.wav",
-                "lokey=33",
-                "hikey=34",
-                "pitch_keycenter=34",
-                "lovel=63",
-                "hivel=127",
-                "volume=5",
-            ])
+    for (low, high), rr in zip(((0.0, 0.5), (0.5, 1.0)), (1, 2)):
+        lines = [
+            "<group>", f"lorand={low}", f"hirand={high}",
+            "<region>",
+            f"sample=BKCtbss_Pizz_A#0_v3_rr{rr}.wav",
+            "lokey=33",
+            "hikey=34",
+            "pitch_keycenter=34",
+            "lovel=63",
+            "hivel=127",
+            "volume=5",
+        ]
         groups.append("\n".join(lines))
     return "\n".join(groups)
 
@@ -39,7 +38,7 @@ class VSCO2ContrabassPizzTests(unittest.TestCase):
 
     def test_requires_both_random_group_references_for_each_take(self):
         text = fixture().split("<group>")[0] + "<group>" + fixture().split("<group>")[1]
-        with self.assertRaisesRegex(ValueError, "two consistent SFZ random-group references"):
+        with self.assertRaisesRegex(ValueError, "Expected only the two MIDI 34 high-layer samples"):
             parse_vsco2_contrabass_pizz_sfz(text)
 
     def test_rejects_non_exact_pitch_center(self):
