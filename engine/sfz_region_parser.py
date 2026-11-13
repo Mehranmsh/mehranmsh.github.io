@@ -58,11 +58,16 @@ def parse_sfz_regions(source: str) -> list[dict[str, Any]]:
             continue
         if current is None:
             continue
-        for token in line.split():
-            match = _TOKEN.fullmatch(token)
-            if not match:
-                raise ValueError(f"Malformed SFZ token on line {line_number}: {token}")
+        matches = list(_ASSIGNMENT.finditer(line))
+        if not matches or line[:matches[0].start()].strip():
+            raise ValueError(f"Malformed SFZ assignment on line {line_number}")
+        for position, match in enumerate(matches):
+            if position and line[matches[position - 1].end():match.start()].strip():
+                raise ValueError(f"Malformed SFZ assignment on line {line_number}")
             opcode, raw_value = match.groups()
+            raw_value = raw_value.strip()
+            if not raw_value:
+                raise ValueError(f"Empty SFZ value on line {line_number}: {opcode}")
             if opcode not in _SUPPORTED_REGION_OPCODES:
                 raise ValueError(f"Unsupported SFZ region opcode on line {line_number}: {opcode}")
             if opcode in current:
