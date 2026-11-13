@@ -8,7 +8,7 @@ def mapping_fixture():
     for rr in (1, 2):
         lines.extend(["<group>", "seq_length=2", f"seq_position={rr}"])
         for note in EXPECTED_ROOTS:
-            octave = note // 12 - 1
+            octave = note // 12 - 2
             pitch_class = note % 12
             names = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
             pitch = f"{names[pitch_class]}{octave}"
