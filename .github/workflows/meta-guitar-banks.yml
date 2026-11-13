@@ -1,4 +1,4 @@
-name: Full CC0 Meta Guitar Banks
+name: Full CC0 Recorded Instrument Banks
 
 on:
   push:
@@ -16,6 +16,8 @@ on:
       - 'engine/test_fetch_virtuosity_drums.py'
       - 'engine/fetch_freepats_electric_bass.py'
       - 'engine/test_fetch_freepats_electric_bass.py'
+      - 'engine/fetch_karoryfer_babyblue_bass.py'
+      - 'engine/test_fetch_karoryfer_babyblue_bass.py'
       - 'engine/sample_bank_install.py'
       - 'engine/test_sample_bank_install.py'
       - 'engine/guitar_string_planner.py'
@@ -106,7 +108,7 @@ jobs:
       - name: Test one-shot percussion and round-robin rendering
         run: python3 -m unittest engine.test_percussion_round_robin -v
       - name: Test CC0 percussion and electric bass SFZ maps
-        run: python3 -m unittest engine.test_fetch_virtuosity_drums engine.test_fetch_freepats_electric_bass -v
+        run: python3 -m unittest engine.test_fetch_virtuosity_drums engine.test_fetch_freepats_electric_bass engine.test_fetch_karoryfer_babyblue_bass -v
       - name: Download, verify, convert, and validate nylon guitar
         timeout-minutes: 20
         run: python3 engine/fetch_meta_guitar_banks.py meta-nylon-guitar sample-bank-meta-nylon-guitar
@@ -154,9 +156,9 @@ jobs:
       - name: Download and validate the CC0 Virtuosity rhythm bank
         timeout-minutes: 12
         run: python3 engine/fetch_virtuosity_drums.py sample-bank-virtuosity-drums
-      - name: Download and validate the CC0 FreePats electric bass bank
-        timeout-minutes: 8
-        run: python3 engine/fetch_freepats_electric_bass.py sample-bank-freepats-electric-bass
+      - name: Download, verify, and validate the 492-sample CC0 Karoryfer Babyblue bass bank
+        timeout-minutes: 15
+        run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-karoryfer-babyblue-bass
       - name: Fetch and validate real CC0 cajon, kalimba, and contrabass banks
         timeout-minutes: 20
         run: |
@@ -182,7 +184,7 @@ jobs:
           python3 engine/fetch_vcsl_concert_harp.py sample-bank-vcsl-concert-harp
       - name: Install and validate all thirteen independent real instrument banks
         timeout-minutes: 18
-        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-freepats-electric-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp
       - name: Render and validate the real thirteen-bank recorded ensemble
         timeout-minutes: 12
         run: |
@@ -225,7 +227,7 @@ jobs:
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 375 + 80 + 25 + 17 + 14 + 123 + 74 + 27 + 47 + 25 + 45, len(bank.samples)
+          assert len(bank.samples) >= 352 + 348 + 378 + 80 + 492 + 17 + 14 + 123 + 74 + 27 + 47 + 25 + 45, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
           assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
                   "kick", "snare", "closed_hat", "open_hat", "cajon",
