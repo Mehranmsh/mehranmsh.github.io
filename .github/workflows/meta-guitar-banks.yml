@@ -170,6 +170,8 @@ jobs:
         run: python3 engine/fetch_virtuosity_drums.py sample-bank-virtuosity-drums
       - name: Download, verify, and validate the 492-sample CC0 Karoryfer Babyblue bass bank
         timeout-minutes: 15
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-karoryfer-babyblue-bass
       - name: Fetch and validate real CC0 cajon, kalimba, and contrabass banks
         timeout-minutes: 24
