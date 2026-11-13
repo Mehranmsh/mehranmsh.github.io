@@ -37,6 +37,8 @@ on:
       - 'engine/fetch_dsmolken_double_bass.py'
       - 'engine/fetch_vsco2_violin.py'
       - 'engine/test_fetch_vsco2_violin.py'
+      - 'engine/fetch_vsco2_violin_spiccato.py'
+      - 'engine/test_fetch_vsco2_violin_spiccato.py'
       - 'engine/fetch_vsco2_flute.py'
       - 'engine/test_fetch_vsco2_flute.py'
       - 'engine/fetch_vcsl_dan_tranh.py'
@@ -186,7 +188,7 @@ jobs:
       - name: Fetch and validate real CC0 violin and concert flute banks
         timeout-minutes: 15
         run: |
-          python3 -m unittest engine.test_fetch_vsco2_violin engine.test_fetch_vsco2_flute -v
+          python3 -m unittest engine.test_fetch_vsco2_violin engine.test_fetch_vsco2_violin_spiccato engine.test_fetch_vsco2_flute -v
           python3 engine/fetch_vsco2_violin.py sample-bank-vsco2-violin
           python3 engine/fetch_vsco2_flute.py sample-bank-vsco2-flute
       - name: Fetch and validate real CC0 Dan Tranh and Baroque soprano recorder banks
@@ -257,7 +259,7 @@ jobs:
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 378 + 80 + 492 + 17 + 14 + 123 + 4 + 2 + 74 + 27 + 47 + 25 + 45, len(bank.samples)
+          assert len(bank.samples) >= 352 + 348 + 378 + 80 + 492 + 17 + 14 + 123 + 4 + 2 + 134 + 27 + 47 + 25 + 45, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
           assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
                   "kick", "snare", "closed_hat", "open_hat", "cajon",
@@ -316,6 +318,20 @@ jobs:
                   "start_seconds": 4.0 + index * 1.35,
                   "duration_seconds": 1.05, "velocity": 72 + (index % 3) * 14,
               })
+          # Exercise the official spiccato low/high velocity layers and both
+          # source-defined round-robin sequence positions at exact recorded roots.
+          spiccato_added = 0
+          for note in violin_notes[:2]:
+              for velocity in (48, 96):
+                  for repeat in range(2):
+                      selected.append({
+                          "instrument": "solo_violin", "part": "violin_spiccato",
+                          "midi_note": note, "articulation": "spiccato",
+                          "start_seconds": 24.0 + spiccato_added * 0.32,
+                          "duration_seconds": 0.32, "velocity": velocity,
+                      })
+                      spiccato_added += 1
+          assert spiccato_added == 8
           for index, note in enumerate(flute_notes[:10]):
               selected.append({
                   "instrument": "concert_flute", "part": "concert_flute",
@@ -454,7 +470,7 @@ jobs:
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
-                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "concert_flute", "dan_tranh", "recorder", "concert_harp"} <= selected_parts, selected_parts
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "violin_spiccato", "concert_flute", "dan_tranh", "recorder", "concert_harp"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
                   "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp"} <= selected_instruments, selected_instruments
           for event in selected:
