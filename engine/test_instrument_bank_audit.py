@@ -58,6 +58,52 @@ class InstrumentBankAuditTests(unittest.TestCase):
             [0],
         )
 
+    def test_reports_effective_velocity_coverage_after_source_priority_supplement(self):
+        def bass_sample(note, low, high, rr, session, priority=0,
+                        priority_min=1, zone=None):
+            return Sample(
+                instrument="contrabass",
+                midi_note=note,
+                path=Path(f"/unused/{session}-{note}-{low}-{rr}.wav"),
+                velocity_min=low,
+                velocity_max=high,
+                sample_rate=44100,
+                channels=1,
+                frames=44100,
+                articulation="pizzicato",
+                recording_session_id=session,
+                round_robin_index=rr,
+                playable_key_min=zone[0] if zone else None,
+                playable_key_max=zone[1] if zone else None,
+                selection_priority=priority,
+                selection_priority_min_velocity=priority_min,
+            )
+
+        samples = []
+        for note in (27, 34):
+            samples.extend([
+                bass_sample(note, 1, 74, 0, "rubner"),
+                bass_sample(note, 75, 120, 0, "rubner"),
+            ])
+        samples.extend(
+            bass_sample(27, 97, 127, rr, "meatbass", 10, 121, (27, 27))
+            for rr in range(4)
+        )
+        samples.extend(
+            bass_sample(34, 63, 127, rr, "vsco2", 10, 121, (34, 34))
+            for rr in range(2)
+        )
+        report = build_instrument_bank_audit(
+            SampleBank(Path("/unused"), tuple(samples))
+        )
+        item = report["instruments"]["contrabass"]
+        self.assertTrue(item["velocity_gaps_by_recorded_note_and_articulation"])
+        self.assertEqual(item["effective_velocity_gaps_after_source_priority"], [])
+        self.assertEqual(
+            item["selection_priority_policies"],
+            [{"priority": 10, "minimum_velocity": 121}],
+        )
+
     def test_does_not_hide_non_contiguous_round_robin_indices(self):
         bank = SampleBank(Path("/unused"), (
             self.sample(40, 1, 127, 0),
