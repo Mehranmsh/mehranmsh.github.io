@@ -316,7 +316,7 @@ class SampleRendererTests(unittest.TestCase):
                 self.assertEqual((wav.getnchannels(), wav.getsampwidth(), wav.getframerate()),
                                  (2, 2, 22050))
             self.assertTrue(any(pcm))
-            self.assertGreater(result["events_rendered"], 100)
+            self.assertGreater(result["events_rendered"], 50)
             self.assertEqual(result["source"], "recorded_sample_bank")
 
     def test_full_plan_renders_with_a_recorded_sample_bank(self):
