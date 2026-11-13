@@ -176,7 +176,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
             playable_key_max = _integer(playable_key_max, 0, 127, "playable_key_max")
             if playable_key_min > playable_key_max or not playable_key_min <= midi_note <= playable_key_max:
                 raise ValueError("playable key range must include the recorded root MIDI note")
-        identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name, round_robin_index)
+        identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name, round_robin_index, velocity_fade_in, velocity_fade_out)
         if identity in seen:
             raise ValueError("Duplicate instrument, string, note, velocity layer, articulation, and round-robin index")
         seen.add(identity)
