@@ -47,7 +47,7 @@ def plan_velocity_layers(
         (sample.velocity_min, sample.velocity_max,
          sample.velocity_fade_in, sample.velocity_fade_out)
         for sample in matching_samples
-    }, key=repr)
+    }, key=lambda zone: (zone[0], zone[1], repr(zone[2]), repr(zone[3])))
     candidates = [
         min(
             (sample for sample in matching_samples
