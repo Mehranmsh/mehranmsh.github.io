@@ -41,6 +41,46 @@ class SampleRendererTests(unittest.TestCase):
         }), encoding="utf-8")
         return load_sample_bank(root)
 
+    def test_renderer_mixes_events_from_independent_validated_banks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            roots = {}
+            banks = {}
+            for instrument, note in (("piano", 60), ("electric_bass", 48)):
+                root = Path(folder) / instrument
+                root.mkdir()
+                relative = f"{instrument}/note.wav"
+                self.make_wav(root / relative, rate=22050, frames=4410)
+                (root / "bank.json").write_text(json.dumps({
+                    "format_version": 1,
+                    "samples": [{"instrument": instrument, "midi_note": note,
+                                 "path": relative}],
+                }), encoding="utf-8")
+                banks[instrument] = load_sample_bank(root)
+            output = Path(folder) / "independent-banks.wav"
+            result = render_sample_events([
+                {"instrument": "piano", "midi_note": 60, "start_seconds": 0,
+                 "duration_seconds": 0.08, "velocity": 100},
+                {"instrument": "electric_bass", "midi_note": 48, "start_seconds": 0.02,
+                 "duration_seconds": 0.08, "velocity": 90},
+            ], banks, output, sample_rate=22050)
+            with wave.open(str(output), "rb") as wav:
+                raw = wav.readframes(wav.getnframes())
+                self.assertEqual((wav.getnchannels(), wav.getsampwidth(), wav.getframerate()),
+                                 (2, 2, 22050))
+            self.assertTrue(any(raw))
+            self.assertEqual(result["events_rendered"], 2)
+
+    def test_multi_bank_renderer_rejects_missing_instrument_bank(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "piano"
+            root.mkdir()
+            bank = self.make_bank(root)
+            with self.assertRaisesRegex(ValueError, "No validated sample bank supplied"):
+                render_sample_events([{
+                    "instrument": "kalimba", "midi_note": 60,
+                    "start_seconds": 0, "duration_seconds": 0.05,
+                }], {"piano": bank}, Path(folder) / "missing.wav", sample_rate=22050)
+
     def test_renders_non_silent_stereo_pcm_wav_from_recorded_samples(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
