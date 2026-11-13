@@ -132,8 +132,8 @@ jobs:
                   "genre": "pop",
                   "mood": "reflective",
                   "bpm": 84,
-                  "phrase_count": 4,
-                  "lyrics": "دلم گرفته\nاز این شب سرد",
+                  "phrase_count": 8,
+                  "lyrics": "فردا دوباره می‌رسد\nآفتاب از راه می‌رسد\nدست من را رها نکن\nتا بهار خانه مانده",
               },
               {
                   "composition_mode": "instrumental_first",
@@ -141,7 +141,7 @@ jobs:
                   "genre": "cinematic",
                   "mood": "hopeful",
                   "bpm": 96,
-                  "phrase_count": 4,
+                  "phrase_count": 8,
               },
               {
                   "composition_mode": "co_creation",
@@ -149,8 +149,8 @@ jobs:
                   "genre": "pop",
                   "mood": "warm",
                   "bpm": 88,
-                  "phrase_count": 4,
-                  "lyrics": "دلم گرفته\nاز این شب سرد",
+                  "phrase_count": 8,
+                  "lyrics": "فردا دوباره می‌رسد\nآفتاب از راه می‌رسد\nدست من را رها نکن\nتا بهار خانه مانده",
               },
           ]
 
