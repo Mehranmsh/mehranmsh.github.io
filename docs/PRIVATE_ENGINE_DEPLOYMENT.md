@@ -90,7 +90,7 @@ docker compose -f docker-compose.engine.yml ps
 docker compose -f docker-compose.engine.yml logs --tail=100 engine tunnel
 ```
 
-سرویس موتور باید `healthy` شود و کانتینر Tunnel باید در حال اجرا باشد. در صورت خطا، ابتدا log هر دو سرویس را بررسی کنید. پورت 8765 را در firewall عمومی باز نکنید و از `ports:` برای انتشار آن روی host استفاده نکنید.
+سرویس موتور باید از نظر Docker `healthy` شود و کانتینر Tunnel باید در حال اجرا باشد. این healthcheck فقط دسترسی به endpoint و اعتبار توکن را تأیید می‌کند؛ مقدار `engine.ready` در پاسخ فعلی عمداً `false` است و نباید آن را گواه آماده‌بودن تولید صوت حرفه‌ای تلقی کرد. آمادگی مسیر آهنگسازی را با POST واقعی سه حالت در مرحلهٔ ۶ بسنجید. در صورت خطا، ابتدا log هر دو سرویس را بررسی کنید. پورت 8765 را در firewall عمومی باز نکنید و از `ports:` برای انتشار آن روی host استفاده نکنید.
 
 برای توقف بدون حذف داده‌ها:
 
@@ -128,7 +128,7 @@ Workflow موجود در `.github/workflows/deploy-worker.yml` برای branch `
 
 ## ۶. بررسی اتصال قبل از استفاده
 
-ابتدا health check را از طریق hostname تونل با توکن موتور بررسی کنید:
+ابتدا متغیرهای فایل محلی را در همان shell بارگذاری کنید و سپس health check را از طریق hostname تونل بررسی کنید:
 
 ```bash
 curl --fail --silent --show-error \
