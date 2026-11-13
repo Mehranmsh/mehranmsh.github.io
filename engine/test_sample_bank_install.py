@@ -455,6 +455,7 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertTrue(report["installed"])
             self.assertEqual({sample.instrument for sample in bank.samples}, {"concert_harp"})
             self.assertEqual(len(bank.samples), 2)
+            self.assertEqual({sample.channels for sample in bank.samples}, {2})
             self.assertEqual(
                 {sample.velocity_fade_in for sample in bank.samples if sample.velocity_fade_in},
                 {(70, 100)},
