@@ -184,6 +184,63 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(status, 401)
         self.assertEqual(result["error"], "unauthorized")
 
+    def test_co_creation_revision_preserves_harmony_rhythm_and_arrangement(self):
+        status, created = self.request(
+            "/v1/co-create", method="POST",
+            payload={"lyrics": "فردا می‌رسد\\nآفتاب می‌تابد", "mood": "hopeful", "phrase_count": 8},
+        )
+        self.assertEqual(status, 201, created)
+        original = created["plan"]
+        original_notes = [list(item["midi_notes"]) for item in original["composition"]["melody"]]
+        original_durations = [list(item["note_durations_ticks"]) for item in original["composition"]["melody"]]
+        original_chords = list(original["composition"]["chord_progression"])
+        original_arrangement = original["composition"]["arrangement_blueprint"]
+        revised_notes = [[min(88, max(48, note + (1 if i == 0 else 0)))
+                          for note in phrase] for i, phrase in enumerate(original_notes)]
+        status, revised = self.request(
+            "/v1/revise-co-creation", method="POST",
+            payload={
+                "plan": original,
+                "lyrics": "فردا دوباره می‌رسد\\nخورشید می‌تابد",
+                "melody_notes": revised_notes,
+            },
+        )
+        self.assertEqual(status, 200, revised)
+        plan = revised["plan"]
+        self.assertEqual(plan["co_creation"]["last_revision"], "lyrics_and_melody")
+        self.assertEqual(plan["co_creation"]["revision_count"], 1)
+        self.assertTrue(plan["co_creation"]["melody_rhythm_preserved"])
+        self.assertTrue(plan["co_creation"]["harmony_and_arrangement_preserved"])
+        self.assertEqual(plan["composition"]["chord_progression"], original_chords)
+        self.assertEqual(plan["composition"]["arrangement_blueprint"], original_arrangement)
+        self.assertEqual([item["note_durations_ticks"] for item in plan["composition"]["melody"]], original_durations)
+        self.assertEqual([item["midi_notes"] for item in plan["composition"]["melody"]], revised_notes)
+        self.assertEqual(plan["composition"]["melody"][0]["lyric_line"], "فردا دوباره می‌رسد")
+        self.assertEqual(revised["midi"]["tracks"], 7)
+        self.assertEqual(Path(revised["midi"]["local_path"]).read_bytes()[:4], b"MThd")
+
+    def test_co_creation_revision_rejects_changed_note_count_or_invalid_pitch(self):
+        status, created = self.request(
+            "/v1/co-create", method="POST",
+            payload={"lyrics": "یک شعر", "phrase_count": 8},
+        )
+        self.assertEqual(status, 201, created)
+        plan = created["plan"]
+        bad_notes = [list(item["midi_notes"]) for item in plan["composition"]["melody"]]
+        bad_notes[0][0] = 120
+        status, result = self.request(
+            "/v1/revise-co-creation", method="POST",
+            payload={"plan": plan, "melody_notes": bad_notes},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(result["error"], "invalid_revision")
+        status, result = self.request(
+            "/v1/revise-co-creation", method="POST",
+            payload={"plan": plan, "melody_notes": [[60]] * 8},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(result["error"], "invalid_revision")
+
     def test_instrumental_first_rejects_invalid_mood_and_phrase_count(self):
         for payload in ({"mood": "invented"}, {"phrase_count": True},
                         {"phrase_count": 17}, {"bpm": True}):
