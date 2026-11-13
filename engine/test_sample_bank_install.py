@@ -11,7 +11,7 @@ from sample_renderer import render_sample_events
 
 
 class SampleBankInstallTests(unittest.TestCase):
-    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000, session_id: str | None = None, articulation: str = "sustain"):
+    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 44100, session_id: str | None = None, articulation: str = "sustain"):
         sample_path = root / "samples" / "e2.wav"
         sample_path.parent.mkdir(parents=True)
         with wave.open(str(sample_path), "wb") as wav:
@@ -78,9 +78,9 @@ class SampleBankInstallTests(unittest.TestCase):
             with wave.open(str(sample_path), "wb") as wav:
                 wav.setnchannels(1)
                 wav.setsampwidth(2)
-                wav.setframerate(48000)
+                wav.setframerate(44100)
                 wav.writeframes(b"".join(
-                    int(5000 * math.sin(2 * math.pi * 261.6 * i / 48000)).to_bytes(
+                    int(5000 * math.sin(2 * math.pi * 261.6 * i / 44100)).to_bytes(
                         2, "little", signed=True
                     ) for i in range(4800)
                 ))
@@ -122,13 +122,13 @@ class SampleBankInstallTests(unittest.TestCase):
             root = Path(folder)
             source, target = root / "electric-bass", root / "installed"
             source.mkdir()
-            session = "freepats_electric_bass_cc0"
+            session = "karoryfer_babyblue_picked"
             (source / "LICENSE-CC0.txt").write_text(
                 "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
             )
             samples = []
             for articulation, note, frequency in (
-                ("fingerstyle", 28, 82), ("pick", 33, 110)
+                ("picked", 35, 82), ("picked", 47, 110)
             ):
                 relative = f"{articulation}/E.wav"
                 sample_path = source / relative
@@ -136,9 +136,9 @@ class SampleBankInstallTests(unittest.TestCase):
                 with wave.open(str(sample_path), "wb") as wav:
                     wav.setnchannels(1)
                     wav.setsampwidth(2)
-                    wav.setframerate(48000)
+                    wav.setframerate(44100)
                     wav.writeframes(b"".join(
-                        int(6500 * math.sin(2 * math.pi * frequency * i / 48000)
+                        int(6500 * math.sin(2 * math.pi * frequency * i / 44100)
                             * (1.0 - i / 9600)).to_bytes(2, "little", signed=True)
                         for i in range(9600)
                     ))
@@ -154,7 +154,7 @@ class SampleBankInstallTests(unittest.TestCase):
                 "format_version": 1,
                 "recording_sessions": {
                     session: {
-                        "instrument_model": "Yamaha RBX electric bass guitar",
+                        "instrument_model": "Karoryfer Babyblue five-string electric bass",
                         "performer": "Andrea Biasior",
                     }
                 },
@@ -169,18 +169,18 @@ class SampleBankInstallTests(unittest.TestCase):
                              {"fingerstyle", "pick"})
             self.assertEqual(
                 {(sample.playable_key_min, sample.playable_key_max) for sample in bank.samples},
-                {(28, 28), (33, 33)},
+                {(35, 35), (47, 47)},
             )
             self.assertTrue(
                 (target / "provenance" / "electric_bass" / "SOURCE_LICENSE.txt").is_file()
             )
             output = root / "electric-bass-preview.wav"
             rendered = render_sample_events([
-                {"instrument": "electric_bass", "midi_note": 28,
-                 "articulation": "fingerstyle", "start_seconds": 0,
+                {"instrument": "electric_bass", "midi_note": 35,
+                 "articulation": "picked", "start_seconds": 0,
                  "duration_seconds": 0.15, "velocity": 90},
-                {"instrument": "electric_bass", "midi_note": 33,
-                 "articulation": "pick", "start_seconds": 0.2,
+                {"instrument": "electric_bass", "midi_note": 47,
+                 "articulation": "picked", "start_seconds": 0.2,
                  "duration_seconds": 0.15, "velocity": 90},
             ], bank, output, sample_rate=22050)
             self.assertEqual(rendered["events_rendered"], 2)
