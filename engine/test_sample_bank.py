@@ -982,5 +982,28 @@ class SampleBankTests(unittest.TestCase):
                 load_sample_bank(root)
 
 
+    def test_recorded_sample_start_offset_is_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "harp.wav")
+            self.write_manifest(root, [{
+                "instrument": "concert_harp", "midi_note": 60,
+                "offset_frames": 37, "path": "harp.wav",
+            }])
+            bank = load_sample_bank(root)
+            self.assertEqual(bank.samples[0].offset_frames, 37)
+
+    def test_recorded_sample_start_offset_must_be_inside_audio(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "harp.wav")
+            self.write_manifest(root, [{
+                "instrument": "concert_harp", "midi_note": 60,
+                "offset_frames": 128, "path": "harp.wav",
+            }])
+            with self.assertRaisesRegex(ValueError, "offset_frames must point inside"):
+                load_sample_bank(root)
+
+
 if __name__ == "__main__":
     unittest.main()
