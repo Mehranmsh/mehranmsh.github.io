@@ -53,6 +53,45 @@ def parse_dan_tranh_websfz(payload:dict[str,Any],require_complete:bool=True)->li
         zones=[(x["velocity_min"],x["velocity_max"]) for x in out if x["midi_note"]==n]
         if len(zones)!=len(set(zones)): raise ValueError(f"Duplicate velocity layer for note {n}")
     return out
+def append_verified_b4_ff_region(regions: list[dict[str, Any]], source_files: dict[str, str]) -> list[dict[str, Any]]:
+    """Restore the exact-root B4 forte-fortissimo recording omitted by the web mapping.
+
+    The velocity interval is corroborated by every other mapped *_ff_ region
+    (100-127); the playable zone is corroborated by both existing B4 layers
+    (82-84). No audio is synthesized or pitch-shifted. A neutral gain trim is
+    used because the web mapping omitted this region's gain metadata.
+    """
+    candidate = "Chordophones/Zithers/Dan Tranh/Normal/B4_ff_1.wav"
+    matches = [path for path in source_files if path.casefold() == candidate.casefold()]
+    if len(matches) != 1:
+        raise ValueError(f"Expected one exact-root B4_ff source recording, found {len(matches)}")
+    if any(x["source_path"].casefold() == matches[0].casefold() for x in regions):
+        return regions
+    ff_intervals = {
+        (x["velocity_min"], x["velocity_max"])
+        for x in regions
+        if Path(x["source_path"]).name.casefold().endswith("_ff_1.wav")
+    }
+    if ff_intervals != {(100, 127)}:
+        raise ValueError(f"Cannot corroborate B4 ff velocity range from peer regions: {ff_intervals}")
+    b4 = [x for x in regions if x["midi_note"] == 83]
+    if sorted((x["velocity_min"], x["velocity_max"]) for x in b4) != [(1, 65), (66, 99)]:
+        raise ValueError("B4 mf/f mapping changed; refusing to infer B4 ff zone")
+    if {(x["low_key"], x["high_key"]) for x in b4} != {(82, 84)}:
+        raise ValueError("B4 playable key zone changed; refusing to infer B4 ff zone")
+    return [*regions, {
+        "filename": "B4_ff_1.wav",
+        "source_path": matches[0],
+        "midi_note": 83,
+        "low_key": 82,
+        "high_key": 84,
+        "velocity_min": 100,
+        "velocity_max": 127,
+        "gain_db": 0.0,
+        "mapping_note": "Exact-root source file omitted by pinned web mapping; velocity/key zone corroborated by all peer ff regions and both B4 mapped layers; neutral gain because no gain metadata was supplied.",
+    }]
+
+
 def fetch_dan_tranh(output_root):
     root=Path(output_root).resolve(); ffmpeg=shutil.which("ffmpeg")
     if not ffmpeg: raise RuntimeError("ffmpeg is required")
@@ -68,6 +107,7 @@ def fetch_dan_tranh(output_root):
     if not sf: raise ValueError("Pinned Dan Tranh Normal folder contains no recordings")
     mapping=verified(MAP_ROOT,MAP_PATH,mf[MAP_PATH],root/"source-map"/Path(MAP_PATH).name)
     regions=parse_dan_tranh_websfz(json.loads(mapping))
+    regions=append_verified_b4_ff_region(regions, sf)
     verified(SOURCE_ROOT,"LICENSE",license_meta["sha"],root/"LICENSE-CC0.txt")
     for x in regions:
         matches=[p for p in sf if p.casefold()==x["source_path"].casefold()]
@@ -86,8 +126,8 @@ def fetch_dan_tranh(output_root):
     (root/"provenance.json").write_text(json.dumps(provenance,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     from sample_bank import load_sample_bank
     bank=load_sample_bank(root)
-    if len(bank.samples)!=47 or any(s.sample_rate!=44100 or s.channels!=1 or s.one_shot for s in bank.samples): raise ValueError("Dan Tranh bank failed sample manifest validation")
-    return {"status":"validated_recorded_vcsl_dan_tranh","samples":len(bank.samples),"pitch_centers":EXPECTED_NOTES,"velocity_layers":3,"license":"CC0-1.0"}
+    if len(bank.samples)!=48 or any(s.sample_rate!=44100 or s.channels!=1 or s.one_shot for s in bank.samples): raise ValueError("Dan Tranh bank failed sample manifest validation")
+    return {"status":"validated_recorded_vcsl_dan_tranh","samples":len(bank.samples),"pitch_centers":EXPECTED_NOTES,"velocity_layers":3,"restored_exact_root_layer":{"midi_note":83,"velocity":[100,127],"source":"B4_ff_1.wav","mapping_basis":"consistent peer ff mapping and existing B4 key zone"},"license":"CC0-1.0"}
 def main():
     p=argparse.ArgumentParser(description=__doc__); p.add_argument("output_root",type=Path); a=p.parse_args()
     print(json.dumps(fetch_dan_tranh(a.output_root),ensure_ascii=False,indent=2))
