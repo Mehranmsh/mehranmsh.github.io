@@ -569,7 +569,7 @@ _DEFAULT_PART_GAINS = {
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
     "open_hat": 0.62, "cajon": 0.64, "kalimba": 0.46, "guitar": 0.76, "strings": 0.70,
     "electric_guitar": 0.76, "harp": 0.52, "cello": 0.42,
-    "recorder": 0.48, "dan_tranh": 0.46,
+    "recorder": 0.48, "dan_tranh": 0.46, "flute": 0.50,
 }
 
 
@@ -623,6 +623,7 @@ def _resolve_part_articulation(
         "cello": ("sustain_vibrato", "instrument_default"),
         "recorder": ("sustain", "instrument_default"),
         "dan_tranh": ("pluck", "instrument_default"),
+        "flute": ("sustain_vibrato", "instrument_default"),
     }
     if part in part_defaults:
         return part_defaults[part]
@@ -659,7 +660,7 @@ def build_composition_events(
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
         "open_hat": "open_hat", "contrabass": None, "cajon": None, "kalimba": None, "guitar": None, "strings": None,
         "electric_guitar": None, "harp": None, "cello": None,
-        "recorder": None, "dan_tranh": None,
+        "recorder": None, "dan_tranh": None, "flute": None,
     }
     if instruments is not None:
         if not isinstance(instruments, dict):
@@ -914,6 +915,20 @@ def build_composition_events(
                                          bar_dynamics["melody"]),
                         0.12, articulation=recorder_articulation,
                         articulation_source="instrument_default")
+            if names["flute"] and section in ("pre_chorus", "chorus", "final_chorus", "bridge"):
+                # The pinned flute bank contains only these ten recorded pitch centers.
+                flute_pitch_centers = {48, 52, 57, 60, 64, 69, 72, 76, 81, 84}
+                flute_candidates = [int(note) for note in voicing
+                                    if int(note) in flute_pitch_centers]
+                if flute_candidates:
+                    flute_note = flute_candidates[-1]
+                    flute_articulation = ("expressive_vibrato" if section == "final_chorus"
+                                          else "sustain_vibrato")
+                    add("flute", flute_note, bar_start + PPQ, 2 * PPQ - 36,
+                        _scaled_velocity(54 if section == "bridge" else 62,
+                                         bar_dynamics["melody"]),
+                        -0.18, articulation=flute_articulation,
+                        articulation_source="instrument_default")
             if names["dan_tranh"]:
                 # Trigger only at verified recorded pitch centers; source velocity layers stay intact.
                 dan_tranh_pitch_centers = {47, 49, 51, 54, 56, 59, 61, 63,
@@ -1119,7 +1134,7 @@ def render_composition_to_wav(
         allowed_parts = {
             "melody", "chords", "bass", "kick", "snare", "closed_hat",
             "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
-            "harp", "cello", "recorder", "dan_tranh",
+            "harp", "cello", "recorder", "dan_tranh", "flute",
         }
         if (not isinstance(parts, list) or not parts
                 or any(not isinstance(part, str) or part not in allowed_parts for part in parts)
