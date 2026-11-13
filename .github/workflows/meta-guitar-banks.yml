@@ -9,6 +9,7 @@ on:
       - 'engine/test_fetch_meta_guitar_banks.py'
       - 'engine/sample_bank.py'
       - 'engine/sample_renderer.py'
+      - 'engine/test_percussion_round_robin.py'
       - 'engine/sample_bank_install.py'
       - 'engine/test_sample_bank_install.py'
       - 'engine/guitar_string_planner.py'
@@ -51,6 +52,8 @@ jobs:
         run: python3 -m unittest engine.test_fetch_meta_guitar_banks -v
       - name: Test safe recorded-bank installation and provenance
         run: python3 -m unittest engine.test_sample_bank_install -v
+      - name: Test one-shot percussion and round-robin rendering
+        run: python3 -m unittest engine.test_percussion_round_robin -v
       - name: Download, verify, convert, and validate nylon guitar
         timeout-minutes: 20
         run: python3 engine/fetch_meta_guitar_banks.py meta-nylon-guitar sample-bank-meta-nylon-guitar
