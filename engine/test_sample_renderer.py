@@ -1284,6 +1284,7 @@ class SampleRendererTests(unittest.TestCase):
         plan["composition"]["chord_progression"] = ["C"]
         for phrase in plan["composition"]["melody"]:
             phrase["chord"] = "C"
+            phrase["section"] = "chorus"
         events = build_composition_events(plan, instruments={"flute": "concert_flute"})
         flute = [event for event in events if event["part"] == "flute"]
         self.assertTrue(flute)
