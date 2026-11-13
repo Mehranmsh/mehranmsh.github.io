@@ -1139,6 +1139,18 @@ class SampleRendererTests(unittest.TestCase):
                 self.assertEqual(wav.getsampwidth(), 2)
                 self.assertTrue(any(wav.readframes(wav.getnframes())))
 
+    def test_contrabass_is_a_separate_pizzicato_layer_under_electric_bass(self):
+        plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
+        events = build_composition_events(
+            plan, instruments={"contrabass": "contrabass"}
+        )
+        electric_bass = [event for event in events if event["part"] == "bass"]
+        contrabass = [event for event in events if event["part"] == "contrabass"]
+        self.assertTrue(electric_bass)
+        self.assertTrue(contrabass)
+        self.assertTrue(all(event["instrument"] == "contrabass" for event in contrabass))
+        self.assertTrue(all(event["articulation"] == "pizzicato" for event in contrabass))
+        self.assertTrue(all(event["part"] != "bass" for event in contrabass))
     def test_composition_renderer_rejects_unknown_or_empty_part_selection(self):
         plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
         with tempfile.TemporaryDirectory() as folder:
