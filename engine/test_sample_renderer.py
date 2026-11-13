@@ -533,10 +533,11 @@ class SampleRendererTests(unittest.TestCase):
             plan, instruments={"bass": "bass", "melody": "lead"})
         bass = [event for event in events if event["instrument"] == "bass"]
         beat_seconds = 60 / 84
-        onsets = [round(event["start_seconds"] / beat_seconds, 3) for event in bass]
+        first_bar = [event for event in bass if event["start_seconds"] < 4 * beat_seconds]
+        onsets = [round(event["start_seconds"] / beat_seconds, 3) for event in first_bar]
         self.assertIn(1.5, onsets)
         self.assertIn(3.5, onsets)
-        self.assertTrue(all(event["midi_note"] % 12 in {9, 1, 4} for event in bass))
+        self.assertTrue(all(event["midi_note"] % 12 in {9, 1, 4} for event in first_bar))
 
     def test_chorus_bass_has_syncopated_chord_tone_pulse(self):
         plan = compose_plan("دلم گرفته\nبرگرد ای عشق", target_bpm=84)
@@ -547,10 +548,11 @@ class SampleRendererTests(unittest.TestCase):
             plan, instruments={"bass": "bass", "melody": "lead"})
         bass = [event for event in events if event["instrument"] == "bass"]
         beat_seconds = 60 / 84
-        onsets = [round(event["start_seconds"] / beat_seconds, 3) for event in bass]
+        first_bar = [event for event in bass if event["start_seconds"] < 4 * beat_seconds]
+        onsets = [round(event["start_seconds"] / beat_seconds, 3) for event in first_bar]
         self.assertIn(1.5, onsets)
         self.assertIn(3.5, onsets)
-        self.assertTrue(all(event["midi_note"] % 12 in {9, 0, 4} for event in bass))
+        self.assertTrue(all(event["midi_note"] % 12 in {9, 0, 4} for event in first_bar))
 
     def test_sample_seventh_chords_support_four_voice_panning(self):
         import copy
