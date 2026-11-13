@@ -33,7 +33,7 @@ def fixture() -> dict:
 
 class VCSLKalimbaTests(unittest.TestCase):
     def test_preserves_pitch_round_robin_and_sample_tuning(self):
-        regions = parse_kalimba_websfz(fixture())
+        regions = parse_kalimba_websfz(fixture(), require_complete=False)
         self.assertEqual(len(regions), 2)
         self.assertEqual([x["round_robin_index"] for x in regions], [0, 1])
         self.assertEqual([x["tuning_cents"] for x in regions], [7.0, 5.0])
