@@ -361,6 +361,7 @@ class Handler(BaseHTTPRequestHandler):
                 allowed_parts = {
                     "melody", "chords", "bass", "kick", "snare", "closed_hat",
                     "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
+                    "harp", "cello",
                 }
                 if (not isinstance(requested_parts, list) or not requested_parts
                         or any(not isinstance(part, str) or part not in allowed_parts
