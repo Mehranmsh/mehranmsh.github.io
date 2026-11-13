@@ -128,7 +128,7 @@ test("music engine proxy fails closed when private server credentials are not co
 test("music engine proxy keeps the private engine credential out of the public studio", () => {
   assert.match(workerSource, /env\.MEHRAN_ENGINE_COMPOSE_URL/);
   assert.match(workerSource, /env\.MEHRAN_ENGINE_TOKEN/);
-  assert.match(workerSource, /Authorization: "Bearer " \+ engineToken/);
+  assert.match(workerSource, /"Authorization": "Bearer " \+ engineToken/);
   assert.match(workerSource, /local_path: _privateMidiPath/);
   assert.doesNotMatch(musicStudioSource, /MEHRAN_ENGINE_TOKEN|MEHRAN_ENGINE_COMPOSE_URL/);
 });
