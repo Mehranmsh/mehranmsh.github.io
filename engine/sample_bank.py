@@ -40,6 +40,7 @@ class Sample:
     round_robin_index: int = 0
     one_shot: bool = False
     tuning_cents: float = 0.0
+    gain_db: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,10 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         if (isinstance(tuning_cents, bool) or not isinstance(tuning_cents, (int, float))
                 or not math.isfinite(tuning_cents) or not -100.0 <= tuning_cents <= 100.0):
             raise ValueError("tuning_cents must be finite and between -100 and 100")
+        gain_db = entry.get("gain_db", 0.0)
+        if (isinstance(gain_db, bool) or not isinstance(gain_db, (int, float))
+                or not math.isfinite(gain_db) or not -24.0 <= gain_db <= 24.0):
+            raise ValueError("gain_db must be finite and between -24 and 24")
         identity = (instrument, midi_note, velocity_min, velocity_max, articulation, string_name, round_robin_index)
         if identity in seen:
             raise ValueError("Duplicate instrument, string, note, velocity layer, articulation, and round-robin index")
@@ -165,7 +170,8 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         samples.append(Sample(instrument, midi_note, candidate, velocity_min,
                               velocity_max, sample_rate, channels, frames,
                               loop_start, loop_end, articulation, session_id, recording_metadata,
-                              string_name, round_robin_index, one_shot, float(tuning_cents)))
+                              string_name, round_robin_index, one_shot,
+                              float(tuning_cents), float(gain_db)))
     return SampleBank(root, tuple(samples))
 
 
