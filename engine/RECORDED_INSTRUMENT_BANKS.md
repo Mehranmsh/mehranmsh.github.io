@@ -33,6 +33,8 @@ The twelve packages above expose fifteen playable instrument IDs. The drum packa
 - The VSCO 2 CE violin and concert-flute importers pin source commit 440300901dfe9275fd84e0b7763af1f8443ae62e and verify each downloaded Git blob against its Git object SHA-1 before conversion.
 - Both VSCO 2 CE banks retain source license copies and per-recording provenance manifests.
 - Recorded articulations, velocity zones, and repeated takes are represented explicitly. Missing source layers are not fabricated.
+- SFZ playable key ranges are preserved in each sample manifest and carried through combined-bank installation. The renderer selects a source sample only when the requested note falls inside that recording's declared key zone; out-of-zone notes are blocked rather than silently stretched from an unrelated root.
+- The FreePats electric-bass arrangement keeps notes inside its documented MIDI 26-45 playable register. Notes above that range are shifted down one octave at arrangement time, before sample selection.
 - The renderer plays recorded PCM samples; it does not synthesize substitute instrument tones.
 - A CI success proves the tested fetch, conversion, manifest, load, and render paths. It is not a substitute for a human listening review of timbre and musical phrasing.
 - The combined ensemble is an integration preview, not a claim that every instrument has complete chromatic coverage, every articulation, or production-grade round-robin depth.
