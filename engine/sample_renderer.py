@@ -597,7 +597,7 @@ def build_composition_events(
     names = {
         "melody": "piano", "chords": "piano", "bass": "electric_bass",
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
-        "open_hat": "open_hat", "contrabass": "contrabass", "cajon": None, "kalimba": None, "guitar": None, "strings": None,
+        "open_hat": "open_hat", "contrabass": None, "cajon": None, "kalimba": None, "guitar": None, "strings": None,
         "electric_guitar": None,
     }
     if instruments is not None:
