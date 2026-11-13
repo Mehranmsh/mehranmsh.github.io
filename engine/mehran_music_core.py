@@ -791,6 +791,59 @@ def _phrase_pause(lyric_line: str) -> tuple[int, str]:
     return 0, "none"
 
 
+def _internal_breath_cues(lyric_line: str, note_durations: list[int]) -> list[dict[str, Any]]:
+    """Map written punctuation between words to vocal-only pause cues.
+
+    Cue offsets are metadata for a future vocal renderer. They do not alter
+    instrumental note timing or the phrase's existing MIDI duration.
+    """
+    if len(note_durations) < 2:
+        return []
+    matches = list(WORD_PATTERN.finditer(lyric_line))
+    if len(matches) < 2:
+        return []
+    syllable_counts = [_rhythmic_syllables(match.group(0)) for match in matches]
+    total_syllables = sum(syllable_counts)
+    if total_syllables <= 0:
+        return []
+    cues = []
+    cumulative_syllables = 0
+    cumulative_ticks = 0
+    note_count = len(note_durations)
+    for index, match in enumerate(matches[:-1]):
+        cumulative_syllables += syllable_counts[index]
+        gap = lyric_line[match.end():matches[index + 1].start()]
+        if any(mark in gap for mark in ("؟", "?", "!", "！")):
+            pause_ticks, kind, mark = 240, "full", next(
+                mark for mark in ("؟", "?", "!", "！") if mark in gap)
+        elif any(mark in gap for mark in ("؛", ";", ":")):
+            pause_ticks, kind, mark = 180, "medium", next(
+                mark for mark in ("؛", ";", ":") if mark in gap)
+        elif any(mark in gap for mark in ("—", "–", "-")):
+            pause_ticks, kind, mark = 180, "medium", next(
+                mark for mark in ("—", "–", "-") if mark in gap)
+        elif any(mark in gap for mark in (",", "،")):
+            pause_ticks, kind, mark = 120, "short", next(
+                mark for mark in (",", "،") if mark in gap)
+        else:
+            continue
+        boundary_note = min(
+            note_count - 2,
+            max(0, round(cumulative_syllables * note_count / total_syllables) - 1),
+        )
+        offset_tick = sum(note_durations[:boundary_note + 1])
+        cues.append({
+            "after_note_index": boundary_note,
+            "offset_tick": offset_tick,
+            "pause_ticks": pause_ticks,
+            "kind": kind,
+            "punctuation": mark,
+            "timing_basis": "written_punctuation",
+            "scope": "vocal_performance_hint",
+        })
+    return cues
+
+
 def _harmonic_cadence(chords: tuple[str, ...], lyric_line: str) -> tuple[str | None, str]:
     """Choose a conservative phrase-ending chord from written punctuation."""
     ending = lyric_line.rstrip()[-1:] if lyric_line.strip() else ""
@@ -1044,6 +1097,7 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
             "duration_ticks": bars * 4 * 480,
             "phrase_pause_ticks": pause_ticks,
             "breath_after_phrase": breath_after,
+            "internal_breath_cues": _internal_breath_cues(line["text"], durations),
             "breath_demand": breath_demand,
             "breath_window": {
                 "start_tick": bars * 4 * 480,
