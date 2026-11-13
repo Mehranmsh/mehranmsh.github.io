@@ -262,6 +262,41 @@ class SampleRendererTests(unittest.TestCase):
                             and 59 <= event["midi_note"] <= 81
                             for event in kalimba_events))
 
+    def test_pre_chorus_transition_coordinates_piano_and_guitar_pickup(self):
+        plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+        phrase = plan["composition"]["melody"][0]
+        phrase["section"] = "pre_chorus"
+        phrase.setdefault("phrase_energy", {})["section_transition"] = {
+            "energy_change": 0.8,
+        }
+        bars = phrase["bar_count"]
+        beat_seconds = 60 / plan["composition"]["tempo_bpm"]
+        pickup_start = (bars - 1) * 4 * beat_seconds + 3.5 * beat_seconds
+        events = build_composition_events(
+            plan, instruments={"guitar": "acoustic_guitar"}
+        )
+        pickup_chords = [
+            event for event in events
+            if event["part"] == "chords"
+            and abs(event["start_seconds"] - pickup_start) < 0.002
+        ]
+        pickup_guitar = [
+            event for event in events
+            if event["part"] == "guitar"
+            and pickup_start <= event["start_seconds"] < pickup_start + 0.08
+        ]
+        pickup_cajon = [
+            event for event in events
+            if event["part"] == "cajon"
+            and abs(event["start_seconds"] - pickup_start) < 0.002
+        ]
+        self.assertEqual(len(pickup_chords), 1)
+        self.assertTrue(pickup_guitar)
+        self.assertEqual(len(pickup_cajon), 0)  # Cajon is opt-in, never substituted.
+        self.assertTrue(all(event["midi_note"] in {note for note in phrase["midi_notes"]}
+                            for event in pickup_chords + pickup_guitar) is False
+                        or all(event["midi_note"] >= 48 for event in pickup_chords + pickup_guitar))
+
     def test_cajon_and_contrabass_grooves_vary_by_section_without_new_pitches(self):
         beat_seconds = 60 / 84
         expected_cajon_onsets = {
