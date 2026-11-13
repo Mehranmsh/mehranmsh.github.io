@@ -12,10 +12,10 @@ def fixture(layer: str) -> str:
     for position in range(1, 9):
         rr = ((position - 1) % rr_count) + 1
         regions.append(
-            f"<region>\nsample=..\\\\Samples\\\\babyblue\\\\reg\\\\babyblue_b1_{layer}_rr{rr}.wav\n"
+            f"<region>\nsample=..\\Samples\\babyblue\\reg\\babyblue_b1_{layer}_rr{rr}.wav\n"
             f"lokey=35\nhikey=35\nseq_length=8\nseq_position={position}\npitch_keycenter=35\n"
         )
-    return "\\n".join(regions)
+    return "\n".join(regions)
 
 
 class BabyblueSFZTests(unittest.TestCase):
