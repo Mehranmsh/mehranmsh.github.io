@@ -113,7 +113,7 @@ def parse_meatbass_pizz_sfz(sfz_text: str, *, require_complete: bool = True) -> 
             region = {}
         else:
             import re
-            match = re.fullmatch(r"([a-zA-Z0-9_]+)\s*=\s*(\\S+)", token)
+            match = re.fullmatch(r"([a-zA-Z0-9_]+)\s*=\s*(\S+)", token)
             if match:
                 if region is None:
                     group[match.group(1)] = match.group(2)
