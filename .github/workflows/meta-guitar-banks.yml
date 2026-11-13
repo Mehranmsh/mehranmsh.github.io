@@ -325,6 +325,11 @@ jobs:
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
                   "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= selected_instruments, selected_instruments
           for event in selected:
+              if event.get("instrument") == "electric_bass" and event.get("midi_note", 0) > 45:
+                  # Keep the bass line inside the FreePats SFZ playable range (MIDI 26-45).
+                  # Shift only out-of-range arrangement notes down one octave; never stretch
+                  # a recording beyond its documented key zone.
+                  event["midi_note"] -= 12
               if event.get("part") == "open_hat":
                   # Virtuosity records the open hi-hat at MIDI key 42.
                   # Arrangement planning may suggest a pitched cymbal note (46),
