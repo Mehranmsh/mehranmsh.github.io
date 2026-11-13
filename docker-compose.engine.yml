@@ -5,9 +5,10 @@ services:
       dockerfile: engine/Dockerfile
     image: mehran-music-engine:local
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
+      MEHRAN_STUDIO_TOKEN: ${MEHRAN_STUDIO_TOKEN:?Set MEHRAN_STUDIO_TOKEN in .env}
+      MEHRAN_STUDIO_MAX_PROJECTS: ${MEHRAN_STUDIO_MAX_PROJECTS:-500}
+      MEHRAN_STUDIO_MIN_FREE_BYTES: ${MEHRAN_STUDIO_MIN_FREE_BYTES:-2147483648}
       MEHRAN_STUDIO_HOME: /data
       MEHRAN_STUDIO_HOST: 0.0.0.0
       MEHRAN_STUDIO_PORT: 8765
