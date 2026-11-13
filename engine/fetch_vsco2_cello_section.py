@@ -94,7 +94,7 @@ def _parse_map(source: str, map_key: str) -> list[dict[str, Any]]:
         # It is not a round robin unless sequence metadata is explicitly present.
         if len(groups) != 1:
             raise ValueError(f"{map_key} must contain exactly one non-RR group")
-        if re.search(r"(?im)^\\s*seq_(?:length|position)\\s*=", groups[0]):
+        if re.search(r"(?im)^\s*seq_(?:length|position)\s*=", groups[0]):
             raise ValueError(f"{map_key} unexpectedly declares round-robin sequence metadata")
 
     region_source = re.sub(r"(?im)^\s*(?:seq_length|seq_position|group_label)\s*=.*$", "", source)
