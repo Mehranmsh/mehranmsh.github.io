@@ -433,10 +433,10 @@ class SampleBankInstallTests(unittest.TestCase):
                 sample_path = source / "samples" / filename
                 sample_path.parent.mkdir(parents=True, exist_ok=True)
                 with wave.open(str(sample_path), "wb") as wav:
-                    wav.setnchannels(1)
+                    wav.setnchannels(2)
                     wav.setsampwidth(2)
                     wav.setframerate(44100)
-                    wav.writeframes(b"\\x00\\x00" * 4410)
+                    wav.writeframes(b"\\x00\\x00\\x00\\x00" * 4410)
                 entry = {
                     "instrument": "concert_harp", "midi_note": 60,
                     "velocity_min": 1, "velocity_max": 127,
