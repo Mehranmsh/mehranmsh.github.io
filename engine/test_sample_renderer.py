@@ -1205,3 +1205,20 @@ class SampleRendererTests(unittest.TestCase):
             (root / "bank.json").write_text(json.dumps({
                 "format_version": 1,
                 "samples": entries,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            result = render_sample_events([{
+                "instrument": "electric_bass", "midi_note": 38,
+                "start_seconds": 0, "duration_seconds": 0.05,
+                "velocity": 80, "articulation": "fingerstyle",
+            }], bank, Path(folder) / "key-zone.wav", sample_rate=22050)
+            selection = result["sample_selection"]
+            self.assertEqual(selection["pitch_shifted_key_zone_events"], 1)
+            self.assertEqual(selection["pitch_shifted_nearest_note_events"], 0)
+            self.assertEqual(selection["pitch_shifted_by_instrument"]["electric_bass"]["note_mappings"], [{
+                "requested_midi_note": 38,
+                "recorded_midi_note": 36,
+                "semitone_offset": 2,
+                "articulation": "fingerstyle",
+                "mapping_type": "pitch_shifted_key_zone",
+            }])
