@@ -31,6 +31,8 @@ EXPECTED_BANKS = {
     "cajon": ("VCSL Cajon", "vcsl-cajon", "vcsl_cajon_recordings", 44100),
     "kalimba": ("VCSL Kalimba Kenya", "vcsl-kalimba-kenya", "vcsl_kalimba_kenya", 44100),
     "contrabass": ("Rubner Contrabass Pizzicato", "rubner-contrabass-pizzicato", "d_smolken_rubner_pizzicato", 44100),
+    "solo_violin": ("VSCO 2 CE Solo Violin", "vsco2-ce-solo-violin", "vsco2_solo_violin", 44100),
+    "concert_flute": ("VSCO 2 CE Concert Flute", "vsco2-ce-concert-flute", "vsco2_concert_flute", 44100),
 }
 
 
@@ -80,7 +82,7 @@ def install_recorded_banks(
             instruments = sorted({sample.instrument for sample in bank.samples})
             if not instruments or any(instrument not in EXPECTED_BANKS for instrument in instruments):
                 raise ValueError(
-                    f"Only validated Meta piano/guitars and Virtuosity percussion are accepted: {source_root}"
+                    f"Only validated CC0 recorded instrument banks are accepted: {source_root}"
                 )
             duplicates = seen_instruments.intersection(instruments)
             if duplicates:
