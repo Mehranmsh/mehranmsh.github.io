@@ -18,6 +18,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+SOURCE_MANIFEST_PATH = Path(__file__).with_name("data") / "virtuosity_drums_source_manifest.json"
+SAMPLE_DIRECTORIES = {"kick": "Samples/kickmic/kick", "snare": "Samples/kickmic/snare",
+                      "closed_hat": "Samples/kickmic/hh", "open_hat": "Samples/kickmic/hh"}
+
 SOURCE_REPOSITORY = "sfzinstruments/virtuosity_drums"
 SOURCE_COMMIT = "9f04cf9a734527edfbb0a4eee1f674e45bbf71bc"
 API_ROOT = f"https://api.github.com/repos/{SOURCE_REPOSITORY}"
@@ -152,23 +156,27 @@ def fetch_virtuosity_drums(output_root: str | Path) -> dict[str, Any]:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg is required to convert verified FLAC samples to PCM16 WAV")
-    tree_data = json.loads(_request(f"{API_ROOT}/git/trees/{SOURCE_COMMIT}?recursive=1"))
-    if tree_data.get("truncated"):
-        raise ValueError("Pinned upstream Git tree was truncated")
-    tree = {item["path"]: item["sha"] for item in tree_data.get("tree", [])
-            if item.get("type") == "blob"}
+    source_manifest = json.loads(SOURCE_MANIFEST_PATH.read_text(encoding="utf-8"))
+    if (source_manifest.get("source_repository") != SOURCE_REPOSITORY
+            or source_manifest.get("source_commit") != SOURCE_COMMIT
+            or source_manifest.get("license") != "CC0-1.0"):
+        raise ValueError("Pinned Virtuosity source manifest identity mismatch")
+    tree = source_manifest.get("sample_git_blob_sha1", {})
+    if len(tree) != sum(EXPECTED_COUNTS.values()):
+        raise ValueError("Pinned Virtuosity source manifest must contain all 80 sample hashes")
     required = ["Programs/keymaps/keymap.sfz", "Programs/03-kick-mic.sfz", "LICENSE",
                 *(spec["sfz"] for spec in MAPPINGS.values())]
-    missing = [path for path in required if path not in tree]
-    if missing:
-        raise ValueError(f"Pinned upstream repository is missing required files: {missing}")
     source_dir = root / "source"
     source_dir.mkdir(parents=True, exist_ok=True)
+    mapping_hashes: dict[str, str] = {}
 
     def fetch_text(path: str) -> str:
         target = source_dir / Path(path).name
-        _download_verified(path, tree[path], target)
-        return target.read_text(encoding="utf-8")
+        data = _request(f"{RAW_ROOT}/{path}")
+        blob_sha = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\\0" + data).hexdigest()
+        target.write_bytes(data)
+        mapping_hashes[path] = blob_sha
+        return data.decode("utf-8")
 
     keymap = fetch_text("Programs/keymaps/keymap.sfz")
     main_program = fetch_text("Programs/03-kick-mic.sfz")
@@ -182,12 +190,12 @@ def fetch_virtuosity_drums(output_root: str | Path) -> dict[str, Any]:
         raise ValueError("Unexpected compact Virtuosity subset size")
 
     def prepare(item: dict[str, Any]) -> dict[str, Any]:
-        source_relative = next(
-            path for path in tree
-            if path.startswith("Samples/kickmic/") and path.endswith("/" + item["filename"])
-        )
+        source_relative = SAMPLE_DIRECTORIES[item["instrument"]] + "/" + item["filename"]
+        expected_sha = tree.get(source_relative)
+        if not expected_sha:
+            raise ValueError(f"Sample is absent from pinned CC0 source manifest: {source_relative}")
         source_path = root / "source-flac" / item["filename"]
-        _download_verified(source_relative, tree[source_relative], source_path)
+        _download_verified(source_relative, expected_sha, source_path)
         relative_wav = f"{item['instrument']}/{item['filename'].removesuffix('.flac')}.wav"
         wav_path = root / relative_wav
         wav_path.parent.mkdir(parents=True, exist_ok=True)
@@ -232,6 +240,8 @@ def fetch_virtuosity_drums(output_root: str | Path) -> dict[str, Any]:
     provenance = {
         "source_repository": SOURCE_REPOSITORY, "source_commit": SOURCE_COMMIT,
         "license": "CC0-1.0", "source_license_file": "LICENSE-CC0.txt",
+        "source_license_git_blob_sha": mapping_hashes["LICENSE"],
+        "mapping_source_git_blob_sha1": mapping_hashes,
         "instrument_counts": EXPECTED_COUNTS, "sample_count": len(prepared),
         "samples": [{
             "instrument": item["instrument"], "filename": item["filename"],
