@@ -65,7 +65,9 @@ def fetch_dan_tranh(output_root):
     regions=parse_dan_tranh_websfz(json.loads(mapping))
     verified(SOURCE_ROOT,"LICENSE",sf["LICENSE"],root/"LICENSE-CC0.txt")
     for x in regions:
-        if x["source_path"] not in sf: raise ValueError(f"Missing source recording: {x['source_path']}")
+        matches=[p for p in sf if p.casefold()==x["source_path"].casefold()]
+        if len(matches)!=1: raise ValueError(f"Expected one case-insensitive VCSL source match for {x['source_path']}, found {len(matches)}")
+        x["source_path"]=matches[0]
     def prepare(x):
         src=root/"source-wav"/x["filename"]; verified(SOURCE_ROOT,x["source_path"],sf[x["source_path"]],src)
         rel="plucks/"+x["filename"]; dst=root/rel; dst.parent.mkdir(parents=True,exist_ok=True)
