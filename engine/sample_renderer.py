@@ -378,6 +378,15 @@ def render_sample_events(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
             ),
             "one_shot_round_robin_events": sum(1 for item in checked if item[13]),
+            "one_shot_round_robin_selections": [
+                {
+                    "instrument": sample.instrument,
+                    "midi_note": item[1],
+                    "round_robin_index": sample.round_robin_index,
+                }
+                for item in checked if item[13]
+                for sample, _layer_gain in item[0]
+            ],
             "equal_power_velocity_crossfade_events": velocity_crossfade_events,
             "velocity_layers_rendered": velocity_crossfade_layers_rendered,
             "quality_ranking": "technical_screening_only",
