@@ -102,7 +102,7 @@ class StudioControlPlaneTests(unittest.TestCase):
 
     def test_authenticated_compose_creates_plan_and_midi_file(self):
         status, payload = self.request("/v1/compose", method="POST", payload={
-            "title": "برگرد", "lyrics": "دلم گرفته\\nاز این شب سرد\\nبرگرد ای عشق\\nبه خانه برگرد",
+            "title": "برگرد", "lyrics": "دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد",
             "genre": "pop", "bpm": 84
         })
         self.assertEqual(status, 201, payload)
@@ -187,7 +187,7 @@ class StudioControlPlaneTests(unittest.TestCase):
     def test_co_creation_revision_preserves_harmony_rhythm_and_arrangement(self):
         status, created = self.request(
             "/v1/co-create", method="POST",
-            payload={"lyrics": "فردا می‌رسد\\nآفتاب می‌تابد", "mood": "hopeful", "phrase_count": 8},
+            payload={"lyrics": "فردا می‌رسد\nآفتاب می‌تابد", "mood": "hopeful", "phrase_count": 8},
         )
         self.assertEqual(status, 201, created)
         original = created["plan"]
@@ -201,7 +201,7 @@ class StudioControlPlaneTests(unittest.TestCase):
             "/v1/revise-co-creation", method="POST",
             payload={
                 "plan": original,
-                "lyrics": "فردا دوباره می‌رسد\\nخورشید می‌تابد",
+                "lyrics": "فردا دوباره می‌رسد\nخورشید می‌تابد",
                 "melody_notes": revised_notes,
             },
         )
