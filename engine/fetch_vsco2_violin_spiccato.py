@@ -60,7 +60,7 @@ def _note_number(name: str) -> int:
     match = re.fullmatch(r"([A-G]#?)([0-8])", name)
     if not match or match.group(1) not in _NOTE_NAMES:
         raise ValueError(f"Invalid spiccato pitch name: {name}")
-    return 12 * (int(match.group(2)) + 1) + _NOTE_NAMES[match.group(1)]
+    return 12 * (int(match.group(2)) + 2) + _NOTE_NAMES[match.group(1)]
 
 
 def parse_spiccato_mapping(source: str, require_complete: bool = True) -> list[dict[str, Any]]:
