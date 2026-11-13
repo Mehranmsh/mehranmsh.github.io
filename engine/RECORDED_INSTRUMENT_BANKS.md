@@ -22,6 +22,33 @@ This register separates independent source-bank packages, playable instrument ID
 
 **Verified source totals:** 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The latest full ensemble installation and render completed successfully on 2026-11-13 (workflow run 43367190202). The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The combined-bank installer and manifest validation passed.
 
+## Latest per-note audit (2026-11-13, workflow run 43369733464)
+
+The read-only audit ran against the installed combined bank after installation and passed all three audit unit tests. It counted 2,022 sample entries across 16 playable IDs. Velocity gaps below are reported per recorded note and articulation; a gap is not a claim that the entire instrument is unusable.
+
+| Instrument | Recorded roots | Articulations | Per-note velocity gaps |
+|---|---:|---|---:|
+| Piano | 88 (MIDI 21–108) | sustain | 0 |
+| Nylon guitar | 44 (MIDI 40–83) | finger, pick | 0 |
+| Steel/acoustic guitar | 45 (MIDI 40–84) | sustain | 0 |
+| Electric bass | 41 (MIDI 35–75) | pick | 0 |
+| Cajón | 3 | bass, slap, tone | 0 |
+| Kalimba | 10 | pluck | 0 |
+| Contrabass | 11 | pizzicato | 2 |
+| Solo violin | 15 (MIDI 55–96) | arco-vibrato, pizzicato | 3 |
+| Concert flute | 10 | sustain-vibrato, expressive-vibrato | 0 |
+| Dan Tranh | 16 | pluck | 1 |
+| Baroque soprano recorder | 13 | sustain, staccato | 0 |
+| Concert harp | 23 | sustain | 2 |
+
+The precise uncovered velocity ranges are:
+- Contrabass pizzicato: MIDI 27 and 34 lack velocity 121–127.
+- Solo violin pizzicato: MIDI 88, 93 and 96 lack velocity 1–63.
+- Dan Tranh pluck: MIDI 83 lacks velocity 100–127.
+- Concert harp sustain: MIDI 62 has two distinct source regions with complementary uncovered ranges, 101–127 and 1–100. Preserve the source region/key-zone distinction; do not interpret this as a simple whole-instrument velocity hole.
+
+All other audited note/articulation combinations reported no velocity gaps. The audit also confirmed contiguous round-robin indices beginning at zero for all audited groups. This is structural coverage only, not a human listening approval or a guarantee of complete chromatic coverage.
+
 ## Ensemble integration status
 
 - The latest successful integration run rendered 1,048 events across all 16 playable instrument IDs in a 60-second preview.
