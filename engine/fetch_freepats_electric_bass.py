@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -50,7 +51,7 @@ def _request(url: str, *, timeout: int = 90) -> bytes:
 
 
 def _download_verified(path: str, expected_git_sha: str, destination: Path) -> None:
-    data = _request(f"{RAW_ROOT}/{path}")
+    data = _request(f"{RAW_ROOT}/{urllib.parse.quote(path, safe='/')}")
     actual = hashlib.sha1(
         b"blob " + str(len(data)).encode("ascii") + b"\0" + data
     ).hexdigest()
