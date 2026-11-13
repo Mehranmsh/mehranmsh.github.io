@@ -90,7 +90,7 @@ class DoubleBassPizzTests(unittest.TestCase):
             def read(self):
                 return b"ok"
 
-        with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "test-token"}, clear=True), \\
+        with mock.patch.dict("os.environ", {"GITHUB_TOKEN": "test-token"}, clear=True), \
              mock.patch("urllib.request.urlopen", return_value=Response()) as urlopen:
             self.assertEqual(_request("https://api.github.com/test"), b"ok")
         request = urlopen.call_args.args[0]
