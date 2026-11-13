@@ -1,4 +1,5 @@
 import importlib.util
+import base64
 import json
 import hashlib
 import os
@@ -125,6 +126,7 @@ class StudioControlPlaneTests(unittest.TestCase):
                 self.assertEqual(result["midi"]["tracks"], 7)
                 midi_path = Path(result["midi"]["local_path"])
                 self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
+                self.assertEqual(base64.b64decode(result["midi"]["content_base64"]), midi_path.read_bytes())
 
     def test_unified_composition_mode_validates_mode_and_lyrics_requirements(self):
         invalid_cases = (
