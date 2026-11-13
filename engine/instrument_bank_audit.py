@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from sample_bank import SampleBank, load_sample_bank
+from velocity_layer_planner import plan_velocity_layers
 
 
 def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
@@ -101,6 +102,38 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
                     "uncovered_ranges": gaps,
                 })
 
+        selection_priority_policies = sorted({
+            (sample.selection_priority, sample.selection_priority_min_velocity)
+            for sample in samples
+            if sample.selection_priority != 0 or sample.selection_priority_min_velocity != 1
+        })
+        effective_velocity_gaps = []
+        if selection_priority_policies:
+            for note in roots:
+                for articulation in articulations:
+                    covered = [False] * 128
+                    for velocity in range(1, 128):
+                        planned = plan_velocity_layers(
+                            bank, instrument, note, velocity, articulation
+                        )
+                        covered[velocity] = bool(planned["layers"])
+                    gaps = []
+                    gap_start = None
+                    for velocity in range(1, 128):
+                        if not covered[velocity] and gap_start is None:
+                            gap_start = velocity
+                        elif covered[velocity] and gap_start is not None:
+                            gaps.append({"min": gap_start, "max": velocity - 1})
+                            gap_start = None
+                    if gap_start is not None:
+                        gaps.append({"min": gap_start, "max": 127})
+                    if gaps:
+                        effective_velocity_gaps.append({
+                            "midi_note": note,
+                            "articulation": articulation,
+                            "uncovered_ranges": gaps,
+                        })
+
         instruments[instrument] = {
             "sample_entries": len(samples),
             "recorded_pitch_centers": len(roots),
@@ -111,6 +144,11 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
                 {"min": low, "max": high} for low, high in velocity_intervals
             ],
             "velocity_gaps_by_recorded_note_and_articulation": velocity_gaps,
+            "effective_velocity_gaps_after_source_priority": effective_velocity_gaps,
+            "selection_priority_policies": [
+                {"priority": priority, "minimum_velocity": minimum}
+                for priority, minimum in selection_priority_policies
+            ],
             "declared_playable_key_zones": [
                 {"min": low, "max": high}
                 for low, high in playable_zones
