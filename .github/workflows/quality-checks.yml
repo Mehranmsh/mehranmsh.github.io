@@ -66,3 +66,29 @@ jobs:
           MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
           CLOUDFLARE_TUNNEL_TOKEN: ci-only-cloudflare-placeholder
         run: docker compose --env-file .env.example -f docker-compose.engine.yml config --quiet
+      - name: Smoke-test live container health and authentication
+        env:
+          MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
+        run: |
+          set -euo pipefail
+          docker run -d --name mehran-engine-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            -p 127.0.0.1:18765:8765 \
+            -e MEHRAN_STUDIO_TOKEN="$MEHRAN_STUDIO_TOKEN" \
+            -e MEHRAN_STUDIO_HOME=/tmp/mehran-ci \
+            -e MEHRAN_STUDIO_HOST=0.0.0.0 \
+            -e MEHRAN_STUDIO_PORT=8765 \
+            -e MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1 \
+            mehran-music-engine:ci
+          trap 'docker rm -f mehran-engine-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail -H "Authorization: Bearer $MEHRAN_STUDIO_TOKEN" \
+              http://127.0.0.1:18765/health -o /tmp/mehran-health.json; then
+              break
+            fi
+            sleep 2
+          done
+          python -c "import json; d=json.load(open('/tmp/mehran-health.json')); assert d['service']=='mehran-music-studio-control'; assert 'engine' in d and 'resources' in d"
+          status=$(curl --silent -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/health)
+          test "$status" = "401"
