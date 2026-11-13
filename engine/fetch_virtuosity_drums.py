@@ -79,10 +79,15 @@ def parse_keymap_note(keymap_text: str, macro: str) -> int:
     return note
 
 
-def parse_virtuosity_sfz_map(sfz_text: str, instrument: str, *, keymap_text: str) -> list[dict[str, Any]]:
+def parse_virtuosity_sfz_map(
+    sfz_text: str, instrument: str, *, keymap_text: str,
+    require_complete: bool = True,
+) -> list[dict[str, Any]]:
     """Parse a narrowly scoped SFZ map while retaining velocity and RR identity."""
     if instrument not in MAPPINGS:
         raise ValueError("Unsupported Virtuosity instrument subset")
+    if not isinstance(require_complete, bool):
+        raise ValueError("require_complete must be a boolean")
     spec = MAPPINGS[instrument]
     midi_note = parse_keymap_note(keymap_text, spec["macro"])
     if midi_note != spec["note"]:
@@ -121,7 +126,7 @@ def parse_virtuosity_sfz_map(sfz_text: str, instrument: str, *, keymap_text: str
             "round_robin_index": rr_index, "one_shot": True,
             "velocity_layer": velocity_layer, "filename": filename,
         })
-    if len(regions) != EXPECTED_COUNTS[instrument]:
+    if require_complete and len(regions) != EXPECTED_COUNTS[instrument]:
         raise ValueError(f"{instrument} expected {EXPECTED_COUNTS[instrument]} SFZ regions, got {len(regions)}")
     identities = [(x["velocity_min"], x["velocity_max"], x["round_robin_index"]) for x in regions]
     if len(identities) != len(set(identities)):
