@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import hashlib
 import io
 import json
@@ -82,12 +83,18 @@ def import_concert_harp(output_root: str | Path) -> dict[str, Any]:
         names = {member.name for member in members}
         sfz_text = _safe_member(bundle, SFZ_PATH).decode("utf-8-sig")
         regions = parse_sfz_regions(sfz_text)
-        if len(regions) < 30:
-            raise ValueError(f"Unexpectedly small Concert Harp SFZ map: {len(regions)} regions")
+        if len(regions) != 36:
+            raise ValueError(f"Expected 36 official Concert Harp SFZ regions, got {len(regions)}")
         coverage = _coverage(regions)
+        if (coverage["midi_min"], coverage["midi_max"]) != (28, 102):
+            raise ValueError(f"Unexpected Concert Harp MIDI coverage: {coverage}")
         referenced = {region["sample"] for region in regions}
-        if len(referenced) < 30:
-            raise ValueError("Concert Harp map has too few independent recorded sample files")
+        if len(referenced) != 36:
+            raise ValueError(f"Expected 36 independent harp recordings, got {len(referenced)}")
+        velocity_layers = Counter(tuple(region["velocity_range"]) for region in regions)
+        expected_layers = {(0, 90): 14, (91, 127): 14, (0, 127): 8}
+        if dict(velocity_layers) != expected_layers:
+            raise ValueError(f"Unexpected Concert Harp velocity-layer layout: {dict(velocity_layers)}")
 
         source_wavs = {name for name in names if name.startswith(f"{SOURCE_ROOT}/samples/") and name.lower().endswith(".wav")}
         expected_paths = {f"{SOURCE_ROOT}/{sample}" for sample in referenced}
