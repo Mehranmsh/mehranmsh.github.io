@@ -117,6 +117,73 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(rendered["events_rendered"], 1)
             self.assertEqual(rendered["source"], "recorded_sample_bank")
 
+    def test_installs_cc0_electric_bass_fingerstyle_and_pick_banks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "electric-bass", root / "installed"
+            source.mkdir()
+            session = "freepats_electric_bass_cc0"
+            (source / "LICENSE-CC0.txt").write_text(
+                "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+            )
+            samples = []
+            for articulation, note, frequency in (
+                ("fingerstyle", 28, 82), ("pick", 33, 110)
+            ):
+                relative = f"{articulation}/E.wav"
+                sample_path = source / relative
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(sample_path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(48000)
+                    wav.writeframes(b"".join(
+                        int(6500 * math.sin(2 * math.pi * frequency * i / 48000)
+                            * (1.0 - i / 9600)).to_bytes(2, "little", signed=True)
+                        for i in range(9600)
+                    ))
+                samples.append({
+                    "instrument": "electric_bass", "midi_note": note,
+                    "velocity_min": 1, "velocity_max": 127,
+                    "articulation": articulation, "round_robin_index": 0,
+                    "one_shot": False, "path": relative,
+                    "recording_session_id": session,
+                })
+            (source / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "recording_sessions": {
+                    session: {
+                        "instrument_model": "Yamaha RBX electric bass guitar",
+                        "performer": "Andrea Biasior",
+                    }
+                },
+                "samples": samples,
+            }), encoding="utf-8")
+            report = install_recorded_banks([source], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["instrument_count"], 1)
+            self.assertEqual(report["sample_count"], 2)
+            self.assertEqual({sample.articulation for sample in bank.samples},
+                             {"fingerstyle", "pick"})
+            self.assertTrue(
+                (target / "provenance" / "electric_bass" / "SOURCE_LICENSE.txt").is_file()
+            )
+            output = root / "electric-bass-preview.wav"
+            rendered = render_sample_events([
+                {"instrument": "electric_bass", "midi_note": 28,
+                 "articulation": "fingerstyle", "start_seconds": 0,
+                 "duration_seconds": 0.15, "velocity": 90},
+                {"instrument": "electric_bass", "midi_note": 33,
+                 "articulation": "pick", "start_seconds": 0.2,
+                 "duration_seconds": 0.15, "velocity": 90},
+            ], bank, output, sample_rate=22050)
+            self.assertEqual(rendered["events_rendered"], 2)
+            self.assertEqual(rendered["source"], "recorded_sample_bank")
+            with wave.open(str(output), "rb") as wav:
+                self.assertEqual(wav.getnchannels(), 2)
+                self.assertTrue(any(wav.readframes(wav.getnframes())))
+
     def test_installs_percussion_round_robins_and_one_shot_metadata(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
