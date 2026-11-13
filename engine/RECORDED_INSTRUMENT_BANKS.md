@@ -18,11 +18,11 @@ This register separates independent source-bank packages, playable instrument ID
 | VSCO 2 CE CC0 Contrabass Supplement | contrabass | 2 | Exact MIDI 34 high-layer supplement, two round robins; original 63–127 zone, selected at 121–127 |
 | VSCO 2 CE CC0 Solo Violin | solo_violin | 74 | 30 arco-vibrato and 44 pizzicato recordings, 15 pitch centers |
 | VSCO 2 CE CC0 Concert Flute | concert_flute | 27 | 13 sustain-vibrato and 14 expressive-vibrato recordings, 10 pitch centers |
-| VCSL CC0 Dan Tranh | dan_tranh | 47 | 16 pitch centers and source-defined velocity groupings |
+| VCSL CC0 Dan Tranh | dan_tranh | 48 | 16 pitch centers, source-defined velocity groupings, and restored exact-root B4 ff layer |
 | VCSL CC0 Baroque Soprano Recorder | baroque_soprano_recorder | 25 | 13 sustain and 12 staccato recordings |
 | VCSL CC0 Concert Harp | concert_harp | 45 | 45 original stereo SFZ regions with preserved offsets and velocity crossfade metadata |
 
-**Verified source totals:** the original baseline has 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The current feature-branch combined installation adds two contrabass supplement packages, for **15 independent source packages, 16 playable instrument IDs, and 2,028 recorded sample entries**. Installation and the effective-coverage audit passed in workflow run 43376257628. The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The two contrabass supplements do not create new playable instrument IDs.
+**Verified source totals:** the original baseline has 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The current feature-branch combined installation adds two contrabass supplement packages and the verified Dan Tranh B4 ff source recording, for **15 independent source packages, 16 playable instrument IDs, and 2,029 recorded sample entries**. The latest full integration passed in workflow run 43426076183. The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The two contrabass supplements do not create new playable instrument IDs.
 
 ## Latest per-note audit (2026-11-13, workflow run 43369733464)
 
@@ -43,17 +43,17 @@ The read-only audit ran against the installed combined bank after installation a
 | Baroque soprano recorder | 13 | sustain, staccato | 0 |
 | Concert harp | 23 | sustain | 2 |
 
-The precise uncovered velocity ranges are:
+The precise uncovered velocity ranges from the earlier read-only audit are listed below. The Dan Tranh MIDI 83 upper layer was subsequently restored from its exact CC0 source recording (`B4_ff_1.wav`) and passed dedicated mapping tests; rerun the read-only audit before treating the historical gap count as current. Remaining previously identified gaps are:
 - Contrabass pizzicato: MIDI 27 and 34 lack velocity 121–127.
 - Solo violin pizzicato: MIDI 88, 93 and 96 lack velocity 1–63.
-- Dan Tranh pluck: MIDI 83 lacks velocity 100–127.
+- Dan Tranh pluck: MIDI 83 previously lacked velocity 100–127; the exact-root B4 ff recording is now restored with velocity 100–127.
 - Concert harp sustain: MIDI 62 has two distinct source regions with complementary uncovered ranges, 101–127 and 1–100. Preserve the source region/key-zone distinction; do not interpret this as a simple whole-instrument velocity hole.
 
 All other audited note/articulation combinations reported no velocity gaps. The audit also confirmed contiguous round-robin indices beginning at zero for all audited groups. This is structural coverage only, not a human listening approval or a guarantee of complete chromatic coverage.
 
 ## Ensemble integration status
 
-- The latest successful full integration run (workflow run 43376257628) installed 15 independent source packages, 16 playable instrument IDs, and 2,028 recorded sample entries. It rendered 1,052 events across all 16 playable IDs in a 60-second preview.
+- The latest successful full integration run (workflow run 43426076183, commit `ae4596d8c0a57ea50931b5f861088de2141f5901`) installed 15 independent source packages, 16 playable instrument IDs, and 2,029 recorded sample entries. It rendered 1,052 events across all 16 playable IDs in a 60-second preview.
 - The preview is stereo, 44.1 kHz, 16-bit PCM, with an exact 60-second duration and zero clipping samples.
 - The renderer reported 288 one-shot round-robin events, 98 pitched round-robin events, 158 equal-power velocity-crossfade events, and 1,210 rendered velocity layers.
 - The renderer reported zero nearest-note fallback events, zero pitch-shifted key-zone events, and zero pitch-shifted nearest-note events. The preview includes the new exact-root MIDI 27 and MIDI 34 contrabass upper-velocity sources. Babyblue's recorded roots are MIDI 35–75; ensemble bass events are rendered against those recorded notes.
@@ -92,4 +92,4 @@ A second CC0 source has passed its dedicated import, manifest, load, and recorde
 - The effective audit reported zero uncovered velocity ranges after source-priority selection for the exact recorded roots MIDI 27 and 34. The raw per-source gap report remains intact, so the original banks' incomplete upper layers are still visible rather than erased.
 - Integration decision: the six supplemental recordings have now been installed as two separate CC0 source packages in the feature branch's combined bank. Rubner remains intact as the incumbent source below velocity 121; Meatbass and VSCO are selected only for the missing upper range. The 224-entry Meatbass candidate itself is still not used wholesale.
 
-The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,028 entries. The feature branch and PR remain unmerged; the main branch is unchanged. CI installation and audit success are not human listening approval, and the 60-second ensemble preview is still being validated.
+The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,029 entries. The feature branch and PR remain unmerged; the main branch is unchanged. The 60-second ensemble preview passed technical rendering checks, but this is not human listening approval.
