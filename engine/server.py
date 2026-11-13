@@ -33,7 +33,7 @@ PORT = int(os.environ.get("MEHRAN_STUDIO_PORT", "8765"))
 TOKEN = os.environ.get("MEHRAN_STUDIO_TOKEN", "")
 LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from mehran_music_core import compose_plan, compose_instrumental_plan, compose_co_creation_plan
+from mehran_music_core import compose_plan, compose_instrumental_plan, compose_co_creation_plan, revise_co_creation_plan
 from midi_renderer import render_midi
 from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
                          analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist, build_sample_recording_sheet_csv, select_sample)
@@ -296,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
                     "charged": False
                 })
             return self.send_json(501, {"error": "job_runner_not_implemented", "job_created": False, "charged": False})
-        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-instrumental", "/v1/co-create", "/v1/compose-audio"):
+        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-instrumental", "/v1/co-create", "/v1/revise-co-creation", "/v1/compose-audio"):
             return self.send_json(404, {"error": "not_found"})
         length = self.headers.get("Content-Length", "")
         if not length.isdigit() or int(length) > MAX_BODY:
@@ -401,6 +401,51 @@ class Handler(BaseHTTPRequestHandler):
                          "duration_seconds": midi_info["duration_seconds"],
                          "bytes": midi_info["bytes"], "local_path": str(midi_path)},
                 "message": "Co-creation plan and editable MIDI created. Existing instrumental melody, harmony, sections, and arrangement blueprint were preserved while lyrics were aligned. No audio or vocal performance was rendered."
+            })
+        if path == "/v1/revise-co-creation":
+            existing_plan = payload.get("plan")
+            lyrics = payload.get("lyrics")
+            melody_notes = payload.get("melody_notes")
+            if not isinstance(existing_plan, dict):
+                return self.send_json(400, {"error": "invalid_plan"})
+            if lyrics is None and melody_notes is None:
+                return self.send_json(400, {"error": "revision_required"})
+            if lyrics is not None and (not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000):
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if melody_notes is not None and not isinstance(melody_notes, list):
+                return self.send_json(400, {"error": "invalid_melody_notes"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_revised": False})
+            try:
+                revised_plan = revise_co_creation_plan(
+                    existing_plan, lyrics=lyrics, melody_notes=melody_notes,
+                )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(revised_plan, midi_path)
+            except ValueError as error:
+                detail = str(error)
+                code = "lyrics_exceed_melody_capacity" if "more lines than" in detail else "invalid_revision"
+                return self.send_json(400, {"error": code, "detail": detail})
+            except OSError as error:
+                return self.send_json(500, {"error": "midi_render_failed", "detail": str(error)})
+            return self.send_json(200, {
+                "composition_revised": True,
+                "audio_rendered": False,
+                "plan": revised_plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Existing composition revised. Melody rhythm, harmony, sections, and arrangement are preserved; only submitted lyric alignment and/or melody pitches changed. No audio was rendered."
             })
         if path == "/v1/compose":
             lyrics = payload.get("lyrics")
