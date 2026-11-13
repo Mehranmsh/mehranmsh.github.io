@@ -513,7 +513,7 @@ def _section_sample_dynamics(section: str) -> dict[str, float]:
 # Conservative per-part gain staging before the final linked-stereo peak pass.
 # These are mix-balance multipliers, independent of musical velocity and section dynamics.
 _DEFAULT_PART_GAINS = {
-    "melody": 1.0, "chords": 0.82, "bass": 0.90,
+    "melody": 1.0, "chords": 0.82, "bass": 0.90, "contrabass": 0.48,
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
     "open_hat": 0.62, "cajon": 0.64, "kalimba": 0.46, "guitar": 0.76, "strings": 0.70,
     "electric_guitar": 0.76,
@@ -596,7 +596,7 @@ def build_composition_events(
     names = {
         "melody": "piano", "chords": "piano", "bass": "electric_bass",
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
-        "open_hat": "open_hat", "cajon": None, "kalimba": None, "guitar": None, "strings": None,
+        "open_hat": "open_hat", "contrabass": "contrabass", "cajon": None, "kalimba": None, "guitar": None, "strings": None,
         "electric_guitar": None,
     }
     if instruments is not None:
@@ -874,6 +874,19 @@ def build_composition_events(
                         48, _scaled_velocity(78, drum_scale))
                     add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
                         48, _scaled_velocity(90, drum_scale))
+            if names["contrabass"] is not None:
+                # Slower pizzicato support beneath the electric-bass groove.
+                if section == "bridge":
+                    add("contrabass", bass_root, bar_start, 2 * PPQ - 48,
+                        _scaled_velocity(58, bass_scale), -0.08,
+                        articulation="pizzicato", articulation_source="instrument_default")
+                else:
+                    add("contrabass", bass_root, bar_start, PPQ + PPQ // 2,
+                        _scaled_velocity(62, bass_scale), -0.08,
+                        articulation="pizzicato", articulation_source="instrument_default")
+                    add("contrabass", bass_fifth, bar_start + 2 * PPQ,
+                        PPQ + PPQ // 2, _scaled_velocity(54, bass_scale), -0.08,
+                        articulation="pizzicato", articulation_source="instrument_default")
             if names["cajon"] is not None:
                 if section == "bridge":
                     add("cajon", 60, bar_start, 48,
@@ -989,7 +1002,7 @@ def render_composition_to_wav(
     if parts is not None:
         allowed_parts = {
             "melody", "chords", "bass", "kick", "snare", "closed_hat",
-            "open_hat", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
+            "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
         }
         if (not isinstance(parts, list) or not parts
                 or any(not isinstance(part, str) or part not in allowed_parts for part in parts)
