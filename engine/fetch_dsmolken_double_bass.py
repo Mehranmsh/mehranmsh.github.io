@@ -64,7 +64,7 @@ def parse_double_bass_pizz_sfz(
             return
         attrs = {**group, **region}
         sample = attrs.get("sample", "").replace("\\", "/")
-        if not re.fullmatch(r"pizz/pizz_[a-z0-9]+_[pmf][a-d]\\.wav", sample):
+        if not re.fullmatch(r"pizz/pizz_[a-z0-9]+_[pmf][a-d]\.wav", sample):
             return
         midi_note = int(attrs.get("pitch_keycenter", "-1"))
         low_key = int(attrs.get("lokey", "-1"))
@@ -105,7 +105,7 @@ def parse_double_bass_pizz_sfz(
             flush()
             region = {}
         else:
-            match = re.fullmatch(r"([a-z_]+)\\s*=\\s*(\\S+)", token)
+            match = re.fullmatch(r"([a-z_]+)\s*=\s*(\S+)", token)
             if match:
                 if region is None:
                     group[match.group(1)] = match.group(2)
@@ -204,7 +204,7 @@ def fetch_double_bass_pizzicato(output_root: str | Path) -> dict[str, Any]:
             "one_shot": False, "recording_session_id": session_id, "path": x["path"],
         } for x in prepared],
     }
-    (root / "bank.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    (root / "bank.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     provenance = {
         "source_repository": SOURCE_REPOSITORY, "source_commit": SOURCE_COMMIT,
         "license": "CC0-1.0", "license_file": "LICENSE-CC0.txt",
@@ -220,7 +220,7 @@ def fetch_double_bass_pizzicato(output_root: str | Path) -> dict[str, Any]:
             "sfz_key_range": [x["low_key"], x["high_key"]],
         } for x in prepared],
     }
-    (root / "provenance.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    (root / "provenance.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     from sample_bank import load_sample_bank
     bank = load_sample_bank(root)
     if len(bank.samples) != 123:
