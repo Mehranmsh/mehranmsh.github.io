@@ -239,7 +239,9 @@ test("music engine proxy forwards all three composition modes with mode-safe lyr
       midi: {
         id: "mode-midi",
         format: "Standard MIDI",
-        content_base64: "TVRoZAAAAAYAAAAB",
+        content_base64: "TVRoZAAAAAYAAQABAeA=",
+         bytes: 14,
+         note_events: 1,
         local_path: "/private/renders/mode-midi.mid"
       },
       message: "MIDI created"
