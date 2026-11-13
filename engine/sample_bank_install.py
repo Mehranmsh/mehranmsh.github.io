@@ -130,6 +130,8 @@ def install_recorded_banks(
                     "one_shot": sample.one_shot,
                     "tuning_cents": sample.tuning_cents,
                     "gain_db": sample.gain_db,
+                    "playable_key_min": sample.playable_key_min,
+                    "playable_key_max": sample.playable_key_max,
                     "path": destination_relative.as_posix(),
                     "recording_session_id": session_id,
                 })
