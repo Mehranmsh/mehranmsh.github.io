@@ -44,7 +44,7 @@ def _request(url: str, timeout: int = 90) -> bytes:
 
 def _verified_download(url_root: str, path: str, expected_sha: str, destination: Path) -> bytes:
     data = _request(f"{url_root}/{quote(path, safe='/')}")
-    actual = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\\0" + data).hexdigest()
+    actual = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
     if actual != expected_sha:
         raise ValueError(f"Pinned Git blob SHA-1 mismatch: {path}")
     destination.parent.mkdir(parents=True, exist_ok=True)
