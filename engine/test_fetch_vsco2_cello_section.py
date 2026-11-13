@@ -69,7 +69,7 @@ class CelloSectionMapTests(unittest.TestCase):
 
     def test_rejects_a_mismatched_filename_root(self):
         maps = {key: fixture_map(key) for key in MAPS}
-        maps["pizzicato"] = maps["pizzicato"].replace("pitch_keycenter=57\\nlokey=57\\nhikey=57", "pitch_keycenter=58\\nlokey=58\\nhikey=58", 1)
+        maps["pizzicato"] = maps["pizzicato"].replace("pitch_keycenter=57\nlokey=57\nhikey=57", "pitch_keycenter=58\nlokey=58\nhikey=58", 1)
         with self.assertRaisesRegex(ValueError, "root does not match"):
             parse_cello_section_maps(maps)
 
