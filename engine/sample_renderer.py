@@ -506,7 +506,7 @@ def _section_sample_dynamics(section: str) -> dict[str, float]:
 _DEFAULT_PART_GAINS = {
     "melody": 1.0, "chords": 0.82, "bass": 0.90,
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
-    "open_hat": 0.62, "cajon": 0.64, "guitar": 0.76, "strings": 0.70,
+    "open_hat": 0.62, "cajon": 0.64, "kalimba": 0.46, "guitar": 0.76, "strings": 0.70,
     "electric_guitar": 0.76,
 }
 
@@ -587,7 +587,7 @@ def build_composition_events(
     names = {
         "melody": "piano", "chords": "piano", "bass": "electric_bass",
         "kick": "kick", "snare": "snare", "closed_hat": "closed_hat",
-        "open_hat": "open_hat", "cajon": None, "guitar": None, "strings": None,
+        "open_hat": "open_hat", "cajon": None, "kalimba": None, "guitar": None, "strings": None,
         "electric_guitar": None,
     }
     if instruments is not None:
@@ -883,6 +883,16 @@ def build_composition_events(
                     add("cajon", 62, bar_start + 3 * PPQ, 48,
                         _scaled_velocity(72, drum_scale),
                         articulation="tone", articulation_source="percussion_default")
+            if names["kalimba"] is not None and section in ("pre_chorus", "chorus", "final_chorus", "bridge"):
+                kalimba_notes = [min(81, max(59, int(note) + 12)) for note in voicing[:3]]
+                if section == "bridge":
+                    kalimba_notes = kalimba_notes[:1]
+                elif section == "pre_chorus":
+                    kalimba_notes = kalimba_notes[:2]
+                for note_index, note in enumerate(kalimba_notes):
+                    add("kalimba", note, bar_start + note_index * PPQ,
+                        PPQ // 2, _scaled_velocity(68 + note_index * 5, bar_dynamics["melody"]),
+                        0.16, articulation="pluck", articulation_source="planner")
             chord_index += 1
         # One explicitly selected part may answer in the written vocal-rest window.
         # No alternate instrument is silently substituted when that part is unmapped.
