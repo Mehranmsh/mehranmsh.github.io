@@ -5,6 +5,7 @@ import argparse
 import concurrent.futures
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -24,7 +25,14 @@ EXPECTED_ZONES = [(1, 74), (75, 120), (121, 127)]
 
 
 def _request(url: str, timeout: int = 90) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "MEHRAN-Music-Engine/1.0"})
+    headers = {
+        "User-Agent": "MEHRAN-Music-Engine/1.0",
+        "Accept": "application/vnd.github+json",
+    }
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers)
     for attempt in range(4):
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
