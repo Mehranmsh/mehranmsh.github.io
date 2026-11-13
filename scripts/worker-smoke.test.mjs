@@ -125,6 +125,61 @@ test("music engine proxy fails closed when private server credentials are not co
   assert.match(payload.error, /not configured on the server/);
 });
 
+test("music engine proxy forwards an owner request and strips private filesystem paths", async () => {
+  const engineToken = "server-only-engine-token-".padEnd(40, "x");
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          }
+          if (sql.includes("INSERT INTO social_auth_limits")) return { attempts: 1, blocked_until: null };
+          throw new Error("Unexpected SQL in music engine proxy test: " + sql);
+        }
+      };
+    }
+  };
+  const originalFetch = globalThis.fetch;
+  let upstreamRequest;
+  globalThis.fetch = async (url, options) => {
+    upstreamRequest = { url: String(url), options };
+    return new Response(JSON.stringify({
+      composition_created: true,
+      composition_mode: "instrumental_first",
+      audio_rendered: false,
+      plan: { source_mode: "instrumental_first" },
+      midi: { id: "safe-midi-id", format: "Standard MIDI", local_path: "/private/renders/safe-midi-id.mid" },
+      message: "MIDI created"
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    const response = await request("/music/engine/compose", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + "b".repeat(48) },
+      body: { composition_mode: "instrumental_first", title: "Test", genre: "pop", mood: "hopeful", phrase_count: 8 }
+    }, {
+      DB: db,
+      MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+      MEHRAN_ENGINE_TOKEN: engineToken
+    });
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.plan.source_mode, "instrumental_first");
+    assert.equal(payload.midi.id, "safe-midi-id");
+    assert.equal("local_path" in payload.midi, false);
+    assert.equal(upstreamRequest.url, "https://private-engine.example/v1/compose-by-mode");
+    assert.equal(upstreamRequest.options.headers.Authorization, "Bearer " + engineToken);
+    assert.equal(JSON.parse(upstreamRequest.options.body).composition_mode, "instrumental_first");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("music engine proxy keeps the private engine credential out of the public studio", () => {
   assert.match(workerSource, /env\.MEHRAN_ENGINE_COMPOSE_URL/);
   assert.match(workerSource, /env\.MEHRAN_ENGINE_TOKEN/);
