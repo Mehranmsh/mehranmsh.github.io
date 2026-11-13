@@ -36,6 +36,12 @@ class PartExpressionTests(unittest.TestCase):
         self.assertGreater(harp["pan"], 0.4)
         self.assertLess(cello["pan"], -0.4)
 
+    def test_nylon_guitar_has_a_separate_stereo_profile(self):
+        nylon = plan_part_expression("nylon_guitar", "verse")
+        steel = plan_part_expression("guitar", "verse")
+        self.assertNotEqual(nylon["profile"], steel["profile"])
+        self.assertNotEqual(nylon["pan"], steel["pan"])
+
     def test_recorder_and_dan_tranh_have_distinct_stereo_profiles(self):
         recorder = plan_part_expression("recorder", "chorus", 0.12)
         dan_tranh = plan_part_expression("dan_tranh", "chorus", 0.22)
