@@ -43,6 +43,7 @@ class Sample:
     gain_db: float = 0.0
     playable_key_min: int | None = None
     playable_key_max: int | None = None
+    offset_frames: int = 0
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         if (isinstance(gain_db, bool) or not isinstance(gain_db, (int, float))
                 or not math.isfinite(gain_db) or not -24.0 <= gain_db <= 24.0):
             raise ValueError("gain_db must be finite and between -24 and 24")
+        offset_frames = _integer(entry.get("offset_frames", 0), 0, 4294967296, "offset_frames")
         playable_key_min = entry.get("playable_key_min")
         playable_key_max = entry.get("playable_key_max")
         if (playable_key_min is None) != (playable_key_max is None):
@@ -167,6 +169,8 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
                 frames = wav.getnframes()
                 if channels not in (1, 2) or not 8000 <= sample_rate <= 192000 or frames <= 0:
                     raise ValueError("Sample WAV has unsupported channels, rate, or empty audio")
+                if offset_frames >= frames:
+                    raise ValueError("offset_frames must point inside the recorded sample")
                 loop_start = entry.get("loop_start_frame")
                 loop_end = entry.get("loop_end_frame")
                 if (loop_start is None) != (loop_end is None):
@@ -183,7 +187,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
                               loop_start, loop_end, articulation, session_id, recording_metadata,
                               string_name, round_robin_index, one_shot,
                               float(tuning_cents), float(gain_db),
-                              playable_key_min, playable_key_max))
+                              playable_key_min, playable_key_max, offset_frames))
     return SampleBank(root, tuple(samples))
 
 
