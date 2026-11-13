@@ -69,7 +69,12 @@
     </div>
     <div class="field"><label for="projectBrief">CREATIVE DIRECTION</label><textarea id="projectBrief" maxlength="3000" placeholder="Describe the instruments, atmosphere, rhythm, vocal character, references you own or the story behind the song..."></textarea></div>
     <div class="field"><label for="projectLyrics">LYRICS / IDEAS (OPTIONAL)</label><textarea id="projectLyrics" maxlength="12000" placeholder="Write a verse, a chorus, a melody idea or leave this blank for now."></textarea></div>
-    <button class="btn" id="saveProject">Save project draft</button> <button class="btn secondary" type="button" data-go="overview">Cancel</button>
+    <button class="btn" id="saveProject">Save project draft</button>
+    <button class="btn" id="composeWithEngine" type="button" style="margin-top:10px">♫ Build composition with MEHRAN Engine</button>
+    <p id="engineComposeStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:12px;margin:9px 0 0">Requires an active MEHRAN MSH owner session on this same browser. Creates an editable MIDI plan, not rendered audio.</p>
+    <div id="engineComposeResult" class="notice" hidden style="margin-top:12px;white-space:pre-wrap;overflow-wrap:anywhere"></div>
+    <button class="btn secondary" id="downloadEngineMidi" type="button" hidden style="margin-top:8px">Download editable MIDI</button>
+    <button class="btn secondary" type="button" data-go="overview">Cancel</button>
    </div>
    <div class="panel"><h3>Production path</h3>
     <div class="projects">
@@ -1095,6 +1100,37 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  function saveLyrics(){const p=projects.find(x=>x.id===$("lyricsProject").value);if(!p){alert("Choose a project first.");return;}const previous={lyricsTitle:p.lyricsTitle,lyrics:p.lyrics,updated:p.updated};p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);p.lyrics=$("lyricsEditor").value.slice(0,20000);p.updated=Date.now();if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}render();refreshLyricsProjects(p.id);$("lyricsProject").dataset.previous=p.id;$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;$("lyricsSaveState").textContent="Saved locally · "+new Date().toLocaleTimeString();}
  function exportLyrics(){const title=$("lyricsTitle").value.trim()||"lyrics";const safe=title.replace(/[^a-z0-9\-_ ]/gi,"").trim().replace(/\s+/g,"-").slice(0,60)||"lyrics";const blob=new Blob([$("lyricsEditor").value],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=safe+".txt";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
  function insertLyricSection(section){const t=$("lyricsEditor");const start=t.selectionStart,end=t.selectionEnd;const before=t.value.slice(0,start),after=t.value.slice(end);const prefix=before&&!before.endsWith("\n")?"\n\n":"";const addition=prefix+section+"\n";t.value=before+addition+after;t.focus();const pos=(before+addition).length;t.setSelectionRange(pos,pos);updateLyricsCount();}
+ let latestEngineMidiBase64="",latestEngineMidiName="mehran-composition.mid";
+ async function composeWithEngine(){
+  const button=$("composeWithEngine"),status=$("engineComposeStatus"),result=$("engineComposeResult"),download=$("downloadEngineMidi");
+  const token=localStorage.getItem("msh_admin_session")||"";
+  if(!token){status.textContent="ابتدا در داشبورد اصلی MEHRAN MSH با حساب مدیر Pi وارد شو و سپس همین صفحه را در همان مرورگر باز کن.";return;}
+  const mode=$("compositionMode").value,title=$("projectName").value.trim(),genre=$("projectGenre").value,moodChoice=$("projectMood").value,lyrics=$("projectLyrics").value.trim();
+  if(!title){status.textContent="ابتدا نام پروژه را وارد کن."; $("projectName").focus();return;}
+  if(["lyrics_first","co_creation"].includes(mode)&&!lyrics){status.textContent=mode==="lyrics_first"?"در مسیر شعرمحور، متن شعر الزامی است.":"در ساخت مشترک، دست‌کم یک خط شعر لازم است."; $("projectLyrics").focus();return;}
+  const bpmText=$("projectTempo").value.trim(),bpm=bpmText?Number(bpmText):null;
+  if(bpm!==null&&(!Number.isInteger(bpm)||bpm<50||bpm>200)){status.textContent="سرعت برای موتور باید بین 50 تا 200 BPM باشد."; $("projectTempo").focus();return;}
+  const moodMap={Emotional:"sad",Energetic:"neutral",Dark:"sad",Hopeful:"hopeful",Romantic:"romantic",Epic:"hopeful",Calm:"neutral",Melancholic:"sad",Custom:"neutral"};
+  button.disabled=true;download.hidden=true;result.hidden=true;latestEngineMidiBase64="";
+  status.textContent="در حال ارسال امن درخواست به موتور مستقل MEHRAN…";
+  try{
+   const payload={composition_mode:mode,title,genre:genre.toLowerCase(),mood:moodMap[moodChoice]||"neutral",phrase_count:8,...(bpm===null?{}:{bpm}),...(mode==="instrumental_first"?{}:{lyrics})};
+   const response=await fetch("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(payload),cache:"no-store"});
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||!data.success||!data.composition_created)throw new Error(data.error||("Engine request failed ("+response.status+")"));
+   if(!data.midi||typeof data.midi.content_base64!=="string"||!data.midi.content_base64)throw new Error("The engine returned a plan without an editable MIDI file.");
+   latestEngineMidiBase64=data.midi.content_base64;
+   latestEngineMidiName=(title.replace(/[^a-z0-9-_]+/gi,"-").replace(/^-+|-+$/g,"").slice(0,50)||"mehran-composition")+".mid";
+   const midi=data.midi;
+   result.textContent=["Composition created successfully","Workflow: "+mode.replace(/_/g," "),"Tempo: "+(midi.tempo_bpm||"auto")+" BPM","MIDI tracks: "+(midi.tracks??"not reported"),"Note events: "+(midi.note_events??"not reported"),"Duration: "+(midi.duration_seconds??"not reported")+" seconds","MIDI size: "+(midi.bytes??"not reported")+" bytes","Audio rendered: no","\nThe editable MIDI is ready. Audio and vocal rendering are separate future stages."].join("\n");
+   result.hidden=false;download.hidden=false;status.textContent="طرح آهنگ با موفقیت از هسته مستقل دریافت شد.";
+  }catch(error){status.textContent="ساخت طرح انجام نشد: "+String(error.message||error).slice(0,240);}
+  finally{button.disabled=false;}
+ }
+ function downloadLatestEngineMidi(){
+  if(!latestEngineMidiBase64)return;
+  try{const binary=atob(latestEngineMidiBase64),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);const blob=new Blob([bytes],{type:"audio/midi"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=latestEngineMidiName;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(error){$("engineComposeStatus").textContent="MIDI download failed: "+error.message;}
+ }
  function resetForm(){["projectName","projectTempo","projectBrief","projectLyrics"].forEach(id=>$(id).value="");$("projectType").value="song";$("compositionMode").value="lyrics_first";$("projectLanguage").value="Persian";$("projectGenre").value="Pop";$("projectMood").value="Emotional";}
  function create(){const name=$("projectName").value.trim();if(!name){$("projectName").focus();alert("Give your project a name first.");return;}const tempo=$("projectTempo").value.trim();if(tempo&&( !/^\d{2,3}$/.test(tempo)||Number(tempo)<40||Number(tempo)>220)){alert("Tempo must be between 40 and 220 BPM.");$("projectTempo").focus();return;}const id=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());projects.push({id,name,type:$("projectType").value,compositionMode:$("compositionMode").value,language:$("projectLanguage").value,genre:$("projectGenre").value,mood:$("projectMood").value,tempo,brief:$("projectBrief").value.trim(),lyrics:$("projectLyrics").value.trim(),created:Date.now(),updated:Date.now()});if(!save()){projects.pop();return;}resetForm();render();show("library");}
  function newProject(){resetForm();delete $("saveProject").dataset.edit;$("saveProject").textContent="Save project draft";show("create");}
@@ -1102,6 +1138,8 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  function update(){const id=$("saveProject").dataset.edit;if(!id){create();return;}const p=projects.find(x=>x.id===id);if(!p)return;const previous={...p};const tempo=$("projectTempo").value.trim();if(tempo&&(!/^\d{2,3}$/.test(tempo)||Number(tempo)<40||Number(tempo)>220)){alert("Tempo must be between 40 and 220 BPM.");$("projectTempo").focus();return;}p.name=$("projectName").value.trim()||p.name;p.type=$("projectType").value;p.compositionMode=$("compositionMode").value;p.language=$("projectLanguage").value;p.genre=$("projectGenre").value;p.mood=$("projectMood").value;p.tempo=tempo;p.brief=$("projectBrief").value.trim();p.lyrics=$("projectLyrics").value.trim();p.updated=Date.now();if(!save()){Object.assign(p,previous);return;}delete $("saveProject").dataset.edit;$("saveProject").textContent="Save project draft";render();show("library");}
  document.addEventListener("click",e=>{const mode=e.target.closest("[data-production-mode]");if(mode){const type=mode.dataset.productionMode;newProject();$("projectType").value=type;if(type==="ai-vocal")$("projectName").value="AI Vocal Song";else if(type==="own-voice")$("projectName").value="My Voice Song";else if(type==="instrumental")$("projectName").value="Instrumental";show("create");return;}const nav=e.target.closest("[data-view]");if(nav){if(nav.dataset.view==="create")newProject();else{show(nav.dataset.view);if(nav.dataset.view==="lyrics"){refreshLyricsProjects();loadLyricsProject();refreshVocalGuideLines();}}return;}const go=e.target.closest("[data-go]");if(go){if(go.dataset.go==="create")newProject();else show(go.dataset.go);return;}const op=e.target.closest("[data-open]");if(op){openProject(op.dataset.open);return;}const del=e.target.closest("[data-delete]");if(del){if(confirm("Delete this local project draft and its stored track audio?")){const previous=projects;const removed=projects.find(p=>p.id===del.dataset.delete);projects=projects.filter(p=>p.id!==del.dataset.delete);if(save()){render();if(removed)void deleteProjectAudioAssets(removed);}else projects=previous;}}});
  $("saveProject").addEventListener("click",()=>{if($("saveProject").dataset.edit)update();else create();});
+ $("composeWithEngine").addEventListener("click",()=>{void composeWithEngine();});
+ $("downloadEngineMidi").addEventListener("click",downloadLatestEngineMidi);
  $("lyricsProject").addEventListener("change",changeLyricsProject);
  $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();});
  $("analyzePitch").addEventListener("click",()=>{void analyzeVocalPitch();});
