@@ -326,7 +326,7 @@ def render_sample_events(
             velocity_crossfade_layers_rendered += 1
             pcm, source_channels, source_rate = _read_sample(sample.path)
             source_frames = len(pcm) // source_channels
-            semitone_ratio = 1.0 if is_one_shot else 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents) / 1200.0)
+            semitone_ratio = 1.0 if is_one_shot else 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents + sample.tuning_cents) / 1200.0)
             source_step = source_rate / sample_rate * semitone_ratio
             start_frame = round(start * sample_rate)
             if sample.loop_start_frame is not None and sample.loop_end_frame is not None:
@@ -449,7 +449,14 @@ def render_sample_events(
             for item in checked if item[12] is not None
         ],
         "pitch_cents_applied_events": sum(1 for item in checked if item[10] != 0.0),
-        "microtonal_pitch_offsets_rendered": rendered_events > 0 and any(item[10] != 0.0 for item in checked),
+        "sample_tuning_cents_applied_events": sum(
+            1 for item in checked
+            if any(sample.tuning_cents != 0.0 for sample, _gain in item[0])
+        ),
+        "microtonal_pitch_offsets_rendered": rendered_events > 0 and (
+            any(item[10] != 0.0 for item in checked)
+            or any(sample.tuning_cents != 0.0 for item in checked for sample, _gain in item[0])
+        ),
         "articulations_rendered": sorted({item[7] for item in checked}),
         "articulation_diagnostics": {
             "planner_selected": sorted({item[7] for item in checked if item[8] == "planner"}),
