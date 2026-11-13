@@ -81,6 +81,8 @@ test("music engine proxy requires a verified owner session", async () => {
     prepare(sql) {
       return {
         bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
         async first() {
           if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
           throw new Error("Unexpected SQL in music engine auth test: " + sql);
@@ -102,6 +104,8 @@ test("music engine proxy fails closed when private server credentials are not co
     prepare(sql) {
       return {
         bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
         async first() {
           if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
             return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
