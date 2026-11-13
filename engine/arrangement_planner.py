@@ -13,6 +13,7 @@ _PARTS = {
     "closed_hat": "timekeeping",
     "open_hat": "transition_accent",
     "cajon": "rhythm_color",
+    "kalimba": "melodic_color",
     "guitar": "rhythmic_harmony",
     "strings": "sustained_harmony",
     "electric_guitar": "hook_accent",
