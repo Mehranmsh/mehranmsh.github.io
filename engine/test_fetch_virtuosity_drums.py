@@ -86,7 +86,7 @@ lovel=32
 seq_length=1
 """
         with self.assertRaisesRegex(ValueError, "coverage gap"):
-            parse_virtuosity_sfz_map(sfz, "kick", keymap_text=KEYMAP)
+            parse_virtuosity_sfz_map(sfz, "kick", keymap_text=KEYMAP, require_complete=False)
 
 
 if __name__ == "__main__":
