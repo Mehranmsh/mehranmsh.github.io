@@ -285,6 +285,40 @@ class SampleRendererTests(unittest.TestCase):
                      "start_seconds": 0, "duration_seconds": 0.1, "gain": 2.1}
                 ], bank, Path(folder) / "invalid_gain.wav")
 
+    def test_full_composition_renders_from_six_independent_instrument_banks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            banks = {}
+            notes = {
+                "piano": 60, "electric_bass": 48, "kick": 36,
+                "snare": 38, "closed_hat": 42, "open_hat": 46,
+            }
+            for instrument, note in notes.items():
+                root = Path(folder) / instrument
+                root.mkdir()
+                relative = f"{instrument}/sample.wav"
+                self.make_wav(root / relative, frames=11025)
+                (root / "bank.json").write_text(json.dumps({
+                    "format_version": 1,
+                    "samples": [{"instrument": instrument, "midi_note": note,
+                                 "path": relative}],
+                }), encoding="utf-8")
+                banks[instrument] = load_sample_bank(root)
+
+            plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
+            for phrase in plan["composition"]["melody"]:
+                for item in phrase["note_lyric_map"]:
+                    item["articulation"] = "sustain"
+            output = Path(folder) / "six-bank-ensemble.wav"
+            result = render_composition_to_wav(plan, banks, output, sample_rate=22050)
+
+            with wave.open(str(output), "rb") as wav:
+                pcm = wav.readframes(wav.getnframes())
+                self.assertEqual((wav.getnchannels(), wav.getsampwidth(), wav.getframerate()),
+                                 (2, 2, 22050))
+            self.assertTrue(any(pcm))
+            self.assertGreater(result["events_rendered"], 100)
+            self.assertEqual(result["source"], "recorded_sample_bank")
+
     def test_full_plan_renders_with_a_recorded_sample_bank(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
