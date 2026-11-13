@@ -1040,6 +1040,46 @@ class SampleRendererTests(unittest.TestCase):
                 "articulation": "sustain",
             }])
 
+    def test_sample_selection_honors_recorded_playable_key_zones(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "bank"
+            root.mkdir()
+            entries = []
+            for note, low, high in ((36, 36, 38), (39, 39, 45)):
+                relative = f"bass/{note}.wav"
+                self.make_wav(root / relative, rate=22050, frames=4410)
+                entries.append({
+                    "instrument": "electric_bass",
+                    "midi_note": note,
+                    "playable_key_min": low,
+                    "playable_key_max": high,
+                    "articulation": "fingerstyle",
+                    "path": relative,
+                })
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": entries,
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            output = Path(folder) / "bass-zone.wav"
+            result = render_sample_events([{
+                "instrument": "electric_bass", "midi_note": 43,
+                "articulation": "fingerstyle", "start_seconds": 0,
+                "duration_seconds": 0.05, "velocity": 80,
+            }], bank, output, sample_rate=22050)
+            self.assertEqual(result["sample_selection"]["pitch_shifted_by_instrument"]["electric_bass"]["note_mappings"][0], {
+                "requested_midi_note": 43,
+                "recorded_midi_note": 39,
+                "semitone_offset": 4,
+                "articulation": "fingerstyle",
+            })
+            with self.assertRaisesRegex(ValueError, "No recorded playable key zone"):
+                render_sample_events([{
+                    "instrument": "electric_bass", "midi_note": 46,
+                    "articulation": "fingerstyle", "start_seconds": 0,
+                    "duration_seconds": 0.05, "velocity": 80,
+                }], bank, Path(folder) / "out-of-zone.wav", sample_rate=22050)
+
     def test_renderer_selects_first_position_guitar_string(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder) / "bank"
