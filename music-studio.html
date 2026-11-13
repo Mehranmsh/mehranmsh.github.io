@@ -814,9 +814,10 @@
    try{audioBuffer=await decodeContext.decodeAudioData(await record.blob.arrayBuffer());}
    finally{await decodeContext.close().catch(()=>{});}
    if(!Number.isFinite(audioBuffer.duration)||audioBuffer.duration<=0)throw new Error("Could not read this audio file's duration.");
-   if(audioBuffer.duration>118)throw new Error("A stem source must be 118 seconds or shorter so its echo tail fits the export limit.");
-   const trim=getTrackTrimRange(track,audioBuffer.duration),sampleRate=44100,tailSeconds=2,frames=Math.ceil((trim.effectiveDuration+tailSeconds)*sampleRate);
-   const decodedBytes=audioBuffer.length*audioBuffer.numberOfChannels*4,outputFloatBytes=frames*2*4,outputWavBytes=44+frames*2*2;
+   const trim=getTrackTrimRange(track,audioBuffer.duration),sampleRate=44100,tailSeconds=getTrackFxTailSeconds(track);
+   if(trim.effectiveDuration+tailSeconds>120)throw new Error("The trimmed stem plus its calculated effect tail must fit within the 120-second stem export limit.");
+   const frames=Math.ceil((trim.effectiveDuration+tailSeconds)*sampleRate);
+   const decodedBytes=audioBuffer.length*audioBuffer.numberOfChannels*4,outputFloatBytes=frames*2*4,outputWavBytes=44+frames*2*3;
    if(decodedBytes+(fx.noiseProfile&&Number(fx.noiseReduction)>0?decodedBytes:0)+outputFloatBytes+outputWavBytes>WAV_EXPORT_MEMORY_BUDGET)throw new Error("This stem plus spectral noise reduction may exceed the safe memory budget. Try a shorter or smaller source file.");
    status.textContent="Rendering "+track.name+" with its effects…";
    const Offline=window.OfflineAudioContext||window.webkitOfflineAudioContext,offline=new Offline(2,frames,sampleRate);const denoiseAmount=Math.max(0,Math.min(100,Number(fx.noiseReduction)||0));if(fx.noiseProfile&&denoiseAmount>0)audioBuffer=applySpectralNoiseReduction(audioBuffer,fx.noiseProfile,denoiseAmount/100,offline);let pitchCorrected=false;if($("stemPitchCorrection").checked){if(!/lead\s*vocal/i.test(String(track.type||"")))throw new Error("Pitch correction is available for Lead Vocal tracks only.");if(audioBuffer.duration>45)throw new Error("The beta pitch correction limit is 45 seconds per stem. Export a shorter vocal section.");status.textContent="Detecting notes and correcting the selected vocal locally…";audioBuffer=applyVocalPitchCorrection(audioBuffer,Number($("stemPitchKey").value)||0,$("stemPitchScale").value,$("stemPitchStrength").value,$("stemPitchTolerance").value,offline);pitchCorrected=true;}
@@ -833,8 +834,8 @@
    if(wet>0){const send=offline.createGain(),delay=offline.createDelay(2),feedback=offline.createGain(),wetGain=offline.createGain();send.gain.value=wet;delay.delayTime.value=Math.max(0.08,Math.min(0.45,(Number(fx.delayTime)||280)/1000));feedback.gain.value=Math.max(0,Math.min(0.3,Number(fx.feedback??28)/100));wetGain.gain.value=0.55;gateGain.connect(send);send.connect(delay);delay.connect(feedback);feedback.connect(delay);delay.connect(wetGain);wetGain.connect(pan);}
    const reverbAmount=Math.max(0,Math.min(50,Number(fx.reverb)||0));if(reverbAmount>0){const convolver=offline.createConvolver(),reverbWet=offline.createGain();convolver.buffer=createReverbImpulse(offline);reverbWet.gain.value=reverbAmount/100*0.5;gateGain.connect(convolver);convolver.connect(reverbWet);reverbWet.connect(pan);}const chorusDepthAmount=Math.max(0,Math.min(100,Number(fx.chorusDepth)||0));if(chorusDepthAmount>0){const chorusDelay=offline.createDelay(0.1),chorusLfo=offline.createOscillator(),chorusMod=offline.createGain(),chorusWet=offline.createGain();chorusDelay.delayTime.value=0.022;chorusMod.gain.value=0.006;chorusLfo.frequency.value=Math.max(0.1,Math.min(5,Number(fx.chorusRate)||1.2));chorusLfo.connect(chorusMod);chorusMod.connect(chorusDelay.delayTime);chorusWet.gain.value=chorusDepthAmount/100*0.35;gateGain.connect(chorusDelay);chorusDelay.connect(chorusWet);chorusWet.connect(pan);chorusLfo.start(0);}
    source.start(0,trim.trimStart,trim.effectiveDuration);
-   const rendered=await offline.startRendering();status.textContent="Encoding stem WAV…";
-   const wav=writeWav16(rendered);
+   const rendered=await offline.startRendering();status.textContent="Encoding 24-bit stem WAV…";
+   const wav=writeWav24(rendered,-1.2);
    if(renderedStemUrl)URL.revokeObjectURL(renderedStemUrl);
    if(originalStemUrl)URL.revokeObjectURL(originalStemUrl);
    renderedStemUrl=URL.createObjectURL(wav);
