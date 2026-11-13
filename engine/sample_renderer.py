@@ -248,7 +248,11 @@ def render_sample_events(
                     (layer["sample"], layer["gain"])
                     for layer in planned_layers
                 )
-                sample_selection_mode = velocity_plan["selection_mode"]
+                sample_selection_mode = (
+                    "pitch_shifted_nearest_note"
+                    if any(layer["sample"].midi_note != note for layer in planned_layers)
+                    else velocity_plan["selection_mode"]
+                )
         else:
             candidate_report = rank_candidates(
                 selection_bank, instrument, note, velocity, articulation
