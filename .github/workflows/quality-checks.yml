@@ -50,3 +50,19 @@ jobs:
 
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
+
+  engine-container-build:
+    name: Build and validate private engine container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build the private engine image
+        run: docker build --file engine/Dockerfile --tag mehran-music-engine:ci .
+
+      - name: Validate isolated Compose deployment
+        env:
+          MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
+          CLOUDFLARE_TUNNEL_TOKEN: ci-only-cloudflare-placeholder
+        run: docker compose --env-file .env.example -f docker-compose.engine.yml config --quiet
