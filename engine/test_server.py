@@ -681,7 +681,7 @@ class StudioControlPlaneTests(unittest.TestCase):
 
     def test_persian_prosody_metadata_marks_curated_stress_and_syllable_shape(self):
         plan = module.compose_co_creation_plan(
-            "دلم گرفته\\nپرواز سرد", title=chr(10).join(["دلم گرفته", "پرواز سرد"]),
+            chr(10).join(["دلم گرفته", "پرواز سرد"]), title="Prosody metadata",
             genre="pop", mood="sad", target_bpm=82, phrase_count=4,
         )
         first_phrase = plan["composition"]["melody"][0]
