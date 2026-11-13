@@ -24,7 +24,7 @@ _GAINS = {
     "verse":       {"melody": 1.00, "chords": 0.82, "bass": 0.84, "kick": 0.82, "snare": 0.78, "closed_hat": 0.72, "open_hat": 0.0, "cajon": 0.42, "kalimba": 0.0, "guitar": 0.68, "strings": 0.0, "electric_guitar": 0.0},
     "pre_chorus":  {"melody": 1.02, "chords": 0.90, "bass": 0.92, "kick": 0.90, "snare": 0.90, "closed_hat": 0.86, "open_hat": 0.0, "cajon": 0.60, "kalimba": 0.30, "guitar": 0.88, "strings": 0.0, "electric_guitar": 0.0},
     "chorus":      {"melody": 1.04, "chords": 0.96, "bass": 0.98, "kick": 1.00, "snare": 1.00, "closed_hat": 0.98, "open_hat": 0.92, "cajon": 0.74, "kalimba": 0.48, "guitar": 0.96, "strings": 0.90, "electric_guitar": 0.92},
-    "bridge":      {"melody": 1.00, "chords": 0.68, "bass": 0.72, "kick": 0.62, "snare": 0.58, "closed_hat": 0.55, "open_hat": 0.0, "cajon": 0.28, "guitar": 0.45, "strings": 0.0, "electric_guitar": 0.0},
+    "bridge":      {"melody": 1.00, "chords": 0.68, "bass": 0.72, "kick": 0.62, "snare": 0.58, "closed_hat": 0.55, "open_hat": 0.0, "cajon": 0.28, "kalimba": 0.22, "guitar": 0.45, "strings": 0.0, "electric_guitar": 0.0},
     "final_chorus":{"melody": 1.08, "chords": 1.00, "bass": 1.04, "kick": 1.05, "snare": 1.08, "closed_hat": 1.05, "open_hat": 1.00, "cajon": 0.82, "guitar": 1.02, "strings": 1.00, "electric_guitar": 1.00},
 }
 
