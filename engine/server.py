@@ -400,6 +400,8 @@ class Handler(BaseHTTPRequestHandler):
                         "contrabass": "contrabass",
                         "cajon": "cajon",
                         "kalimba": "kalimba",
+                        "harp": "concert_harp",
+                        "cello": "cello_section",
                     }
                     selected_banks = {
                         part: slug for part, slug in verified_part_banks.items()
