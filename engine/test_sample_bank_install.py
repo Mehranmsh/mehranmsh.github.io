@@ -128,7 +128,7 @@ class SampleBankInstallTests(unittest.TestCase):
             )
             samples = []
             for articulation, note, frequency in (
-                ("picked", 35, 82), ("picked", 47, 110)
+                ("pick", 35, 82), ("pick", 47, 110)
             ):
                 relative = f"{articulation}/E.wav"
                 sample_path = source / relative
@@ -166,7 +166,7 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(report["instrument_count"], 1)
             self.assertEqual(report["sample_count"], 2)
             self.assertEqual({sample.articulation for sample in bank.samples},
-                             {"picked"})
+                             {"pick"})
             self.assertEqual(
                 {(sample.playable_key_min, sample.playable_key_max) for sample in bank.samples},
                 {(35, 35), (47, 47)},
@@ -177,10 +177,10 @@ class SampleBankInstallTests(unittest.TestCase):
             output = root / "electric-bass-preview.wav"
             rendered = render_sample_events([
                 {"instrument": "electric_bass", "midi_note": 35,
-                 "articulation": "picked", "start_seconds": 0,
+                 "articulation": "pick", "start_seconds": 0,
                  "duration_seconds": 0.15, "velocity": 90},
                 {"instrument": "electric_bass", "midi_note": 47,
-                 "articulation": "picked", "start_seconds": 0.2,
+                 "articulation": "pick", "start_seconds": 0.2,
                  "duration_seconds": 0.15, "velocity": 90},
             ], bank, output, sample_rate=22050)
             self.assertEqual(rendered["events_rendered"], 2)
