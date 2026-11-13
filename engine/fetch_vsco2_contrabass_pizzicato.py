@@ -126,8 +126,8 @@ def parse_vsco2_contrabass_pizz_sfz(sfz_text: str) -> list[dict[str, Any]]:
     if set(occurrences) != set(EXPECTED):
         raise ValueError(f"Expected only the two MIDI 34 high-layer samples, found {sorted(occurrences)}")
     for filename, mapped in occurrences.items():
-        if len(mapped) != 2 or mapped[0] != mapped[1]:
-            raise ValueError(f"Expected two consistent SFZ random-group references for {filename}")
+        if len(mapped) != 1:
+            raise ValueError(f"Expected one SFZ region per recorded take for {filename}")
     return [
         {**EXPECTED[filename], "source_path": f"{SAMPLE_DIR}/{filename}", "filename": filename}
         for filename in sorted(EXPECTED, key=lambda name: EXPECTED[name]["round_robin_index"])
