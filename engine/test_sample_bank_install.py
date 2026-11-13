@@ -304,6 +304,95 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertTrue((target / "provenance" / "concert_flute" / "SOURCE_LICENSE.txt").is_file())
 
 
+    def test_installs_violin_with_separate_arco_and_spiccato_sessions(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            violin, flute, target = root / "violin", root / "flute", root / "installed"
+            violin.mkdir()
+            (violin / "LICENSE-CC0.txt").write_text(
+                "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+            )
+            session_arco = "vsco2_solo_violin"
+            session_spiccato = "vsco2_solo_violin_spiccato"
+            for relative in ("recordings/arco/arco.wav", "recordings/spiccato/spic.wav"):
+                sample_path = violin / relative
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(sample_path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(b"\x00\x10" * 2205)
+            (violin / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "recording_sessions": {
+                    session_arco: {
+                        "instrument_model": "VSCO 2 CE Solo Violin",
+                        "performer": "Lily Lyons",
+                        "notes": "Arco and pizzicato recordings",
+                    },
+                    session_spiccato: {
+                        "instrument_model": "VSCO 2 CE Solo Violin",
+                        "performer": "Lily Lyons",
+                        "notes": "Separately mapped spiccato recordings",
+                    },
+                },
+                "samples": [
+                    {
+                        "instrument": "solo_violin", "midi_note": 55,
+                        "velocity_min": 1, "velocity_max": 127,
+                        "articulation": "arco_vibrato",
+                        "path": "recordings/arco/arco.wav",
+                        "recording_session_id": session_arco,
+                    },
+                    {
+                        "instrument": "solo_violin", "midi_note": 55,
+                        "velocity_min": 1, "velocity_max": 62,
+                        "articulation": "spiccato",
+                        "round_robin_index": 0,
+                        "playable_key_min": 55, "playable_key_max": 55,
+                        "sfz_volume_db": 20.0,
+                        "path": "recordings/spiccato/spic.wav",
+                        "recording_session_id": session_spiccato,
+                    },
+                ],
+            }), encoding="utf-8")
+            flute.mkdir()
+            self.make_bank(
+                flute, "concert_flute", "vsco2-concert-flute", 44100,
+                "vsco2_concert_flute",
+            )
+
+            report = install_recorded_banks([violin, flute], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["sample_count"], 3)
+            self.assertEqual(
+                {sample.recording_session_id for sample in bank.samples
+                 if sample.instrument == "solo_violin"},
+                {session_arco, session_spiccato},
+            )
+            spiccato = next(sample for sample in bank.samples if sample.articulation == "spiccato")
+            self.assertEqual(spiccato.sfz_volume_db, 20.0)
+            self.assertEqual(spiccato.recording_metadata["notes"], "Separately mapped spiccato recordings")
+            self.assertTrue(
+                (target / "solo_violin" / session_spiccato
+                 / "recordings" / "spiccato" / "spic.wav").is_file()
+            )
+            violin_sources = [
+                item for item in report["sources"] if item["instrument"] == "solo_violin"
+            ]
+            self.assertEqual(
+                {item["recording_session_id"] for item in violin_sources},
+                {session_arco, session_spiccato},
+            )
+            self.assertEqual(
+                {item["copied_sample_count"] for item in violin_sources},
+                {1},
+            )
+            self.assertTrue(
+                (target / "provenance" / "solo_violin" / "SOURCE_LICENSE.txt").is_file()
+            )
+
     def test_installs_dan_tranh_and_baroque_recorder_banks(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
