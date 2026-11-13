@@ -72,7 +72,7 @@ def parse_babyblue_map(
             raise ValueError(f"Unexpected Babyblue source sample path: {sample}")
         low_key = int(attrs.get("lokey", "-1"))
         high_key = int(attrs.get("hikey", "-1"))
-        center = int(attrs.get("pitch_keycenter", "-1"))
+        center = int(attrs.get("pitch_keycenter", str(low_key)))
         if low_key != high_key or center != low_key or not 0 <= center <= 127:
             raise ValueError(f"Babyblue sample must map to one exact recorded pitch: {sample}")
         seq_length = int(attrs.get("seq_length", "1"))
