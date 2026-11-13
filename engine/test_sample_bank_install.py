@@ -11,16 +11,16 @@ from sample_renderer import render_sample_events
 
 
 class SampleBankInstallTests(unittest.TestCase):
-    def make_bank(self, root: Path, instrument: str, source_id: str):
+    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000):
         sample_path = root / "samples" / "e2.wav"
         sample_path.parent.mkdir(parents=True)
         with wave.open(str(sample_path), "wb") as wav:
             wav.setnchannels(1)
             wav.setsampwidth(2)
-            wav.setframerate(48000)
+            wav.setframerate(sample_rate)
             wav.writeframes(b"".join(
-                int(6000 * math.sin(2 * math.pi * 82.4 * i / 48000)).to_bytes(2, "little", signed=True)
-                for i in range(4800)
+                int(6000 * math.sin(2 * math.pi * 82.4 * i / sample_rate)).to_bytes(2, "little", signed=True)
+                for i in range(sample_rate // 10)
             ))
         (root / "source").mkdir()
         (root / "source" / "SOURCE_LICENSE.txt").write_text(
@@ -274,6 +274,24 @@ class SampleBankInstallTests(unittest.TestCase):
                 self.assertEqual(wav.getnchannels(), 2)
                 self.assertTrue(any(wav.readframes(wav.getnframes())))
 
+
+    def test_installs_violin_and_concert_flute_banks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            violin, flute, target = root / "violin", root / "flute", root / "installed"
+            violin.mkdir(); flute.mkdir()
+            self.make_bank(violin, "solo_violin", "vsco2_solo_violin", 44100)
+            self.make_bank(flute, "concert_flute", "vsco2_concert_flute", 44100)
+            report = install_recorded_banks([violin, flute], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["instrument_count"], 2)
+            self.assertEqual(report["sample_count"], 2)
+            self.assertEqual({s.instrument for s in bank.samples},
+                             {"solo_violin", "concert_flute"})
+            self.assertTrue((target / "provenance" / "solo_violin" / "SOURCE_LICENSE.txt").is_file())
+            self.assertTrue((target / "provenance" / "concert_flute" / "SOURCE_LICENSE.txt").is_file())
+
     def test_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -301,7 +319,7 @@ class SampleBankInstallTests(unittest.TestCase):
             source, target = root / "other", root / "installed"
             source.mkdir()
             self.make_bank(source, "synth", "meta-nylon-guitar")
-            with self.assertRaisesRegex(ValueError, "Only validated Meta"):
+            with self.assertRaisesRegex(ValueError, "Only validated CC0 recorded instrument banks"):
                 install_recorded_banks([source], target)
             self.assertFalse(target.exists())
 
