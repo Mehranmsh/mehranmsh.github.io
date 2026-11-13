@@ -657,6 +657,28 @@ class StudioControlPlaneTests(unittest.TestCase):
 
 
 
+    def test_curated_lexical_stress_adds_dynamic_accent_without_changing_notes(self):
+        from mehran_music_core import _apply_lexical_stress_emphasis
+        source = [
+            {"stress_role": "lexically_stressed", "stress_confidence": "curated",
+             "dynamics_velocity": 76, "tick_start": 480, "tick_end": 960},
+            {"stress_role": "unstressed", "stress_confidence": "curated",
+             "dynamics_velocity": 70, "tick_start": 960, "tick_end": 1440},
+            {"stress_role": "unknown", "stress_confidence": "unknown",
+             "dynamics_velocity": 72, "tick_start": 1440, "tick_end": 1920},
+        ]
+        result = _apply_lexical_stress_emphasis(source)
+        self.assertEqual(result[0]["dynamics_velocity"], 84)
+        self.assertEqual(result[0]["base_dynamics_velocity"], 76)
+        self.assertEqual(result[0]["prosodic_emphasis"], "curated_lexical_stress")
+        self.assertEqual(result[1]["dynamics_velocity"], 70)
+        self.assertEqual(result[1]["prosodic_emphasis"], "unstressed")
+        self.assertEqual(result[2]["dynamics_velocity"], 72)
+        self.assertEqual(result[2]["prosodic_emphasis"], "unknown")
+        self.assertEqual([(x["tick_start"], x["tick_end"]) for x in result],
+                         [(480, 960), (960, 1440), (1440, 1920)])
+        self.assertEqual([x["dynamics_velocity"] for x in source], [76, 70, 72])
+
     def test_persian_prosody_metadata_marks_curated_stress_and_syllable_shape(self):
         plan = module.compose_co_creation_plan(
             "دلم گرفته\\nپرواز سرد", title=chr(10).join(["دلم گرفته", "پرواز سرد"]),
