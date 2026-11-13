@@ -463,6 +463,23 @@ def _melody_sample_velocity(base: int, tick_in_bar: int, *,
     return _scaled_velocity(base, section_scale * beat_scale * phrase_scale)
 
 
+def _resolve_part_articulation(
+    part: str, articulation: str, articulation_source: str
+) -> tuple[str, str]:
+    """Map generic drum hits to the exact articulations exposed by the CC0 kit."""
+    if articulation != "sustain":
+        return articulation, articulation_source
+    percussion_defaults = {
+        "kick": "snares_on",
+        "snare": "center",
+        "closed_hat": "closed",
+        "open_hat": "open",
+    }
+    if part in percussion_defaults:
+        return percussion_defaults[part], "percussion_default"
+    return articulation, articulation_source
+
+
 def build_composition_events(
     plan: dict[str, Any],
     *,
@@ -539,16 +556,9 @@ def build_composition_events(
             articulation_source: str = "legacy_default",
             release_seconds: float = 0.025, pitch_cents: float = 0.0) -> None:
         instrument_slug = names[part]
-        if articulation == "sustain" and part in {
-            "kick", "snare", "closed_hat", "open_hat"
-        }:
-            articulation = {
-                "kick": "snares_on",
-                "snare": "center",
-                "closed_hat": "closed",
-                "open_hat": "open",
-            }[part]
-            articulation_source = "percussion_default"
+        articulation, articulation_source = _resolve_part_articulation(
+            part, articulation, articulation_source
+        )
         tuning_offset = normalized_instrument_tuning.get(instrument_slug, {}).get(note, 0.0)
         combined_pitch_cents = float(pitch_cents) + tuning_offset
         if not -200.0 <= combined_pitch_cents <= 200.0:
