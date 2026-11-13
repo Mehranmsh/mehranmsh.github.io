@@ -26,7 +26,7 @@ def request(url: str, timeout: int=90)->bytes:
     raise RuntimeError("Unreachable download retry state")
 def verified(root,path,sha,dest):
     data=request(f"{root}/{quote(path,safe='/')}")
-    actual=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\\0"+data).hexdigest()
+    actual=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
     if actual!=sha: raise ValueError(f"Pinned Git blob SHA-1 mismatch: {path}")
     dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(data); return data
 def parse_dan_tranh_websfz(payload:dict[str,Any],require_complete:bool=True)->list[dict[str,Any]]:
@@ -74,9 +74,9 @@ def fetch_dan_tranh(output_root):
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool: prepared=list(pool.map(prepare,regions))
     sid="vcsl_dan_tranh_normal"
     manifest={"format_version":1,"recording_sessions":{sid:{"instrument_model":"Versilian Community Sample Library Dan Tranh - Normal","notes":"Pinned CC0 VCSL recordings with 16 pitch centers and three velocity layers where mapped. Real plucked-string decays."}},"samples":[{"instrument":"dan_tranh","midi_note":x["midi_note"],"velocity_min":x["velocity_min"],"velocity_max":x["velocity_max"],"articulation":"pluck","gain_db":x["gain_db"],"one_shot":False,"recording_session_id":sid,"path":x["path"]} for x in prepared]}
-    (root/"bank.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
+    (root/"bank.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     provenance={"source_repository":SOURCE_REPOSITORY,"source_commit":SOURCE_COMMIT,"license":"CC0-1.0","license_file":"LICENSE-CC0.txt","mapping_repository":MAP_REPOSITORY,"mapping_commit":MAP_COMMIT,"mapping_path":MAP_PATH,"sample_count":len(prepared),"recorded_midi_notes":EXPECTED_NOTES,"samples":[{k:x[k] for k in ("path","source_path","source_git_blob_sha","midi_note","low_key","high_key","velocity_min","velocity_max","gain_db")} for x in prepared]}
-    (root/"provenance.json").write_text(json.dumps(provenance,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
+    (root/"provenance.json").write_text(json.dumps(provenance,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     from sample_bank import load_sample_bank
     bank=load_sample_bank(root)
     if len(bank.samples)!=47 or any(s.sample_rate!=44100 or s.channels!=1 or s.one_shot for s in bank.samples): raise ValueError("Dan Tranh bank failed sample manifest validation")
