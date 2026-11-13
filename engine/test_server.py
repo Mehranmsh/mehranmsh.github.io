@@ -325,6 +325,18 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertEqual(render.call_args.kwargs["parts"], ["strings"])
         self.assertEqual(render.call_args.kwargs["instruments"], {"strings": "solo_violin"})
 
+    def test_audio_compose_routes_nylon_guitar_to_its_exact_recorded_bank(self):
+        fake_audio = {"format": "WAV PCM 16-bit", "sample_rate": 44100,
+                      "channels": 2, "duration_seconds": 2.0, "events_rendered": 12}
+        with mock.patch.object(module, "load_sample_bank", return_value=object()), \\
+             mock.patch.object(module, "compose_plan", return_value={"title": "test"}), \\
+             mock.patch.object(module, "render_composition_to_wav", return_value=fake_audio) as render:
+            status, payload = self.request("/v1/compose-audio", method="POST", payload={
+                "title": "Nylon guitar", "lyrics": "برگرد ای عشق", "parts": ["nylon_guitar"],
+            })
+        self.assertEqual(status, 201, payload)
+        self.assertEqual(render.call_args.kwargs["instruments"], {"nylon_guitar": "nylon_guitar"})
+
     def test_audio_compose_routes_harp_and_cello_to_exact_recorded_banks(self):
         fake_audio = {
             "format": "WAV PCM 16-bit", "sample_rate": 44100,
