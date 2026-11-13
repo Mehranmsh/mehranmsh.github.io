@@ -229,6 +229,12 @@ jobs:
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
                   "cajon", "kalimba", "contrabass"} <= selected_instruments, selected_instruments
           for event in selected:
+              if event.get("part") == "open_hat":
+                  # Virtuosity records the open hi-hat at MIDI key 42.
+                  # Arrangement planning may suggest a pitched cymbal note (46),
+                  # but one-shot recordings must never be pitch-transposed.
+                  event["midi_note"] = 42
+                  event["articulation"] = "open"
               if event.get("part") == "guitar":
                   event["guitar_max_fret"] = 12
           output = "sample-bank-installed-all/mehran-piano-guitar-bass-drums-composition.wav"
