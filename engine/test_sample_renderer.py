@@ -192,6 +192,7 @@ class SampleRendererTests(unittest.TestCase):
         rhythm_and_bass = build_composition_events(plan, instruments={
             "cajon": "cajon",
             "bass": "contrabass",
+            "kalimba": "kalimba",
         })
         cajon_events = [event for event in rhythm_and_bass if event["instrument"] == "cajon"]
         contrabass_events = [event for event in rhythm_and_bass if event["instrument"] == "contrabass"]
@@ -203,6 +204,11 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue(contrabass_events)
         self.assertTrue(all(event["articulation"] == "pizzicato"
                             for event in contrabass_events))
+        kalimba_events = [event for event in rhythm_and_bass if event["instrument"] == "kalimba"]
+        self.assertTrue(kalimba_events)
+        self.assertTrue(all(event["articulation"] == "pluck"
+                            and 59 <= event["midi_note"] <= 81
+                            for event in kalimba_events))
 
     def test_composition_events_apply_balanced_and_overridable_part_gains(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
