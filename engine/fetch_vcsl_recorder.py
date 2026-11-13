@@ -28,7 +28,7 @@ def request(url: str, timeout: int=90)->bytes:
 
 def verified(path: str,sha: str,dest: Path)->bytes:
     data=request(f"{SOURCE_ROOT}/{quote(path,safe='/')}")
-    actual=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\\0"+data).hexdigest()
+    actual=hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
     if actual!=sha: raise ValueError(f"Pinned Git blob SHA-1 mismatch: {path}")
     dest.parent.mkdir(parents=True,exist_ok=True); dest.write_bytes(data); return data
 
@@ -38,7 +38,7 @@ def parse_recordings(sustain:list[dict[str,Any]],staccato:list[dict[str,Any]],re
         for item in items:
             name=item.get("name","")
             if not isinstance(name,str) or not name.lower().endswith(".wav"): raise ValueError("Invalid recorder WAV filename")
-            match=re.fullmatch(r"SopRecorder_(?:Sus|Stac)_([A-G](?:#)?[0-9])_rr([0-9]+)_Main\\.wav",name)
+            match=re.fullmatch(r"SopRecorder_(?:Sus|Stac)_([A-G](?:#)?[0-9])_rr([0-9]+)_Main\.wav",name)
             if not match: raise ValueError(f"Unexpected recorder filename: {name}")
             pitch,rr=match.groups()
             if int(rr)!=1: raise ValueError(f"Unsupported recorder round-robin index: {name}")
@@ -71,9 +71,9 @@ def fetch_recorder(output_root):
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool: prepared=list(pool.map(prepare,recordings))
     sid="vcsl_baroque_soprano_recorder"
     manifest={"format_version":1,"recording_sessions":{sid:{"instrument_model":"VCSL Baroque Soprano Recorder","notes":"Pinned CC0 VCSL recordings. Sustain and staccato are separately recorded articulations; one mapped sample per note/articulation, no velocity layers or RR variation."}},"samples":[{"instrument":"baroque_soprano_recorder","midi_note":x["midi_note"],"velocity_min":1,"velocity_max":127,"articulation":x["articulation"],"round_robin_index":0,"one_shot":False,"recording_session_id":sid,"path":x["path"]} for x in prepared]}
-    (root/"bank.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
+    (root/"bank.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     provenance={"source_repository":SOURCE_REPOSITORY,"source_commit":SOURCE_COMMIT,"license":"CC0-1.0","license_file":"LICENSE-CC0.txt","instrument":"Baroque Soprano Recorder","sample_count":len(prepared),"sustain_samples":sum(x["articulation"]=="sustain" for x in prepared),"staccato_samples":sum(x["articulation"]=="staccato" for x in prepared),"recorded_midi_notes":EXPECTED_NOTES,"samples":[{k:x[k] for k in ("path","source_path","source_git_blob_sha","midi_note","articulation")} for x in prepared]}
-    (root/"provenance.json").write_text(json.dumps(provenance,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
+    (root/"provenance.json").write_text(json.dumps(provenance,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     from sample_bank import load_sample_bank
     bank=load_sample_bank(root)
     if len(bank.samples)!=25 or any(s.sample_rate!=44100 or s.channels!=1 for s in bank.samples): raise ValueError("Recorder bank failed WAV manifest validation")
