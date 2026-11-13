@@ -539,6 +539,16 @@ def build_composition_events(
             articulation_source: str = "legacy_default",
             release_seconds: float = 0.025, pitch_cents: float = 0.0) -> None:
         instrument_slug = names[part]
+        if articulation == "sustain" and part in {
+            "kick", "snare", "closed_hat", "open_hat"
+        }:
+            articulation = {
+                "kick": "snares_on",
+                "snare": "center",
+                "closed_hat": "closed",
+                "open_hat": "open",
+            }[part]
+            articulation_source = "percussion_default"
         tuning_offset = normalized_instrument_tuning.get(instrument_slug, {}).get(note, 0.0)
         combined_pitch_cents = float(pitch_cents) + tuning_offset
         if not -200.0 <= combined_pitch_cents <= 200.0:
