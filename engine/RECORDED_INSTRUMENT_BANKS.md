@@ -70,13 +70,17 @@ All other audited note/articulation combinations reported no velocity gaps. The 
 - The combined ensemble is an integration preview, not a claim that every instrument has complete chromatic coverage, every articulation, or production-grade round-robin depth.
 
 
-## Contrabass expansion candidate (under validation)
+## Contrabass expansion candidate (validated, not integrated)
 
-A second CC0 source is being evaluated before changing the current installed contrabass bank:
+A second CC0 source has passed its dedicated import, manifest, load, and recorded-sample audition checks. It remains a separate candidate artifact and has not replaced or modified the installed contrabass bank.
 
 - Source: Karoryfer Meatbass, pinned repository revision `ac9e859564bda286ab5ec672d00ff1aa2fef2895`.
-- License: CC0 1.0 Universal, retained from the pinned source repository.
-- Mapping: `Programs/pizz_basic_map.sfz`, with original source blob verification.
-- Expected mapping: 14 recorded pitch centers (MIDI 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60), four recorded velocity layers (1–32, 33–64, 65–96, 97–127), and four round-robin takes per note/layer.
-- The candidate importer and strict mapping tests have been added. A dedicated CI job is currently validating import, manifest loading, and a recorded-sample audition across all four velocity layers.
-- This candidate is not yet part of the 13-bank / 2,022-entry baseline. Do not replace the current D. Smolken bank or report the candidate as accepted until its CI job succeeds and its audition is reviewed.
+- License: CC0 1.0 Universal; the original license text is retained in the artifact.
+- Mapping: `Programs/pizz_basic_map.sfz`, with original source blob verification and non-pitched percussion regions excluded.
+- Verified artifact: 224 recorded WAV sample entries across 14 exact pitch centers (MIDI 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57, 60). Each center has four recorded velocity layers (1–32, 33–64, 65–96, 97–127) and four round-robin takes per layer. The ZIP also contains one audition WAV, so it has 225 WAV files total including the audition.
+- Attribution: the upstream source identifies Drogomir Smolken as the player/mapper and Ludwik Zamenhof as the recording engineer; the candidate manifest keeps those roles distinct.
+- CI: the candidate job succeeded in workflow run 43373499484, and the PR-triggered electric-bass foundation workflow also succeeded in run 43373506060. The audition rendered 18 events from recorded root notes across the four velocity layers, with zero pitch-shifted key-zone or nearest-note fallback events in that test.
+- Important limitation: MIDI 34 is not an exact recorded root in this source. It falls inside the declared playable zone of the MIDI 33 sample (32–34), so using this candidate at MIDI 34 would be a mapped key-zone playback, not an exact-root recording. The candidate can supply genuine missing velocity coverage at exact root MIDI 27, but it does not solve the exact-root MIDI 34 gap.
+- Integration decision: do not replace the current Rubner/D. Smolken contrabass bank with the full candidate. If adopted, first evaluate a narrowly scoped supplemental import for the missing MIDI 27 high-velocity range, then rerun the combined-bank audit and ensemble tests. Keep the exact-root MIDI 34 gap visible until a genuine MIDI 34 recording is found.
+
+The candidate is not part of the 13-bank / 2,022-entry installed baseline. CI success verifies the tested technical path; it does not constitute human listening approval or authorize integration into the main bank.
