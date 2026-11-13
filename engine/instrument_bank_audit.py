@@ -66,20 +66,40 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
                     "expected_indices": expected,
                 })
 
-        velocity_coverage = [False] * 128
-        for low, high in velocity_intervals:
-            for velocity in range(low, high + 1):
-                velocity_coverage[velocity] = True
+        velocity_groups: dict[tuple[Any, ...], list[tuple[int, int]]] = defaultdict(list)
+        for sample in samples:
+            velocity_key = (
+                sample.midi_note, sample.articulation, sample.string_name,
+                sample.playable_key_min, sample.playable_key_max, sample.one_shot,
+            )
+            velocity_groups[velocity_key].append(
+                (sample.velocity_min, sample.velocity_max)
+            )
         velocity_gaps = []
-        gap_start = None
-        for velocity in range(1, 128):
-            if not velocity_coverage[velocity] and gap_start is None:
-                gap_start = velocity
-            elif velocity_coverage[velocity] and gap_start is not None:
-                velocity_gaps.append({"min": gap_start, "max": velocity - 1})
-                gap_start = None
-        if gap_start is not None:
-            velocity_gaps.append({"min": gap_start, "max": 127})
+        for key, intervals in velocity_groups.items():
+            covered = [False] * 128
+            for low, high in intervals:
+                for velocity in range(low, high + 1):
+                    covered[velocity] = True
+            gaps = []
+            gap_start = None
+            for velocity in range(1, 128):
+                if not covered[velocity] and gap_start is None:
+                    gap_start = velocity
+                elif covered[velocity] and gap_start is not None:
+                    gaps.append({"min": gap_start, "max": velocity - 1})
+                    gap_start = None
+            if gap_start is not None:
+                gaps.append({"min": gap_start, "max": 127})
+            if gaps:
+                velocity_gaps.append({
+                    "midi_note": key[0],
+                    "articulation": key[1],
+                    "string": key[2],
+                    "playable_key_range": [key[3], key[4]],
+                    "one_shot": key[5],
+                    "uncovered_ranges": gaps,
+                })
 
         instruments[instrument] = {
             "sample_entries": len(samples),
@@ -90,7 +110,7 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
             "velocity_intervals": [
                 {"min": low, "max": high} for low, high in velocity_intervals
             ],
-            "uncovered_velocity_ranges": velocity_gaps,
+            "velocity_gaps_by_recorded_note_and_articulation": velocity_gaps,
             "declared_playable_key_zones": [
                 {"min": low, "max": high}
                 for low, high in playable_zones
@@ -119,6 +139,7 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
         "interpretation": {
             "recorded_pitch_centers": "Exact MIDI roots present in the manifest; not a claim of continuous chromatic coverage.",
             "playable_zones": "Only the declared key zones in the source manifest; null means no explicit zone was declared.",
+            "velocity_gaps": "Checked separately for each recorded note, articulation, string, playable zone and one-shot status; not inferred from instrument-wide layer presence.",
             "round_robin": "Grouped by note, articulation, velocity interval, string, playable zone and one-shot status.",
             "quality": "Inventory only. This report does not grade timbre, tuning, performance or mix readiness.",
         },
