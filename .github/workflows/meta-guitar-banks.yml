@@ -173,7 +173,7 @@ jobs:
                   "melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat"
               )
               and 0 <= event.get("start_seconds", 0) <
-                  preview_seconds - (1.5 if event.get("part") in rhythm_parts else 0)
+                  preview_seconds - (3.0 if event.get("part") in rhythm_parts else 0)
           ]
           for event in selected:
               remaining = preview_seconds - event["start_seconds"]
