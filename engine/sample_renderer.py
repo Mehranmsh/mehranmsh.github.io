@@ -140,6 +140,15 @@ def render_sample_events(
                 if sample.instrument == instrument
                 and string_for_sample(sample) == selected_guitar_string
             ))
+        has_recorded_one_shots = any(
+            sample.instrument == instrument and sample.one_shot
+            for sample in selection_bank.samples
+        )
+        if (event.get("articulation_source") == "percussion_default"
+                and not has_recorded_one_shots):
+            # Keep older sustain-only test banks and user banks playable until
+            # their percussion recordings are migrated to the one-shot schema.
+            articulation = "sustain"
         one_shot_candidates = [
             sample for sample in selection_bank.samples
             if sample.instrument == instrument and sample.one_shot
