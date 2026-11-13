@@ -679,13 +679,21 @@ class Handler(BaseHTTPRequestHandler):
                                                 "status": "draft", "created_at": now}})
 
 
-def validate_server_config(host, port):
+def validate_server_config(host, port, allow_container_bind=False):
     try:
         address = ipaddress.ip_address(host)
     except ValueError as exc:
-        raise SystemExit("MEHRAN_STUDIO_HOST must be an IPv4 loopback address such as 127.0.0.1.") from exc
-    if address.version != 4 or not address.is_loopback:
-        raise SystemExit("MEHRAN Studio may only bind to an IPv4 loopback address. Public/network binds are blocked.")
+        raise SystemExit("MEHRAN_STUDIO_HOST must be an IPv4 loopback address.") from exc
+    loopback = address.version == 4 and address.is_loopback
+    isolated_container_bind = (
+        address.version == 4 and address == ipaddress.ip_address("0.0.0.0")
+        and allow_container_bind is True
+    )
+    if not loopback and not isolated_container_bind:
+        raise SystemExit(
+            "MEHRAN Studio may bind to loopback only. 0.0.0.0 is allowed solely "
+            "inside an isolated container when MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1."
+        )
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise SystemExit("MEHRAN_STUDIO_PORT must be an integer from 1 to 65535.")
 
@@ -695,7 +703,8 @@ def main():
         raise SystemExit("Set MEHRAN_STUDIO_TOKEN to a long random secret before starting.")
     if len(TOKEN) < 32:
         raise SystemExit("MEHRAN_STUDIO_TOKEN must contain at least 32 characters.")
-    validate_server_config(HOST, PORT)
+    allow_container_bind = os.environ.get("MEHRAN_STUDIO_ALLOW_CONTAINER_BIND") == "1"
+    validate_server_config(HOST, PORT, allow_container_bind=allow_container_bind)
     connection = database()
     connection.close()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
