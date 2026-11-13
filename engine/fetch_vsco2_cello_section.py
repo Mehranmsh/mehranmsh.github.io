@@ -89,8 +89,13 @@ def _parse_map(source: str, map_key: str) -> list[dict[str, Any]]:
         group_counts = [len(re.findall(r"(?im)^\s*<region>\s*$", group)) for group in groups]
         if group_counts[0] != group_counts[1]:
             raise ValueError(f"{map_key} round-robin groups have different region counts")
-    elif groups:
-        raise ValueError(f"{map_key} unexpectedly declares round-robin groups")
+    else:
+        # SFZ uses a single ordinary <group> container for non-RR articulations.
+        # It is not a round robin unless sequence metadata is explicitly present.
+        if len(groups) != 1:
+            raise ValueError(f"{map_key} must contain exactly one non-RR group")
+        if re.search(r"(?im)^\\s*seq_(?:length|position)\\s*=", groups[0]):
+            raise ValueError(f"{map_key} unexpectedly declares round-robin sequence metadata")
 
     region_source = re.sub(r"(?im)^\s*(?:seq_length|seq_position|group_label)\s*=.*$", "", source)
     regions = parse_sfz_regions(region_source)
