@@ -897,6 +897,22 @@ def build_composition_events(
                             _scaled_velocity((48, 42, 46, 40)[beat], bar_dynamics["chords"]),
                             0.10 + voice_index * 0.08,
                             articulation="finger", articulation_source="instrument_default")
+            if (section == "pre_chorus" and bar == bars - 1
+                    and isinstance(transition, dict)
+                    and isinstance(transition.get("energy_change"), (int, float))
+                    and not isinstance(transition.get("energy_change"), bool)
+                    and transition["energy_change"] > 0):
+                # A shared 3.5-beat pickup ties piano, guitar, bass and the
+                # recorded cajon slap into one clear hand-off to the chorus.
+                pickup_tick = bar_start + int(3.5 * PPQ)
+                add("chords", voicing[-1], pickup_tick, PPQ // 2 - 18,
+                    _scaled_velocity(66, bar_dynamics["chords"]), 0.22)
+                if names["guitar"]:
+                    for strum_step, voice_index in enumerate(range(len(voicing))):
+                        add("guitar", voicing[voice_index],
+                            pickup_tick + strum_step * 10, PPQ // 2 - 18,
+                            _scaled_velocity(52 - strum_step * 3, bar_dynamics["chords"]),
+                            voice_pans[voice_index])
             if names["strings"] and section in ("chorus", "final_chorus"):
                 for voice_index, note in enumerate(voicing):
                     add("strings", note, bar_start, 4 * PPQ - 24,
