@@ -70,7 +70,7 @@ def parse_meatbass_pizz_sfz(sfz_text: str, *, require_complete: bool = True) -> 
         import re
         match = re.fullmatch(r"([a-z]+\d)_vl([1-4])_rr([1-4])\.wav", filename)
         if not match:
-            raise ValueError(f"Unexpected Meatbass pizzicato sample name: {filename}")
+            # The source SFZ also maps percussion hits. This importer intentionally\n            # excludes them and imports only pitched, velocity-layered pizzicato.\n            return
         note_name, layer, rr = match.groups()
         pitch = {"a": 9, "c": 0, "eb": 3, "gb": 6}[note_name.rstrip("0123456789")]
         octave = int(note_name[-1])
