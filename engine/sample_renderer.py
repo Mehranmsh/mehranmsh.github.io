@@ -1050,7 +1050,9 @@ def build_composition_events(
                     add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
                         48, _scaled_velocity(90, drum_scale))
             if names["contrabass"] is not None:
-                # Slower pizzicato support beneath the electric-bass groove.
+                # Pizzicato support uses the same harmony-derived notes as the
+                # established groove. Section variation changes only onset and
+                # velocity; it never invents a new recorded pitch or articulation.
                 if section == "bridge":
                     add("contrabass", bass_root, bar_start, 2 * PPQ - 48,
                         _scaled_velocity(58, bass_scale), -0.08,
@@ -1062,24 +1064,47 @@ def build_composition_events(
                     add("contrabass", bass_fifth, bar_start + 2 * PPQ,
                         PPQ + PPQ // 2, _scaled_velocity(54, bass_scale), -0.08,
                         articulation="pizzicato", articulation_source="instrument_default")
+                    if section in ("pre_chorus", "chorus", "final_chorus"):
+                        add("contrabass", bass_root, bar_start + int(1.5 * PPQ),
+                            PPQ // 2 - 24, _scaled_velocity(46, bass_scale), -0.08,
+                            articulation="pizzicato", articulation_source="instrument_default")
+                        add("contrabass", bass_fifth, bar_start + int(3.5 * PPQ),
+                            PPQ // 2 - 24, _scaled_velocity(42, bass_scale), -0.08,
+                            articulation="pizzicato", articulation_source="instrument_default")
             if names["cajon"] is not None:
+                # VCSL one-shots are restricted to their three recorded strokes:
+                # bass=60, slap=61, tone=62. Only the rhythm/velocity varies.
                 if section == "bridge":
-                    add("cajon", 60, bar_start, 48,
-                        _scaled_velocity(74, drum_scale),
-                        articulation="bass", articulation_source="percussion_default")
-                    add("cajon", 61, bar_start + 2 * PPQ, 48,
-                        _scaled_velocity(56, drum_scale),
-                        articulation="slap", articulation_source="percussion_default")
+                    cajon_pattern = (
+                        (0.0, 60, 74, "bass"),
+                        (2.0, 61, 56, "slap"),
+                    )
+                elif section == "verse":
+                    cajon_pattern = (
+                        (0.0, 60, 88, "bass"),
+                        (1.0, 61, 82, "slap"),
+                        (3.0, 62, 72, "tone"),
+                    )
+                elif section == "pre_chorus":
+                    cajon_pattern = (
+                        (0.0, 60, 88, "bass"),
+                        (1.0, 61, 78, "slap"),
+                        (2.5, 62, 64, "tone"),
+                        (3.5, 61, 70, "slap"),
+                    )
                 else:
-                    add("cajon", 60, bar_start, 48,
-                        _scaled_velocity(88, drum_scale),
-                        articulation="bass", articulation_source="percussion_default")
-                    add("cajon", 61, bar_start + PPQ, 48,
-                        _scaled_velocity(82, drum_scale),
-                        articulation="slap", articulation_source="percussion_default")
-                    add("cajon", 62, bar_start + 3 * PPQ, 48,
-                        _scaled_velocity(72, drum_scale),
-                        articulation="tone", articulation_source="percussion_default")
+                    cajon_pattern = (
+                        (0.0, 60, 96, "bass"),
+                        (1.0, 61, 88, "slap"),
+                        (2.0, 60, 84, "bass"),
+                        (2.5, 62, 72, "tone"),
+                        (3.5, 61, 80, "slap"),
+                    )
+                for beat, note, velocity, articulation in cajon_pattern:
+                    add("cajon", note, bar_start + int(beat * PPQ), 48,
+                        _scaled_velocity(velocity, drum_scale),
+                        articulation=articulation,
+                        articulation_source="percussion_default")
             if names["kalimba"] is not None and section in ("pre_chorus", "chorus", "final_chorus", "bridge"):
                 kalimba_notes = [min(81, max(59, int(note) + 12)) for note in voicing[:3]]
                 if section == "bridge":
