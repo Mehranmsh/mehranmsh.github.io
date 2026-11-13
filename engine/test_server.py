@@ -143,6 +143,47 @@ class StudioControlPlaneTests(unittest.TestCase):
         midi_path = Path(payload["midi"]["local_path"])
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
 
+    def test_authenticated_co_creation_fits_lyrics_without_replacing_instrumental_music(self):
+        payload = {
+            "title": "همراه", "genre": "pop", "mood": "hopeful",
+            "bpm": 104, "phrase_count": 8,
+            "lyrics": "فردا دوباره می‌رسد\\nآفتاب از راه می‌رسد\\nدست من را رها نکن\\nتا بهار خانه مانده",
+        }
+        status, result = self.request("/v1/co-create", method="POST", payload=payload)
+        self.assertEqual(status, 201, result)
+        self.assertTrue(result["composition_created"])
+        self.assertFalse(result["audio_rendered"])
+        plan = result["plan"]
+        self.assertEqual(plan["source_mode"], "co_creation")
+        self.assertEqual(plan["lyric_status"], "provided_and_aligned")
+        self.assertTrue(plan["co_creation"]["music_preserved_during_lyric_fit"])
+        self.assertFalse(plan["co_creation"]["melody_note_events_changed"])
+        self.assertFalse(plan["co_creation"]["harmony_changed"])
+        self.assertTrue(plan["co_creation"]["arrangement_blueprint_preserved"])
+        self.assertEqual(plan["co_creation"]["aligned_lyric_lines"], 4)
+        self.assertEqual(len(plan["composition"]["melody"]), 8)
+        self.assertEqual(plan["composition"]["melody"][0]["lyric_line"], "فردا دوباره می‌رسد")
+        self.assertEqual(len(plan["composition"]["melody"][0]["note_lyric_map"]), 8)
+        self.assertEqual(plan["composition"]["melody"][4]["note_lyric_map"], [])
+        self.assertEqual(result["midi"]["tracks"], 7)
+        midi_path = Path(result["midi"]["local_path"])
+        self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
+
+    def test_co_creation_rejects_lyrics_beyond_melody_capacity_and_requires_auth(self):
+        too_many_lines = "\\n".join(["یک خط"] * 9)
+        status, result = self.request(
+            "/v1/co-create", method="POST",
+            payload={"lyrics": too_many_lines, "phrase_count": 8},
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(result["error"], "lyrics_exceed_melody_capacity")
+        status, result = self.request(
+            "/v1/co-create", method="POST",
+            payload={"lyrics": "یک شعر"}, token=False,
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(result["error"], "unauthorized")
+
     def test_instrumental_first_rejects_invalid_mood_and_phrase_count(self):
         for payload in ({"mood": "invented"}, {"phrase_count": True},
                         {"phrase_count": 17}, {"bpm": True}):
