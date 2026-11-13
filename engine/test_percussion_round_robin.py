@@ -60,6 +60,11 @@ class PercussionRoundRobinTests(unittest.TestCase):
 
             self.assertEqual(report["events_rendered"], 2)
             self.assertEqual(report["sample_selection"]["one_shot_round_robin_events"], 2)
+            self.assertEqual(
+                [item["round_robin_index"] for item in
+                 report["sample_selection"]["one_shot_round_robin_selections"]],
+                [0, 1],
+            )
             with wave.open(str(output), "rb") as audio:
                 self.assertAlmostEqual(audio.getnframes() / audio.getframerate(), 0.35, places=3)
                 self.assertEqual(audio.getnchannels(), 2)
