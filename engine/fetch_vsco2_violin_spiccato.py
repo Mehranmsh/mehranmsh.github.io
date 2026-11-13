@@ -82,7 +82,10 @@ def parse_spiccato_mapping(source: str, require_complete: bool = True) -> list[d
     if sequence_positions != [1, 2]:
         raise ValueError(f"Unexpected spiccato sequence positions: {sequence_positions}")
 
-    regions = parse_sfz_regions(source)
+    # The strict region parser intentionally handles region opcodes only. Strip
+    # the SFZ group-level sequence declarations after validating them above.
+    region_source = re.sub(r"(?im)^\s*(?:seq_length|seq_position|group_label)\s*=.*$", "", source)
+    regions = parse_sfz_regions(region_source)
     group_region_counts = [len(re.findall(r"(?im)^\s*<region>\s*$", group)) for group in groups]
     if group_region_counts[0] != group_region_counts[1]:
         raise ValueError("Spiccato round-robin groups must contain matching region counts")
