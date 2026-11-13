@@ -24,9 +24,9 @@ This register separates independent source-bank packages, playable instrument ID
 
 **Verified source totals:** the original baseline has 13 independent bank packages, 16 playable instrument IDs, and 2,022 recorded sample entries after replacing the 25-entry FreePats bass with the 492-entry Babyblue bank. The current feature-branch combined installation adds two contrabass supplement packages and the verified Dan Tranh B4 ff source recording, for **15 independent source packages, 16 playable instrument IDs, and 2,029 recorded sample entries**. The latest full integration passed in workflow run 43426076183. The Virtuosity drum package contributes four playable IDs; the guitar packages contribute two. The two contrabass supplements do not create new playable instrument IDs.
 
-## Latest per-note audit (2026-11-13, workflow run 43369733464)
+## Latest per-note audit (2026-11-13, workflow run 43426076183)
 
-The read-only audit ran against the installed combined bank after installation and passed all three audit unit tests. It counted 2,022 sample entries across 16 playable IDs. Velocity gaps below are reported per recorded note and articulation; a gap is not a claim that the entire instrument is unusable.
+The read-only audit ran against the installed combined bank after installation and passed all three audit unit tests. It counted 2,029 sample entries across 16 playable IDs. Velocity gaps below are reported per recorded note and articulation; a gap is not a claim that the entire instrument is unusable.
 
 | Instrument | Recorded roots | Articulations | Per-note velocity gaps |
 |---|---:|---|---:|
@@ -39,14 +39,13 @@ The read-only audit ran against the installed combined bank after installation a
 | Contrabass | 11 | pizzicato | 2 |
 | Solo violin | 15 (MIDI 55–96) | arco-vibrato, pizzicato | 3 |
 | Concert flute | 10 | sustain-vibrato, expressive-vibrato | 0 |
-| Dan Tranh | 16 | pluck | 1 |
+| Dan Tranh | 16 | pluck | 0 |
 | Baroque soprano recorder | 13 | sustain, staccato | 0 |
 | Concert harp | 23 | sustain | 2 |
 
-The precise uncovered velocity ranges from the earlier read-only audit are listed below. The Dan Tranh MIDI 83 upper layer was subsequently restored from its exact CC0 source recording (`B4_ff_1.wav`) and passed dedicated mapping tests; rerun the read-only audit before treating the historical gap count as current. Remaining previously identified gaps are:
+The latest read-only audit was rerun after restoring the exact CC0 Dan Tranh B4 ff source recording (`B4_ff_1.wav`). It confirms that Dan Tranh now has no uncovered velocity ranges. The remaining uncovered ranges are:
 - Contrabass pizzicato: MIDI 27 and 34 lack velocity 121–127.
 - Solo violin pizzicato: MIDI 88, 93 and 96 lack velocity 1–63.
-- Dan Tranh pluck: MIDI 83 previously lacked velocity 100–127; the exact-root B4 ff recording is now restored with velocity 100–127.
 - Concert harp sustain: MIDI 62 has two distinct source regions with complementary uncovered ranges, 101–127 and 1–100. Preserve the source region/key-zone distinction; do not interpret this as a simple whole-instrument velocity hole.
 
 All other audited note/articulation combinations reported no velocity gaps. The audit also confirmed contiguous round-robin indices beginning at zero for all audited groups. This is structural coverage only, not a human listening approval or a guarantee of complete chromatic coverage.
@@ -65,7 +64,7 @@ All other audited note/articulation combinations reported no velocity gaps. The 
 - Source licenses and provenance manifests are retained with the installed banks. The source importers pin upstream revisions or file identities and validate source assets before conversion.
 - Recorded articulations, velocity zones, stereo channels, SFZ offsets, fades, and repeated takes are represented explicitly where present in source data. Missing source layers are not fabricated.
 - Independent-source velocity overlaps can carry an explicit selection priority and minimum activation velocity. This selects one recorded source in the declared range; it does not rewrite the source sample's recorded velocity bounds or blend unrelated recordings.
-- The read-only instrument audit reports both per-source velocity gaps and effective coverage after explicit source-priority rules. This keeps source limitations visible while also showing whether the engine can select a real recording at each requested velocity.
+- The read-only instrument audit reports both per-source velocity gaps and effective coverage after explicit source-priority rules. In the latest 2,029-entry audit, Dan Tranh has zero remaining velocity gaps; the previously missing MIDI 83 upper layer is present as an exact-root recorded sample. This keeps source limitations visible while also showing whether the engine can select a real recording at each requested velocity.
 - Original SFZ playable key ranges are retained in source provenance. The effective engine playback zone may be narrowed, never widened, when exact-root-only use is required; a source sample is selected for a transposed note only when its effective zone explicitly allows it.
 - The Karoryfer Babyblue electric-bass bank contributes 492 original CC0 picked-bass recordings across 41 pitch centers (MIDI 35–75), with two velocity layers and four/eight round-robin takes per note. It is not a complete chromatic 88-key bank; playback must use recorded roots and any declared playable zones without octave-shifting notes to fit the superseded FreePats range.
 - The concert-harp bank retains the original VCSL stereo recordings and SFZ region metadata. Its recorded roots are not a complete chromatic scale; composition avoids inventing missing roots.
@@ -92,4 +91,4 @@ A second CC0 source has passed its dedicated import, manifest, load, and recorde
 - The effective audit reported zero uncovered velocity ranges after source-priority selection for the exact recorded roots MIDI 27 and 34. The raw per-source gap report remains intact, so the original banks' incomplete upper layers are still visible rather than erased.
 - Integration decision: the six supplemental recordings have now been installed as two separate CC0 source packages in the feature branch's combined bank. Rubner remains intact as the incumbent source below velocity 121; Meatbass and VSCO are selected only for the missing upper range. The 224-entry Meatbass candidate itself is still not used wholesale.
 
-The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,029 entries. The feature branch and PR remain unmerged; the main branch is unchanged. The 60-second ensemble preview passed technical rendering checks, but this is not human listening approval.
+The original 13-source / 2,022-entry baseline remains documented for comparison. The current feature-branch install is 15 source packages / 2,029 entries, and the latest read-only audit confirms zero remaining Dan Tranh velocity gaps. The feature branch and PR remain unmerged; the main branch is unchanged. The 60-second ensemble preview passed technical rendering checks, but this is not human listening approval.
