@@ -35,7 +35,7 @@ class InstrumentBankAuditTests(unittest.TestCase):
         self.assertEqual(item["velocity_intervals"], [
             {"min": 1, "max": 63}, {"min": 64, "max": 127}
         ])
-        self.assertEqual(item["uncovered_velocity_ranges"], [])
+        self.assertEqual(item["velocity_gaps_by_recorded_note_and_articulation"], [])
         self.assertEqual(item["round_robin"]["depth_distribution"], {"1": 1, "2": 2})
         self.assertEqual(item["declared_playable_key_zones"], [
             {"min": 35, "max": 47}, {"min": 47, "max": 59}
@@ -48,7 +48,10 @@ class InstrumentBankAuditTests(unittest.TestCase):
             self.sample(40, 70, 127, 2),
         ))
         item = build_instrument_bank_audit(bank)["instruments"]["electric_bass"]
-        self.assertEqual(item["uncovered_velocity_ranges"], [{"min": 51, "max": 69}])
+        self.assertEqual(
+            item["velocity_gaps_by_recorded_note_and_articulation"][0]["uncovered_ranges"],
+            [{"min": 51, "max": 69}],
+        )
         self.assertEqual(
             item["round_robin"]["groups_with_non_contiguous_indices"][0]["expected_indices"],
             [0],
