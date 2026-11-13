@@ -1051,6 +1051,8 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         "outro": ["piano", "acoustic guitar"],
     }
     return {
+        "source_mode": "lyrics_first",
+        "lyric_status": "provided",
         "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
         "engine_version": "0.8.0",
         "title": _normalize(title) or "Untitled",
@@ -1159,7 +1161,7 @@ def compose_instrumental_plan(
         progression_slot = section_slot % len(chords)
         chord = chords[progression_slot]
         notes = _melody_for_line(8, tonic, scale, section_slot, chord, section["name"])
-        durations = [PPQ := 480 // 2] * len(notes)
+        durations = [240] * len(notes)
         # Keep phrase duration exactly one 4/4 bar.
         durations[-1] += 1920 - sum(durations)
         section_final = index + 1 == section["end_line"]
