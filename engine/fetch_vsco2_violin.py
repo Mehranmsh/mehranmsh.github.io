@@ -65,8 +65,10 @@ def build(dest):
  prov={"source_repository":REPO,"source_commit":COMMIT,"license":"CC0-1.0","sample_count":len(ready),"arco_vibrato_count":30,"pizzicato_count":44,"samples":[{k:x[k] for k in ("path","source_path","sha","midi_note","articulation","velocity_min","velocity_max","round_robin_index","dynamic_label")} for x in ready]}
  (dest/"provenance.json").write_text(json.dumps(prov,indent=2)+"\n")
  from sample_bank import load_sample_bank
+ from fetch_vsco2_violin_spiccato import import_vsco2_solo_violin_spiccato
+ spiccato=import_vsco2_solo_violin_spiccato(dest)
  bank=load_sample_bank(dest)
- if len(bank.samples)!=74 or any(s.sample_rate!=44100 or s.channels!=1 for s in bank.samples):raise ValueError("violin bank validation failed")
- return {"status":"validated_vsco2_cc0_solo_violin","samples":74,"arco_vibrato":30,"pizzicato":44,"license":"CC0-1.0"}
+ if len(bank.samples)!=134 or any(s.sample_rate!=44100 or s.channels!=1 for s in bank.samples):raise ValueError("violin bank validation failed")
+ return {"status":"validated_vsco2_cc0_solo_violin","samples":134,"arco_vibrato":30,"pizzicato":44,"spiccato":spiccato["samples"],"license":"CC0-1.0"}
 if __name__=="__main__":
  p=argparse.ArgumentParser();p.add_argument("output_root",type=Path);a=p.parse_args();print(json.dumps(build(a.output_root),indent=2))
