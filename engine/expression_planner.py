@@ -6,7 +6,7 @@ from typing import Any
 _PART_BASE = {
     "melody": 0.00, "chords": 0.00, "bass": 0.00,
     "kick": 0.00, "snare": 0.00, "closed_hat": -0.14,
-    "open_hat": 0.20, "cajon": 0.00, "guitar": -0.24, "strings": 0.00,
+    "open_hat": 0.20, "cajon": 0.00, "kalimba": 0.16, "guitar": -0.24, "strings": 0.00,
     "electric_guitar": 0.34,
 }
 _SECTION_WIDTH = {
