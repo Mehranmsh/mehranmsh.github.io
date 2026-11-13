@@ -39,9 +39,16 @@ def plan_velocity_layers(
         and sample.articulation == articulation
         and sample.velocity_min <= velocity <= sample.velocity_max
     ]
+    # A source priority can be activated only above an explicit velocity
+    # threshold. This lets a supplemental recording fill a real upper gap
+    # without replacing the incumbent source in its overlapping lower range.
+    matching_samples = [
+        sample for sample in matching_samples
+        if velocity >= sample.selection_priority_min_velocity
+    ]
     # Explicit source priorities resolve overlaps between independent recorded
-    # sources without blending their PCM. The priority is metadata policy, not
-    # a claim about the source recording's velocity range.
+    # sources without blending their PCM. This is selection policy, not a
+    # change to the source recording's declared velocity range.
     if matching_samples:
         highest_priority = max(sample.selection_priority for sample in matching_samples)
         matching_samples = [
