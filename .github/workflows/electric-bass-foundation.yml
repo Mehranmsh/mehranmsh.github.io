@@ -35,6 +35,9 @@ on:
       - 'engine/test_fetch_dsmolken_double_bass.py'
       - 'engine/fetch_karoryfer_meatbass.py'
       - 'engine/test_fetch_karoryfer_meatbass.py'
+      - 'engine/fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/build_contrabass_velocity_supplement.py'
       - '.github/workflows/electric-bass-foundation.yml'
   workflow_dispatch:
 
