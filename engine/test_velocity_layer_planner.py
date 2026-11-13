@@ -7,7 +7,7 @@ from sample_bank import Sample, SampleBank
 from velocity_layer_planner import plan_velocity_layers
 
 
-def sample(low, high, note=60):
+def sample(low, high, note=60, fade_in=None, fade_out=None, rr=0):
     return Sample(
         instrument="piano",
         midi_note=note,
@@ -18,6 +18,9 @@ def sample(low, high, note=60):
         channels=1,
         frames=48000,
         articulation="sustain",
+        velocity_fade_in=fade_in,
+        velocity_fade_out=fade_out,
+        round_robin_index=rr,
     )
 
 
@@ -57,6 +60,49 @@ class VelocityLayerPlannerTests(unittest.TestCase):
             result = plan_velocity_layers(self.bank, "piano", 60, velocity)
             self.assertEqual(result["overlap"], expected)
             self.assertEqual(len(result["layers"]), 2)
+
+
+    def test_sfz_velocity_crossfade_uses_recorded_fade_ranges(self):
+        bank = SampleBank(
+            root=Path("/bank"),
+            samples=(
+                sample(1, 127, fade_out=(70, 100)),
+                sample(1, 127, fade_in=(70, 100)),
+            ),
+        )
+        result = plan_velocity_layers(bank, "piano", 60, 85)
+        self.assertEqual(result["selection_mode"], "sfz_velocity_crossfade")
+        self.assertEqual(len(result["layers"]), 2)
+        self.assertAlmostEqual(result["layers"][0]["gain"], math.sqrt(0.5))
+        self.assertAlmostEqual(result["layers"][1]["gain"], math.sqrt(0.5))
+
+    def test_sfz_velocity_crossfade_endpoints_match_region_opcodes(self):
+        bank = SampleBank(
+            root=Path("/bank"),
+            samples=(
+                sample(1, 127, fade_out=(70, 100)),
+                sample(1, 127, fade_in=(70, 100)),
+            ),
+        )
+        lower = plan_velocity_layers(bank, "piano", 60, 70)
+        upper = plan_velocity_layers(bank, "piano", 60, 100)
+        self.assertEqual([layer["gain"] for layer in lower["layers"]], [1.0, 0.0])
+        self.assertAlmostEqual(upper["layers"][0]["gain"], 0.0, places=7)
+        self.assertAlmostEqual(upper["layers"][1]["gain"], 1.0, places=7)
+
+    def test_round_robin_takes_with_same_sfz_fade_are_not_extra_layers(self):
+        bank = SampleBank(
+            root=Path("/bank"),
+            samples=(
+                sample(1, 127, fade_out=(70, 100), rr=0),
+                sample(1, 127, fade_out=(70, 100), rr=1),
+                sample(1, 127, fade_in=(70, 100), rr=0),
+                sample(1, 127, fade_in=(70, 100), rr=1),
+            ),
+        )
+        result = plan_velocity_layers(bank, "piano", 60, 85)
+        self.assertEqual(len(result["layers"]), 2)
+        self.assertEqual(result["selection_mode"], "sfz_velocity_crossfade")
 
     def test_missing_exact_note_returns_no_layer_without_pitch_fallback(self):
         result = plan_velocity_layers(self.bank, "piano", 61, 80)
