@@ -313,8 +313,8 @@ class StudioControlPlaneTests(unittest.TestCase):
             "format": "WAV PCM 16-bit", "sample_rate": 44100,
             "channels": 2, "duration_seconds": 2.0, "events_rendered": 24,
         }
-        with mock.patch.object(module, "load_sample_bank", return_value=object()), \\
-             mock.patch.object(module, "compose_plan", return_value={"title": "test"}), \\
+        with mock.patch.object(module, "load_sample_bank", return_value=object()), \
+             mock.patch.object(module, "compose_plan", return_value={"title": "test"}), \
              mock.patch.object(module, "render_composition_to_wav", return_value=fake_audio) as render:
             status, payload = self.request("/v1/compose-audio", method="POST", payload={
                 "title": "String layer", "lyrics": "برگرد ای عشق", "parts": ["strings"],
