@@ -93,6 +93,11 @@
     <div class="field"><label for="songwriterGenre">MUSIC GENRE</label><select id="songwriterGenre"><option selected>پاپ</option><option>راک</option><option>آلترناتیو</option><option>آراندبی</option><option>هیپ‌هاپ</option><option>سنتی</option><option>سینمایی</option><option>فولک</option></select></div>
     <div class="field"><label for="songwriterVoice">STORY VOICE</label><select id="songwriterVoice"><option selected>اول شخص</option><option>دوم شخص</option><option>روایت داستانی</option></select></div>
    </div>
+   <div class="two">
+    <div class="field"><label for="songwriterRhyme">RHYME APPROACH</label><select id="songwriterRhyme"><option value="natural">طبیعی و آزاد</option><option value="couplet">قافیه‌های دوتایی</option><option value="alternating">یکی‌درمیان</option><option value="monorhyme">قافیهٔ یکدست</option></select></div>
+    <div class="field"><label for="songwriterHook">CHORUS / HOOK</label><select id="songwriterHook"><option value="memorable">جملهٔ محوری به‌یادماندنی</option><option value="emotional">اوج احساسی</option><option value="minimal">کوتاه و مینیمال</option><option value="anthem">هم‌خوانی و پرقدرت</option></select></div>
+   </div>
+   <div class="field"><label for="songwriterArc">STORY DEVELOPMENT</label><select id="songwriterArc"><option value="progression">روایت با پیشرفت داستان</option><option value="confession">اعتراف و بیان احساس</option><option value="cinematic">تصویری و سینمایی</option><option value="reflective">درون‌نگر و تأملی</option></select></div>
    <div class="field"><label for="songwriterDetails">DETAILS YOU WANT INCLUDED (OPTIONAL)</label><textarea id="songwriterDetails" rows="2" maxlength="1200" placeholder="A memory, a place, a special image, a message or a feeling..."></textarea></div>
    <div class="two">
     <div class="field"><label for="songwriterStructure">LYRIC LENGTH</label><select id="songwriterStructure"><option value="full" selected>Full song</option><option value="short">Short draft</option></select></div>
@@ -1176,7 +1181,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   try{
    const response=await fetch("https://mehran-msh-auth.mehran79mehran.workers.dev/music/lyrics/generate",{
     method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({topic,mood:$("songwriterMood").value,genre:$("songwriterGenre").value,voice:$("songwriterVoice").value,details:$("songwriterDetails").value,structure:$("songwriterStructure").value})
+    body:JSON.stringify({topic,mood:$("songwriterMood").value,genre:$("songwriterGenre").value,voice:$("songwriterVoice").value,details:$("songwriterDetails").value,structure:$("songwriterStructure").value,rhyme:$("songwriterRhyme").value,hook:$("songwriterHook").value,arc:$("songwriterArc").value})
    });
    let data={};try{data=await response.json();}catch{}
    if(!response.ok||!data.success)throw new Error(data.error||("Generation failed ("+response.status+")."));
