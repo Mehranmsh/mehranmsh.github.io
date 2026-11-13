@@ -5381,9 +5381,11 @@ export default {
               engine_error: cleanText(result?.error, 80) }, safeStatus);
           }
           if (!result || typeof result !== "object" || result.composition_created !== true ||
-              !result.plan || typeof result.plan !== "object" ||
-              !result.midi || typeof result.midi !== "object") {
-            return error("Composition engine response is incomplete", 502);
+              result.composition_mode !== mode ||
+              !result.plan || typeof result.plan !== "object" || result.plan.source_mode !== mode ||
+              !result.midi || typeof result.midi !== "object" ||
+              result.midi.format !== "Standard MIDI") {
+            return error("Composition engine response is incomplete or mismatched", 502);
           }
           const midiBase64 = typeof result.midi.content_base64 === "string"
             ? result.midi.content_base64 : "";
