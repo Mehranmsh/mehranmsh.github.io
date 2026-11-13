@@ -23,7 +23,7 @@ EXPECTED_BANKS = {
     "nylon_guitar": ("Meta Nylon Guitar", "meta-nylon-guitar", "meta-nylon-guitar", 48000),
     "acoustic_guitar": ("Meta Steel Guitar", "meta-steel-guitar", "meta-steel-guitar", 48000),
     "piano": ("Meta Piano", "meta-piano", "meta_piano", 48000),
-    "electric_bass": ("FreePats Electric Bass YR", "freepats-electric-bass-yr", "freepats_electric_bass_cc0", 48000),
+    "electric_bass": ("Karoryfer Babyblue Picked Electric Bass", "karoryfer-babyblue-bass", "karoryfer_babyblue_picked", 44100),
     "kick": ("Virtuosity Kick", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
     "snare": ("Virtuosity Snare", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
     "closed_hat": ("Virtuosity Closed Hi-Hat", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
