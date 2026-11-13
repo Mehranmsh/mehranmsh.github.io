@@ -368,7 +368,7 @@ def render_sample_events(
                 loop_start = loop_end = loop_length = crossfade_frames = None
             if requested_frames <= 0:
                 continue
-            gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain * layer_gain * (10.0 ** (sample.gain_db / 20.0))
+            gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain * layer_gain * (10.0 ** ((sample.gain_db + sample.sfz_volume_db) / 20.0))
             pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
             attack_frames = max(1, round(sample_rate * (0.001 if is_one_shot else 0.004)))
             effective_release = min(release_seconds, 0.012) if is_one_shot else release_seconds
