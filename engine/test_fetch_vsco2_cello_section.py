@@ -32,6 +32,7 @@ def fixture_map(key):
                 for layer, low, high in ((1, 0, 62), (2, 63, 127)):
                     lines.extend(region(f"{prefix}_{pitch(root)}_v{layer}_RR{rr}.wav", root, low, high))
     elif key in ("sustain_quiet", "sustain_vibrato"):
+        lines.append("<group>")
         for root in ROOTS:
             if root == 40:
                 lines.extend(region("susvib_E1_v1_1.wav", root, 0, 41, 16))
@@ -43,6 +44,7 @@ def fixture_map(key):
             for root in ROOTS:
                 lines.extend(region(f"susvib_{pitch(root)}_v3_1.wav", root, 63, 127, 4))
     else:
+        lines.append("<group>")
         low_roots = [57, 47, 71, 60, 50, 74, 40, 64, 53, 77, 43, 67]
         high_roots = [57, 59, 71, 36, 60, 50, 74, 40, 64, 53, 77, 43, 67]
         for root in low_roots:
