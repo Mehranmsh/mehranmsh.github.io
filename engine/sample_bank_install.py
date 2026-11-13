@@ -28,6 +28,9 @@ EXPECTED_BANKS = {
     "snare": ("Virtuosity Snare", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
     "closed_hat": ("Virtuosity Closed Hi-Hat", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
     "open_hat": ("Virtuosity Open Hi-Hat", "virtuosity-drums", "virtuosity_drums_cc0_pinned", 44100),
+    "cajon": ("VCSL Cajon", "vcsl-cajon", "vcsl_cajon_recordings", 44100),
+    "kalimba": ("VCSL Kalimba Kenya", "vcsl-kalimba-kenya", "vcsl_kalimba_kenya", 44100),
+    "contrabass": ("Rubner Contrabass Pizzicato", "rubner-contrabass-pizzicato", "d_smolken_rubner_pizzicato", 44100),
 }
 
 
@@ -121,6 +124,8 @@ def install_recorded_banks(
                     "string": sample.string_name,
                     "round_robin_index": sample.round_robin_index,
                     "one_shot": sample.one_shot,
+                    "tuning_cents": sample.tuning_cents,
+                    "gain_db": sample.gain_db,
                     "path": destination_relative.as_posix(),
                     "recording_session_id": session_id,
                 })
