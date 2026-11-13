@@ -120,6 +120,38 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertTrue(midi_path.is_file())
         self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
 
+    def test_authenticated_instrumental_first_creates_midi_without_placeholder_lyrics(self):
+        status, payload = self.request("/v1/compose-instrumental", method="POST", payload={
+            "title": "شب روشن", "genre": "pop", "mood": "hopeful",
+            "bpm": 104, "phrase_count": 8,
+        })
+        self.assertEqual(status, 201, payload)
+        self.assertTrue(payload["composition_created"])
+        self.assertFalse(payload["audio_rendered"])
+        plan = payload["plan"]
+        self.assertEqual(plan["source_mode"], "instrumental_first")
+        self.assertIsNone(plan["lyrics"])
+        self.assertEqual(plan["lyric_status"], "not_started")
+        self.assertEqual(plan["analysis"]["line_count"], 0)
+        self.assertEqual(len(plan["composition"]["melody"]), 8)
+        self.assertEqual(len(plan["lyric_fit_guide"]), 8)
+        self.assertEqual(payload["midi"]["tracks"], 7)
+        self.assertGreater(payload["midi"]["guitar_note_events"], 0)
+        self.assertGreater(payload["midi"]["piano_note_events"], 0)
+        self.assertGreater(payload["midi"]["bass_note_events"], 0)
+        self.assertGreater(payload["midi"]["drum_hits"], 0)
+        midi_path = Path(payload["midi"]["local_path"])
+        self.assertEqual(midi_path.read_bytes()[:4], b"MThd")
+
+    def test_instrumental_first_rejects_invalid_mood_and_phrase_count(self):
+        for payload in ({"mood": "invented"}, {"phrase_count": True},
+                        {"phrase_count": 17}, {"bpm": True}):
+            with self.subTest(payload=payload):
+                status, result = self.request(
+                    "/v1/compose-instrumental", method="POST", payload=payload
+                )
+                self.assertEqual(status, 400, result)
+
     def test_sample_preview_serves_only_selected_authenticated_wav(self):
         bank_root = module.ROOT / "preview-bank"
         bank_root.mkdir()
