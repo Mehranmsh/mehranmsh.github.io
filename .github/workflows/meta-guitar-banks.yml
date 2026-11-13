@@ -225,11 +225,11 @@ jobs:
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 375 + 80 + 25 + 17 + 14 + 123 + 74 + 27 + 47 + 25, len(bank.samples)
+          assert len(bank.samples) >= 352 + 348 + 375 + 80 + 25 + 17 + 14 + 123 + 74 + 27 + 47 + 25 + 45, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
           assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
                   "kick", "snare", "closed_hat", "open_hat", "cajon",
-                  "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= available, available
+                  "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp"} <= available, available
           events = build_composition_events(
               plan,
               instruments={"guitar": "acoustic_guitar", "contrabass": "contrabass"},
@@ -340,6 +340,42 @@ jobs:
                   "start_seconds": 7.0 + index * 3.2,
                   "duration_seconds": 0.22, "velocity": 92,
               })
+          # Add a chord-aware concert-harp arpeggio from the composition's
+          # actual chord progression, using only the verified VCSL key range.
+          harp_pitch_classes = {
+              "C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
+              "E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
+              "Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11,
+          }
+          harp_progression = plan["composition"]["chord_progression"]
+          harp_notes = sorted({sample.midi_note for sample in bank.samples
+                               if sample.instrument == "concert_harp"})
+          assert len(harp_notes) >= 20, harp_notes
+          harp_added = 0
+          for cycle in range(5):
+              for chord_index, chord in enumerate(harp_progression):
+                  root = chord[:2] if len(chord) > 1 and chord[1] in "#b" else chord[:1]
+                  if root not in harp_pitch_classes:
+                      raise ValueError(f"Unsupported chord root for harp arpeggio: {chord}")
+                  suffix = chord[len(root):]
+                  intervals = [0, 3, 7] if "m" in suffix and "maj" not in suffix else [0, 4, 7]
+                  if "7" in suffix:
+                      intervals.append(10)
+                  root_note = 60 + harp_pitch_classes[root]
+                  bar_start = (cycle * len(harp_progression) + chord_index) * 2.7
+                  for tone_index, interval in enumerate(intervals):
+                      note = root_note + interval
+                      if not 28 <= note <= 102:
+                          raise ValueError(f"Concert harp note outside verified key range: {note}")
+                      selected.append({
+                          "instrument": "concert_harp", "part": "concert_harp",
+                          "midi_note": note, "articulation": "sustain",
+                          "start_seconds": bar_start + tone_index * 0.42,
+                          "duration_seconds": 1.25,
+                          "velocity": (72, 86, 98, 90)[tone_index % 4],
+                      })
+                      harp_added += 1
+          assert harp_added >= 45, f"Too few chord-aware harp events: {harp_added}"
           for index in range(20):
               selected.append({
                   "instrument": "contrabass", "part": "contrabass",
@@ -358,9 +394,9 @@ jobs:
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
-                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "concert_flute", "dan_tranh", "recorder"} <= selected_parts, selected_parts
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "concert_flute", "dan_tranh", "recorder", "concert_harp"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
-                  "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= selected_instruments, selected_instruments
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp"} <= selected_instruments, selected_instruments
           for event in selected:
               if event.get("instrument") == "electric_bass" and event.get("midi_note", 0) > 45:
                   # Keep the bass line inside the FreePats SFZ playable range (MIDI 26-45).
@@ -436,7 +472,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mehran-thirteen-bank-recorded-ensemble-preview-wav
-          path: sample-bank-installed-all/mehran-twelve-bank-recorded-ensemble.wav
+          path: sample-bank-installed-all/mehran-thirteen-bank-recorded-ensemble.wav
           if-no-files-found: error
           compression-level: 0
           retention-days: 30
