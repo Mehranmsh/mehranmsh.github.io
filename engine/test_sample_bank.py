@@ -1019,6 +1019,22 @@ class SampleBankTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "offset_frames must point inside"):
                 load_sample_bank(root)
 
+    def test_accepts_sfz_velocity_crossfade_regions_for_same_note(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "mf.wav")
+            self.write_sample(root / "f.wav")
+            self.write_manifest(root, [
+                {"instrument": "concert_harp", "midi_note": 60, "path": "mf.wav",
+                 "velocity_fade_out": [70, 100]},
+                {"instrument": "concert_harp", "midi_note": 60, "path": "f.wav",
+                 "velocity_fade_in": [70, 100]},
+            ])
+            bank = load_sample_bank(root)
+            self.assertEqual(len(bank.samples), 2)
+            self.assertEqual(bank.samples[0].velocity_fade_out, (70, 100))
+            self.assertEqual(bank.samples[1].velocity_fade_in, (70, 100))
+
 
 if __name__ == "__main__":
     unittest.main()
