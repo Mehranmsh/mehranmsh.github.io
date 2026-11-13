@@ -196,10 +196,9 @@ def import_meatbass_pizzicato(output_root: str | Path) -> dict[str, Any]:
             session_id: {
                 "instrument_model": "1958 Otto Rubner double bass",
                 "performer": "Drogomir Smolken",
-                "recorded_by": "Ludwik Zamenhof",
                 "tuning": "Fifths tuning CGDA",
                 "notes": (
-                    "Pinned CC0 Karoryfer Meatbass pizzicato recordings. "
+                    "Pinned CC0 Karoryfer Meatbass pizzicato recordings. Recorded by Ludwik Zamenhof. "
                     "Four recorded velocity layers (1-32, 33-64, 65-96, 97-127) "
                     "and four recorded round-robin takes per pitch/layer. "
                     "Only regions in the basic pizzicato map are imported."
