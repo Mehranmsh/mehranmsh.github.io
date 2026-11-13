@@ -10,7 +10,9 @@ import wave
 from pathlib import Path
 
 from sample_bank import load_sample_bank
-from sample_renderer import build_composition_events, render_sample_events
+from sample_renderer import (
+    _resolve_part_articulation, build_composition_events, render_sample_events,
+)
 from mehran_music_core import compose_plan
 
 
@@ -72,11 +74,17 @@ class PercussionRoundRobinTests(unittest.TestCase):
             "closed_hat": "closed",
             "open_hat": "open",
         }
-        for instrument, articulation in expected.items():
+        for part, articulation in expected.items():
+            resolved, source = _resolve_part_articulation(
+                part, "sustain", "legacy_default"
+            )
+            self.assertEqual(resolved, articulation, part)
+            self.assertEqual(source, "percussion_default", part)
+        for instrument in ("kick", "snare", "closed_hat"):
             matching = [event for event in events if event["instrument"] == instrument]
             self.assertTrue(matching, instrument)
             self.assertTrue(
-                all(event["articulation"] == articulation for event in matching),
+                all(event["articulation"] == expected[instrument] for event in matching),
                 instrument,
             )
 
