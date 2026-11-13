@@ -948,6 +948,28 @@ class SampleBankTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "tuning_cents"):
                 load_sample_bank(root)
 
+    def test_recorded_sample_gain_trim_is_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "kalimba.wav")
+            self.write_manifest(root, [{
+                "instrument": "kalimba", "midi_note": 75,
+                "gain_db": -5.5, "path": "kalimba.wav",
+            }])
+            bank = load_sample_bank(root)
+            self.assertEqual(bank.samples[0].gain_db, -5.5)
+
+    def test_recorded_sample_gain_trim_is_bounded(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "kalimba.wav")
+            self.write_manifest(root, [{
+                "instrument": "kalimba", "midi_note": 75,
+                "gain_db": 25, "path": "kalimba.wav",
+            }])
+            with self.assertRaisesRegex(ValueError, "gain_db"):
+                load_sample_bank(root)
+
     def test_sample_bank_rejects_unknown_guitar_string_name(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
