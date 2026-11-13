@@ -36,7 +36,7 @@ class BabyblueSFZTests(unittest.TestCase):
 
     def test_rejects_missing_round_robin_take(self):
         sfz = fixture("ff").replace("_rr8.wav", "_rr7.wav")
-        with self.assertRaisesRegex(ValueError, "unique takes"):
+        with self.assertRaisesRegex(ValueError, "incomplete recorded round-robin takes"):
             parse_babyblue_map(sfz, "ff", require_complete=False)
 
     def test_rejects_unknown_layer(self):
