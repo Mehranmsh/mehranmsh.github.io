@@ -44,6 +44,8 @@ class Sample:
     playable_key_min: int | None = None
     playable_key_max: int | None = None
     offset_frames: int = 0
+    velocity_fade_in: tuple[int, int] | None = None
+    velocity_fade_out: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -145,6 +147,21 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
                 or not math.isfinite(gain_db) or not -24.0 <= gain_db <= 24.0):
             raise ValueError("gain_db must be finite and between -24 and 24")
         offset_frames = _integer(entry.get("offset_frames", 0), 0, 4294967296, "offset_frames")
+        def _velocity_fade(field: str) -> tuple[int, int] | None:
+            value = entry.get(field)
+            if value is None:
+                return None
+            if not isinstance(value, list) or len(value) != 2:
+                raise ValueError(f"{field} must be a two-item velocity range")
+            low = _integer(value[0], 0, 127, f"{field}[0]")
+            high = _integer(value[1], 0, 127, f"{field}[1]")
+            if low >= high:
+                raise ValueError(f"{field} must have an increasing velocity range")
+            return (low, high)
+        velocity_fade_in = _velocity_fade("velocity_fade_in")
+        velocity_fade_out = _velocity_fade("velocity_fade_out")
+        if velocity_fade_in is not None and velocity_fade_out is not None:
+            raise ValueError("A sample cannot fade in and fade out on velocity simultaneously")
         playable_key_min = entry.get("playable_key_min")
         playable_key_max = entry.get("playable_key_max")
         if (playable_key_min is None) != (playable_key_max is None):
@@ -187,7 +204,8 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
                               loop_start, loop_end, articulation, session_id, recording_metadata,
                               string_name, round_robin_index, one_shot,
                               float(tuning_cents), float(gain_db),
-                              playable_key_min, playable_key_max, offset_frames))
+                              playable_key_min, playable_key_max, offset_frames,
+                              velocity_fade_in, velocity_fade_out))
     return SampleBank(root, tuple(samples))
 
 
