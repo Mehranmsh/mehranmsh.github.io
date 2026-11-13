@@ -185,6 +185,10 @@ jobs:
       - name: Install and validate all thirteen independent real instrument banks
         timeout-minutes: 18
         run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp
+      - name: Audit actual roots, articulations, velocity layers and round robins
+        run: |
+          python3 -m unittest engine.test_instrument_bank_audit -v
+          python3 engine/instrument_bank_audit.py sample-bank-installed-all --output sample-bank-installed-all/instrument-bank-audit.json
       - name: Render and validate the real thirteen-bank recorded ensemble
         timeout-minutes: 12
         run: |
@@ -417,11 +421,9 @@ jobs:
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
                   "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp"} <= selected_instruments, selected_instruments
           for event in selected:
-              if event.get("instrument") == "electric_bass" and event.get("midi_note", 0) > 45:
-                  # Keep the bass line inside the FreePats SFZ playable range (MIDI 26-45).
-                  # Shift only out-of-range arrangement notes down one octave; never stretch
-                  # a recording beyond its documented key zone.
-                  event["midi_note"] -= 12
+              # Babyblue replaced the old FreePats bank. Keep the composed bass
+              # MIDI notes intact: its recorded roots span MIDI 35-75, so an
+              # octave fold into the retired 26-45 range would alter the music.
               if event.get("part") == "open_hat":
                   # Virtuosity records the open hi-hat at MIDI key 42.
                   # Arrangement planning may suggest a pitched cymbal note (46),
@@ -504,7 +506,11 @@ jobs:
             sample-bank-meta-steel-guitar/
             sample-bank-meta-piano/
             sample-bank-virtuosity-drums/
-            sample-bank-freepats-electric-bass/
+            sample-bank-karoryfer-babyblue-bass/
+            sample-bank-vsco2-violin/
+            sample-bank-vsco2-flute/
+            sample-bank-vcsl-dan-tranh/
+            sample-bank-vcsl-recorder/
             sample-bank-vcsl-cajon/
             sample-bank-vcsl-kalimba/
             sample-bank-rubner-contrabass/
