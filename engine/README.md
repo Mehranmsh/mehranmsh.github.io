@@ -197,3 +197,24 @@ Pass `dynamics_style="crescendo"` (or another supported curve) to `compose_plan`
 The recorded-sample event builder now applies deterministic, section-aware stereo expression to each arrangement part. Melody, bass, kick and snare remain centered; closed hats alternate left/right; open hats and optional guitar layers receive stable positions. Chord and string width metadata follows the section arc, widening in choruses and narrowing in bridges. Existing chord-voice positions are retained and adjusted within safe pan bounds.
 
 Each sample event carries its expression profile and planner version for diagnostics. The pan value is applied by the stereo sample renderer; `stereo_width` is descriptive arrangement metadata and is not a separate DSP widening effect. This layer does not synthesize stereo recordings, replace a real instrument bank, or claim a completed mastering chain. MIDI rendering remains unchanged in this step.
+
+
+## پراکسی امن برای استودیو وب
+
+Worker مسیر `POST /music/engine/compose` را برای اتصال آیندهٔ رابط وب فراهم می‌کند. این مسیر:
+
+- فقط با نشست معتبر مدیر Pi با نام کاربری `mehranmsh` کار می‌کند.
+- درخواست‌ها را به آدرس HTTPS از پیش تنظیم‌شده می‌فرستد؛ کاربر نمی‌تواند مقصد شبکه را تعیین کند.
+- توکن موتور را فقط از secret سمت Worker می‌خواند و هرگز به مرورگر برنمی‌گرداند.
+- محدودیت تعداد درخواست، اندازهٔ پاسخ و اعتبارسنجی حالت/پارامترها دارد.
+- مسیر فایل محلی MIDI را از پاسخ عمومی حذف می‌کند.
+
+برای فعال‌سازی، موتور Python باید روی میزبان خصوصیِ قابل دسترس با HTTPS مستقر شود. سپس آدرس کامل endpoint و توکن همسان را فقط در تنظیمات سمت سرور Worker قرار دهید:
+
+```sh
+npx wrangler secret put MEHRAN_ENGINE_TOKEN
+```
+
+`MEHRAN_ENGINE_COMPOSE_URL` یک متغیر سمت Worker است که باید به URL کامل `https://.../v1/compose-by-mode` اشاره کند. مقدار secret را هرگز در مخزن، `wrangler.jsonc` یا JavaScript عمومی قرار ندهید.
+
+**وضعیت فعلی:** این پراکسی پیاده‌سازی شده، اما تا زمانی که موتور روی میزبان خصوصی مستقر و دو تنظیم سمت Worker پیکربندی نشوند، عمداً با پاسخ `503` بسته می‌ماند. سرویس Python فعلی همچنان فقط روی loopback اجرا می‌شود؛ بنابراین هنوز اتصال زنده یا رندر ابری فعال نیست.
