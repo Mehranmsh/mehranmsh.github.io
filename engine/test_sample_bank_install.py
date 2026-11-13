@@ -11,7 +11,7 @@ from sample_renderer import render_sample_events
 
 
 class SampleBankInstallTests(unittest.TestCase):
-    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000, session_id: str | None = None):
+    def make_bank(self, root: Path, instrument: str, source_id: str, sample_rate: int = 48000, session_id: str | None = None, articulation: str = "sustain"):
         sample_path = root / "samples" / "e2.wav"
         sample_path.parent.mkdir(parents=True)
         with wave.open(str(sample_path), "wb") as wav:
@@ -33,7 +33,7 @@ class SampleBankInstallTests(unittest.TestCase):
             "samples": [{
                 "instrument": instrument, "midi_note": 40,
                 "velocity_min": 1, "velocity_max": 127,
-                "articulation": "sustain", "string": "LowE" if instrument in ("nylon_guitar", "acoustic_guitar") else None,
+                "articulation": articulation, "string": "LowE" if instrument in ("nylon_guitar", "acoustic_guitar") else None,
                 "path": "samples/e2.wav", "recording_session_id": session,
             }],
         }), encoding="utf-8")
@@ -300,7 +300,7 @@ class SampleBankInstallTests(unittest.TestCase):
             dan_tranh.mkdir(); recorder.mkdir()
             self.make_bank(
                 dan_tranh, "dan_tranh", "vcsl-dan-tranh", 44100,
-                "vcsl_dan_tranh_normal",
+                "vcsl_dan_tranh_normal", articulation="pluck",
             )
             self.make_bank(
                 recorder, "baroque_soprano_recorder", "vcsl-recorder", 44100,
