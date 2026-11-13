@@ -63,7 +63,7 @@ class StudioControlPlaneTests(unittest.TestCase):
         response.close()
         return status, json.loads(body)
 
-    def test_server_bind_rejects_public_interfaces(self):
+    def test_server_bind_rejects_public_interfaces_by_default(self):
         for host in ("0.0.0.0", "192.168.1.20", "::", "localhost"):
             with self.subTest(host=host):
                 with self.assertRaises(SystemExit):
@@ -72,14 +72,22 @@ class StudioControlPlaneTests(unittest.TestCase):
     def test_server_bind_accepts_loopback_and_valid_port_only(self):
         module.validate_server_config("127.0.0.1", 8765)
         module.validate_server_config("127.20.30.40", 65535)
+        module.validate_server_config("0.0.0.0", 8765, allow_container_bind=True)
         for port in (0, -1, 65536, "8765"):
             with self.subTest(port=port):
                 with self.assertRaises(SystemExit):
                     module.validate_server_config("127.0.0.1", port)
 
-    def test_main_refuses_public_bind_before_starting(self):
+    def test_container_bind_requires_explicit_opt_in(self):
+        with self.assertRaises(SystemExit):
+            module.validate_server_config("0.0.0.0", 8765, allow_container_bind=False)
+        with self.assertRaises(SystemExit):
+            module.validate_server_config("192.168.1.20", 8765, allow_container_bind=True)
+
+    def test_main_refuses_public_bind_without_container_opt_in(self):
         with mock.patch.object(module, "TOKEN", "t" * 40), \
-             mock.patch.object(module, "HOST", "0.0.0.0"):
+             mock.patch.object(module, "HOST", "0.0.0.0"), \
+             mock.patch.dict(module.os.environ, {"MEHRAN_STUDIO_ALLOW_CONTAINER_BIND": "0"}):
             with self.assertRaises(SystemExit):
                 module.main()
 
