@@ -178,6 +178,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          python3 -m unittest engine.test_fetch_vcsl_cajon engine.test_fetch_vcsl_kalimba -v
           python3 engine/fetch_vcsl_cajon.py sample-bank-vcsl-cajon
           python3 engine/fetch_vcsl_kalimba.py sample-bank-vcsl-kalimba
           python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
