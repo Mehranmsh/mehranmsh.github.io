@@ -17,6 +17,8 @@ class IndependentMusicCoreTests(unittest.TestCase):
     def test_builds_composition_plan_and_preserves_lines(self):
         lyrics = "دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد"
         plan = compose_plan(lyrics, title="برگرد", target_bpm=84)
+        self.assertEqual(plan["source_mode"], "lyrics_first")
+        self.assertEqual(plan["lyric_status"], "provided")
         self.assertEqual(plan["engine"], "MEHRAN_INDEPENDENT_COMPOSITION_CORE")
         self.assertEqual(plan["title"], "برگرد")
         self.assertEqual(plan["composition"]["tempo_bpm"], 84)
