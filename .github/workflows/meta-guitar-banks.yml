@@ -81,8 +81,8 @@ jobs:
               source = response.read().decode('utf-8')
           regions = parse_sfz_regions(source)
           assert len(regions) == 45, len(regions)
-          assert sum(item['crossfade'] and item['crossfade']['direction'] == 'out' for item in regions) == 21
-          assert sum(item['crossfade'] and item['crossfade']['direction'] == 'in' for item in regions) == 21
+          assert sum(bool(item['crossfade']) and item['crossfade']['direction'] == 'out' for item in regions) == 21
+          assert sum(bool(item['crossfade']) and item['crossfade']['direction'] == 'in' for item in regions) == 21
           assert sum(item['velocity_range'] == [0, 100] for item in regions) == 1
           assert sum(item['velocity_range'] == [101, 127] for item in regions) == 1
           assert min(item['key_range'][0] for item in regions) == 28
