@@ -1237,6 +1237,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  $("analyzePitch").addEventListener("click",()=>{void analyzeVocalPitch();});
  $("analyzeRecordingQuality").addEventListener("click",()=>{void analyzeRecordingQuality();});
  $("vocalPolishAmount").addEventListener("input",()=>{$("vocalPolishAmountValue").textContent=$("vocalPolishAmount").value+"%";});
+ ["vocalDeEssAmount","vocalDeEssAmountValue","%"],["vocalDeEssThreshold","vocalDeEssThresholdValue"," dB"],["vocalCompThreshold","vocalCompThresholdValue"," dB"],["vocalCompRatio","vocalCompRatioValue",":1"],["vocalCompAttack","vocalCompAttackValue"," ms"],["vocalCompRelease","vocalCompReleaseValue"," ms"].forEach(([input,label,unit])=>{$(input).addEventListener("input",()=>{$(label).textContent=$(input).value+unit;});});
  $("runVocalPolish").addEventListener("click",()=>{void runVocalPolish();});
  $("downloadVocalPolish").addEventListener("click",()=>{if(!vocalPolishBlob)return;const a=document.createElement("a");a.href=vocalPolishUrl;a.download="mehran-vocal-polished.wav";document.body.appendChild(a);a.click();a.remove();});
   $("importVocalRecording").addEventListener("click",()=>{if(!$("vocalProject").value){$("vocalImportStatus").textContent="Choose a project first.";return;}$("vocalRecordingFile").click();});
