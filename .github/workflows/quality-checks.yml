@@ -103,6 +103,7 @@ jobs:
             -p 127.0.0.1:18766:8765 \
             -e MEHRAN_STUDIO_TOKEN="$MEHRAN_STUDIO_TOKEN" \
             -e MEHRAN_STUDIO_HOME=/tmp/mehran-compose-ci \
+            -e MEHRAN_STUDIO_MIN_FREE_BYTES=0 \
             -e MEHRAN_STUDIO_HOST=0.0.0.0 \
             -e MEHRAN_STUDIO_PORT=8765 \
             -e MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1 \
