@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 _PART_BASE = {
-    "melody": 0.00, "chords": 0.00, "bass": 0.00,
+    "melody": 0.00, "chords": 0.00, "bass": 0.00, "contrabass": -0.08,
     "kick": 0.00, "snare": 0.00, "closed_hat": -0.14,
     "open_hat": 0.20, "cajon": 0.00, "kalimba": 0.16, "guitar": -0.24, "strings": 0.00,
     "electric_guitar": 0.34,
@@ -36,8 +36,8 @@ def plan_part_expression(
     if isinstance(event_index, bool) or not isinstance(event_index, int) or event_index < 0:
         raise ValueError("event_index must be a non-negative integer")
     width = _SECTION_WIDTH[section]
-    if part in ("melody", "bass", "kick", "snare", "cajon"):
-        pan = 0.0
+    if part in ("melody", "bass", "contrabass", "kick", "snare", "cajon"):
+        pan = -0.08 if part == "contrabass" else 0.0
     elif part == "closed_hat":
         pan = -0.14 if event_index % 2 == 0 else 0.14
     elif part == "open_hat":
