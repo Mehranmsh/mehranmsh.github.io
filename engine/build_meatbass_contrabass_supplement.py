@@ -91,7 +91,7 @@ def build_supplement(baseline_root: Path, candidate_root: Path, output_root: Pat
         "samples": [*baseline_manifest["samples"], *supplement],
     }
     (output_root / "bank.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     shutil.copyfile(baseline_root / "LICENSE-CC0.txt", output_root / "LICENSE-RUBNER-CC0.txt")
