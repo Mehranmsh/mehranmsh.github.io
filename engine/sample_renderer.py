@@ -146,9 +146,20 @@ def render_sample_events(
         )
         if (event.get("articulation_source") == "percussion_default"
                 and not has_recorded_one_shots):
-            # Keep older sustain-only test banks and user banks playable until
-            # their percussion recordings are migrated to the one-shot schema.
+            # Keep older sustain-only percussion banks playable until migration.
             articulation = "sustain"
+        elif event.get("articulation_source") == "instrument_default":
+            has_default_articulation = any(
+                sample.instrument == instrument and sample.articulation == articulation
+                for sample in selection_bank.samples
+            )
+            has_legacy_sustain = any(
+                sample.instrument == instrument and sample.articulation == "sustain"
+                for sample in selection_bank.samples
+            )
+            if not has_default_articulation and has_legacy_sustain:
+                # Older electric-bass banks may only contain a generic sustain layer.
+                articulation = "sustain"
         one_shot_candidates = [
             sample for sample in selection_bank.samples
             if sample.instrument == instrument and sample.one_shot
