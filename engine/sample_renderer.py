@@ -615,6 +615,10 @@ def _resolve_part_articulation(
         "closed_hat": ("closed", "percussion_default"),
         "open_hat": ("open", "percussion_default"),
         "contrabass": ("pizzicato", "instrument_default"),
+        # VSCO 2 CE solo violin exposes arco_vibrato and pizzicato, not a
+        # generic sustain region. Keep the default mapped to the exact source
+        # articulation so a selected strings layer can render without fallback.
+        "strings": ("arco_vibrato", "instrument_default"),
     }
     if part in part_defaults:
         return part_defaults[part]
