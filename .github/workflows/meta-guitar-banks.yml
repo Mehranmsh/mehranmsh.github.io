@@ -169,6 +169,25 @@ jobs:
                   event["guitar_max_fret"] = 12
           output = "sample-bank-installed-all/mehran-piano-guitar-composition.wav"
           report = render_sample_events(selected, bank, output, sample_rate=44100)
+          # The final note may end a few milliseconds before the requested
+          # preview boundary. Pad only the tail with digital silence so the
+          # published preview has an exact, predictable one-minute duration.
+          with wave.open(output, "rb") as rendered:
+              wav_params = rendered.getparams()
+              pcm = rendered.readframes(rendered.getnframes())
+          target_frames = round(preview_seconds * 44100)
+          actual_frames = len(pcm) // (wav_params.nchannels * wav_params.sampwidth)
+          if actual_frames < target_frames:
+              pcm += b"\\x00" * (
+                  (target_frames - actual_frames)
+                  * wav_params.nchannels * wav_params.sampwidth
+              )
+          elif actual_frames > target_frames:
+              pcm = pcm[:target_frames * wav_params.nchannels * wav_params.sampwidth]
+          with wave.open(output, "wb") as exact_preview:
+              exact_preview.setparams(wav_params)
+              exact_preview.writeframes(pcm)
+          report["duration_seconds"] = round(target_frames / 44100, 3)
           assert report["events_rendered"] == len(selected), report
           assert report["source"] == "recorded_sample_bank", report
           assert report["guitar_string_selections"], "No real guitar strings were selected"
@@ -176,7 +195,7 @@ jobs:
               assert audio.getnchannels() == 2
               assert audio.getsampwidth() == 2
               assert audio.getframerate() == 44100
-              assert audio.getnframes() > 50 * 44100
+              assert audio.getnframes() == round(preview_seconds * 44100)
               pcm = audio.readframes(audio.getnframes())
           assert any(pcm), "Combined piano/guitar WAV is silent"
           import array
