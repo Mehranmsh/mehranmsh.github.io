@@ -7,6 +7,9 @@ on:
     paths:
       - 'engine/fetch_karoryfer_meatbass.py'
       - 'engine/test_fetch_karoryfer_meatbass.py'
+      - 'engine/fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/build_contrabass_velocity_supplement.py'
       - 'engine/build_meatbass_contrabass_supplement.py'
       - 'engine/velocity_layer_planner.py'
       - 'engine/sample_bank.py'
@@ -275,14 +278,20 @@ jobs:
       - name: Fetch incumbent Rubner source for a non-destructive supplement test
         timeout-minutes: 18
         run: python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
-      - name: Build exact-root MIDI 27 high-velocity supplement without replacing Rubner
+      - name: Test exact-root VSCO 2 CE contrabass mapping
+        run: python3 -m unittest engine.test_fetch_vsco2_contrabass_pizzicato -v
+      - name: Fetch pinned CC0 VSCO 2 CE MIDI 34 upper-layer recordings
+        timeout-minutes: 8
+        run: python3 engine/fetch_vsco2_contrabass_pizzicato.py sample-bank-vsco2-contrabass-pizzicato
+      - name: Build exact-root MIDI 27 and MIDI 34 upper-velocity supplements
         run: |
           python3 -m unittest engine.test_velocity_layer_planner -v
-          python3 engine/build_meatbass_contrabass_supplement.py \
+          python3 engine/build_contrabass_velocity_supplement.py \
             sample-bank-rubner-contrabass \
             sample-bank-meatbass-contrabass \
-            sample-bank-meatbass-contrabass-supplement
-      - name: Render supplement and verify no cross-source blend or MIDI 34 fallback
+            sample-bank-vsco2-contrabass-pizzicato \
+            sample-bank-contrabass-velocity-supplement
+      - name: Render both supplements and verify exact-root selection
         run: |
           python3 - <<'PY'
           import wave
@@ -290,44 +299,62 @@ jobs:
           from sample_renderer import render_sample_events
           from velocity_layer_planner import plan_velocity_layers
 
-          bank = load_sample_bank('sample-bank-meatbass-contrabass-supplement')
-          lower = plan_velocity_layers(bank, 'contrabass', 27, 100, 'pizzicato')
-          upper = plan_velocity_layers(bank, 'contrabass', 27, 123, 'pizzicato')
-          missing = plan_velocity_layers(bank, 'contrabass', 34, 123, 'pizzicato')
-          assert lower['layers'][0]['sample'].recording_session_id == 'd_smolken_rubner_pizzicato', lower
-          assert upper['layers'][0]['sample'].recording_session_id == 'karoryfer_meatbass_pizzicato', upper
-          assert len(lower['layers']) == len(upper['layers']) == 1
-          assert not missing['layers'], missing
+          bank = load_sample_bank('sample-bank-contrabass-velocity-supplement')
+          checks = {
+              'midi27_low': plan_velocity_layers(bank, 'contrabass', 27, 100, 'pizzicato'),
+              'midi27_high': plan_velocity_layers(bank, 'contrabass', 27, 123, 'pizzicato'),
+              'midi34_low': plan_velocity_layers(bank, 'contrabass', 34, 100, 'pizzicato'),
+              'midi34_high': plan_velocity_layers(bank, 'contrabass', 34, 123, 'pizzicato'),
+              'midi33_high': plan_velocity_layers(bank, 'contrabass', 33, 123, 'pizzicato'),
+          }
+          expected = {
+              'midi27_low': 'd_smolken_rubner_pizzicato',
+              'midi27_high': 'karoryfer_meatbass_pizzicato',
+              'midi34_low': 'd_smolken_rubner_pizzicato',
+              'midi34_high': 'vsco2_ce_contrabass_pizzicato',
+          }
+          for key, session in expected.items():
+              assert len(checks[key]['layers']) == 1, (key, checks[key])
+              assert checks[key]['layers'][0]['sample'].recording_session_id == session, (key, checks[key])
+          assert not checks['midi33_high']['layers'], checks['midi33_high']
           events = [
               {'instrument': 'contrabass', 'midi_note': 27, 'start_seconds': 0.0,
                'duration_seconds': 0.35, 'velocity': 100, 'articulation': 'pizzicato'},
               {'instrument': 'contrabass', 'midi_note': 27, 'start_seconds': 0.5,
                'duration_seconds': 0.35, 'velocity': 123, 'articulation': 'pizzicato'},
+              {'instrument': 'contrabass', 'midi_note': 34, 'start_seconds': 1.0,
+               'duration_seconds': 0.35, 'velocity': 100, 'articulation': 'pizzicato'},
+              {'instrument': 'contrabass', 'midi_note': 34, 'start_seconds': 1.5,
+               'duration_seconds': 0.35, 'velocity': 123, 'articulation': 'pizzicato'},
           ]
-          output = 'sample-bank-meatbass-contrabass-supplement/contrabass-midi27-supplement-audition.wav'
+          output = 'sample-bank-contrabass-velocity-supplement/contrabass-velocity-supplement-audition.wav'
           report = render_sample_events(events, bank, output, sample_rate=44100)
-          assert report['events_rendered'] == 2, report
+          assert report['events_rendered'] == 4, report
           assert report['sample_selection']['pitch_shifted_key_zone_events'] == 0, report
           assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
-          assert report['sample_selection']['pitched_round_robin_events'] == 2, report
+          assert report['sample_selection']['pitched_round_robin_events'] == 4, report
+          assert report['sample_selection']['equal_power_velocity_crossfade_events'] == 0, report
           with wave.open(output, 'rb') as audio:
               assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
               assert audio.getnframes() > 0 and any(audio.readframes(audio.getnframes()))
-          print('CONTRABASS_MIDI27_SUPPLEMENT_OK', report['sample_selection'])
+          print('CONTRABASS_VELOCITY_SUPPLEMENT_OK', report['sample_selection'])
           PY
-      - name: Publish non-destructive contrabass MIDI 27 supplement test artifact
+      - name: Publish non-destructive contrabass velocity supplement artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mehran-cc0-contrabass-midi27-supplement
+          name: mehran-cc0-contrabass-velocity-supplement
           path: |
-            sample-bank-meatbass-contrabass-supplement/bank.json
-            sample-bank-meatbass-contrabass-supplement/LICENSE-RUBNER-CC0.txt
-            sample-bank-meatbass-contrabass-supplement/LICENSE-MEATBASS-CC0.txt
-            sample-bank-meatbass-contrabass-supplement/provenance-rubner.json
-            sample-bank-meatbass-contrabass-supplement/provenance-meatbass.json
-            sample-bank-meatbass-contrabass-supplement/rubner/
-            sample-bank-meatbass-contrabass-supplement/meatbass-supplement/
-            sample-bank-meatbass-contrabass-supplement/contrabass-midi27-supplement-audition.wav
+            sample-bank-contrabass-velocity-supplement/bank.json
+            sample-bank-contrabass-velocity-supplement/LICENSE-RUBNER-CC0.txt
+            sample-bank-contrabass-velocity-supplement/LICENSE-MEATBASS-CC0.txt
+            sample-bank-contrabass-velocity-supplement/LICENSE-VSCO2-CC0.txt
+            sample-bank-contrabass-velocity-supplement/provenance-rubner.json
+            sample-bank-contrabass-velocity-supplement/provenance-meatbass.json
+            sample-bank-contrabass-velocity-supplement/provenance-vsco2.json
+            sample-bank-contrabass-velocity-supplement/rubner/
+            sample-bank-contrabass-velocity-supplement/meatbass-supplement/
+            sample-bank-contrabass-velocity-supplement/vsco2-supplement/
+            sample-bank-contrabass-velocity-supplement/contrabass-velocity-supplement-audition.wav
           if-no-files-found: error
           retention-days: 30
       - name: Publish verified Meatbass candidate bank and audition
