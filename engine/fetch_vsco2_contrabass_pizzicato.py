@@ -57,7 +57,7 @@ def _request(url: str, timeout: int = 90) -> bytes:
 
 
 def _git_blob_sha(data: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\\0" + data).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
 
 def _download_verified(path: str, expected_sha: str, destination: Path) -> bytes:
@@ -80,7 +80,7 @@ def parse_vsco2_contrabass_pizz_sfz(sfz_text: str) -> list[dict[str, Any]]:
         if region is None:
             return
         attrs = {**group, **region}
-        sample_path = attrs.get("sample", "").replace("\\\\", "/")
+        sample_path = attrs.get("sample", "").replace("\\", "/")
         filename = Path(sample_path).name
         if filename not in EXPECTED:
             return
@@ -115,7 +115,7 @@ def parse_vsco2_contrabass_pizz_sfz(sfz_text: str) -> list[dict[str, Any]]:
             flush()
             region = {}
         else:
-            match = re.fullmatch(r"([a-zA-Z0-9_]+)\\s*=\\s*(\\S+)", token)
+            match = re.fullmatch(r"([a-zA-Z0-9_]+)\s*=\s*(\S+)", token)
             if match:
                 if region is None:
                     group[match.group(1)] = match.group(2)
@@ -201,7 +201,7 @@ def import_vsco2_contrabass_pizzicato(output_root: str | Path) -> dict[str, Any]
         "samples": samples,
     }
     (root / "bank.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\\n",
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     provenance = {
