@@ -7,6 +7,8 @@ on:
     paths:
       - 'engine/fetch_meta_guitar_banks.py'
       - 'engine/test_fetch_meta_guitar_banks.py'
+      - 'engine/instrument_bank_audit.py'
+      - 'engine/test_instrument_bank_audit.py'
       - 'engine/sample_bank.py'
       - 'engine/sample_renderer.py'
       - 'engine/test_sample_renderer.py'
