@@ -218,3 +218,63 @@ npx wrangler secret put MEHRAN_ENGINE_TOKEN
 `MEHRAN_ENGINE_COMPOSE_URL` یک متغیر سمت Worker است که باید به URL کامل `https://.../v1/compose-by-mode` اشاره کند. مقدار secret را هرگز در مخزن، `wrangler.jsonc` یا JavaScript عمومی قرار ندهید.
 
 **وضعیت فعلی:** این پراکسی پیاده‌سازی شده، اما تا زمانی که موتور روی میزبان خصوصی مستقر و دو تنظیم سمت Worker پیکربندی نشوند، عمداً با پاسخ `503` بسته می‌ماند. سرویس Python فعلی همچنان فقط روی loopback اجرا می‌شود؛ بنابراین هنوز اتصال زنده یا رندر ابری فعال نیست.
+
+
+## استقرار خصوصی با Docker و Cloudflare Tunnel
+
+فایل‌های `engine/Dockerfile` و `docker-compose.engine.yml` یک بستهٔ استقرار آماده می‌کنند؛ این فایل‌ها به‌تنهایی چیزی را روی اینترنت منتشر نمی‌کنند. سرویس موتور در شبکهٔ داخلی Docker قرار می‌گیرد، هیچ `ports:` عمومی ندارد و تنها سرویس `cloudflared` به آن دسترسی شبکه‌ای می‌دهد.
+
+### پیش‌نیازها
+
+- یک میزبان لینوکسی تحت کنترل مالک با Docker Engine و Docker Compose
+- یک Cloudflare Tunnel ساخته‌شده در حساب مالک
+- یک hostname اختصاصی مانند `engine.example.com` که در تنظیمات Public Hostname تونل به سرویس `http://engine:8765` متصل شود
+- نگهداری پایدار Volume برای دیتابیس و فایل‌های MIDI
+
+### آماده‌سازی امن میزبان
+
+از ریشهٔ مخزن:
+
+```bash
+cp .env.example .env
+python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
+```
+
+مقدار تصادفی را در `MEHRAN_STUDIO_TOKEN` فایل محلی `.env` قرار دهید و توکن Cloudflare Tunnel را در `CLOUDFLARE_TUNNEL_TOKEN` بگذارید. فایل واقعی `.env` در `.dockerignore` و `.gitignore` قرار دارد و نباید commit یا برای دیگران ارسال شود.
+
+سپس:
+
+```bash
+docker compose --env-file .env -f docker-compose.engine.yml config
+docker compose --env-file .env -f docker-compose.engine.yml build
+docker compose --env-file .env -f docker-compose.engine.yml up -d
+docker compose --env-file .env -f docker-compose.engine.yml ps
+```
+
+در داشبورد Cloudflare برای تونل، Public Hostname را به سرویس داخلی `http://engine:8765` route کنید. پورت 8765 را در فایروال میزبان باز نکنید و آن را با `ports:` به اینترنت publish نکنید. مجوز bind روی `0.0.0.0` فقط با `MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1` و در فایل Compose ایزوله فعال شده است؛ اجرای عادی Python همچنان فقط loopback را می‌پذیرد.
+
+### اتصال Worker
+
+در تنظیمات Worker مقدار متغیر عادی `MEHRAN_ENGINE_COMPOSE_URL` را روی URL کامل و HTTPS قرار دهید، برای مثال:
+
+`https://engine.example.com/v1/compose-by-mode`
+
+سپس secret سمت Worker را جداگانه تنظیم کنید:
+
+```bash
+npx wrangler secret put MEHRAN_ENGINE_TOKEN
+```
+
+مقدار این secret باید دقیقاً با `MEHRAN_STUDIO_TOKEN` میزبان موتور یکسان باشد. هیچ‌یک از این دو مقدار نباید در GitHub، JavaScript عمومی، خروجی مرورگر یا پیام‌های پشتیبانی قرار گیرد. پراکسی Worker نشست مالک Pi را بررسی می‌کند و توکن موتور را فقط server-to-server ارسال می‌کند.
+
+### عملیات و نگهداری
+
+```bash
+docker compose --env-file .env -f docker-compose.engine.yml logs --tail=100 engine tunnel
+docker compose --env-file .env -f docker-compose.engine.yml restart
+docker compose --env-file .env -f docker-compose.engine.yml down
+```
+
+دستور `down` داده‌های Volume را حذف نمی‌کند. از Volume `mehran-engine-data` به‌طور منظم نسخهٔ پشتیبان رمزگذاری‌شده تهیه کنید. حذف Volume یا اجرای `down -v` داده‌های پروژه و فایل‌های MIDI را پاک می‌کند.
+
+**وضعیت فعلی:** بستهٔ Docker و تنظیمات تونل به مخزن اضافه شده‌اند، اما هیچ میزبان، تونل، hostname یا secret واقعی از اینجا پیکربندی نشده است. تا زمانی که مالک این پیش‌نیازها را روی میزبان خودش تنظیم نکند و endpoint واقعی بررسی نشود، Worker عمداً با پاسخ `503` بسته می‌ماند و ساخت زندهٔ ابری فعال محسوب نمی‌شود.
