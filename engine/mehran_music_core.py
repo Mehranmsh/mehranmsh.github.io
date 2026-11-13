@@ -1089,3 +1089,176 @@ def compose_plan(lyrics: str, title: str = "Untitled", genre: str = "pop",
         "status": "composition_plan_only",
         "next_layers": ["phonetic_prosody", "instrument_sound_bank", "audio_renderer", "audio_mixer"],
     }
+
+
+def compose_instrumental_plan(
+    title: str = "Untitled",
+    genre: str = "pop",
+    mood: str = "neutral",
+    target_bpm: int | None = None,
+    phrase_count: int = 8,
+) -> dict[str, Any]:
+    """Create an editable instrumental-first plan without placeholder lyrics.
+
+    Each phrase is one 4/4 bar. The lyric-fit guide describes rhythmic capacity
+    only; it does not invent syllables, words, or a vocal performance.
+    """
+    if mood not in PROGRESSIONS:
+        raise ValueError("mood must be one of: sad, hopeful, romantic, angry, neutral")
+    if not isinstance(title, str) or len(title) > 100:
+        raise ValueError("title must be a string of at most 100 characters")
+    if not isinstance(genre, str) or not genre.strip() or len(genre) > 60:
+        raise ValueError("genre must be a non-empty string of at most 60 characters")
+    if isinstance(phrase_count, bool) or not isinstance(phrase_count, int) or not 4 <= phrase_count <= 16:
+        raise ValueError("phrase_count must be an integer between 4 and 16")
+
+    chords, key, mode, suggested_bpm = PROGRESSIONS[mood]
+    bpm = suggested_bpm if target_bpm is None else target_bpm
+    if isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200:
+        raise ValueError("target_bpm must be an integer between 50 and 200")
+
+    if phrase_count >= 8:
+        first = max(1, phrase_count // 4)
+        second = max(first + 1, phrase_count // 2)
+        third = max(second + 1, (phrase_count * 3) // 4)
+        sections = [
+            {"name": "verse_1", "start_line": 0, "end_line": first},
+            {"name": "chorus", "start_line": first, "end_line": second},
+            {"name": "verse_2", "start_line": second, "end_line": third},
+            {"name": "final_chorus", "start_line": third, "end_line": phrase_count},
+        ]
+    elif phrase_count >= 6:
+        sections = [
+            {"name": "verse", "start_line": 0, "end_line": 2},
+            {"name": "chorus", "start_line": 2, "end_line": 4},
+            {"name": "bridge", "start_line": 4, "end_line": phrase_count - 1},
+            {"name": "final_chorus", "start_line": phrase_count - 1, "end_line": phrase_count},
+        ]
+    else:
+        midpoint = phrase_count // 2
+        sections = [
+            {"name": "verse", "start_line": 0, "end_line": midpoint},
+            {"name": "chorus", "start_line": midpoint, "end_line": phrase_count},
+        ]
+
+    tonic = ROOTS[key]
+    scale = SCALES[mode]
+    energy_targets = {
+        "verse": 0.82, "verse_1": 0.82, "verse_2": 0.86,
+        "pre_chorus": 0.90, "chorus": 0.94,
+        "final_chorus": 1.0, "bridge": 0.78,
+    }
+    melody = []
+    lyric_fit = []
+    for index in range(phrase_count):
+        section = next(
+            item for item in sections
+            if item["start_line"] <= index < item["end_line"]
+        )
+        section_slot = index - section["start_line"]
+        progression_slot = section_slot % len(chords)
+        chord = chords[progression_slot]
+        notes = _melody_for_line(8, tonic, scale, section_slot, chord, section["name"])
+        durations = [PPQ := 480 // 2] * len(notes)
+        # Keep phrase duration exactly one 4/4 bar.
+        durations[-1] += 1920 - sum(durations)
+        section_final = index + 1 == section["end_line"]
+        next_section = next(
+            (item for item in sections if item["start_line"] == section["end_line"]),
+            None,
+        )
+        current_energy = energy_targets.get(section["name"], 0.85)
+        next_energy = energy_targets.get(next_section["name"], 0.85) if next_section else None
+        transition = {
+            "next_section": next_section["name"] if next_section else None,
+            "current_energy_target": current_energy,
+            "next_energy_target": next_energy,
+            "energy_change": round(next_energy - current_energy, 2) if next_energy is not None else None,
+            "basis": "instrumental_section_arrangement_intent",
+        } if section_final else None
+        melody.append({
+            "line_index": index,
+            "section": section["name"],
+            "midi_notes": notes,
+            "note_durations_ticks": durations,
+            "bar_count": 1,
+            "duration_ticks": 1920,
+            "note_lyric_map": [],
+            "syllable_estimate": None,
+            "chord": chord,
+            "phrase_pause_ticks": 0,
+            "peak_note_index": max(0, min(len(notes) - 1, round((len(notes) - 1) * (0.62 if "chorus" in section["name"] else 0.48)))),
+            "phrase_energy": {
+                "role": "section_cadence" if section_final else "continuing",
+                "cadence_release_scale": 0.97 if section_final else 1.0,
+                "section_transition": transition,
+            },
+            "contour_type": "rising_peak_then_fall" if "chorus" in section["name"] else "restrained_wave",
+            "melodic_motif_scope": section["name"],
+            "melodic_motif_slot": section_slot % 3,
+            "section_register": "lifted" if "chorus" in section["name"] else "midrange",
+            "harmonic_position": {
+                "global_phrase_index": index,
+                "section_phrase_index": section_slot,
+                "progression_slot": progression_slot,
+                "cadence_override": False,
+            },
+            "phrase_start_is_chord_tone": notes[0] % 12 in _chord_pitch_classes(chord),
+            "phrase_end_is_chord_tone": notes[-1] % 12 in _chord_pitch_classes(chord),
+        })
+        lyric_fit.append({
+            "phrase_index": index,
+            "section": section["name"],
+            "bar_count": 1,
+            "available_note_slots": len(notes),
+            "target_syllable_range": [6, 8],
+            "phrase_duration_ticks": 1920,
+            "note_onsets_ticks": [sum(durations[:slot]) for slot in range(len(durations))],
+            "guidance": "Write a line that fits the pulse and phrase length; syllable count is a drafting target, not inferred text.",
+        })
+
+    arrangement = {
+        "intro": ["soft piano", "acoustic guitar"],
+        "verse": ["acoustic guitar", "warm bass", "light piano"],
+        "chorus": ["live drums", "strings", "bass", "electric guitar accents"],
+        "bridge": ["reduced percussion", "cello or strings"],
+        "outro": ["piano", "acoustic guitar"],
+    }
+    return {
+        "engine": "MEHRAN_INDEPENDENT_COMPOSITION_CORE",
+        "engine_version": "0.9.0",
+        "source_mode": "instrumental_first",
+        "title": _normalize(title) or "Untitled",
+        "genre": _normalize(genre) or "pop",
+        "analysis": {
+            "language": None,
+            "mood": mood,
+            "line_count": 0,
+            "word_count": 0,
+            "notice": "No lyrics were supplied or generated in instrumental-first mode.",
+        },
+        "lyrics": None,
+        "lyric_status": "not_started",
+        "lyric_fit_guide": lyric_fit,
+        "composition": {
+            "key": key,
+            "mode": mode,
+            "tempo_bpm": bpm,
+            "time_signature": "4/4",
+            "chord_progression": list(chords),
+            "sections": sections,
+            "melody": melody,
+            "melody_performance": {
+                "instrument": "piano",
+                "articulation_style": "balanced",
+                "dynamics_style": "natural",
+                "planner": "deterministic_instrumental_first_v1",
+                "event_count": sum(len(phrase["midi_notes"]) for phrase in melody),
+                "audio_rendered": False,
+            },
+            "arrangement_blueprint": arrangement,
+        },
+        "audio_rendered": False,
+        "status": "instrumental_composition_plan_only",
+        "next_layers": ["lyric_fit_and_co_writing", "instrument_sound_bank", "audio_renderer", "audio_mixer"],
+    }
