@@ -119,7 +119,7 @@ jobs:
           events = [
               {'instrument': 'electric_bass', 'midi_note': note,
                'start_seconds': index * 0.65, 'duration_seconds': 0.45,
-               'velocity': velocity, 'articulation': 'picked'}
+               'velocity': velocity, 'articulation': 'pick'}
               for index, (note, velocity) in enumerate([
                   (35, 42), (38, 42), (43, 42), (47, 42),
                   (50, 90), (55, 90), (59, 90), (64, 90),
