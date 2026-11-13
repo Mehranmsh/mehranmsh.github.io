@@ -187,6 +187,8 @@ def fetch_freepats_electric_bass(output_root: str | Path) -> dict[str, Any]:
     manifest_samples = [{
         "instrument": item["instrument"],
         "midi_note": item["midi_note"],
+        "playable_key_min": item["playable_key_min"],
+        "playable_key_max": item["playable_key_max"],
         "velocity_min": item["velocity_min"],
         "velocity_max": item["velocity_max"],
         "articulation": item["articulation"],
