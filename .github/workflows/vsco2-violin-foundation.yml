@@ -24,7 +24,7 @@ jobs:
           from sample_bank import load_sample_bank
           from sample_renderer import render_sample_events
           bank=load_sample_bank('sample-bank-vsco2-violin')
-          notes=[43,48,55,60,64,67,72,76,79,84,88,91,96,100,103]
+          notes=[55,57,60,64,67,69,72,76,79,81,84,88,91,93,96]
           events=[{'instrument':'solo_violin','midi_note':n,'start_seconds':i*.48,'duration_seconds':.4,'velocity':48 if i%2==0 else 108,'articulation':'arco_vibrato'} for i,n in enumerate(notes)]
           events += [{'instrument':'solo_violin','midi_note':n,'start_seconds':8+i*.4,'duration_seconds':.3,'velocity':v,'articulation':'pizzicato'} for i,(n,v) in enumerate([(55,48),(60,108),(64,48)])]
           out='sample-bank-vsco2-violin/violin-audition.wav'
