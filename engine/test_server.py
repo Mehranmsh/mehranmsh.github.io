@@ -657,6 +657,31 @@ class StudioControlPlaneTests(unittest.TestCase):
 
 
 
+    def test_persian_prosody_metadata_marks_curated_stress_and_syllable_shape(self):
+        plan = module.compose_co_creation_plan(
+            "دلم گرفته\\nشب سرد", title="Prosody metadata",
+            genre="pop", mood="sad", target_bpm=82, phrase_count=4,
+        )
+        first_phrase = plan["composition"]["melody"][0]
+        note_map = first_phrase["note_lyric_map"]
+        self.assertTrue(note_map)
+        stressed = [item for item in note_map
+                    if item["stress_role"] == "lexically_stressed"]
+        self.assertTrue(stressed)
+        self.assertTrue(all(item["stress_confidence"] == "curated"
+                            for item in stressed))
+        self.assertTrue(any(item["syllable_shape_hint"] in ("open", "closed")
+                            for item in note_map))
+        self.assertTrue(all(item["shape_confidence"] == "curated_transliteration"
+                            for item in note_map
+                            if item["syllable_shape_hint"] in ("open", "closed")))
+        unknown_words = [item for item in note_map if item["word"] == "شب"]
+        self.assertTrue(unknown_words)
+        self.assertTrue(all(item["prosody_method"] ==
+                            "curated_lyric_pronunciation_lexicon_v1"
+                            for item in note_map))
+
+
 
 if __name__ == "__main__":
     unittest.main()
