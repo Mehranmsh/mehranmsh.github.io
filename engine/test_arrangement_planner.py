@@ -34,6 +34,14 @@ class ArrangementPlannerTests(unittest.TestCase):
         self.assertTrue(plan_part_arrangement("cello", "chorus")["active"])
         self.assertTrue(plan_part_arrangement("cello", "bridge")["active"])
 
+    def test_recorder_and_dan_tranh_have_independent_section_entries(self):
+        for part in ("recorder", "dan_tranh"):
+            self.assertTrue(plan_part_arrangement(part, "verse")["active"])
+            self.assertTrue(plan_part_arrangement(part, "pre_chorus")["active"])
+            self.assertTrue(plan_part_arrangement(part, "chorus")["active"])
+            self.assertTrue(plan_part_arrangement(part, "bridge")["active"])
+            self.assertTrue(plan_part_arrangement(part, "final_chorus")["active"])
+
     def test_rhythm_anchor_remains_active_in_every_section(self):
         for section in ("verse", "pre_chorus", "chorus", "bridge", "final_chorus"):
             self.assertTrue(plan_part_arrangement("kick", section)["active"])
