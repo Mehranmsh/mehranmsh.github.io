@@ -1,0 +1,64 @@
+name: MEHRAN VCSL Baroque Soprano Recorder Foundation
+on:
+  push:
+    branches: [feature/mehran-independent-music-core]
+    paths:
+      - 'engine/fetch_vcsl_recorder.py'
+      - 'engine/test_fetch_vcsl_recorder.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - '.github/workflows/vcsl-recorder-foundation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: vcsl-recorder-foundation-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONPATH: engine
+jobs:
+  build-recorder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test recorder mapping and bank support
+        run: python3 -m unittest engine.test_fetch_vcsl_recorder engine.test_sample_bank -v
+      - name: Fetch and validate pinned CC0 VCSL recorder bank
+        timeout-minutes: 12
+        run: python3 engine/fetch_vcsl_recorder.py sample-bank-vcsl-recorder
+      - name: Render real recorder audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+          bank=load_sample_bank('sample-bank-vcsl-recorder')
+          events=[]
+          for i,n in enumerate([60,62,64,66,68,70,72,74,76,78,79,82,84]):
+              art='staccato' if i%2 else 'sustain'
+              events.append({'instrument':'baroque_soprano_recorder','midi_note':n,'start_seconds':i*0.42,'duration_seconds':0.34,'velocity':96,'articulation':art})
+          output='sample-bank-vcsl-recorder/recorder-audition.wav'
+          report=render_sample_events(events,bank,output,sample_rate=44100)
+          assert report['events_rendered']==len(events),report
+          with wave.open(output,'rb') as audio:
+              assert (audio.getnchannels(),audio.getsampwidth(),audio.getframerate())==(2,2,44100)
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_VCSL_BAROQUE_SOPRANO_RECORDER_AUDITION_OK',report['sample_selection'])
+          PY
+      - name: Publish verified CC0 recorder bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-vcsl-baroque-soprano-recorder
+          path: |
+            sample-bank-vcsl-recorder/bank.json
+            sample-bank-vcsl-recorder/LICENSE-CC0.txt
+            sample-bank-vcsl-recorder/provenance.json
+            sample-bank-vcsl-recorder/recordings/
+            sample-bank-vcsl-recorder/recorder-audition.wav
+          if-no-files-found: error
+          retention-days: 30
