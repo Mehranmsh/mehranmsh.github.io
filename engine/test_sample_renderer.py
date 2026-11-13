@@ -998,7 +998,7 @@ class SampleRendererTests(unittest.TestCase):
                     "start_seconds": 0, "duration_seconds": 0.05, "velocity": 90,
                 }], bank, Path(folder) / "invalid.wav", sample_rate=22050)
 
-def test_composition_pitch_cents_reaches_sample_event(self):
+    def test_composition_pitch_cents_reaches_sample_event(self):
         plan = compose_plan("یک شب آرام\\nدر این سکوت")
         plan["composition"]["melody"][0]["note_lyric_map"][0]["pitch_cents"] = -50
         events = build_composition_events(plan)
