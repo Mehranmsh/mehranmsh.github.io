@@ -990,11 +990,6 @@ def build_composition_events(
                 add("bass", bass_root, bar_start, 2 * PPQ - 36, _scaled_velocity(76, bass_scale))
                 add("bass", bass_fifth, bar_start + 2 * PPQ, 2 * PPQ - 36,
                     _scaled_velocity(66, bass_scale))
-                add("kick", 36, bar_start, 48, _scaled_velocity(88, drum_scale))
-                add("snare", 38, bar_start + 2 * PPQ, 48, _scaled_velocity(62, drum_scale))
-                for eighth in (0, 4):
-                    add("closed_hat", 42, bar_start + eighth * (PPQ // 2), 48,
-                        _scaled_velocity(52, drum_scale))
             elif section == "verse":
                 add("bass", bass_root, bar_start, 2 * PPQ - 36, _scaled_velocity(82, bass_scale))
                 add("bass", bass_third, bar_start + 2 * PPQ, PPQ - 36, _scaled_velocity(82, bass_scale))
@@ -1023,19 +1018,33 @@ def build_composition_events(
                     _scaled_velocity(82, bass_scale))
                 add("bass", bass_root, bar_start + int(3.5 * PPQ), PPQ // 2 - 24,
                     _scaled_velocity(78, bass_scale))
-                add("kick", 36, bar_start, 48, _scaled_velocity(112, drum_scale))
-                add("kick", 36, bar_start + 2 * PPQ, 48, _scaled_velocity(104, drum_scale))
-                add("snare", 38, bar_start + PPQ, 48, _scaled_velocity(94, drum_scale))
-                add("snare", 38, bar_start + 3 * PPQ, 48, _scaled_velocity(100, drum_scale))
+
+            # Drum programming is independent from the bass-groove branch so
+            # verse and pre-chorus keep their recorded kit performance.
+            if section == "bridge":
+                add("kick", 36, bar_start, 48, _scaled_velocity(88, drum_scale))
+                add("snare", 38, bar_start + 2 * PPQ, 48, _scaled_velocity(62, drum_scale))
+                for eighth in (0, 4):
+                    add("closed_hat", 42, bar_start + eighth * (PPQ // 2), 48,
+                        _scaled_velocity(52, drum_scale))
+            else:
+                add("kick", 36, bar_start, 48, _scaled_velocity(
+                    112 if section in ("chorus", "final_chorus") else 96, drum_scale))
+                add("kick", 36, bar_start + 2 * PPQ, 48, _scaled_velocity(
+                    104 if section in ("chorus", "final_chorus") else 88, drum_scale))
+                add("snare", 38, bar_start + PPQ, 48, _scaled_velocity(
+                    94 if section in ("chorus", "final_chorus") else 76, drum_scale))
+                add("snare", 38, bar_start + 3 * PPQ, 48, _scaled_velocity(
+                    100 if section in ("chorus", "final_chorus") else 82, drum_scale))
                 for eighth in range(8):
                     is_open_hat = section in ("chorus", "final_chorus") and eighth == 7
                     part = "open_hat" if is_open_hat else "closed_hat"
                     note = 46 if is_open_hat else 42
-                    velocity = 82 if is_open_hat else 72
+                    velocity = (82 if is_open_hat else
+                                72 if section in ("chorus", "final_chorus") else 58)
                     add(part, note, bar_start + eighth * (PPQ // 2), 48,
                         _scaled_velocity(velocity, drum_scale))
                 if section in ("chorus", "final_chorus") and bar == bars - 1:
-                    # Short snare pickup into the next lyric phrase.
                     add("snare", 38, bar_start + 2 * PPQ + PPQ // 2,
                         48, _scaled_velocity(78, drum_scale))
                     add("snare", 38, bar_start + 3 * PPQ + PPQ // 2,
