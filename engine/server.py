@@ -361,7 +361,7 @@ class Handler(BaseHTTPRequestHandler):
                 allowed_parts = {
                     "melody", "chords", "bass", "kick", "snare", "closed_hat",
                     "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
-                    "harp", "cello",
+                    "harp", "cello", "recorder", "dan_tranh",
                 }
                 if (not isinstance(requested_parts, list) or not requested_parts
                         or any(not isinstance(part, str) or part not in allowed_parts
@@ -402,6 +402,8 @@ class Handler(BaseHTTPRequestHandler):
                         "kalimba": "kalimba",
                         "harp": "concert_harp",
                         "cello": "cello_section",
+                        "recorder": "baroque_soprano_recorder",
+                        "dan_tranh": "dan_tranh",
                     }
                     selected_banks = {
                         part: slug for part, slug in verified_part_banks.items()
