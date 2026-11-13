@@ -46,7 +46,7 @@ sample=samples/pick/E.flac
         articulation, source = _resolve_part_articulation(
             "bass", "sustain", "legacy_default"
         )
-        self.assertEqual(articulation, "picked")
+        self.assertEqual(articulation, "pick")
         self.assertEqual(source, "instrument_default")
 
     def test_parser_rejects_filename_pitch_mismatch(self):
