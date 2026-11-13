@@ -568,7 +568,7 @@ _DEFAULT_PART_GAINS = {
     "melody": 1.0, "chords": 0.82, "bass": 0.90, "contrabass": 0.48,
     "kick": 0.92, "snare": 0.84, "closed_hat": 0.58,
     "open_hat": 0.62, "cajon": 0.64, "kalimba": 0.46, "guitar": 0.76, "strings": 0.70,
-    "electric_guitar": 0.76,
+    "electric_guitar": 0.76, "harp": 0.52, "cello": 0.42,
 }
 
 
