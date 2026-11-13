@@ -296,7 +296,7 @@ class Handler(BaseHTTPRequestHandler):
                     "charged": False
                 })
             return self.send_json(501, {"error": "job_runner_not_implemented", "job_created": False, "charged": False})
-        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-instrumental", "/v1/co-create", "/v1/revise-co-creation", "/v1/compose-audio"):
+        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-instrumental", "/v1/co-create", "/v1/revise-co-creation", "/v1/compose-audio", "/v1/compose-by-mode"):
             return self.send_json(404, {"error": "not_found"})
         length = self.headers.get("Content-Length", "")
         if not length.isdigit() or int(length) > MAX_BODY:
@@ -307,6 +307,72 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "invalid_json"})
         if not isinstance(payload, dict):
             return self.send_json(400, {"error": "invalid_payload"})
+        if path == "/v1/compose-by-mode":
+            mode = payload.get("composition_mode")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            mood = payload.get("mood", "neutral")
+            bpm = payload.get("bpm")
+            phrase_count = payload.get("phrase_count", 8)
+            lyrics = payload.get("lyrics")
+            if mode not in ("lyrics_first", "instrumental_first", "co_creation"):
+                return self.send_json(400, {"error": "invalid_composition_mode"})
+            if (not isinstance(title, str) or not title.strip() or len(title) > 100
+                    or not isinstance(genre, str) or not genre.strip() or len(genre) > 60
+                    or not isinstance(mood, str) or len(mood) > 40):
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if isinstance(phrase_count, bool) or not isinstance(phrase_count, int) or not 4 <= phrase_count <= 16:
+                return self.send_json(400, {"error": "invalid_phrase_count"})
+            if mode in ("lyrics_first", "co_creation"):
+                if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                    return self.send_json(400, {"error": "invalid_lyrics"})
+            elif lyrics not in (None, ""):
+                return self.send_json(400, {"error": "instrumental_mode_does_not_accept_lyrics"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                if mode == "lyrics_first":
+                    plan = compose_plan(lyrics, title=title, genre=genre, target_bpm=bpm)
+                elif mode == "instrumental_first":
+                    plan = compose_instrumental_plan(
+                        title=title, genre=genre, mood=mood,
+                        target_bpm=bpm, phrase_count=phrase_count,
+                    )
+                else:
+                    plan = compose_co_creation_plan(
+                        lyrics=lyrics, title=title, genre=genre, mood=mood,
+                        target_bpm=bpm, phrase_count=phrase_count,
+                    )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except ValueError as error:
+                detail = str(error)
+                code = "lyrics_exceed_melody_capacity" if "more lines than" in detail else "composition_failed"
+                return self.send_json(400, {"error": code, "detail": detail})
+            except OSError as error:
+                return self.send_json(500, {"error": "midi_render_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "composition_mode": mode,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Composition mode dispatched to the independent MEHRAN core and editable MIDI created. No audio or vocal performance was rendered."
+            })
         if path == "/v1/compose-instrumental":
             title = payload.get("title", "Untitled")
             genre = payload.get("genre", "pop")
