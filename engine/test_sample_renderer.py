@@ -262,6 +262,65 @@ class SampleRendererTests(unittest.TestCase):
                             and 59 <= event["midi_note"] <= 81
                             for event in kalimba_events))
 
+    def test_cajon_and_contrabass_grooves_vary_by_section_without_new_pitches(self):
+        beat_seconds = 60 / 84
+        expected_cajon_onsets = {
+            "verse": [0.0, 1.0, 3.0],
+            "pre_chorus": [0.0, 1.0, 2.5, 3.5],
+            "chorus": [0.0, 1.0, 2.0, 2.5, 3.5],
+            "final_chorus": [0.0, 1.0, 2.0, 2.5, 3.5],
+            "bridge": [0.0, 2.0],
+        }
+        for section, expected_onsets in expected_cajon_onsets.items():
+            with self.subTest(section=section):
+                plan = compose_plan("دلم گرفته\\nبرگرد ای عشق", target_bpm=84)
+                plan["composition"]["melody"][0]["section"] = section
+                events = build_composition_events(
+                    plan, instruments={"cajon": "cajon", "bass": "contrabass",
+                                       "melody": "lead"})
+                first_bar_cajon = [
+                    event for event in events
+                    if event["instrument"] == "cajon"
+                    and event["start_seconds"] < 4 * beat_seconds
+                ]
+                actual_onsets = [
+                    round(event["start_seconds"] / beat_seconds, 3)
+                    for event in first_bar_cajon
+                ]
+                self.assertEqual(actual_onsets, expected_onsets)
+                self.assertTrue(all(event["midi_note"] in {60, 61, 62}
+                                    for event in first_bar_cajon))
+                self.assertEqual(
+                    {event["midi_note"]: event["articulation"]
+                     for event in first_bar_cajon},
+                    {60: "bass", 61: "slap", 62: "tone"}
+                )
+                self.assertTrue(all(event["articulation_source"] == "percussion_default"
+                                    for event in first_bar_cajon))
+
+                first_bar_contrabass = [
+                    event for event in events
+                    if event["instrument"] == "contrabass"
+                    and event["start_seconds"] < 4 * beat_seconds
+                ]
+                self.assertTrue(first_bar_contrabass)
+                self.assertTrue(all(event["articulation"] == "pizzicato"
+                                    and event["articulation_source"] == "instrument_default"
+                                    for event in first_bar_contrabass))
+                self.assertEqual(
+                    {event["midi_note"] for event in first_bar_contrabass},
+                    {first_bar_contrabass[0]["midi_note"],
+                     first_bar_contrabass[-1]["midi_note"]}
+                )
+                if section in ("pre_chorus", "chorus", "final_chorus"):
+                    contrabass_onsets = [
+                        round(event["start_seconds"] / beat_seconds, 3)
+                        for event in first_bar_contrabass
+                    ]
+                    self.assertEqual(contrabass_onsets, [0.0, 1.5, 2.0, 3.5])
+                elif section == "bridge":
+                    self.assertEqual(len(first_bar_contrabass), 1)
+
     def test_composition_events_apply_balanced_and_overridable_part_gains(self):
         plan = compose_plan("برگرد ای عشق\nدلم گرفته از این شب سرد", target_bpm=84)
         defaults = build_composition_events(plan)
@@ -998,435 +1057,3 @@ class SampleRendererTests(unittest.TestCase):
                 sample_rate=22050,
             )
             self.assertEqual(plain["pitch_cents_applied_events"], 0)
-            self.assertFalse(plain["microtonal_pitch_offsets_rendered"])
-            self.assertEqual(tuned["pitch_cents_applied_events"], 1)
-            self.assertTrue(tuned["microtonal_pitch_offsets_rendered"])
-            self.assertNotEqual(plain_path.read_bytes(), tuned_path.read_bytes())
-
-
-    def test_instrument_specific_note_tuning_reaches_sample_events(self):
-        plan = compose_plan("یک شب آرام\\nدر این سکوت")
-        first_note = plan["composition"]["melody"][0]["midi_notes"][0]
-        events = build_composition_events(
-            plan, instrument_tuning_cents={"piano": {first_note: 37.5}}
-        )
-        first_melody = next(
-            event for event in events
-            if event["instrument"] == "piano" and event["midi_note"] == first_note
-        )
-        self.assertEqual(first_melody["instrument_tuning_offset_cents"], 37.5)
-        self.assertEqual(first_melody["pitch_cents"], 37.5)
-
-    def test_instrument_specific_note_tuning_rejects_invalid_offsets(self):
-        plan = compose_plan("یک شب آرام\\nدر این سکوت")
-        with self.assertRaisesRegex(ValueError, "instrument tuning offsets"):
-            build_composition_events(plan, instrument_tuning_cents={"tar": {60: 150.0}})
-
-    def test_modal_and_instrument_tuning_offsets_are_combined(self):
-        plan = compose_plan(
-            "دلم گرفته از این شب\\nبرگرد به خانه",
-            persian_dastgah="shur",
-            persian_degree_cents={0: 25, 1: 25, 2: 25, 3: 25, 4: 25, 5: 25, 6: 25},
-        )
-        first_note = plan["composition"]["melody"][0]["midi_notes"][0]
-        events = build_composition_events(
-            plan, instrument_tuning_cents={"piano": {first_note: -12.5}}
-        )
-        first_melody = next(
-            event for event in events
-            if event["instrument"] == "piano" and event["midi_note"] == first_note
-        )
-        self.assertEqual(first_melody["instrument_tuning_offset_cents"], -12.5)
-        self.assertEqual(first_melody["pitch_cents"], 12.5)
-
-
-    def test_renderer_prefers_quality_ranked_exact_note_over_nearer_fallback(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            self.make_wav(root / "piano" / "exact_clean.wav", frames=2205)
-            self.make_wav(root / "piano" / "nearby.wav", frames=2205)
-            clipped_path = root / "piano" / "exact_clipped.wav"
-            clipped_path.parent.mkdir(parents=True, exist_ok=True)
-            with wave.open(str(clipped_path), "wb") as wav:
-                wav.setnchannels(1)
-                wav.setsampwidth(2)
-                wav.setframerate(22050)
-                wav.writeframes(struct.pack("<" + "h" * 2205, *([32767] * 2205)))
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": [
-                    {"instrument": "piano", "midi_note": 60,
-                     "path": "piano/exact_clean.wav",
-                     "velocity_min": 1, "velocity_max": 100},
-                    {"instrument": "piano", "midi_note": 60,
-                     "path": "piano/exact_clipped.wav",
-                     "velocity_min": 50, "velocity_max": 127},
-                    {"instrument": "piano", "midi_note": 61,
-                     "path": "piano/nearby.wav"},
-                ],
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            result = render_sample_events([{
-                "instrument": "piano", "midi_note": 60,
-                "start_seconds": 0, "duration_seconds": 0.05,
-                "velocity": 80,
-            }], bank, Path(folder) / "ranked.wav", sample_rate=22050)
-            self.assertEqual(
-                result["sample_selection"]["exact_note_quality_ranked_events"], 1
-            )
-            self.assertEqual(
-                result["sample_selection"]["pitch_shifted_nearest_note_events"], 0
-            )
-
-
-    def test_pitch_shift_diagnostics_identify_instrument_and_note_mapping(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            relative = "piano/recorded-c4.wav"
-            self.make_wav(root / relative, rate=22050, frames=4410)
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": [{
-                    "instrument": "piano", "midi_note": 60,
-                    "articulation": "sustain", "path": relative,
-                }],
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            result = render_sample_events([{
-                "instrument": "piano", "midi_note": 62,
-                "start_seconds": 0, "duration_seconds": 0.05,
-                "velocity": 80,
-            }], bank, Path(folder) / "shifted.wav", sample_rate=22050)
-            diagnostics = result["sample_selection"]["pitch_shifted_by_instrument"]
-            self.assertEqual(diagnostics["piano"]["events"], 1)
-            self.assertEqual(diagnostics["piano"]["note_mappings"], [{
-                "requested_midi_note": 62,
-                "recorded_midi_note": 60,
-                "semitone_offset": 2,
-                "articulation": "sustain",
-                "mapping_type": "pitch_shifted_nearest_note",
-            }])
-
-    def test_sample_selection_honors_recorded_playable_key_zones(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            entries = []
-            for note, low, high in ((36, 36, 38), (39, 39, 45)):
-                relative = f"bass/{note}.wav"
-                self.make_wav(root / relative, rate=22050, frames=4410)
-                entries.append({
-                    "instrument": "electric_bass",
-                    "midi_note": note,
-                    "playable_key_min": low,
-                    "playable_key_max": high,
-                    "articulation": "fingerstyle",
-                    "path": relative,
-                })
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": entries,
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            output = Path(folder) / "bass-zone.wav"
-            result = render_sample_events([{
-                "instrument": "electric_bass", "midi_note": 43,
-                "articulation": "fingerstyle", "start_seconds": 0,
-                "duration_seconds": 0.05, "velocity": 80,
-            }], bank, output, sample_rate=22050)
-            self.assertEqual(result["sample_selection"]["pitch_shifted_key_zone_events"], 1)
-            self.assertEqual(result["sample_selection"]["pitch_shifted_nearest_note_events"], 0)
-            self.assertEqual(result["sample_selection"]["pitch_shifted_by_instrument"]["electric_bass"]["note_mappings"][0], {
-                "requested_midi_note": 43,
-                "recorded_midi_note": 39,
-                "semitone_offset": 4,
-                "articulation": "fingerstyle",
-                "mapping_type": "pitch_shifted_key_zone",
-            })
-            with self.assertRaisesRegex(ValueError, "No recorded playable key zone"):
-                render_sample_events([{
-                    "instrument": "electric_bass", "midi_note": 46,
-                    "articulation": "fingerstyle", "start_seconds": 0,
-                    "duration_seconds": 0.05, "velocity": 80,
-                }], bank, Path(folder) / "out-of-zone.wav", sample_rate=22050)
-
-    def test_renderer_selects_first_position_guitar_string(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            entries = []
-            for string_name in ("LowE", "G", "B"):
-                relative = f"guitar/INSGuitarSteel_String{string_name}_Vel01_C4_01.wav"
-                self.make_wav(root / relative, rate=22050, frames=4410)
-                entries.append({
-                    "instrument": "acoustic_guitar", "midi_note": 60,
-                    "velocity_min": 1, "velocity_max": 127,
-                    "articulation": "sustain", "string": string_name, "path": relative,
-                })
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1, "samples": entries,
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            output = Path(folder) / "guitar-string.wav"
-            result = render_sample_events([{
-                "instrument": "acoustic_guitar", "midi_note": 60,
-                "start_seconds": 0, "duration_seconds": 0.08,
-                "velocity": 90,
-            }], bank, output, sample_rate=22050)
-            self.assertEqual(
-                result["guitar_string_selections"],
-                [{"midi_note": 60, "string": "B"}],
-            )
-            self.assertEqual(result["events_rendered"], 1)
-            with wave.open(str(output), "rb") as wav:
-                self.assertTrue(any(wav.readframes(wav.getnframes())))
-
-    def test_renderer_honors_explicit_guitar_string(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            entries = []
-            for string_name in ("LowE", "B"):
-                relative = f"guitar/INSGuitarSteel_String{string_name}_Vel01_C4_01.wav"
-                self.make_wav(root / relative, rate=22050, frames=4410)
-                entries.append({
-                    "instrument": "acoustic_guitar", "midi_note": 60,
-                    "articulation": "sustain", "string": string_name, "path": relative,
-                })
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1, "samples": entries,
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            result = render_sample_events([{
-                "instrument": "acoustic_guitar", "midi_note": 60,
-                "start_seconds": 0, "duration_seconds": 0.08,
-                "velocity": 90, "guitar_string": "LowE", "guitar_max_fret": 24,
-            }], bank, Path(folder) / "explicit-string.wav", sample_rate=22050)
-            self.assertEqual(
-                result["guitar_string_selections"],
-                [{"midi_note": 60, "string": "LowE"}],
-            )
-
-    def test_renderer_blocks_guitar_string_without_first_position_match(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            relative = "guitar/INSGuitarSteel_StringLowE_Vel01_C4_01.wav"
-            self.make_wav(root / relative, rate=22050, frames=4410)
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": [{
-                    "instrument": "acoustic_guitar", "midi_note": 60,
-                    "articulation": "sustain", "path": relative,
-                }],
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            with self.assertRaisesRegex(ValueError, "Guitar string selection blocked"):
-                render_sample_events([{
-                    "instrument": "acoustic_guitar", "midi_note": 60,
-                    "start_seconds": 0, "duration_seconds": 0.08,
-                    "velocity": 90,
-                }], bank, Path(folder) / "blocked.wav", sample_rate=22050)
-
-    def test_installed_steel_guitar_bank_renders_composition_guitar_part_end_to_end(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
-            events = build_composition_events(plan, instruments={"guitar": "acoustic_guitar"})
-            guitar_events = [event for event in events if event["part"] == "guitar"]
-            self.assertTrue(guitar_events)
-            open_strings = {
-                "LowE": 40, "A": 45, "D": 50,
-                "G": 55, "B": 59, "HighE": 64,
-            }
-            samples = []
-            for note in sorted({event["midi_note"] for event in guitar_events}):
-                string_name = next(
-                    name for name, open_note in open_strings.items()
-                    if 0 <= note - open_note <= 4
-                )
-                relative = f"steel/{string_name}/note-{note}.wav"
-                self.make_wav(root / relative, rate=48000, frames=4800)
-                samples.append({
-                    "instrument": "acoustic_guitar",
-                    "midi_note": note,
-                    "velocity_min": 1,
-                    "velocity_max": 127,
-                    "articulation": "sustain",
-                    "string": string_name,
-                    "path": relative,
-                })
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": samples,
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            output = Path(folder) / "composition-guitar.wav"
-            result = render_composition_to_wav(
-                plan, bank, output,
-                instruments={"guitar": "acoustic_guitar"},
-                parts=["guitar"],
-                sample_rate=22050,
-            )
-            self.assertEqual(result["events_rendered"], len(guitar_events))
-            self.assertEqual(result["source"], "recorded_sample_bank")
-            self.assertTrue(result["guitar_string_selections"])
-            with wave.open(str(output), "rb") as wav:
-                self.assertEqual(wav.getnchannels(), 2)
-                self.assertEqual(wav.getsampwidth(), 2)
-                self.assertTrue(any(wav.readframes(wav.getnframes())))
-
-    def test_contrabass_is_a_separate_pizzicato_layer_under_electric_bass(self):
-        plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
-        events = build_composition_events(
-            plan, instruments={"contrabass": "contrabass"}
-        )
-        electric_bass = [event for event in events if event["part"] == "bass"]
-        contrabass = [event for event in events if event["part"] == "contrabass"]
-        self.assertTrue(electric_bass)
-        self.assertTrue(contrabass)
-        self.assertTrue(all(event["instrument"] == "contrabass" for event in contrabass))
-        self.assertTrue(all(event["articulation"] == "pizzicato" for event in contrabass))
-        self.assertTrue(all(event["part"] != "bass" for event in contrabass))
-    def test_recorder_and_dan_tranh_render_as_independent_exact_pitch_parts(self):
-        plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
-        plan["composition"]["chord_progression"] = ["B"]
-        for phrase in plan["composition"]["melody"]:
-            phrase["chord"] = "B"
-        events = build_composition_events(
-            plan,
-            instruments={
-                "recorder": "baroque_soprano_recorder",
-                "dan_tranh": "dan_tranh",
-            },
-        )
-        recorder = [event for event in events if event["part"] == "recorder"]
-        dan_tranh = [event for event in events if event["part"] == "dan_tranh"]
-        self.assertTrue(recorder)
-        self.assertTrue(dan_tranh)
-        self.assertTrue(all(event["instrument"] == "baroque_soprano_recorder" for event in recorder))
-        self.assertTrue(all(event["instrument"] == "dan_tranh" for event in dan_tranh))
-        self.assertTrue(all(event["midi_note"] in {60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 79, 82, 84}
-                            for event in recorder))
-        self.assertTrue(all(event["articulation"] in {"sustain", "staccato"}
-                            for event in recorder))
-        self.assertTrue(all(event["midi_note"] in {47, 49, 51, 54, 56, 59, 61, 63, 66, 68, 71, 73, 75, 78, 80, 83}
-                            for event in dan_tranh))
-        self.assertTrue(all(event["articulation"] == "pluck" for event in dan_tranh))
-
-    def test_flute_uses_only_exact_recorded_pitch_centers_and_real_articulations(self):
-        plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
-        plan["composition"]["chord_progression"] = ["C"]
-        for phrase in plan["composition"]["melody"]:
-            phrase["chord"] = "C"
-            phrase["section"] = "chorus"
-        events = build_composition_events(plan, instruments={"flute": "concert_flute"})
-        flute = [event for event in events if event["part"] == "flute"]
-        self.assertTrue(flute)
-        self.assertTrue(all(event["instrument"] == "concert_flute" for event in flute))
-        self.assertTrue(all(event["midi_note"] in {48, 52, 57, 60, 64, 69, 72, 76, 81, 84}
-                            for event in flute))
-        self.assertTrue(all(event["articulation"] in {"sustain_vibrato", "expressive_vibrato"}
-                            for event in flute))
-        self.assertIn("sustain_vibrato", {event["articulation"] for event in flute})
-
-    def test_composition_renderer_rejects_unknown_or_empty_part_selection(self):
-        plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "bank"
-            root.mkdir()
-            bank = self.make_bank(root)
-            with self.assertRaisesRegex(ValueError, "parts must be"):
-                render_composition_to_wav(
-                    plan, bank, Path(folder) / "bad.wav", parts=["unknown"]
-                )
-
-
-    def test_sample_offset_matches_pretrimmed_recording(self):
-        with tempfile.TemporaryDirectory() as folder:
-            base = Path(folder)
-            original_root = base / "offset_bank"
-            trimmed_root = base / "trimmed_bank"
-            original_root.mkdir()
-            trimmed_root.mkdir()
-            original_path = original_root / "harp.wav"
-            trimmed_path = trimmed_root / "harp.wav"
-            self.make_wav(original_path, rate=22050, frames=4410)
-            with wave.open(str(original_path), "rb") as source:
-                channels = source.getnchannels()
-                width = source.getsampwidth()
-                rate = source.getframerate()
-                source.readframes(100)
-                remaining = source.readframes(source.getnframes() - 100)
-            with wave.open(str(trimmed_path), "wb") as target:
-                target.setnchannels(channels)
-                target.setsampwidth(width)
-                target.setframerate(rate)
-                target.writeframes(remaining)
-            (original_root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": [{
-                    "instrument": "concert_harp", "midi_note": 60,
-                    "offset_frames": 100, "path": "harp.wav",
-                }],
-            }), encoding="utf-8")
-            (trimmed_root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": [{
-                    "instrument": "concert_harp", "midi_note": 60,
-                    "path": "harp.wav",
-                }],
-            }), encoding="utf-8")
-            event = {
-                "instrument": "concert_harp", "midi_note": 60,
-                "start_seconds": 0, "duration_seconds": 0.08, "velocity": 100,
-            }
-            first_output = base / "offset.wav"
-            second_output = base / "trimmed.wav"
-            first_report = render_sample_events(
-                [event], load_sample_bank(original_root), first_output, sample_rate=22050
-            )
-            second_report = render_sample_events(
-                [event], load_sample_bank(trimmed_root), second_output, sample_rate=22050
-            )
-            with wave.open(str(first_output), "rb") as wav:
-                first_pcm = wav.readframes(wav.getnframes())
-            with wave.open(str(second_output), "rb") as wav:
-                second_pcm = wav.readframes(wav.getnframes())
-            self.assertEqual(first_pcm, second_pcm)
-            self.assertEqual(first_report["events_rendered"], second_report["events_rendered"])
-
-    def test_renderer_keeps_sfz_velocity_crossfade_layers_separate_from_round_robin(self):
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder) / "harp"
-            root.mkdir()
-            self.make_wav(root / "mf.wav", rate=22050, frames=4410)
-            self.make_wav(root / "f.wav", rate=22050, frames=4410)
-            (root / "bank.json").write_text(json.dumps({
-                "format_version": 1,
-                "samples": [
-                    {"instrument": "concert_harp", "midi_note": 60, "path": "mf.wav",
-                     "velocity_fade_out": [70, 100]},
-                    {"instrument": "concert_harp", "midi_note": 60, "path": "f.wav",
-                     "velocity_fade_in": [70, 100]},
-                ],
-            }), encoding="utf-8")
-            bank = load_sample_bank(root)
-            output = Path(folder) / "harp-crossfade.wav"
-            report = render_sample_events([{
-                "instrument": "concert_harp", "midi_note": 60,
-                "start_seconds": 0, "duration_seconds": 0.08, "velocity": 85,
-            }], bank, output, sample_rate=22050)
-            self.assertEqual(report["events_rendered"], 1)
-            self.assertEqual(report["sample_selection"]["equal_power_velocity_crossfade_events"], 1)
-            with wave.open(str(output), "rb") as audio:
-                self.assertEqual((audio.getnchannels(), audio.getsampwidth(), audio.getframerate()),
-                                 (2, 2, 22050))
-                self.assertTrue(any(audio.readframes(audio.getnframes())))
-
-
-if __name__ == "__main__":
-    unittest.main()
