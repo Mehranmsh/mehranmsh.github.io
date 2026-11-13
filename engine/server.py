@@ -395,6 +395,7 @@ class Handler(BaseHTTPRequestHandler):
                     # or synthesized fallback is allowed.
                     verified_part_banks = {
                         "guitar": "acoustic_guitar",
+                        "strings": "solo_violin",
                         "contrabass": "contrabass",
                         "cajon": "cajon",
                         "kalimba": "kalimba",
