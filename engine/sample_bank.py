@@ -47,6 +47,7 @@ class Sample:
     velocity_fade_in: tuple[int, int] | None = None
     velocity_fade_out: tuple[int, int] | None = None
     sfz_volume_db: float = 0.0
+    selection_priority: int = 0
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
         if (isinstance(sfz_volume_db, bool) or not isinstance(sfz_volume_db, (int, float))
                 or not math.isfinite(sfz_volume_db) or not -144.0 <= sfz_volume_db <= 48.0):
             raise ValueError("sfz_volume_db must be finite and between -144 and 48")
+        selection_priority = _integer(entry.get("selection_priority", 0), -1000, 1000, "selection_priority")
         offset_frames = _integer(entry.get("offset_frames", 0), 0, 4294967296, "offset_frames")
         def _velocity_fade(field: str) -> tuple[int, int] | None:
             value = entry.get(field)
@@ -211,7 +213,7 @@ def load_sample_bank(bank_root: str | Path, manifest_path: str | Path | None = N
                               float(tuning_cents), float(gain_db),
                               playable_key_min, playable_key_max, offset_frames,
                               velocity_fade_in, velocity_fade_out,
-                              float(sfz_volume_db)))
+                              float(sfz_volume_db), selection_priority))
     return SampleBank(root, tuple(samples))
 
 
