@@ -152,7 +152,7 @@ test("music engine proxy forwards an owner request and strips private filesystem
       composition_mode: "instrumental_first",
       audio_rendered: false,
       plan: { source_mode: "instrumental_first" },
-      midi: { id: "safe-midi-id", format: "Standard MIDI", local_path: "/private/renders/safe-midi-id.mid" },
+      midi: { id: "safe-midi-id", format: "Standard MIDI", content_base64: "TVRoZAAAAAYAAAAB", local_path: "/private/renders/safe-midi-id.mid" },
       message: "MIDI created"
     }), { status: 201, headers: { "Content-Type": "application/json" } });
   };
@@ -171,6 +171,7 @@ test("music engine proxy forwards an owner request and strips private filesystem
     assert.equal(payload.success, true);
     assert.equal(payload.plan.source_mode, "instrumental_first");
     assert.equal(payload.midi.id, "safe-midi-id");
+    assert.equal(payload.midi.content_base64, "TVRoZAAAAAYAAAAB");
     assert.equal("local_path" in payload.midi, false);
     assert.equal(upstreamRequest.url, "https://private-engine.example/v1/compose-by-mode");
     assert.equal(upstreamRequest.options.headers.Authorization, "Bearer " + engineToken);
