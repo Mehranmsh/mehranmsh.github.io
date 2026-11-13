@@ -175,6 +175,8 @@ jobs:
         run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-karoryfer-babyblue-bass
       - name: Fetch and validate real CC0 cajon, kalimba, and contrabass banks
         timeout-minutes: 24
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 engine/fetch_vcsl_cajon.py sample-bank-vcsl-cajon
           python3 engine/fetch_vcsl_kalimba.py sample-bank-vcsl-kalimba
