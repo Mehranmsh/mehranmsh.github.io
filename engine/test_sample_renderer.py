@@ -834,7 +834,7 @@ class SampleRendererTests(unittest.TestCase):
         )
         string_fills = [e for e in strings if e.get("event_role") == "melodic_response_fill"]
         self.assertTrue(string_fills)
-        self.assertEqual({e["articulation"] for e in string_fills}, {"sustain"})
+        self.assertEqual({e["articulation"] for e in string_fills}, {"arco_vibrato"})
         self.assertLessEqual(len(string_fills), 2)
         self.assertFalse(any(e.get("event_role") == "melodic_response_fill"
                              for e in build_composition_events(
