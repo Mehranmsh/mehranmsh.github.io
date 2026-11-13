@@ -15,6 +15,8 @@ on:
       - 'engine/test_fetch_karoryfer_babyblue_bass.py'
       - 'engine/test_percussion_round_robin.py'
       - 'engine/velocity_layer_planner.py'
+      - 'engine/fetch_dsmolken_double_bass.py'
+      - 'engine/test_fetch_dsmolken_double_bass.py'
       - '.github/workflows/electric-bass-foundation.yml'
   workflow_dispatch:
 
@@ -144,5 +146,61 @@ jobs:
             sample-bank-babyblue-electric-bass/provenance.json
             sample-bank-babyblue-electric-bass/picked/
             sample-bank-babyblue-electric-bass/electric-bass-audition.wav
+          if-no-files-found: error
+          retention-days: 30
+
+  build-contrabass-pizzicato:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test double-bass SFZ group and round-robin parser
+        run: python3 -m unittest engine.test_fetch_dsmolken_double_bass -v
+      - name: Fetch and validate CC0 D. Smolken double-bass pizzicato recordings
+        timeout-minutes: 18
+        run: python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
+      - name: Render and verify recorded contrabass pizzicato audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-rubner-contrabass')
+          events = [
+              {'instrument': 'contrabass', 'midi_note': note,
+               'start_seconds': index * 0.55, 'duration_seconds': 0.35,
+               'velocity': velocity, 'articulation': 'pizzicato'}
+              for index, (note, velocity) in enumerate([
+                  (24, 42), (24, 42), (31, 90), (38, 90),
+                  (45, 123), (52, 123), (57, 123),
+              ])
+          ]
+          output = 'sample-bank-rubner-contrabass/contrabass-pizzicato-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          assert report['sample_selection']['pitched_round_robin_events'] == len(events), report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 3 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_CONTRABASS_PIZZICATO_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified CC0 contrabass pizzicato bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-rubner-contrabass-pizzicato
+          path: |
+            sample-bank-rubner-contrabass/bank.json
+            sample-bank-rubner-contrabass/LICENSE-CC0.txt
+            sample-bank-rubner-contrabass/provenance.json
+            sample-bank-rubner-contrabass/pizzicato/
+            sample-bank-rubner-contrabass/contrabass-pizzicato-audition.wav
           if-no-files-found: error
           retention-days: 30
