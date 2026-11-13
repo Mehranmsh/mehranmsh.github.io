@@ -846,11 +846,12 @@
    $("stemPreviewPanel").classList.remove("hidden");
    $("stemPreviewMode").textContent=(pitchCorrected?"Corrected":"Processed")+" preview ready · switch between original and rendered audio.";
    $("stemPreviewOriginal").disabled=false;$("stemPreviewCorrected").disabled=false;$("downloadStem").disabled=false;
+   const metricText=" · "+(Number.isFinite(wav.integratedLufs)?wav.integratedLufs.toFixed(1)+" LUFS":"LUFS n/a")+" · peak "+(Number.isFinite(wav.truePeakDb)?wav.truePeakDb.toFixed(1):"−∞")+" dBTP est. · stereo corr "+wav.stereoCorrelation.toFixed(2)+" · mono "+(Number.isFinite(wav.monoFoldDownDb)?wav.monoFoldDownDb.toFixed(1):"−∞")+" dB";
    if(download){
     const link=document.createElement("a");const safeProject=(project.name||"project").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"project",safeTrack=(track.name||"stem").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"stem";
     link.href=renderedStemUrl;link.download=safeProject+"-"+safeTrack+"-stem.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();
-    status.textContent="Stem download started · "+(audioBuffer.duration+tailSeconds).toFixed(1)+" sec including echo tail · "+(wav.size/1024/1024).toFixed(1)+" MB."+(pitchCorrected?" · vocal pitch correction applied locally.":"");
-   }else status.textContent="Preview rendered locally · "+(audioBuffer.duration+tailSeconds).toFixed(1)+" sec · listen to both versions, then download when ready."+(pitchCorrected?" Pitch correction is active.":"");
+    status.textContent="Stem download started · "+(audioBuffer.duration+tailSeconds).toFixed(1)+" sec including effect tail · "+(wav.size/1024/1024).toFixed(1)+" MB"+metricText+"."+(pitchCorrected?" · vocal pitch correction applied locally.":"");
+   }else status.textContent="Preview rendered locally · "+(audioBuffer.duration+tailSeconds).toFixed(1)+" sec"+metricText+" · listen to both versions, then download when ready."+(pitchCorrected?" Pitch correction is active.":"");
   }catch(error){status.textContent="Stem export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}
   finally{button.disabled=false;previewButton.disabled=false;}
  }
