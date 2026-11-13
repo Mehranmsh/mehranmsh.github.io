@@ -240,7 +240,7 @@ cp .env.example .env
 python3 -c 'import secrets; print(secrets.token_urlsafe(48))'
 ```
 
-مقدار تصادفی را در `MEHRAN_STUDIO_TOKEN` فایل محلی `.env` قرار دهید و توکن Cloudflare Tunnel را در `CLOUDFLARE_TUNNEL_TOKEN` بگذارید. فایل واقعی `.env` در `.dockerignore` و `.gitignore` قرار دارد و نباید commit یا برای دیگران ارسال شود.
+مقدار تصادفی را در `MEHRAN_STUDIO_TOKEN` فایل محلی `.env` قرار دهید و توکن Cloudflare Tunnel را در `CLOUDFLARE_TUNNEL_TOKEN` بگذارید. فایل واقعی `.env` در `.dockerignore` و `.gitignore` قرار دارد و نباید commit یا برای دیگران ارسال شود. سرویس `cloudflared` این مقدار را از متغیر محیطی `TUNNEL_TOKEN` می‌خواند؛ توکن در آرگومان خط فرمان پردازش قرار نمی‌گیرد. دسترسی به Docker daemon و فایل `.env` همچنان باید فقط برای مدیر میزبان محدود باشد.
 
 سپس:
 
