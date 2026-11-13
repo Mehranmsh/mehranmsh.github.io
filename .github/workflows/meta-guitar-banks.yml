@@ -351,7 +351,12 @@ jobs:
           harp_notes = sorted({sample.midi_note for sample in bank.samples
                                if sample.instrument == "concert_harp"})
           assert len(harp_notes) >= 20, harp_notes
+          harp_roots_by_pitch_class = {
+              pitch_class: [note for note in harp_notes if note % 12 == pitch_class]
+              for pitch_class in range(12)
+          }
           harp_added = 0
+          harp_omitted_unrecorded_tones = 0
           for cycle in range(5):
               for chord_index, chord in enumerate(harp_progression):
                   root = chord[:2] if len(chord) > 1 and chord[1] in "#b" else chord[:1]
@@ -363,10 +368,18 @@ jobs:
                       intervals.append(10)
                   root_note = 60 + harp_pitch_classes[root]
                   bar_start = (cycle * len(harp_progression) + chord_index) * 2.7
-                  for tone_index, interval in enumerate(intervals):
-                      note = root_note + interval
-                      if not 28 <= note <= 102:
-                          raise ValueError(f"Concert harp note outside verified key range: {note}")
+                  tone_index = 0
+                  for interval in intervals:
+                      intended_note = root_note + interval
+                      exact_roots = harp_roots_by_pitch_class[intended_note % 12]
+                      if not exact_roots:
+                          # Do not retune a neighboring harp string/sample to invent
+                          # an unrecorded chromatic pitch. Omit this chord tone.
+                          harp_omitted_unrecorded_tones += 1
+                          continue
+                      note = min(exact_roots, key=lambda candidate: (abs(candidate - intended_note), candidate))
+                      if note not in harp_notes:
+                          raise ValueError(f"Concert harp event is not an exact recorded root: {note}")
                       selected.append({
                           "instrument": "concert_harp", "part": "concert_harp",
                           "midi_note": note, "articulation": "sustain",
@@ -374,8 +387,12 @@ jobs:
                           "duration_seconds": 1.25,
                           "velocity": (72, 86, 98, 90)[tone_index % 4],
                       })
+                      tone_index += 1
                       harp_added += 1
-          assert harp_added >= 45, f"Too few chord-aware harp events: {harp_added}"
+          assert harp_added >= 45, (
+              f"Too few exact-recorded-root chord-aware harp events: {harp_added}; "
+              f"omitted unrecorded chord tones: {harp_omitted_unrecorded_tones}"
+          )
           for index in range(20):
               selected.append({
                   "instrument": "contrabass", "part": "contrabass",
