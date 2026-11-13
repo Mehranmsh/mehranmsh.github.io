@@ -1,0 +1,86 @@
+name: MEHRAN Electric Bass Foundation
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_freepats_electric_bass.py'
+      - 'engine/test_fetch_freepats_electric_bass.py'
+      - 'engine/test_sample_bank_install.py'
+      - 'engine/sample_bank_install.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - '.github/workflows/electric-bass-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electric-bass-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-electric-bass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+      - name: Test FreePats SFZ mapping and bank installation
+        run: python3 -m unittest engine.test_fetch_freepats_electric_bass engine.test_sample_bank_install -v
+      - name: Fetch and validate pinned CC0 Yamaha RBX electric bass
+        timeout-minutes: 8
+        run: python3 engine/fetch_freepats_electric_bass.py sample-bank-freepats-electric-bass
+      - name: Render and verify real fingerstyle and picked bass audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-freepats-electric-bass')
+          events = [
+              {'instrument': 'electric_bass', 'midi_note': 28, 'articulation': 'fingerstyle',
+               'start_seconds': 0.0, 'duration_seconds': 0.7, 'velocity': 95},
+              {'instrument': 'electric_bass', 'midi_note': 33, 'articulation': 'fingerstyle',
+               'start_seconds': 0.8, 'duration_seconds': 0.7, 'velocity': 110},
+              {'instrument': 'electric_bass', 'midi_note': 38, 'articulation': 'pick',
+               'start_seconds': 1.6, 'duration_seconds': 0.7, 'velocity': 100},
+              {'instrument': 'electric_bass', 'midi_note': 41, 'articulation': 'pick',
+               'start_seconds': 2.4, 'duration_seconds': 0.7, 'velocity': 90},
+          ]
+          output = 'sample-bank-freepats-electric-bass/electric-bass-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == 4, report
+          assert report['source'] == 'recorded_sample_bank', report
+          with wave.open(output, 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getframerate() == 44100
+              assert audio.getnframes() > 3 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_ELECTRIC_BASS_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified CC0 electric bass bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-freepats-electric-bass
+          path: |
+            sample-bank-freepats-electric-bass/bank.json
+            sample-bank-freepats-electric-bass/LICENSE-CC0.txt
+            sample-bank-freepats-electric-bass/provenance.json
+            sample-bank-freepats-electric-bass/fingerstyle/
+            sample-bank-freepats-electric-bass/pick/
+            sample-bank-freepats-electric-bass/electric-bass-audition.wav
+          if-no-files-found: error
+          retention-days: 30
