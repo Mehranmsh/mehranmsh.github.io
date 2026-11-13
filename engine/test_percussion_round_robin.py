@@ -93,6 +93,41 @@ class PercussionRoundRobinTests(unittest.TestCase):
                 instrument,
             )
 
+    def test_pitched_instruments_rotate_recorded_round_robin_takes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_wav(root / "bass" / "take-1.wav", 8820, 55)
+            self.write_wav(root / "bass" / "take-2.wav", 8820, 61)
+            (root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [
+                    {"instrument": "electric_bass", "midi_note": 35,
+                     "velocity_min": 1, "velocity_max": 63,
+                     "articulation": "picked", "round_robin_index": 0,
+                     "path": "bass/take-1.wav"},
+                    {"instrument": "electric_bass", "midi_note": 35,
+                     "velocity_min": 1, "velocity_max": 63,
+                     "articulation": "picked", "round_robin_index": 1,
+                     "path": "bass/take-2.wav"},
+                ],
+            }), encoding="utf-8")
+            bank = load_sample_bank(root)
+            report = render_sample_events([
+                {"instrument": "electric_bass", "midi_note": 35,
+                 "start_seconds": 0.0, "duration_seconds": 0.12,
+                 "velocity": 42, "articulation": "picked"},
+                {"instrument": "electric_bass", "midi_note": 35,
+                 "start_seconds": 0.2, "duration_seconds": 0.12,
+                 "velocity": 42, "articulation": "picked"},
+            ], bank, root / "bass-round-robin.wav", sample_rate=22050)
+            self.assertEqual(report["events_rendered"], 2)
+            self.assertEqual(report["sample_selection"]["pitched_round_robin_events"], 2)
+            self.assertEqual(
+                [item["round_robin_index"] for item in
+                 report["sample_selection"]["pitched_round_robin_selections"]],
+                [0, 1],
+            )
+
     def test_one_shot_requires_exact_recorded_key_and_articulation(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
