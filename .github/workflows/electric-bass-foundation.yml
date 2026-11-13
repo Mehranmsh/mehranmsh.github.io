@@ -1,6 +1,13 @@
 name: MEHRAN Electric Bass Foundation
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'engine/fetch_karoryfer_meatbass.py'
+      - 'engine/test_fetch_karoryfer_meatbass.py'
+      - '.github/workflows/electric-bass-foundation.yml'
   push:
     branches:
       - feature/mehran-independent-music-core
