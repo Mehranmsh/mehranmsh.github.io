@@ -111,6 +111,9 @@
     <div class="two"><span id="lyricsCount" style="color:var(--muted);font-size:11px">0 words · 0 characters</span><span id="lyricsSaveState" style="color:var(--muted);font-size:11px;text-align:right">Not saved</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn" id="saveLyrics">Save lyrics to project</button><button class="btn secondary" id="exportLyrics">Export .txt</button></div>
     <div class="notice" style="margin-top:12px"><b>Lyrics → Arrangement:</b> ساختار شعر را مستقیم به تایم‌لاین آهنگ تبدیل کن؛ حتی اگر اول موسیقی را ساخته باشی، می‌توانی بعداً شعر را به آن وصل کنی.</div><button class="btn secondary" id="buildArrangementFromLyrics" type="button">♫ ساخت تایم‌لاین از روی شعر</button><p id="lyricsArrangementStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا شعر را ذخیره کن، سپس ساختار Intro، Verse، Chorus و Bridge را به تنظیم منتقل کن.</p>
+   <div class="notice" style="margin-top:12px"><b>Melody Lab · A / B / C</b><br>سه مسیر ملودیک اولیه را با صدای سینت بشنو؛ یکی را انتخاب کن تا به پروژه منتقل و به ترک WAV تبدیل شود.</div>
+   <div id="lyricsMelodyChoices" class="projects" style="margin-top:8px"><button class="btn secondary" type="button" data-melody-choice="A">♫ ملودی A · آرام و احساسی</button><button class="btn secondary" type="button" data-melody-choice="B">♫ ملودی B · اوج‌گیر</button><button class="btn secondary" type="button" data-melody-choice="C">♫ ملودی C · مینیمال</button></div>
+   <audio id="lyricsMelodyPreview" controls preload="none" style="width:100%;margin-top:10px;display:none"></audio><p id="lyricsMelodyStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا یکی از سه طرح را برای شنیدن انتخاب کن.</p>
    </div>
    <div class="panel"><h3>Song structure</h3><p style="color:var(--muted);font-size:11px">Insert a section marker at the cursor. Build the arrangement in your own order.</p>
     <div class="projects" id="lyricSections">
@@ -1091,6 +1094,9 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   $("lyricsSaveState").textContent="Unsaved generated draft";
   editor.focus();
  }
+
+ const LYRIC_MELODY_VARIANTS={A:["A3","C4","E4","-","G4","E4","C4","-","A3","C4","D4","E4","G4","E4","C4","-"],B:["E4","G4","A4","-","C5","B4","A4","G4","E4","G4","A4","C5","D5","C5","A4","-"],C:["A3","-","E4","-","A4","-","G4","-","E4","-","C4","-","D4","-","A3","-"]};
+ async function chooseLyricsMelody(kind){const p=projects.find(x=>x.id===$("lyricsProject").value),status=$("lyricsMelodyStatus"),preview=$("lyricsMelodyPreview");if(!p){status.textContent="ابتدا پروژه را در Lyrics Lab انتخاب کن.";return;}const notes=LYRIC_MELODY_VARIANTS[kind];if(!notes)return;const pat={...JSON.parse(JSON.stringify(PATTERN_DEFAULT)),tempo:kind==="B"?88:kind==="C"?76:82,mode:"lead",bars:1,notes,noteEvents:[],drumKit:"electronic"};status.textContent="در حال ساخت پیش‌شنوی ملودی "+kind+"…";try{const wav=await renderPatternAudio(pat);const url=URL.createObjectURL(wav);if(preview.dataset.objectUrl)URL.revokeObjectURL(preview.dataset.objectUrl);preview.dataset.objectUrl=url;preview.src=url;preview.style.display="block";await preview.play().catch(()=>{});}catch(error){status.textContent="ساخت پیش‌شنو ناموفق بود: "+(error?.message||"خطای ناشناخته");return;}if(preview.dataset.selected===kind){const mix=$("mixProject");mix.value=p.id;refreshMixProjects(p.id);const live=getPattern();live.mode="lead";live.tempo=pat.tempo;live.bars=4;live.notes=notes.slice();live.noteEvents=[];live.drumKit="electronic";p.patternStudio=live;$("patternMode").value="lead";$("patternTempo").value=String(pat.tempo);$("patternBars").value="4";$("patternNotes").value=notes.join(", ");$("patternTrackName").value="Melody "+kind+" · "+p.name;renderPatternGrid();if(await generatePatternTrack())status.textContent="ملودی "+kind+" به‌صورت ترک WAV به پروژه اضافه شد و در Arrangement & Mix در دسترس است.";else status.textContent="ملودی انتخاب شد؛ خطای بخش Pattern Studio را بررسی کن.";show("mix");return;}preview.dataset.selected=kind;status.textContent="پیش‌شنوی ملودی "+kind+" آماده شد. برای افزودن همین ملودی به پروژه، همان گزینه را دوباره بزن.";}
  function buildArrangementFromLyrics(){
   const p=projects.find(x=>x.id===$("lyricsProject").value),status=$("lyricsArrangementStatus");
   if(!p){status.textContent="اول پروژه را در Lyrics Lab انتخاب کن.";return;}
@@ -1205,6 +1211,7 @@ $("resetPattern").addEventListener("click",resetPattern);$("exportPatternMidi").
  $("useSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(false));
  $("appendSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(true));
  $("saveLyrics").addEventListener("click",saveLyrics);$("buildArrangementFromLyrics").addEventListener("click",buildArrangementFromLyrics);
+ $("lyricsMelodyChoices").addEventListener("click",event=>{const button=event.target.closest("[data-melody-choice]");if(button)chooseLyricsMelody(button.dataset.melodyChoice);});
  $("exportLyrics").addEventListener("click",exportLyrics);
  document.querySelectorAll("[data-lyric-section]").forEach(b=>b.addEventListener("click",()=>insertLyricSection(b.dataset.lyricSection)));
  const originalShow=show;
