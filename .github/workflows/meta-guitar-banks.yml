@@ -185,7 +185,10 @@ jobs:
           elif actual_frames > target_frames:
               pcm = pcm[:target_frames * wav_params.nchannels * wav_params.sampwidth]
           with wave.open(output, "wb") as exact_preview:
-              exact_preview.setparams(wav_params)
+              exact_preview.setnchannels(wav_params.nchannels)
+              exact_preview.setsampwidth(wav_params.sampwidth)
+              exact_preview.setframerate(wav_params.framerate)
+              exact_preview.setcomptype(wav_params.comptype, wav_params.compname)
               exact_preview.writeframes(pcm)
           report["duration_seconds"] = round(target_frames / 44100, 3)
           assert report["events_rendered"] == len(selected), report
