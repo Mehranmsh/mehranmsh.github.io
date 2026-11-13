@@ -63,6 +63,7 @@ MEHRAN_STUDIO_MIN_FREE_BYTES=2147483648
 ```
 
 - هر دو توکن باید محرمانه بمانند؛ فایل `.env` را commit، upload یا در پیام عمومی ارسال نکنید.
+- Compose توکن Tunnel را از متغیر محیطی `TUNNEL_TOKEN` به `cloudflared` می‌دهد، نه از آرگومان خط فرمان؛ بااین‌حال دسترسی به Docker daemon و فایل `.env` باید فقط در اختیار مدیر میزبان باشد.
 - مقدار `MEHRAN_STUDIO_TOKEN` باید دقیقاً همان مقداری باشد که بعداً در Worker Secret با نام `MEHRAN_ENGINE_TOKEN` ثبت می‌کنید.
 - مقدار `MEHRAN_STUDIO_MIN_FREE_BYTES` در production را روی ۲ GiB یا بیشتر نگه دارید. مقدار صفر فقط برای smoke test موقت CI استفاده شده است، نه میزبان واقعی.
 - پوشهٔ دادهٔ Docker volume پایدار است. حذف volume با `docker compose down -v` داده‌های SQLite را پاک می‌کند؛ از این دستور برای توقف عادی استفاده نکنید.
