@@ -926,6 +926,28 @@ class SampleBankTests(unittest.TestCase):
             self.assertEqual(len(bank.samples), 2)
             self.assertEqual({sample.string_name for sample in bank.samples}, {"LowE", "B"})
 
+    def test_recorded_sample_tuning_offset_is_preserved(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "kalimba.wav")
+            self.write_manifest(root, [{
+                "instrument": "kalimba_tanzania", "midi_note": 75,
+                "tuning_cents": -38, "path": "kalimba.wav",
+            }])
+            bank = load_sample_bank(root)
+            self.assertEqual(bank.samples[0].tuning_cents, -38.0)
+
+    def test_recorded_sample_tuning_offset_is_bounded(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            self.write_sample(root / "kalimba.wav")
+            self.write_manifest(root, [{
+                "instrument": "kalimba_tanzania", "midi_note": 75,
+                "tuning_cents": 101, "path": "kalimba.wav",
+            }])
+            with self.assertRaisesRegex(ValueError, "tuning_cents"):
+                load_sample_bank(root)
+
     def test_sample_bank_rejects_unknown_guitar_string_name(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
