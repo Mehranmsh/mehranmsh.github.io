@@ -178,7 +178,7 @@ jobs:
           target_frames = round(preview_seconds * 44100)
           actual_frames = len(pcm) // (wav_params.nchannels * wav_params.sampwidth)
           if actual_frames < target_frames:
-              pcm += b"\\x00" * (
+              pcm += b"\x00" * (
                   (target_frames - actual_frames)
                   * wav_params.nchannels * wav_params.sampwidth
               )
