@@ -822,6 +822,24 @@ class SampleRendererTests(unittest.TestCase):
             for e in build_composition_events(plan, response_fill_part="guitar")
         ))
 
+    def test_harp_and_cello_generate_independent_recorded_part_events(self):
+        plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
+        plan["composition"]["melody"][0]["section"] = "chorus"
+        events = build_composition_events(
+            plan,
+            instruments={"harp": "concert_harp", "cello": "cello_section"},
+            response_fill_part=None,
+        )
+        harp = [event for event in events if event["part"] == "harp"]
+        cello = [event for event in events if event["part"] == "cello"]
+        self.assertTrue(harp)
+        self.assertTrue(cello)
+        self.assertTrue(all(event["instrument"] == "concert_harp" for event in harp))
+        self.assertTrue(all(event["instrument"] == "cello_section" for event in cello))
+        self.assertTrue(all(event["articulation"] == "sustain" for event in harp))
+        self.assertTrue(all(event["articulation"] == "sustain_vibrato" for event in cello))
+        self.assertTrue(all(28 <= event["midi_note"] <= 102 for event in harp))
+
     def test_response_fill_can_use_explicit_piano_or_strings_part(self):
         plan = compose_plan("برگرد ای عشق،\\nدلم گرفته از این شب سرد.", target_bpm=84)
         plan["composition"]["melody"][0]["section"] = "chorus"
