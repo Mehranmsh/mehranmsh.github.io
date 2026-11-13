@@ -105,7 +105,8 @@ class StudioControlPlaneTests(unittest.TestCase):
         self.assertIn("USER 10001:10001", dockerfile)
         self.assertIn("MEHRAN_STUDIO_TOKEN=REPLACE_", env_example)
         self.assertIn("CLOUDFLARE_TUNNEL_TOKEN=REPLACE_", env_example)
-        self.assertNotIn("Bearer ", compose + dockerfile + env_example)
+        self.assertNotIn("env_file:", compose)
+        self.assertNotIn("REPLACE_WITH_", compose + dockerfile)
 
     def test_http_authentication_is_required(self):
         status, payload = self.request("/health", token=False)
