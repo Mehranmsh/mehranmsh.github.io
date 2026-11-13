@@ -591,6 +591,22 @@ class IndependentMusicCoreTests(unittest.TestCase):
         self.assertTrue(all(item["syllables"] is None
                             for item in phrase["word_note_alignment"]))
 
+    def test_internal_punctuation_creates_vocal_breath_cues_without_changing_phrase_timing(self):
+        from mehran_music_core import _internal_breath_cues
+
+        durations = [480, 480, 480, 480]
+        cues = _internal_breath_cues("دلم، گرفته؛ از این شب", durations)
+
+        self.assertEqual(len(cues), 2)
+        self.assertEqual([cue["kind"] for cue in cues], ["short", "medium"])
+        self.assertEqual([cue["pause_ticks"] for cue in cues], [120, 180])
+        self.assertTrue(all(cue["timing_basis"] == "written_punctuation"
+                            for cue in cues))
+        self.assertTrue(all(cue["scope"] == "vocal_performance_hint"
+                            for cue in cues))
+        self.assertEqual(sum(durations), 1920)
+        self.assertEqual(_internal_breath_cues("دلم گرفته از این شب", durations), [])
+
     def test_line_punctuation_creates_explicit_post_phrase_breath(self):
         plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد")
         phrases = plan["composition"]["melody"]
