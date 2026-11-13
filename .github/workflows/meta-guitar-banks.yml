@@ -112,7 +112,7 @@ jobs:
       - name: Test sample renderer and pitch coverage diagnostics
         run: python3 -m unittest engine.test_sample_renderer -v
       - name: Test safe recorded-bank installation and provenance
-        run: python3 -m unittest engine.test_sample_bank_install -v
+        run: python3 -m unittest engine.test_sample_bank_install engine.test_build_contrabass_supplement_banks -v
       - name: Test one-shot percussion and round-robin rendering
         run: python3 -m unittest engine.test_percussion_round_robin -v
       - name: Test CC0 percussion and electric bass SFZ maps
@@ -168,11 +168,21 @@ jobs:
         timeout-minutes: 15
         run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-karoryfer-babyblue-bass
       - name: Fetch and validate real CC0 cajon, kalimba, and contrabass banks
-        timeout-minutes: 20
+        timeout-minutes: 24
         run: |
           python3 engine/fetch_vcsl_cajon.py sample-bank-vcsl-cajon
           python3 engine/fetch_vcsl_kalimba.py sample-bank-vcsl-kalimba
           python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
+          python3 -m unittest engine.test_fetch_karoryfer_meatbass engine.test_fetch_vsco2_contrabass_pizzicato -v
+          python3 engine/fetch_karoryfer_meatbass.py sample-bank-meatbass-contrabass
+          python3 engine/fetch_vsco2_contrabass_pizzicato.py sample-bank-vsco2-contrabass-pizzicato
+      - name: Build exact-root contrabass supplement source banks
+        run: |
+          python3 engine/build_contrabass_supplement_banks.py \
+            sample-bank-meatbass-contrabass \
+            sample-bank-vsco2-contrabass-pizzicato \
+            sample-bank-meatbass-contrabass-supplement \
+            sample-bank-vsco2-contrabass-supplement
       - name: Fetch and validate real CC0 violin and concert flute banks
         timeout-minutes: 15
         run: |
@@ -190,13 +200,21 @@ jobs:
         run: |
           python3 -m unittest engine.test_fetch_vcsl_concert_harp -v
           python3 engine/fetch_vcsl_concert_harp.py sample-bank-vcsl-concert-harp
-      - name: Install and validate all thirteen independent real instrument banks
-        timeout-minutes: 18
-        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp
+      - name: Install and validate fifteen independent real instrument source banks
+        timeout-minutes: 22
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-meatbass-contrabass-supplement sample-bank-vsco2-contrabass-supplement sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp
       - name: Audit actual roots, articulations, velocity layers and round robins
         run: |
           python3 -m unittest engine.test_instrument_bank_audit -v
           python3 engine/instrument_bank_audit.py sample-bank-installed-all --output sample-bank-installed-all/instrument-bank-audit.json
+          python3 - <<'PY'
+          import json
+          with open('sample-bank-installed-all/instrument-bank-audit.json', encoding='utf-8') as source:
+              audit = json.load(source)
+          bass = audit['instruments']['contrabass']
+          assert bass['effective_velocity_gaps_after_source_priority'] == [], bass
+          print('CONTRABASS_EFFECTIVE_VELOCITY_COVERAGE_OK', bass['selection_priority_policies'])
+          PY
       - name: Render and validate the real thirteen-bank recorded ensemble
         timeout-minutes: 12
         run: |
@@ -239,7 +257,7 @@ jobs:
                   if isinstance(item, dict):
                       item["articulation"] = "sustain"
           bank = load_sample_bank("sample-bank-installed-all")
-          assert len(bank.samples) >= 352 + 348 + 378 + 80 + 492 + 17 + 14 + 123 + 74 + 27 + 47 + 25 + 45, len(bank.samples)
+          assert len(bank.samples) >= 352 + 348 + 378 + 80 + 492 + 17 + 14 + 123 + 4 + 2 + 74 + 27 + 47 + 25 + 45, len(bank.samples)
           available = {sample.instrument for sample in bank.samples}
           assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
                   "kick", "snare", "closed_hat", "open_hat", "cajon",
@@ -414,6 +432,17 @@ jobs:
                   "articulation": "pizzicato", "start_seconds": index * 2.8,
                   "duration_seconds": 0.65, "velocity": 86,
               })
+          # Exercise the two exact-root high-velocity supplements as well as
+          # the incumbent Rubner layer below the selection threshold.
+          for index, (note, velocity) in enumerate(
+              ((27, 100), (27, 123), (34, 100), (34, 123))
+          ):
+              selected.append({
+                  "instrument": "contrabass", "part": "contrabass",
+                  "midi_note": note, "articulation": "pizzicato",
+                  "start_seconds": 52.0 + index * 0.55,
+                  "duration_seconds": 0.42, "velocity": velocity,
+              })
           for event in selected:
               remaining = preview_seconds - event["start_seconds"]
               if event.get("part") in rhythm_parts or event.get("part") == "cajon":
@@ -467,6 +496,8 @@ jobs:
           report["duration_seconds"] = round(target_frames / 44100, 3)
           assert report["events_rendered"] == len(selected), report
           assert report["source"] == "recorded_sample_bank", report
+          assert report["sample_selection"]["pitch_shifted_key_zone_events"] == 0, report
+          assert report["sample_selection"]["pitch_shifted_nearest_note_events"] == 0, report
           assert report["guitar_string_selections"], "No real guitar strings were selected"
           with wave.open(output, "rb") as audio:
               assert audio.getnchannels() == 2
@@ -522,6 +553,8 @@ jobs:
             sample-bank-vcsl-cajon/
             sample-bank-vcsl-kalimba/
             sample-bank-rubner-contrabass/
+            sample-bank-meatbass-contrabass-supplement/
+            sample-bank-vsco2-contrabass-supplement/
             sample-bank-vcsl-concert-harp/
             sample-bank-installed-all/
           if-no-files-found: error
