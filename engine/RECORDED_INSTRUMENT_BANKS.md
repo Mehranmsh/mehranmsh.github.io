@@ -26,7 +26,7 @@ The twelve packages above expose fifteen playable instrument IDs. The drum packa
 - All fifteen playable IDs have been rendered in the verified 60-second ensemble preview.
 - The latest successful integration run rendered 988 events from a combined bank of 1,510 recorded samples.
 - The preview is stereo, 44.1 kHz, 16-bit PCM, with a verified duration of 60 seconds.
-- The renderer reports pitch-shifted nearest-note use separately and now records the affected instrument, requested MIDI note, actual recorded MIDI note, semitone offset, and articulation. This makes future coverage work evidence-led instead of guessing which bank needs more recordings.
+- The renderer distinguishes intentional SFZ playable-key-zone transposition from nearest-note fallback. Both diagnostics record the affected instrument, requested MIDI note, actual recorded MIDI note, semitone offset, articulation, and mapping type. A source-declared zone mapping is not mislabeled as a nearest-note fallback.
 
 ## Source and integrity policy
 
