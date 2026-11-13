@@ -102,8 +102,11 @@ def _validate_region(raw: dict[str, Any], index: int) -> dict[str, Any]:
     if xfade_out and xfade_in:
         raise ValueError(f"SFZ region {index} cannot fade both in and out")
     offset = int(raw.get("offset", 0))
-    if offset < 0:
-        raise ValueError(f"SFZ region {index} has a negative sample offset")
+    if not 0 <= offset <= 4294967296:
+        raise ValueError(f"SFZ region {index} has an invalid sample offset")
+    volume_db = float(raw.get("volume", 0.0))
+    if not -144.0 <= volume_db <= 48.0:
+        raise ValueError(f"SFZ region {index} has an invalid volume")
 
     return {
         "sample": sample,
@@ -112,7 +115,7 @@ def _validate_region(raw: dict[str, Any], index: int) -> dict[str, Any]:
         "velocity_range": [velocity_low, velocity_high],
         "offset_sample_points": offset,
         "tune_cents": float(raw.get("tune", 0.0)),
-        "volume_db": float(raw.get("volume", 0.0)),
+        "volume_db": volume_db,
         "crossfade": (
             {"direction": "out", "velocity_range": xfade_out} if xfade_out else
             {"direction": "in", "velocity_range": xfade_in} if xfade_in else None
@@ -128,6 +131,6 @@ def _crossfade_range(raw: dict[str, Any], prefix: str) -> list[int] | None:
     if low_key not in raw:
         return None
     low, high = int(raw[low_key]), int(raw[high_key])
-    if not 0 <= low <= high <= 127:
+    if not 0 <= low < high <= 127:
         raise ValueError(f"Invalid SFZ {prefix} crossfade velocity range")
     return [low, high]
