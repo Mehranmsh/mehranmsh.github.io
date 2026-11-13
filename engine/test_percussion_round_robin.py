@@ -10,7 +10,8 @@ import wave
 from pathlib import Path
 
 from sample_bank import load_sample_bank
-from sample_renderer import render_sample_events
+from sample_renderer import build_composition_events, render_sample_events
+from mehran_music_core import compose_plan
 
 
 class PercussionRoundRobinTests(unittest.TestCase):
@@ -61,6 +62,23 @@ class PercussionRoundRobinTests(unittest.TestCase):
                 self.assertAlmostEqual(audio.getnframes() / audio.getframerate(), 0.35, places=3)
                 self.assertEqual(audio.getnchannels(), 2)
                 self.assertTrue(any(audio.readframes(audio.getnframes())))
+
+    def test_composition_maps_drum_parts_to_real_kit_articulations(self):
+        plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
+        events = build_composition_events(plan)
+        expected = {
+            "kick": "snares_on",
+            "snare": "center",
+            "closed_hat": "closed",
+            "open_hat": "open",
+        }
+        for instrument, articulation in expected.items():
+            matching = [event for event in events if event["instrument"] == instrument]
+            self.assertTrue(matching, instrument)
+            self.assertTrue(
+                all(event["articulation"] == articulation for event in matching),
+                instrument,
+            )
 
     def test_one_shot_requires_exact_recorded_key_and_articulation(self):
         with tempfile.TemporaryDirectory() as folder:
