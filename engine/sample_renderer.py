@@ -134,7 +134,7 @@ def render_sample_events(
         ]
         if guitar_candidates:
             string_plan = plan_guitar_string(
-                bank, instrument, note, velocity, articulation,
+                event_bank, instrument, note, velocity, articulation,
                 preferred_string=event.get("guitar_string", "auto"),
                 max_fret=event.get("guitar_max_fret", 4),
             )
