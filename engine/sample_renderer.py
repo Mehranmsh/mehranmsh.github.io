@@ -72,6 +72,7 @@ def render_sample_events(
 
     checked = []
     end_time = 0.0
+    round_robin_counters: dict[tuple[str, int, str, int, int], int] = {}
     def rank_candidates(
         selected_bank: SampleBank,
         selected_instrument: str,
@@ -139,10 +140,48 @@ def render_sample_events(
                 if sample.instrument == instrument
                 and string_for_sample(sample) == selected_guitar_string
             ))
-        velocity_plan = plan_velocity_layers(
-            selection_bank, instrument, note, velocity, articulation
-        )
-        if velocity_plan["layers"]:
+        one_shot_candidates = [
+            sample for sample in selection_bank.samples
+            if sample.instrument == instrument and sample.one_shot
+        ]
+        is_one_shot = bool(one_shot_candidates)
+        if is_one_shot:
+            exact = [
+                sample for sample in one_shot_candidates
+                if sample.midi_note == note
+                and sample.articulation == articulation
+                and sample.velocity_min <= velocity <= sample.velocity_max
+            ]
+            if not exact:
+                raise ValueError(
+                    f"One-shot percussion requires an exact recorded key, articulation, "
+                    f"and velocity layer: instrument={instrument}, note={note}, "
+                    f"articulation={articulation}, velocity={velocity}"
+                )
+            zones = sorted({(sample.velocity_min, sample.velocity_max) for sample in exact})
+            zone = zones[0]
+            zone_candidates = sorted(
+                (sample for sample in exact
+                 if (sample.velocity_min, sample.velocity_max) == zone),
+                key=lambda sample: (sample.round_robin_index, sample.path.as_posix()),
+            )
+            indices = [sample.round_robin_index for sample in zone_candidates]
+            if len(indices) != len(set(indices)):
+                raise ValueError("One-shot round-robin indices must be unique within a velocity zone")
+            rr_key = (instrument, note, articulation, zone[0], zone[1])
+            rr_position = round_robin_counters.get(rr_key, 0)
+            selected_sample = zone_candidates[rr_position % len(zone_candidates)]
+            round_robin_counters[rr_key] = rr_position + 1
+            sample_layers = ((selected_sample, 1.0),)
+            sample_selection_mode = "one_shot_round_robin"
+            duration = selected_sample.frames / selected_sample.sample_rate
+        else:
+            velocity_plan = plan_velocity_layers(
+                selection_bank, instrument, note, velocity, articulation
+            )
+        if is_one_shot:
+            pass
+        elif velocity_plan["layers"]:
             planned_layers = velocity_plan["layers"]
             if len(planned_layers) > 1:
                 # Preserve the existing technical quality gate: do not blend a
@@ -213,7 +252,7 @@ def render_sample_events(
                         float(pan), float(event_gain), articulation,
                         event.get("articulation_source", "legacy_default"),
                         float(release_seconds), float(pitch_cents), sample_selection_mode,
-                        selected_guitar_string))
+                        selected_guitar_string, is_one_shot))
     if end_time > MAX_DURATION_SECONDS:
         raise ValueError("Rendered audio may not exceed 120 seconds")
 
@@ -222,14 +261,14 @@ def render_sample_events(
     rendered_events = 0
     velocity_crossfade_events = 0
     velocity_crossfade_layers_rendered = 0
-    for sample_layers, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode, selected_guitar_string in checked:
+    for sample_layers, target_note, start, duration, velocity, pan, event_gain, articulation, articulation_source, release_seconds, pitch_cents, sample_selection_mode, selected_guitar_string, is_one_shot in checked:
         if len(sample_layers) > 1:
             velocity_crossfade_events += 1
         for sample, layer_gain in sample_layers:
             velocity_crossfade_layers_rendered += 1
             pcm, source_channels, source_rate = _read_sample(sample.path)
             source_frames = len(pcm) // source_channels
-            semitone_ratio = 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents) / 1200.0)
+            semitone_ratio = 1.0 if is_one_shot else 2.0 ** (((target_note - sample.midi_note) * 100.0 + pitch_cents) / 1200.0)
             source_step = source_rate / sample_rate * semitone_ratio
             start_frame = round(start * sample_rate)
             if sample.loop_start_frame is not None and sample.loop_end_frame is not None:
@@ -246,8 +285,9 @@ def render_sample_events(
                 continue
             gain = (velocity / 127.0) ** 1.6 * 0.72 * event_gain * layer_gain
             pan_gains = (math.sqrt(1.0 - pan), math.sqrt(1.0 + pan))
-            attack_frames = max(1, round(sample_rate * 0.004))
-            release_frames = min(requested_frames, max(1, round(sample_rate * release_seconds))) if release_seconds else 1
+            attack_frames = max(1, round(sample_rate * (0.001 if is_one_shot else 0.004)))
+            effective_release = min(release_seconds, 0.012) if is_one_shot else release_seconds
+            release_frames = min(requested_frames, max(1, round(sample_rate * effective_release))) if effective_release else 1
             for out_index in range(requested_frames):
                 source_position = out_index * source_step
                 if loop_start is not None and loop_end is not None and source_position >= loop_end:
@@ -328,6 +368,7 @@ def render_sample_events(
             "pitch_shifted_nearest_note_events": sum(
                 1 for item in checked if item[11] == "pitch_shifted_nearest_note"
             ),
+            "one_shot_round_robin_events": sum(1 for item in checked if item[13]),
             "equal_power_velocity_crossfade_events": velocity_crossfade_events,
             "velocity_layers_rendered": velocity_crossfade_layers_rendered,
             "quality_ranking": "technical_screening_only",
