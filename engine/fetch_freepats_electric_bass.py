@@ -95,7 +95,7 @@ def parse_freepats_bass_sfz(
             raise ValueError(f"Filename/source pitch mismatch for {filename}: {root}")
         regions.append({
             "instrument": "electric_bass",
-            "articulation": articulation,
+            "articulation": "fingerstyle" if articulation == "finger" else "pick",
             "midi_note": root,
             "playable_key_min": low,
             "playable_key_max": high,
