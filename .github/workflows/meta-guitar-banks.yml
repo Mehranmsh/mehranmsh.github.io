@@ -163,8 +163,8 @@ jobs:
               instruments={"guitar": "acoustic_guitar"},
               response_fill_part=None,
           )
-          # Render a continuous 16-second passage instead of truncating the
-          # arrangement to five tiny events per part.
+          # Render a continuous one-minute passage across the full arrangement,
+          # rather than limiting every part to a handful of isolated events.
           preview_seconds = 60.0
           rhythm_parts = {"kick", "snare", "closed_hat", "open_hat"}
           selected = [
