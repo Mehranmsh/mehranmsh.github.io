@@ -15,12 +15,8 @@ _SUPPORTED_REGION_OPCODES = {
     "offset", "tune", "volume", "xfout_lovel", "xfout_hivel",
     "xfin_lovel", "xfin_hivel",
 }
-_INTEGER_OPCODES = {
-    "pitch_keycenter", "lokey", "hikey", "lovel", "hivel", "offset",
-    "xfout_lovel", "xfout_hivel", "xfin_lovel", "xfin_hivel",
-}
 _FLOAT_OPCODES = {"tune", "volume"}
-_TOKEN = re.compile(r"^([A-Za-z][A-Za-z0-9_]*)=(\S+)$")
+_ASSIGNMENT = re.compile(r"([A-Za-z][A-Za-z0-9_]*)=(.*?)(?=\s+[A-Za-z][A-Za-z0-9_]*=|$)")
 
 
 def _number(opcode: str, raw: str) -> int | float:
