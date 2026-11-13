@@ -42,6 +42,13 @@ class ArrangementPlannerTests(unittest.TestCase):
             self.assertTrue(plan_part_arrangement(part, "bridge")["active"])
             self.assertTrue(plan_part_arrangement(part, "final_chorus")["active"])
 
+    def test_flute_enters_in_building_and_full_sections_only(self):
+        self.assertFalse(plan_part_arrangement("flute", "verse")["active"])
+        self.assertTrue(plan_part_arrangement("flute", "pre_chorus")["active"])
+        self.assertTrue(plan_part_arrangement("flute", "chorus")["active"])
+        self.assertTrue(plan_part_arrangement("flute", "bridge")["active"])
+        self.assertTrue(plan_part_arrangement("flute", "final_chorus")["active"])
+
     def test_rhythm_anchor_remains_active_in_every_section(self):
         for section in ("verse", "pre_chorus", "chorus", "bridge", "final_chorus"):
             self.assertTrue(plan_part_arrangement("kick", section)["active"])
