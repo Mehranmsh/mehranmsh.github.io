@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import unittest
 
-from fetch_virtuosity_drums import parse_keymap_note, parse_virtuosity_sfz_map
+from fetch_virtuosity_drums import SOURCE_MANIFEST_PATH, SOURCE_COMMIT, SOURCE_REPOSITORY, EXPECTED_COUNTS, parse_keymap_note, parse_virtuosity_sfz_map
+import json
+import re
 
 
 KEYMAP = """
@@ -15,6 +17,17 @@ KEYMAP = """
 
 
 class VirtuositySFZTests(unittest.TestCase):
+    def test_pinned_source_manifest_covers_all_recorded_samples(self):
+        manifest = json.loads(SOURCE_MANIFEST_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["source_repository"], SOURCE_REPOSITORY)
+        self.assertEqual(manifest["source_commit"], SOURCE_COMMIT)
+        hashes = manifest["sample_git_blob_sha1"]
+        self.assertEqual(len(hashes), sum(EXPECTED_COUNTS.values()))
+        self.assertTrue(all(re.fullmatch(r"[0-9a-f]{40}", value) for value in hashes.values()))
+        self.assertEqual(sum(path.startswith("Samples/kickmic/kick/") for path in hashes), 16)
+        self.assertEqual(sum(path.startswith("Samples/kickmic/snare/") for path in hashes), 36)
+        self.assertEqual(sum(path.startswith("Samples/kickmic/hh/") for path in hashes), 28)
+
     def test_keymap_resolves_verified_gm_keys(self):
         self.assertEqual(parse_keymap_note(KEYMAP, "KICK_SNRIGHT_KEY"), 36)
         self.assertEqual(parse_keymap_note(KEYMAP, "SNARE_CENTER_KEY"), 38)
