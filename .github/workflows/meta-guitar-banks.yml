@@ -151,6 +151,7 @@ jobs:
           from mehran_music_core import compose_plan
           from sample_bank import load_sample_bank
           from sample_renderer import build_composition_events, render_sample_events
+          from guitar_string_planner import plan_guitar_string
 
           lyrics = "\n".join([
               "برگرد ای عشق، کنار من بمان",
@@ -206,6 +207,29 @@ jobs:
               and 0 <= event.get("start_seconds", 0) <
                   preview_seconds - (3.0 if event.get("part") in rhythm_parts else 0)
           ]
+          # Give the nylon guitar its own recorded part. Only include exact
+          # first-position string/note combinations present in the source bank.
+          nylon_notes = sorted({sample.midi_note for sample in bank.samples
+                                if sample.instrument == "nylon_guitar"})
+          nylon_added = 0
+          for note in nylon_notes:
+              string_plan = plan_guitar_string(
+                  bank, "nylon_guitar", note, 82, "sustain", max_fret=12
+              )
+              if string_plan["status"] != "exact_recorded_string":
+                  continue
+              selected.append({
+                  "instrument": "nylon_guitar", "part": "nylon_guitar",
+                  "midi_note": note, "articulation": "sustain",
+                  "start_seconds": 1.5 + nylon_added * 2.2,
+                  "duration_seconds": 0.72, "velocity": 82,
+                  "guitar_string": string_plan["selected_string"],
+                  "guitar_max_fret": 12,
+              })
+              nylon_added += 1
+              if nylon_added >= 12:
+                  break
+          assert nylon_added >= 6, f"Too few exact recorded nylon-guitar notes: {nylon_added}"
           # Add recorded violin and concert-flute phrases using only pitch
           # centers actually present in their verified multisample banks.
           violin_notes = sorted({sample.midi_note for sample in bank.samples
@@ -294,9 +318,9 @@ jobs:
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
           assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
-                  "cajon", "kalimba", "contrabass", "violin", "concert_flute", "dan_tranh", "recorder"} <= selected_parts, selected_parts
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "concert_flute", "dan_tranh", "recorder"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
-                  "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= selected_instruments, selected_instruments
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder"} <= selected_instruments, selected_instruments
           for event in selected:
               if event.get("part") == "open_hat":
                   # Virtuosity records the open hi-hat at MIDI key 42.
