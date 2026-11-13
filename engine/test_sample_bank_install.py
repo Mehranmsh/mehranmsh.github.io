@@ -117,6 +117,96 @@ class SampleBankInstallTests(unittest.TestCase):
             self.assertEqual(rendered["events_rendered"], 1)
             self.assertEqual(rendered["source"], "recorded_sample_bank")
 
+    def test_installs_percussion_round_robins_and_one_shot_metadata(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source, target = root / "drums", root / "installed"
+            source.mkdir()
+            session = "virtuosity_drums_cc0_pinned"
+            (source / "LICENSE-CC0.txt").write_text(
+                "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+            )
+            instruments = [
+                ("kick", 36, "snares_on", 0, "kick/take-1.wav"),
+                ("kick", 36, "snares_on", 1, "kick/take-2.wav"),
+                ("snare", 38, "center", 0, "snare/center.wav"),
+                ("closed_hat", 42, "closed", 0, "closed_hat/closed.wav"),
+                ("open_hat", 42, "open", 0, "open_hat/open.wav"),
+            ]
+            samples = []
+            for instrument, note, articulation, rr, relative in instruments:
+                sample_path = source / relative
+                sample_path.parent.mkdir(parents=True, exist_ok=True)
+                with wave.open(str(sample_path), "wb") as wav:
+                    wav.setnchannels(1)
+                    wav.setsampwidth(2)
+                    wav.setframerate(44100)
+                    wav.writeframes(b"".join(
+                        int(7000 * math.sin(2 * math.pi * (70 + rr * 13) * i / 44100)
+                            * (1.0 - i / 4410)).to_bytes(2, "little", signed=True)
+                        for i in range(4410)
+                    ))
+                samples.append({
+                    "instrument": instrument, "midi_note": note,
+                    "velocity_min": 1, "velocity_max": 127,
+                    "articulation": articulation, "round_robin_index": rr,
+                    "one_shot": True, "path": relative,
+                    "recording_session_id": session,
+                })
+            (source / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "recording_sessions": {
+                    session: {
+                        "instrument_model": "Virtuosity house kit",
+                        "performer": "Austin McMahon",
+                        "microphone": "kick mic",
+                    }
+                },
+                "samples": samples,
+            }), encoding="utf-8")
+
+            report = install_recorded_banks([source], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["instrument_count"], 4)
+            self.assertEqual(report["sample_count"], 5)
+            self.assertEqual({sample.instrument for sample in bank.samples},
+                             {"kick", "snare", "closed_hat", "open_hat"})
+            self.assertTrue(all(sample.one_shot for sample in bank.samples))
+            self.assertEqual(
+                sorted(sample.round_robin_index for sample in bank.samples
+                       if sample.instrument == "kick"),
+                [0, 1],
+            )
+            self.assertTrue(
+                (target / "provenance" / "kick" / "SOURCE_LICENSE.txt").is_file()
+            )
+
+            output = root / "percussion-installed.wav"
+            events = [
+                {"instrument": instrument, "midi_note": note,
+                 "articulation": articulation, "start_seconds": start,
+                 "duration_seconds": 0.01, "velocity": 90}
+                for instrument, note, articulation, start in (
+                    ("kick", 36, "snares_on", 0.0),
+                    ("kick", 36, "snares_on", 0.2),
+                    ("snare", 38, "center", 0.4),
+                    ("closed_hat", 42, "closed", 0.6),
+                    ("open_hat", 42, "open", 0.8),
+                )
+            ]
+            rendered = render_sample_events(events, bank, output, sample_rate=22050)
+            self.assertEqual(rendered["events_rendered"], 5)
+            self.assertEqual(rendered["sample_selection"]["one_shot_round_robin_events"], 5)
+            self.assertEqual(
+                [item["round_robin_index"] for item in
+                 rendered["sample_selection"]["one_shot_round_robin_selections"][:2]],
+                [0, 1],
+            )
+            with wave.open(str(output), "rb") as wav:
+                self.assertEqual(wav.getnchannels(), 2)
+                self.assertTrue(any(wav.readframes(wav.getnframes())))
+
     def test_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
