@@ -1235,5 +1235,60 @@ class SampleRendererTests(unittest.TestCase):
                 )
 
 
+    def test_sample_offset_matches_pretrimmed_recording(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            original_root = base / "offset_bank"
+            trimmed_root = base / "trimmed_bank"
+            original_root.mkdir()
+            trimmed_root.mkdir()
+            original_path = original_root / "harp.wav"
+            trimmed_path = trimmed_root / "harp.wav"
+            self.make_wav(original_path, rate=22050, frames=4410)
+            with wave.open(str(original_path), "rb") as source:
+                channels = source.getnchannels()
+                width = source.getsampwidth()
+                rate = source.getframerate()
+                source.readframes(100)
+                remaining = source.readframes(source.getnframes() - 100)
+            with wave.open(str(trimmed_path), "wb") as target:
+                target.setnchannels(channels)
+                target.setsampwidth(width)
+                target.setframerate(rate)
+                target.writeframes(remaining)
+            (original_root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [{
+                    "instrument": "concert_harp", "midi_note": 60,
+                    "offset_frames": 100, "path": "harp.wav",
+                }],
+            }), encoding="utf-8")
+            (trimmed_root / "bank.json").write_text(json.dumps({
+                "format_version": 1,
+                "samples": [{
+                    "instrument": "concert_harp", "midi_note": 60,
+                    "path": "harp.wav",
+                }],
+            }), encoding="utf-8")
+            event = {
+                "instrument": "concert_harp", "midi_note": 60,
+                "start_seconds": 0, "duration_seconds": 0.08, "velocity": 100,
+            }
+            first_output = base / "offset.wav"
+            second_output = base / "trimmed.wav"
+            first_report = render_sample_events(
+                [event], load_sample_bank(original_root), first_output, sample_rate=22050
+            )
+            second_report = render_sample_events(
+                [event], load_sample_bank(trimmed_root), second_output, sample_rate=22050
+            )
+            with wave.open(str(first_output), "rb") as wav:
+                first_pcm = wav.readframes(wav.getnframes())
+            with wave.open(str(second_output), "rb") as wav:
+                second_pcm = wav.readframes(wav.getnframes())
+            self.assertEqual(first_pcm, second_pcm)
+            self.assertEqual(first_report["events_rendered"], second_report["events_rendered"])
+
+
 if __name__ == "__main__":
     unittest.main()
