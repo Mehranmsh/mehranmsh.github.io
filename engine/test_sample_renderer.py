@@ -1279,6 +1279,21 @@ class SampleRendererTests(unittest.TestCase):
                             for event in dan_tranh))
         self.assertTrue(all(event["articulation"] == "pluck" for event in dan_tranh))
 
+    def test_flute_uses_only_exact_recorded_pitch_centers_and_real_articulations(self):
+        plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
+        plan["composition"]["chord_progression"] = ["C"]
+        for phrase in plan["composition"]["melody"]:
+            phrase["chord"] = "C"
+        events = build_composition_events(plan, instruments={"flute": "concert_flute"})
+        flute = [event for event in events if event["part"] == "flute"]
+        self.assertTrue(flute)
+        self.assertTrue(all(event["instrument"] == "concert_flute" for event in flute))
+        self.assertTrue(all(event["midi_note"] in {48, 52, 57, 60, 64, 69, 72, 76, 81, 84}
+                            for event in flute))
+        self.assertTrue(all(event["articulation"] in {"sustain_vibrato", "expressive_vibrato"}
+                            for event in flute))
+        self.assertIn("sustain_vibrato", {event["articulation"] for event in flute})
+
     def test_composition_renderer_rejects_unknown_or_empty_part_selection(self):
         plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
         with tempfile.TemporaryDirectory() as folder:
