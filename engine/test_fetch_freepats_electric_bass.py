@@ -42,11 +42,11 @@ sample=samples/pick/E.flac
             "pick",
         )
 
-    def test_composition_bass_part_defaults_to_recorded_fingerstyle(self):
+    def test_composition_bass_part_defaults_to_babyblue_picked_recording(self):
         articulation, source = _resolve_part_articulation(
             "bass", "sustain", "legacy_default"
         )
-        self.assertEqual(articulation, "fingerstyle")
+        self.assertEqual(articulation, "picked")
         self.assertEqual(source, "instrument_default")
 
     def test_parser_rejects_filename_pitch_mismatch(self):
