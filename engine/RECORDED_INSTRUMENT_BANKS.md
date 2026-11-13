@@ -53,10 +53,10 @@ All other audited note/articulation combinations reported no velocity gaps. The 
 
 ## Ensemble integration status
 
-- The latest successful integration run rendered 1,048 events across all 16 playable instrument IDs in a 60-second preview.
+- The latest successful full integration run (workflow run 43376257628) installed 15 independent source packages, 16 playable instrument IDs, and 2,028 recorded sample entries. It rendered 1,052 events across all 16 playable IDs in a 60-second preview.
 - The preview is stereo, 44.1 kHz, 16-bit PCM, with an exact 60-second duration and zero clipping samples.
-- The renderer reported 288 one-shot round-robin events, 94 pitched round-robin events, and 158 equal-power velocity-crossfade events.
-- The renderer reported zero nearest-note fallback events. The renderer reported zero pitch-shifted key-zone events and zero pitch-shifted nearest-note events. Babyblue's recorded roots are MIDI 35–75; ensemble bass events are rendered against those recorded notes.
+- The renderer reported 288 one-shot round-robin events, 98 pitched round-robin events, 158 equal-power velocity-crossfade events, and 1,210 rendered velocity layers.
+- The renderer reported zero nearest-note fallback events, zero pitch-shifted key-zone events, and zero pitch-shifted nearest-note events. The preview includes the new exact-root MIDI 27 and MIDI 34 contrabass upper-velocity sources. Babyblue's recorded roots are MIDI 35–75; ensemble bass events are rendered against those recorded notes.
 - Harp composition events use only exact recorded root notes. Chord tones without an exact recorded harp root are omitted rather than pitch-shifted from a neighboring root.
 - The quality-ranking field is technical screening only. No human listening review has been completed.
 
