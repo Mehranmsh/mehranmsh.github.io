@@ -200,10 +200,13 @@ def fetch_virtuosity_drums(output_root: str | Path) -> dict[str, Any]:
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
         prepared = list(executor.map(prepare, regions))
     session_id = "virtuosity_drums_cc0_pinned"
-    samples = [{key: item[key] for key in (
-        "instrument", "midi_note", "velocity_min", "velocity_max",
-        "articulation", "round_robin_index", "one_shot", "path",
-    )} for item in prepared]
+    samples = [{
+        **{key: item[key] for key in (
+            "instrument", "midi_note", "velocity_min", "velocity_max",
+            "articulation", "round_robin_index", "one_shot", "path",
+        )},
+        "recording_session_id": session_id,
+    } for item in prepared]
     manifest = {
         "format_version": 1,
         "recording_sessions": {
