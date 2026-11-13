@@ -1099,7 +1099,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   const lines=lyrics.split(/\r?\n/),sections=[];
   const aliases=[
    [/^\s*\[(?:intro|مقدمه)\]/i,"Intro",4],
-   [/^\s*\[(?:verse\s*1|verse|بند\s*اول|بند\s*۱)\]/i,"Verse 1",8],
+   [/^\s*\[(?:verse\s*1|verse(?!\s*\d)|بند\s*اول|بند\s*۱)\]/i,"Verse 1",8],
    [/^\s*\[(?:pre[- ]?chorus|پیش\s*ترجیع)\]/i,"Pre-Chorus",4],
    [/^\s*\[(?:chorus|ترجیع|کورس)\]/i,"Chorus",8],
    [/^\s*\[(?:verse\s*2|بند\s*دوم|بند\s*۲)\]/i,"Verse 2",8],
