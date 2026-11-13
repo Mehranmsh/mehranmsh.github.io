@@ -129,8 +129,10 @@ def install_recorded_banks(
                 session_metadata[sample_session_id] = metadata
             session_id = next(iter(session_ids)) if len(session_ids) == 1 else None
             license_text = _source_license(source_root)
-            copied_by_instrument: dict[str, int] = {}
-            copied_by_session: dict[str, int] = {item: 0 for item in session_ids}
+            copied_by_instrument_session: dict[tuple[str, str], int] = {
+                (instrument, source_session_id): 0
+                for instrument in instruments for source_session_id in session_ids
+            }
 
             for instrument in instruments:
                 if instrument == "contrabass":
@@ -188,8 +190,7 @@ def install_recorded_banks(
                     "path": destination_relative.as_posix(),
                     "recording_session_id": sample_session_id,
                 })
-                copied_by_instrument[sample.instrument] += 1
-                copied_by_session[sample_session_id] += 1
+                copied_by_instrument_session[(sample.instrument, sample_session_id)] += 1
 
             combined_sessions.update(session_metadata)
             for instrument in instruments:
@@ -207,8 +208,8 @@ def install_recorded_banks(
                         "source_id": source_id,
                         "recording_session_id": source_session_id,
                         "license": "CC0 1.0 Universal",
-                        "source_sample_count": copied_by_session[source_session_id],
-                        "copied_sample_count": copied_by_session[source_session_id],
+                        "source_sample_count": copied_by_instrument_session[(instrument, source_session_id)],
+                        "copied_sample_count": copied_by_instrument_session[(instrument, source_session_id)],
                         "source_root_name": source_root.name,
                     })
 
