@@ -1253,6 +1253,30 @@ class SampleRendererTests(unittest.TestCase):
         self.assertTrue(all(event["instrument"] == "contrabass" for event in contrabass))
         self.assertTrue(all(event["articulation"] == "pizzicato" for event in contrabass))
         self.assertTrue(all(event["part"] != "bass" for event in contrabass))
+    def test_recorder_and_dan_tranh_render_as_independent_exact_pitch_parts(self):
+        plan = compose_plan("return to me\\nthis cold night", target_bpm=84)
+        plan["composition"]["chord_progression"] = ["D"]
+        events = build_composition_events(
+            plan,
+            instruments={
+                "recorder": "baroque_soprano_recorder",
+                "dan_tranh": "dan_tranh",
+            },
+        )
+        recorder = [event for event in events if event["part"] == "recorder"]
+        dan_tranh = [event for event in events if event["part"] == "dan_tranh"]
+        self.assertTrue(recorder)
+        self.assertTrue(dan_tranh)
+        self.assertTrue(all(event["instrument"] == "baroque_soprano_recorder" for event in recorder))
+        self.assertTrue(all(event["instrument"] == "dan_tranh" for event in dan_tranh))
+        self.assertTrue(all(event["midi_note"] in {60, 62, 64, 66, 68, 70, 72, 74, 76, 78, 79, 82, 84}
+                            for event in recorder))
+        self.assertTrue(all(event["articulation"] in {"sustain", "staccato"}
+                            for event in recorder))
+        self.assertTrue(all(event["midi_note"] in {47, 49, 51, 54, 56, 59, 61, 63, 66, 68, 71, 73, 75, 78, 80, 83}
+                            for event in dan_tranh))
+        self.assertTrue(all(event["articulation"] == "pluck" for event in dan_tranh))
+
     def test_composition_renderer_rejects_unknown_or_empty_part_selection(self):
         plan = compose_plan("برگرد ای عشق\\nدلم گرفته از این شب سرد", target_bpm=84)
         with tempfile.TemporaryDirectory() as folder:
