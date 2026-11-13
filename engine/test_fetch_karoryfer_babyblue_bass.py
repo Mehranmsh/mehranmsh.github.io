@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import unittest
+from io import BytesIO
+from unittest.mock import patch
 
 from fetch_karoryfer_babyblue_bass import _request, parse_babyblue_map
 
