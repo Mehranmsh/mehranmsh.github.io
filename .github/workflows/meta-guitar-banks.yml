@@ -180,7 +180,7 @@ jobs:
           selected = [
               dict(event) for event in events
               if event.get("part") in (
-                  "melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat"
+                  "melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat"
               )
               and 0 <= event.get("start_seconds", 0) <
                   preview_seconds - (3.0 if event.get("part") in rhythm_parts else 0)
@@ -218,7 +218,7 @@ jobs:
           assert len(selected) >= 150, f"60-second passage has too few events: {len(selected)}"
           selected_parts = {event.get("part") for event in selected}
           selected_instruments = {event.get("instrument") for event in selected}
-          assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat",
+          assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
                   "cajon", "kalimba", "contrabass"} <= selected_parts, selected_parts
           assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat",
                   "cajon", "kalimba", "contrabass"} <= selected_instruments, selected_instruments
