@@ -18,6 +18,8 @@ _PARTS = {
     "guitar": "rhythmic_harmony",
     "strings": "sustained_harmony",
     "electric_guitar": "hook_accent",
+    "harp": "arpeggiated_harmony",
+    "cello": "sustained_low_harmony",
 }
 _SECTIONS = ("verse", "pre_chorus", "chorus", "bridge", "final_chorus")
 # Multipliers are conservative arrangement balances, not loudness targets.
