@@ -1168,10 +1168,17 @@ def revise_co_creation_plan(
     """Revise lyrics and/or melody pitches while preserving the rest of a project."""
     if not isinstance(existing_plan, dict):
         raise ValueError("plan must be an object")
+    if existing_plan.get("engine") != "MEHRAN_INDEPENDENT_COMPOSITION_CORE":
+        raise ValueError("plan was not created by the MEHRAN composition core")
+    if existing_plan.get("source_mode") not in ("instrumental_first", "co_creation"):
+        raise ValueError("plan source mode is not revision-compatible")
     revised = deepcopy(existing_plan)
     composition = revised.get("composition")
-    if not isinstance(composition, dict) or not isinstance(composition.get("melody"), list):
-        raise ValueError("plan has no editable melody")
+    if (not isinstance(composition, dict)
+            or not isinstance(composition.get("melody"), list)
+            or not isinstance(composition.get("chord_progression"), list)
+            or not isinstance(composition.get("arrangement_blueprint"), dict)):
+        raise ValueError("plan has no complete editable composition")
     melody = composition["melody"]
     if not 4 <= len(melody) <= 16:
         raise ValueError("plan melody phrase count is invalid")
