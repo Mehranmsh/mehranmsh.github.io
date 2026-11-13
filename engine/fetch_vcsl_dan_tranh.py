@@ -43,7 +43,7 @@ def parse_dan_tranh_websfz(payload:dict[str,Any],require_complete:bool=True)->li
             vmin,vmax=r.get("lovel",1),r.get("hivel",127); gain=r.get("volume",0)
             if any(isinstance(x,bool) or not isinstance(x,int) for x in (note,low,high,vmin,vmax)) or not 0<=low<=note<=high<=127 or not 0<=vmin<=vmax<=127: raise ValueError(f"Invalid pitch/velocity map: {sample}")
             if not isinstance(gain,(int,float)) or isinstance(gain,bool) or not -24<=gain<=24: raise ValueError(f"Invalid gain trim: {sample}")
-            out.append({"filename":Path(sample).name+".wav","source_path":"Zithers/"+sample+".wav","midi_note":note,"low_key":low,"high_key":high,"velocity_min":max(1,vmin),"velocity_max":vmax,"gain_db":float(gain)})
+            out.append({"filename":Path(sample).name+".wav","source_path":"Chordophones/Zithers/"+sample+".wav","midi_note":note,"low_key":low,"high_key":high,"velocity_min":max(1,vmin),"velocity_max":vmax,"gain_db":float(gain)})
     if len({x["source_path"] for x in out})!=len(out): raise ValueError("Duplicate Dan Tranh source sample")
     if require_complete:
         if len(out)!=47: raise ValueError(f"Expected 47 Dan Tranh samples, got {len(out)}")
