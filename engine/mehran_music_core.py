@@ -6,6 +6,7 @@ not a trained generative model and is not an audio renderer.
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -1157,6 +1158,98 @@ def compose_co_creation_plan(
         },
     })
     return plan
+
+
+def revise_co_creation_plan(
+    existing_plan: dict[str, Any],
+    lyrics: str | None = None,
+    melody_notes: list[list[int]] | None = None,
+) -> dict[str, Any]:
+    """Revise lyrics and/or melody pitches while preserving the rest of a project."""
+    if not isinstance(existing_plan, dict):
+        raise ValueError("plan must be an object")
+    revised = deepcopy(existing_plan)
+    composition = revised.get("composition")
+    if not isinstance(composition, dict) or not isinstance(composition.get("melody"), list):
+        raise ValueError("plan has no editable melody")
+    melody = composition["melody"]
+    if not 4 <= len(melody) <= 16:
+        raise ValueError("plan melody phrase count is invalid")
+
+    if melody_notes is not None:
+        if not isinstance(melody_notes, list) or len(melody_notes) != len(melody):
+            raise ValueError("melody_notes must contain one note list per existing phrase")
+        for index, notes in enumerate(melody_notes):
+            current = melody[index].get("midi_notes")
+            if (not isinstance(notes, list) or len(notes) != len(current)
+                    or any(isinstance(note, bool) or not isinstance(note, int)
+                           or not 48 <= note <= 88 for note in notes)):
+                raise ValueError(f"melody_notes phrase {index} must preserve note count and use MIDI pitches 48-88")
+            melody[index]["midi_notes"] = list(notes)
+            melody[index]["phrase_start_is_chord_tone"] = (
+                notes[0] % 12 in _chord_pitch_classes(melody[index]["chord"])
+            )
+            melody[index]["phrase_end_is_chord_tone"] = (
+                notes[-1] % 12 in _chord_pitch_classes(melody[index]["chord"])
+            )
+            melody[index]["melody_revision"] = "pitch_only_existing_rhythm_preserved"
+
+    lyrics_to_fit = lyrics if lyrics is not None else revised.get("lyrics")
+    if lyrics_to_fit is not None:
+        if not isinstance(lyrics_to_fit, str) or not lyrics_to_fit.strip() or len(lyrics_to_fit) > 20000:
+            raise ValueError("lyrics must be a non-empty string of at most 20000 characters")
+        analysis = analyze_lyrics(lyrics_to_fit)
+        lines = analysis["lines"]
+        if len(lines) > len(melody):
+            raise ValueError("lyrics contain more lines than the available melody phrases")
+        for index, phrase in enumerate(melody):
+            if index >= len(lines):
+                phrase["note_lyric_map"] = []
+                phrase["lyric_alignment"] = []
+                phrase["syllable_estimate"] = None
+                phrase["lyric_line"] = None
+                continue
+            line = lines[index]
+            alignment = _align_words_to_notes(line["text"], len(phrase["midi_notes"]))
+            note_map = alignment["note_lyric_map"]
+            cursor = 0
+            for note_index, item in enumerate(note_map):
+                duration = phrase["note_durations_ticks"][note_index]
+                item["tick_start"] = cursor
+                item["tick_end"] = cursor + duration
+                item["duration_ticks"] = duration
+                item["rhythmic_value"] = _rhythmic_value(duration)
+                item["articulation_hint"] = "sustain" if duration >= 840 else "light" if duration <= 210 else "normal"
+                item["bar_index"] = cursor // 1920
+                item["beat_in_bar"] = (cursor % 1920) / 480 + 1
+                item["beat_number"] = int(item["beat_in_bar"])
+                cursor += duration
+            phrase["note_lyric_map"] = note_map
+            phrase["syllable_estimate"] = line["syllable_estimate"]
+            phrase["lyric_line"] = line["text"]
+            phrase["lyric_alignment"] = alignment["word_note_alignment"]
+        revised["lyrics"] = _normalize(lyrics_to_fit)
+        revised["analysis"] = analysis
+        revised["lyric_status"] = "provided_and_aligned"
+
+    revised["source_mode"] = "co_creation"
+    previous = revised.get("co_creation", {})
+    revised["co_creation"] = {
+        **previous,
+        "music_preserved_during_lyric_fit": lyrics is not None,
+        "melody_note_events_changed": melody_notes is not None,
+        "harmony_changed": False,
+        "arrangement_blueprint_preserved": True,
+        "revision_count": int(previous.get("revision_count", 0)) + 1,
+        "last_revision": (
+            "lyrics_and_melody" if lyrics is not None and melody_notes is not None
+            else "lyrics" if lyrics is not None else "melody_pitches"
+        ),
+        "melody_rhythm_preserved": True,
+        "harmony_and_arrangement_preserved": True,
+        "notice": "Only submitted lyric alignment and/or existing melody pitches were revised. Note counts, note durations, harmony, sections, and arrangement blueprint were preserved. No audio was rendered.",
+    }
+    return revised
 
 def compose_instrumental_plan(
     title: str = "Untitled",
