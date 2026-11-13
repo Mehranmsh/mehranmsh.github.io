@@ -92,3 +92,87 @@ jobs:
           python -c "import json; d=json.load(open('/tmp/mehran-health.json')); assert d['service']=='mehran-music-studio-control'; assert 'engine' in d and 'resources' in d"
           status=$(curl --silent -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/health)
           test "$status" = "401"
+      - name: Exercise all three composition modes through the live container
+        env:
+          MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          base = "http://127.0.0.1:18765"
+          token = os.environ["MEHRAN_STUDIO_TOKEN"]
+          cases = [
+              {
+                  "composition_mode": "lyrics_first",
+                  "title": "CI lyrics first",
+                  "genre": "pop",
+                  "mood": "reflective",
+                  "bpm": 84,
+                  "phrase_count": 4,
+                  "lyrics": "دلم گرفته\\nاز این شب سرد",
+              },
+              {
+                  "composition_mode": "instrumental_first",
+                  "title": "CI instrumental first",
+                  "genre": "cinematic",
+                  "mood": "hopeful",
+                  "bpm": 96,
+                  "phrase_count": 4,
+              },
+              {
+                  "composition_mode": "co_creation",
+                  "title": "CI co-creation",
+                  "genre": "pop",
+                  "mood": "warm",
+                  "bpm": 88,
+                  "phrase_count": 4,
+                  "lyrics": "دلم گرفته\\nاز این شب سرد",
+              },
+          ]
+
+          for case in cases:
+              request = urllib.request.Request(
+                  base + "/v1/compose-by-mode",
+                  data=json.dumps(case, ensure_ascii=False).encode("utf-8"),
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  assert response.status == 201, response.status
+                  result = json.load(response)
+              assert result["composition_created"] is True, case["composition_mode"]
+              assert result["composition_mode"] == case["composition_mode"]
+              assert result["audio_rendered"] is False
+              midi = base64.b64decode(result["midi"]["content_base64"], validate=True)
+              assert midi.startswith(b"MThd"), case["composition_mode"]
+              assert len(midi) > 26, case["composition_mode"]
+              assert result["midi"]["note_events"] > 0, case["composition_mode"]
+              print(
+                  case["composition_mode"],
+                  "OK:",
+                  result["midi"]["note_events"],
+                  "notes,",
+                  len(midi),
+                  "MIDI bytes",
+              )
+
+          unauthenticated = urllib.request.Request(
+              base + "/v1/compose-by-mode",
+              data=b'{"composition_mode":"instrumental_first"}',
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(unauthenticated, timeout=10)
+              raise AssertionError("Unauthenticated composition request unexpectedly succeeded")
+          except urllib.error.HTTPError as error:
+              assert error.code == 401, error.code
+              print("Unauthenticated composition request correctly rejected: 401")
+          PY
