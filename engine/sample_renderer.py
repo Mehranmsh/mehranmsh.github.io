@@ -52,7 +52,7 @@ def _read_sample(path: Path) -> tuple[array.array, int, int]:
 
 def render_sample_events(
     events: list[dict[str, Any]],
-    bank: SampleBank,
+    bank: SampleBank | dict[str, SampleBank],
     output_path: str | Path,
     *,
     sample_rate: int = 44100,
@@ -63,8 +63,14 @@ def render_sample_events(
     and optional velocity. Pitch shifting is simple sample-rate transposition;
     no time-stretching or artificial instrument synthesis is performed.
     """
-    if not isinstance(bank, SampleBank):
-        raise ValueError("A validated SampleBank is required")
+    if isinstance(bank, SampleBank):
+        bank_map = None
+    elif (isinstance(bank, dict) and bank and
+          all(isinstance(key, str) and key and isinstance(value, SampleBank)
+              for key, value in bank.items())):
+        bank_map = bank
+    else:
+        raise ValueError("A validated SampleBank or non-empty instrument-to-bank mapping is required")
     if not isinstance(events, list) or not events or len(events) > MAX_EVENTS:
         raise ValueError(f"events must contain 1 to {MAX_EVENTS} entries")
     if isinstance(sample_rate, bool) or not isinstance(sample_rate, int) or not 8000 <= sample_rate <= MAX_OUTPUT_RATE:
@@ -117,10 +123,13 @@ def render_sample_events(
             raise ValueError("event duration_seconds must be finite and positive")
         if isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127:
             raise ValueError("event velocity must be an integer from 1 to 127")
-        selection_bank = bank
+        event_bank = bank if bank_map is None else bank_map.get(instrument)
+        if not isinstance(event_bank, SampleBank):
+            raise ValueError(f"No validated sample bank supplied for instrument: {instrument}")
+        selection_bank = event_bank
         selected_guitar_string = None
         guitar_candidates = [
-            sample for sample in bank.samples
+            sample for sample in event_bank.samples
             if sample.instrument == instrument and string_for_sample(sample) is not None
         ]
         if guitar_candidates:
@@ -135,8 +144,8 @@ def render_sample_events(
                     f"status={string_plan['status']}, available_strings={string_plan['available_strings']}"
                 )
             selected_guitar_string = string_plan["selected_string"]
-            selection_bank = SampleBank(bank.root, tuple(
-                sample for sample in bank.samples
+            selection_bank = SampleBank(event_bank.root, tuple(
+                sample for sample in event_bank.samples
                 if sample.instrument == instrument
                 and string_for_sample(sample) == selected_guitar_string
             ))
@@ -214,13 +223,13 @@ def render_sample_events(
                     if {"silent_sample", "digital_clipping"}.intersection(candidate["warnings"])
                 }
                 if any(
-                    layer["sample"].path.relative_to(bank.root).as_posix() in fatal_paths
+                    layer["sample"].path.relative_to(event_bank.root).as_posix() in fatal_paths
                     for layer in planned_layers
                 ):
                     selected_path = candidate_report["selected_sample"]
                     selected_sample = next(
-                        item for item in bank.samples
-                        if item.path.relative_to(bank.root).as_posix() == selected_path
+                        item for item in event_bank.samples
+                        if item.path.relative_to(event_bank.root).as_posix() == selected_path
                     )
                     sample_layers = ((selected_sample, 1.0),)
                     sample_selection_mode = "exact_note_quality_ranked"
@@ -243,8 +252,8 @@ def render_sample_events(
             if candidate_report["candidate_count"]:
                 selected_path = candidate_report["selected_sample"]
                 sample = next(
-                    item for item in bank.samples
-                    if item.path.relative_to(bank.root).as_posix() == selected_path
+                    item for item in event_bank.samples
+                    if item.path.relative_to(event_bank.root).as_posix() == selected_path
                 )
                 sample_selection_mode = "exact_note_quality_ranked"
             else:
@@ -967,7 +976,7 @@ def build_composition_events(
 
 def render_composition_to_wav(
     plan: dict[str, Any],
-    bank: SampleBank,
+    bank: SampleBank | dict[str, SampleBank],
     output_path: str | Path,
     *,
     instruments: dict[str, str] | None = None,
@@ -980,7 +989,7 @@ def render_composition_to_wav(
     if parts is not None:
         allowed_parts = {
             "melody", "chords", "bass", "kick", "snare", "closed_hat",
-            "open_hat", "guitar", "strings", "electric_guitar",
+            "open_hat", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
         }
         if (not isinstance(parts, list) or not parts
                 or any(not isinstance(part, str) or part not in allowed_parts for part in parts)
