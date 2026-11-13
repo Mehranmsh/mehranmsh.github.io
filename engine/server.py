@@ -9,6 +9,7 @@ TLS/reverse-proxy and firewall.
 from __future__ import annotations
 
 import json
+import base64
 import ipaddress
 from contextlib import contextmanager
 import os
@@ -370,7 +371,7 @@ class Handler(BaseHTTPRequestHandler):
                          "drum_hits": midi_info["drum_hits"],
                          "drum_channel": midi_info["drum_channel"],
                          "duration_seconds": midi_info["duration_seconds"],
-                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                         "bytes": midi_info["bytes"], "content_base64": base64.b64encode(midi_path.read_bytes()).decode("ascii"), "local_path": str(midi_path)},
                 "message": "Composition mode dispatched to the independent MEHRAN core and editable MIDI created. No audio or vocal performance was rendered."
             })
         if path == "/v1/compose-instrumental":
