@@ -1067,6 +1067,8 @@ class SampleRendererTests(unittest.TestCase):
                 "articulation": "fingerstyle", "start_seconds": 0,
                 "duration_seconds": 0.05, "velocity": 80,
             }], bank, output, sample_rate=22050)
+            self.assertEqual(result["sample_selection"]["pitch_shifted_key_zone_events"], 1)
+            self.assertEqual(result["sample_selection"]["pitch_shifted_nearest_note_events"], 0)
             self.assertEqual(result["sample_selection"]["pitch_shifted_by_instrument"]["electric_bass"]["note_mappings"][0], {
                 "requested_midi_note": 43,
                 "recorded_midi_note": 39,
