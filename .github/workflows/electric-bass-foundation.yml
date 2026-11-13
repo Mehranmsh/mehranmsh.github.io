@@ -72,6 +72,7 @@ jobs:
           python3 - <<'PY'
           import wave
           from sample_bank import load_sample_bank
+          from instrument_bank_audit import build_instrument_bank_audit
           from sample_renderer import render_sample_events
 
           bank = load_sample_bank('sample-bank-freepats-electric-bass')
@@ -287,7 +288,7 @@ jobs:
         run: python3 engine/fetch_vsco2_contrabass_pizzicato.py sample-bank-vsco2-contrabass-pizzicato
       - name: Build exact-root MIDI 27 and MIDI 34 upper-velocity supplements
         run: |
-          python3 -m unittest engine.test_velocity_layer_planner -v
+          python3 -m unittest engine.test_velocity_layer_planner engine.test_instrument_bank_audit -v
           python3 engine/build_contrabass_velocity_supplement.py \
             sample-bank-rubner-contrabass \
             sample-bank-meatbass-contrabass \
@@ -319,6 +320,8 @@ jobs:
               assert len(checks[key]['layers']) == 1, (key, checks[key])
               assert checks[key]['layers'][0]['sample'].recording_session_id == session, (key, checks[key])
           assert not checks['midi33_high']['layers'], checks['midi33_high']
+          audit = build_instrument_bank_audit(bank)
+          assert audit['instruments']['contrabass']['effective_velocity_gaps_after_source_priority'] == [], audit
           events = [
               {'instrument': 'contrabass', 'midi_note': 27, 'start_seconds': 0.0,
                'duration_seconds': 0.35, 'velocity': 100, 'articulation': 'pizzicato'},
