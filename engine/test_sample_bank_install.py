@@ -8,6 +8,8 @@ from pathlib import Path
 from sample_bank import load_sample_bank
 from sample_bank_install import install_recorded_banks
 from sample_renderer import render_sample_events
+from instrument_bank_audit import build_instrument_bank_audit
+from velocity_layer_planner import plan_velocity_layers
 
 
 class SampleBankInstallTests(unittest.TestCase):
@@ -335,6 +337,131 @@ class SampleBankInstallTests(unittest.TestCase):
             ], bank, root / "world-instruments.wav", sample_rate=22050)
             self.assertEqual(rendered["events_rendered"], 2)
             self.assertEqual(rendered["source"], "recorded_sample_bank")
+
+    def test_installs_multiple_contrabass_sources_without_replacing_rubner(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+
+            def make_source(directory, session, entries, channels):
+                directory.mkdir()
+                (directory / "LICENSE-CC0.txt").write_text(
+                    "CC0 1.0 Universal. Creative Commons Zero.", encoding="utf-8"
+                )
+                samples = []
+                for index, entry in enumerate(entries):
+                    relative = f"audio/{session}-{index}.wav"
+                    sample_path = directory / relative
+                    sample_path.parent.mkdir(parents=True, exist_ok=True)
+                    with wave.open(str(sample_path), "wb") as wav:
+                        wav.setnchannels(channels)
+                        wav.setsampwidth(2)
+                        wav.setframerate(44100)
+                        frame = b"\\x00\\x10" * channels
+                        wav.writeframes(frame * 2205)
+                    samples.append({
+                        "instrument": "contrabass",
+                        "midi_note": entry["note"],
+                        "velocity_min": entry["low"],
+                        "velocity_max": entry["high"],
+                        "articulation": "pizzicato",
+                        "round_robin_index": entry.get("rr", 0),
+                        "playable_key_min": entry.get("zone", (entry["note"], entry["note"]))[0],
+                        "playable_key_max": entry.get("zone", (entry["note"], entry["note"]))[1],
+                        "selection_priority": entry.get("priority", 0),
+                        "selection_priority_min_velocity": entry.get("priority_min", 1),
+                        "sfz_volume_db": entry.get("sfz_volume_db", 0.0),
+                        "path": relative,
+                        "recording_session_id": session,
+                    })
+                (directory / "bank.json").write_text(json.dumps({
+                    "format_version": 1,
+                    "recording_sessions": {
+                        session: {"instrument_model": session, "notes": "CC0 test fixture"}
+                    },
+                    "samples": samples,
+                }), encoding="utf-8")
+
+            rubner = root / "rubner"
+            make_source(rubner, "d_smolken_rubner_pizzicato", [
+                {"note": 27, "low": 1, "high": 74},
+                {"note": 27, "low": 75, "high": 120},
+                {"note": 34, "low": 1, "high": 74},
+                {"note": 34, "low": 75, "high": 120},
+            ], 1)
+            meatbass = root / "meatbass"
+            make_source(meatbass, "karoryfer_meatbass_pizzicato", [
+                {"note": 27, "low": 97, "high": 127, "rr": rr,
+                 "priority": 10, "priority_min": 121}
+                for rr in range(4)
+            ], 1)
+            vsco2 = root / "vsco2"
+            make_source(vsco2, "vsco2_ce_contrabass_pizzicato", [
+                {"note": 34, "low": 63, "high": 127, "rr": rr,
+                 "priority": 10, "priority_min": 121, "sfz_volume_db": 5.0}
+                for rr in range(2)
+            ], 2)
+
+            target = root / "installed"
+            report = install_recorded_banks([rubner, meatbass, vsco2], target)
+            bank = load_sample_bank(target)
+            self.assertTrue(report["installed"])
+            self.assertEqual(report["instrument_count"], 1)
+            self.assertEqual(report["bank_package_count"], 3)
+            self.assertEqual(report["sample_count"], 10)
+            self.assertEqual({sample.channels for sample in bank.samples}, {1, 2})
+            self.assertEqual(
+                {sample.recording_session_id for sample in bank.samples},
+                {
+                    "d_smolken_rubner_pizzicato",
+                    "karoryfer_meatbass_pizzicato",
+                    "vsco2_ce_contrabass_pizzicato",
+                },
+            )
+            self.assertTrue(
+                (target / "provenance" / "contrabass" / "SOURCE_LICENSE.txt").is_file()
+            )
+            self.assertTrue(
+                (target / "provenance" / "contrabass" / "karoryfer_meatbass_pizzicato"
+                 / "SOURCE_LICENSE.txt").is_file()
+            )
+            self.assertTrue(
+                (target / "provenance" / "contrabass" / "vsco2_ce_contrabass_pizzicato"
+                 / "SOURCE_LICENSE.txt").is_file()
+            )
+
+            expected = {
+                (27, 100): "d_smolken_rubner_pizzicato",
+                (27, 123): "karoryfer_meatbass_pizzicato",
+                (34, 100): "d_smolken_rubner_pizzicato",
+                (34, 123): "vsco2_ce_contrabass_pizzicato",
+            }
+            for (note, velocity), session in expected.items():
+                plan = plan_velocity_layers(bank, "contrabass", note, velocity, "pizzicato")
+                self.assertEqual(len(plan["layers"]), 1)
+                self.assertEqual(plan["layers"][0]["sample"].recording_session_id, session)
+
+            audit = build_instrument_bank_audit(bank)
+            self.assertEqual(
+                audit["instruments"]["contrabass"]["effective_velocity_gaps_after_source_priority"],
+                [],
+            )
+            output = root / "contrabass-installed-audition.wav"
+            events = [
+                {"instrument": "contrabass", "midi_note": note,
+                 "articulation": "pizzicato", "start_seconds": index * 0.2,
+                 "duration_seconds": 0.12, "velocity": velocity}
+                for index, (note, velocity) in enumerate(
+                    ((27, 100), (27, 123), (34, 100), (34, 123))
+                )
+            ]
+            rendered = render_sample_events(events, bank, output, sample_rate=22050)
+            self.assertEqual(rendered["events_rendered"], 4)
+            self.assertEqual(rendered["sample_selection"]["pitch_shifted_key_zone_events"], 0)
+            self.assertEqual(rendered["sample_selection"]["pitch_shifted_nearest_note_events"], 0)
+            self.assertEqual(rendered["sample_selection"]["equal_power_velocity_crossfade_events"], 0)
+            with wave.open(str(output), "rb") as audio:
+                self.assertEqual(audio.getnchannels(), 2)
+                self.assertTrue(any(audio.readframes(audio.getnframes())))
 
     def test_refuses_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:
