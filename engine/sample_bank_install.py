@@ -38,6 +38,20 @@ EXPECTED_BANKS = {
     "concert_harp": ("VCSL Concert Harp", "vcsl-concert-harp", "vcsl_concert_harp_cc0", 44100, 2),
 }
 
+CONTRABASS_SESSION_SPECS = {
+    "d_smolken_rubner_pizzicato": (
+        "Rubner Contrabass Pizzicato", "rubner-contrabass-pizzicato", 44100, 1
+    ),
+    "karoryfer_meatbass_pizzicato": (
+        "Karoryfer Meatbass MIDI 27 Upper-Velocity Supplement",
+        "karoryfer-meatbass-midi27-upper-velocity", 44100, 1
+    ),
+    "vsco2_ce_contrabass_pizzicato": (
+        "VSCO 2 CE Contrabass MIDI 34 Upper-Velocity Supplement",
+        "vsco2-ce-contrabass-midi34-upper-velocity", 44100, 2
+    ),
+}
+
 
 def _source_license(root: Path) -> str:
     candidates = (
@@ -88,14 +102,15 @@ def install_recorded_banks(
                     f"Only validated CC0 recorded instrument banks are accepted: {source_root}"
                 )
             duplicates = seen_instruments.intersection(instruments)
-            if duplicates:
-                raise ValueError(f"Duplicate instrument bank supplied: {', '.join(sorted(duplicates))}")
-            seen_instruments.update(instruments)
+            if duplicates - {"contrabass"}:
+                raise ValueError(f"Duplicate instrument bank supplied: {', '.join(sorted(duplicates - {'contrabass'}))}")
 
             session_ids = {sample.recording_session_id for sample in bank.samples}
             if None in session_ids or len(session_ids) != 1:
                 raise ValueError("All samples in a source bank must share one declared recording session")
             session_id = next(iter(session_ids))
+            if session_id in combined_sessions:
+                raise ValueError(f"Duplicate recording session supplied: {session_id}")
             metadata = next(
                 sample.recording_metadata for sample in bank.samples
                 if sample.recording_metadata is not None
@@ -104,19 +119,31 @@ def install_recorded_banks(
             copied_by_instrument: dict[str, int] = {}
 
             for instrument in instruments:
-                label, source_id, session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
-                if not session_id.startswith(session_prefix):
-                    raise ValueError(f"Unexpected recording session provenance for {instrument}")
-                license_dir = staged / "provenance" / instrument
+                if instrument == "contrabass":
+                    if session_id not in CONTRABASS_SESSION_SPECS:
+                        raise ValueError(f"Unexpected contrabass recording session: {session_id}")
+                    label, source_id, _expected_rate, _expected_channels = CONTRABASS_SESSION_SPECS[session_id]
+                    license_dir = staged / "provenance" / instrument
+                    if session_id != "d_smolken_rubner_pizzicato":
+                        license_dir = license_dir / session_id
+                else:
+                    label, source_id, session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
+                    if not session_id.startswith(session_prefix):
+                        raise ValueError(f"Unexpected recording session provenance for {instrument}")
+                    license_dir = staged / "provenance" / instrument
                 license_dir.mkdir(parents=True, exist_ok=True)
                 (license_dir / "SOURCE_LICENSE.txt").write_text(license_text, encoding="utf-8")
                 copied_by_instrument[instrument] = 0
+            seen_instruments.update(instruments)
 
             for sample in bank.samples:
                 relative = sample.path.relative_to(source_root)
                 if relative.is_absolute() or ".." in relative.parts:
                     raise ValueError("Unsafe sample path in validated source bank")
-                destination_relative = Path(sample.instrument) / relative
+                if (sample.instrument == "contrabass" and session_id != "d_smolken_rubner_pizzicato"):
+                    destination_relative = Path(sample.instrument) / session_id / relative
+                else:
+                    destination_relative = Path(sample.instrument) / relative
                 output_path = staged / destination_relative
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(sample.path, output_path)
@@ -146,11 +173,15 @@ def install_recorded_banks(
 
             combined_sessions[session_id] = dict(metadata)
             for instrument in instruments:
-                label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
+                if instrument == "contrabass":
+                    label, source_id, _expected_rate, _expected_channels = CONTRABASS_SESSION_SPECS[session_id]
+                else:
+                    label, source_id, _session_prefix, _expected_rate = EXPECTED_BANKS[instrument][:4]
                 source_records.append({
                     "instrument": instrument,
                     "label": label,
                     "source_id": source_id,
+                    "recording_session_id": session_id,
                     "license": "CC0 1.0 Universal",
                     "source_sample_count": copied_by_instrument[instrument],
                     "copied_sample_count": copied_by_instrument[instrument],
@@ -171,12 +202,17 @@ def install_recorded_banks(
         validated = load_sample_bank(staged)
         if len(validated.samples) != len(combined_samples):
             raise ValueError("Combined bank validation count mismatch")
+        def expected_audio_format(sample):
+            if sample.instrument == "contrabass":
+                _label, _source_id, rate, channels = CONTRABASS_SESSION_SPECS[sample.recording_session_id]
+                return rate, channels
+            spec = EXPECTED_BANKS[sample.instrument]
+            return spec[3], (spec[4] if len(spec) > 4 else 1)
+
         invalid = [
             sample.path.relative_to(staged).as_posix()
             for sample in validated.samples
-            if (sample.sample_rate != EXPECTED_BANKS[sample.instrument][3]
-                or sample.channels != (EXPECTED_BANKS[sample.instrument][4]
-                                       if len(EXPECTED_BANKS[sample.instrument]) > 4 else 1))
+            if (sample.sample_rate, sample.channels) != expected_audio_format(sample)
         ]
         if invalid:
             raise ValueError(
@@ -188,6 +224,7 @@ def install_recorded_banks(
             "installed": True,
             "destination": str(target),
             "instrument_count": len(seen_instruments),
+            "bank_package_count": len(bank_roots),
             "sample_count": len(validated.samples),
             "sources": source_records,
             "manifest_validated": True,
