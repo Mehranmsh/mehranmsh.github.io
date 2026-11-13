@@ -1014,7 +1014,7 @@ class SampleBankTests(unittest.TestCase):
             self.write_sample(root / "harp.wav")
             self.write_manifest(root, [{
                 "instrument": "concert_harp", "midi_note": 60,
-                "offset_frames": 128, "path": "harp.wav",
+                "offset_frames": 1024, "path": "harp.wav",
             }])
             with self.assertRaisesRegex(ValueError, "offset_frames must point inside"):
                 load_sample_bank(root)
