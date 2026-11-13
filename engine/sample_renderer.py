@@ -619,6 +619,7 @@ def _resolve_part_articulation(
         # generic sustain region. Keep the default mapped to the exact source
         # articulation so a selected strings layer can render without fallback.
         "strings": ("arco_vibrato", "instrument_default"),
+        "cello": ("sustain_vibrato", "instrument_default"),
     }
     if part in part_defaults:
         return part_defaults[part]
