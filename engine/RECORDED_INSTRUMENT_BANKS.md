@@ -1,6 +1,6 @@
 # MEHRAN Recorded Instrument Bank Register
 
-This register separates independent source-bank packages, playable instrument IDs, and recorded sample entries. These counts are not interchangeable. Counts below are taken from the successful thirteen-bank installation on 2026-11-13.
+This register separates independent source-bank packages, playable instrument IDs, and recorded sample entries. These counts are not interchangeable. The table shows the current feature-branch installation with fifteen source packages; the original thirteen-package baseline is retained in the totals paragraph for comparison.
 
 ## Integrated recorded banks
 
