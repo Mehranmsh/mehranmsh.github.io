@@ -1,6 +1,6 @@
 """Pinned CC0 VCSL Baroque soprano recorder sample-bank importer."""
 from __future__ import annotations
-import argparse, concurrent.futures, hashlib, json, re, shutil, subprocess, time, urllib.error, urllib.request
+import argparse, concurrent.futures, hashlib, json, os, re, shutil, subprocess, time, urllib.error, urllib.request
 from pathlib import Path
 from urllib.parse import quote
 from typing import Any
@@ -14,7 +14,12 @@ NOTE_NAMES={"C":0,"C#":1,"D":2,"D#":3,"E":4,"F":5,"F#":6,"G":7,"G#":8,"A":9,"A#"
 EXPECTED_NOTES=[60,62,64,66,68,70,72,74,76,78,79,82,84]
 
 def request(url: str, timeout: int=90)->bytes:
-    req=urllib.request.Request(url,headers={"User-Agent":"MEHRAN-Music-Engine/1.0"})
+    headers={"User-Agent":"MEHRAN-Music-Engine/1.0"}
+    token=os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith("https://api.github.com/"):
+        headers["Authorization"]=f"Bearer {token}"
+        headers["X-GitHub-Api-Version"]="2022-11-28"
+    req=urllib.request.Request(url,headers=headers)
     for attempt in range(5):
         try:
             with urllib.request.urlopen(req,timeout=timeout) as res: return res.read()

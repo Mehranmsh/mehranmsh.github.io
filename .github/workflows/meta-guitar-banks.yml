@@ -195,6 +195,8 @@ jobs:
           python3 engine/fetch_vsco2_flute.py sample-bank-vsco2-flute
       - name: Fetch and validate real CC0 Dan Tranh and Baroque soprano recorder banks
         timeout-minutes: 20
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           python3 -m unittest engine.test_fetch_vcsl_dan_tranh engine.test_fetch_vcsl_recorder -v
           python3 engine/fetch_vcsl_dan_tranh.py sample-bank-vcsl-dan-tranh
