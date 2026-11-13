@@ -173,7 +173,7 @@ def fetch_virtuosity_drums(output_root: str | Path) -> dict[str, Any]:
     def fetch_text(path: str) -> str:
         target = source_dir / Path(path).name
         data = _request(f"{RAW_ROOT}/{path}")
-        blob_sha = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\\0" + data).hexdigest()
+        blob_sha = hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
         target.write_bytes(data)
         mapping_hashes[path] = blob_sha
         return data.decode("utf-8")
