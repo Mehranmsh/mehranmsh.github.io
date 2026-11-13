@@ -54,7 +54,7 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
             depth = len(indices)
             rr_distribution[str(depth)] += 1
             ordered = sorted(indices)
-            expected = list(range(ordered[0], ordered[0] + len(ordered)))
+            expected = list(range(depth))
             if ordered != expected:
                 rr_gaps.append({
                     "midi_note": key[0],
@@ -63,7 +63,23 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
                     "string": key[4],
                     "playable_key_range": [key[5], key[6]],
                     "indices": ordered,
+                    "expected_indices": expected,
                 })
+
+        velocity_coverage = [False] * 128
+        for low, high in velocity_intervals:
+            for velocity in range(low, high + 1):
+                velocity_coverage[velocity] = True
+        velocity_gaps = []
+        gap_start = None
+        for velocity in range(1, 128):
+            if not velocity_coverage[velocity] and gap_start is None:
+                gap_start = velocity
+            elif velocity_coverage[velocity] and gap_start is not None:
+                velocity_gaps.append({"min": gap_start, "max": velocity - 1})
+                gap_start = None
+        if gap_start is not None:
+            velocity_gaps.append({"min": gap_start, "max": 127})
 
         instruments[instrument] = {
             "sample_entries": len(samples),
@@ -74,6 +90,7 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
             "velocity_intervals": [
                 {"min": low, "max": high} for low, high in velocity_intervals
             ],
+            "uncovered_velocity_ranges": velocity_gaps,
             "declared_playable_key_zones": [
                 {"min": low, "max": high}
                 for low, high in playable_zones
@@ -82,6 +99,7 @@ def build_instrument_bank_audit(bank: SampleBank) -> dict[str, Any]:
             "pitched_entries": sum(not sample.one_shot for sample in samples),
             "round_robin": {
                 "group_count": len(rr_groups),
+                "indices_must_start_at_zero": True,
                 "minimum_takes_per_group": min(rr_depths),
                 "maximum_takes_per_group": max(rr_depths),
                 "depth_distribution": dict(sorted(
