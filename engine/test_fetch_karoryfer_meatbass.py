@@ -32,6 +32,8 @@ class MeatbassPizzTests(unittest.TestCase):
         self.assertEqual({(x["velocity_min"], x["velocity_max"]) for x in samples},
                          {(1, 32), (33, 64), (65, 96), (97, 127)})
         self.assertEqual({x["round_robin_index"] for x in samples}, {0, 1, 2, 3})
+        note_27 = [x for x in samples if x["midi_note"] == 27]
+        self.assertEqual({(x["low_key"], x["high_key"]) for x in note_27}, {(26, 28)})
 
     def test_rejects_wrong_velocity_map(self):
         text = fixture().replace("lovel=33", "lovel=34", 1)
