@@ -398,16 +398,26 @@ def main():
                 stem_file = Path(temp) / "stem.wav"
                 stem_download.value.save_as(str(stem_file))
                 assert stem_file.is_file() and stem_file.stat().st_size > 44
+                stem_track_state = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0]")
+                stem_source_duration = page.locator("[data-track-audio-player]").first.evaluate("(el) => el.duration")
+                stem_start_offset = max(0, min(30, float(stem_track_state.get("startOffset", 0))))
+                stem_trimmed_duration = stem_source_duration - float(stem_track_state.get("trimStart", 0)) - float(stem_track_state.get("trimEnd", 0))
+                stem_active_start = stem_start_offset + float(stem_track_state.get("trimStart", 0))
                 with wave.open(str(stem_file), "rb") as rendered_stem:
                     assert rendered_stem.getnchannels() == 2
                     assert rendered_stem.getframerate() == 44100
-                    assert 2.29 * 44100 <= rendered_stem.getnframes() <= 2.31 * 44100, "Stem duration did not reflect the non-destructive trim range."
+                    expected_stem_duration = stem_trimmed_duration + stem_start_offset
+                    actual_stem_duration = rendered_stem.getnframes() / 44100
+                    assert abs(actual_stem_duration - expected_stem_duration) < 0.02, "Stem duration did not reflect trim and timeline offset: got " + str(round(actual_stem_duration, 3)) + "s, expected " + str(round(expected_stem_duration, 3)) + "s."
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
-                    early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(0.04 * 44100) * 4]) // 2), stem_pcm[:int(0.04 * 44100) * 4])
-                    active_stem = struct.unpack("<" + "h" * (len(stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4]) // 2), stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4])
-                    assert max(map(abs, early_stem), default=0) < 2000, "Stem contains the source material before the configured trim point."
-                    assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trimming."
+                    early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(max(0.01, stem_active_start - 0.05) * 44100) * 4]) // 2), stem_pcm[:int(max(0.01, stem_active_start - 0.05) * 44100) * 4])
+                    active_start_frame = int((stem_active_start + 0.06) * 44100) * 4
+                    active_end_frame = int((stem_active_start + 0.12) * 44100) * 4
+                    active_bytes = stem_pcm[active_start_frame:active_end_frame]
+                    active_stem = struct.unpack("<" + "h" * (len(active_bytes) // 2), active_bytes)
+                    assert max(map(abs, early_stem), default=0) < 2000, "Stem contains source material before its scheduled retained range."
+                    assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trim and timeline offset."
 
                 # Render the same lead vocal with offline pitch correction enabled.
                 page.locator("#stemPitchCorrection").check()
