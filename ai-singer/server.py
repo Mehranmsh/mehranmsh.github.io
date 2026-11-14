@@ -16,6 +16,7 @@ from midi_parser import MidiParseError, parse_standard_midi
 from persian_lyrics import analyze_persian_lyrics
 from lyric_alignment import AlignmentError, align_lyrics_to_midi
 from model_artifact import inspect_model_artifact
+from acoustic_contract import validate_acoustic_conditioning
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine Analysis API",
@@ -46,7 +47,7 @@ RATE_LIMITS = {
     "/v1/jobs/align": 10,
     "/v1/jobs/analyze": 20,
     "/v1/jobs/validate": 30,
-    "/v1/lyrics/analyze": 30,
+    "/v1/lyrics/analyze": 30,\n    "/v1/model/conditioning/validate": 20,
 }
 _request_times: dict[tuple[str, str], deque[float]] = {}
 
@@ -268,4 +269,29 @@ def align_job(payload: dict) -> dict:
         "melody_source": melody_source,
         "generation_ready": False,
         "third_party_generation_api": False,
+    }
+
+
+
+@app.post("/v1/model/conditioning/validate")
+def validate_model_conditioning(payload: dict) -> dict:
+    """Validate future acoustic-model inputs; this endpoint does not run inference."""
+    try:
+        conditioning = validate_acoustic_conditioning(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    return {
+        "valid": True,
+        "accepted_for_inference": False,
+        "conditioning_schema": conditioning.schema_version,
+        "project_id": conditioning.project_id,
+        "language": conditioning.language,
+        "phoneme_count": len(conditioning.phonemes),
+        "note_count": len(conditioning.notes),
+        "duration_seconds": conditioning.duration_seconds,
+        "sample_rate": conditioning.sample_rate,
+        "model_loaded": MODEL_STATUS["model_loaded"],
+        "inference_ready": False,
+        "audio_generated": False,
+        "message": "Acoustic conditioning validated only. No model inference or audio rendering occurred.",
     }
