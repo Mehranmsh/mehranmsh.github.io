@@ -394,3 +394,26 @@ python listening_review.py pairs.jsonl --audio-root /local/audio --output-dir ./
 ```
 
 Open `blind-review/review.html` locally. Keep `PRIVATE-answer-key.json` away from reviewers and combine it with the exported answer JSON only after review completion. The builder accepts mono PCM WAV (16/24/32-bit), limits each source to 100 MiB and the total copied audio to 2 GiB, rejects symlinks/path traversal, and never uploads audio. It does not generate audio, identify the better model automatically, or approve production quality. Only use recordings for which the necessary rights and consent are documented.
+
+
+## Local studio-to-dataset intake
+
+`studio_dataset_export.py` converts the studio's reviewed `mehran.svs.conditioning-export.v1` JSON into one strict Persian training-manifest record. It requires a local PCM WAV, an explicit `--consent-confirmed` flag, a pseudonymous speaker ID, a split, transcript, and a non-empty rights basis. It verifies the WAV header and duration, rejects absolute/traversing/symlink audio paths, and validates the entire candidate JSONL manifest before atomically writing it.
+
+Example (run from `ai-singer/`):
+
+```bash
+python studio_dataset_export.py \
+  --export /local/studio/mehran-acoustic-conditioning.json \
+  --dataset-root /local/mehran-dataset \
+  --audio-path recordings/take-001.wav \
+  --output /local/mehran-dataset/manifest.jsonl \
+  --recording-id take-001 \
+  --speaker-id speaker-anon-001 \
+  --split train \
+  --transcript 'متن دقیق اجرا' \
+  --rights-basis 'Performer-owned recording with explicit written permission' \
+  --consent-confirmed
+```
+
+The exporter writes only metadata and a relative pointer to the WAV. It does not copy or upload audio, retain consent documents, verify legal claims, start training, or enable inference. Keep the original consent and rights evidence in secure local storage, outside this repository. Use one stable pseudonymous speaker ID and keep that speaker in exactly one dataset split.
