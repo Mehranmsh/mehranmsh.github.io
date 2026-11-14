@@ -68,7 +68,8 @@ class AcousticConditioningContractTests(unittest.TestCase):
 
     def test_rejects_out_of_order_notes(self):
         payload = valid_payload()
-        payload["notes"][0]["start_seconds"] = 0.7\n        payload["notes"][1]["start_seconds"] = 0.0
+        payload["notes"][0]["start_seconds"] = 0.7
+        payload["notes"][1]["start_seconds"] = 0.0
         self.assert_invalid(payload, "ordered")
 
     def test_rejects_timeline_overrun(self):
