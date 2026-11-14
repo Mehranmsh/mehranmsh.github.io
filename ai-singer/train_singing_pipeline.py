@@ -31,6 +31,23 @@ from pipeline_training_engine import (
 )
 
 
+def _upsample_factors_for_hop(hop_length: int) -> tuple[int, ...]:
+    """Factor power-of-two hop lengths into exact-length even decoder stages."""
+    if isinstance(hop_length, bool) or not isinstance(hop_length, int) or hop_length < 2:
+        raise ValueError("hop_length must be an integer >= 2")
+    remaining = hop_length
+    factors = []
+    while remaining > 1:
+        factor = 4 if remaining % 4 == 0 else 2
+        if remaining % factor:
+            raise ValueError("hop_length must be a power of two for the current decoder stages")
+        factors.append(factor)
+        remaining //= factor
+    if len(factors) > 8:
+        raise ValueError("hop_length requires too many waveform decoder stages")
+    return tuple(factors)
+
+
 def run_training(args) -> dict:
     try:
         import torch
@@ -66,6 +83,7 @@ def run_training(args) -> dict:
         mel_bins=args.mel_bins,
         sample_rate=args.sample_rate,
         hop_length=args.hop_length,
+        upsample_factors=_upsample_factors_for_hop(args.hop_length),
     ).validate()
     train_examples = load_training_examples(
         args.manifest, feature_config, dataset_root=args.audio_root, split="train",
