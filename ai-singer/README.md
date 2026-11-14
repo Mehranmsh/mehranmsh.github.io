@@ -310,13 +310,24 @@ To continue a joint run, use `--resume /path/to/pipeline-latest.pt` instead of t
 
 `dataset_audit.py` runs the manifest validator and produces aggregate-only statistics for train, validation, and test: recording and speaker counts, audio hours, sample-rate coverage, reviewed phoneme/MIDI annotation coverage, reference-only recordings, and valid speaker-reference pairs. It also checks training-loader compatibility and reports readiness warnings without printing speaker IDs, recording IDs, transcripts, rights text, or audio paths. The audit reads local files only.
 
+The audit includes phoneme-time coverage, internal annotation gaps, and vowel-to-MIDI-note overlap coverage. It does not assume that all silence or gaps are errors: these are reported as measurements, and warning cutoffs are optional operator-supplied thresholds. Unknown Persian phoneme symbols are rejected by manifest validation.
+
 Run before any training:
 
 ```bash
 python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/audio --sample-rate 48000
 ```
 
-A `ready_for_staged_training: true` result means the manifest has passed structural and rights validation and the train/validation splits meet the current data-loader prerequisites. It does not mean a model has been trained or that singing quality has been established. The audit never uploads audio, starts training, or creates model weights.
+Optional quality warnings can be enabled explicitly:
+
+```bash
+python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/audio \
+  --minimum-phoneme-coverage 0.75 \
+  --minimum-vowel-note-coverage 0.90 \
+  --maximum-internal-gap-seconds 1.5
+```
+
+These example thresholds are operator choices, not universal Persian singing standards. Choose them only after inspecting representative annotations. A `ready_for_staged_training: true` result means the manifest has passed structural and rights validation and the train/validation splits meet the current data-loader prerequisites. It does not mean a model has been trained or that singing quality has been established. The audit never uploads audio, starts training, or creates model weights.
 
 
 ## Held-out singing quality evaluation
