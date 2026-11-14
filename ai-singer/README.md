@@ -42,6 +42,7 @@ Open `/docs` for API documentation and `/health` for capability status.
 - `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.
 - `POST /v1/model/conditioning/validate`: validates the versioned, model-neutral acoustic conditioning contract. It never loads a model or generates audio.
 - `POST /v1/phonemes/timing`: divides manually supplied syllable time windows using explicit per-phoneme duration weights. It is not forced alignment and always requires review.
+- `POST /v1/jobs/conditioning/prepare`: converts reviewed syllable-to-note alignment, explicit per-phoneme duration weights, and MIDI pitches into the versioned acoustic-conditioning contract. Ambiguous Persian phonemes are rejected; the result remains review-only and cannot start inference.
 
 Piano Roll timing currently assumes four subdivisions per beat and uses the project BPM. This convention is explicit so timing is not silently inferred from a variable grid.
 
