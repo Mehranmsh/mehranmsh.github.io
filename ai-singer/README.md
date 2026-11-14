@@ -428,3 +428,20 @@ python studio_dataset_export.py \
 ```
 
 The exporter writes only metadata and a relative pointer to the WAV. It does not copy or upload audio, retain consent documents, verify legal claims, start training, or enable inference. Keep the original consent and rights evidence in secure local storage, outside this repository. Use one stable pseudonymous speaker ID and keep that speaker in exactly one dataset split.
+
+## Private local annotation review queue
+
+`dataset_review_queue.py` creates a CSV worklist containing only recordings marked `unreviewed` or `needs_review`. It first validates the complete manifest and referenced WAV files, then writes the queue atomically outside the audio dataset directory. The CSV includes recording/speaker IDs, transcript text, relative audio path, split, and annotation-presence flags so an authorized reviewer can locate and complete each item.
+
+This file intentionally contains private dataset metadata. Store it in a protected local folder, share it only with authorized reviewers, and do not commit it to GitHub or upload it to a third-party service. The tool requests owner-only file permissions where supported, prints only aggregate counts, and never uploads audio or metadata.
+
+Example:
+
+```bash
+python dataset_review_queue.py /local/mehran-dataset/manifest.jsonl \\
+  --audio-root /local/mehran-dataset \\
+  --output /local/private-review/annotation-queue.csv
+```
+
+The command reports the number of queued recordings, not their identifiers or transcripts. It does not edit the manifest, change split assignments, approve annotations, train a model, or enable inference. Re-run it after annotation updates to refresh the worklist.
+\n
