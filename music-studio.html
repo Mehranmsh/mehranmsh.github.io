@@ -728,7 +728,7 @@
  }
  function refreshMehranSingerAlignment(){
   const project=mehranSingerAlignmentProject(),syllables=$("mehranSingerSyllables"),groups=$("mehranSingerNoteGroups"),status=$("mehranSingerAlignmentStatus"),notesRoot=$("mehranSingerAlignmentNotes");
-  if(!project){$("exportMehranSingerConditioning").disabled=true;syllables.value="";groups.value="";status.textContent="ابتدا پروژه‌ای را انتخاب کن.";notesRoot.textContent="No project notes loaded.";return;}
+  if(!project){$("exportMehranSingerConditioning").disabled=true;$("mehranSingerReviewedSyllablePhonemes").value="";$("mehranSingerPhonemeWeights").value="";syllables.value="";groups.value="";status.textContent="ابتدا پروژه‌ای را انتخاب کن.";notesRoot.textContent="No project notes loaded.";return;}
   const notes=mehranSingerAlignmentNotes(project),saved=project.singerAlignment&&typeof project.singerAlignment==="object"?project.singerAlignment:null;
   syllables.value=Array.isArray(saved?.syllables)?saved.syllables.join("\n"):"";
   groups.value=Array.isArray(saved?.noteGroups)?saved.noteGroups.map(group=>group.join(",")).join("\n"):"";
