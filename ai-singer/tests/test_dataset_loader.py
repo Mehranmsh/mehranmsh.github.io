@@ -103,6 +103,19 @@ class DatasetLoaderTests(unittest.TestCase):
         self.assertEqual(len(example.acoustic.f0_hz), len(example.tokens.phoneme_ids))
         self.assertEqual(len(example.tokens.note_ids), len(example.pitch_targets.f0_hz))
 
+    def test_loads_aligned_waveform_targets_only_when_requested(self):
+        ordinary = load_training_examples(self.write_manifest(self.record()), config())
+        self.assertIsNone(ordinary[0].waveform_target)
+        examples = load_training_examples(
+            self.write_manifest(self.record()), config(), include_waveform_targets=True
+        )
+        target = examples[0].waveform_target
+        mask = examples[0].waveform_sample_mask
+        self.assertEqual(target.size, len(examples[0].acoustic.f0_hz) * config().hop_length)
+        self.assertEqual(mask.size, target.size)
+        self.assertEqual(int(mask.sum()), 4800)
+        self.assertTrue(np.isfinite(target).all())
+
     def test_requires_reviewed_alignment(self):
         record = self.record(alignment_status="unreviewed")
         with self.assertRaisesRegex(DatasetLoadError, "reviewed phoneme alignment"):
