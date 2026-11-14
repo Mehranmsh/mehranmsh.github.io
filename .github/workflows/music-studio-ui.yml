@@ -1,0 +1,25 @@
+name: MEHRAN Music Studio UI checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "music-studio.html"
+      - "ai-singer/tests/test_studio_midi_parser.js"
+      - ".github/workflows/music-studio-ui.yml"
+  pull_request:
+    paths:
+      - "music-studio.html"
+      - "ai-singer/tests/test_studio_midi_parser.js"
+      - ".github/workflows/music-studio-ui.yml"
+
+jobs:
+  studio-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate embedded Studio MIDI parser
+        run: node ai-singer/tests/test_studio_midi_parser.js
