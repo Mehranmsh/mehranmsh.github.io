@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
     paths:
+      - "    - "ai-singer/pipeline_training_engine.py""
+      - "    - "ai-singer/train_singing_pipeline.py""
+      - "    - "ai-singer/inference_runtime.py""
+      - "    - "ai-singer/tests/test_pipeline_training_engine.py""
+      - "    - "ai-singer/tests/test_train_singing_pipeline.py""
+      - "    - "ai-singer/tests/test_inference_runtime.py""
       - "ai-singer/model_architecture.py"
       - "ai-singer/waveform_decoder.py"
       - "ai-singer/waveform_losses.py"
