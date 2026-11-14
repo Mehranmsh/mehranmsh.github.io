@@ -19,6 +19,21 @@ def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups
                 "syllable_index": syllable_index,
             })
 
+    # Keep phonemes attached only when the analyzer produced an unambiguous
+    # one-to-one syllable annotation for this word. Word-level phone overrides
+    # are not silently redistributed across syllables.
+    for syllable in syllables:
+        word = next((item for item in words if item.get("index") == syllable["word_index"]), None)
+        phone_rows = word.get("phonemes", []) if word else []
+        phone_index = syllable["syllable_index"]
+        if len(phone_rows) == len(word.get("syllables", [])) if word else False:
+            row = phone_rows[phone_index]
+            syllable["phoneme_symbols"] = list(row.get("symbols", []))
+            syllable["phoneme_ambiguity"] = bool(row.get("ambiguous_graphemes"))
+        else:
+            syllable["phoneme_symbols"] = []
+            syllable["phoneme_ambiguity"] = True
+
     notes = melody.get("notes", [])
     base = {
         "alignment_version": "mehran.lyric-note-alignment.v1",
