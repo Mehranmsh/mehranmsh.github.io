@@ -13,7 +13,7 @@ def payload():
         "sample_rate": 48000,
         "duration_seconds": 1.5,
         "phonemes": [
-            {"phoneme": "a", "start_seconds": 0.0, "end_seconds": 0.6},
+            {"phoneme": "æ", "start_seconds": 0.0, "end_seconds": 0.6},
             {"phoneme": "m", "start_seconds": 0.6, "end_seconds": 1.0},
         ],
         "notes": [
