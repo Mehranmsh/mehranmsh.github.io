@@ -45,6 +45,7 @@ class AnnotationQualityTests(unittest.TestCase):
             minimum_phoneme_coverage=0.95,
             minimum_vowel_note_coverage=0.8,
             maximum_internal_gap_seconds=0.05,
+            maximum_edge_unannotated_seconds=0.05,
         )
         self.assertEqual(
             {item["code"] for item in result["warnings"]},
@@ -52,11 +53,22 @@ class AnnotationQualityTests(unittest.TestCase):
                 "low_phoneme_time_coverage",
                 "low_vowel_note_time_coverage",
                 "long_internal_annotation_gap",
+                "excessive_edge_unannotated_audio",
             },
         )
         self.assertTrue(all(item["recordings"] == 1 for item in result["warnings"]))
         self.assertNotIn("recording_id", str(result))
         self.assertNotIn("speaker_id", str(result))
+
+    def test_edge_threshold_flags_unannotated_audio_only_when_configured(self):
+        item = record()
+        item["phoneme_alignment"][0]["start_seconds"] = 0.12
+        summary = summarize_annotation_quality(
+            [item], maximum_edge_unannotated_seconds=0.05
+        )
+        self.assertEqual(summary["warnings"], [
+            {"code": "excessive_edge_unannotated_audio", "recordings": 1}
+        ])
 
     def test_no_vowels_reports_null_vowel_note_coverage(self):
         item = record()
