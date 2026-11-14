@@ -25,14 +25,11 @@ def build_speaker_encoder(mel_bins: int = 100, embedding_size: int = 192):
     class ReferenceSpeakerEncoder(nn.Module):
         def __init__(self):
             super().__init__()
-            self.frontend = nn.Sequential(
+            self.frontend = nn.ModuleList([
                 nn.Conv1d(mel_bins, 128, kernel_size=5, padding=2),
-                nn.GELU(),
                 nn.Conv1d(128, 192, kernel_size=3, padding=1),
-                nn.GELU(),
                 nn.Conv1d(192, embedding_size, kernel_size=3, padding=1),
-                nn.GELU(),
-            )
+            ])
             self.projection = nn.Sequential(
                 nn.Linear(embedding_size * 2, embedding_size),
                 nn.GELU(),
@@ -57,7 +54,13 @@ def build_speaker_encoder(mel_bins: int = 100, embedding_size: int = 192):
             if torch.any(lengths == 0):
                 raise ValueError("every reference clip must contain at least one valid frame")
 
-            features = self.frontend(reference_log_mel.transpose(1, 2)).transpose(1, 2)
+            weights = mask.unsqueeze(-1).to(reference_log_mel.dtype)
+            value = (reference_log_mel * weights).transpose(1, 2)
+            channel_mask = mask.unsqueeze(1).to(value.dtype)
+            for layer in self.frontend:
+                value = F.gelu(layer(value))
+                value = value * channel_mask
+            features = value.transpose(1, 2)
             weights = mask.unsqueeze(-1).to(features.dtype)
             denominator = lengths.unsqueeze(-1).to(features.dtype).clamp_min(1.0)
             mean = (features * weights).sum(dim=1) / denominator
