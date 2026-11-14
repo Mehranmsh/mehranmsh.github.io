@@ -6,6 +6,8 @@ on:
     paths:
       - "ai-singer/model_architecture.py"
       - "ai-singer/speaker_encoder.py"
+      - "ai-singer/speaker_reference.py"
+      - "ai-singer/tests/test_speaker_reference.py"
       - "ai-singer/tests/test_speaker_encoder.py"
       - "ai-singer/training_engine.py"
       - "ai-singer/train_model.py"
@@ -41,6 +43,8 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install --index-url https://download.pytorch.org/whl/cpu -r training-requirements.txt
+      - name: Run leakage-safe speaker reference pairing tests
+        run: python -m unittest discover -s tests -p 'test_speaker_reference.py' -v
       - name: Run reference speaker encoder tests
         run: python -m unittest discover -s tests -p 'test_speaker_encoder.py' -v
       - name: Run neural architecture forward and gradient tests
