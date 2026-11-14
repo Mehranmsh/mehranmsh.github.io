@@ -57,6 +57,7 @@ def parse_standard_midi(data: bytes, max_notes: int = 4096) -> dict:
     raw_notes: list[dict] = []
     tempo_events: list[tuple[int, int]] = [(0, 500000)]
     max_tick = 0
+    truncated = False
 
     for track_index in range(track_count):
         if offset + 8 > len(data) or data[offset:offset + 4] != b"MTrk":
@@ -148,6 +149,8 @@ def parse_standard_midi(data: bytes, max_notes: int = 4096) -> dict:
                             "channel": channel,
                             "track": source_track,
                         })
+                    else:
+                        truncated = True
         offset = end
 
     if offset != len(data):
@@ -205,5 +208,5 @@ def parse_standard_midi(data: bytes, max_notes: int = 4096) -> dict:
         "tempoMap": [{"tick": tick, "microsecondsPerQuarter": tempo} for tick, tempo in compact_tempos],
         "noteCount": len(notes),
         "notes": notes,
-        "truncated": len(raw_notes) >= max_notes,
+        "truncated": truncated,
     }
