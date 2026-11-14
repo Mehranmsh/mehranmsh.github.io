@@ -173,3 +173,8 @@ The future in-house synthesizer must implement the `SingingSynthesisRuntime` pro
 The default 48 kHz / 2048-sample FFT / 256-sample hop setup yields 187.5 feature frames per second. These are declared engineering defaults for a first reproducible experiment, not claims that a trained model has validated them as optimal. Any future change must use a new config/schema version and be evaluated against held-out Persian singing recordings.
 
 This module validates configuration only. It does not compute spectrograms, estimate F0, train a network, load checkpoints, or synthesize audio. The target streams are specified as log-mel, F0 in Hz, a voicing mask, and log-RMS energy; model architecture and training remain separate milestones.
+
+## Local reviewed-dataset preprocessing
+
+`dataset_loader.py` connects the consent/rights manifest gate to the acoustic feature extractor, Persian phoneme token encoder, and MIDI pitch-target builder. Use `load_training_examples(manifest_path, config, dataset_root=..., split="train")` from a local Python process. Each selected record must have `alignment_status: "reviewed"`, canonical `phoneme_alignment` spans, explicit monophonic `notes` events (MIDI pitch, start, duration, optional velocity), a matching sample rate, and mono PCM WAV audio. The loader rejects missing notes, unreviewed alignments, stereo audio, invalid timing, and mismatched feature grids. It reads local files only; it does not upload recordings, train a model, or generate audio. Keep real performer recordings and consent records off Git.
+
