@@ -344,10 +344,74 @@ def align_job(payload: dict) -> dict:
         **result,
         "project_id": job.project.id,
         "melody_source": melody_source,
+        "model_notes": [
+            {
+                "midi_note": int(note["midiNote"]),
+                "start_seconds": float(note["startSeconds"]),
+                "duration_seconds": float(note["durationSeconds"]),
+                "velocity": int(note.get("velocity", 80)),
+            }
+            for note in melody["notes"]
+            if "midiNote" in note
+        ] if all("midiNote" in note for note in melody["notes"]) else [],
+        "melody_duration_seconds": float(melody.get("durationSeconds", max(
+            (float(note["startSeconds"]) + float(note["durationSeconds"]) for note in melody["notes"]),
+            default=0.0,
+        ))),
         "generation_ready": False,
         "third_party_generation_api": False,
     }
 
+
+
+@app.post("/v1/jobs/conditioning/prepare")
+def prepare_job_conditioning(payload: dict) -> dict:
+    """Prepare model-neutral phoneme/note inputs from reviewed syllable alignment."""
+    alignment = align_job(payload)
+    if not alignment.get("alignment_ready"):
+        raise HTTPException(status_code=422, detail="Human-confirmed syllable-to-note alignment is required.")
+    if not alignment.get("model_notes"):
+        raise HTTPException(status_code=422, detail="Melody notes do not contain usable MIDI pitch values.")
+    rows = alignment["alignment"]
+    weights = payload.get("phoneme_duration_weights")
+    if not isinstance(weights, list) or len(weights) != len(rows):
+        raise HTTPException(status_code=422, detail="phoneme_duration_weights must contain one weight array per aligned syllable.")
+    timing_rows = []
+    for index, row in enumerate(rows):
+        phones = row.get("phoneme_symbols") or []
+        if not phones or row.get("phoneme_ambiguity"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Syllable {index} has ambiguous or missing Persian phonemes; supply a reviewed phoneme annotation first.",
+            )
+        if not isinstance(weights[index], list) or len(weights[index]) != len(phones):
+            raise HTTPException(status_code=422, detail=f"Syllable {index} needs one duration weight per phoneme.")
+        timing_rows.append({
+            "text": row["text"],
+            "start_seconds": row["start_seconds"],
+            "end_seconds": row["end_seconds"],
+            "phonemes": phones,
+            "duration_weights": weights[index],
+        })
+    try:
+        timing_plan = build_phoneme_timing_plan(timing_rows)
+        job = _validated_job(payload["job"])
+        result = prepare_acoustic_conditioning(
+            project_id=job.project.id,
+            timing_plan=timing_plan,
+            notes=alignment["model_notes"],
+            duration_seconds=alignment["melody_duration_seconds"],
+            sample_rate=job.render.sampleRate,
+        )
+    except (PhonemeTimingError, ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        **result,
+        "timing_plan": timing_plan,
+        "generation_ready": False,
+        "model_loaded": MODEL_STATUS["model_loaded"],
+        "message": "Model-neutral conditioning was prepared from reviewed syllable timing, phoneme weights and MIDI notes. Human review is still required; no inference or audio rendering occurred.",
+    }
 
 
 @app.post("/v1/phonemes/timing")
