@@ -60,6 +60,20 @@ class ModelComparisonTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["f0_cents_rmse"]["relative_result"], "insufficient_data")
         self.assertIsNone(result["metrics"]["f0_cents_rmse"]["candidate_minus_baseline"])
 
+    def test_missing_metric_object_is_treated_as_insufficient_data(self):
+        baseline = make_summary()
+        candidate = make_summary()
+        baseline["metrics"]["f0_cents_rmse"] = None
+        result = model_comparison.compare_metric_summaries(baseline, candidate)
+        self.assertEqual(result["metrics"]["f0_cents_rmse"]["relative_result"], "insufficient_data")
+
+    def test_rejects_non_finite_metric_values(self):
+        baseline = make_summary()
+        candidate = make_summary()
+        baseline["metrics"]["f0_cents_rmse"]["macro_mean"] = float("nan")
+        with self.assertRaisesRegex(model_comparison.ModelComparisonError, "finite"):
+            model_comparison.compare_metric_summaries(baseline, candidate)
+
     def test_bundle_comparison_loads_test_examples_once_for_both_models(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory) / "base"
