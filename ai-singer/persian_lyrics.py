@@ -84,7 +84,7 @@ def analyze_persian_lyrics(text: str, pronunciation_overrides: dict[str, str] | 
             "syllable_count": len(syllables),
             "phonemes": phonemes,
             "pronunciation_source": source,
-            "needs_review": needs_review or ambiguous,
+            "needs_review": needs_review,\n            "phoneme_ambiguity": ambiguous,
         })
     return {
         "normalization": "mehran.fa.normalize.v1",
