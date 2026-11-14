@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
     paths:
+      - "ai-singer/quality_evaluation.py"
+      - "ai-singer/tests/test_quality_evaluation.py"
+      - "ai-singer/dataset_audit.py"
+      - "ai-singer/tests/test_dataset_audit.py"
       - "ai-singer/pipeline_training_engine.py"
       - "ai-singer/train_singing_pipeline.py"
       - "ai-singer/inference_runtime.py"
@@ -87,6 +91,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_inference_runtime.py' -v
       - name: Run joint model bundle integrity tests
         run: python -m unittest discover -s tests -p 'test_joint_model_bundle.py' -v
+      - name: Run objective singing quality evaluation tests
+        run: python -m unittest discover -s tests -p 'test_quality_evaluation.py' -v
       - name: Run verified waveform output tests
         run: python -m unittest discover -s tests -p 'test_waveform_output.py' -v
       - name: Run model bundle integrity tests
