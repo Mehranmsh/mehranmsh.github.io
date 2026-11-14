@@ -20,7 +20,8 @@ class ReviewApplyError(ValueError):
     """Raised when a review queue cannot safely update a manifest."""
 
 
-IMMUTABLE_FIELDS = ("recording_id", "speaker_id", "split", "audio_path", "transcript",\n                    "duration_seconds", "sample_rate", "channels", "alignment_status")
+IMMUTABLE_FIELDS = ("recording_id", "speaker_id", "split", "audio_path", "transcript",
+                    "duration_seconds", "sample_rate", "channels", "alignment_status")
 MAX_REVIEW_CSV_BYTES = 20 * 1024 * 1024
 MAX_REVIEW_ROWS = 50000
 
@@ -38,6 +39,18 @@ def apply_review_queue(
         raise ReviewApplyError("manifest, review queue, and audio root symlinks are not allowed")
     if not manifest.is_file() or not queue.is_file():
         raise ReviewApplyError("manifest and review queue must be existing regular files")
+    for parent in (queue.parent, *queue.parent.parents):
+        if parent.exists() and parent.is_symlink():
+            raise ReviewApplyError("review queue parent symlinks are not allowed")
+    try:
+        resolved_root = root.resolve(strict=True)
+        queue.resolve(strict=True).relative_to(resolved_root)
+    except ValueError:
+        pass
+    except (OSError, RuntimeError) as exc:
+        raise ReviewApplyError("dataset root or review queue path is unavailable") from exc
+    else:
+        raise ReviewApplyError("review queue must be stored outside the audio dataset root")
     if queue.stat().st_size > MAX_REVIEW_CSV_BYTES:
         raise ReviewApplyError("review queue exceeds the 20 MiB limit")
     if manifest.resolve() == queue.resolve():
