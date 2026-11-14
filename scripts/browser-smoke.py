@@ -507,7 +507,7 @@ def main():
                     centered = [sample - mean for sample in segment]
                     best_lag = max(range(90, 125), key=lambda lag: sum(centered[i] * centered[i + lag] for i in range(len(centered) - lag)))
                     measured_hz = 44100 / best_lag
-                    assert 395 <= measured_hz <= 435, "Pitch correction did not shift A4 toward G#4: " + str(measured_hz)
+                    assert 410 <= measured_hz <= 420, "Pitch correction should shift A4 close to G#4 without a double pitch shift: " + str(measured_hz)
 
                 # Split a selected vocal region into three independently editable clips without changing the source blob.
                 page.locator("[data-waveform-select-retained]").click()
