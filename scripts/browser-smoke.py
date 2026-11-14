@@ -239,6 +239,17 @@ def main():
                 assert exported_conditioning["schema"] == "mehran.svs.conditioning-export.v1"
                 assert exported_conditioning["accepted_for_inference"] is False
                 assert exported_conditioning["audio_generated"] is False
+                page.locator("#mehranDatasetAudioTrack").select_option(index=1)
+                assert not page.locator("#exportMehranDatasetPackage").is_disabled()
+                with page.expect_download() as local_training_wav:
+                    page.locator("#exportMehranDatasetPackage").click()
+                training_wav_path = Path(temp) / "mehran-local-training.wav"
+                local_training_wav.value.save_as(training_wav_path)
+                training_header = training_wav_path.read_bytes()[:44]
+                assert training_header[:4] == b"RIFF" and training_header[8:12] == b"WAVE"
+                assert int.from_bytes(training_header[22:24], "little") == 1
+                assert int.from_bytes(training_header[24:28], "little") == 24000
+                page.wait_for_function("document.querySelector('#mehranSingerAlignmentStatus')?.textContent.includes('WAV تک‌کاناله 24 kHz')")
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
