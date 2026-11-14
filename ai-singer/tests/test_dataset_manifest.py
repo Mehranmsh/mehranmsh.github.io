@@ -146,6 +146,15 @@ class DatasetManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "symlinks"):
             validate_manifest(self.write_manifest([self.record(audio_path="linked.wav")]))
 
+    def test_rejects_duplicate_audio_content_at_different_paths(self):
+        duplicate_audio = self.root / "copy.wav"
+        duplicate_audio.write_bytes(self.audio.read_bytes())
+        second = self.record(
+            recording_id="rec-002", audio_path="copy.wav", speaker_id="speaker-002", split="test"
+        )
+        with self.assertRaisesRegex(ManifestError, "duplicate audio content"):
+            validate_manifest(self.write_manifest([self.record(), second]))
+
     def test_rejects_duplicate_recording_ids(self):
         with self.assertRaisesRegex(ManifestError, "duplicate recording_id"):
             validate_manifest(self.write_manifest([self.record(), self.record()]))
