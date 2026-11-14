@@ -211,6 +211,13 @@ def main():
                 assert sent_conditioning["reviewed_syllable_phonemes"] == [["s", "æ", "l", "ɒː", "m"]]
                 assert sent_conditioning["phoneme_duration_weights"] == [[1, 1, 1, 2, 1]]
                 assert sent_conditioning["manual_timing_windows"][0] == {"start_seconds": 0.05, "end_seconds": 0.42}
+                persisted_annotations = page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    const project = drafts.find(item => item.name === "Automated Audio QA");
+                    return project?.singerAlignment || null;
+                }""")
+                assert persisted_annotations["reviewedSyllablePhonemes"] == [["s", "æ", "l", "ɒː", "m"]]
+                assert persisted_annotations["phonemeDurationWeights"] == [[1, 1, 1, 2, 1]]
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
