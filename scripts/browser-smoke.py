@@ -696,10 +696,18 @@ def main():
                     instrument_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
+                # Re-establish a known melodic pattern after the chord and instrument render cases.
+                # The guide must load the active project's current notes, not assume an earlier mode's notes survived.
+                page.locator("#patternMode").select_option("keys")
+                page.locator("#patternNotes").fill("C3, D3, E3, F3, G3, A3, B3, C4")
+                page.locator("#patternNotes").dispatch_event("change")
+                prepared_pattern = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio")
+                assert prepared_pattern["mode"] == "keys" and prepared_pattern["notes"][0] == "C3", "The test melody was not saved to the active project."
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
-                assert "C3" in page.locator("#vocalGuideNotes").input_value()
+                loaded_guide_notes = page.locator("#vocalGuideNotes").input_value().split(",")
+                assert loaded_guide_notes[0].strip() == "C3", "Project melody notes were not loaded into the vocal guide: " + repr(loaded_guide_notes)
                 assert "melody notes loaded" in page.locator("#vocalGuideStatus").inner_text()
                 assert "Sing C3" in page.locator("#vocalGuideSteps").inner_text(), "Lyric rehearsal cards should show the pitch for each mapped step."
                 assert page.locator("#vocalGuideBacking").is_checked(), "Chord backing should be enabled by default."
