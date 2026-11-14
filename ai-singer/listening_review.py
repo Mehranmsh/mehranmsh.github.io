@@ -6,7 +6,6 @@ a reviewer page, and a separate answer key that must be kept from reviewers.
 from __future__ import annotations
 
 import argparse
-import html
 import json
 import secrets
 import shutil
@@ -181,14 +180,20 @@ def build_listening_review(
             b_source = item[item["mapping"]["B"]]
             a_name = secrets.token_hex(16) + ".wav"
             b_name = secrets.token_hex(16) + ".wav"
-            shutil.copyfile(a_source, media / a_name)
-            shutil.copyfile(b_source, media / b_name)
+            a_target = media / a_name
+            b_target = media / b_name
+            shutil.copyfile(a_source, a_target)
+            shutil.copyfile(b_source, b_target)
+            a_target.chmod(0o600)
+            b_target.chmod(0o600)
             reviewer_items.append({
                 "index": item["index"],
                 "a_src": "media/" + a_name,
                 "b_src": "media/" + b_name,
             })
-        (output / "review.html").write_text(_review_html(reviewer_items), encoding="utf-8")
+        review_path = output / "review.html"
+        review_path.write_text(_review_html(reviewer_items), encoding="utf-8")
+        review_path.chmod(0o600)
         key_path = output / "PRIVATE-answer-key.json"
         key_path.write_text(json.dumps(answer_key, ensure_ascii=False, indent=2), encoding="utf-8")
         key_path.chmod(0o600)
