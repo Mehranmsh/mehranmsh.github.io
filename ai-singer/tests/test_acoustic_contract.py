@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pytest
+import unittest
 from pydantic import ValidationError
 
 from acoustic_contract import validate_acoustic_conditioning
@@ -33,71 +33,64 @@ def valid_payload() -> dict:
     }
 
 
-def test_valid_persian_conditioning_contract():
-    result = validate_acoustic_conditioning(valid_payload())
-    assert result.language == "fa"
-    assert len(result.phonemes) == 3
-    assert len(result.notes) == 2
+class AcousticConditioningContractTests(unittest.TestCase):
+    def assert_invalid(self, payload, message=None):
+        with self.assertRaises(ValidationError) as error:
+            validate_acoustic_conditioning(payload)
+        if message:
+            self.assertIn(message, str(error.exception))
+
+    def test_valid_persian_conditioning_contract(self):
+        result = validate_acoustic_conditioning(valid_payload())
+        self.assertEqual(result.language, "fa")
+        self.assertEqual(len(result.phonemes), 3)
+        self.assertEqual(len(result.notes), 2)
+
+    def test_rejects_unknown_schema(self):
+        payload = valid_payload()
+        payload["schema_version"] = "other"
+        self.assert_invalid(payload)
+
+    def test_rejects_unsupported_language(self):
+        payload = valid_payload()
+        payload["language"] = "xx"
+        self.assert_invalid(payload)
+
+    def test_rejects_unsupported_sample_rate(self):
+        payload = valid_payload()
+        payload["sample_rate"] = 32000
+        self.assert_invalid(payload)
+
+    def test_rejects_overlapping_phonemes(self):
+        payload = valid_payload()
+        payload["phonemes"][1]["start_seconds"] = 0.1
+        self.assert_invalid(payload, "non-overlapping")
+
+    def test_rejects_out_of_order_notes(self):
+        payload = valid_payload()
+        payload["notes"][1]["start_seconds"] = 0.2
+        self.assert_invalid(payload, "ordered")
+
+    def test_rejects_timeline_overrun(self):
+        payload = valid_payload()
+        payload["notes"][1]["duration_seconds"] = 2
+        self.assert_invalid(payload, "exceeds")
+
+    def test_rejects_pitch_outside_midi_range(self):
+        payload = valid_payload()
+        payload["notes"][0]["midi_note"] = 128
+        self.assert_invalid(payload)
+
+    def test_rejects_unknown_fields(self):
+        payload = valid_payload()
+        payload["raw_checkpoint_path"] = "/tmp/model.pt"
+        self.assert_invalid(payload)
+
+    def test_rejects_invalid_vocal_style(self):
+        payload = valid_payload()
+        payload["style"]["breathiness"] = 1.5
+        self.assert_invalid(payload)
 
 
-def test_rejects_unknown_schema():
-    payload = valid_payload()
-    payload["schema_version"] = "other"
-    with pytest.raises(ValidationError):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_unsupported_language():
-    payload = valid_payload()
-    payload["language"] = "xx"
-    with pytest.raises(ValidationError):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_unsupported_sample_rate():
-    payload = valid_payload()
-    payload["sample_rate"] = 32000
-    with pytest.raises(ValidationError):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_overlapping_phonemes():
-    payload = valid_payload()
-    payload["phonemes"][1]["start_seconds"] = 0.1
-    with pytest.raises(ValidationError, match="non-overlapping"):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_out_of_order_notes():
-    payload = valid_payload()
-    payload["notes"][1]["start_seconds"] = 0.2
-    with pytest.raises(ValidationError, match="ordered"):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_timeline_overrun():
-    payload = valid_payload()
-    payload["notes"][1]["duration_seconds"] = 2
-    with pytest.raises(ValidationError, match="exceeds"):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_pitch_outside_midi_range():
-    payload = valid_payload()
-    payload["notes"][0]["midi_note"] = 128
-    with pytest.raises(ValidationError):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_unknown_fields():
-    payload = valid_payload()
-    payload["raw_checkpoint_path"] = "/tmp/model.pt"
-    with pytest.raises(ValidationError):
-        validate_acoustic_conditioning(payload)
-
-
-def test_rejects_invalid_vocal_style():
-    payload = valid_payload()
-    payload["style"]["breathiness"] = 1.5
-    with pytest.raises(ValidationError):
-        validate_acoustic_conditioning(payload)
+if __name__ == "__main__":
+    unittest.main()
