@@ -6,7 +6,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 import job_store
-from server import submit_job, read_job_status, stop_job
+from server import submit_job, read_job_status, stop_job, read_job_events
 
 
 def request_with_token(token=""):
@@ -55,6 +55,8 @@ class JobApiTests(unittest.TestCase):
         result = read_job_status(created["job_id"], request_with_token(created["access_token"]))
         self.assertEqual(result["job_id"], created["job_id"])
         self.assertFalse(result["audio_generated"])
+        history = read_job_events(created["job_id"], request_with_token(created["access_token"]))
+        self.assertEqual(history["events"][0]["detail_code"], "native_model_not_ready")
 
     def test_wrong_token_is_hidden_as_not_found(self):
         created = submit_job(valid_job())
