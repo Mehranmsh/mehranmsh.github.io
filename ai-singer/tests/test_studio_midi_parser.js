@@ -36,6 +36,6 @@ assert.equal(parsed.notes[0].note, "C4");
 assert.equal(parsed.notes[0].startSeconds, 0);
 assert.equal(parsed.notes[0].durationSeconds, 1.5);
 assert.equal(parsed.tempoMap.length, 2);
-assert.throws(() => parse(makeMidi([0,0xff,0x2f,0], 2)), /format 0 and 1/);
+assert.throws(() => parse(makeMidi([0,0xff,0x2f,0], 2)), /فرمت ۰ و ۱/);
 assert.throws(() => parse(makeMidi([0,0xff,0x2f,0], 0, 0xe728)), /SMPTE/);
 console.log("Studio MIDI parser: 6 assertions passed.");
