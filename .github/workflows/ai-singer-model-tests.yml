@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "ai-singer/model_architecture.py"
+      - "ai-singer/speaker_encoder.py"
+      - "ai-singer/tests/test_speaker_encoder.py"
       - "ai-singer/training_engine.py"
       - "ai-singer/train_model.py"
       - "ai-singer/training-requirements.txt"
@@ -39,6 +41,8 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install --index-url https://download.pytorch.org/whl/cpu -r training-requirements.txt
+      - name: Run reference speaker encoder tests
+        run: python -m unittest discover -s tests -p 'test_speaker_encoder.py' -v
       - name: Run neural architecture forward and gradient tests
         run: python -m unittest discover -s tests -p 'test_model_architecture.py' -v
       - name: Run masked training and checkpoint tests
