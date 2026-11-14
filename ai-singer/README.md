@@ -188,18 +188,20 @@ This module validates configuration only. It does not compute spectrograms, esti
 
 `model_architecture.py` defines the first experimental, frame-synchronous neural network for Persian singing. It combines learned Persian phoneme and MIDI-note embeddings with continuous pitch/voicing/energy conditioning, a Transformer encoder, temporal residual convolution blocks, and separate prediction heads for log-Mel, F0, voicing logits, and log-RMS. The output is an acoustic feature sequence, not a waveform.
 
+`speaker_encoder.py` adds a reference-audio encoder. The main acoustic network accepts a separate reference log-Mel sequence and mask, extracts a normalized speaker embedding, and conditions every output frame on that embedding. This is reference-audio conditioning, not a trained or production-validated voice-cloning model.
+
 The training dependency is intentionally separate from the public API image:
 
 ```bash
 pip install -r training-requirements.txt
 ```
 
-Create the network with `build_singing_model(SingingNetworkConfig())`. It is an untrained architecture definition. There is no optimizer loop, trained checkpoint, speaker identity encoder, vocoder, inference service, or WAV generation yet. The optional forward/gradient test runs when PyTorch is installed; architecture configuration tests run in the standard lightweight CI suite.
+Create the network with `build_singing_model(SingingNetworkConfig())`. It is an untrained architecture definition. The reference speaker encoder is now connected to the acoustic network, but there are no trained weights, vocoder, inference service, or WAV generation yet. The optional forward/gradient test runs when PyTorch is installed; architecture configuration tests run in the standard lightweight CI suite.
 
 
 ## Masked training, validation, and checkpoints
 
-`training_engine.py` adds the first optimizer-backed learning loop for the acoustic network. It provides masked multi-task losses for log-Mel reconstruction, voiced-frame log-F0 regression, voicing classification, and log-RMS prediction. Padding frames are excluded from every loss. It also provides one-epoch training, no-gradient validation, gradient clipping, and atomic checkpoint writes containing model/optimizer state plus versioned experiment metadata.
+`training_engine.py` adds the first optimizer-backed learning loop for the acoustic network and forwards padded reference-audio features through the speaker encoder. It provides masked multi-task losses for log-Mel reconstruction, voiced-frame log-F0 regression, voicing classification, and log-RMS prediction. Padding frames are excluded from every loss. It also provides one-epoch training, no-gradient validation, gradient clipping, and atomic checkpoint writes containing model/optimizer state plus versioned experiment metadata.
 
 Checkpoint loading uses PyTorch's restricted `weights_only=True` deserializer and checks the checkpoint schema. The dedicated neural CI installs the optional CPU PyTorch package and runs forward/gradient, training, validation, and checkpoint round-trip tests.
 
@@ -208,7 +210,7 @@ These are training primitives, not a completed trainer product. A real run still
 
 ## Local training command
 
-`train_model.py` connects the reviewed local dataset loader, deterministic length-aware sampler, batch collator, acoustic network, masked training loop, validation, and best/latest checkpoint writer. It requires both `train` and speaker-disjoint `validation` splits. The `test` split is deliberately not used for model selection.
+`train_model.py` connects the reviewed local dataset loader, deterministic length-aware sampler, batch collator, reference-audio speaker encoder, acoustic network, masked training loop, validation, and best/latest checkpoint writer. Every target recording must name a separate `speaker_reference_recording_id` from the same speaker and same split. Reference-only rows use `speaker_reference_only: true`; they must also have explicit consent and rights metadata, and must not be the target recording. Reference clips are loaded locally, cached during preprocessing, padded with an explicit frame mask, and never uploaded. It requires both `train` and speaker-disjoint `validation` splits. The `test` split is deliberately not used for model selection.
 
 Example command (run only after preparing your own reviewed dataset locally):
 
@@ -220,5 +222,5 @@ python train_model.py --manifest /path/to/manifest.jsonl --audio-root /path/to/a
 
 The command writes `latest.pt` and `best.pt` under the chosen output directory. Resume from a trusted local checkpoint with `--resume /path/to/latest.pt` and increase `--epochs` to the desired total epoch count. It prints per-epoch train/validation losses and never uploads recordings. The initial CLI uses the current 48 kHz, 256-hop, 100-bin acoustic configuration by default; adjust the three corresponding flags only when the dataset WAVs and model configuration are prepared consistently.
 
-This is now an executable training pipeline, but no training has been run because no consented local dataset has been supplied. A trained checkpoint, robust speaker identity control, objective listening evaluation, and waveform decoder/vocoder are still outstanding. It is not yet a singing-generation feature.
+This is now an executable, reference-conditioned training pipeline, but no training has been run because no consented local dataset has been supplied. A trained checkpoint, evaluation of voice similarity and singing quality, a waveform decoder/vocoder, inference service, and end-user generation workflow are still outstanding. It is not yet a singing-generation feature.
 
