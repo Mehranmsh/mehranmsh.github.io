@@ -12,6 +12,7 @@ class DatasetAuditTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self._wav("train.wav", 48000)
+        self._wav("train2.wav", 48000)
         self._wav("train-ref.wav", 48000)
         self._wav("valid.wav", 48000)
         self._wav("valid-ref.wav", 48000)
@@ -48,6 +49,7 @@ class DatasetAuditTests(unittest.TestCase):
     def dataset(self):
         return [
             self.record("tr-target", "train.wav", "train", "speaker-A", speaker_reference_recording_id="tr-ref"),
+            self.record("tr-target-2", "train2.wav", "train", "speaker-A", speaker_reference_recording_id="tr-ref"),
             self.record("tr-ref", "train-ref.wav", "train", "speaker-A", speaker_reference_only=True,
                         alignment_status="unreviewed", phoneme_alignment=None, notes=None),
             self.record("va-target", "valid.wav", "validation", "speaker-B",
@@ -60,11 +62,13 @@ class DatasetAuditTests(unittest.TestCase):
         report = audit_dataset(self.write(self.dataset()), expected_sample_rate=48000)
         self.assertTrue(report["valid"])
         self.assertTrue(report["training_readiness"]["ready_for_staged_training"])
-        self.assertEqual(report["splits"]["train"]["training_targets"], 1)
+        self.assertEqual(report["splits"]["train"]["training_targets"], 2)
         self.assertEqual(report["splits"]["train"]["speaker_reference_only"], 1)
         self.assertEqual(report["splits"]["validation"]["speaker_reference_pairs"], 1)
         self.assertEqual(report["training_readiness"]["blockers"], [])
         self.assertEqual(report["training_readiness"]["recommended_next_steps"], [])
+        self.assertTrue(report["training_readiness"]["dataset_readiness_only"])
+        self.assertFalse(report["training_readiness"]["training_can_start_from_audit_alone"])
         # A test split is for held-out evaluation, not a prerequisite for staged training.
         self.assertFalse(report["evaluation_readiness"]["held_out_test_split_available"])
         self.assertEqual(report["evaluation_readiness"]["test_target_recordings"], 0)
@@ -74,6 +78,15 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertNotIn("tr-target", serialized)
         self.assertNotIn("train.wav", serialized)
         self.assertNotIn("سلام", serialized)
+
+    def test_requires_two_training_targets_but_not_a_test_split(self):
+        records = self.dataset()
+        records = [item for item in records if item["recording_id"] != "tr-target-2"]
+        report = audit_dataset(self.write(records))
+        self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
+        self.assertTrue(any("at least two target recordings" in item
+                            for item in report["training_readiness"]["blockers"]))
+        self.assertFalse(report["evaluation_readiness"]["held_out_test_split_available"])
 
     def test_warns_when_reference_pairing_is_absent(self):
         records = self.dataset()
