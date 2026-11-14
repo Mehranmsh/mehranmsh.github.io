@@ -43,8 +43,12 @@ def audit_dataset(
     if isinstance(expected_sample_rate, bool) or not isinstance(expected_sample_rate, int) or expected_sample_rate <= 0:
         raise DatasetAuditError("expected_sample_rate must be a positive integer")
 
-    manifest = Path(manifest_path).resolve()
-    root = Path(dataset_root).resolve() if dataset_root else manifest.parent.resolve()
+    raw_manifest = Path(manifest_path).expanduser()
+    raw_root = Path(dataset_root).expanduser() if dataset_root else raw_manifest.parent
+    if raw_manifest.is_symlink() or raw_root.is_symlink():
+        raise DatasetAuditError("manifest and dataset root symlinks are not allowed")
+    manifest = raw_manifest.resolve()
+    root = raw_root.resolve()
     try:
         validation = validate_manifest(manifest, root)
     except ManifestError as exc:
