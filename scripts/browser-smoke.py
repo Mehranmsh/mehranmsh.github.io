@@ -35,6 +35,16 @@ def make_test_wav(path: Path):
         wav.writeframes(samples)
 
 
+def decode_pcm24(data: bytes):
+    samples = []
+    for offset in range(0, len(data) - 2, 3):
+        value = data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16)
+        if value & 0x800000:
+            value -= 1 << 24
+        samples.append(value)
+    return samples
+
+
 def main():
     handler = lambda *args, **kwargs: QuietHandler(*args, directory=str(ROOT), **kwargs)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -359,14 +369,18 @@ def main():
                 mix_sample_rate = 44100
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
+                    assert rendered_mix.getsampwidth() == 3, "Mix export must remain 24-bit PCM."
                     assert rendered_mix.getframerate() == mix_sample_rate
                     assert 3.88 * mix_sample_rate <= rendered_mix.getnframes() <= 3.89 * mix_sample_rate, "Mix duration did not include the 2.35 s calculated effect tail, 0.10 s trims, and 1.23 s timeline offset."
+                    frame_bytes = rendered_mix.getnchannels() * rendered_mix.getsampwidth()
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
-                    early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 4]
-                    early_mix = struct.unpack("<" + "h" * (len(early_mix_bytes) // 2), early_mix_bytes)
-                    assert max(map(abs, early_mix), default=0) < 100, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
-                    assert any(mix_pcm[int(1.30 * mix_sample_rate) * 4:int(1.45 * mix_sample_rate) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
+                    early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * frame_bytes]
+                    early_mix = decode_pcm24(early_mix_bytes)
+                    assert max(map(abs, early_mix), default=0) < 25600, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
+                    active_mix_bytes = mix_pcm[int(1.30 * mix_sample_rate) * frame_bytes:int(1.45 * mix_sample_rate) * frame_bytes]
+                    active_mix = decode_pcm24(active_mix_bytes)
+                    assert max(map(abs, active_mix), default=0) > 1024000, "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
@@ -375,14 +389,18 @@ def main():
                 assert stem_file.is_file() and stem_file.stat().st_size > 44
                 with wave.open(str(stem_file), "rb") as rendered_stem:
                     assert rendered_stem.getnchannels() == 2
+                    assert rendered_stem.getsampwidth() == 3, "Stem export must remain 24-bit PCM."
                     assert rendered_stem.getframerate() == 44100
-                    assert 2.29 * 44100 <= rendered_stem.getnframes() <= 2.31 * 44100, "Stem duration did not reflect the non-destructive trim range."
+                    assert 3.88 * 44100 <= rendered_stem.getnframes() <= 3.89 * 44100, "Stem duration did not preserve the 1.23 s timeline offset, 0.30 s retained audio, and 2.35 s effect tail."
+                    stem_frame_bytes = rendered_stem.getnchannels() * rendered_stem.getsampwidth()
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
-                    early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(0.04 * 44100) * 4]) // 2), stem_pcm[:int(0.04 * 44100) * 4])
-                    active_stem = struct.unpack("<" + "h" * (len(stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4]) // 2), stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4])
-                    assert max(map(abs, early_stem), default=0) < 2000, "Stem contains the source material before the configured trim point."
-                    assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trimming."
+                    early_stem_bytes = stem_pcm[:int(1.22 * 44100) * stem_frame_bytes]
+                    active_stem_bytes = stem_pcm[int(1.30 * 44100) * stem_frame_bytes:int(1.45 * 44100) * stem_frame_bytes]
+                    early_stem = decode_pcm24(early_stem_bytes)
+                    active_stem = decode_pcm24(active_stem_bytes)
+                    assert max(map(abs, early_stem), default=0) < 512000, "Stem contains source material before its configured timeline offset."
+                    assert max(map(abs, active_stem), default=0) > 1024000, "Stem omitted the expected retained vocal segment after its timeline offset."
 
                 # Render the same lead vocal with offline pitch correction enabled.
                 page.locator("#stemPitchCorrection").check()
