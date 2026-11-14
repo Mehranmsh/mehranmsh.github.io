@@ -340,8 +340,12 @@ def main():
                 page.wait_for_function("document.querySelector('[data-track-audio-player]')?.paused === true && Math.abs(document.querySelector('[data-track-audio-player]')?.currentTime - 0.10) < 0.04", timeout=5000)
 
                 # Exercise both offline render paths and verify actual downloadable WAV artifacts.
-                with page.expect_download(timeout=30000) as mix_download:
-                    page.locator("#renderWav").click()
+                try:
+                    with page.expect_download(timeout=30000) as mix_download:
+                        page.locator("#renderWav").click()
+                except Exception as error:
+                    mix_status = page.locator("#renderWavStatus").inner_text()
+                    raise AssertionError("Mix WAV export did not finish. Status: " + mix_status + ". Browser errors: " + " | ".join(errors)) from error
                 mix_file = Path(temp) / "mix.wav"
                 mix_download.value.save_as(str(mix_file))
                 assert mix_file.is_file() and mix_file.stat().st_size > 44
