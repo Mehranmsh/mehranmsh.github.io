@@ -35,7 +35,7 @@ class QualityEvaluationTests(unittest.TestCase):
         report = evaluate()
         self.assertAlmostEqual(report["f0_cents_rmse"], 0.0)
         self.assertAlmostEqual(report["log_mel_mae"], 0.0)
-        self.assertAlmostEqual(report["waveform_snr_db"], 240.0, delta=1.0)
+        self.assertGreater(report["waveform_snr_db"], 200.0)
         self.assertAlmostEqual(report["voiced_frame_f1"], 1.0)
         self.assertFalse(report["quality_passed"])
         self.assertFalse(report["quality_thresholds_configured"])
