@@ -18,7 +18,7 @@ class SynthesisOutputContractTests(unittest.TestCase):
             wav.setnchannels(1)
             wav.setsampwidth(2)
             wav.setframerate(48000)
-            wav.writeframes(b"\\x00\\x00" * 4800)
+            wav.writeframes(bytes([0, 0]) * 4800)
         self.payload = {
             "schema_version": "mehran.svs.output.v1",
             "project_id": "project-fa-01",
