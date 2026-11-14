@@ -225,6 +225,9 @@
     <p style="color:var(--muted);font-size:11px;line-height:1.8">مسیر تولید برای موتور خودمیزبان MEHRAN طراحی می‌شود؛ بدون اتصال به سرویس خوانندگی تجاری یا API شخص ثالث. فعلاً این بخش مشخصات اجرای آواز را از پروژه آماده می‌کند. تولید WAV تا زمان ساخت و استقرار مدل اختصاصی فعال نیست.</p>
     <div class="field"><label for="mehranSingerMidiFile">MELODY INPUT · فایل ملودی MIDI</label><input id="mehranSingerMidiFile" type="file" accept=".mid,.midi,audio/midi"><small style="color:var(--muted)">فایل MIDI در بستهٔ درخواست خروجی قرار می‌گیرد؛ حداکثر ۵ مگابایت.</small><p id="mehranSingerMidiStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin-top:6px">No MIDI selected</p></div>
     <div class="field"><label for="mehranSingerProfile">SINGER PROFILE · پروفایل خواننده</label><select id="mehranSingerProfile"><option value="">Use project lead profile</option></select></div>
+    <div class="field"><label for="mehranSingerApiBase">SELF-HOSTED ENGINE URL · آدرس موتور اختصاصی</label><input id="mehranSingerApiBase" type="url" inputmode="url" placeholder="https://your-mehran-engine.example" autocomplete="url" style="width:100%"><small style="color:var(--muted)">آدرس سرور خودمیزبان را پس از استقرار وارد کن. آدرس خالی یعنی هیچ درخواستی ارسال نمی‌شود.</small></div>
+    <div class="two"><button class="btn secondary" id="checkMehranSingerEngine" type="button">بررسی اتصال موتور</button><button class="btn secondary" id="runMehranSingerAlignment" type="button">تحلیل هم‌ترازی با موتور</button></div>
+    <p id="mehranSingerApiStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin-top:8px">موتور مستقر نشده یا هنوز آدرس آن تنظیم نشده است.</p>
     <div class="two"><button class="btn" id="prepareMehranSingerJob" type="button">Prepare self-hosted vocal job</button><button class="btn secondary" id="downloadMehranSingerSpec" type="button" disabled>Download job specification</button></div>
     <p id="mehranSingerEngineStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin-top:10px">Engine state: not deployed · No external service connected.</p>
     <textarea id="mehranSingerJobPreview" rows="6" readonly spellcheck="false" aria-label="Vocal job specification" placeholder="پس از آماده‌سازی مشخصات، جزئیات درخواست اینجا نمایش داده می‌شود." style="width:100%;margin-top:8px;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px;font:11px/1.6 monospace"></textarea>
@@ -538,6 +541,54 @@
   if(project.singerAlignment&&typeof project.singerAlignment==="object")job.project.lyricAlignment=project.singerAlignment;
   window.mehranSingerJobSpec=job;preview.value=JSON.stringify(job,null,2);download.disabled=false;
   status.textContent="مشخصات درخواست آماده شد. این فایل فقط ورودی استاندارد موتور داخلی را تعریف می‌کند؛ هنوز مدل خوانندگی مستقر نیست و هیچ WAV ساختگی تولید نمی‌شود.";
+ }
+
+ const MEHRAN_SINGER_API_KEY="mehran.svs.api.base.v1";
+ function getMehranSingerApiBase(){
+  const value=$("mehranSingerApiBase").value.trim().replace(/\/+$/,"");
+  if(!value)return "";
+  try{const url=new URL(value);if(url.protocol!=="https:"&&url.hostname!=="localhost"&&url.hostname!=="127.0.0.1")return "";return url.origin+url.pathname.replace(/\/+$/,"");}catch{return "";}
+ }
+ function loadMehranSingerApiBase(){
+  try{$("mehranSingerApiBase").value=localStorage.getItem(MEHRAN_SINGER_API_KEY)||"";}catch{}
+ }
+ function saveMehranSingerApiBase(){
+  const value=getMehranSingerApiBase();
+  if(!value){$("mehranSingerApiStatus").textContent="آدرس معتبر HTTPS برای موتور وارد کن. localhost فقط برای توسعه محلی مجاز است.";return "";}
+  try{localStorage.setItem(MEHRAN_SINGER_API_KEY,value);}catch{}
+  return value;
+ }
+ async function checkMehranSingerEngine(){
+  const base=saveMehranSingerApiBase(),status=$("mehranSingerApiStatus"),button=$("checkMehranSingerEngine");
+  if(!base)return;
+  button.disabled=true;status.textContent="در حال بررسی سلامت موتور خودمیزبان…";
+  try{
+   const response=await fetch(base+"/health",{method:"GET",headers:{Accept:"application/json"}});
+   const data=await response.json();
+   if(!response.ok)throw new Error("HTTP "+response.status);
+   status.textContent="اتصال برقرار است · "+(data.generation_ready?"مدل تولید آماده است":"API فعال است، اما تولید آواز هنوز آماده نیست")+" · "+(data.lyric_note_alignment_available?"هم‌ترازی فعال":"هم‌ترازی غیرفعال");
+   $("mehranSingerEngineStatus").textContent=status.textContent;
+  }catch(error){status.textContent="اتصال ناموفق: "+String(error.message||error).slice(0,180)+". استقرار سرور و تنظیم CORS را بررسی کن.";}
+  finally{button.disabled=false;}
+ }
+ async function runMehranSingerAlignment(){
+  const base=saveMehranSingerApiBase(),status=$("mehranSingerApiStatus"),button=$("runMehranSingerAlignment"),job=window.mehranSingerJobSpec;
+  if(!base)return;
+  if(!job){status.textContent="ابتدا درخواست خوانندگی را آماده کن تا شعر و ملودی پروژه در بسته قرار بگیرند.";return;}
+  const project=projects.find(item=>item.id===job.project.id);
+  const saved=project&&project.singerAlignment;
+  if(!saved||!Array.isArray(saved.syllables)||!Array.isArray(saved.noteGroups)){status.textContent="ابتدا هجاها و گروه نت‌ها را در پنل هم‌ترازی ذخیره کن.";return;}
+  const groups=saved.noteGroups;
+  button.disabled=true;status.textContent="در حال ارسال شعر و ملودی به موتور اختصاصی و تحلیل هم‌ترازی…";
+  try{
+   const response=await fetch(base+"/v1/jobs/align",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({job,manual_note_groups:groups})});
+   let data={};try{data=await response.json();}catch{}
+   if(!response.ok)throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data).slice(0,300));
+   status.textContent=(data.alignment_ready?"هم‌ترازی انسانی در موتور تأیید شد. ":"پیشنهاد هم‌ترازی دریافت شد و نیاز به بازبینی دارد. ")+data.syllable_count+" هجا · "+data.note_count+" نت · منبع: "+data.melody_source+". تولید WAV هنوز آماده نیست.";
+   $("mehranSingerAlignmentStatus").textContent=data.message||status.textContent;
+   $("mehranSingerJobPreview").value=JSON.stringify({job,alignment_analysis:data},null,2);
+  }catch(error){status.textContent="تحلیل انجام نشد: "+String(error.message||error).slice(0,260);}
+  finally{button.disabled=false;}
  }
  function downloadMehranSingerSpec(){
   const job=window.mehranSingerJobSpec;if(!job){$("mehranSingerEngineStatus").textContent="ابتدا درخواست را آماده کن.";return;}
@@ -1558,7 +1609,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
 
  $("addSinger").addEventListener("click",addSinger);
  $("mehranSingerMidiFile").addEventListener("change",event=>{const file=event.target.files&&event.target.files[0];mehranSingerMidiFile=file||null;$("mehranSingerMidiStatus").textContent=file?(file.name+" · "+(file.size/1024).toFixed(1)+" KB selected"):"No MIDI selected";$("downloadMehranSingerSpec").disabled=true;window.mehranSingerJobSpec=null;});
- $("prepareMehranSingerJob").addEventListener("click",prepareMehranSingerJob);$("downloadMehranSingerSpec").addEventListener("click",downloadMehranSingerSpec);$("vocalProject").addEventListener("change",refreshMehranSingerProfiles);$("vocalProject").addEventListener("change",refreshMehranSingerAlignment);$("proposeMehranSingerAlignment").addEventListener("click",proposeMehranSingerAlignment);$("saveMehranSingerAlignment").addEventListener("click",saveMehranSingerAlignment);$("mehranSingerSyllables").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات هجاها ذخیره نشده‌اند.";});$("mehranSingerNoteGroups").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات گروه نت‌ها ذخیره نشده‌اند.";});
+ $("prepareMehranSingerJob").addEventListener("click",prepareMehranSingerJob);$("downloadMehranSingerSpec").addEventListener("click",downloadMehranSingerSpec);$("vocalProject").addEventListener("change",refreshMehranSingerProfiles);$("checkMehranSingerEngine").addEventListener("click",()=>{void checkMehranSingerEngine();});$("runMehranSingerAlignment").addEventListener("click",()=>{void runMehranSingerAlignment();});$("mehranSingerApiBase").addEventListener("change",saveMehranSingerApiBase);loadMehranSingerApiBase();$("vocalProject").addEventListener("change",refreshMehranSingerAlignment);$("proposeMehranSingerAlignment").addEventListener("click",proposeMehranSingerAlignment);$("saveMehranSingerAlignment").addEventListener("click",saveMehranSingerAlignment);$("mehranSingerSyllables").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات هجاها ذخیره نشده‌اند.";});$("mehranSingerNoteGroups").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات گروه نت‌ها ذخیره نشده‌اند.";});
  $("vocalCast").addEventListener("click",e=>{const edit=e.target.closest("[data-edit-singer]");if(edit){editSinger(Number(edit.dataset.editSinger));return;}const remove=e.target.closest("[data-remove-singer]");if(remove)removeSinger(Number(remove.dataset.removeSinger));});
  $("cancelSingerEdit").addEventListener("click",cancelSingerEdit);
  window.addEventListener("beforeunload",e=>{if(lyricsAreDirty()){e.preventDefault();e.returnValue="";}});
