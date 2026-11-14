@@ -38,7 +38,7 @@ Open `/docs` for API documentation and `/health` for capability status.
 - `GET /health`: service and model readiness.
 - `POST /v1/jobs/validate`: validates a `mehran.svs.job.v1` job; does not synthesize.
 - `POST /v1/jobs/analyze`: parses an attached MIDI file and returns a tempo-aware note timeline; does not synthesize.
-- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.
+- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.\n- `POST /v1/model/conditioning/validate`: validates the versioned, model-neutral acoustic conditioning contract. It never loads a model or generates audio.
 
 Piano Roll timing currently assumes four subdivisions per beat and uses the project BPM. This convention is explicit so timing is not silently inferred from a variable grid.
 
