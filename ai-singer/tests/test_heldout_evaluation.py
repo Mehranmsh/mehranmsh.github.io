@@ -67,7 +67,7 @@ class HeldoutEvaluationTests(unittest.TestCase):
             schema_version="mehran.svs.acoustic-config.v1",
             config_id="test-persian",
             language="fa",
-            phoneme_inventory_version="test-inventory",
+            phoneme_inventory_version="mehran.fa.phonemes.v1",
             sample_rate=48000,
             n_fft=256,
             win_length=256,
