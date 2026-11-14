@@ -112,3 +112,8 @@ No training recordings or model weights are included in this repository. Do not 
 ## Human-directed phoneme timing
 
 Send `POST /v1/phonemes/timing` with a `syllables` array. Each item requires `start_seconds`, `end_seconds`, canonical `phonemes`, and one positive `duration_weights` value per phoneme. The API normalizes those weights within the supplied syllable window and returns ordered phoneme intervals. Syllable windows must be chronological and non-overlapping. The user supplies both the windows and relative durations; the API does not infer phoneme boundaries from audio, and every result remains review-required.
+
+
+## Preparing the model-neutral acoustic input
+
+`POST /v1/model/conditioning/prepare` accepts a reviewed `mehran.phoneme-timing-plan.v1`, note events, project ID, and duration. It validates the timing and canonical Persian phonemes, then maps each phoneme to every note whose time interval overlaps it. This mapping is explicitly based on user-supplied intervals, not audio analysis or forced alignment. The response includes the complete `mehran.svs.conditioning.v1` payload and a review-required phoneme-to-note mapping. It does not load model weights, accept the job for inference, or generate audio.
