@@ -110,6 +110,12 @@ def apply_review_queue(
             record = known[recording_id]
             if any(row.get(field, "") != str(record.get(field, "")) for field in IMMUTABLE_FIELDS):
                 raise ReviewApplyError("review queue metadata does not match the current manifest")
+            snapshot_flags = {
+                "has_phoneme_alignment": bool(record.get("phoneme_alignment")),
+                "has_midi_notes": bool(record.get("notes")),
+            }
+            if any(row.get(field) != str(expected) for field, expected in snapshot_flags.items()):
+                raise ReviewApplyError("review queue annotation snapshot does not match the current manifest")
             if row["review_decision"].strip().lower() != "approved":
                 pending += 1
                 continue
