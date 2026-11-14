@@ -190,7 +190,7 @@ def main():
                         status=200,
                         content_type="application/json",
                         body=__import__("json").dumps({
-                            "conditioning": {"phonemes": [{} for _ in range(5)], "notes": [{}]},
+                            "conditioning": {"schema_version": "mehran.svs.conditioning.v1", "phonemes": [{} for _ in range(5)], "notes": [{}]},
                             "message": "Conditioning prepared for review.",
                             "generation_ready": False,
                             "accepted_for_inference": False,
