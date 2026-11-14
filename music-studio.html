@@ -937,36 +937,35 @@ async function renderPatternAudioChunk(pat,startBar=0){if(typeof bargardDebugLog
  async function renderPatternAudio(pat){
  const totalBars=Math.max(1,Math.min(68,Number(pat.bars)||4));
  if(!((pat.mode==="chords"||pat.mode==="choir")&&totalBars>16))return await renderPatternAudioChunk(pat,0);
- const bpm=Math.max(40,Math.min(220,Number(pat.tempo)||96)),rate=44100,beat=60/bpm,tailFrames=Math.ceil(.4*rate),chunkBars=8,overlap=Math.max(1,Math.floor(rate*.02)),chunkCount=Math.ceil(totalBars/chunkBars),maxFrames=Math.ceil(totalBars*4*beat*rate)+tailFrames+chunkCount,output=new ArrayBuffer(44+maxFrames*4),view=new DataView(output),sampleStatuses=[];
+ const bpm=Math.max(40,Math.min(220,Number(pat.tempo)||96)),rate=44100,beat=60/bpm,barSeconds=4*beat,tailFrames=Math.ceil(.4*rate),chunkBars=8,overlap=Math.max(1,Math.floor(rate*.02)),chunkCount=Math.ceil(totalBars/chunkBars),maxFrames=Math.ceil(totalBars*barSeconds*rate)+tailFrames+1,output=new ArrayBuffer(44+maxFrames*4),view=new DataView(output),sampleStatuses=[];
  const put=(at,value)=>{view.setInt16(at,Math.max(-32768,Math.min(32767,value)),true);};
  const pcm=value=>Math.round(Math.tanh(Math.max(-8,Math.min(8,value))*.9)*32767);
  let offset=0,carryChordVoicing=Array.isArray(pat.initialChordVoicing)?pat.initialChordVoicing.slice():null;
- if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_BEGIN",`${totalBars} bars in ${chunkCount} chunks; ${chunkBars} bars each; direct 16-bit WAV assembly; bounded memory`);
+ if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_BEGIN",`${totalBars} bars in ${chunkCount} chunks; ${chunkBars} bars each; one-bar preroll preserves note and effect tails`);
  for(let startBar=0;startBar<totalBars;startBar+=chunkBars){
-  const count=Math.min(chunkBars,totalBars-startBar),chunkPat={...pat,bars:count,totalBars,chunked:true,initialChordVoicing:pat.mode==="chords"?carryChordVoicing:null};
-  if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_START",`bars ${startBar+1}-${startBar+count} of ${totalBars}`);
-  let rendered=await renderPatternAudioChunk(chunkPat,startBar);if(pat.mode==="chords"&&Array.isArray(chunkPat.finalChordVoicing))carryChordVoicing=chunkPat.finalChordVoicing.slice();sampleStatuses.push(chunkPat.sampleEngineStatus||"unknown sample status");
-  const keep=Math.min(rendered.length,Math.ceil(count*4*beat*rate)+(startBar+count===totalBars?tailFrames:0));
-  const left=rendered.getChannelData(0),right=rendered.getChannelData(1);
-  if(startBar===0){
-   for(let i=0;i<keep;i++){const at=44+i*4;put(at,pcm(left[i])*1);put(at+2,pcm(right[i]));}
+  const count=Math.min(chunkBars,totalBars-startBar),hasPreroll=startBar>0,prerollFrames=hasPreroll?Math.ceil(barSeconds*rate):0,chunkStartFrame=Math.ceil(startBar*barSeconds*rate),chunkEndFrame=Math.ceil((startBar+count)*barSeconds*rate),mainFrames=chunkEndFrame-chunkStartFrame,chunkPat={...pat,bars:count+(hasPreroll?1:0),totalBars,chunked:true,initialChordVoicing:pat.mode==="chords"?carryChordVoicing:null};
+  if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_START",`bars ${startBar+1}-${startBar+count} of ${totalBars}${hasPreroll?" with one-bar preroll":""}`);
+  let rendered=await renderPatternAudioChunk(chunkPat,startBar-(hasPreroll?1:0));if(pat.mode==="chords"&&Array.isArray(chunkPat.finalChordVoicing))carryChordVoicing=chunkPat.finalChordVoicing.slice();sampleStatuses.push(chunkPat.sampleEngineStatus||"unknown sample status");
+  const left=rendered.getChannelData(0),right=rendered.getChannelData(1),sourceOffset=prerollFrames,keep=Math.min(rendered.length-sourceOffset,mainFrames+(startBar+count===totalBars?tailFrames:0));
+  if(!hasPreroll){
+   for(let i=0;i<keep;i++){const at=44+i*4;put(at,pcm(left[i]));put(at+2,pcm(right[i]));}
    offset=keep;
   }else{
-   const fade=Math.min(overlap,keep,offset);
+   const fade=Math.min(overlap,keep,offset),sourceStart=sourceOffset-fade;
    for(let i=0;i<fade;i++){
     const t=(i+1)/(fade+1),frame=offset-fade+i,at=44+frame*4,oldL=view.getInt16(at,true),oldR=view.getInt16(at+2,true);
-    put(at,Math.round(oldL*(1-t)+pcm(left[i])*t));put(at+2,Math.round(oldR*(1-t)+pcm(right[i])*t));
+    put(at,Math.round(oldL*(1-t)+pcm(left[sourceStart+i])*t));put(at+2,Math.round(oldR*(1-t)+pcm(right[sourceStart+i])*t));
    }
-   for(let i=fade;i<keep;i++){const at=44+(offset+i-fade)*4;put(at,pcm(left[i]));put(at+2,pcm(right[i]));}
-   offset+=keep-fade;
+   for(let i=0;i<keep;i++){const at=44+(offset+i)*4;put(at,pcm(left[sourceOffset+i]));put(at+2,pcm(right[sourceOffset+i]));}
+   offset+=keep;
   }
   rendered=null;
-  if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_DONE",`bars ${startBar+1}-${startBar+count}; ${keep} frames; mergedOffset=${offset}; WAV bytes in place`);
+  if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_DONE",`bars ${startBar+1}-${startBar+count}; ${keep} frames; preroll=${prerollFrames}; mergedOffset=${offset}; tails retained`);
   await new Promise(resolve=>setTimeout(resolve,0));
  }
  const writeText=(at,value)=>{for(let i=0;i<value.length;i++)view.setUint8(at+i,value.charCodeAt(i));};
  const dataBytes=offset*4;writeText(0,"RIFF");view.setUint32(4,36+dataBytes,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,2,true);view.setUint32(24,rate,true);view.setUint32(28,rate*4,true);view.setUint16(32,4,true);view.setUint16(34,16,true);writeText(36,"data");view.setUint32(40,dataBytes,true);
- if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_COMPLETE",`${chunkCount} chunks assembled directly into 16-bit WAV; ${offset} frames; ${(offset/rate).toFixed(2)}s; ${dataBytes} PCM bytes`);
+ if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_COMPLETE",`${chunkCount} chunks assembled with preroll tail continuity; ${offset} frames; ${(offset/rate).toFixed(2)}s; ${dataBytes} PCM bytes`);
  pat.sampleEngineStatus=[...new Set(sampleStatuses)].join(" / ");if(typeof bargardDebugLog==="function")bargardDebugLog("SAMPLE_ENGINE_SUMMARY",pat.sampleEngineStatus);
  return new Blob([output.slice(0,44+dataBytes)],{type:"audio/wav"});
 }
