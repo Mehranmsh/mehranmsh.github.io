@@ -1015,10 +1015,14 @@
   const channels=2,sampleRate=audioBuffer.sampleRate,frames=audioBuffer.length,source=[audioBuffer.getChannelData(0),audioBuffer.numberOfChannels>1?audioBuffer.getChannelData(1):audioBuffer.getChannelData(0)],dataBytes=frames*channels*3,totalBytes=44+dataBytes;assertPcmWavDimensions(totalBytes,sampleRate,channels,24);assertFinitePcmChannels(source,frames);const buffer=new ArrayBuffer(totalBytes),view=new DataView(buffer);
   const writeText=(offset,value)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i));};
   writeText(0,"RIFF");view.setUint32(4,36+dataBytes,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*channels*3,true);view.setUint16(32,channels*3,true);view.setUint16(34,24,true);writeText(36,"data");view.setUint32(40,dataBytes,true);
-  const dc=[0,0];
-  for(let c=0;c<channels;c++){for(let i=0;i<frames;i++)dc[c]+=source[c][i];dc[c]/=Math.max(1,frames);}
+  // Estimate DC only across the rendered signal window. Subtracting a whole-file
+  // mean from leading/trailing digital silence creates an audible pre-roll offset.
+  let activeStart=frames,activeEnd=-1;
+  for(let i=0;i<frames;i++)if(Math.abs(source[0][i])>1e-7||Math.abs(source[1][i])>1e-7){if(activeStart===frames)activeStart=i;activeEnd=i;}
+  const dc=[0,0],activeFrames=activeEnd>=activeStart?activeEnd-activeStart+1:0;
+  if(activeFrames)for(let c=0;c<channels;c++){for(let i=activeStart;i<=activeEnd;i++)dc[c]+=source[c][i];dc[c]/=activeFrames;}
   const corrected=[new Float32Array(frames),new Float32Array(frames)];let samplePeak=0,interpolatedPeak=0,sumSquares=0,preTrimClippedSamples=0,quantizedRailHits=0,quantizedSamplePeak=0;
-  for(let c=0;c<channels;c++)for(let i=0;i<frames;i++){const x=source[c][i]-dc[c];corrected[c][i]=x;samplePeak=Math.max(samplePeak,Math.abs(x));if(Math.abs(x)>=1)preTrimClippedSamples++;sumSquares+=x*x;}
+  for(let c=0;c<channels;c++)for(let i=0;i<frames;i++){const x=activeFrames&&i>=activeStart&&i<=activeEnd?source[c][i]-dc[c]:source[c][i];corrected[c][i]=x;samplePeak=Math.max(samplePeak,Math.abs(x));if(Math.abs(x)>=1)preTrimClippedSamples++;sumSquares+=x*x;}
   // Eight-times oversampling with a 48-tap Blackman-windowed sinc interpolator for inter-sample peak estimation.
   const tpOffsets=Array.from({length:48},(_,k)=>k-23),tpFilters=[];
   for(let phase=1;phase<8;phase++){const frac=phase/8,weights=tpOffsets.map(k=>{const d=frac-k,z=d/24;if(Math.abs(z)>1)return 0;const window=.42+.5*Math.cos(Math.PI*z)+.08*Math.cos(2*Math.PI*z);return (Math.abs(d)<1e-12?1:Math.sin(Math.PI*d)/(Math.PI*d))*window;}),norm=weights.reduce((a,b)=>a+b,0);tpFilters.push(weights.map(w=>w/norm));}
