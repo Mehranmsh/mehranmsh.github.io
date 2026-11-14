@@ -182,6 +182,36 @@ def main():
                 assert "تو رفتی و هنوز دلم به یاد توئه" in page.locator("#lyricsEditor").input_value()
                 assert page.locator("#lyricFlowPanel").is_visible()
                 page.locator("#saveLyrics").click()
+                # Exercise the actual studio-to-conditioning request with a mocked self-hosted API.
+                conditioning_requests = []
+                def mock_conditioning(route):
+                    conditioning_requests.append(route.request.post_data_json)
+                    route.fulfill(
+                        status=200,
+                        content_type="application/json",
+                        body=__import__("json").dumps({
+                            "conditioning": {"phonemes": [{} for _ in range(5)], "notes": [{}]},
+                            "message": "Conditioning prepared for review.",
+                            "generation_ready": False,
+                            "accepted_for_inference": False,
+                        }),
+                    )
+                page.route("https://engine.test/v1/jobs/conditioning/prepare", mock_conditioning)
+                page.locator('[data-view="vocals"]').first.click()
+                page.locator("#vocalProject").select_option(label="Automated Audio QA")
+                page.locator("#mehranSingerApiBase").fill("https://engine.test")
+                page.locator("#mehranSingerApiBase").dispatch_event("change")
+                page.locator("#mehranSingerReviewedSyllablePhonemes").fill("s,æ,l,ɒː,m")
+                page.locator("#mehranSingerPhonemeWeights").fill("1,1,1,2,1")
+                page.locator("#prepareMehranSingerConditioning").click()
+                page.wait_for_function("document.querySelector('#mehranSingerApiStatus')?.textContent.includes('ورودی مدل آکوستیکی آماده شد')", timeout=10000)
+                assert len(conditioning_requests) == 1, "Studio did not send one conditioning request."
+                sent_conditioning = conditioning_requests[0]
+                assert sent_conditioning["reviewed_syllables"] == ["سَلام"]
+                assert sent_conditioning["reviewed_syllable_phonemes"] == [["s", "æ", "l", "ɒː", "m"]]
+                assert sent_conditioning["phoneme_duration_weights"] == [[1, 1, 1, 2, 1]]
+                assert sent_conditioning["manual_timing_windows"][0] == {"start_seconds": 0.05, "end_seconds": 0.42}
+                page.locator('[data-view="lyrics"]').click()
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
                 page.locator("#vocalGuideTempo").fill("96")
