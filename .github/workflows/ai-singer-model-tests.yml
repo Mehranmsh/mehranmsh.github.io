@@ -10,6 +10,8 @@ on:
       - "ai-singer/waveform_training_engine.py"
       - "ai-singer/train_waveform_decoder.py"
       - "ai-singer/singing_pipeline.py"
+      - "ai-singer/waveform_output.py"
+      - "ai-singer/tests/test_waveform_output.py"
       - "ai-singer/tests/test_singing_pipeline.py"
       - "ai-singer/tests/test_train_waveform_decoder.py"
       - "ai-singer/tests/test_waveform_training_engine.py"
@@ -67,6 +69,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_train_waveform_decoder.py' -v
       - name: Run end-to-end singing pipeline tests
         run: python -m unittest discover -s tests -p 'test_singing_pipeline.py' -v
+      - name: Run verified waveform output tests
+        run: python -m unittest discover -s tests -p 'test_waveform_output.py' -v
       - name: Run neural architecture forward and gradient tests
         run: python -m unittest discover -s tests -p 'test_model_architecture.py' -v
       - name: Run masked training and checkpoint tests
