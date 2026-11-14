@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "ai-singer/model_architecture.py"
+      - "ai-singer/waveform_decoder.py"
+      - "ai-singer/tests/test_waveform_decoder.py"
       - "ai-singer/speaker_encoder.py"
       - "ai-singer/speaker_reference.py"
       - "ai-singer/tests/test_speaker_reference.py"
@@ -47,6 +49,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_speaker_reference.py' -v
       - name: Run reference speaker encoder tests
         run: python -m unittest discover -s tests -p 'test_speaker_encoder.py' -v
+      - name: Run neural waveform decoder tests
+        run: python -m unittest discover -s tests -p 'test_waveform_decoder.py' -v
       - name: Run neural architecture forward and gradient tests
         run: python -m unittest discover -s tests -p 'test_model_architecture.py' -v
       - name: Run masked training and checkpoint tests
