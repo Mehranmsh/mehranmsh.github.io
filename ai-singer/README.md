@@ -337,3 +337,16 @@ summary = summarize_quality_reports(per_recording_reports)
 ```
 
 This aggregation utility does not load audio, run inference, train weights, or approve a model.
+
+
+## Held-out local inference evaluation
+
+`heldout_evaluation.py` is the local evaluation entry point for a verified joint model bundle. It verifies the bundle hash and model contract, loads only the manifest's `test` split, requires separate same-speaker references, and synthesizes each held-out target using its reviewed Persian phoneme/MIDI conditioning. Generated audio is analyzed in memory and compared with the held-out reference. The printed report contains aggregate metrics only; it does not include recording IDs, speaker IDs, transcripts, or paths, and it does not upload audio.
+
+Run locally after a genuinely trained and verified bundle exists:
+
+```bash
+python heldout_evaluation.py /local/dataset/manifest.jsonl /local/model-bundle --audio-root /local/dataset
+```
+
+This first evaluation protocol uses ground-truth phoneme and MIDI conditioning. It measures voice rendering under reviewed symbolic input, not automatic lyric transcription or score-following. A successful run still does not set `quality_passed` or `production_approved`; calibrated thresholds and human listening review are required.
