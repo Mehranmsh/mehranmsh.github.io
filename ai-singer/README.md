@@ -44,7 +44,7 @@ Piano Roll timing currently assumes four subdivisions per beat and uses the proj
 
 ## Browser deployment
 
-A Dockerfile is provided for self-hosted deployment. Set `MEHRAN_SVS_ALLOWED_ORIGINS` to the exact HTTPS origin(s) serving the studio, separated by commas. CORS is not authentication; do not expose this early-stage analysis API to untrusted traffic without adding an access-control layer and request throttling. Set the platform's `PORT` variable when required.
+A Dockerfile is provided for self-hosted deployment. Set `MEHRAN_SVS_ALLOWED_ORIGINS` to the exact HTTPS origin(s) serving the studio, separated by commas. CORS is not authentication. The API enforces an 8 MiB request Content-Length ceiling, no-store/security headers, and in-memory per-process rate limits (10 alignment, 20 MIDI analysis, 30 validation/lyrics requests per IP per minute). These limits are best-effort and reset on restart; production multi-instance deployments still need edge-level rate limiting and an access-control strategy appropriate for public users. Set the platform's `PORT` variable when required.
 
 ## MIDI parser limits
 
