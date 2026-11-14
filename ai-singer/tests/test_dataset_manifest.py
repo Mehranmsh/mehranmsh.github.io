@@ -89,6 +89,36 @@ class DatasetManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "ordered, non-overlapping"):
             validate_manifest(self.write_manifest([record]))
 
+    def test_reviewed_alignment_requires_monophonic_notes(self):
+        record = self.record(
+            alignment_status="reviewed",
+            phoneme_alignment=[{"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.1}],
+        )
+        with self.assertRaisesRegex(ManifestError, "requires monophonic notes"):
+            validate_manifest(self.write_manifest([record]))
+
+    def test_rejects_midi_pitch_outside_range(self):
+        record = self.record(notes=[{
+            "midi_note": 128, "start_seconds": 0.0, "duration_seconds": 0.1,
+        }])
+        with self.assertRaisesRegex(ManifestError, "valid pitch/velocity"):
+            validate_manifest(self.write_manifest([record]))
+
+    def test_rejects_overlapping_monophonic_midi_notes(self):
+        record = self.record(notes=[
+            {"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.08},
+            {"midi_note": 64, "start_seconds": 0.05, "duration_seconds": 0.05},
+        ])
+        with self.assertRaisesRegex(ManifestError, "non-overlapping timing"):
+            validate_manifest(self.write_manifest([record]))
+
+    def test_rejects_midi_note_past_audio_end(self):
+        record = self.record(notes=[{
+            "midi_note": 60, "start_seconds": 0.05, "duration_seconds": 0.1,
+        }])
+        with self.assertRaisesRegex(ManifestError, "fit the audio"):
+            validate_manifest(self.write_manifest([record]))
+
     def test_rejects_header_metadata_mismatch(self):
         with self.assertRaisesRegex(ManifestError, "does not match WAV header"):
             validate_manifest(self.write_manifest([self.record(sample_rate=48000)]))
