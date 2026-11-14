@@ -4,7 +4,7 @@ This validates model inputs only. It does not load weights or synthesize audio.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator\nfrom phoneme_inventory import validate_phoneme_sequence
 
 
 class PhonemeSpan(BaseModel):
