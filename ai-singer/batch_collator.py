@@ -22,6 +22,7 @@ class TrainingExample:
     acoustic: AcousticFeatures
     tokens: FrameTokenSequence
     pitch_targets: PitchTargets
+    speaker_reference_log_mel: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
