@@ -79,7 +79,10 @@ class SingingInferenceRuntime:
         manifest_path = root / JOINT_BUNDLE_MANIFEST
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         acoustic_config = SingingNetworkConfig(**manifest["acoustic_model_config"]).validate()
-        decoder_config = WaveformDecoderConfig(**manifest["waveform_decoder_config"]).validate()
+        decoder_payload = dict(manifest["waveform_decoder_config"])
+        decoder_payload["upsample_factors"] = tuple(decoder_payload["upsample_factors"])
+        decoder_payload["residual_dilations"] = tuple(decoder_payload["residual_dilations"])
+        decoder_config = WaveformDecoderConfig(**decoder_payload).validate()
         runtime = cls.from_checkpoint(
             verification["checkpoint_path"],
             acoustic_config=acoustic_config,
