@@ -183,3 +183,16 @@ This module validates configuration only. It does not compute spectrograms, esti
 
 `batch_sampler.py` creates reproducible, length-aware index batches from loaded `TrainingExample` objects. It shuffles with an explicit seed and epoch, groups similar frame lengths to reduce padding, and optionally drops only the final incomplete batch. The sampler is framework-neutral and does not update model parameters or train a network. Dataset speaker separation remains enforced by the manifest validator before loading.
 
+
+## First trainable Persian acoustic network
+
+`model_architecture.py` defines the first experimental, frame-synchronous neural network for Persian singing. It combines learned Persian phoneme and MIDI-note embeddings with continuous pitch/voicing/energy conditioning, a Transformer encoder, temporal residual convolution blocks, and separate prediction heads for log-Mel, F0, voicing logits, and log-RMS. The output is an acoustic feature sequence, not a waveform.
+
+The training dependency is intentionally separate from the public API image:
+
+```bash
+pip install -r training-requirements.txt
+```
+
+Create the network with `build_singing_model(SingingNetworkConfig())`. It is an untrained architecture definition. There is no optimizer loop, trained checkpoint, speaker identity encoder, vocoder, inference service, or WAV generation yet. The optional forward/gradient test runs when PyTorch is installed; architecture configuration tests run in the standard lightweight CI suite.
+
