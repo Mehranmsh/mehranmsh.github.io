@@ -56,7 +56,7 @@ def _batch_tensors(batch: TrainingBatch, device):
     torch, _ = _torch()
     def tensor(value, dtype):
         return torch.as_tensor(np.asarray(value), dtype=dtype, device=device)
-    return {
+    result = {
         "phoneme_ids": tensor(batch.phoneme_ids, torch.long),
         "note_ids": tensor(batch.note_ids, torch.long),
         "conditioning_f0_hz": tensor(batch.conditioning_f0_hz, torch.float32),
@@ -68,6 +68,14 @@ def _batch_tensors(batch: TrainingBatch, device):
         "target_voicing_mask": tensor(batch.target_voicing_mask, torch.float32),
         "target_log_rms": tensor(batch.target_log_rms, torch.float32),
     }
+    if batch.speaker_reference_log_mel is not None:
+        if batch.speaker_reference_frame_mask is None:
+            raise ValueError("speaker reference frame mask is required with reference features")
+        result["speaker_reference_log_mel"] = tensor(batch.speaker_reference_log_mel, torch.float32)
+        result["speaker_reference_frame_mask"] = tensor(batch.speaker_reference_frame_mask, torch.bool)
+    elif batch.speaker_reference_frame_mask is not None:
+        raise ValueError("speaker reference features are required with a frame mask")
+    return result
 
 
 def _masked_mean(values, mask):
@@ -129,6 +137,8 @@ def _forward(model, tensors):
         tensors["conditioning_voicing_mask"],
         tensors["conditioning_energy"],
         tensors["valid_frame_mask"],
+        tensors.get("speaker_reference_log_mel"),
+        tensors.get("speaker_reference_frame_mask"),
     )
 
 
