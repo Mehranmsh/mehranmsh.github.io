@@ -81,28 +81,6 @@ def run_training(args) -> dict:
         raise ValueError("a speaker-disjoint validation split is required")
 
     pipeline = build_singing_pipeline(acoustic_config, decoder_config).to(device)
-    if args.resume:
-        # Optimizer is created below; weights are loaded first.
-        metadata = load_checkpoint(
-            args.resume, pipeline,
-            expected_acoustic_config=acoustic_config,
-            expected_decoder_config=decoder_config,
-            map_location=device,
-        )
-        start_epoch = int(metadata["epoch"]) + 1
-        best_validation_loss = float(metadata["metrics"].get("validation_loss", float("inf")))
-    else:
-        load_acoustic_checkpoint(
-            args.acoustic_checkpoint, pipeline.acoustic_model,
-            expected_model_config=acoustic_config, map_location=device,
-        )
-        load_waveform_checkpoint(
-            args.waveform_checkpoint, pipeline.waveform_decoder,
-            expected_decoder_config=decoder_config, map_location=device,
-        )
-        start_epoch = 0
-        best_validation_loss = float("inf")
-
     acoustic_training = TrainingConfig(
         learning_rate=args.acoustic_learning_rate, seed=args.seed
     ).validate()
@@ -124,6 +102,26 @@ def run_training(args) -> dict:
         ],
         weight_decay=args.weight_decay,
     )
+    if args.resume:
+        metadata = load_checkpoint(
+            args.resume, pipeline, optimizer,
+            expected_acoustic_config=acoustic_config,
+            expected_decoder_config=decoder_config,
+            map_location=device,
+        )
+        start_epoch = int(metadata["epoch"]) + 1
+        best_validation_loss = float(metadata["metrics"].get("validation_loss", float("inf")))
+    else:
+        load_acoustic_checkpoint(
+            args.acoustic_checkpoint, pipeline.acoustic_model,
+            expected_model_config=acoustic_config, map_location=device,
+        )
+        load_waveform_checkpoint(
+            args.waveform_checkpoint, pipeline.waveform_decoder,
+            expected_decoder_config=decoder_config, map_location=device,
+        )
+        start_epoch = 0
+        best_validation_loss = float("inf")
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     latest_path = output_dir / "pipeline-latest.pt"
