@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import base64
 import os
+import time
+from collections import deque
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
@@ -35,7 +38,61 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
+
+RATE_WINDOW_SECONDS = 60.0
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+RATE_LIMITS = {
+    "/v1/jobs/align": 10,
+    "/v1/jobs/analyze": 20,
+    "/v1/jobs/validate": 30,
+    "/v1/lyrics/analyze": 30,
+}
+_request_times: dict[tuple[str, str], deque[float]] = {}
+
+
+def _allow_request(client_ip: str, path: str, now: float) -> bool:
+    limit = RATE_LIMITS.get(path)
+    if limit is None:
+        return True
+    key = (client_ip, path)
+    recent = _request_times.setdefault(key, deque())
+    while recent and recent[0] <= now - RATE_WINDOW_SECONDS:
+        recent.popleft()
+    if len(recent) >= limit:
+        return False
+    recent.append(now)
+    return True
+
+
 MODEL_READY = os.getenv("MEHRAN_SVS_MODEL_READY", "false").lower() == "true"
+
+
+
+@app.middleware("http")
+async def enforce_api_limits(request: Request, call_next):
+    if request.method == "POST" and request.url.path in RATE_LIMITS:
+        raw_length = request.headers.get("content-length")
+        if raw_length:
+            try:
+                if int(raw_length) > MAX_REQUEST_BYTES:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"detail": "Request body exceeds the 8 MiB limit."},
+                    )
+            except ValueError:
+                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
+        client_ip = request.client.host if request.client else "unknown"
+        if not _allow_request(client_ip, request.url.path, time.monotonic()):
+            return JSONResponse(
+                status_code=429,
+                headers={"Retry-After": str(int(RATE_WINDOW_SECONDS))},
+                content={"detail": "Request rate limit reached. Try again in one minute."},
+            )
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
 
 
 @app.get("/health")
