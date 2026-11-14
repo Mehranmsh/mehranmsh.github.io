@@ -243,3 +243,8 @@ This closes the paired-data and collation contract only. It does not yet train t
 ## Masked waveform reconstruction objectives
 
 `waveform_losses.py` implements normalized-sample L1 reconstruction plus multi-resolution STFT spectral-convergence and log-magnitude losses. Its sample mask excludes invalid waveform tails from time-domain loss, and a spectral frame contributes only when its full analysis window contains valid samples. The loss function is a tested training primitive, not yet wired into a decoder optimizer or training command. It must be validated on real held-out Persian singing recordings before its weights or STFT resolutions are treated as production choices.
+
+
+## Teacher-forced waveform decoder training engine
+
+`waveform_training_engine.py` now connects the reference-conditioned waveform decoder to the masked L1 and multi-resolution STFT objectives. It provides one-epoch optimization, no-gradient validation, gradient clipping, and atomic checkpoint save/load using PyTorch's restricted `weights_only=True` loader and a decoder-configuration gate. This first stage is teacher-forced: it conditions the decoder on ground-truth acoustic features from the paired target recording. It is not yet a complete singer training pipeline because the acoustic model's predicted features have not been integrated, the predicted-feature distribution gap has not been measured, and no training has been run on real consented data.
