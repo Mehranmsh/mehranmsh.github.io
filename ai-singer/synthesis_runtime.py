@@ -21,7 +21,7 @@ MAX_AUDIO_BYTES = 500 * 1024 * 1024
 class SynthesisOutput(BaseModel):
     """Metadata emitted by a future native runtime after writing its WAV stem."""
     model_config = ConfigDict(extra="forbid", strict=True)
-    schema_version: str = Field(pattern=r"^mehran\\.svs\\.output\\.v1$")
+    schema_version: str = Field(pattern=r"^mehran\.svs\.output\.v1$")
     project_id: str = Field(min_length=1, max_length=160)
     artifact_path: str = Field(min_length=1, max_length=512)
     format: str = Field(pattern=r"^wav$")
