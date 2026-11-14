@@ -68,7 +68,11 @@ def main():
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
-                page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
+                try:
+                    page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
+                except Exception as error:
+                    current_status = page.locator("#vocalImportStatus").inner_text()
+                    raise AssertionError("Vocal import did not finish. Current status: " + current_status + ". Browser errors: " + " | ".join(errors)) from error
                 assert page.locator("#vocalRecordingPreview").is_visible()
                 assert page.locator("#vocalRecordingPreview").get_attribute("src")
                 saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
