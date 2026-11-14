@@ -45,7 +45,7 @@ def conditioning(*, language="fa", phonemes=None, notes=None):
         ],
         "notes": notes or [
             {"midi_note": 69, "start_seconds": 0.0, "duration_seconds": 0.3},
-            {"midi_note": 72, "start_seconds": 0.3, "duration_seconds": 0.2},
+            {"midi_note": 72, "start_seconds": 0.3, "duration_seconds": 0.18},
         ],
     })
 
