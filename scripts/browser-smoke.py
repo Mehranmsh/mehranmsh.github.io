@@ -241,15 +241,35 @@ def main():
                 assert exported_conditioning["audio_generated"] is False
                 page.locator("#mehranDatasetAudioTrack").select_option(index=1)
                 assert not page.locator("#exportMehranDatasetPackage").is_disabled()
-                with page.expect_download() as local_training_wav:
-                    page.locator("#exportMehranDatasetPackage").click()
-                training_wav_path = Path(temp) / "mehran-local-training.wav"
-                local_training_wav.value.save_as(training_wav_path)
+                training_downloads = []
+                def capture_training_download(download):
+                    target = Path(temp) / download.suggested_filename
+                    download.save_as(target)
+                    training_downloads.append((download.suggested_filename, target))
+                page.on("download", capture_training_download)
+                page.locator("#exportMehranDatasetPackage").click()
+                page.wait_for_function("document.querySelector('#mehranSingerAlignmentStatus')?.textContent.includes('WAV تک‌کاناله 24 kHz')")
+                page.wait_for_timeout(600)
+                page.remove_listener("download", capture_training_download)
+                assert len(training_downloads) == 2, "Training export must download exactly one WAV and one conditioning JSON: " + str([name for name, _ in training_downloads])
+                training_files = {name: target for name, target in training_downloads}
+                wav_matches = [(name, target) for name, target in training_files.items() if name.endswith("-vocal-24k-mono.wav")]
+                json_matches = [(name, target) for name, target in training_files.items() if name.endswith("-conditioning.json")]
+                assert len(wav_matches) == 1 and len(json_matches) == 1, "Training export filenames do not form a WAV/JSON pair."
+                training_wav_path = wav_matches[0][1]
+                training_json_path = json_matches[0][1]
                 training_header = training_wav_path.read_bytes()[:44]
                 assert training_header[:4] == b"RIFF" and training_header[8:12] == b"WAVE"
                 assert int.from_bytes(training_header[22:24], "little") == 1
                 assert int.from_bytes(training_header[24:28], "little") == 24000
-                page.wait_for_function("document.querySelector('#mehranSingerAlignmentStatus')?.textContent.includes('WAV تک‌کاناله 24 kHz')")
+                training_pair_json = __import__("json").loads(training_json_path.read_text(encoding="utf-8"))
+                assert training_pair_json["schema"] == "mehran.svs.conditioning-export.v1"
+                assert training_pair_json["conditioning"]["sample_rate"] == 24000
+                assert training_pair_json["conditioning"]["duration_seconds"] > 0
+                assert training_pair_json["review_required"] is True
+                assert training_pair_json["accepted_for_inference"] is False
+                assert training_pair_json["audio_generated"] is False
+                assert training_pair_json["source_recording"]["converted_locally"] is True
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
