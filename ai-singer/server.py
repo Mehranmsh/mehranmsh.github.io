@@ -140,6 +140,20 @@ def health() -> dict:
     }
 
 
+def note_name_to_midi(note_name: str) -> int:
+    """Convert a scientific-pitch note label such as C4 or F#3 to MIDI."""
+    import re
+    match = re.fullmatch(r"([A-G])([#b]?)(-?\\d+)", str(note_name))
+    if not match:
+        raise ValueError(f"Unsupported Piano Roll note name: {note_name}")
+    semitones = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+    accidental = {"": 0, "#": 1, "b": -1}[match.group(2)]
+    midi = (int(match.group(3)) + 1) * 12 + semitones[match.group(1)] + accidental
+    if not 0 <= midi <= 127:
+        raise ValueError(f"Piano Roll note is outside the MIDI pitch range: {note_name}")
+    return midi
+
+
 def piano_roll_to_melody(note_events: list, bpm: float) -> dict:
     """Convert four-subdivision-per-beat Piano Roll steps into seconds."""
     if not 40 <= bpm <= 220:
@@ -152,6 +166,7 @@ def piano_roll_to_melody(note_events: list, bpm: float) -> dict:
         duration_seconds = float(event.lengthSteps) * seconds_per_step
         notes.append({
             "note": event.note,
+            "midiNote": note_name_to_midi(event.note),
             "startSeconds": round(start_seconds, 6),
             "durationSeconds": round(duration_seconds, 6),
             "velocity": event.velocity,
