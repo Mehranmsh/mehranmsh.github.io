@@ -12,6 +12,7 @@ from pathlib import Path
 
 from dataset_manifest import ALLOWED_SPLITS, ManifestError, validate_manifest
 from speaker_reference import SpeakerReferenceError, build_speaker_reference_map
+from annotation_quality import AnnotationQualityError, summarize_annotation_quality
 
 
 class DatasetAuditError(ValueError):
@@ -38,6 +39,9 @@ def audit_dataset(
     dataset_root: str | Path | None = None,
     *,
     expected_sample_rate: int = 48000,
+    minimum_phoneme_coverage: float | None = None,
+    minimum_vowel_note_coverage: float | None = None,
+    maximum_internal_gap_seconds: float | None = None,
 ) -> dict:
     """Validate local data and return privacy-safe readiness aggregates."""
     if isinstance(expected_sample_rate, bool) or not isinstance(expected_sample_rate, int) or expected_sample_rate <= 0:
@@ -105,7 +109,28 @@ def audit_dataset(
         reference_pairs[split] = len(mapping)
 
     split_report = {}
+    annotation_warnings = []
     for split in ("train", "validation", "test"):
+        eligible_annotations = [
+            record for record in targets[split]
+            if record.get("alignment_status") == "reviewed"
+            and isinstance(record.get("phoneme_alignment"), list)
+            and isinstance(record.get("notes"), list)
+            and record.get("phoneme_alignment") and record.get("notes")
+        ]
+        try:
+            annotation_summary = summarize_annotation_quality(
+                eligible_annotations,
+                minimum_phoneme_coverage=minimum_phoneme_coverage,
+                minimum_vowel_note_coverage=minimum_vowel_note_coverage,
+                maximum_internal_gap_seconds=maximum_internal_gap_seconds,
+            )
+        except AnnotationQualityError as exc:
+            raise DatasetAuditError("annotation quality analysis failed; details withheld") from exc
+        for item in annotation_summary["warnings"]:
+            annotation_warnings.append({
+                "split": split, "code": item["code"], "recordings": item["recordings"],
+            })
         split_report[split] = {
             "recordings": len(by_split[split]),
             "training_targets": len(targets[split]),
@@ -117,9 +142,14 @@ def audit_dataset(
             "phoneme_aligned_targets": phoneme_aligned[split],
             "midi_annotated_targets": midi_annotated[split],
             "speaker_reference_pairs": reference_pairs[split],
+            "annotation_quality": annotation_summary,
         }
 
     warnings = list(reference_warnings)
+    warnings.extend(
+        f'{item["split"]}: {item["recordings"]} recordings flagged by {item["code"]}'
+        for item in annotation_warnings
+    )
     if not targets["train"]:
         warnings.append("train: no target recordings")
     if not targets["validation"]:
@@ -173,9 +203,17 @@ def main() -> int:
     parser.add_argument("manifest", help="Path to the local JSONL manifest")
     parser.add_argument("--audio-root", help="Root directory for relative audio_path entries")
     parser.add_argument("--sample-rate", type=int, default=48000, help="Expected model sample rate (default: 48000)")
+    parser.add_argument("--minimum-phoneme-coverage", type=float, help="Optional warning threshold from 0 to 1; no default cutoff")
+    parser.add_argument("--minimum-vowel-note-coverage", type=float, help="Optional warning threshold from 0 to 1; no default cutoff")
+    parser.add_argument("--maximum-internal-gap-seconds", type=float, help="Optional warning threshold; rests are not errors unless this is set")
     args = parser.parse_args()
     try:
-        result = audit_dataset(args.manifest, args.audio_root, expected_sample_rate=args.sample_rate)
+        result = audit_dataset(
+            args.manifest, args.audio_root, expected_sample_rate=args.sample_rate,
+            minimum_phoneme_coverage=args.minimum_phoneme_coverage,
+            minimum_vowel_note_coverage=args.minimum_vowel_note_coverage,
+            maximum_internal_gap_seconds=args.maximum_internal_gap_seconds,
+        )
     except DatasetAuditError as exc:
         parser.exit(2, f"INVALID: {exc}\n")
     print(json.dumps(result, ensure_ascii=False, indent=2))
