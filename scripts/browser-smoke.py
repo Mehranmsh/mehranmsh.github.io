@@ -113,6 +113,9 @@ def main():
                 assert exported_alignment["schema"] == "mehran.singer-alignment-export.v1"
                 assert exported_alignment["alignment"]["alignment"][0]["startSeconds"] == 0.05
                 assert exported_alignment["alignment"]["pronunciationOverrides"]["سلام"] == ["سَ", "لام"]
+                assert page.locator("#mehranSingerReviewedSyllablePhonemes").count() == 1
+                assert page.locator("#mehranSingerPhonemeWeights").count() == 1
+                assert page.locator("#prepareMehranSingerConditioning").count() == 1
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
