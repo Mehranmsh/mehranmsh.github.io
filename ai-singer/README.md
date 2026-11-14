@@ -271,3 +271,8 @@ The CLI reports `conditioning_mode: teacher_forced_ground_truth_acoustics` and `
 ## Verified WAV artifact writer
 
 `waveform_output.py` serializes a supplied normalized mono float waveform into an atomic 16-bit PCM WAV artifact, writes only within the chosen output directory, rejects symlink output directories and invalid sample arrays, computes SHA-256, and calls the existing independent WAV output verifier before returning metadata. This is an artifact-writing component, not a singing generator. It can only write samples supplied by a caller; the untrained model graph does not make those samples meaningful vocals.
+
+
+## Two-checkpoint model bundle integrity gate
+
+`model_bundle.py` verifies the acoustic and waveform checkpoints as one Persian singing bundle. It validates the feature/model/decoder configuration agreement, rejects unsafe or symlink checkpoint paths, enforces bounded checkpoint sizes, and checks both SHA-256 digests. The result deliberately remains `model_loaded: false` and `inference_ready: false`; a valid bundle is only an integrity-verified artifact, not evidence that the weights are trained, perceptually acceptable, or safe to serve. The future runtime loader and quality approval remain separate gates.
