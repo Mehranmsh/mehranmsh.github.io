@@ -143,7 +143,7 @@ def health() -> dict:
 def note_name_to_midi(note_name: str) -> int:
     """Convert a scientific-pitch note label such as C4 or F#3 to MIDI."""
     import re
-    match = re.fullmatch(r"([A-G])([#b]?)(-?\\d+)", str(note_name))
+    match = re.fullmatch(r"([A-G])([#b]?)(-?\d+)", str(note_name))
     if not match:
         raise ValueError(f"Unsupported Piano Roll note name: {note_name}")
     semitones = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
