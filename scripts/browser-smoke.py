@@ -403,12 +403,24 @@ def main():
                 stem_start_offset = max(0, min(30, float(stem_track_state.get("startOffset", 0))))
                 stem_trimmed_duration = stem_source_duration - float(stem_track_state.get("trimStart", 0)) - float(stem_track_state.get("trimEnd", 0))
                 stem_active_start = stem_start_offset + float(stem_track_state.get("trimStart", 0))
+                stem_fx = stem_track_state.get("effects", {})
+                stem_send = max(0, min(0.6, float(stem_track_state.get("delay", 0) or 0) / 100))
+                stem_tail = 0.0
+                if stem_send > 0:
+                    stem_delay_time = max(0.08, min(0.45, float(stem_fx.get("delayTime", 280) or 280) / 1000))
+                    stem_feedback = max(0, min(0.3, float(stem_fx.get("feedback", 28) or 0) / 100))
+                    stem_repeats = math.ceil(math.log(0.001) / math.log(stem_feedback)) if stem_feedback > 0 else 1
+                    stem_tail = max(stem_tail, min(5, stem_delay_time * stem_repeats + 0.25))
+                if float(stem_fx.get("reverb", 0) or 0) > 0:
+                    stem_tail = max(stem_tail, 1.6)
+                if float(stem_fx.get("chorusDepth", 0) or 0) > 0:
+                    stem_tail = max(stem_tail, 0.35)
                 with wave.open(str(stem_file), "rb") as rendered_stem:
                     assert rendered_stem.getnchannels() == 2
                     assert rendered_stem.getframerate() == 44100
-                    expected_stem_duration = stem_trimmed_duration + stem_start_offset
+                    expected_stem_duration = stem_trimmed_duration + stem_start_offset + stem_tail
                     actual_stem_duration = rendered_stem.getnframes() / 44100
-                    assert abs(actual_stem_duration - expected_stem_duration) < 0.02, "Stem duration did not reflect trim and timeline offset: got " + str(round(actual_stem_duration, 3)) + "s, expected " + str(round(expected_stem_duration, 3)) + "s."
+                    assert abs(actual_stem_duration - expected_stem_duration) < 0.02, "Stem duration did not reflect trim, timeline offset, and effect tail: got " + str(round(actual_stem_duration, 3)) + "s, expected " + str(round(expected_stem_duration, 3)) + "s."
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
                     early_stem_bytes = stem_pcm[:int(max(0.01, stem_active_start - 0.05) * 44100) * 2 * 3]
