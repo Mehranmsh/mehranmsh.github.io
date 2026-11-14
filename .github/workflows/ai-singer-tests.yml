@@ -1,0 +1,30 @@
+name: MEHRAN AI Singer tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ai-singer/**"
+      - ".github/workflows/ai-singer-tests.yml"
+  pull_request:
+    paths:
+      - "ai-singer/**"
+      - ".github/workflows/ai-singer-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-singer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ai-singer/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
