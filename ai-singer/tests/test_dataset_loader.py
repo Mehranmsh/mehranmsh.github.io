@@ -128,8 +128,8 @@ class DatasetLoaderTests(unittest.TestCase):
         )
         path = self.root / "manifest.jsonl"
         path.write_text(
-            json.dumps(target, ensure_ascii=False) + "\\n"
-            + json.dumps(reference, ensure_ascii=False) + "\\n", encoding="utf-8"
+            json.dumps(target, ensure_ascii=False) + "\n"
+            + json.dumps(reference, ensure_ascii=False) + "\n", encoding="utf-8"
         )
         examples = load_training_examples(path, config(), require_speaker_references=True)
         self.assertEqual(len(examples), 1)
