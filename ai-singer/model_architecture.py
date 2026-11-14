@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from phoneme_inventory import PHONEME_FEATURES
+from speaker_encoder import build_speaker_encoder
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,8 @@ def build_singing_model(config: SingingNetworkConfig | None = None):
             h = cfg.hidden_size
             self.phoneme_embedding = nn.Embedding(cfg.phoneme_vocab_size, h, padding_idx=0)
             self.note_embedding = nn.Embedding(cfg.note_vocab_size, h, padding_idx=0)
+            self.speaker_encoder = build_speaker_encoder(cfg.mel_bins, h)
+            self.speaker_projection = nn.Linear(h, h)
             self.condition_projection = nn.Sequential(
                 nn.Linear(3, h),
                 nn.GELU(),
@@ -117,6 +120,8 @@ def build_singing_model(config: SingingNetworkConfig | None = None):
             conditioning_voicing_mask,
             conditioning_energy,
             valid_frame_mask,
+            speaker_reference_log_mel=None,
+            speaker_reference_frame_mask=None,
         ):
             tensors = (phoneme_ids, note_ids, conditioning_f0_hz,
                        conditioning_voicing_mask, conditioning_energy, valid_frame_mask)
@@ -142,6 +147,13 @@ def build_singing_model(config: SingingNetworkConfig | None = None):
                 + self.note_embedding(note_ids)
                 + self.condition_projection(controls)
             )
+            if (speaker_reference_log_mel is None) != (speaker_reference_frame_mask is None):
+                raise ValueError("speaker reference mel and frame mask must be provided together")
+            if speaker_reference_log_mel is not None:
+                speaker_embedding = self.speaker_encoder(
+                    speaker_reference_log_mel, speaker_reference_frame_mask
+                )
+                hidden = hidden + self.speaker_projection(speaker_embedding).unsqueeze(1)
             hidden = self.input_norm(hidden)
             hidden = self.encoder(hidden, src_key_padding_mask=~valid)
             for block in self.decoder:
