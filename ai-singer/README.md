@@ -7,7 +7,11 @@ This directory contains the first backend foundation for MEHRAN's own singing-vo
 - Job intake and structural validation: implemented.
 - Standard MIDI format 0/1 parsing: implemented for PPQ timing, note events, and tempo maps.
 - MIDI analysis endpoint: implemented; returns note names, pitch, beat positions, seconds, tempo map, and duration.
-- Persian text normalization and word extraction: implemented.\n- `POST /v1/lyrics/analyze`: returns normalized words, optional human-confirmed syllable splits, and conservative grapheme annotations.\n- Words without pronunciation overrides are explicitly flagged for review; no guessed syllable boundaries are returned.\n- Human-confirmed syllable overrides and conservative grapheme annotation: implemented.\n- Unvowelled Persian remains flagged for manual review; automatic phoneme alignment is not claimed.
+- Persian text normalization and word extraction: implemented.
+- `POST /v1/lyrics/analyze`: returns normalized words, optional human-confirmed syllable splits, and conservative grapheme annotations.
+- Words without pronunciation overrides are explicitly flagged for review; no guessed syllable boundaries are returned.
+- Human-confirmed syllable overrides and conservative grapheme annotation: implemented.
+- Unvowelled Persian remains flagged for manual review; automatic phoneme alignment is not claimed.
 - Lyric-syllable to MIDI-note alignment: implemented as a conservative proposal or human-directed mapping, including melisma groups.
 - Automatic Persian phoneme conversion and acoustic phoneme timing: **not implemented**.
 - Singing inference / WAV generation: **not implemented**.
