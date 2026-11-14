@@ -13,7 +13,7 @@ import tempfile
 import wave
 from pathlib import Path, PurePosixPath
 
-from dataset_manifest import ManifestError, validate_manifest
+from dataset_manifest import MAX_AUDIO_FILE_BYTES, ManifestError, validate_manifest
 
 
 EXPORT_SCHEMA = "mehran.svs.conditioning-export.v1"
@@ -90,6 +90,8 @@ def build_manifest_record(
         raise StudioDatasetExportError("reviewed monophonic MIDI notes are required")
 
     relative_audio, resolved_audio = _safe_relative_audio(Path(dataset_root), audio_path)
+    if resolved_audio.stat().st_size <= 0 or resolved_audio.stat().st_size > MAX_AUDIO_FILE_BYTES:
+        raise StudioDatasetExportError("WAV file size exceeds the 500 MiB dataset limit")
     try:
         with wave.open(str(resolved_audio), "rb") as wav:
             channels = wav.getnchannels()
@@ -99,10 +101,13 @@ def build_manifest_record(
             compression = wav.getcomptype()
     except (wave.Error, EOFError) as exc:
         raise StudioDatasetExportError("audio must be a readable PCM WAV file") from exc
-    if compression != "NONE" or width not in {2, 3, 4} or channels not in {1, 2}:
-        raise StudioDatasetExportError("WAV must be uncompressed 16/24/32-bit mono or stereo PCM")
+    if compression != "NONE" or width not in {2, 3, 4} or channels != 1:
+        raise StudioDatasetExportError("WAV must be uncompressed 16/24/32-bit mono PCM; stereo is not supported by the current training frontend")
     if sample_rate not in {22050, 24000, 44100, 48000} or frames <= 0:
         raise StudioDatasetExportError("unsupported WAV sample rate or empty audio")
+    declared_sample_rate = conditioning.get("sample_rate")
+    if isinstance(declared_sample_rate, bool) or declared_sample_rate != sample_rate:
+        raise StudioDatasetExportError("conditioning sample_rate does not match the selected WAV")
     actual_duration = frames / sample_rate
     declared_duration = conditioning.get("duration_seconds")
     if (isinstance(declared_duration, bool) or not isinstance(declared_duration, (int, float))
