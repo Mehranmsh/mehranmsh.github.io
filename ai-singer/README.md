@@ -50,6 +50,14 @@ A Dockerfile is provided for self-hosted deployment. Set `MEHRAN_SVS_ALLOWED_ORI
 
 Supports Standard MIDI File format 0 and 1, PPQ timing, channel note-on/note-off events, running status, and tempo meta-events. SMPTE division, format 2, and unsupported system-common events are rejected. Unmatched note-ons are not treated as completed notes. The parser caps output at 4096 note events.
 
+## Native acoustic feature extraction
+
+`signal_features.py` reads bounded mono PCM WAV input and computes frame-aligned log-Mel, autocorrelation-based F0/voicing, and log-RMS tracks using the versioned acoustic configuration. It is a deterministic feature frontend for dataset preparation and evaluation; it does not generate singing.
+
+`pitch_targets.py` converts a reviewed monophonic MIDI note line into frame-aligned F0, voicing, and velocity/style energy targets. Overlapping notes are rejected because this first vocal target is monophonic. Vibrato is a controllable target perturbation, not a claim of natural vocal performance.
+
+Both modules are covered by synthetic-signal unit tests. The synthetic tones are test fixtures, not training data or model weights.
+
 ## Acoustic model artifact gate
 
 The API inspects an optional local `models/model-manifest.json` (or the directory set by `MEHRAN_SVS_MODEL_DIR`). The manifest schema is `mehran.svs.model.v1` and declares model identity, architecture, framework, task, sample rate, supported languages, checkpoint path, and SHA-256. The service rejects unsafe paths, unsupported metadata, missing files, and hash mismatches. Checkpoints are streamed through SHA-256 in bounded chunks and are never deserialized.
