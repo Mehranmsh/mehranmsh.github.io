@@ -47,7 +47,8 @@ RATE_LIMITS = {
     "/v1/jobs/align": 10,
     "/v1/jobs/analyze": 20,
     "/v1/jobs/validate": 30,
-    "/v1/lyrics/analyze": 30,\n    "/v1/model/conditioning/validate": 20,
+    "/v1/lyrics/analyze": 30,
+    "/v1/model/conditioning/validate": 20,
 }
 _request_times: dict[tuple[str, str], deque[float]] = {}
 
