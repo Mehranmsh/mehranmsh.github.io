@@ -106,11 +106,13 @@ def summarize_annotation_quality(
     minimum_phoneme_coverage: float | None = None,
     minimum_vowel_note_coverage: float | None = None,
     maximum_internal_gap_seconds: float | None = None,
+    maximum_edge_unannotated_seconds: float | None = None,
 ) -> dict:
     """Summarize annotations and apply only explicitly configured warning thresholds."""
     min_phoneme = _threshold(minimum_phoneme_coverage, "minimum_phoneme_coverage", maximum=1.0)
     min_vowel = _threshold(minimum_vowel_note_coverage, "minimum_vowel_note_coverage", maximum=1.0)
     max_gap = _threshold(maximum_internal_gap_seconds, "maximum_internal_gap_seconds")
+    max_edge = _threshold(maximum_edge_unannotated_seconds, "maximum_edge_unannotated_seconds")
     diagnostics = [analyze_annotation(record) for record in records]
     coverage = [item["phoneme_time_coverage"] for item in diagnostics]
     vowel_coverage = [
@@ -133,6 +135,14 @@ def summarize_annotation_quality(
         count = sum(value > max_gap for value in gaps)
         if count:
             warnings.append({"code": "long_internal_annotation_gap", "recordings": count})
+    if max_edge is not None:
+        count = sum(
+            item["leading_unannotated_seconds"] > max_edge
+            or item["trailing_unannotated_seconds"] > max_edge
+            for item in diagnostics
+        )
+        if count:
+            warnings.append({"code": "excessive_edge_unannotated_audio", "recordings": count})
     return {
         "recordings_analyzed": len(diagnostics),
         "phoneme_time_coverage": {
@@ -159,5 +169,6 @@ def summarize_annotation_quality(
             "minimum_phoneme_coverage": min_phoneme,
             "minimum_vowel_note_coverage": min_vowel,
             "maximum_internal_gap_seconds": max_gap,
+            "maximum_edge_unannotated_seconds": max_edge,
         },
     }
