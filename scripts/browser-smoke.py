@@ -51,6 +51,8 @@ def main():
                 page = context.new_page()
                 page.on("pageerror", lambda error: errors.append(str(error) + " | stack: " + str(getattr(error, "stack", ""))))
                 page.goto(base_url + "/music-studio.html", wait_until="networkidle")
+                if errors:
+                    raise AssertionError("Unhandled browser errors during initial page load: " + " | ".join(errors))
                 missing_vocal_polish_controls = page.evaluate("() => ['vocalDeEssAmount', 'vocalDeEssThreshold', 'vocalCompThreshold', 'vocalCompRatio', 'vocalCompAttack', 'vocalCompRelease'].filter(id => !document.getElementById(id))")
                 if missing_vocal_polish_controls:
                     errors.append("Missing vocal polish controls: " + repr(missing_vocal_polish_controls))
