@@ -153,7 +153,7 @@ def main() -> int:
     try:
         report = build_review_queue(args.manifest, args.output, audio_root=args.audio_root)
     except ReviewQueueError as exc:
-        parser.exit(2, f"INVALID: {exc}\\n")
+        parser.exit(2, f"INVALID: {exc}\n")
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0
 
