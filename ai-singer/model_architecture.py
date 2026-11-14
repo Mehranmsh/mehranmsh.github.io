@@ -15,7 +15,7 @@ from phoneme_inventory import PHONEME_FEATURES
 class SingingNetworkConfig:
     """Shape and capacity settings for the first experimental acoustic model."""
 
-    mel_bins: int = 40
+    mel_bins: int = 100
     phoneme_vocab_size: int = len(PHONEME_FEATURES) + 1
     note_vocab_size: int = 129
     hidden_size: int = 192
