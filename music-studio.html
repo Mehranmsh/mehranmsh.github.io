@@ -1112,7 +1112,7 @@
   const tracks=(project.tracks||[]).filter(t=>t.audioName);if(!tracks.length){status.textContent="Attach at least one audio file to a track first.";return;}
   if(tracks.length>WAV_EXPORT_MAX_TRACKS){status.textContent="For safe rendering, export up to 8 audio tracks at a time.";return;}
   if(!(window.AudioContext||window.webkitAudioContext)||!(window.OfflineAudioContext||window.webkitOfflineAudioContext)){status.textContent="This browser does not support offline audio rendering. Try a recent desktop browser.";return;}
-  wavExportInProgress=true;button.disabled=true;exportButton.disabled=true;const decoded=[];let compressedBytes=0;
+  wavExportInProgress=true;button.disabled=true;const decoded=[];let compressedBytes=0;
   try{
    status.textContent="Reading local audio files…";const decodeContext=new (window.AudioContext||window.webkitAudioContext)();
    try{for(let i=0;i<tracks.length;i++){const track=tracks[i];status.textContent="Reading audio "+(i+1)+" of "+tracks.length+"…";const record=await readTrackAudio(audioKey(project.id,track.id));
@@ -1139,7 +1139,7 @@
    const rendered=await offline.startRendering();status.textContent="Encoding WAV…";const wav=writeWav24(rendered,-1.2),url=URL.createObjectURL(wav),link=document.createElement("a"),safeName=(project.name||"mehran-mix").replace(/[^a-z0-9-_]+/gi,"-").replace(/^-+|-+$/g,"").slice(0,60)||"mehran-mix";
    link.href=url;link.download=safeName+"-mix.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
    status.textContent="WAV export started · "+(duration+tailSeconds).toFixed(1)+(tailSeconds>0?" sec including effect tail":" sec · no added effect tail")+" · "+(wav.size/1024/1024).toFixed(1)+" MB · 8x 48-tap sinc inter-sample peak estimate "+(Number.isFinite(wav.truePeakDb)?wav.truePeakDb.toFixed(1):"-∞")+" dBTP · RMS "+(Number.isFinite(wav.rmsDb)?wav.rmsDb.toFixed(1):"-∞")+" dBFS · crest "+(Number.isFinite(wav.crestFactorDb)?wav.crestFactorDb.toFixed(1):"n/a")+" dB · stereo correlation "+(Number.isFinite(wav.stereoCorrelation)?wav.stereoCorrelation.toFixed(2):"n/a")+" · mono fold-down "+(wav.monoFoldDownDb===-Infinity?"−∞":Number.isFinite(wav.monoFoldDownDb)?wav.monoFoldDownDb.toFixed(1):"n/a")+" dB · integrated loudness "+(Number.isFinite(wav.integratedLufs)?wav.integratedLufs.toFixed(1):"−∞")+" LUFS est. · LRA est. "+(Number.isFinite(wav.loudnessRange)?wav.loudnessRange.toFixed(1):"n/a")+" LU · "+(wav.preTrimClippedSamples>0?"⚠ pre-trim over-range: "+wav.preTrimClippedSamples+" samples":"No pre-trim over-range samples")+" · PCM rail hits "+wav.quantizedRailHits+" · quantized sample peak "+(Number.isFinite(wav.quantizedSamplePeakDb)?wav.quantizedSamplePeakDb.toFixed(2):"−∞")+" dBFS · DC offset corrected · safety trim "+wav.appliedPeakTrimDb.toFixed(1)+" dB. Keep a separate copy of the original tracks.";
-  }catch(error){status.textContent="WAV export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}finally{wavExportInProgress=false;button.disabled=false;exportButton.disabled=false;}
+  }catch(error){status.textContent="WAV export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}finally{wavExportInProgress=false;button.disabled=false;}
  }
 
 
