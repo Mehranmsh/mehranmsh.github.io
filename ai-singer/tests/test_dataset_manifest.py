@@ -60,7 +60,7 @@ class DatasetManifestTests(unittest.TestCase):
             validate_manifest(self.write_manifest([self.record(rights_basis=" ")]))
 
     def test_rejects_path_traversal(self):
-        with self.assertRaisesRegex(ManifestError, "relative path"):
+        with self.assertRaisesRegex(ManifestError, "contain traversal"):
             validate_manifest(self.write_manifest([self.record(audio_path="../outside.wav")]))
 
     def test_rejects_speaker_leakage_between_splits(self):
