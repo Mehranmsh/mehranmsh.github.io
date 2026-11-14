@@ -18,10 +18,10 @@ class DatasetReviewQueueTests(unittest.TestCase):
         self._wav("pending.wav")
         self._wav("reviewed.wav")
         self.manifest = self.root / "manifest.jsonl"
-        self.manifest.write_text("\\n".join(json.dumps(item, ensure_ascii=False) for item in [
+        self.manifest.write_text("\n".join(json.dumps(item, ensure_ascii=False) for item in [
             self.record("pending-1", "pending.wav", "unreviewed"),
             self.record("done-1", "reviewed.wav", "reviewed"),
-        ]) + "\\n", encoding="utf-8")
+        ]) + "\n", encoding="utf-8")
 
     def tearDown(self):
         self.temp.cleanup()
@@ -31,7 +31,8 @@ class DatasetReviewQueueTests(unittest.TestCase):
             output.setnchannels(1)
             output.setsampwidth(2)
             output.setframerate(48000)
-            sample = (sum(name.encode("utf-8")) % 200 + 1).to_bytes(2, "little")\n            output.writeframes(sample * 48000)
+            sample = (sum(name.encode("utf-8")) % 200 + 1).to_bytes(2, "little")
+            output.writeframes(sample * 48000)
 
     def record(self, rid, audio, status):
         record = {
