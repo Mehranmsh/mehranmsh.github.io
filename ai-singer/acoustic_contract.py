@@ -4,7 +4,8 @@ This validates model inputs only. It does not load weights or synthesize audio.
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator\nfrom phoneme_inventory import validate_phoneme_sequence
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from phoneme_inventory import validate_phoneme_sequence
 
 
 class PhonemeSpan(BaseModel):
@@ -59,6 +60,9 @@ class AcousticConditioning(BaseModel):
 
     @model_validator(mode="after")
     def validate_timeline(self) -> "AcousticConditioning":
+        if self.language == "fa":
+            validate_phoneme_sequence([span.phoneme for span in self.phonemes])
+
         previous_start = -1.0
         previous_end = 0.0
         for span in self.phonemes:
