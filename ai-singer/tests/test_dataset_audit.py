@@ -91,7 +91,7 @@ class DatasetAuditTests(unittest.TestCase):
     def test_warns_when_reference_pairing_is_absent(self):
         records = self.dataset()
         records[0].pop("speaker_reference_recording_id")
-        records[2].pop("speaker_reference_recording_id")
+        records[3].pop("speaker_reference_recording_id")
         report = audit_dataset(self.write(records))
         self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
         self.assertTrue(any("references are not configured" in item for item in report["training_readiness"]["warnings"]))
@@ -126,7 +126,7 @@ class DatasetAuditTests(unittest.TestCase):
     def test_reports_annotation_coverage_metrics_without_default_cutoffs(self):
         report = audit_dataset(self.write(self.dataset()), expected_sample_rate=48000)
         quality = report["splits"]["train"]["annotation_quality"]
-        self.assertEqual(quality["recordings_analyzed"], 1)
+        self.assertEqual(quality["recordings_analyzed"], 2)
         self.assertAlmostEqual(quality["phoneme_time_coverage"]["mean"], 0.5)
         self.assertEqual(quality["warnings"], [])
         self.assertTrue(report["training_readiness"]["ready_for_staged_training"])
