@@ -27,7 +27,8 @@ WORD_RE = re.compile(r"[ء-يپچژگک‌یۀآأإؤئًٌٍَُِّْٰ]+(?:�
 def normalize_persian_text(text: str) -> str:
     value = unicodedata.normalize("NFC", str(text or "")).translate(CHAR_MAP)
     value = value.replace("\u200f", "").replace("\u200e", "").replace("\ufeff", "")
-    value = re.sub(r"[\t\r\n]+", " ", value)
+    value = re.sub(r"[\t\r
+]+", " ", value)
     value = re.sub(r"\s+", " ", value).strip()
     return value
 
@@ -84,7 +85,8 @@ def analyze_persian_lyrics(text: str, pronunciation_overrides: dict[str, str] | 
             "syllable_count": len(syllables),
             "phonemes": phonemes,
             "pronunciation_source": source,
-            "needs_review": needs_review,\n            "phoneme_ambiguity": ambiguous,
+            "needs_review": needs_review,
+            "phoneme_ambiguity": ambiguous,
         })
     return {
         "normalization": "mehran.fa.normalize.v1",
