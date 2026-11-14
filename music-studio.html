@@ -553,7 +553,7 @@
   const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#"];
   const notes=raw.sort((a,b)=>a.start-b.start||a.pitch-b.pitch).slice(0,4097).map(item=>({note:names[item.pitch%12]+(Math.floor(item.pitch/12)-1),midiNote:item.pitch,startTick:item.start,endTick:item.end,startBeat:Number((item.start/division).toFixed(6)),durationBeats:Number(((item.end-item.start)/division).toFixed(6)),startSeconds:Number(secondsAt(item.start).toFixed(6)),durationSeconds:Number(Math.max(0,secondsAt(item.end)-secondsAt(item.start)).toFixed(6)),velocity:item.velocity,channel:item.channel,track:item.track}));
   if(notes.length>4096)fail("فایل بیش از ۴۰۹۶ نت دارد؛ برای هم‌ترازی فایل کوتاه‌تر وارد کن.");
-  return {format,trackCount,ticksPerQuarter:division,durationTicks:maxTick,durationSeconds:Number(secondsAt(maxTick).toFixed(6)),tempoMap:compact.map(([tick,microsecondsPerQuarter])=>({tick,microsecondsPerQuarter})),notes};
+  return {format,trackCount,ticksPerQuarter:division,durationTicks:maxTick,durationSeconds:Number(secondsAt(maxTick).toFixed(6)),tempoMap:compact.map(([tick,microsecondsPerQuarter])=>({tick,microsecondsPerQuarter})),noteCount:notes.length,notes};
  }
  let mehranSingerMidiFile=null,mehranSingerMidiNotes=[];
  async function prepareMehranSingerJob(){
