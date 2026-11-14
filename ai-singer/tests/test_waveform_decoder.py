@@ -14,6 +14,12 @@ class WaveformDecoderConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "product"):
             WaveformDecoderConfig(hop_length=320).validate()
 
+    def test_rejects_odd_upsampling_factor(self):
+        with self.assertRaisesRegex(ValueError, "must be even"):
+            WaveformDecoderConfig(
+                hop_length=6, upsample_factors=(3, 2)
+            ).validate()
+
     def test_rejects_invalid_channel_width(self):
         with self.assertRaisesRegex(ValueError, "divisible"):
             WaveformDecoderConfig(initial_channels=250).validate()
