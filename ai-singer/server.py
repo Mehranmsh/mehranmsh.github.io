@@ -19,7 +19,7 @@ from model_artifact import inspect_model_artifact
 from acoustic_contract import validate_acoustic_conditioning
 from phoneme_timing import PhonemeTimingError, build_phoneme_timing_plan
 from conditioning_builder import prepare_acoustic_conditioning
-from job_store import initialize_job_store, create_job, get_job, cancel_job
+from job_store import initialize_job_store, create_job, get_job, cancel_job, get_job_events
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine Analysis API",
@@ -57,6 +57,7 @@ RATE_LIMITS = {
     "/v1/jobs/submit": 5,
     "/v1/jobs/status": 30,
     "/v1/jobs/cancel": 5,
+    "/v1/jobs/events": 30,
 }
 _request_times: dict[tuple[str, str], deque[float]] = {}
 
@@ -199,6 +200,18 @@ def read_job_status(job_id: str, request: Request) -> dict:
     if record is None:
         raise HTTPException(status_code=404, detail="Job not found.")
     return record
+
+
+@app.get("/v1/jobs/events/{job_id}")
+def read_job_events(job_id: str, request: Request) -> dict:
+    """Read the authorized immutable lifecycle event history for one job."""
+    token = request.headers.get("X-Job-Token", "")
+    if not token or len(token) > 256:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    events = get_job_events(job_id, token)
+    if events is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return {"job_id": job_id, "events": events}
 
 
 @app.post("/v1/jobs/cancel/{job_id}")
