@@ -107,6 +107,24 @@ class AlignmentApiTests(unittest.TestCase):
         self.assertEqual(result["alignment"][0]["text"], "سَلام")
         self.assertTrue(result["alignment"][0]["phoneme_ambiguity"])
 
+    def test_prepare_conditioning_uses_exact_studio_syllable_rows(self):
+        from server import prepare_job_conditioning
+        payload = {
+            "job": make_job(),
+            "pronunciation_overrides": {"سلام": "سَ-لام"},
+            "reviewed_syllables": ["سَلام"],
+            "manual_note_groups": [[0]],
+            "manual_timing_windows": [{"start_seconds": 0.05, "end_seconds": 0.42}],
+            "reviewed_syllable_phonemes": [["s", "æ", "l", "ɒː", "m"]],
+            "phoneme_duration_weights": [[1, 1, 1, 2, 1]],
+        }
+        result = prepare_job_conditioning(payload)
+        self.assertEqual(result["conditioning"]["phonemes"][0]["start_seconds"], 0.05)
+        self.assertEqual(result["conditioning"]["phonemes"][-1]["end_seconds"], 0.42)
+        self.assertEqual(len(result["conditioning"]["phonemes"]), 5)
+        self.assertEqual(result["conditioning"]["notes"][0]["midi_note"], 60)
+        self.assertFalse(result["accepted_for_inference"])
+
     def test_prepare_conditioning_accepts_per_syllable_reviewed_phonemes(self):
         from server import prepare_job_conditioning
         payload = {
