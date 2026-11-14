@@ -8,7 +8,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import ValidationError
 
 from job_schema import SingingJob
-from midi_parser import MidiParseError, parse_standard_midi\nfrom persian_lyrics import analyze_persian_lyrics
+from midi_parser import MidiParseError, parse_standard_midi
+from persian_lyrics import analyze_persian_lyrics
 from lyric_alignment import AlignmentError, align_lyrics_to_midi
 
 app = FastAPI(
@@ -28,7 +29,9 @@ def health() -> dict:
         "generation_ready": False,
         "model_weights_present": MODEL_READY,
         "generation_implemented": False,
-        "midi_analysis_available": True,\n        "persian_lyrics_analysis_available": True,
+        "midi_analysis_available": True,
+        "persian_lyrics_analysis_available": True,
+        "lyric_note_alignment_available": True,
         "third_party_generation_api": False,
         "message": "Job intake and MIDI analysis are available; no singing audio can be generated yet.",
     }
