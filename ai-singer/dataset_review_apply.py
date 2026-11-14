@@ -20,7 +20,7 @@ class ReviewApplyError(ValueError):
     """Raised when a review queue cannot safely update a manifest."""
 
 
-IMMUTABLE_FIELDS = ("recording_id", "speaker_id", "split", "audio_path", "transcript")
+IMMUTABLE_FIELDS = ("recording_id", "speaker_id", "split", "audio_path", "transcript",\n                    "duration_seconds", "sample_rate", "channels", "alignment_status")
 MAX_REVIEW_CSV_BYTES = 20 * 1024 * 1024
 MAX_REVIEW_ROWS = 50000
 
