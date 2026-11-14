@@ -2,7 +2,7 @@ import unittest
 
 from fastapi import HTTPException
 
-from server import align_job
+from server import align_job, note_name_to_midi
 
 
 def make_job():
@@ -46,6 +46,7 @@ class AlignmentApiTests(unittest.TestCase):
         self.assertTrue(result["alignment_ready"])
         self.assertEqual(result["alignment"][0]["notes"], ["C4"])
         self.assertEqual(result["alignment"][1]["notes"], ["D4"])
+        self.assertEqual([n["midi_note"] for n in result["model_notes"]], [60, 62])
         self.assertFalse(result["generation_ready"])
         self.assertFalse(result["third_party_generation_api"])
 
@@ -91,8 +92,33 @@ class AlignmentApiTests(unittest.TestCase):
         self.assertEqual(result["conditioning"]["schema_version"], "mehran.svs.conditioning.v1")
         self.assertEqual([p["phoneme"] for p in result["conditioning"]["phonemes"]], ["s", "æ", "m"])
         self.assertFalse(result["accepted_for_inference"])
+        self.assertEqual(result["conditioning"]["notes"][0]["midi_note"], 60)
         self.assertFalse(result["audio_generated"])
         self.assertFalse(result["generation_ready"])
+
+    def test_prepare_conditioning_rejects_ambiguous_syllable_phonemes(self):
+        from server import prepare_job_conditioning
+        payload = {
+            "job": make_job(),
+            "pronunciation_overrides": {"سلام": "سَ-لام"},
+            "manual_note_groups": [[0], [1]],
+            "manual_timing_windows": [
+                {"start_seconds": 0.0, "end_seconds": 0.5},
+                {"start_seconds": 0.5, "end_seconds": 1.0},
+            ],
+            "phoneme_duration_weights": [[1, 1], [1, 1]],
+        }
+        with self.assertRaises(HTTPException) as error:
+            prepare_job_conditioning(payload)
+        self.assertEqual(error.exception.status_code, 422)
+        self.assertIn("ambiguous", str(error.exception.detail))
+
+    def test_piano_roll_pitch_names_convert_to_midi_numbers(self):
+        self.assertEqual(note_name_to_midi("C4"), 60)
+        self.assertEqual(note_name_to_midi("F#3"), 54)
+        self.assertEqual(note_name_to_midi("Bb2"), 46)
+        with self.assertRaises(ValueError):
+            note_name_to_midi("H4")
 
     def test_prepare_conditioning_rejects_missing_weights(self):
         from server import prepare_job_conditioning
