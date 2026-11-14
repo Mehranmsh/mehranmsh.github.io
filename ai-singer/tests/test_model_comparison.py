@@ -83,6 +83,8 @@ class ModelComparisonTests(unittest.TestCase):
             (base / "joint-singing-bundle.json").write_text(json.dumps(base_manifest), encoding="utf-8")
             (cand / "joint-singing-bundle.json").write_text(json.dumps(candidate_manifest), encoding="utf-8")
             examples = [object()]
+            manifest_file = Path(directory) / "manifest.jsonl"
+            manifest_file.write_text('{"split":"test"}\\n', encoding="utf-8")
             summaries = [make_summary(2.0), make_summary(1.0)]
             with (
                 patch.object(model_comparison, "inspect_joint_singing_bundle", return_value={"bundle_verified": True}),
@@ -90,7 +92,7 @@ class ModelComparisonTests(unittest.TestCase):
                 patch.object(model_comparison.SingingInferenceRuntime, "from_bundle", side_effect=[object(), object()]),
                 patch.object(model_comparison, "evaluate_heldout_examples", side_effect=summaries),
             ):
-                result = model_comparison.compare_heldout_bundles("manifest.jsonl", base, cand)
+                result = model_comparison.compare_heldout_bundles(manifest_file, base, cand)
             self.assertEqual(loader.call_count, 1)
             self.assertTrue(result["same_test_examples_loaded_once"])
             self.assertEqual(result["baseline_bundle_id"], "model-test")
