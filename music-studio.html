@@ -237,8 +237,10 @@
      <p style="color:var(--muted);font-size:11px;line-height:1.8">هجاهای تأییدشده را هرکدام در یک خط وارد کن. نت‌های موجود در Piano Roll پروژه با شماره‌گذاری صفرمبنا نمایش داده می‌شوند. برای هر هجا، شمارهٔ نت یا نت‌ها را در خط متناظر بنویس؛ مثلاً <b>0,1</b> یعنی کشیده‌شدن یک هجا روی دو نت. هیچ جای‌گذاری خودکاری بدون تأیید تو ذخیره نمی‌شود.</p>
      <div class="field"><label for="mehranSingerSyllables">REVIEWED SYLLABLES · هر هجا یک خط</label><textarea id="mehranSingerSyllables" rows="5" placeholder="سَ&#10;لام&#10;دِ&#10;لَم" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea></div>
      <div class="field"><label for="mehranSingerPronunciationOverrides">PRONUNCIATION OVERRIDES · تلفظ تأییدشدهٔ واژه‌ها</label><textarea id="mehranSingerPronunciationOverrides" rows="3" placeholder="سلام=سَ-لام&#10;دنیا=دُن-یا" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea><small style="color:var(--muted)">هر خط: واژه=هجا-هجا. فقط واژه‌هایی را وارد کن که تلفظشان را بررسی کرده‌ای.</small></div>
+     <div class="field"><label for="mehranSingerReviewedSyllablePhonemes">REVIEWED PERSIAN PHONEMES · واج‌های تأییدشده، هر هجا یک خط</label><textarea id="mehranSingerReviewedSyllablePhonemes" rows="4" placeholder="s,æ&#10;l,ɒː,m" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea><small style="color:var(--muted)">نمادهای واج را با کاما جدا کن. تعداد خطوط باید با تعداد هجاها برابر باشد؛ برای هر هجا فقط واج‌هایی را وارد کن که تلفظشان را تأیید کرده‌ای.</small></div>
+     <div class="field"><label for="mehranSingerPhonemeWeights">PHONEME DURATION WEIGHTS · وزن زمانی واج‌ها، هر هجا یک خط</label><textarea id="mehranSingerPhonemeWeights" rows="4" placeholder="1,1&#10;1,2,1" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea><small style="color:var(--muted)">برای هر واج یک عدد مثبت وارد کن؛ ترتیب اعداد باید دقیقاً با ترتیب واج‌های همان خط یکی باشد. این وزن‌ها زمان هجای تأییدشده را بین واج‌ها تقسیم می‌کنند.</small></div>
      <div class="field"><label for="mehranSingerNoteGroups">NOTE GROUPS · یک خط برای هر هجا، شماره نت‌ها با کاما</label><textarea id="mehranSingerNoteGroups" rows="5" placeholder="0&#10;1,2&#10;3&#10;4" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea></div>
-     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="proposeMehranSingerAlignment" type="button">پیشنهاد یک‌به‌یک</button><button class="btn" id="saveMehranSingerAlignment" type="button">اعتبارسنجی و ذخیره هم‌ترازی</button><button class="btn secondary" id="exportMehranSingerAlignment" type="button">خروجی JSON هم‌ترازی</button></div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="proposeMehranSingerAlignment" type="button">پیشنهاد یک‌به‌یک</button><button class="btn" id="saveMehranSingerAlignment" type="button">اعتبارسنجی و ذخیره هم‌ترازی</button><button class="btn secondary" id="exportMehranSingerAlignment" type="button">خروجی JSON هم‌ترازی</button><button class="btn" id="prepareMehranSingerConditioning" type="button">آماده‌سازی ورودی مدل</button></div>
      <p id="mehranSingerAlignmentStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;line-height:1.8;margin-top:10px">ابتدا پروژه‌ای با نت‌های Piano Roll انتخاب کن.</p>
      <div id="mehranSingerTimeline" aria-label="Syllable and note alignment timeline" style="margin-top:12px;display:grid;gap:7px"><div class="empty">پس از واردکردن هجاها و گروه نت، پیش‌نمایش زمانی اینجا نمایش داده می‌شود.</div></div>
      <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--cyan);font-size:11px">فهرست نت‌های Piano Roll</summary><div id="mehranSingerAlignmentNotes" style="max-height:220px;overflow:auto;color:var(--muted);font:11px/1.8 monospace;margin-top:8px">No project notes loaded.</div></details>
@@ -642,6 +644,46 @@
    $("mehranSingerAlignmentStatus").textContent=data.message||status.textContent;
    $("mehranSingerJobPreview").value=JSON.stringify({job,alignment_analysis:data},null,2);
   }catch(error){status.textContent="تحلیل انجام نشد: "+String(error.message||error).slice(0,260);}
+  finally{button.disabled=false;}
+ }
+ async function prepareMehranSingerConditioning(){
+  const base=saveMehranSingerApiBase(),status=$("mehranSingerApiStatus"),button=$("prepareMehranSingerConditioning");
+  if(!base)return;
+  const selectedProject=projects.find(item=>item.id===$("vocalProject").value),saved=selectedProject&&selectedProject.singerAlignment;
+  if(!saved||!Array.isArray(saved.syllables)||!Array.isArray(saved.noteGroups)||!Array.isArray(saved.alignment)){status.textContent="ابتدا هم‌ترازی هجاها و نت‌ها را ذخیره کن.";return;}
+  const parseRows=(id,kind)=>$(id).value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean).map((line,index)=>{
+   const values=line.split(",").map(value=>value.trim());
+   if(!values.length||values.some(value=>!value))throw new Error("خط "+(index+1)+" در "+kind+" خالی یا نامعتبر است.");
+   return values;
+  });
+  let reviewedSyllablePhonemes,phonemeDurationWeights;
+  try{
+   reviewedSyllablePhonemes=parseRows("mehranSingerReviewedSyllablePhonemes","واج‌ها");
+   phonemeDurationWeights=parseRows("mehranSingerPhonemeWeights","وزن‌های زمانی").map((row,index)=>row.map(value=>{
+    const number=Number(value);if(!Number.isFinite(number)||number<=0)throw new Error("وزن زمانی خط "+(index+1)+" باید عدد مثبت باشد.");return number;
+   }));
+   if(reviewedSyllablePhonemes.length!==saved.syllables.length||phonemeDurationWeights.length!==saved.syllables.length)throw new Error("برای هر هجا دقیقاً یک خط واج و یک خط وزن زمانی لازم است.");
+   for(let i=0;i<saved.syllables.length;i++)if(reviewedSyllablePhonemes[i].length!==phonemeDurationWeights[i].length)throw new Error("تعداد واج‌ها و وزن‌ها در خط "+(i+1)+" برابر نیست.");
+  }catch(error){status.textContent=String(error.message||error);return;}
+  const job=window.mehranSingerJobSpec||null;
+  await prepareMehranSingerJob();
+  const preparedJob=window.mehranSingerJobSpec;
+  if(!preparedJob){status.textContent="مشخصات پروژه آماده نشد؛ شعر، ملودی و پروفایل را بررسی کن.";return;}
+  const pronunciationOverrides={};
+  const overrideLines=$("mehranSingerPronunciationOverrides").value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean);
+  for(const line of overrideLines){const split=line.indexOf("=");if(split<=0||split===line.length-1){status.textContent="قالب تلفظ نامعتبر است. از واژه=هجا-هجا استفاده کن.";return;}const word=line.slice(0,split).trim(),pronunciation=line.slice(split+1).trim();if(!word||!pronunciation||Object.prototype.hasOwnProperty.call(pronunciationOverrides,word)){status.textContent="واژهٔ خالی یا تکراری در تلفظ‌ها وجود دارد.";return;}pronunciationOverrides[word]=pronunciation;}
+  const bpm=Number(selectedProject.tempo||selectedProject.patternStudio?.tempo),secondsPerStep=60/Math.max(40,Math.min(220,bpm||120))/4;
+  const manualTimingWindows=saved.alignment.map(item=>({start_seconds:Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds))?Number(item.startSeconds):Number(item.startStep)*secondsPerStep,end_seconds:Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds))?Number(item.endSeconds):Number(item.endStep)*secondsPerStep}));
+  const payload={job:preparedJob,manual_note_groups:saved.noteGroups,manual_timing_windows:manualTimingWindows,pronunciation_overrides:pronunciationOverrides,reviewed_syllable_phonemes:reviewedSyllablePhonemes,phoneme_duration_weights:phonemeDurationWeights};
+  button.disabled=true;status.textContent="در حال ساخت ورودی استاندارد مدل از هجاها، واج‌ها و نت‌های تأییدشده…";
+  try{
+   const response=await fetch(base+"/v1/jobs/conditioning/prepare",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
+   let data={};try{data=await response.json();}catch{}
+   if(!response.ok)throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data).slice(0,300));
+   status.textContent="ورودی مدل آکوستیکی آماده شد؛ "+data.conditioning.phonemes.length+" واج و "+data.conditioning.notes.length+" نت. بازبینی انسانی لازم است و تولید WAV هنوز فعال نیست.";
+   $("mehranSingerAlignmentStatus").textContent=data.message||status.textContent;
+   $("mehranSingerJobPreview").value=JSON.stringify({job:preparedJob,conditioning_preparation:data},null,2);
+  }catch(error){status.textContent="آماده‌سازی ورودی مدل انجام نشد: "+String(error.message||error).slice(0,260);}
   finally{button.disabled=false;}
  }
  function downloadMehranSingerSpec(){
@@ -1702,7 +1744,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
 
  $("addSinger").addEventListener("click",addSinger);
  $("mehranSingerMidiFile").addEventListener("change",async event=>{const file=event.target.files&&event.target.files[0];mehranSingerMidiFile=file||null;mehranSingerMidiNotes=[];$("downloadMehranSingerSpec").disabled=true;window.mehranSingerJobSpec=null;if(!file){$("mehranSingerMidiStatus").textContent="No MIDI selected";refreshMehranSingerAlignment();return;}if(file.size>5*1024*1024){$("mehranSingerMidiStatus").textContent="فایل MIDI باید حداکثر ۵ مگابایت باشد.";mehranSingerMidiFile=null;refreshMehranSingerAlignment();return;}try{const bytes=new Uint8Array(await file.arrayBuffer()),parsed=parseMehranMidiBytes(bytes);mehranSingerMidiNotes=parsed.notes;$("mehranSingerMidiStatus").textContent=file.name+" · "+(file.size/1024).toFixed(1)+" KB · "+parsed.noteCount+" نت · "+parsed.durationSeconds.toFixed(2)+" ثانیه · PPQ "+parsed.ticksPerQuarter;refreshMehranSingerAlignment();}catch(error){mehranSingerMidiFile=null;mehranSingerMidiNotes=[];$("mehranSingerMidiStatus").textContent="MIDI نامعتبر: "+String(error.message||error).slice(0,180);refreshMehranSingerAlignment();}});
- $("prepareMehranSingerJob").addEventListener("click",prepareMehranSingerJob);$("downloadMehranSingerSpec").addEventListener("click",downloadMehranSingerSpec);$("vocalProject").addEventListener("change",refreshMehranSingerProfiles);$("checkMehranSingerEngine").addEventListener("click",()=>{void checkMehranSingerEngine();});$("runMehranSingerAlignment").addEventListener("click",()=>{void runMehranSingerAlignment();});$("mehranSingerApiBase").addEventListener("change",saveMehranSingerApiBase);loadMehranSingerApiBase();$("vocalProject").addEventListener("change",refreshMehranSingerAlignment);$("proposeMehranSingerAlignment").addEventListener("click",proposeMehranSingerAlignment);$("saveMehranSingerAlignment").addEventListener("click",saveMehranSingerAlignment);$("exportMehranSingerAlignment").addEventListener("click",exportMehranSingerAlignment);$("mehranSingerSyllables").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات هجاها ذخیره نشده‌اند.";renderMehranSingerTimeline(null);});$("mehranSingerNoteGroups").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات گروه نت‌ها ذخیره نشده‌اند.";renderMehranSingerTimeline(null);});
+ $("prepareMehranSingerJob").addEventListener("click",prepareMehranSingerJob);$("downloadMehranSingerSpec").addEventListener("click",downloadMehranSingerSpec);$("vocalProject").addEventListener("change",refreshMehranSingerProfiles);$("checkMehranSingerEngine").addEventListener("click",()=>{void checkMehranSingerEngine();});$("runMehranSingerAlignment").addEventListener("click",()=>{void runMehranSingerAlignment();});$("mehranSingerApiBase").addEventListener("change",saveMehranSingerApiBase);loadMehranSingerApiBase();$("vocalProject").addEventListener("change",refreshMehranSingerAlignment);$("proposeMehranSingerAlignment").addEventListener("click",proposeMehranSingerAlignment);$("saveMehranSingerAlignment").addEventListener("click",saveMehranSingerAlignment);$("exportMehranSingerAlignment").addEventListener("click",exportMehranSingerAlignment);$("prepareMehranSingerConditioning").addEventListener("click",()=>{void prepareMehranSingerConditioning();});$("mehranSingerSyllables").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات هجاها ذخیره نشده‌اند.";renderMehranSingerTimeline(null);});$("mehranSingerNoteGroups").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات گروه نت‌ها ذخیره نشده‌اند.";renderMehranSingerTimeline(null);});
  $("vocalCast").addEventListener("click",e=>{const edit=e.target.closest("[data-edit-singer]");if(edit){editSinger(Number(edit.dataset.editSinger));return;}const remove=e.target.closest("[data-remove-singer]");if(remove)removeSinger(Number(remove.dataset.removeSinger));});
  $("cancelSingerEdit").addEventListener("click",cancelSingerEdit);
  window.addEventListener("beforeunload",e=>{if(lyricsAreDirty()){e.preventDefault();e.returnValue="";}});
