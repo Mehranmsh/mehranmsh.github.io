@@ -138,3 +138,10 @@ Send `POST /v1/phonemes/timing` with a `syllables` array. Each item requires `st
 The SQLite registry now includes forward-only migrations for queue priority, attempt counters, worker identity, and lease expiry. Internal functions provide atomic claim (BEGIN IMMEDIATE), lease renewal by the owning worker, bounded retry scheduling, and recovery of expired leases. Jobs are ordered by descending priority and then creation time. Retry attempts are capped per job; exhausted jobs become terminally failed.
 
 These are **internal orchestration primitives only**. The public submit endpoint still creates jobs as `blocked_model_unavailable`; there is no public worker endpoint, no running worker, and no synthesis inference. `claim_next_job` returns no work unless its caller supplies an explicit verified model-readiness result. The current service has no architecture-specific loader, so production must not mark that gate true. A lease only coordinates work ownership; it does not create or validate audio.
+
+
+## Native singing runtime boundary
+
+The future in-house synthesizer must implement the `SingingSynthesisRuntime` protocol in `synthesis_runtime.py`: `load(model_directory)` and `synthesize(conditioning, output_directory)`. Its output contract is `mehran.svs.output.v1`, describing one isolated mono PCM WAV stem (16/24/32-bit integer PCM; 22.05, 24, 44.1, or 48 kHz) plus frame count, duration, project ID, relative artifact path, and SHA-256.
+
+`verify_synthesis_output` independently checks project ownership, path containment (including symlink rejection), file size, WAV header/codec/channel/rate/frame metadata, duration, and content hash. This is an output-verification boundary, not a synthesizer. No runtime implementation, model loader, checkpoint execution, speaker encoder, or audio-generation endpoint is included yet; health must continue to report inference unavailable until those pieces exist and are tested with a real model.
