@@ -75,19 +75,31 @@ async def enforce_api_limits(request: Request, call_next):
         if raw_length:
             try:
                 if int(raw_length) > MAX_REQUEST_BYTES:
-                    return JSONResponse(
+                    response = JSONResponse(
                         status_code=413,
                         content={"detail": "Request body exceeds the 8 MiB limit."},
                     )
+                    response.headers["X-Content-Type-Options"] = "nosniff"
+                    response.headers["Cache-Control"] = "no-store"
+                    response.headers["Referrer-Policy"] = "no-referrer"
+                    return response
             except ValueError:
-                return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
+                response = JSONResponse(status_code=400, content={"detail": "Invalid Content-Length header."})
+                response.headers["X-Content-Type-Options"] = "nosniff"
+                response.headers["Cache-Control"] = "no-store"
+                response.headers["Referrer-Policy"] = "no-referrer"
+                return response
         client_ip = request.client.host if request.client else "unknown"
         if not _allow_request(client_ip, request.url.path, time.monotonic()):
-            return JSONResponse(
+            response = JSONResponse(
                 status_code=429,
                 headers={"Retry-After": str(int(RATE_WINDOW_SECONDS))},
                 content={"detail": "Request rate limit reached. Try again in one minute."},
             )
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = "no-store"
