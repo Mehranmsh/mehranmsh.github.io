@@ -54,6 +54,34 @@ def health() -> dict:
     }
 
 
+def piano_roll_to_melody(note_events: list, bpm: float) -> dict:
+    """Convert four-subdivision-per-beat Piano Roll steps into seconds."""
+    if not 40 <= bpm <= 220:
+        raise ValueError("Piano Roll tempo must be between 40 and 220 BPM.")
+    ordered = sorted(note_events, key=lambda event: (event.startStep, event.note))
+    seconds_per_step = 60.0 / bpm / 4.0
+    notes = []
+    for index, event in enumerate(ordered):
+        start_seconds = float(event.startStep) * seconds_per_step
+        duration_seconds = float(event.lengthSteps) * seconds_per_step
+        notes.append({
+            "note": event.note,
+            "startSeconds": round(start_seconds, 6),
+            "durationSeconds": round(duration_seconds, 6),
+            "velocity": event.velocity,
+            "source": "piano_roll",
+            "sourceIndex": index,
+        })
+    return {
+        "notes": notes,
+        "noteCount": len(notes),
+        "durationSeconds": max(
+            (note["startSeconds"] + note["durationSeconds"] for note in notes),
+            default=0.0,
+        ),
+    }
+
+
 def _validated_job(payload: dict) -> SingingJob:
     try:
         return SingingJob.model_validate(payload)
@@ -147,26 +175,10 @@ def align_job(payload: dict) -> dict:
         bpm = job.project.tempo
         if bpm is None or bpm <= 0:
             raise HTTPException(status_code=422, detail="A valid project tempo is required to align Piano Roll notes.")
-        ordered_events = sorted(
-            job.melody.noteEvents,
-            key=lambda event: (event.startStep, event.note),
-        )
-        seconds_per_step = 60.0 / bpm / 4.0
-        notes = []
-        for index, event in enumerate(ordered_events):
-            start_seconds = float(event.startStep) * seconds_per_step
-            duration_seconds = float(event.lengthSteps) * seconds_per_step
-            notes.append({
-                "note": event.note,
-                "startSeconds": round(start_seconds, 6),
-                "durationSeconds": round(duration_seconds, 6),
-                "velocity": event.velocity,
-                "source": "piano_roll",
-                "sourceIndex": index,
-            })
-        melody = {"notes": notes, "noteCount": len(notes), "durationSeconds": max(
-            (note["startSeconds"] + note["durationSeconds"] for note in notes), default=0.0
-        )}
+        try:
+            melody = piano_roll_to_melody(job.melody.noteEvents, bpm)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         melody_source = "project_pattern"
     else:
         raise HTTPException(status_code=422, detail="Attach a MIDI file or add notes in the Piano Roll.")
