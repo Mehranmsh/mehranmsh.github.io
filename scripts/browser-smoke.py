@@ -402,7 +402,7 @@ def main():
                 stem_source_duration = page.locator("[data-track-audio-player]").first.evaluate("(el) => el.duration")
                 stem_start_offset = max(0, min(30, float(stem_track_state.get("startOffset", 0))))
                 stem_trimmed_duration = stem_source_duration - float(stem_track_state.get("trimStart", 0)) - float(stem_track_state.get("trimEnd", 0))
-                stem_active_start = stem_start_offset + float(stem_track_state.get("trimStart", 0))
+                stem_active_start = stem_start_offset  # Trim is a source seek, not an additional timeline delay.
                 stem_fx = stem_track_state.get("effects", {})
                 stem_send = max(0, min(0.6, float(stem_track_state.get("delay", 0) or 0) / 100))
                 stem_tail = 0.0
