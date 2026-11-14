@@ -116,7 +116,8 @@ class BatchCollatorTests(unittest.TestCase):
         self.assertEqual(batch.waveform_target.shape, (2, batch.target_log_mel.shape[1] * config().hop_length))
         self.assertEqual(int(batch.waveform_sample_mask[0].sum()), 4800)
         self.assertEqual(int(batch.waveform_sample_mask[1].sum()), 9600)
-        self.assertTrue(np.all(batch.waveform_target[0, 4800:] == 0))
+        self.assertTrue(np.any(batch.waveform_target[0, 4800:4864] != 0))
+        self.assertTrue(np.all(batch.waveform_target[0, 4864:] == 0))
         self.assertTrue(np.all(batch.waveform_sample_mask[0, 4800:] == 0))
 
     def test_rejects_mixed_waveform_target_presence(self):
