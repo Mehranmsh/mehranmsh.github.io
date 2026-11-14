@@ -352,6 +352,7 @@ def main():
                 mix_sample_rate = 44100
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
+                    assert rendered_mix.getsampwidth() == 3, "Mix export must be 24-bit PCM."
                     assert rendered_mix.getframerate() == mix_sample_rate
                     mix_track_state = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0]")
                     mix_trimmed_duration = 0.5 - float(mix_track_state.get("trimStart", 0)) - float(mix_track_state.get("trimEnd", 0))
@@ -390,7 +391,7 @@ def main():
                         }));
                     }""", mix_project_id)
                     assert early_peak < 100 * 256, "Pre-entry mix peak was "+str(early_peak)+" PCM units; first audible sample "+str(early_first_sample)+"; selected tracks "+str(mix_tracks_debug)+". Expected silence before track start."
-                    assert any(mix_pcm[int(1.30 * mix_sample_rate) * 4:int(1.45 * mix_sample_rate) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
+                    assert any(mix_pcm[int(1.30 * mix_sample_rate) * 6:int(1.45 * mix_sample_rate) * 6]), "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
