@@ -71,6 +71,8 @@ def analyze_annotation(record: dict) -> dict:
                 vowel_note_overlap += max(0.0, min(end, note_end) - max(start, note_start))
 
     coverage = min(1.0, phoneme_duration / float(duration))
+    leading_unannotated = float(vowel_spans[0][1])
+    trailing_unannotated = max(0.0, float(duration) - float(vowel_spans[-1][2]))
     vowel_note_coverage = (
         min(1.0, vowel_note_overlap / vowel_duration) if vowel_duration > 0 else None
     )
@@ -84,6 +86,8 @@ def analyze_annotation(record: dict) -> dict:
         "phoneme_time_coverage": coverage,
         "internal_gap_count": len(internal_gaps),
         "maximum_internal_gap_seconds": max(internal_gaps, default=0.0),
+        "leading_unannotated_seconds": leading_unannotated,
+        "trailing_unannotated_seconds": trailing_unannotated,
         "vowel_note_time_coverage": vowel_note_coverage,
     }
 
@@ -114,6 +118,8 @@ def summarize_annotation_quality(
         if item["vowel_note_time_coverage"] is not None
     ]
     gaps = [item["maximum_internal_gap_seconds"] for item in diagnostics]
+    leading_gaps = [item["leading_unannotated_seconds"] for item in diagnostics]
+    trailing_gaps = [item["trailing_unannotated_seconds"] for item in diagnostics]
     warnings = []
     if min_phoneme is not None:
         count = sum(value < min_phoneme for value in coverage)
@@ -141,6 +147,12 @@ def summarize_annotation_quality(
         "internal_gaps": {
             "total": sum(item["internal_gap_count"] for item in diagnostics),
             "maximum_seconds": max(gaps, default=0.0) if gaps else None,
+        },
+        "edge_unannotated_audio": {
+            "maximum_leading_seconds": max(leading_gaps, default=0.0) if leading_gaps else None,
+            "maximum_trailing_seconds": max(trailing_gaps, default=0.0) if trailing_gaps else None,
+            "recordings_with_leading_audio": sum(value > 0 for value in leading_gaps),
+            "recordings_with_trailing_audio": sum(value > 0 for value in trailing_gaps),
         },
         "warnings": warnings,
         "thresholds": {
