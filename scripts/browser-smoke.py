@@ -356,7 +356,7 @@ def main():
                 mix_file = Path(temp) / "mix.wav"
                 mix_download.value.save_as(str(mix_file))
                 assert mix_file.is_file() and mix_file.stat().st_size > 44
-                mix_sample_rate = 22050
+                mix_sample_rate = 44100
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
                     assert rendered_mix.getframerate() == mix_sample_rate
