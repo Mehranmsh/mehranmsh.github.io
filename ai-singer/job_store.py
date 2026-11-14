@@ -42,6 +42,18 @@ def initialize_job_store() -> None:
         """)
         db.execute("CREATE INDEX IF NOT EXISTS idx_singing_jobs_expiry ON singing_jobs(expires_at)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_singing_jobs_created ON singing_jobs(created_at)")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS singing_job_events (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                detail_code TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES singing_jobs(job_id) ON DELETE CASCADE
+            )
+        """)
+        db.execute("CREATE INDEX IF NOT EXISTS idx_job_events_job ON singing_job_events(job_id, event_id)")
 
 
 def _public_record(row: sqlite3.Row) -> dict[str, Any]:
@@ -109,3 +121,21 @@ def cancel_job(job_id: str, token: str) -> dict | None:
             )
         updated = db.execute("SELECT * FROM singing_jobs WHERE job_id = ?", (job_id,)).fetchone()
         return _public_record(updated)
+
+
+
+def get_job_events(job_id: str, token: str) -> list[dict] | None:
+    """Return event history only after verifying the per-job bearer token."""
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    now = time.time()
+    with _connect() as db:
+        row = db.execute("SELECT token_hash, expires_at FROM singing_jobs WHERE job_id = ?", (job_id,)).fetchone()
+        if row is None or row["expires_at"] <= now:
+            return None
+        if not secrets.compare_digest(row["token_hash"], token_hash):
+            return None
+        events = db.execute(
+            "SELECT event_type, status, detail_code, created_at FROM singing_job_events WHERE job_id = ? ORDER BY event_id",
+            (job_id,),
+        ).fetchall()
+        return [dict(event) for event in events]
