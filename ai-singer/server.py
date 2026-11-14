@@ -194,7 +194,15 @@ def analyze_lyrics(payload: dict) -> dict:
         raise HTTPException(status_code=422, detail="pronunciation_overrides must be an object with at most 500 entries.")
     if any(not isinstance(k, str) or not isinstance(v, str) for k, v in overrides.items()):
         raise HTTPException(status_code=422, detail="Every pronunciation override must map a word to a syllable-separated string.")
-    return analyze_persian_lyrics(text_value, overrides)
+    reviewed_phones = payload.get("reviewed_phoneme_overrides", {})
+    if not isinstance(reviewed_phones, dict) or len(reviewed_phones) > 500:
+        raise HTTPException(status_code=422, detail="reviewed_phoneme_overrides must be an object with at most 500 entries.")
+    if any(not isinstance(k, str) or not isinstance(v, list) or any(not isinstance(item, str) for item in v) for k, v in reviewed_phones.items()):
+        raise HTTPException(status_code=422, detail="Every reviewed phoneme override must map a word to a list of canonical phoneme symbols.")
+    try:
+        return analyze_persian_lyrics(text_value, overrides, reviewed_phones)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/v1/jobs/analyze")
@@ -238,6 +246,11 @@ def align_job(payload: dict) -> dict:
         raise HTTPException(status_code=422, detail="pronunciation_overrides must be an object with at most 500 entries.")
     if any(not isinstance(k, str) or not isinstance(v, str) for k, v in overrides.items()):
         raise HTTPException(status_code=422, detail="Every pronunciation override must map a word to a syllable-separated string.")
+    reviewed_phones = payload.get("reviewed_phoneme_overrides", {})
+    if not isinstance(reviewed_phones, dict) or len(reviewed_phones) > 500:
+        raise HTTPException(status_code=422, detail="reviewed_phoneme_overrides must be an object with at most 500 entries.")
+    if any(not isinstance(k, str) or not isinstance(v, list) or any(not isinstance(item, str) for item in v) for k, v in reviewed_phones.items()):
+        raise HTTPException(status_code=422, detail="Every reviewed phoneme override must map a word to a list of canonical phoneme symbols.")
     if job.melody.midi:
         midi_bytes = base64.b64decode(job.melody.midi.data, validate=True)
         try:
@@ -258,7 +271,7 @@ def align_job(payload: dict) -> dict:
         melody_source = "project_pattern"
     else:
         raise HTTPException(status_code=422, detail="Attach a MIDI file or add notes in the Piano Roll.")
-    lyrics = analyze_persian_lyrics(job.project.lyrics, overrides)
+    try:\n        lyrics = analyze_persian_lyrics(job.project.lyrics, overrides, reviewed_phones)\n    except ValueError as exc:\n        raise HTTPException(status_code=422, detail=str(exc)) from exc
     manual_groups = payload.get("manual_note_groups")
     try:
         result = align_lyrics_to_midi(lyrics, melody, manual_groups)
