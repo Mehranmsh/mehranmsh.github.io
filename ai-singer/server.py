@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import ValidationError
 
 from job_schema import SingingJob
-from midi_parser import MidiParseError, parse_standard_midi
+from midi_parser import MidiParseError, parse_standard_midi\nfrom persian_lyrics import analyze_persian_lyrics
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine",
@@ -57,6 +57,19 @@ def validate_job(payload: dict) -> dict:
         "generation_ready": False,
         "message": "Job structure validated only. No vocal was rendered or queued.",
     }
+
+
+@app.post("/v1/lyrics/analyze")
+def analyze_lyrics(payload: dict) -> dict:
+    text_value = payload.get("text")
+    if not isinstance(text_value, str) or not text_value.strip() or len(text_value) > 20000:
+        raise HTTPException(status_code=422, detail="Provide non-empty Persian lyrics up to 20,000 characters.")
+    overrides = payload.get("pronunciation_overrides", {})
+    if not isinstance(overrides, dict) or len(overrides) > 500:
+        raise HTTPException(status_code=422, detail="pronunciation_overrides must be an object with at most 500 entries.")
+    if any(not isinstance(k, str) or not isinstance(v, str) for k, v in overrides.items()):
+        raise HTTPException(status_code=422, detail="Every pronunciation override must map a word to a syllable-separated string.")
+    return analyze_persian_lyrics(text_value, overrides)
 
 
 @app.post("/v1/jobs/analyze")
