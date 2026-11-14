@@ -517,7 +517,45 @@
  function resetSingerForm(){["singerName","singerRange","singerLanguage","singerStyle","singerParts"].forEach(id=>$(id).value="");$("singerType").value="Not specified";$("singerRole").value="Lead";}
  function cancelSingerEdit(){editingSingerId=null;resetSingerForm();$("addSinger").textContent="Add singer to project";$("cancelSingerEdit").classList.add("hidden");}
  function editSinger(index){const p=projects.find(x=>x.id===$("vocalProject").value);const singer=p?.singers?.[index];if(!singer)return;editingSingerId=singer.id;$("singerName").value=singer.name||"";$("singerType").value=singer.voiceType||"Not specified";$("singerRole").value=singer.role||"Lead";$("singerRange").value=singer.range||"";$("singerLanguage").value=singer.language||"";$("singerStyle").value=singer.style||"";$("singerParts").value=singer.parts||"";$("addSinger").textContent="Save singer changes";$("cancelSingerEdit").classList.remove("hidden");$("singerName").focus();$("vocalStatus").textContent="Editing singer profile. Changes are saved only when you press Save.";}
- let mehranSingerMidiFile=null;
+ function parseMehranMidiBytes(bytes){
+  const fail=message=>{throw new Error(message);},u16=p=>(bytes[p]<<8)|bytes[p+1],u32=p=>((bytes[p]*0x1000000)+(bytes[p+1]<<16)+(bytes[p+2]<<8)+bytes[p+3])>>>0;
+  const textAt=(p,n)=>String.fromCharCode(...bytes.subarray(p,p+n));
+  if(bytes.length<14||textAt(0,4)!=="MThd")fail("سرآیند Standard MIDI پیدا نشد.");
+  const headerLength=u32(4);if(headerLength<6||8+headerLength>bytes.length)fail("طول سرآیند MIDI نامعتبر است.");
+  const format=u16(8),trackCount=u16(10),division=u16(12);
+  if(format!==0&&format!==1)fail("فقط MIDI استاندارد فرمت ۰ و ۱ پشتیبانی می‌شود.");
+  if(!trackCount||trackCount>32||(format===0&&trackCount!==1))fail("تعداد ترک‌های MIDI پشتیبانی نمی‌شود.");
+  if(!division||(division&0x8000))fail("زمان‌بندی SMPTE پشتیبانی نمی‌شود؛ فایل PPQ وارد کن.");
+  let offset=8+headerLength,maxTick=0;const raw=[],tempos=[[0,500000]];
+  const vlq=(state,end)=>{let value=0;for(let i=0;i<4;i++){if(state.p>=end)fail("دادهٔ VLQ ناقص است.");const b=bytes[state.p++];value=(value<<7)|(b&127);if(!(b&128))return value;}fail("VLQ بیش از چهار بایت است.");};
+  for(let track=0;track<trackCount;track++){
+   if(offset+8>bytes.length||textAt(offset,4)!=="MTrk")fail("بخش ترک MIDI ناقص یا خراب است.");
+   const length=u32(offset+4),start=offset+8,end=start+length;if(end>bytes.length)fail("ترک MIDI از محدودهٔ فایل خارج شده است.");
+   const state={p:start};let tick=0,running=null;const active=new Map();
+   while(state.p<end){
+    tick+=vlq(state,end);maxTick=Math.max(maxTick,tick);if(state.p>=end)fail("رویداد MIDI پس از delta time وجود ندارد.");
+    let status=bytes[state.p];if(status&128){state.p++;if(status<240)running=status;}else{if(running===null)fail("Running status بدون status قبلی استفاده شده است.");status=running;}
+    if(status===255){if(state.p>=end)fail("رویداد meta ناقص است.");const type=bytes[state.p++],size=vlq(state,end);if(state.p+size>end)fail("رویداد meta از محدوده ترک خارج شده است.");if(type===81&&size===3){const tempo=(bytes[state.p]<<16)|(bytes[state.p+1]<<8)|bytes[state.p+2];if(tempo)tempos.push([tick,tempo]);}state.p+=size;if(type===47)break;continue;}
+    if(status===240||status===247){const size=vlq(state,end);if(state.p+size>end)fail("رویداد SysEx ناقص است.");state.p+=size;running=null;continue;}
+    if(status>=240)fail("رویداد system-common پشتیبانی نمی‌شود.");
+    const kind=status&240,channel=status&15,needed=(kind===192||kind===208)?1:2;if(state.p+needed>end)fail("رویداد channel ناقص است.");
+    const pitch=bytes[state.p++],velocity=needed===2?bytes[state.p++]:0;if(pitch>127||velocity>127)fail("بایت داده MIDI نامعتبر است.");
+    if(kind!==128&&kind!==144)continue;
+    const key=channel+":"+pitch;let queue=active.get(key);if(!queue){queue=[];active.set(key,queue);}
+    if(kind===144&&velocity>0)queue.push({start:tick,pitch,velocity,channel,track});
+    else if(queue.length){const note=queue.shift();raw.push({...note,end:Math.max(note.start,tick)});}
+   }
+   offset=end;
+  }
+  if(offset!==bytes.length&&bytes.subarray(offset).some(value=>value!==0))fail("دادهٔ اضافه پس از آخرین ترک MIDI وجود دارد.");
+  tempos.sort((a,b)=>a[0]-b[0]);const compact=[];for(const item of tempos){if(compact.length&&compact[compact.length-1][0]===item[0])compact[compact.length-1]=item;else compact.push(item);}
+  const secondsAt=target=>{let seconds=0,previous=0,tempo=500000;for(const event of compact){if(event[0]>=target)break;seconds+=(event[0]-previous)*tempo/1000000/division;previous=event[0];tempo=event[1];}return seconds+(target-previous)*tempo/1000000/division;};
+  const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#"];
+  const notes=raw.sort((a,b)=>a.start-b.start||a.pitch-b.pitch).slice(0,4097).map(item=>({note:names[item.pitch%12]+(Math.floor(item.pitch/12)-1),midiNote:item.pitch,startTick:item.start,endTick:item.end,startBeat:Number((item.start/division).toFixed(6)),durationBeats:Number(((item.end-item.start)/division).toFixed(6)),startSeconds:Number(secondsAt(item.start).toFixed(6)),durationSeconds:Number(Math.max(0,secondsAt(item.end)-secondsAt(item.start)).toFixed(6)),velocity:item.velocity,channel:item.channel,track:item.track}));
+  if(notes.length>4096)fail("فایل بیش از ۴۰۹۶ نت دارد؛ برای هم‌ترازی فایل کوتاه‌تر وارد کن.");
+  return {format,trackCount,ticksPerQuarter:division,durationTicks:maxTick,durationSeconds:Number(secondsAt(maxTick).toFixed(6)),tempoMap:compact.map(([tick,microsecondsPerQuarter])=>({tick,microsecondsPerQuarter})),notes};
+ }
+ let mehranSingerMidiFile=null,mehranSingerMidiNotes=[];
  async function prepareMehranSingerJob(){
   window.mehranSingerJobSpec=null;
   const status=$("mehranSingerEngineStatus"),preview=$("mehranSingerJobPreview"),download=$("downloadMehranSingerSpec");download.disabled=true;
@@ -608,6 +646,7 @@
 
  function mehranSingerAlignmentProject(){return projects.find(x=>x.id===$("vocalProject").value)||null;}
  function mehranSingerAlignmentNotes(project){
+  if(mehranSingerMidiFile&&mehranSingerMidiNotes.length)return mehranSingerMidiNotes;
   const pattern=project&&project.patternStudio&&typeof project.patternStudio==="object"?project.patternStudio:{};
   return Array.isArray(pattern.noteEvents)?pattern.noteEvents.filter(event=>event&&typeof event.note==="string"&&Number.isFinite(Number(event.startStep))&&Number.isFinite(Number(event.lengthSteps))).sort((a,b)=>Number(a.startStep)-Number(b.startStep)||String(a.note).localeCompare(String(b.note))).slice(0,256):[];
  }
@@ -617,8 +656,9 @@
   const notes=mehranSingerAlignmentNotes(project),saved=project.singerAlignment&&typeof project.singerAlignment==="object"?project.singerAlignment:null;
   syllables.value=Array.isArray(saved?.syllables)?saved.syllables.join("\n"):"";
   groups.value=Array.isArray(saved?.noteGroups)?saved.noteGroups.map(group=>group.join(",")).join("\n"):"";
-  notesRoot.innerHTML=notes.length?notes.map((note,index)=>'<div>'+index+' · '+esc(note.note)+' · step '+Number(note.startStep)+' · length '+Number(note.lengthSteps)+'</div>').join(""):'نتی در Piano Roll این پروژه پیدا نشد. ابتدا در Piano Roll نت بساز.';
-  status.textContent=notes.length?notes.length+" نت آماده است. "+(saved?"هم‌ترازی ذخیره‌شده بارگذاری شد.":"هجاها و گروه‌های نت را وارد کن."):"این پنل فعلاً از نت‌های Piano Roll استفاده می‌کند؛ فایل MIDI بارگذاری‌شده به‌تنهایی در این فهرست ظاهر نمی‌شود.";
+  const usingMidi=Boolean(mehranSingerMidiFile&&mehranSingerMidiNotes.length);
+  notesRoot.innerHTML=notes.length?notes.map((note,index)=>'<div>'+index+' · '+esc(note.note)+' · '+(usingMidi?('t '+Number(note.startSeconds).toFixed(3)+'s · '+Number(note.durationSeconds).toFixed(3)+'s'):('step '+Number(note.startStep)+' · length '+Number(note.lengthSteps)))+'</div>').join(""):'نتی در Piano Roll این پروژه پیدا نشد. ابتدا نت بساز یا فایل MIDI وارد کن.';
+  status.textContent=notes.length?notes.length+" نت آماده است · منبع: "+(usingMidi?"فایل MIDI واردشده":"Piano Roll")+". "+(saved?"هم‌ترازی ذخیره‌شده بارگذاری شد.":"هجاها و گروه‌های نت را وارد کن."):"این پروژه هنوز نت قابل استفاده ندارد.";
  }
  function proposeMehranSingerAlignment(){
   const syllables=$("mehranSingerSyllables").value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean),project=mehranSingerAlignmentProject(),notes=project?mehranSingerAlignmentNotes(project):[];
@@ -643,12 +683,13 @@
    for(const index of group){if(index<=previous||used.has(index)){status.textContent="گروه‌های نت باید بدون هم‌پوشانی و به ترتیب زمانی باشند.";return;}used.add(index);previous=index;}
    groups.push(group);
   }
-  const alignment=syllables.map((syllable,index)=>{const selected=groups[index].map(noteIndex=>notes[noteIndex]);const startStep=Math.min(...selected.map(note=>Number(note.startStep))),endStep=Math.max(...selected.map(note=>Number(note.startStep)+Number(note.lengthSteps)));return {syllable,noteIndices:groups[index],notes:selected.map(note=>note.note),noteEvents:selected.map(note=>({...note})),startStep,endStep,durationSteps:endStep-startStep,melisma:groups[index].length>1};});
+  const usingMidi=Boolean(mehranSingerMidiFile&&mehranSingerMidiNotes.length);
+  const alignment=syllables.map((syllable,index)=>{const selected=groups[index].map(noteIndex=>notes[noteIndex]);const item={syllable,noteIndices:groups[index],notes:selected.map(note=>note.note),noteEvents:selected.map(note=>({...note})),melisma:groups[index].length>1};if(usingMidi){item.startSeconds=Math.min(...selected.map(note=>Number(note.startSeconds)));item.endSeconds=Math.max(...selected.map(note=>Number(note.startSeconds)+Number(note.durationSeconds)));item.durationSeconds=item.endSeconds-item.startSeconds;}else{item.startStep=Math.min(...selected.map(note=>Number(note.startStep)));item.endStep=Math.max(...selected.map(note=>Number(note.startStep)+Number(note.lengthSteps)));item.durationSteps=item.endStep-item.startStep;}return item;});
   const prior=project.singerAlignment,priorUpdated=project.updated;
   project.singerAlignment={version:"mehran.studio.singer-alignment.v1",syllables,noteGroups:groups,alignment,reviewedByUser:true,requiresAcousticReview:true,savedAt:Date.now()};
   project.updated=Date.now();
   if(!save()){project.singerAlignment=prior;project.updated=priorUpdated;return;}
-  status.textContent="هم‌ترازی در پروژه ذخیره شد: "+syllables.length+" هجا، "+used.size+" نت تخصیص‌یافته، "+alignment.filter(item=>item.melisma).length+" هجای کشیده. بررسی زمان‌بندی آکوستیکی و تولید آواز هنوز مرحلهٔ جداگانه است.";
+  status.textContent="هم‌ترازی در پروژه ذخیره شد: "+syllables.length+" هجا، "+used.size+" نت از "+(usingMidi?"MIDI":"Piano Roll")+"، "+alignment.filter(item=>item.melisma).length+" هجای کشیده. بررسی زمان‌بندی آکوستیکی و تولید آواز هنوز مرحلهٔ جداگانه است.";
  }
  function addSinger(){const p=projects.find(x=>x.id===$("vocalProject").value);if(!p){alert("Choose a project first.");return;}const name=$("singerName").value.trim();if(!name){$("singerName").focus();alert("Enter a singer name or alias.");return;}p.singers=Array.isArray(p.singers)?p.singers:[];p.tracks=Array.isArray(p.tracks)?p.tracks:[];const existing=editingSingerId?p.singers.find(v=>v.id===editingSingerId):null;if(editingSingerId&&!existing){cancelSingerEdit();alert("This singer profile no longer exists. Please choose it again.");return;}if(!existing&&p.singers.length>=8){alert("A project can have up to 8 singer profiles.");return;}const singer={id:existing?existing.id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name.slice(0,60),voiceType:$("singerType").value,role:$("singerRole").value,range:$("singerRange").value.trim().slice(0,40),language:$("singerLanguage").value.trim().slice(0,40),style:$("singerStyle").value.trim().slice(0,500),parts:$("singerParts").value.trim().slice(0,160)};const previous=existing?{...existing}:null;const previousTracks=p.tracks.map(t=>({...t}));const previousUpdated=p.updated;if(existing)Object.assign(existing,singer);else p.singers.push(singer);const linked=p.tracks.find(t=>t.sourceSingerId===singer.id);if(linked){const backing=["Backing vocals","Harmony","Ad-libs","Choir"].includes(singer.role);linked.name=singer.name;linked.type=backing?"Backing Vocal":"Lead Vocal";linked.role=backing?"Support":"Lead";linked.notes=[singer.style||"",singer.parts?"Parts: "+singer.parts:""].filter(Boolean).join(" · ").slice(0,500);}p.updated=Date.now();if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.tracks=previousTracks;p.updated=previousUpdated;return;}cancelSingerEdit();$("vocalStatus").textContent=existing?"Singer profile and linked track updated locally.":"Singer profile saved locally.";render();renderVocalCast();refreshMixProjects();}
  
@@ -1613,7 +1654,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  $("trackAudioFile").addEventListener("change",async e=>{const file=e.target.files&&e.target.files[0];e.target.value="";if(!file||!activeAudioTrackId)return;const p=projects.find(x=>x.id===$("mixProject").value);const track=p?.tracks?.find(t=>t.id===activeAudioTrackId);if(!p||!track){$("mixStatus").textContent="Choose a project and track before attaching audio.";return;}if(file.size<=0||file.size>MAX_AUDIO_BYTES){alert("Choose an audio file between 1 byte and 100 MB.");return;}if(!(file.type.startsWith("audio/")||/\.(wav|mp3|flac|m4a|ogg|opus|aac)$/i.test(file.name))){alert("This file does not appear to be a supported audio file.");return;}const key=audioKey(p.id,track.id);const old={audioName:track.audioName,audioType:track.audioType,audioSize:track.audioSize,updated:p.updated};$("mixStatus").textContent="Saving audio locally. The file is not being uploaded.";try{const previousAudio=await readTrackAudio(key);await storeTrackAudio(key,file);track.audioName=file.name.slice(0,180);track.audioType=file.type.slice(0,100);track.audioSize=file.size;p.updated=Date.now();if(!save()){await restoreTrackAudioAsset(key,previousAudio);Object.assign(track,old);$("mixStatus").textContent="Project metadata could not be saved. The previous audio file and track data were preserved.";return;}$("mixStatus").textContent="Audio saved on this device. Preview playback is ready.";renderMixTracks();}catch(error){Object.assign(track,old);$("mixStatus").textContent="Could not store audio locally: "+error.message;alert("Audio was not attached: "+error.message);}finally{activeAudioTrackId=null;}});
 
  $("addSinger").addEventListener("click",addSinger);
- $("mehranSingerMidiFile").addEventListener("change",event=>{const file=event.target.files&&event.target.files[0];mehranSingerMidiFile=file||null;$("mehranSingerMidiStatus").textContent=file?(file.name+" · "+(file.size/1024).toFixed(1)+" KB selected"):"No MIDI selected";$("downloadMehranSingerSpec").disabled=true;window.mehranSingerJobSpec=null;});
+ $("mehranSingerMidiFile").addEventListener("change",async event=>{const file=event.target.files&&event.target.files[0];mehranSingerMidiFile=file||null;mehranSingerMidiNotes=[];$("downloadMehranSingerSpec").disabled=true;window.mehranSingerJobSpec=null;if(!file){$("mehranSingerMidiStatus").textContent="No MIDI selected";refreshMehranSingerAlignment();return;}if(file.size>5*1024*1024){$("mehranSingerMidiStatus").textContent="فایل MIDI باید حداکثر ۵ مگابایت باشد.";mehranSingerMidiFile=null;refreshMehranSingerAlignment();return;}try{const bytes=new Uint8Array(await file.arrayBuffer()),parsed=parseMehranMidiBytes(bytes);mehranSingerMidiNotes=parsed.notes;$("mehranSingerMidiStatus").textContent=file.name+" · "+(file.size/1024).toFixed(1)+" KB · "+parsed.noteCount+" نت · "+parsed.durationSeconds.toFixed(2)+" ثانیه · PPQ "+parsed.ticksPerQuarter;refreshMehranSingerAlignment();}catch(error){mehranSingerMidiFile=null;mehranSingerMidiNotes=[];$("mehranSingerMidiStatus").textContent="MIDI نامعتبر: "+String(error.message||error).slice(0,180);refreshMehranSingerAlignment();}});
  $("prepareMehranSingerJob").addEventListener("click",prepareMehranSingerJob);$("downloadMehranSingerSpec").addEventListener("click",downloadMehranSingerSpec);$("vocalProject").addEventListener("change",refreshMehranSingerProfiles);$("checkMehranSingerEngine").addEventListener("click",()=>{void checkMehranSingerEngine();});$("runMehranSingerAlignment").addEventListener("click",()=>{void runMehranSingerAlignment();});$("mehranSingerApiBase").addEventListener("change",saveMehranSingerApiBase);loadMehranSingerApiBase();$("vocalProject").addEventListener("change",refreshMehranSingerAlignment);$("proposeMehranSingerAlignment").addEventListener("click",proposeMehranSingerAlignment);$("saveMehranSingerAlignment").addEventListener("click",saveMehranSingerAlignment);$("mehranSingerSyllables").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات هجاها ذخیره نشده‌اند.";});$("mehranSingerNoteGroups").addEventListener("input",()=>{$("mehranSingerAlignmentStatus").textContent="تغییرات گروه نت‌ها ذخیره نشده‌اند.";});
  $("vocalCast").addEventListener("click",e=>{const edit=e.target.closest("[data-edit-singer]");if(edit){editSinger(Number(edit.dataset.editSinger));return;}const remove=e.target.closest("[data-remove-singer]");if(remove)removeSinger(Number(remove.dataset.removeSinger));});
  $("cancelSingerEdit").addEventListener("click",cancelSingerEdit);
