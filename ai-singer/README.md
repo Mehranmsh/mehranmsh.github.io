@@ -266,3 +266,8 @@ The CLI reports `conditioning_mode: teacher_forced_ground_truth_acoustics` and `
 ## Experimental end-to-end singing graph
 
 `singing_pipeline.py` now composes the phoneme/MIDI-conditioned acoustic network with the reference-conditioned waveform decoder. It feeds predicted log-Mel, F0, voicing probability, and energy into the decoder and reports the exact sample length for each valid frame sequence. This closes the model-graph wiring at the architecture level only. Both networks remain untrained, no inference checkpoint is available, no real audio quality has been evaluated, and the public API continues to report synthesis unavailable. The graph must not be presented to users as a functioning singer until trained checkpoints, robust inference, verified WAV writing, and held-out listening tests exist.
+
+
+## Verified WAV artifact writer
+
+`waveform_output.py` serializes a supplied normalized mono float waveform into an atomic 16-bit PCM WAV artifact, writes only within the chosen output directory, rejects symlink output directories and invalid sample arrays, computes SHA-256, and calls the existing independent WAV output verifier before returning metadata. This is an artifact-writing component, not a singing generator. It can only write samples supplied by a caller; the untrained model graph does not make those samples meaningful vocals.
