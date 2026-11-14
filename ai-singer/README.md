@@ -445,3 +445,28 @@ python dataset_review_queue.py /local/mehran-dataset/manifest.jsonl \\
 
 The command reports the number of queued recordings, not their identifiers or transcripts. It does not edit the manifest, change split assignments, approve annotations, train a model, or enable inference. Re-run it after annotation updates to refresh the worklist.
 \n
+
+### Complete the local annotation review loop
+
+1. Export a private review CSV from the validated manifest:
+
+   ```bash
+   python dataset_review_queue.py /local/mehran-dataset/manifest.jsonl \
+     --audio-root /local/mehran-dataset \
+     --output /local/private-review/annotation-queue.csv
+   ```
+
+2. Open the CSV only in a trusted local spreadsheet editor. For each recording, fill `phoneme_alignment_json` and `notes_json` with JSON arrays that follow the manifest schema, then change `review_decision` from `pending` to `approved` only after listening and checking the timing. Use `rejected` when the source should not be used. Keep recording IDs, speaker IDs, transcript, split, and audio path unchanged.
+
+3. Apply the approved rows:
+
+   ```bash
+   python dataset_review_apply.py /local/mehran-dataset/manifest.jsonl \
+     /local/private-review/annotation-queue.csv \
+     --audio-root /local/mehran-dataset
+   ```
+
+The importer matches every row against immutable manifest metadata, rejects duplicate/unknown IDs and edited identity fields, validates the complete candidate manifest (including Persian phoneme inventory, MIDI timing, audio integrity, consent and split leakage), and replaces the manifest atomically under the same cross-process lock used by the studio exporter. Pending and rejected rows are left unchanged. Already reviewed recordings cannot be overwritten by this workflow.
+
+The CSV contains private transcripts and recording metadata. Keep it outside the audio dataset, restrict access to authorized reviewers, and never commit it to the repository. The tools are local-only: no audio or CSV is uploaded, no model is trained, and inference remains disabled.
+\n
