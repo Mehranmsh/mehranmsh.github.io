@@ -205,3 +205,20 @@ Checkpoint loading uses PyTorch's restricted `weights_only=True` deserializer an
 
 These are training primitives, not a completed trainer product. A real run still requires a lawful, consented, reviewed Persian singing dataset on the operator's local storage, a training orchestration/configuration, experiment monitoring, held-out quality evaluation, and later a separately implemented and evaluated waveform decoder/vocoder. No user audio is included in the repository and no model checkpoint is committed.
 
+
+## Local training command
+
+`train_model.py` connects the reviewed local dataset loader, deterministic length-aware sampler, batch collator, acoustic network, masked training loop, validation, and best/latest checkpoint writer. It requires both `train` and speaker-disjoint `validation` splits. The `test` split is deliberately not used for model selection.
+
+Example command (run only after preparing your own reviewed dataset locally):
+
+```bash
+pip install -r requirements.txt
+pip install -r training-requirements.txt
+python train_model.py --manifest /path/to/manifest.jsonl --audio-root /path/to/audio --output-dir ./checkpoints/mehran-fa-svs --epochs 50 --batch-size 8 --device cpu
+```
+
+The command writes `latest.pt` and `best.pt` under the chosen output directory. Resume from a trusted local checkpoint with `--resume /path/to/latest.pt` and increase `--epochs` to the desired total epoch count. It prints per-epoch train/validation losses and never uploads recordings. The initial CLI uses the current 48 kHz, 256-hop, 100-bin acoustic configuration by default; adjust the three corresponding flags only when the dataset WAVs and model configuration are prepared consistently.
+
+This is now an executable training pipeline, but no training has been run because no consented local dataset has been supplied. A trained checkpoint, robust speaker identity control, objective listening evaluation, and waveform decoder/vocoder are still outstanding. It is not yet a singing-generation feature.
+
