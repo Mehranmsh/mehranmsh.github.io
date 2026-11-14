@@ -627,7 +627,11 @@ def main():
 
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
-                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                try:
+                    page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                except Exception as error:
+                    render_status = page.locator("#patternStatus").inner_text()
+                    raise AssertionError("Keys pattern render did not finish. Status: " + render_status + ". Browser errors: " + " | ".join(errors)) from error
                 melody_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"] and melody_project["patternStudio"]["velocityByStep"][1] == 65 and melody_project["patternStudio"]["gateByStep"][1] == 55
                 melody_events = [event for event in melody_project["patternStudio"]["noteEvents"] if event["startStep"] == 1]
