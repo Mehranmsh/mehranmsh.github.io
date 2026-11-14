@@ -78,7 +78,11 @@ class SingingInferenceRuntimeTests(unittest.TestCase):
             self.assertTrue((Path(directory) / result["artifact_path"]).is_file())
 
     def test_from_bundle_verifies_checkpoint_hash_before_loading(self):
-        acoustic, decoder = self.configs()
+        acoustic, _ = self.configs()
+        decoder = WaveformDecoderConfig(
+            mel_bins=40, sample_rate=48000, hop_length=64, initial_channels=32,
+            upsample_factors=(4, 4, 4), residual_dilations=(1,), speaker_embedding_size=16,
+        )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             checkpoint = root / "pipeline.pt"
@@ -91,7 +95,7 @@ class SingingInferenceRuntimeTests(unittest.TestCase):
                 "sample_rate": 48000,
                 "n_fft": 2048,
                 "win_length": 2048,
-                "hop_length": 4,
+                "hop_length": 64,
                 "mel_bins": 40,
                 "f_min_hz": 40.0,
                 "f_max_hz": 16000.0,
