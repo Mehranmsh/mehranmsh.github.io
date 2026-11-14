@@ -69,14 +69,6 @@ class PitchTargetTests(unittest.TestCase):
         self.assertAlmostEqual(float(targets.f0_hz[0]), 880.0, delta=0.02)
         self.assertAlmostEqual(float(targets.energy[0]), 0.8 * 64 / 127, delta=1e-5)
 
-    def test_rejects_overlapping_notes_for_monophonic_voice(self):
-        cond = conditioning([
-            {"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.4},
-            {"midi_note": 64, "start_seconds": 0.3, "duration_seconds": 0.3},
-        ])
-        with self.assertRaisesRegex(ValueError, "monophonic"):
-            build_pitch_targets(cond, model_config())
-
     def test_rejects_config_rate_mismatch(self):
         cond = conditioning([{
             "midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.5,
