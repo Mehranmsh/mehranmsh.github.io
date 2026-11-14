@@ -23,7 +23,8 @@ class ReviewQueueError(ValueError):
 FIELDS = (
     "recording_id", "speaker_id", "split", "audio_path", "transcript",
     "duration_seconds", "sample_rate", "channels", "alignment_status",
-    "has_phoneme_alignment", "has_midi_notes", "phoneme_alignment_json",\n    "notes_json", "review_decision",
+    "has_phoneme_alignment", "has_midi_notes", "phoneme_alignment_json",
+    "notes_json", "review_decision",
 )
 
 
@@ -91,7 +92,9 @@ def build_review_queue(
                     "channels": record["channels"],
                     "alignment_status": record["alignment_status"],
                     "has_phoneme_alignment": bool(record.get("phoneme_alignment")),
-                    "has_midi_notes": bool(record.get("notes")),\n                    "phoneme_alignment_json": json.dumps(record.get("phoneme_alignment", []), ensure_ascii=False),\n                    "notes_json": json.dumps(record.get("notes", []), ensure_ascii=False),\n                    "review_decision": "pending",
+                    "has_midi_notes": bool(record.get("notes")),
+                    "phoneme_alignment_json": json.dumps(record.get("phoneme_alignment", []), ensure_ascii=False),
+                    "notes_json": json.dumps(record.get("notes", []), ensure_ascii=False),\n                    "review_decision": "pending",
                 })
     except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
         raise ReviewQueueError(
