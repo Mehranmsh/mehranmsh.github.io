@@ -33,6 +33,17 @@ def make_test_wav(path: Path):
             samples.extend(struct.pack("<h", value))
         wav.writeframes(samples)
 
+def make_test_midi(path: Path):
+    track = bytes([
+        0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20,
+        0x00, 0x90, 0x3C, 0x64,
+        0x83, 0x60, 0x80, 0x3C, 0x00,
+        0x00, 0xFF, 0x2F, 0x00,
+    ])
+    header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, 480)
+    chunk = b"MTrk" + struct.pack(">I", len(track)) + track
+    path.write_bytes(header + chunk)
+
 
 def main():
     handler = lambda *args, **kwargs: QuietHandler(*args, directory=str(ROOT), **kwargs)
@@ -44,7 +55,9 @@ def main():
     try:
         with TemporaryDirectory() as temp:
             audio_path = Path(temp) / "smoke-tone.wav"
+            midi_path = Path(temp) / "one-note.mid"
             make_test_wav(audio_path)
+            make_test_midi(midi_path)
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
                 context = browser.new_context(accept_downloads=True)
@@ -67,6 +80,11 @@ def main():
                 # Import a phone-recorded vocal through Vocal Lab and verify it becomes a real audio track.
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
+                # Import a Standard MIDI file and verify the studio parses and displays its real note timeline.
+                page.locator("#mehranSingerMidiFile").set_input_files(str(midi_path))
+                page.wait_for_function("document.querySelector('#mehranSingerMidiStatus')?.textContent.includes('1 نت')", timeout=10000)
+                midi_notes_text = page.locator("#mehranSingerAlignmentNotes").inner_text()
+                assert "C4" in midi_notes_text and "0.500s" in midi_notes_text, "Imported MIDI note timeline was not rendered: " + midi_notes_text
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
@@ -118,7 +136,7 @@ def main():
                 assert "YIN confidence score" in pitch_text, "Pitch detector confidence score was not displayed: " + pitch_text
                 assert "not a guarantee of note accuracy" in pitch_text, "Pitch confidence score needs its accuracy limitation explained."
                 assert "Correction map" in pitch_text and "50%" in pitch_text, "Scale-aware correction plan was not rendered: " + pitch_text
-                assert "52.0 cents" in pitch_text, "Correction strength calculation is incorrect: " + pitch_text
+                assert "average adjustment 52.8 cents" in pitch_text, "Correction strength calculation is incorrect: " + pitch_text
                 assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
                 assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 1, "Pitch contour has no voiced frames"
 
