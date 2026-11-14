@@ -20,7 +20,7 @@ class StudioDatasetExportTests(unittest.TestCase):
             wav.setnchannels(1)
             wav.setsampwidth(2)
             wav.setframerate(24000)
-            wav.writeframes(b"\\x00\\x00" * 2400)
+            wav.writeframes(bytes(4800))
         self.export = {
             "schema": "mehran.svs.conditioning-export.v1",
             "review_required": True,
