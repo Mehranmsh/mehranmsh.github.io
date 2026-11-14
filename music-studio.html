@@ -806,15 +806,19 @@
    if(!AudioContextClass)throw new Error("مرورگر پردازش صوت محلی را پشتیبانی نمی‌کند.");
    context=new AudioContextClass();
    const decoded=await context.decodeAudioData(await stored.blob.arrayBuffer());
-   const sampleRate=24000,frameCount=Math.max(1,Math.round(decoded.duration*sampleRate)),channels=decoded.numberOfChannels,mono=new Float32Array(frameCount);
+   const sampleRate=24000,channels=decoded.numberOfChannels,sourceFrames=decoded.length;
+   if(!Number.isFinite(decoded.duration)||decoded.duration<=0||decoded.duration>900)throw new Error("مدت ضبط باید بیشتر از صفر و حداکثر ۱۵ دقیقه باشد.");
+   const monoSource=context.createBuffer(1,sourceFrames,decoded.sampleRate),monoSourceData=monoSource.getChannelData(0);
    for(let channel=0;channel<channels;channel++){
     const source=decoded.getChannelData(channel);
-    for(let i=0;i<frameCount;i++){
-     const position=i*decoded.sampleRate/sampleRate,left=Math.floor(position),fraction=position-left;
-     const a=source[Math.min(left,source.length-1)]||0,b=source[Math.min(left+1,source.length-1)]||0;
-     mono[i]+=(a+(b-a)*fraction)/channels;
-    }
+    for(let i=0;i<sourceFrames;i++)monoSourceData[i]+=source[i]/channels;
    }
+   const OfflineAudioContextClass=window.OfflineAudioContext||window.webkitOfflineAudioContext;
+   if(!OfflineAudioContextClass)throw new Error("مرورگر بازنمونه‌برداری باکیفیت محلی را پشتیبانی نمی‌کند.");
+   const frameCount=Math.max(1,Math.round(decoded.duration*sampleRate)),offlineContext=new OfflineAudioContextClass(1,frameCount,sampleRate),sourceNode=offlineContext.createBufferSource();
+   sourceNode.buffer=monoSource;sourceNode.connect(offlineContext.destination);sourceNode.start(0);
+   const rendered=await offlineContext.startRendering(),mono=rendered.getChannelData(0);
+   if(mono.length!==frameCount)throw new Error("طول فایل بازنمونه‌برداری‌شده با زمان ضبط سازگار نیست.");
    const buffer=new ArrayBuffer(44+frameCount*2),view=new DataView(buffer);
    const writeText=(offset,value)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i));};
    writeText(0,"RIFF");view.setUint32(4,36+frameCount*2,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);writeText(36,"data");view.setUint32(40,frameCount*2,true);
