@@ -48,6 +48,12 @@ on:
       - ".github/workflows/ai-singer-model-tests.yml"
   pull_request:
     paths:
+      - "ai-singer/quality_evaluation.py"
+      - "ai-singer/quality_report.py"
+      - "ai-singer/heldout_evaluation.py"
+      - "ai-singer/tests/test_heldout_evaluation.py"
+      - "ai-singer/tests/test_quality_report.py"
+      - "ai-singer/tests/test_quality_evaluation.py"
       - "ai-singer/model_architecture.py"
       - "ai-singer/training-requirements.txt"
       - "ai-singer/tests/test_model_architecture.py"
