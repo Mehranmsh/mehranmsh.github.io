@@ -94,7 +94,7 @@ class DatasetManifestTests(unittest.TestCase):
             alignment_status="reviewed",
             phoneme_alignment=[{"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.1}],
         )
-        with self.assertRaisesRegex(ManifestError, "requires monophonic notes"):
+        with self.assertRaisesRegex(ManifestError, "monophonic notes are required"):
             validate_manifest(self.write_manifest([record]))
 
     def test_rejects_midi_pitch_outside_range(self):
