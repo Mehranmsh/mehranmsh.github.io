@@ -82,7 +82,7 @@ def _validate_alignment(record: dict, duration: float, line_number: int) -> None
 def _validate_notes(record: dict, duration: float, line_number: int) -> None:
     notes = record.get("notes")
     if record["alignment_status"] == "reviewed" and (not isinstance(notes, list) or not notes):
-        raise ManifestError(f"line {line_number}: reviewed alignment requires monophonic notes")
+        raise ManifestError(f"line {line_number}: reviewed monophonic notes are required")
     if notes is None:
         return
     if not isinstance(notes, list) or len(notes) > 20000:
