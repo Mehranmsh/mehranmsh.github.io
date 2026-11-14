@@ -85,6 +85,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_train_singing_pipeline.py' -v
       - name: Run guarded local inference runtime tests
         run: python -m unittest discover -s tests -p 'test_inference_runtime.py' -v
+      - name: Run joint model bundle integrity tests
+        run: python -m unittest discover -s tests -p 'test_joint_model_bundle.py' -v
       - name: Run verified waveform output tests
         run: python -m unittest discover -s tests -p 'test_waveform_output.py' -v
       - name: Run model bundle integrity tests
