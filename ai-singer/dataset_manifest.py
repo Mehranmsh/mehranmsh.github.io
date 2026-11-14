@@ -12,6 +12,8 @@ import wave
 from collections import defaultdict
 from pathlib import Path, PurePosixPath
 
+from phoneme_inventory import validate_phoneme_sequence
+
 
 class ManifestError(ValueError):
     """Raised when a dataset manifest is unsafe or internally inconsistent."""
@@ -76,6 +78,10 @@ def _validate_alignment(record: dict, duration: float, line_number: int) -> None
                 or start < previous_end or end <= start or end > duration + 0.02):
             raise ManifestError(f"line {line_number}: phoneme spans must be ordered, non-overlapping, and within audio")
         previous_end = end
+    try:
+        validate_phoneme_sequence([span["phoneme"] for span in spans])
+    except (TypeError, ValueError) as exc:
+        raise ManifestError(f"line {line_number}: invalid Persian phoneme sequence: {exc}") from exc
 
 
 
