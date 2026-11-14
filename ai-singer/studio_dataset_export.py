@@ -10,6 +10,7 @@ import json
 import math
 import os
 import tempfile
+from contextlib import contextmanager
 import wave
 from pathlib import Path, PurePosixPath
 
@@ -168,6 +169,44 @@ def _ensure_output_does_not_replace_audio(
         raise StudioDatasetExportError("manifest output must not overwrite a referenced audio file")
 
 
+@contextmanager
+def _manifest_write_lock(output: Path):
+    """Serialize read-validate-replace cycles across local processes."""
+    lock_path = output.with_name(output.name + ".lock")
+    if lock_path.is_symlink():
+        raise StudioDatasetExportError("manifest lock symlink is not allowed")
+    try:
+        lock_file = lock_path.open("a+b")
+    except OSError as exc:
+        raise StudioDatasetExportError("manifest write lock could not be opened") from exc
+    try:
+        if os.name == "nt":
+            import msvcrt
+            lock_file.seek(0)
+            if lock_file.read(1) == b"":
+                lock_file.seek(0)
+                lock_file.write(b"0")
+                lock_file.flush()
+            lock_file.seek(0)
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        raise StudioDatasetExportError("manifest write lock could not be acquired") from exc
+    finally:
+        lock_file.close()
+
+
 def append_manifest_record(
     output_path: str | Path,
     record: dict,
@@ -177,32 +216,33 @@ def append_manifest_record(
     """Atomically append a record, validating the complete candidate manifest first."""
     output = _safe_manifest_output_path(output_path)
     _ensure_output_does_not_replace_audio(output, record, dataset_root)
-    try:
-        existing = output.read_text(encoding="utf-8") if output.exists() else ""
-    except (OSError, UnicodeError) as exc:
-        raise StudioDatasetExportError("existing manifest could not be read as UTF-8 text") from exc
-    candidate = existing.rstrip("\n") + ("\n" if existing.strip() else "")
-    candidate += json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", newline="\n", dir=output.parent,
-            prefix=output.name + ".", suffix=".tmp", delete=False,
-        ) as temp:
-            temp.write(candidate)
-            temp.flush()
-            os.fsync(temp.fileno())
-            temp_path = Path(temp.name)
+    with _manifest_write_lock(output):
         try:
-            validate_manifest(temp_path, dataset_root)
-        except ManifestError as exc:
-            raise StudioDatasetExportError(str(exc)) from exc
-        os.replace(temp_path, output)
+            existing = output.read_text(encoding="utf-8") if output.exists() else ""
+        except (OSError, UnicodeError) as exc:
+            raise StudioDatasetExportError("existing manifest could not be read as UTF-8 text") from exc
+        candidate = existing.rstrip("\n") + ("\n" if existing.strip() else "")
+        candidate += json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
         temp_path = None
-    finally:
-        if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
-    return {"manifest_path": str(output), "recording_count": len([line for line in candidate.splitlines() if line.strip()]), "audio_copied": False, "audio_uploaded": False, "training_started": False}
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w", encoding="utf-8", newline="\n", dir=output.parent,
+                prefix=output.name + ".", suffix=".tmp", delete=False,
+            ) as temp:
+                temp.write(candidate)
+                temp.flush()
+                os.fsync(temp.fileno())
+                temp_path = Path(temp.name)
+            try:
+                validate_manifest(temp_path, dataset_root)
+            except ManifestError as exc:
+                raise StudioDatasetExportError(str(exc)) from exc
+            os.replace(temp_path, output)
+            temp_path = None
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+        return {"manifest_path": str(output), "recording_count": len([line for line in candidate.splitlines() if line.strip()]), "audio_copied": False, "audio_uploaded": False, "training_started": False}
 
 
 def main() -> int:
