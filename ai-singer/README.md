@@ -127,3 +127,7 @@ Send `POST /v1/phonemes/timing` with a `syllables` array. Each item requires `st
 - Job tokens are stored only as SHA-256 hashes and unknown IDs or invalid tokens return the same 404 response. Records expire after seven days and the registry caps active records at 1,000.
 - Set `MEHRAN_SVS_JOB_DB` to a persistent writable volume path in deployment. Without a mounted persistent volume, local container storage may be lost when the container is replaced.
 - Current job status is `blocked_model_unavailable`. This is durable intake and status tracking, not a live audio-rendering queue. No worker is started and no WAV is produced until the native model and inference runtime exist.
+
+## Job lifecycle event history
+
+`GET /v1/jobs/events/{job_id}` returns the job's event history when the caller supplies its `X-Job-Token`. Creation and user cancellation are recorded transactionally with fixed internal detail codes; payloads, lyrics, and access tokens are never copied into event records. Invalid tokens and unknown jobs both return 404. Event history is retained with its parent job and removed when the expired job record is deleted.
