@@ -465,10 +465,10 @@ def main():
                     assert tuned_stem.getnchannels() == 2 and tuned_stem.getframerate() == 44100
                     frames = tuned_stem.getnframes()
                     pcm = tuned_stem.readframes(frames)
-                    values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
-                    # After the 0.10 s source trim, the 440 Hz tone begins at 0.05 s in the rendered stem.
-                    # Use autocorrelation in a retained, non-silent window so fade-in does not bias zero-crossing counts.
-                    segment = values[int(0.06 * 44100) * 2:int(0.24 * 44100) * 2:2]
+                    values = decode_pcm24(pcm)
+                    # The 1.23 s timeline offset is retained; after the 0.10 s source trim,
+                    # the 440 Hz tone begins at 1.28 s. Measure near the end of the 0.25 s fade-in.
+                    segment = values[int(1.43 * 44100) * 2:int(1.48 * 44100) * 2:2]
                     mean = sum(segment) / len(segment)
                     centered = [sample - mean for sample in segment]
                     best_lag = max(range(90, 125), key=lambda lag: sum(centered[i] * centered[i + lag] for i in range(len(centered) - lag)))
