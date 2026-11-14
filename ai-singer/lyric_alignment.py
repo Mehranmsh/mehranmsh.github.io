@@ -6,7 +6,7 @@ class AlignmentError(ValueError):
     """Raised when manual note-to-syllable groups are invalid."""
 
 
-def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups: list[list[int]] | None = None) -> dict:
+def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups: list[list[int]] | None = None, manual_timing_windows: list[dict] | None = None) -> dict:
     words = lyrics_analysis.get("words", [])
     unresolved = [word["text"] for word in words if word.get("needs_review") or not word.get("syllables")]
     syllables = []
@@ -89,6 +89,37 @@ def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups
             "duration_seconds": round(max(0.0, finish - start), 6),
             "melisma": len(group) > 1,
         })
+
+    if manual_timing_windows is not None:
+        if not isinstance(manual_timing_windows, list) or len(manual_timing_windows) != len(mapped):
+            raise AlignmentError("manual_timing_windows must contain exactly one timing window per syllable.")
+        duration = max(
+            (float(note["startSeconds"]) + float(note["durationSeconds"]) for note in notes),
+            default=0.0,
+        )
+        import math
+        for index, window in enumerate(manual_timing_windows):
+            if not isinstance(window, dict):
+                raise AlignmentError(f"Timing window {index} must be an object.")
+            start = window.get("start_seconds")
+            end = window.get("end_seconds")
+            if isinstance(start, bool) or isinstance(end, bool):
+                raise AlignmentError(f"Timing window {index} must use numeric seconds.")
+            try:
+                start = float(start)
+                end = float(end)
+            except (TypeError, ValueError) as exc:
+                raise AlignmentError(f"Timing window {index} must use numeric seconds.") from exc
+            if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end <= start:
+                raise AlignmentError(f"Timing window {index} must be finite, non-negative and have positive duration.")
+            if end > duration + 1e-6:
+                raise AlignmentError(f"Timing window {index} extends beyond the melody duration.")
+            mapped[index]["start_seconds"] = round(start, 6)
+            mapped[index]["end_seconds"] = round(end, 6)
+            mapped[index]["duration_seconds"] = round(end - start, 6)
+        base["timing_source"] = "human_edited_syllable_windows"
+    else:
+        base["timing_source"] = "midi_note_group_bounds"
 
     base.update({
         "alignment": mapped,
