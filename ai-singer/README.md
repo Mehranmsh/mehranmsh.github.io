@@ -178,3 +178,8 @@ This module validates configuration only. It does not compute spectrograms, esti
 
 `dataset_loader.py` connects the consent/rights manifest gate to the acoustic feature extractor, Persian phoneme token encoder, and MIDI pitch-target builder. Use `load_training_examples(manifest_path, config, dataset_root=..., split="train")` from a local Python process. Each selected record must have `alignment_status: "reviewed"`, canonical `phoneme_alignment` spans, explicit monophonic `notes` events (MIDI pitch, start, duration, optional velocity), a matching sample rate, and mono PCM WAV audio. The loader rejects missing notes, unreviewed alignments, stereo audio, invalid timing, and mismatched feature grids. It reads local files only; it does not upload recordings, train a model, or generate audio. Keep real performer recordings and consent records off Git.
 
+
+## Deterministic training batch sampler
+
+`batch_sampler.py` creates reproducible, length-aware index batches from loaded `TrainingExample` objects. It shuffles with an explicit seed and epoch, groups similar frame lengths to reduce padding, and optionally drops only the final incomplete batch. The sampler is framework-neutral and does not update model parameters or train a network. Dataset speaker separation remains enforced by the manifest validator before loading.
+
