@@ -30,7 +30,7 @@ def build_speaker_reference_map(records: list[dict], split: str) -> dict[str, st
 
     mapping = {}
     for target in records:
-        if target.get("split") != split:
+        if target.get("split") != split or target.get("speaker_reference_only") is True:
             continue
         target_id = target["recording_id"]
         reference_id = target.get("speaker_reference_recording_id")
