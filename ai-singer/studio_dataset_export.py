@@ -133,6 +133,41 @@ def build_manifest_record(
     }
 
 
+def _safe_manifest_output_path(output_path: str | Path) -> Path:
+    """Resolve a manifest destination while rejecting symlinked parent directories."""
+    raw = Path(output_path).expanduser()
+    absolute = raw if raw.is_absolute() else Path.cwd() / raw
+    if absolute.name in {"", ".", ".."}:
+        raise StudioDatasetExportError("manifest output must name a file")
+    for parent in (absolute.parent, *absolute.parent.parents):
+        if parent.exists() and parent.is_symlink():
+            raise StudioDatasetExportError("manifest output parent symlinks are not allowed")
+    absolute.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        resolved_parent = absolute.parent.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise StudioDatasetExportError("manifest output directory is unavailable") from exc
+    output = resolved_parent / absolute.name
+    if output.is_symlink():
+        raise StudioDatasetExportError("manifest output symlink is not allowed")
+    if output.exists() and not output.is_file():
+        raise StudioDatasetExportError("manifest output must be a regular file")
+    return output
+
+
+def _ensure_output_does_not_replace_audio(
+    output: Path, record: dict, dataset_root: str | Path
+) -> None:
+    """Prevent a manifest destination from overwriting its referenced recording."""
+    try:
+        root = Path(dataset_root).expanduser().resolve(strict=True)
+        _, audio = _safe_relative_audio(root, record.get("audio_path"))
+    except (OSError, RuntimeError) as exc:
+        raise StudioDatasetExportError("dataset root is unavailable") from exc
+    if output == audio:
+        raise StudioDatasetExportError("manifest output must not overwrite a referenced audio file")
+
+
 def append_manifest_record(
     output_path: str | Path,
     record: dict,
@@ -140,11 +175,12 @@ def append_manifest_record(
     dataset_root: str | Path,
 ) -> dict:
     """Atomically append a record, validating the complete candidate manifest first."""
-    output = Path(output_path).expanduser()
-    if output.is_symlink():
-        raise StudioDatasetExportError("manifest output symlink is not allowed")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    existing = output.read_text(encoding="utf-8") if output.exists() else ""
+    output = _safe_manifest_output_path(output_path)
+    _ensure_output_does_not_replace_audio(output, record, dataset_root)
+    try:
+        existing = output.read_text(encoding="utf-8") if output.exists() else ""
+    except (OSError, UnicodeError) as exc:
+        raise StudioDatasetExportError("existing manifest could not be read as UTF-8 text") from exc
     candidate = existing.rstrip("\n") + ("\n" if existing.strip() else "")
     candidate += json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n"
     temp_path = None
