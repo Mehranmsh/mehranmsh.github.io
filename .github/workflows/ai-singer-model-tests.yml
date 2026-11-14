@@ -15,7 +15,14 @@ on:
       - "ai-singer/tests/test_quality_report.py"
       - "ai-singer/tests/test_quality_evaluation.py"
       - "ai-singer/dataset_audit.py"
+      - "ai-singer/annotation_quality.py"
+      - "ai-singer/tests/test_annotation_quality.py"
+      - "ai-singer/tests/test_dataset_audit.py"
       - "ai-singer/dataset_manifest.py"
+      - "ai-singer/annotation_quality.py"
+      - "ai-singer/tests/test_annotation_quality.py"
+      - "ai-singer/tests/test_dataset_audit.py"
+      - "ai-singer/dataset_audit.py"
       - "ai-singer/tests/test_dataset_manifest.py"
       - "ai-singer/tests/test_dataset_audit.py"
       - "ai-singer/pipeline_training_engine.py"
@@ -91,6 +98,12 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install --index-url https://download.pytorch.org/whl/cpu -r training-requirements.txt
+      - name: Run Persian annotation quality tests
+        run: python -m unittest discover -s tests -p 'test_annotation_quality.py' -v
+      - name: Run dataset manifest security tests
+        run: python -m unittest discover -s tests -p 'test_dataset_manifest.py' -v
+      - name: Run privacy-preserving dataset audit tests
+        run: python -m unittest discover -s tests -p 'test_dataset_audit.py' -v
       - name: Run leakage-safe speaker reference pairing tests
         run: python -m unittest discover -s tests -p 'test_speaker_reference.py' -v
       - name: Run reference speaker encoder tests
