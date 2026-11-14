@@ -64,7 +64,7 @@ Both modules are covered by synthetic-signal unit tests. The synthetic tones are
 
 ## Training batch collation
 
-`batch_collator.py` validates that extracted WAV features, reviewed phoneme/note tokens, and MIDI pitch-conditioning targets share the same centered frame grid. It creates padded NumPy batches with lengths and a valid-frame mask, keeps padding distinct from real silence, and enforces a configurable frame cap. This is data collation only: no optimizer, model training, weights, or inference are included.
+`batch_collator.py` validates that extracted WAV features, reviewed phoneme/note tokens, and MIDI pitch-conditioning targets share the same centered frame grid. It creates padded NumPy batches with lengths, a valid-frame mask, explicit phoneme/note masks, and pitch/voicing targets. It rejects inconsistent token masks, invalid IDs, duplicate recording IDs, and F0/voicing mismatches; padding remains distinct from real silence and a configurable frame cap is enforced. This is data collation only: no optimizer, model training, weights, or inference are included.
 
 ## Acoustic model artifact gate
 
