@@ -20,6 +20,7 @@ class ManifestError(ValueError):
 ALLOWED_SPLITS = {"train", "validation", "test"}
 ALLOWED_ALIGNMENTS = {"reviewed", "unreviewed", "needs_review"}
 ALLOWED_SAMPLE_WIDTHS = {2, 3, 4}
+MAX_AUDIO_FILE_BYTES = 500 * 1024 * 1024
 REQUIRED_FIELDS = {
     "recording_id", "audio_path", "language", "speaker_id", "split",
     "transcript", "sample_rate", "channels", "duration_seconds",
@@ -33,12 +34,23 @@ def _safe_audio_path(root: Path, value: object) -> Path:
     candidate = PurePosixPath(value)
     if candidate.is_absolute() or ".." in candidate.parts or "\\" in value:
         raise ManifestError("audio_path must not be absolute or contain traversal")
-    resolved_root = root.resolve()
-    resolved = (resolved_root / Path(*candidate.parts)).resolve()
-    if resolved != resolved_root and resolved_root not in resolved.parents:
-        raise ManifestError("audio_path resolves outside the dataset root")
+    if root.is_symlink():
+        raise ManifestError("dataset root symlink is not allowed")
+    resolved_root = root.resolve(strict=True)
+    current = resolved_root
+    for part in candidate.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ManifestError("audio_path must not traverse symlinks")
+    try:
+        resolved = current.resolve(strict=True)
+        resolved.relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ManifestError("audio_path is missing or resolves outside the dataset root") from exc
     if not resolved.is_file():
         raise ManifestError(f"audio file does not exist: {value}")
+    if resolved.stat().st_size <= 0 or resolved.stat().st_size > MAX_AUDIO_FILE_BYTES:
+        raise ManifestError("audio file size is outside the permitted limit")
     return resolved
 
 
@@ -68,14 +80,19 @@ def _validate_alignment(record: dict, duration: float, line_number: int) -> None
 
 def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None = None) -> dict:
     """Validate JSONL metadata, rights declarations, speaker splits, and WAV headers."""
-    path = Path(manifest_path).resolve()
-    root = Path(dataset_root).resolve() if dataset_root else path.parent.resolve()
+    raw_path = Path(manifest_path).expanduser()
+    raw_root = Path(dataset_root).expanduser() if dataset_root else raw_path.parent
+    if raw_path.is_symlink() or raw_root.is_symlink():
+        raise ManifestError("manifest and dataset root symlinks are not allowed")
+    path = raw_path.resolve()
+    root = raw_root.resolve()
     if not path.is_file():
         raise ManifestError("manifest file does not exist")
     if path.stat().st_size > 20 * 1024 * 1024:
         raise ManifestError("manifest exceeds the 20 MiB limit")
 
     seen_ids: set[str] = set()
+    seen_audio_paths: set[Path] = set()
     speaker_splits: dict[str, set[str]] = defaultdict(set)
     totals = defaultdict(int)
     sample_rates = set()
@@ -115,6 +132,9 @@ def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None
                 raise ManifestError(f"line {line_number}: rights_basis must identify the license or ownership basis")
 
             audio_path = _safe_audio_path(root, record["audio_path"])
+            if audio_path in seen_audio_paths:
+                raise ManifestError(f"line {line_number}: audio file must not be reused by multiple records")
+            seen_audio_paths.add(audio_path)
             try:
                 with wave.open(str(audio_path), "rb") as audio:
                     channels = audio.getnchannels()
