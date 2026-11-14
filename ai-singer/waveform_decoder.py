@@ -28,6 +28,8 @@ class WaveformDecoderConfig:
             raise ValueError("hop length and upsample factors must be positive")
         if any(isinstance(x, bool) or not isinstance(x, int) or x < 2 for x in self.upsample_factors):
             raise ValueError("upsample factors must be integers >= 2")
+        if any(factor % 2 for factor in self.upsample_factors):
+            raise ValueError("upsample factors must be even to preserve exact frame-to-sample length")
         if prod(self.upsample_factors) != self.hop_length:
             raise ValueError("upsample factor product must equal acoustic hop_length")
         if self.initial_channels < 32 or self.initial_channels % (2 ** len(self.upsample_factors)):
