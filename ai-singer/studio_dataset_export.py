@@ -29,7 +29,7 @@ def _safe_relative_audio(root: Path, audio_path: str) -> tuple[str, Path]:
         raise StudioDatasetExportError("audio_path must be a relative path inside the dataset root")
     relative = PurePosixPath(audio_path)
     if relative.is_absolute() or ".." in relative.parts or "\\" in audio_path:
-        raise StudioDatasetExportError("audio_path must not be absolute or contain traversal")
+        raise StudioDatasetExportError("audio_path must be a relative path without traversal")
     if root.is_symlink():
         raise StudioDatasetExportError("dataset root symlink is not allowed")
     resolved_root = root.expanduser().resolve(strict=True)
