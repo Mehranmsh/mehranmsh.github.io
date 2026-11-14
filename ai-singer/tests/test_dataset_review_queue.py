@@ -31,7 +31,7 @@ class DatasetReviewQueueTests(unittest.TestCase):
             output.setnchannels(1)
             output.setsampwidth(2)
             output.setframerate(48000)
-            output.writeframes(b"\\x01\\x00" * 48000)
+            sample = (sum(name.encode("utf-8")) % 200 + 1).to_bytes(2, "little")\n            output.writeframes(sample * 48000)
 
     def record(self, rid, audio, status):
         record = {
