@@ -337,7 +337,7 @@ def align_job(payload: dict) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     manual_groups = payload.get("manual_note_groups")
     try:
-        result = align_lyrics_to_midi(lyrics, melody, manual_groups)
+        result = align_lyrics_to_midi(lyrics, melody, manual_groups, payload.get("manual_timing_windows"))
     except AlignmentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
