@@ -39,7 +39,7 @@ def conditioning(notes, *, duration=1.0, style=None):
         "language": "fa",
         "sample_rate": 48000,
         "duration_seconds": duration,
-        "phonemes": [{"phoneme": "a", "start_seconds": 0.0, "end_seconds": duration}],
+        "phonemes": [{"phoneme": "æ", "start_seconds": 0.0, "end_seconds": duration}],
         "notes": notes,
     }
     if style is not None:
