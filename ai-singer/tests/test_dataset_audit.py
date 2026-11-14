@@ -86,6 +86,8 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
         self.assertTrue(any("at least two target recordings" in item
                             for item in report["training_readiness"]["blockers"]))
+        self.assertTrue(any("at least one more" in item
+                            for item in report["training_readiness"]["recommended_next_steps"]))
         self.assertFalse(report["evaluation_readiness"]["held_out_test_split_available"])
 
     def test_warns_when_reference_pairing_is_absent(self):
