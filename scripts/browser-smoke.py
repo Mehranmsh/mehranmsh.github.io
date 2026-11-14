@@ -411,13 +411,16 @@ def main():
                     assert abs(actual_stem_duration - expected_stem_duration) < 0.02, "Stem duration did not reflect trim and timeline offset: got " + str(round(actual_stem_duration, 3)) + "s, expected " + str(round(expected_stem_duration, 3)) + "s."
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
-                    early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(max(0.01, stem_active_start - 0.05) * 44100) * 4]) // 2), stem_pcm[:int(max(0.01, stem_active_start - 0.05) * 44100) * 4])
-                    active_start_frame = int((stem_active_start + 0.06) * 44100) * 4
-                    active_end_frame = int((stem_active_start + 0.12) * 44100) * 4
+                    early_stem_bytes = stem_pcm[:int(max(0.01, stem_active_start - 0.05) * 44100) * 2 * 3]
+                    early_stem = [int.from_bytes(early_stem_bytes[i:i+3], "little", signed=True)
+                                  for i in range(0, len(early_stem_bytes) - 2, 3)]
+                    active_start_frame = int((stem_active_start + 0.06) * 44100) * 2 * 3
+                    active_end_frame = int((stem_active_start + 0.12) * 44100) * 2 * 3
                     active_bytes = stem_pcm[active_start_frame:active_end_frame]
-                    active_stem = struct.unpack("<" + "h" * (len(active_bytes) // 2), active_bytes)
-                    assert max(map(abs, early_stem), default=0) < 2000, "Stem contains source material before its scheduled retained range."
-                    assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trim and timeline offset."
+                    active_stem = [int.from_bytes(active_bytes[i:i+3], "little", signed=True)
+                                   for i in range(0, len(active_bytes) - 2, 3)]
+                    assert max(map(abs, early_stem), default=0) < 2000 * 256, "Stem contains source material before its scheduled retained range."
+                    assert max(map(abs, active_stem), default=0) > 4000 * 256, "Stem omitted the expected retained vocal segment after trim and timeline offset."
 
                 # Render the same lead vocal with offline pitch correction enabled.
                 page.locator("#stemPitchCorrection").check()
