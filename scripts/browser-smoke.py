@@ -353,7 +353,24 @@ def main():
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
                     assert rendered_mix.getframerate() == mix_sample_rate
-                    assert 1.52 * mix_sample_rate <= rendered_mix.getnframes() <= 1.54 * mix_sample_rate, "Mix duration was "+str(round(rendered_mix.getnframes()/mix_sample_rate,3))+"s ("+str(rendered_mix.getnframes())+" frames), expected about 1.53s after trims and offset."
+                    mix_track_state = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].tracks[0]")
+                    mix_trimmed_duration = 0.5 - float(mix_track_state.get("trimStart", 0)) - float(mix_track_state.get("trimEnd", 0))
+                    mix_offset = max(0, min(30, float(mix_track_state.get("startOffset", 0))))
+                    mix_fx = mix_track_state.get("effects", {})
+                    mix_send = max(0, min(0.6, float(mix_track_state.get("delay", 0) or 0) / 100))
+                    mix_tail = 0.0
+                    if mix_send > 0:
+                        mix_delay_time = max(0.08, min(0.45, float(mix_fx.get("delayTime", 280) or 280) / 1000))
+                        mix_feedback = max(0, min(0.3, float(mix_fx.get("feedback", 28) or 0) / 100))
+                        mix_repeats = math.ceil(math.log(0.001) / math.log(mix_feedback)) if mix_feedback > 0 else 1
+                        mix_tail = max(mix_tail, min(5, mix_delay_time * mix_repeats + 0.25))
+                    if float(mix_fx.get("reverb", 0) or 0) > 0:
+                        mix_tail = max(mix_tail, 1.6)
+                    if float(mix_fx.get("chorusDepth", 0) or 0) > 0:
+                        mix_tail = max(mix_tail, 0.35)
+                    expected_mix_duration = mix_trimmed_duration + mix_offset + mix_tail
+                    actual_mix_duration = rendered_mix.getnframes() / mix_sample_rate
+                    assert abs(actual_mix_duration - expected_mix_duration) < 0.02, "Mix duration was "+str(round(actual_mix_duration,3))+"s; expected "+str(round(expected_mix_duration,3))+"s from trim, offset, and calculated effect tail."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
                     early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 4]
