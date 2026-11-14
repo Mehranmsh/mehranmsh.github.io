@@ -106,7 +106,8 @@ def _mel_filterbank(config: AcousticModelConfig) -> np.ndarray:
 
 def _frames(samples: np.ndarray, frame_length: int, hop_length: int) -> np.ndarray:
     half = frame_length // 2
-    padded = np.pad(samples, (half, half), mode="reflect" if samples.size > 1 else "edge")
+    pad_mode = "reflect" if samples.size > half else "edge"
+    padded = np.pad(samples, (half, half), mode=pad_mode)
     count = 1 + (padded.size - frame_length) // hop_length
     shape = (count, frame_length)
     strides = (padded.strides[0] * hop_length, padded.strides[0])
