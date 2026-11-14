@@ -770,7 +770,7 @@
   function levels(sizeChunks,stepChunks){const out=[];for(let start=0;start+sizeChunks<=chunks;start+=stepChunks){let sum=0;for(let j=start;j<start+sizeChunks;j++)sum+=energy[j];const mean=sum/(sizeChunks*chunk);if(mean>0){const l=-.691+10*Math.log10(mean);if(Number.isFinite(l))out.push({lufs:l,energy:mean});}}return out;}
   const absolute=levels(4,1).filter(x=>x.lufs>=-70);if(!absolute.length)return {integratedLufs:-Infinity,loudnessRange:0,shortTermBlocks:0};
   const preliminaryEnergy=absolute.reduce((a,x)=>a+x.energy,0)/absolute.length,preliminary=-.691+10*Math.log10(preliminaryEnergy),gated=absolute.filter(x=>x.lufs>=preliminary-10),mean=gated.length?gated.reduce((a,x)=>a+x.energy,0)/gated.length:preliminaryEnergy,integratedLufs=-.691+10*Math.log10(mean);
-  const short=gated.length?levels(30,10).filter(x=>x.lufs>=-70&&x.lufs>=integratedLufs-20).map(x=>x.lufs).sort((a,b)=>a-b):[],pct=p=>short.length?short[Math.min(short.length-1,Math.max(0,Math.ceil(p*short.length)-1))]:0;
+  const shortAbsolute=levels(30,10).filter(x=>x.lufs>=-70),shortPreliminary=shortAbsolute.length?shortAbsolute.reduce((a,x)=>a+x.lufs,0)/shortAbsolute.length:-Infinity,shortGate=shortPreliminary-20,short=shortAbsolute.filter(x=>x.lufs>=shortGate).map(x=>x.lufs).sort((a,b)=>a-b),pct=p=>short.length?short[Math.min(short.length-1,Math.max(0,Math.ceil(p*short.length)-1))]:0;
   return {integratedLufs,loudnessRange:short.length>1?Math.max(0,pct(.95)-pct(.10)):0,shortTermBlocks:short.length};
  }
  function writeWav24(audioBuffer,ceilingDb=null){
