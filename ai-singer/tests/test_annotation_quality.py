@@ -43,6 +43,7 @@ class AnnotationQualityTests(unittest.TestCase):
         item = record()
         item["phoneme_alignment"][0]["start_seconds"] = 0.12
         item["phoneme_alignment"][0]["end_seconds"] = 0.18
+        item["phoneme_alignment"][1]["start_seconds"] = 0.30
         result = summarize_annotation_quality(
             [item],
             minimum_phoneme_coverage=0.95,
