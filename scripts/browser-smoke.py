@@ -185,10 +185,21 @@ def main():
                 # Exercise the actual studio-to-conditioning request with a mocked self-hosted API.
                 conditioning_requests = []
                 def mock_conditioning(route):
+                    if route.request.method == "OPTIONS":
+                        route.fulfill(
+                            status=204,
+                            headers={
+                                "Access-Control-Allow-Origin": base_url,
+                                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                                "Access-Control-Allow-Headers": "content-type",
+                            },
+                        )
+                        return
                     conditioning_requests.append(route.request.post_data_json)
                     route.fulfill(
                         status=200,
                         content_type="application/json",
+                        headers={"Access-Control-Allow-Origin": base_url},
                         body=__import__("json").dumps({
                             "conditioning": {"schema_version": "mehran.svs.conditioning.v1", "phonemes": [{} for _ in range(5)], "notes": [{}]},
                             "message": "Conditioning prepared for review.",
