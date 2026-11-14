@@ -34,7 +34,7 @@ class DatasetAuditTests(unittest.TestCase):
             "consent_confirmed": True, "rights_basis": "Performer-owned recording with written consent",
             "alignment_status": "reviewed",
             "phoneme_alignment": [{"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.5}],
-            "notes": [{"pitch": 60, "start_seconds": 0.0, "duration_seconds": 1.0}],
+            "notes": [{"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 1.0}],
         }
         value.update(extra)
         return value
