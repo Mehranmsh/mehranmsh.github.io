@@ -16,7 +16,7 @@ def valid_payload() -> dict:
         "speaker_profile_id": "speaker-consented-01",
         "phonemes": [
             {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.12},
-            {"phoneme": "a", "start_seconds": 0.12, "end_seconds": 0.7},
+            {"phoneme": "æ", "start_seconds": 0.12, "end_seconds": 0.7},
             {"phoneme": "l", "start_seconds": 0.7, "end_seconds": 0.9},
         ],
         "notes": [
