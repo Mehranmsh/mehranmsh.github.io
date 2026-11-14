@@ -131,3 +131,10 @@ Send `POST /v1/phonemes/timing` with a `syllables` array. Each item requires `st
 ## Job lifecycle event history
 
 `GET /v1/jobs/events/{job_id}` returns the job's event history when the caller supplies its `X-Job-Token`. Creation and user cancellation are recorded transactionally with fixed internal detail codes; payloads, lyrics, and access tokens are never copied into event records. Invalid tokens and unknown jobs both return 404. Event history is retained with its parent job and removed when the expired job record is deleted.
+
+
+## Internal worker lease primitives
+
+The SQLite registry now includes forward-only migrations for queue priority, attempt counters, worker identity, and lease expiry. Internal functions provide atomic claim (BEGIN IMMEDIATE), lease renewal by the owning worker, bounded retry scheduling, and recovery of expired leases. Jobs are ordered by descending priority and then creation time. Retry attempts are capped per job; exhausted jobs become terminally failed.
+
+These are **internal orchestration primitives only**. The public submit endpoint still creates jobs as `blocked_model_unavailable`; there is no public worker endpoint, no running worker, and no synthesis inference. `claim_next_job` returns no work unless its caller supplies an explicit verified model-readiness result. The current service has no architecture-specific loader, so production must not mark that gate true. A lease only coordinates work ownership; it does not create or validate audio.
