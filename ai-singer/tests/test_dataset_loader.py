@@ -124,7 +124,7 @@ class DatasetLoaderTests(unittest.TestCase):
         reference = self.record(
             recording_id="rec-002", audio_path="reference.wav",
             alignment_status="unreviewed", phoneme_alignment=None,
-            split="train",
+            speaker_reference_only=True, split="train",
         )
         path = self.root / "manifest.jsonl"
         path.write_text(
