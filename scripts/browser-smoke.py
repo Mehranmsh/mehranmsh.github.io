@@ -218,6 +218,16 @@ def main():
                 }""")
                 assert persisted_annotations["reviewedSyllablePhonemes"] == [["s", "æ", "l", "ɒː", "m"]]
                 assert persisted_annotations["phonemeDurationWeights"] == [[1, 1, 1, 2, 1]]
+                assert len(persisted_annotations["acousticConditioning"]["phonemes"]) == 5
+                assert persisted_annotations["acousticConditioning"]["schema_version"] == "mehran.svs.conditioning.v1"
+                with page.expect_download() as conditioning_download:
+                    page.locator("#exportMehranSingerConditioning").click()
+                conditioning_path = Path(temp) / "mehran-acoustic-conditioning.json"
+                conditioning_download.value.save_as(conditioning_path)
+                exported_conditioning = __import__("json").loads(conditioning_path.read_text(encoding="utf-8"))
+                assert exported_conditioning["schema"] == "mehran.svs.conditioning-export.v1"
+                assert exported_conditioning["accepted_for_inference"] is False
+                assert exported_conditioning["audio_generated"] is False
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
