@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 import numpy as np
 
@@ -100,14 +101,18 @@ class BatchCollatorTests(unittest.TestCase):
     def test_collates_waveforms_with_sample_masks(self):
         first = example("wave-a", 0.1)
         second = example("wave-b", 0.2)
+        prepared = []
         for item, valid_count in ((first, 4800), (second, 9600)):
             total = len(item.acoustic.f0_hz) * config().hop_length
-            item.waveform_target = np.full(total, 0.125, dtype=np.float32)
-            item.waveform_sample_mask = np.r_[
-                np.ones(valid_count, dtype=np.uint8),
-                np.zeros(total-valid_count, dtype=np.uint8),
-            ]
-        batch = collate_training_examples([first, second], config())
+            prepared.append(replace(
+                item,
+                waveform_target=np.full(total, 0.125, dtype=np.float32),
+                waveform_sample_mask=np.r_[
+                    np.ones(valid_count, dtype=np.uint8),
+                    np.zeros(total-valid_count, dtype=np.uint8),
+                ],
+            ))
+        batch = collate_training_examples(prepared, config())
         self.assertEqual(batch.waveform_target.shape, (2, batch.target_log_mel.shape[1] * config().hop_length))
         self.assertEqual(int(batch.waveform_sample_mask[0].sum()), 4800)
         self.assertEqual(int(batch.waveform_sample_mask[1].sum()), 9600)
@@ -115,17 +120,17 @@ class BatchCollatorTests(unittest.TestCase):
         self.assertTrue(np.all(batch.waveform_sample_mask[0, 4800:] == 0))
 
     def test_rejects_mixed_waveform_target_presence(self):
-        first = example("wave-present", 0.1)
-        total = len(first.acoustic.f0_hz) * config().hop_length
-        first.waveform_target = np.zeros(total, dtype=np.float32)
-        first.waveform_sample_mask = np.ones(total, dtype=np.uint8)
+        base = example("wave-present", 0.1)
+        total = len(base.acoustic.f0_hz) * config().hop_length
+        first = replace(base, waveform_target=np.zeros(total, dtype=np.float32),
+                        waveform_sample_mask=np.ones(total, dtype=np.uint8))
         with self.assertRaisesRegex(ValueError, "all examples"):
             collate_training_examples([first, example("wave-missing", 0.1)], config())
 
     def test_rejects_waveform_target_length_mismatch(self):
-        item = example("wave-bad", 0.1)
-        item.waveform_target = np.zeros(10, dtype=np.float32)
-        item.waveform_sample_mask = np.ones(10, dtype=np.uint8)
+        item = replace(example("wave-bad", 0.1),
+                        waveform_target=np.zeros(10, dtype=np.float32),
+                        waveform_sample_mask=np.ones(10, dtype=np.uint8))
         with self.assertRaisesRegex(ValueError, "length must equal"):
             collate_training_examples([item], config())
 
