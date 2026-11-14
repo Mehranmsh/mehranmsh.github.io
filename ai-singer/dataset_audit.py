@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
 from pathlib import Path
 
 from dataset_manifest import ALLOWED_SPLITS, ManifestError, validate_manifest
@@ -146,30 +145,63 @@ def audit_dataset(
         }
 
     warnings = list(reference_warnings)
-    warnings.extend(
-        f'{item["split"]}: {item["recordings"]} recordings flagged by {item["code"]}'
-        for item in annotation_warnings
-    )
+    blockers = list(reference_warnings)
+    for item in annotation_warnings:
+        message = f'{item["split"]}: {item["recordings"]} recordings flagged by {item["code"]}'
+        warnings.append(message)
+        if item["split"] in {"train", "validation"}:
+            blockers.append(message)
+
     if not targets["train"]:
-        warnings.append("train: no target recordings")
+        message = "train: no target recordings"
+        warnings.append(message)
+        blockers.append(message)
     if not targets["validation"]:
-        warnings.append("validation: no target recordings")
+        message = "validation: no target recordings"
+        warnings.append(message)
+        blockers.append(message)
     for split in ("train", "validation"):
         count = len(targets[split])
-        if count and reviewed[split] != count:
-            warnings.append(f"{split}: some targets do not have reviewed phoneme alignment")
-        if count and midi_annotated[split] != count:
-            warnings.append(f"{split}: some targets do not have reviewed MIDI note annotations")
-        if count and any(record["channels"] != 1 for record in targets[split]):
-            warnings.append(f"{split}: stereo targets are incompatible with the current training loader")
-        if count and any(record["sample_rate"] != expected_sample_rate for record in targets[split]):
-            warnings.append(f"{split}: target sample rate differs from the configured model rate")
+        checks = (
+            (count and reviewed[split] != count,
+             f"{split}: some targets do not have reviewed phoneme alignment"),
+            (count and midi_annotated[split] != count,
+             f"{split}: some targets do not have reviewed MIDI note annotations"),
+            (count and any(record["channels"] != 1 for record in targets[split]),
+             f"{split}: stereo targets are incompatible with the current training loader"),
+            (count and any(record["sample_rate"] != expected_sample_rate for record in targets[split]),
+             f"{split}: target sample rate differs from the configured model rate"),
+        )
+        for failed, message in checks:
+            if failed:
+                warnings.append(message)
+                blockers.append(message)
         if count and reference_pairs[split] != count:
             if not any(item.startswith(f"{split}: separate speaker references") for item in warnings):
-                warnings.append(f"{split}: not every target has a valid separate speaker reference")
+                message = f"{split}: not every target has a valid separate speaker reference"
+                warnings.append(message)
+                blockers.append(message)
 
-    ready = bool(targets["train"] and targets["validation"])
-    ready = ready and not warnings
+    ready = bool(targets["train"] and targets["validation"] and not blockers)
+    next_steps = []
+    if not targets["train"]:
+        next_steps.append("Add consented Persian target recordings to the train split.")
+    if not targets["validation"]:
+        next_steps.append("Add a speaker-disjoint validation split with consented target recordings.")
+    if any("speaker reference" in item or "references are not configured" in item for item in blockers):
+        next_steps.append("Add a valid separate speaker-reference recording for every train and validation target.")
+    if any("phoneme alignment" in item or "flagged by" in item for item in blockers):
+        next_steps.append("Review Persian phoneme alignment and resolve any configured annotation-quality warnings.")
+    if any("MIDI note annotations" in item for item in blockers):
+        next_steps.append("Complete and review monophonic MIDI note annotations for every training target.")
+    if any("stereo targets" in item for item in blockers):
+        next_steps.append("Convert training targets to mono PCM WAV.")
+    if any("sample rate" in item for item in blockers):
+        next_steps.append(f"Convert training targets to the configured {expected_sample_rate} Hz sample rate.")
+    if not targets["test"] or reference_pairs["test"] != len(targets["test"]):
+        evaluation_next_step = "Create a separate held-out test split with valid speaker references before claiming evaluation readiness."
+    else:
+        evaluation_next_step = None
     return {
         "valid": True,
         "privacy": {
@@ -189,9 +221,19 @@ def audit_dataset(
         "splits": split_report,
         "training_readiness": {
             "ready_for_staged_training": ready,
+            "blockers": blockers,
             "warnings": warnings,
+            "recommended_next_steps": next_steps,
             "training_started": False,
             "model_weights_created": False,
+        },
+        "evaluation_readiness": {
+            "test_target_recordings": len(targets["test"]),
+            "held_out_test_split_available": bool(
+                targets["test"] and reference_pairs["test"] == len(targets["test"])
+            ),
+            "recommended_next_step": evaluation_next_step,
+            "evaluation_started": False,
         },
     }
 
