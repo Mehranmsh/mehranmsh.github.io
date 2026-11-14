@@ -13,7 +13,7 @@ This directory contains the first backend foundation for MEHRAN's own singing-vo
 - Human-confirmed syllable overrides and conservative grapheme annotation: implemented.
 - Unvowelled Persian remains flagged for manual review; automatic phoneme alignment is not claimed.
 - Lyric-syllable to MIDI-note alignment: implemented as a conservative proposal or human-directed mapping, including melisma groups.
-- Automatic Persian phoneme conversion and acoustic phoneme timing: **not implemented**.
+- Automatic Persian phoneme conversion and acoustic forced alignment: **not implemented**.\n- Human-directed phoneme timing plans from reviewed phonemes, syllable windows, and explicit duration weights: implemented; these are proposals, not acoustic alignment.
 - Singing inference / WAV generation: **not implemented**.
 - No third-party generation API is called.
 - No model weights or GPU deployment are included.
@@ -38,7 +38,7 @@ Open `/docs` for API documentation and `/health` for capability status.
 - `GET /health`: service and model readiness.
 - `POST /v1/jobs/validate`: validates a `mehran.svs.job.v1` job; does not synthesize.
 - `POST /v1/jobs/analyze`: parses an attached MIDI file and returns a tempo-aware note timeline; does not synthesize.
-- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.\n- `POST /v1/model/conditioning/validate`: validates the versioned, model-neutral acoustic conditioning contract. It never loads a model or generates audio.
+- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.\n- `POST /v1/model/conditioning/validate`: validates the versioned, model-neutral acoustic conditioning contract. It never loads a model or generates audio.\n- `POST /v1/phonemes/timing`: divides manually supplied syllable time windows using explicit per-phoneme duration weights. It is not forced alignment and always requires review.
 
 Piano Roll timing currently assumes four subdivisions per beat and uses the project BPM. This convention is explicit so timing is not silently inferred from a variable grid.
 
@@ -107,3 +107,8 @@ No training recordings or model weights are included in this repository. Do not 
 ## Reviewed Persian phoneme annotations
 
 `POST /v1/lyrics/analyze` and `POST /v1/jobs/align` accept `reviewed_phoneme_overrides`, mapping exact lyric words to lists of canonical symbols from `mehran.fa.phonemes.v1`. This is a human-reviewed annotation path, not automatic G2P. Invalid or ambiguous symbols are rejected; syllable spelling overrides alone do not mark phoneme pronunciation as resolved.
+
+
+## Human-directed phoneme timing
+
+Send `POST /v1/phonemes/timing` with a `syllables` array. Each item requires `start_seconds`, `end_seconds`, canonical `phonemes`, and one positive `duration_weights` value per phoneme. The API normalizes those weights within the supplied syllable window and returns ordered phoneme intervals. Syllable windows must be chronological and non-overlapping. The user supplies both the windows and relative durations; the API does not infer phoneme boundaries from audio, and every result remains review-required.
