@@ -89,6 +89,15 @@ class DatasetManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "ordered, non-overlapping"):
             validate_manifest(self.write_manifest([record]))
 
+    def test_rejects_unknown_persian_phoneme_symbol(self):
+        record = self.record(
+            alignment_status="reviewed",
+            phoneme_alignment=[{"phoneme": "unknown-phone", "start_seconds": 0.0, "end_seconds": 0.1}],
+            notes=[{"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.1}],
+        )
+        with self.assertRaisesRegex(ManifestError, "invalid Persian phoneme sequence"):
+            validate_manifest(self.write_manifest([record]))
+
     def test_reviewed_alignment_requires_monophonic_notes(self):
         record = self.record(
             alignment_status="reviewed",
