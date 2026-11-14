@@ -535,6 +535,7 @@
    midiPayload={fileName:mehranSingerMidiFile.name.slice(0,120),mimeType:mehranSingerMidiFile.type||"audio/midi",size:bytes.length,encoding:"base64",data:btoa(binary)};
   }
   const job={schema:"mehran.svs.job.v1",createdAt:new Date().toISOString(),project:{id:String(project.id),name:String(project.name||"Untitled").slice(0,70),language:String(project.language||"Persian"),genre:String(project.genre||"Custom"),mood:String(project.mood||"Custom"),tempo:Number.isFinite(bpm)&&bpm>=40&&bpm<=220?bpm:null,lyricsTitle:String(project.lyricsTitle||"").slice(0,100),lyrics:lyrics.slice(0,20000),arrangement:Array.isArray(project.arrangement)?project.arrangement.slice(0,24):[]},singer:singer?{name:String(singer.name||"Lead Vocal").slice(0,60),voiceType:String(singer.voiceType||"Not specified").slice(0,40),role:String(singer.role||"Lead").slice(0,40),range:String(singer.range||"").slice(0,40),language:String(singer.language||project.language||"Persian").slice(0,40),style:String(singer.style||"").slice(0,500),parts:String(singer.parts||"").slice(0,160)}:{name:"Lead Vocal",language:String(project.language||"Persian"),role:"Lead"},melody:{source:midiPayload?"midi_file":noteEvents.length?"project_pattern":"not_provided",midi:midiPayload,noteEvents:midiPayload?[]:noteEvents,patternMode:String(pattern.mode||"unknown").slice(0,30),chords:Array.isArray(pattern.chords)?pattern.chords.slice(0,32).map(x=>String(x).slice(0,16)):[]},render:{format:"wav",sampleRate:48000,conditioning:["lyrics","midi_or_score","tempo","singer_profile","arrangement_metadata"],output:"isolated_vocal_stem"},engine:{provider:"MEHRAN",deployment:"self-hosted",modelId:"mehran-svs-native",state:"specification-only",thirdPartyGenerationApi:false}};
+  if(project.singerAlignment&&typeof project.singerAlignment==="object")job.project.lyricAlignment=project.singerAlignment;
   window.mehranSingerJobSpec=job;preview.value=JSON.stringify(job,null,2);download.disabled=false;
   status.textContent="مشخصات درخواست آماده شد. این فایل فقط ورودی استاندارد موتور داخلی را تعریف می‌کند؛ هنوز مدل خوانندگی مستقر نیست و هیچ WAV ساختگی تولید نمی‌شود.";
  }
@@ -586,7 +587,7 @@
    for(const index of group){if(index<=previous||used.has(index)){status.textContent="گروه‌های نت باید بدون هم‌پوشانی و به ترتیب زمانی باشند.";return;}used.add(index);previous=index;}
    groups.push(group);
   }
-  const alignment=syllables.map((syllable,index)=>({syllable,noteIndices:groups[index],notes:groups[index].map(noteIndex=>notes[noteIndex].note),melisma:groups[index].length>1}));
+  const alignment=syllables.map((syllable,index)=>{const selected=groups[index].map(noteIndex=>notes[noteIndex]);const startStep=Math.min(...selected.map(note=>Number(note.startStep))),endStep=Math.max(...selected.map(note=>Number(note.startStep)+Number(note.lengthSteps)));return {syllable,noteIndices:groups[index],notes:selected.map(note=>note.note),noteEvents:selected.map(note=>({...note})),startStep,endStep,durationSteps:endStep-startStep,melisma:groups[index].length>1};});
   const prior=project.singerAlignment,priorUpdated=project.updated;
   project.singerAlignment={version:"mehran.studio.singer-alignment.v1",syllables,noteGroups:groups,alignment,reviewedByUser:true,requiresAcousticReview:true,savedAt:Date.now()};
   project.updated=Date.now();
