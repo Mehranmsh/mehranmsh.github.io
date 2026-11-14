@@ -519,7 +519,8 @@
  function editSinger(index){const p=projects.find(x=>x.id===$("vocalProject").value);const singer=p?.singers?.[index];if(!singer)return;editingSingerId=singer.id;$("singerName").value=singer.name||"";$("singerType").value=singer.voiceType||"Not specified";$("singerRole").value=singer.role||"Lead";$("singerRange").value=singer.range||"";$("singerLanguage").value=singer.language||"";$("singerStyle").value=singer.style||"";$("singerParts").value=singer.parts||"";$("addSinger").textContent="Save singer changes";$("cancelSingerEdit").classList.remove("hidden");$("singerName").focus();$("vocalStatus").textContent="Editing singer profile. Changes are saved only when you press Save.";}
  let mehranSingerMidiFile=null;
  async function prepareMehranSingerJob(){
-  const status=$("mehranSingerEngineStatus"),preview=$("mehranSingerJobPreview"),download=$("downloadMehranSingerSpec");
+  window.mehranSingerJobSpec=null;
+  const status=$("mehranSingerEngineStatus"),preview=$("mehranSingerJobPreview"),download=$("downloadMehranSingerSpec");download.disabled=true;
   const project=projects.find(x=>x.id===$("vocalProject").value);
   if(!project){status.textContent="ابتدا پروژه را انتخاب کن.";return;}
   const lyrics=typeof project.lyrics==="string"?project.lyrics.trim():"";
@@ -573,12 +574,13 @@
   finally{button.disabled=false;}
  }
  async function runMehranSingerAlignment(){
-  const base=saveMehranSingerApiBase(),status=$("mehranSingerApiStatus"),button=$("runMehranSingerAlignment"),job=window.mehranSingerJobSpec;
+  const base=saveMehranSingerApiBase(),status=$("mehranSingerApiStatus"),button=$("runMehranSingerAlignment");
   if(!base)return;
-  if(!job){status.textContent="ابتدا درخواست خوانندگی را آماده کن تا شعر و ملودی پروژه در بسته قرار بگیرند.";return;}
-  const project=projects.find(item=>item.id===job.project.id);
-  const saved=project&&project.singerAlignment;
+  const selectedProject=projects.find(item=>item.id===$("vocalProject").value),saved=selectedProject&&selectedProject.singerAlignment;
   if(!saved||!Array.isArray(saved.syllables)||!Array.isArray(saved.noteGroups)){status.textContent="ابتدا هجاها و گروه نت‌ها را در پنل هم‌ترازی ذخیره کن.";return;}
+  await prepareMehranSingerJob();
+  const job=window.mehranSingerJobSpec;
+  if(!job){status.textContent="مشخصات پروژه آماده نشد؛ شعر، ملودی و پروفایل را بررسی کن.";return;}
   const groups=saved.noteGroups,pronunciationOverrides={};
   const overrideLines=$("mehranSingerPronunciationOverrides").value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean);
   for(const line of overrideLines){const split=line.indexOf("=");if(split<=0||split===line.length-1){status.textContent="قالب تلفظ نامعتبر است. از واژه=هجا-هجا استفاده کن.";return;}const word=line.slice(0,split).trim(),pronunciation=line.slice(split+1).trim();if(!word||!pronunciation||Object.prototype.hasOwnProperty.call(pronunciationOverrides,word)){status.textContent="واژهٔ خالی یا تکراری در تلفظ‌ها وجود دارد.";return;}pronunciationOverrides[word]=pronunciation;}
