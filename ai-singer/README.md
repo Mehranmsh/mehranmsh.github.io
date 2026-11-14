@@ -248,3 +248,16 @@ This closes the paired-data and collation contract only. It does not yet train t
 ## Teacher-forced waveform decoder training engine
 
 `waveform_training_engine.py` now connects the reference-conditioned waveform decoder to the masked L1 and multi-resolution STFT objectives. It provides one-epoch optimization, no-gradient validation, gradient clipping, and atomic checkpoint save/load using PyTorch's restricted `weights_only=True` loader and a decoder-configuration gate. This first stage is teacher-forced: it conditions the decoder on ground-truth acoustic features from the paired target recording. It is not yet a complete singer training pipeline because the acoustic model's predicted features have not been integrated, the predicted-feature distribution gap has not been measured, and no training has been run on real consented data.
+
+
+## Local waveform decoder training command
+
+`train_waveform_decoder.py` is the local CLI for the teacher-forced decoder stage. It loads only reviewed, consented mono WAV files from the local manifest, requires separate same-speaker references in the same split, requires a speaker-disjoint validation split, opts into paired raw waveform targets, and writes `waveform-latest.pt` / `waveform-best.pt` checkpoints locally. Resume uses the decoder-specific schema and configuration gate. Example (after preparing a lawful dataset locally):
+
+```bash
+pip install -r requirements.txt
+pip install -r training-requirements.txt
+python train_waveform_decoder.py --manifest /path/to/manifest.jsonl --audio-root /path/to/audio --output-dir ./checkpoints/mehran-fa-waveform --epochs 50 --batch-size 4 --device cuda
+```
+
+The CLI reports `conditioning_mode: teacher_forced_ground_truth_acoustics` and `audio_generated: false`. It trains only the waveform decoder against ground-truth acoustic tracks. It does not yet combine predicted acoustic tracks from the learned singer model, run perceptual evaluation, implement streaming/chunked inference, or generate an end-user singing WAV. No real dataset is included and no training has been run.
