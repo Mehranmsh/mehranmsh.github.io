@@ -12,7 +12,7 @@ import numpy as np
 
 from model_config import AcousticModelConfig
 from signal_features import AcousticFeatures
-from token_encoder import FrameTokenSequence
+from token_encoder import FrameTokenSequence, PHONEME_TO_ID
 from pitch_targets import PitchTargets
 
 
@@ -31,6 +31,8 @@ class TrainingBatch:
     valid_frame_mask: np.ndarray
     phoneme_ids: np.ndarray
     note_ids: np.ndarray
+    phoneme_mask: np.ndarray
+    note_mask: np.ndarray
     conditioning_f0_hz: np.ndarray
     conditioning_voicing_mask: np.ndarray
     conditioning_energy: np.ndarray
@@ -49,12 +51,7 @@ def collate_training_examples(
     pad_to_multiple_of: int = 1,
     max_frames: int = 120_000,
 ) -> TrainingBatch:
-    """Validate alignment, then right-pad a batch to a shared frame length.
-
-    Padding uses zero for token IDs, masks, F0, energy and RMS targets.
-    Log-Mel padding uses log(config.log_floor), matching the feature extractor's
-    silence floor. The valid_frame_mask distinguishes padding from real silence.
-    """
+    """Validate alignment, then right-pad a batch to a shared frame length."""
     if not examples:
         raise ValueError("training batch must contain at least one example")
     if pad_to_multiple_of < 1:
@@ -63,9 +60,14 @@ def collate_training_examples(
         raise ValueError("max_frames must be positive")
 
     checked = []
+    seen_recording_ids = set()
     for example in examples:
         if not isinstance(example.recording_id, str) or not example.recording_id.strip():
             raise ValueError("each example requires a recording_id")
+        if example.recording_id in seen_recording_ids:
+            raise ValueError("recording_id values must be unique within a batch")
+        seen_recording_ids.add(example.recording_id)
+
         acoustic, tokens, pitch = example.acoustic, example.tokens, example.pitch_targets
         if acoustic.sample_rate != config.sample_rate or tokens.phoneme_vocabulary_version != config.phoneme_inventory_version:
             raise ValueError("example feature rate or phoneme vocabulary does not match model config")
@@ -82,13 +84,23 @@ def collate_training_examples(
         ]
         if frame_count <= 0 or any(np.asarray(array).ndim != 1 or len(array) != frame_count for array in arrays):
             raise ValueError("all feature, token, and pitch tracks must share one non-empty frame axis")
+
         expected_times = np.arange(frame_count, dtype=np.float64) * config.hop_length / config.sample_rate
         if not np.allclose(tokens.frame_times_seconds, expected_times, atol=1e-6, rtol=0):
             raise ValueError("token frame times do not match centered feature-frame grid")
         if not np.allclose(pitch.frame_times_seconds, expected_times, atol=1e-6, rtol=0):
             raise ValueError("pitch target frame times do not match centered feature-frame grid")
-        if np.any(tokens.phoneme_ids < 0) or np.any(tokens.note_ids < 0) or np.any(tokens.note_ids > 128):
+
+        if (np.any(tokens.phoneme_ids < 0) or np.any(tokens.phoneme_ids > len(PHONEME_TO_ID))
+                or np.any(tokens.note_ids < 0) or np.any(tokens.note_ids > 128)):
             raise ValueError("token IDs are outside supported ranges")
+        if not np.isin(tokens.phoneme_mask, [0, 1]).all() or not np.isin(tokens.note_mask, [0, 1]).all():
+            raise ValueError("token masks must contain only zero or one")
+        if not np.array_equal(tokens.phoneme_mask.astype(bool), tokens.phoneme_ids != 0):
+            raise ValueError("phoneme mask must exactly match nonzero phoneme IDs")
+        if not np.array_equal(tokens.note_mask.astype(bool), tokens.note_ids != 0):
+            raise ValueError("note mask must exactly match nonzero note IDs")
+
         if not np.isfinite(acoustic.log_mel).all() or not np.isfinite(acoustic.f0_hz).all() or not np.isfinite(acoustic.log_rms).all():
             raise ValueError("acoustic targets must contain finite values")
         if not np.isfinite(pitch.f0_hz).all() or not np.isfinite(pitch.energy).all():
@@ -97,6 +109,10 @@ def collate_training_examples(
             raise ValueError("F0 and energy values cannot be negative")
         if not np.isin(acoustic.voicing_mask, [0, 1]).all() or not np.isin(pitch.voicing_mask, [0, 1]).all():
             raise ValueError("voicing masks must contain only zero or one")
+        if not np.array_equal(acoustic.voicing_mask.astype(bool), acoustic.f0_hz > 0):
+            raise ValueError("acoustic voicing mask must match positive target F0 values")
+        if not np.array_equal(pitch.voicing_mask.astype(bool), pitch.f0_hz > 0):
+            raise ValueError("conditioning voicing mask must match positive conditioning F0 values")
         checked.append((example, frame_count))
 
     longest = max(length for _, length in checked)
@@ -109,6 +125,8 @@ def collate_training_examples(
     mel = np.full((batch_size, padded_length, config.mel_bins), mel_pad, dtype=np.float32)
     phoneme = np.zeros((batch_size, padded_length), dtype=np.int32)
     note = np.zeros((batch_size, padded_length), dtype=np.int32)
+    phoneme_mask = np.zeros((batch_size, padded_length), dtype=np.uint8)
+    note_mask = np.zeros((batch_size, padded_length), dtype=np.uint8)
     cond_f0 = np.zeros((batch_size, padded_length), dtype=np.float32)
     cond_voice = np.zeros((batch_size, padded_length), dtype=np.uint8)
     cond_energy = np.zeros((batch_size, padded_length), dtype=np.float32)
@@ -125,6 +143,8 @@ def collate_training_examples(
         mel[row, :length] = a.log_mel
         phoneme[row, :length] = t.phoneme_ids
         note[row, :length] = t.note_ids
+        phoneme_mask[row, :length] = t.phoneme_mask.astype(np.uint8)
+        note_mask[row, :length] = t.note_mask.astype(np.uint8)
         cond_f0[row, :length] = p.f0_hz
         cond_voice[row, :length] = p.voicing_mask.astype(np.uint8)
         cond_energy[row, :length] = p.energy
@@ -138,6 +158,8 @@ def collate_training_examples(
         valid_frame_mask=valid,
         phoneme_ids=phoneme,
         note_ids=note,
+        phoneme_mask=phoneme_mask,
+        note_mask=note_mask,
         conditioning_f0_hz=cond_f0,
         conditioning_voicing_mask=cond_voice,
         conditioning_energy=cond_energy,
