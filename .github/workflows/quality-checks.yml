@@ -50,3 +50,162 @@ jobs:
 
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
+
+  engine-container-build:
+    name: Build and validate private engine container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build the private engine image
+        run: docker build --file engine/Dockerfile --tag mehran-music-engine:ci .
+
+      - name: Validate isolated Compose deployment
+        env:
+          MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
+          CLOUDFLARE_TUNNEL_TOKEN: ci-only-cloudflare-placeholder
+        run: docker compose --env-file .env.example -f docker-compose.engine.yml config --quiet
+      - name: Smoke-test live container health and authentication
+        env:
+          MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
+        run: |
+          set -euo pipefail
+          docker run -d --name mehran-engine-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            -p 127.0.0.1:18765:8765 \
+            -e MEHRAN_STUDIO_TOKEN="$MEHRAN_STUDIO_TOKEN" \
+            -e MEHRAN_STUDIO_HOME=/tmp/mehran-ci \
+            -e MEHRAN_STUDIO_HOST=0.0.0.0 \
+            -e MEHRAN_STUDIO_PORT=8765 \
+            -e MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1 \
+            mehran-music-engine:ci
+          trap 'docker rm -f mehran-engine-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail -H "Authorization: Bearer $MEHRAN_STUDIO_TOKEN" \
+              http://127.0.0.1:18765/health -o /tmp/mehran-health.json; then
+              break
+            fi
+            sleep 2
+          done
+          python -c "import json; d=json.load(open('/tmp/mehran-health.json')); assert d['service']=='mehran-music-studio-control'; assert 'engine' in d and 'resources' in d"
+          status=$(curl --silent -o /dev/null -w '%{http_code}' http://127.0.0.1:18765/health)
+          test "$status" = "401"
+      - name: Exercise all three composition modes through the live container
+        env:
+          MEHRAN_STUDIO_TOKEN: ci-only-not-a-real-secret-0123456789abcdef0123456789
+        run: |
+          set -euo pipefail
+          docker run -d --name mehran-engine-compose-ci --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            -p 127.0.0.1:18766:8765 \
+            -e MEHRAN_STUDIO_TOKEN="$MEHRAN_STUDIO_TOKEN" \
+            -e MEHRAN_STUDIO_HOME=/tmp/mehran-compose-ci \
+            -e MEHRAN_STUDIO_MIN_FREE_BYTES=0 \
+            -e MEHRAN_STUDIO_HOST=0.0.0.0 \
+            -e MEHRAN_STUDIO_PORT=8765 \
+            -e MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1 \
+            mehran-music-engine:ci
+          trap 'docker rm -f mehran-engine-compose-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail -H "Authorization: Bearer $MEHRAN_STUDIO_TOKEN" \
+              http://127.0.0.1:18766/health -o /tmp/mehran-compose-health.json; then
+              break
+            fi
+            sleep 2
+          done
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          base = "http://127.0.0.1:18766"
+          token = os.environ["MEHRAN_STUDIO_TOKEN"]
+          cases = [
+              {
+                  "composition_mode": "lyrics_first",
+                  "title": "CI lyrics first",
+                  "genre": "pop",
+                  "mood": "reflective",
+                  "bpm": 84,
+                  "phrase_count": 8,
+                  "lyrics": "فردا دوباره می‌رسد\nآفتاب از راه می‌رسد\nدست من را رها نکن\nتا بهار خانه مانده",
+              },
+              {
+                  "composition_mode": "instrumental_first",
+                  "title": "CI instrumental first",
+                  "genre": "cinematic",
+                  "mood": "hopeful",
+                  "bpm": 96,
+                  "phrase_count": 8,
+              },
+              {
+                  "composition_mode": "co_creation",
+                  "title": "CI co-creation",
+                  "genre": "pop",
+                  "mood": "hopeful",
+                  "bpm": 96,
+                  "phrase_count": 8,
+                  "lyrics": "فردا دوباره می‌رسد\nآفتاب از راه می‌رسد\nدست من را رها نکن\nتا بهار خانه مانده",
+              },
+          ]
+
+          for case in cases:
+              request = urllib.request.Request(
+                  base + "/v1/compose-by-mode",
+                  data=json.dumps(case, ensure_ascii=False).encode("utf-8"),
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  assert response.status == 201, response.status
+                  result = json.load(response)
+              assert result["composition_created"] is True, case["composition_mode"]
+              assert result["composition_mode"] == case["composition_mode"]
+              assert result["audio_rendered"] is False
+              midi = base64.b64decode(result["midi"]["content_base64"], validate=True)
+              assert midi[:4] == b"MThd", case["composition_mode"]
+              assert len(midi) >= 26, case["composition_mode"]
+              assert int.from_bytes(midi[4:8], "big") == 6, case["composition_mode"]
+              midi_format = int.from_bytes(midi[8:10], "big")
+              track_count = int.from_bytes(midi[10:12], "big")
+              assert midi_format in (0, 1), case["composition_mode"]
+              assert track_count >= 1, case["composition_mode"]
+              offset = 14
+              for _ in range(track_count):
+                  assert midi[offset:offset + 4] == b"MTrk", case["composition_mode"]
+                  track_length = int.from_bytes(midi[offset + 4:offset + 8], "big")
+                  offset += 8 + track_length
+                  assert offset <= len(midi), case["composition_mode"]
+              assert offset == len(midi), case["composition_mode"]
+              assert result["plan"]["source_mode"] == case["composition_mode"]
+              assert result["midi"]["note_events"] > 0, case["composition_mode"]
+              print(
+                  case["composition_mode"],
+                  "OK:",
+                  result["midi"]["note_events"],
+                  "notes,",
+                  len(midi),
+                  "MIDI bytes",
+              )
+
+          unauthenticated = urllib.request.Request(
+              base + "/v1/compose-by-mode",
+              data=b'{"composition_mode":"instrumental_first"}',
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(unauthenticated, timeout=10)
+              raise AssertionError("Unauthenticated composition request unexpectedly succeeded")
+          except urllib.error.HTTPError as error:
+              assert error.code == 401, error.code
+              print("Unauthenticated composition request correctly rejected: 401")
+          PY

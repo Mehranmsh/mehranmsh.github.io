@@ -1,0 +1,392 @@
+name: MEHRAN Electric Bass Foundation
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'engine/fetch_karoryfer_meatbass.py'
+      - 'engine/test_fetch_karoryfer_meatbass.py'
+      - 'engine/fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/build_contrabass_velocity_supplement.py'
+      - 'engine/instrument_bank_audit.py'
+      - 'engine/test_instrument_bank_audit.py'
+      - 'engine/velocity_layer_planner.py'
+      - 'engine/sample_bank.py'
+      - 'engine/test_velocity_layer_planner.py'
+      - 'engine/build_contrabass_supplement_banks.py'
+      - 'engine/test_build_contrabass_supplement_banks.py'
+      - 'engine/sample_bank_install.py'
+      - 'engine/test_sample_bank_install.py'
+      - '.github/workflows/electric-bass-foundation.yml'
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_freepats_electric_bass.py'
+      - 'engine/test_fetch_freepats_electric_bass.py'
+      - 'engine/test_sample_bank_install.py'
+      - 'engine/build_contrabass_supplement_banks.py'
+      - 'engine/test_build_contrabass_supplement_banks.py'
+      - 'engine/sample_bank_install.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/fetch_karoryfer_babyblue_bass.py'
+      - 'engine/test_fetch_karoryfer_babyblue_bass.py'
+      - 'engine/test_percussion_round_robin.py'
+      - 'engine/velocity_layer_planner.py'
+      - 'engine/fetch_dsmolken_double_bass.py'
+      - 'engine/test_fetch_dsmolken_double_bass.py'
+      - 'engine/fetch_karoryfer_meatbass.py'
+      - 'engine/test_fetch_karoryfer_meatbass.py'
+      - 'engine/fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/build_contrabass_velocity_supplement.py'
+      - 'engine/instrument_bank_audit.py'
+      - 'engine/test_instrument_bank_audit.py'
+      - '.github/workflows/electric-bass-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: electric-bass-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-electric-bass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+      - name: Test FreePats SFZ mapping and bank installation
+        run: python3 -m unittest engine.test_fetch_freepats_electric_bass engine.test_sample_bank_install -v
+      - name: Fetch and validate pinned CC0 Yamaha RBX electric bass
+        timeout-minutes: 8
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 engine/fetch_freepats_electric_bass.py sample-bank-freepats-electric-bass
+      - name: Render and verify real fingerstyle and picked bass audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-freepats-electric-bass')
+          events = [
+              {'instrument': 'electric_bass', 'midi_note': 28, 'articulation': 'fingerstyle',
+               'start_seconds': 0.0, 'duration_seconds': 0.7, 'velocity': 95},
+              {'instrument': 'electric_bass', 'midi_note': 33, 'articulation': 'fingerstyle',
+               'start_seconds': 0.8, 'duration_seconds': 0.7, 'velocity': 110},
+              {'instrument': 'electric_bass', 'midi_note': 38, 'articulation': 'pick',
+               'start_seconds': 1.6, 'duration_seconds': 0.7, 'velocity': 100},
+              {'instrument': 'electric_bass', 'midi_note': 41, 'articulation': 'pick',
+               'start_seconds': 2.4, 'duration_seconds': 0.7, 'velocity': 90},
+          ]
+          output = 'sample-bank-freepats-electric-bass/electric-bass-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == 4, report
+          assert report['source'] == 'recorded_sample_bank', report
+          assert report['sample_selection']['pitch_shifted_key_zone_events'] >= 1, report
+          with wave.open(output, 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getframerate() == 44100
+              assert audio.getnframes() > 3 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_ELECTRIC_BASS_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified CC0 electric bass bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-freepats-electric-bass
+          path: |
+            sample-bank-freepats-electric-bass/bank.json
+            sample-bank-freepats-electric-bass/LICENSE-CC0.txt
+            sample-bank-freepats-electric-bass/provenance.json
+            sample-bank-freepats-electric-bass/fingerstyle/
+            sample-bank-freepats-electric-bass/pick/
+            sample-bank-freepats-electric-bass/electric-bass-audition.wav
+          if-no-files-found: error
+          retention-days: 30
+
+  build-babyblue-electric-bass:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test Babyblue SFZ parser and pitched round robin
+        run: |
+          python3 -m unittest engine.test_fetch_karoryfer_babyblue_bass engine.test_percussion_round_robin -v
+      - name: Fetch and validate pinned CC0 Babyblue picked electric bass
+        timeout-minutes: 25
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-babyblue-electric-bass
+      - name: Render and verify recorded electric-bass audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-babyblue-electric-bass')
+          events = [
+              {'instrument': 'electric_bass', 'midi_note': note,
+               'start_seconds': index * 0.65, 'duration_seconds': 0.45,
+               'velocity': velocity, 'articulation': 'pick'}
+              for index, (note, velocity) in enumerate([
+                  (35, 42), (38, 42), (43, 42), (47, 42),
+                  (50, 90), (55, 90), (59, 90), (64, 90),
+              ])
+          ]
+          output = 'sample-bank-babyblue-electric-bass/electric-bass-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          assert report['sample_selection']['pitched_round_robin_events'] == len(events), report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 4 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_BABYBLUE_ELECTRIC_BASS_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified Babyblue electric-bass bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-babyblue-picked-electric-bass
+          path: |
+            sample-bank-babyblue-electric-bass/bank.json
+            sample-bank-babyblue-electric-bass/LICENSE-CC0.txt
+            sample-bank-babyblue-electric-bass/provenance.json
+            sample-bank-babyblue-electric-bass/picked/
+            sample-bank-babyblue-electric-bass/electric-bass-audition.wav
+          if-no-files-found: error
+          retention-days: 30
+
+  build-contrabass-pizzicato:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test double-bass SFZ group and round-robin parser
+        run: python3 -m unittest engine.test_fetch_dsmolken_double_bass -v
+      - name: Fetch and validate CC0 D. Smolken double-bass pizzicato recordings
+        timeout-minutes: 18
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
+      - name: Render and verify recorded contrabass pizzicato audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-rubner-contrabass')
+          events = [
+              {'instrument': 'contrabass', 'midi_note': note,
+               'start_seconds': index * 0.55, 'duration_seconds': 0.35,
+               'velocity': velocity, 'articulation': 'pizzicato'}
+              for index, (note, velocity) in enumerate([
+                  (24, 42), (24, 42), (31, 90), (38, 90),
+                  (45, 123), (52, 123), (57, 123),
+              ])
+          ]
+          output = 'sample-bank-rubner-contrabass/contrabass-pizzicato-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          assert report['sample_selection']['pitched_round_robin_events'] == len(events), report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 3 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('REAL_CONTRABASS_PIZZICATO_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Publish verified CC0 contrabass pizzicato bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-rubner-contrabass-pizzicato
+          path: |
+            sample-bank-rubner-contrabass/bank.json
+            sample-bank-rubner-contrabass/LICENSE-CC0.txt
+            sample-bank-rubner-contrabass/provenance.json
+            sample-bank-rubner-contrabass/pizzicato/
+            sample-bank-rubner-contrabass/contrabass-pizzicato-audition.wav
+          if-no-files-found: error
+          retention-days: 30
+
+  build-meatbass-contrabass-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Test Meatbass CC0 SFZ map and strict per-note coverage
+        run: python3 -m unittest engine.test_fetch_karoryfer_meatbass -v
+      - name: Fetch and validate pinned CC0 Meatbass pizzicato recordings
+        timeout-minutes: 25
+        run: python3 engine/fetch_karoryfer_meatbass.py sample-bank-meatbass-contrabass
+      - name: Render all four recorded velocity layers and verify RR playback
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          bank = load_sample_bank('sample-bank-meatbass-contrabass')
+          pairs = [
+              (21, 18), (24, 50), (27, 82), (30, 110),
+              (33, 123), (36, 18), (39, 50), (42, 82),
+              (45, 110), (48, 123), (51, 18), (54, 50),
+              (57, 82), (60, 110),
+          ]
+          events = [
+              {'instrument': 'contrabass', 'midi_note': note,
+               'start_seconds': index * 0.24, 'duration_seconds': 0.16,
+               'velocity': velocity, 'articulation': 'pizzicato'}
+              for index, (note, velocity) in enumerate(pairs)
+          ]
+          events.extend([
+              {'instrument': 'contrabass', 'midi_note': 36,
+               'start_seconds': 3.5 + index * 0.22, 'duration_seconds': 0.16,
+               'velocity': 110, 'articulation': 'pizzicato'}
+              for index in range(4)
+          ])
+          output = 'sample-bank-meatbass-contrabass/meatbass-pizzicato-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == len(events), report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          assert report['sample_selection']['pitched_round_robin_events'] == len(events), report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 4 * 44100
+              assert any(audio.readframes(audio.getnframes()))
+          print('MEATBASS_CONTRABASS_AUDITION_OK', report['sample_selection'])
+          PY
+      - name: Fetch incumbent Rubner source for a non-destructive supplement test
+        timeout-minutes: 18
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
+      - name: Test exact-root VSCO 2 CE contrabass mapping
+        run: python3 -m unittest engine.test_fetch_vsco2_contrabass_pizzicato -v
+      - name: Fetch pinned CC0 VSCO 2 CE MIDI 34 upper-layer recordings
+        timeout-minutes: 8
+        run: python3 engine/fetch_vsco2_contrabass_pizzicato.py sample-bank-vsco2-contrabass-pizzicato
+      - name: Build exact-root MIDI 27 and MIDI 34 upper-velocity supplements
+        run: |
+          python3 -m unittest engine.test_velocity_layer_planner engine.test_instrument_bank_audit -v
+          python3 engine/build_contrabass_velocity_supplement.py \
+            sample-bank-rubner-contrabass \
+            sample-bank-meatbass-contrabass \
+            sample-bank-vsco2-contrabass-pizzicato \
+            sample-bank-contrabass-velocity-supplement
+      - name: Render both supplements and verify exact-root selection
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+          from velocity_layer_planner import plan_velocity_layers
+
+          from instrument_bank_audit import build_instrument_bank_audit
+          bank = load_sample_bank('sample-bank-contrabass-velocity-supplement')
+          checks = {
+              'midi27_low': plan_velocity_layers(bank, 'contrabass', 27, 100, 'pizzicato'),
+              'midi27_high': plan_velocity_layers(bank, 'contrabass', 27, 123, 'pizzicato'),
+              'midi34_low': plan_velocity_layers(bank, 'contrabass', 34, 100, 'pizzicato'),
+              'midi34_high': plan_velocity_layers(bank, 'contrabass', 34, 123, 'pizzicato'),
+              'midi33_high': plan_velocity_layers(bank, 'contrabass', 33, 123, 'pizzicato'),
+          }
+          expected = {
+              'midi27_low': 'd_smolken_rubner_pizzicato',
+              'midi27_high': 'karoryfer_meatbass_pizzicato',
+              'midi34_low': 'd_smolken_rubner_pizzicato',
+              'midi34_high': 'vsco2_ce_contrabass_pizzicato',
+          }
+          for key, session in expected.items():
+              assert len(checks[key]['layers']) == 1, (key, checks[key])
+              assert checks[key]['layers'][0]['sample'].recording_session_id == session, (key, checks[key])
+          assert not checks['midi33_high']['layers'], checks['midi33_high']
+          audit = build_instrument_bank_audit(bank)
+          assert audit['instruments']['contrabass']['effective_velocity_gaps_after_source_priority'] == [], audit
+          events = [
+              {'instrument': 'contrabass', 'midi_note': 27, 'start_seconds': 0.0,
+               'duration_seconds': 0.35, 'velocity': 100, 'articulation': 'pizzicato'},
+              {'instrument': 'contrabass', 'midi_note': 27, 'start_seconds': 0.5,
+               'duration_seconds': 0.35, 'velocity': 123, 'articulation': 'pizzicato'},
+              {'instrument': 'contrabass', 'midi_note': 34, 'start_seconds': 1.0,
+               'duration_seconds': 0.35, 'velocity': 100, 'articulation': 'pizzicato'},
+              {'instrument': 'contrabass', 'midi_note': 34, 'start_seconds': 1.5,
+               'duration_seconds': 0.35, 'velocity': 123, 'articulation': 'pizzicato'},
+          ]
+          output = 'sample-bank-contrabass-velocity-supplement/contrabass-velocity-supplement-audition.wav'
+          report = render_sample_events(events, bank, output, sample_rate=44100)
+          assert report['events_rendered'] == 4, report
+          assert report['sample_selection']['pitch_shifted_key_zone_events'] == 0, report
+          assert report['sample_selection']['pitch_shifted_nearest_note_events'] == 0, report
+          assert report['sample_selection']['pitched_round_robin_events'] == 4, report
+          assert report['sample_selection']['equal_power_velocity_crossfade_events'] == 0, report
+          with wave.open(output, 'rb') as audio:
+              assert (audio.getnchannels(), audio.getsampwidth(), audio.getframerate()) == (2, 2, 44100)
+              assert audio.getnframes() > 0 and any(audio.readframes(audio.getnframes()))
+          print('CONTRABASS_VELOCITY_SUPPLEMENT_OK', report['sample_selection'])
+          PY
+      - name: Publish non-destructive contrabass velocity supplement artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-contrabass-velocity-supplement
+          path: |
+            sample-bank-contrabass-velocity-supplement/bank.json
+            sample-bank-contrabass-velocity-supplement/LICENSE-RUBNER-CC0.txt
+            sample-bank-contrabass-velocity-supplement/LICENSE-MEATBASS-CC0.txt
+            sample-bank-contrabass-velocity-supplement/LICENSE-VSCO2-CC0.txt
+            sample-bank-contrabass-velocity-supplement/provenance-rubner.json
+            sample-bank-contrabass-velocity-supplement/provenance-meatbass.json
+            sample-bank-contrabass-velocity-supplement/provenance-vsco2.json
+            sample-bank-contrabass-velocity-supplement/rubner/
+            sample-bank-contrabass-velocity-supplement/meatbass-supplement/
+            sample-bank-contrabass-velocity-supplement/vsco2-supplement/
+            sample-bank-contrabass-velocity-supplement/contrabass-velocity-supplement-audition.wav
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish verified Meatbass candidate bank and audition
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-meatbass-contrabass-candidate
+          path: |
+            sample-bank-meatbass-contrabass/bank.json
+            sample-bank-meatbass-contrabass/LICENSE-CC0.txt
+            sample-bank-meatbass-contrabass/provenance.json
+            sample-bank-meatbass-contrabass/pizzicato/
+            sample-bank-meatbass-contrabass/meatbass-pizzicato-audition.wav
+          if-no-files-found: error
+          retention-days: 30

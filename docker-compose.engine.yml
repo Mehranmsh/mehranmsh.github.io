@@ -1,0 +1,56 @@
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: engine/Dockerfile
+    image: mehran-music-engine:local
+    restart: unless-stopped
+    environment:
+      MEHRAN_STUDIO_TOKEN: ${MEHRAN_STUDIO_TOKEN:?Set MEHRAN_STUDIO_TOKEN in .env}
+      MEHRAN_STUDIO_MAX_PROJECTS: ${MEHRAN_STUDIO_MAX_PROJECTS:-500}
+      MEHRAN_STUDIO_MIN_FREE_BYTES: ${MEHRAN_STUDIO_MIN_FREE_BYTES:-2147483648}
+      MEHRAN_STUDIO_HOME: /data
+      MEHRAN_STUDIO_HOST: 0.0.0.0
+      MEHRAN_STUDIO_PORT: 8765
+      MEHRAN_STUDIO_ALLOW_CONTAINER_BIND: "1"
+    expose:
+      - "8765"
+    volumes:
+      - mehran-engine-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import os,urllib.request; r=urllib.request.Request('http://127.0.0.1:8765/health',headers={'Authorization':'Bearer '+os.environ['MEHRAN_STUDIO_TOKEN']}); urllib.request.urlopen(r,timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+    depends_on:
+      engine:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  mehran-engine-data:

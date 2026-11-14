@@ -1,0 +1,844 @@
+import unittest
+
+from mehran_music_core import analyze_lyrics, compose_plan
+
+
+class IndependentMusicCoreTests(unittest.TestCase):
+    def test_rejects_empty_lyrics(self):
+        with self.assertRaises(ValueError):
+            analyze_lyrics("  \n ")
+
+    def test_analyzes_persian_lyrics_without_external_services(self):
+        result = analyze_lyrics("دلم گرفته از این شب\nبرگرد به خانه")
+        self.assertEqual(result["language"], "fa")
+        self.assertEqual(result["line_count"], 2)
+        self.assertIn(result["mood"], {"sad", "neutral"})
+
+    def test_builds_composition_plan_and_preserves_lines(self):
+        lyrics = "دلم گرفته\nاز این شب سرد\nبرگرد ای عشق\nبه خانه برگرد"
+        plan = compose_plan(lyrics, title="برگرد", target_bpm=84)
+        self.assertEqual(plan["source_mode"], "lyrics_first")
+        self.assertEqual(plan["lyric_status"], "provided")
+        self.assertEqual(plan["engine"], "MEHRAN_INDEPENDENT_COMPOSITION_CORE")
+        self.assertEqual(plan["title"], "برگرد")
+        self.assertEqual(plan["composition"]["tempo_bpm"], 84)
+        self.assertEqual(len(plan["composition"]["melody"]), 4)
+        self.assertFalse(plan["audio_rendered"])
+        self.assertEqual(plan["status"], "composition_plan_only")
+
+    def test_curated_final_syllables_improve_persian_rhyme_analysis(self):
+        result = analyze_lyrics("خَانِه\nبَهانِه")
+        self.assertEqual(result["rhyme_candidates"], ["ne"])
+        self.assertEqual(
+            [item["confidence"] for item in result["rhyme_analysis"]],
+            ["curated", "curated"],
+        )
+        self.assertEqual(
+            [item["signature"] for item in result["rhyme_analysis"]],
+            ["ne", "ne"],
+        )
+
+    def test_curated_rhymes_compare_vowel_and_coda_not_syllable_onset(self):
+        result = analyze_lyrics("خانه\nبوسه")
+        self.assertEqual(
+            [item["signature"] for item in result["rhyme_analysis"]],
+            ["ne", "se"],
+        )
+        self.assertEqual(
+            [item["rhyme_tail"] for item in result["rhyme_analysis"]],
+            ["e", "e"],
+        )
+        self.assertEqual(len(result["rhyme_groups"]), 1)
+        self.assertEqual(result["rhyme_groups"][0]["rhyme_tail"], "e")
+        self.assertEqual(result["rhyme_groups"][0]["line_indices"], [0, 1])
+
+    def test_rhyme_schemes_are_scoped_to_blank_line_stanzas(self):
+        result = analyze_lyrics("خانه\nبهانه\n\nپرواز\nآواز")
+        self.assertEqual(len(result["stanza_rhyme_schemes"]), 2)
+        self.assertEqual(
+            [item["pattern"] for item in result["stanza_rhyme_schemes"]],
+            [["A", "A"], ["A", "A"]],
+        )
+        self.assertEqual(
+            [group["stanza_index"] for group in result["rhyme_groups"]],
+            [0, 1],
+        )
+        self.assertEqual(
+            [item["stanza_index"] for item in result["rhyme_analysis"]],
+            [0, 0, 1, 1],
+        )
+
+    def test_spelling_fallback_rhyme_does_not_force_melodic_cadence(self):
+        plan = compose_plan("پرواز\nآواز")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["rhyme_cadence_group"],
+                         phrases[1]["rhyme_cadence_group"])
+        self.assertEqual(phrases[1]["rhyme_cadence_confidence"], "low")
+        self.assertFalse(phrases[0]["rhyme_cadence_linked"])
+        self.assertFalse(phrases[1]["rhyme_cadence_linked"])
+        self.assertEqual(phrases[1]["rhyme_cadence_method"],
+                         "curated_pronunciation_required")
+
+    def test_repeated_stanza_rhyme_links_compatible_melodic_cadences(self):
+        plan = compose_plan("خانه\nشب\nبهانه\nیار")
+        phrases = plan["composition"]["melody"]
+        first, repeated = phrases[0], phrases[2]
+        self.assertEqual(first["rhyme_cadence_group"], repeated["rhyme_cadence_group"])
+        self.assertFalse(first["rhyme_cadence_linked"])
+        self.assertTrue(repeated["rhyme_cadence_linked"])
+        self.assertEqual(first["cadence_note"] % 12, repeated["cadence_note"] % 12)
+        self.assertEqual(repeated["rhyme_cadence_method"],
+                         "shared_stanza_rhyme_pitch_class_v1")
+
+    def test_rhyme_groups_report_repeated_endings_and_line_indices(self):
+        result = analyze_lyrics("خانه\nبهانه\nشب\nروز")
+        self.assertEqual(len(result["rhyme_groups"]), 1)
+        group = result["rhyme_groups"][0]
+        self.assertEqual(group["signature"], "ne")
+        self.assertEqual(group["confidence"], "curated")
+        self.assertEqual(group["line_indices"], [0, 1])
+        self.assertEqual(
+            [item["group"] for item in result["rhyme_analysis"]],
+            ["A", "A", None, None],
+        )
+
+    def test_unknown_rhyme_uses_low_confidence_spelling_fallback(self):
+        result = analyze_lyrics("پرواز\nآواز")
+        self.assertEqual(
+            [item["confidence"] for item in result["rhyme_analysis"]],
+            ["low", "low"],
+        )
+        self.assertTrue(all(
+            item["method"] == "orthographic_suffix_fallback_v1"
+            for item in result["rhyme_analysis"]
+        ))
+
+    def test_rhyme_candidates_ignore_written_vowel_marks(self):
+        result = analyze_lyrics("خَانِه\nبَهانِه")
+        self.assertEqual(result["rhyme_candidates"], ["ne"])
+
+    def test_vocalized_persian_words_remain_single_tokens(self):
+        result = analyze_lyrics("بَرگَرد به خَانِه")
+        self.assertEqual(result["word_count"], 3)
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual([item["word"] for item in words],
+                         ["بَرگَرد", "به", "خَانِه"])
+
+    def test_persian_zwnj_compounds_remain_single_lyric_words(self):
+        from mehran_music_core import _align_words_to_notes
+        result = analyze_lyrics("می‌رسم به خانه")
+        self.assertEqual(result["word_count"], 3)
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual([item["word"] for item in words],
+                         ["می‌رسم", "به", "خانه"])
+        aligned = _align_words_to_notes("می‌رسم به خانه", 5)
+        self.assertEqual([item["word"] for item in aligned["word_note_alignment"]],
+                         ["می‌رسم", "به", "خانه"])
+
+    def test_vocalized_lexicon_words_keep_curated_pronunciation_and_stress(self):
+        from mehran_music_core import _align_words_to_notes, _word_phonetics
+        phonetics = _word_phonetics("بَرگَرد")
+        self.assertEqual(phonetics["syllables"], ["bar", "gard"])
+        self.assertEqual(phonetics["lexical_stress"]["syllable_index"], 1)
+        aligned = _align_words_to_notes("بَرگَرد", 2)
+        self.assertEqual(aligned["word_note_alignment"][0]["stress_confidence"],
+                         "curated")
+        self.assertEqual([item["is_lexically_stressed"]
+                          for item in aligned["syllable_note_map"]],
+                         [False, True])
+
+    def test_word_note_ranges_are_contiguous_and_do_not_overlap(self):
+        from mehran_music_core import _align_words_to_notes
+        aligned = _align_words_to_notes("دلم گرفته برگرد ای عشق", 9)
+        words = aligned["word_note_alignment"]
+        self.assertEqual(words[0]["note_start"], 0)
+        self.assertEqual(words[-1]["note_end"], 9)
+        for previous, current in zip(words, words[1:]):
+            self.assertEqual(previous["note_end"], current["note_start"])
+        for item in aligned["note_lyric_map"]:
+            word = words[item["word_index"]]
+            self.assertGreaterEqual(item["note_index"], word["note_start"])
+            self.assertLess(item["note_index"], word["note_end"])
+        for syllable in aligned["syllable_note_map"]:
+            word = words[syllable["word_index"]]
+            self.assertGreaterEqual(syllable["note_index"], word["note_start"])
+            self.assertLess(syllable["note_index"], word["note_end"])
+            self.assertEqual(syllable["mapping"], "word_preserving_syllable_to_note_v2")
+
+    def test_word_alignment_tokenizes_latin_and_persian_words(self):
+        from mehran_music_core import _align_words_to_notes
+        aligned = _align_words_to_notes("hello برگرد", 4)
+        self.assertEqual([item["word"] for item in aligned["word_note_alignment"]],
+                         ["hello", "برگرد"])
+        self.assertEqual(aligned["word_note_alignment"][1]["syllables"],
+                         ["bar", "gard"])
+
+    def test_multiple_stressed_onsets_preserve_phrase_duration_and_positive_notes(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 850, 100, 1000]
+        note_map = [
+            {"note_index": 0, "is_lexically_stressed": False},
+            {"note_index": 1, "is_lexically_stressed": True,
+             "stress_confidence": "curated"},
+            {"note_index": 2, "is_lexically_stressed": False},
+            {"note_index": 3, "is_lexically_stressed": True,
+             "stress_confidence": "curated"},
+            {"note_index": 4, "is_lexically_stressed": False},
+        ]
+        adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(sum(adjusted), sum(durations))
+        self.assertTrue(all(value > 0 for value in adjusted))
+        self.assertEqual(len(adjusted), len(durations))
+        self.assertEqual(len(metadata), len(note_map))
+
+    def test_stress_alignment_skips_when_phrase_end_cannot_fund_shift(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 500, 120]
+        note_map = [
+            {"note_index": 0, "is_lexically_stressed": False},
+            {"note_index": 1, "is_lexically_stressed": True,
+             "stress_confidence": "curated"},
+            {"note_index": 2, "is_lexically_stressed": False},
+            {"note_index": 3, "is_lexically_stressed": False},
+        ]
+        adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(adjusted, durations)
+        self.assertNotIn("stress_beat_alignment", metadata[1])
+
+    def test_unknown_stress_is_never_beat_aligned(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 500, 470]
+        note_map = [
+            {"note_index": 0, "is_lexically_stressed": False},
+            {"note_index": 1, "is_lexically_stressed": True,
+             "stress_confidence": "unknown"},
+            {"note_index": 2, "is_lexically_stressed": False},
+            {"note_index": 3, "is_lexically_stressed": False},
+        ]
+        adjusted, metadata = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(adjusted, durations)
+        self.assertNotIn("stress_beat_alignment", metadata[1])
+
+    def test_melodic_motif_restarts_at_section_boundaries(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        sections = plan["composition"]["sections"]
+        for section in sections:
+            phrase = phrases[section["start_line"]]
+            self.assertEqual(phrase["melodic_motif_scope"], section["name"])
+            self.assertEqual(phrase["melodic_motif_slot"], 0)
+            expected = "lifted" if "chorus" in section["name"] else "midrange"
+            self.assertEqual(phrase["section_register"], expected)
+
+    def test_melodic_leap_smoothing_preserves_phrase_anchors(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\nبرگرد به خانه\nصدای باران می‌آید\nهنوز چشم به راهت"
+        )
+        for phrase in plan["composition"]["melody"]:
+            notes = phrase["midi_notes"]
+            self.assertTrue(all(0 <= note <= 127 for note in notes))
+            for index in range(1, len(notes) - 1):
+                if phrase["note_lyric_map"][index]["beat_strength"] != "strong" and index != phrase["peak_note_index"]:
+                    self.assertLessEqual(abs(notes[index] - notes[index - 1]), 7)
+
+    def test_primary_downbeats_land_on_current_chord_tones(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\nبرگرد به خانه\nصدای باران می‌آید\nهنوز چشم به راهت"
+        )
+        for phrase in plan["composition"]["melody"]:
+            chord_classes = set()
+            chord = phrase["chord"]
+            roots = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+            root = roots[chord[0]]
+            suffix = chord[1:]
+            if suffix.startswith("b"):
+                root -= 1
+            elif suffix.startswith("#"):
+                root += 1
+            intervals = (0, 3, 7) if suffix.startswith("m") else (0, 4, 7)
+            if "7" in suffix:
+                intervals += (10,)
+            chord_classes = {(root + interval) % 12 for interval in intervals}
+            for note, item in zip(phrase["midi_notes"], phrase["note_lyric_map"]):
+                if item["beat_strength"] == "strong":
+                    self.assertIn(note % 12, chord_classes)
+
+    def test_curated_persian_lexical_stress_maps_to_syllable_and_note(self):
+        plan = compose_plan("برگرد به خانه")
+        phrase = plan["composition"]["melody"][0]
+        stressed = [item for item in phrase["syllable_note_map"]
+                    if item["word"] == "برگرد"]
+        self.assertEqual(len(stressed), 2)
+        self.assertEqual([item["is_lexically_stressed"] for item in stressed],
+                         [False, True])
+        self.assertTrue(all(item["stress_confidence"] == "curated"
+                            for item in stressed))
+        unknown = [item for item in phrase["syllable_note_map"]
+                   if item["word"] == "به"]
+        self.assertTrue(all(item["is_lexically_stressed"] is None
+                            for item in unknown))
+
+    def test_note_map_includes_rhythmic_value_and_articulation(self):
+        plan = compose_plan("دلم گرفته از این شب")
+        note_map = plan["composition"]["melody"][0]["note_lyric_map"]
+        allowed_values = {"whole", "half", "quarter", "eighth", "sixteenth", "short_subdivision"}
+        allowed_articulations = {"sustain", "normal", "light"}
+        for item in note_map:
+            self.assertIn(item["rhythmic_value"], allowed_values)
+            self.assertIn(item["articulation_hint"], allowed_articulations)
+            self.assertGreater(item["duration_ticks"], 0)
+
+    def test_note_beat_metadata_uses_note_onset_not_note_end(self):
+        plan = compose_plan("دلم گرفته از این شب")
+        phrase = plan["composition"]["melody"][0]
+        note_map = phrase["note_lyric_map"]
+        self.assertEqual(note_map[0]["tick_start"], 0)
+        self.assertEqual(note_map[0]["bar_index"], 0)
+        self.assertEqual(note_map[0]["beat_number"], 1)
+        self.assertEqual(note_map[0]["beat_strength"], "strong")
+        self.assertEqual(note_map[0]["onset_accent"], "primary")
+        for previous, current in zip(note_map, note_map[1:]):
+            self.assertEqual(previous["tick_end"], current["tick_start"])
+
+    def test_punctuation_guides_harmonic_phrase_cadence(self):
+        plan = compose_plan(
+            "دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد؛\nشب سرد و خاموش"
+        )
+        phrases = plan["composition"]["melody"]
+        progression = plan["composition"]["chord_progression"]
+        self.assertEqual(phrases[0]["harmonic_cadence"], "dominant_suspension")
+        self.assertEqual(phrases[0]["chord"], progression[-1])
+        self.assertEqual(phrases[1]["harmonic_cadence"], "tonic_resolution")
+        self.assertEqual(phrases[1]["chord"], progression[0])
+        self.assertEqual(phrases[2]["harmonic_cadence"], "mid_phrase_lift")
+        self.assertEqual(phrases[3]["harmonic_cadence"], "continuing")
+
+    def test_melody_phrase_starts_and_resolves_on_chord_tones(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق\nبه خانه برگرد")
+        for phrase in plan["composition"]["melody"]:
+            self.assertTrue(phrase["phrase_start_is_chord_tone"])
+            self.assertTrue(phrase["phrase_end_is_chord_tone"])
+
+    def test_flat_chord_melody_resolves_to_correct_flat_chord_tones(self):
+        plan = compose_plan("فریاد\nخشم\nآتش\nجنگ")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(plan["analysis"]["mood"], "angry")
+        self.assertEqual(phrases[1]["chord"], "Bb")
+        self.assertTrue(phrases[1]["phrase_start_is_chord_tone"])
+        self.assertTrue(phrases[1]["phrase_end_is_chord_tone"])
+
+    def test_harmonic_metadata_explains_tonal_function_and_phrase_position(self):
+        plan = compose_plan("دلم گرفته\nشب سرد\nبرگرد ای عشق\nبه خانه برگرد")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["harmonic_function"], "tonic")
+        self.assertEqual(phrases[0]["harmonic_position"]["global_phrase_index"], 0)
+        self.assertEqual(phrases[0]["harmonic_position"]["section_phrase_index"], 0)
+        self.assertEqual(phrases[1]["harmonic_position"]["progression_slot"], 1)
+        self.assertIsInstance(phrases[1]["harmonic_position"]["cadence_override"], bool)
+        self.assertTrue(all(p["harmonic_function"] != "unknown" for p in phrases))
+
+    def test_harmonic_function_handles_flat_scale_degrees(self):
+        from mehran_music_core import _harmonic_function
+        self.assertEqual(_harmonic_function("Bb", "D", "minor"), "submediant")
+        self.assertEqual(_harmonic_function("C7", "D", "minor"), "subtonic")
+
+    def test_long_song_sections_separate_second_verse_and_final_chorus(self):
+        lyrics = "\n".join([
+            "بند اول یک", "بند اول دو",
+            "ترجیع یک", "ترجیع دو", "ترجیع سه",
+            "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
+        ])
+        plan = compose_plan(lyrics)
+        sections = plan["composition"]["sections"]
+        self.assertEqual(
+            [section["name"] for section in sections],
+            ["verse_1", "chorus", "verse_2", "final_chorus"],
+        )
+        self.assertEqual(sections[0]["start_line"], 0)
+        self.assertEqual(sections[-1]["end_line"], 8)
+        self.assertTrue(all(
+            sections[index]["end_line"] == sections[index + 1]["start_line"]
+            for index in range(len(sections) - 1)
+        ))
+        phrases = plan["composition"]["melody"]
+        self.assertTrue(all(
+            phrases[index]["section"] == section["name"]
+            for section in sections
+            for index in range(section["start_line"], section["end_line"])
+        ))
+        final_phrases = [p for p in phrases if p["section"] == "final_chorus"]
+        verse_two = [p for p in phrases if p["section"] == "verse_2"]
+        self.assertTrue(final_phrases)
+        self.assertTrue(verse_two)
+        self.assertTrue(all(p["contour_type"] == "rising_peak_then_fall"
+                            for p in final_phrases))
+        self.assertTrue(all(p["contour_type"] == "restrained_wave"
+                            for p in verse_two))
+
+    def test_harmonic_progression_restarts_at_each_section_boundary(self):
+        lyrics = "\n".join([
+            "بند اول یک", "بند اول دو",
+            "ترجیع یک", "ترجیع دو", "ترجیع سه",
+            "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        progression = plan["composition"]["chord_progression"]
+        for section in plan["composition"]["sections"]:
+            first = phrases[section["start_line"]]
+            self.assertEqual(first["harmonic_position"]["progression_slot"], 0)
+            if (first["harmonic_position"]["cadence_override"]
+                    or first["structural_cadence"] != "none"):
+                self.assertIn(first["chord"], (progression[0], progression[2], progression[-1]))
+            else:
+                self.assertEqual(first["chord"], progression[0])
+            if section["end_line"] - section["start_line"] > 1:
+                second = phrases[section["start_line"] + 1]
+                self.assertEqual(second["harmonic_position"]["progression_slot"], 1)
+                if (second["harmonic_position"]["cadence_override"]
+                        or second["structural_cadence"] != "none"):
+                    self.assertIn(second["chord"], (progression[0], progression[2], progression[-1]))
+                else:
+                    self.assertEqual(second["chord"], progression[1])
+
+    def test_long_song_sections_receive_structural_harmonic_cadences(self):
+        lyrics = "\n".join([
+            "بند اول یک", "بند اول دو",
+            "ترجیع یک", "ترجیع دو", "ترجیع سه",
+            "بند دوم یک", "ترجیع نهایی یک", "ترجیع نهایی دو",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        progression = plan["composition"]["chord_progression"]
+        section_ends = [section["end_line"] - 1
+                        for section in plan["composition"]["sections"]]
+        for phrase_index in section_ends[:-1]:
+            phrase = phrases[phrase_index]
+            self.assertEqual(phrase["structural_cadence"], "section_dominant")
+            self.assertEqual(phrase["chord"], progression[-1])
+        final_phrase = phrases[section_ends[-1]]
+        self.assertEqual(final_phrase["structural_cadence"], "final_tonic")
+        self.assertEqual(final_phrase["chord"], progression[0])
+
+    def test_rejects_invalid_tempo(self):
+        with self.assertRaises(ValueError):
+            compose_plan("یک شعر", target_bpm=300)
+
+    def test_deterministic_output(self):
+        lyrics = "تو در دل منی\nبهار منی"
+        self.assertEqual(compose_plan(lyrics), compose_plan(lyrics))
+
+
+    def test_chorus_has_a_higher_contour_and_explicit_peak(self):
+        plan = compose_plan("دلم گرفته\nشب سرد و خاموش\nتو برگرد ای عشق\nبه خانه برگرد")
+        phrases = plan["composition"]["melody"]
+        verse = [p for p in phrases if "chorus" not in p["section"]]
+        chorus = [p for p in phrases if "chorus" in p["section"]]
+        self.assertTrue(verse)
+        self.assertTrue(chorus)
+        self.assertTrue(all(p["contour_type"] == "restrained_wave" for p in verse))
+        self.assertTrue(all(p["contour_type"] == "rising_peak_then_fall" for p in chorus))
+        self.assertTrue(all(0 <= p["peak_note_index"] < len(p["midi_notes"]) for p in phrases))
+        self.assertTrue(all(p["midi_notes"][p["peak_note_index"]] == max(p["midi_notes"]) for p in phrases))
+        verse_peak = max(max(p["midi_notes"]) for p in verse)
+        chorus_peak = max(max(p["midi_notes"]) for p in chorus)
+        self.assertGreater(chorus_peak, verse_peak)
+
+    def test_short_phrase_keeps_chord_tone_start_and_cadence(self):
+        plan = compose_plan("غم\nشب")
+        for phrase in plan["composition"]["melody"]:
+            self.assertTrue(phrase["phrase_start_is_chord_tone"])
+            self.assertTrue(phrase["phrase_end_is_chord_tone"])
+            self.assertGreaterEqual(len(phrase["midi_notes"]), 2)
+
+    def test_punctuation_extends_phrase_ending(self):
+        from mehran_music_core import _phrase_durations
+        _, plain = _phrase_durations(4, 4, "دل من")
+        _, paused = _phrase_durations(4, 4, "دل من،")
+        self.assertGreater(paused[-1], plain[-1])
+
+    def test_internal_comma_creates_a_breath_before_the_next_word(self):
+        from mehran_music_core import _phrase_durations
+        _, plain = _phrase_durations(4, 4, "دل من")
+        _, paused = _phrase_durations(4, 4, "دل، من")
+        self.assertGreater(paused[1], plain[1])
+
+    def test_curated_stress_onset_moves_toward_strong_beat(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [850, 100, 500, 470]
+        note_map = [
+            {"is_lexically_stressed": False},
+            {"is_lexically_stressed": True, "stress_confidence": "curated"},
+            {"is_lexically_stressed": False},
+            {"is_lexically_stressed": False},
+        ]
+        adjusted, mapped = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(sum(adjusted), sum(durations))
+        self.assertEqual(adjusted[0], 960)
+        self.assertEqual(mapped[1]["stress_beat_alignment"], "aligned")
+
+    def test_unknown_stress_does_not_change_beat_timing(self):
+        from mehran_music_core import _align_stressed_onsets_to_beats
+        durations = [500, 500, 500, 420]
+        note_map = [{"is_lexically_stressed": None} for _ in durations]
+        adjusted, mapped = _align_stressed_onsets_to_beats(durations, note_map)
+        self.assertEqual(adjusted, durations)
+        self.assertNotIn("stress_beat_alignment", mapped[1])
+
+    def test_curated_stress_receives_rhythmic_weight(self):
+        from mehran_music_core import _phrase_durations
+        _, durations = _phrase_durations(3, 4, "برگرد شب")
+        self.assertEqual(len(durations), 4)
+        self.assertGreater(durations[2], durations[0])
+        self.assertEqual(sum(durations), 1920)
+
+    def test_unknown_word_stress_is_not_guessed_for_rhythm(self):
+        from mehran_music_core import _phrase_durations
+        _, plain = _phrase_durations(3, 4, "پرواز خیالی")
+        _, punctuated = _phrase_durations(3, 4, "پرواز، خیالی")
+        self.assertEqual(len(plain), len(punctuated))
+        self.assertEqual(sum(plain), sum(punctuated))
+
+    def test_word_boundaries_are_reflected_in_phrase_timing(self):
+        from mehran_music_core import _phrase_durations
+        _, durations = _phrase_durations(5, 5, "دلم گرفته")
+        self.assertEqual(len(durations), 5)
+        self.assertEqual(sum(durations) % 1920, 0)
+        self.assertGreater(durations[-1], durations[0])
+
+    def test_phonetic_layer_reports_written_diacritics_without_claiming_stress(self):
+        result = analyze_lyrics("مَن دل")
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual(words[0]["explicit_short_vowel_marks"], 1)
+        self.assertEqual(words[0]["syllable_estimate"], 1)
+        self.assertEqual(words[0]["lexical_stress"], "unknown")
+        self.assertEqual(words[1]["confidence"], "low")
+
+    def test_curated_lexicon_improves_common_lyric_word_syllables(self):
+        result = analyze_lyrics("دلم گرفته برگرد ای عشق")
+        words = result["phonetic_analysis"][0]["words"]
+        by_word = {word["word"]: word for word in words}
+        self.assertEqual(by_word["دلم"]["syllable_estimate"], 2)
+        self.assertEqual(by_word["گرفته"]["syllable_estimate"], 3)
+        self.assertEqual(by_word["برگرد"]["syllables"], ["bar", "gard"])
+        self.assertEqual(by_word["عشق"]["confidence"], "high")
+        self.assertEqual(result["lines"][0]["syllable_estimate"], 9)
+    def test_phonetic_layer_detects_written_long_vowels(self):
+        result = analyze_lyrics("یار و روز")
+        words = result["phonetic_analysis"][0]["words"]
+        self.assertEqual([word["syllable_estimate"] for word in words], [1, 1, 1])
+        by_word = {word["word"]: word for word in words}
+        self.assertEqual(by_word["یار"]["method"], "curated_lyric_pronunciation_lexicon_v1")
+        self.assertEqual(by_word["روز"]["method"], "curated_lyric_pronunciation_lexicon_v1")
+        self.assertEqual(by_word["و"]["method"], "written_long_vowels_only_v1")
+
+    def test_phonetic_layer_normalizes_arabic_characters(self):
+        result = analyze_lyrics("يَك")
+        word = result["phonetic_analysis"][0]["words"][0]
+        self.assertEqual(word["word"], "یَک")
+        self.assertEqual(word["explicit_short_vowel_marks"], 1)
+
+    def test_composition_maps_every_melody_note_to_a_lyric_syllable(self):
+        plan = compose_plan("دلم گرفته، برگرد ای عشق")
+        phrase = plan["composition"]["melody"][0]
+        note_map = phrase["note_lyric_map"]
+        alignment = phrase["word_note_alignment"]
+        self.assertEqual(len(note_map), len(phrase["midi_notes"]))
+        self.assertEqual([item["note_index"] for item in note_map],
+                         list(range(len(phrase["midi_notes"]))))
+        self.assertEqual([item["word"] for item in alignment],
+                         ["دلم", "گرفته", "برگرد", "ای", "عشق"])
+        self.assertEqual(alignment[0]["syllable_estimate"], 2)
+        self.assertEqual(alignment[1]["syllables"], ["ge", "ref", "te"])
+        self.assertEqual(note_map[0]["word"], "دلم")
+        self.assertEqual(note_map[0]["tick_start"], 0)
+        self.assertEqual(note_map[-1]["tick_end"], phrase["duration_ticks"])
+        self.assertTrue(all(item["tick_start"] < item["tick_end"]
+                            for item in note_map))
+        self.assertTrue(all(note_map[i]["tick_end"] == note_map[i + 1]["tick_start"]
+                            for i in range(len(note_map) - 1)))
+        self.assertTrue(all(item["note_start"] < item["note_end"]
+                            for item in alignment))
+        self.assertTrue(all(item["syllable_token"] is None
+                            or isinstance(item["syllable_token"], str)
+                            for item in note_map))
+        syllable_map = phrase["syllable_note_map"]
+        self.assertEqual(len(syllable_map), phrase["syllable_estimate"])
+        self.assertEqual([item["syllable_index"] for item in syllable_map],
+                         list(range(phrase["syllable_estimate"])))
+        self.assertTrue(all(0 <= item["note_index"] < len(note_map)
+                            for item in syllable_map))
+        self.assertEqual(note_map[0]["bar_index"], 0)
+        self.assertEqual(note_map[0]["beat_number"], 1)
+        self.assertEqual(note_map[0]["beat_strength"], "strong")
+        self.assertTrue(all(item["beat_number"] in (1, 2, 3, 4)
+                            for item in note_map))
+        self.assertTrue(all(item["bar_index"] >= 0 for item in note_map))
+
+    def test_unknown_words_are_aligned_without_fake_phonetic_tokens(self):
+        plan = compose_plan("پرواز خیالی")
+        phrase = plan["composition"]["melody"][0]
+        self.assertTrue(phrase["word_note_alignment"])
+        self.assertTrue(all(item["confidence"] == "low"
+                            for item in phrase["word_note_alignment"]))
+        self.assertTrue(all(item["syllables"] is None
+                            for item in phrase["word_note_alignment"]))
+
+    def test_internal_punctuation_creates_vocal_breath_cues_without_changing_phrase_timing(self):
+        from mehran_music_core import _internal_breath_cues
+
+        durations = [480, 480, 480, 480]
+        cues = _internal_breath_cues("دلم، گرفته؛ از این شب", durations)
+
+        self.assertEqual(len(cues), 2)
+        self.assertEqual([cue["kind"] for cue in cues], ["short", "medium"])
+        self.assertEqual([cue["pause_ticks"] for cue in cues], [120, 180])
+        self.assertTrue(all(cue["timing_basis"] == "written_punctuation"
+                            for cue in cues))
+        self.assertTrue(all(cue["scope"] == "vocal_performance_hint"
+                            for cue in cues))
+        self.assertEqual(sum(durations), 1920)
+        self.assertEqual(_internal_breath_cues("دلم گرفته از این شب", durations), [])
+
+    def test_line_punctuation_creates_explicit_post_phrase_breath(self):
+        plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["phrase_pause_ticks"], 120)
+        self.assertEqual(phrases[0]["breath_after_phrase"], "short")
+        self.assertEqual(phrases[1]["phrase_pause_ticks"], 360)
+        self.assertEqual(phrases[1]["breath_after_phrase"], "full")
+        self.assertEqual(phrases[2]["phrase_pause_ticks"], 0)
+
+    def test_breath_window_is_explicit_and_follows_phrase_end(self):
+        plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟\nبه خانه برگرد")
+        first, second, third = plan["composition"]["melody"]
+        self.assertEqual(first["breath_window"], {
+            "start_tick": first["duration_ticks"],
+            "end_tick": first["duration_ticks"] + 120,
+            "duration_ticks": 120,
+            "kind": "short",
+            "timing_basis": "written_punctuation",
+            "boundary": "internal_phrase",
+            "recovery_priority": "normal",
+        })
+        self.assertEqual(second["breath_window"]["kind"], "full")
+        self.assertEqual(second["breath_window"]["duration_ticks"], 360)
+        self.assertEqual(third["breath_window"]["duration_ticks"], 0)
+        self.assertEqual(third["breath_window"]["start_tick"],
+                         third["breath_window"]["end_tick"])
+
+    def test_phrase_final_sustain_uses_curated_open_or_closed_syllable(self):
+        plan = compose_plan("خانه\nبرگرد")
+        open_phrase, closed_phrase = plan["composition"]["melody"]
+        self.assertEqual(open_phrase["cadence_syllable_type"], "open")
+        self.assertEqual(open_phrase["cadence_syllable_confidence"], "curated")
+        self.assertEqual(open_phrase["cadence_sustain_factor"], 1.9)
+        self.assertEqual(closed_phrase["cadence_syllable_type"], "closed")
+        self.assertEqual(closed_phrase["cadence_sustain_factor"], 1.55)
+        self.assertTrue(open_phrase["note_lyric_map"][-1]["is_phrase_final_syllable"])
+        self.assertTrue(closed_phrase["note_lyric_map"][-1]["is_phrase_final_syllable"])
+
+    def test_unknown_final_pronunciation_keeps_neutral_cadence_sustain(self):
+        from mehran_music_core import _cadence_sustain_profile
+        profile = _cadence_sustain_profile("واژه‌ناشناخته")
+        self.assertEqual(profile["factor"], 1.7)
+        self.assertEqual(profile["type"], "unknown")
+        self.assertEqual(profile["confidence"], "low")
+
+    def test_phrase_end_gets_longer_cadence(self):
+        plan = compose_plan("دلم گرفته\nبرگرد ای عشق")
+        for phrase in plan["composition"]["melody"]:
+            durations = phrase["note_durations_ticks"]
+            self.assertGreater(durations[-1], durations[0])
+
+
+    def test_breath_demand_scales_with_phrase_length_and_pause(self):
+        from mehran_music_core import _breath_demand_profile
+        short = _breath_demand_profile(4, 120)
+        medium = _breath_demand_profile(8, 0)
+        long = _breath_demand_profile(12, 360)
+        very_long = _breath_demand_profile(16, 0)
+        self.assertEqual(short["level"], "low")
+        self.assertEqual(short["recovery_window"], "written_pause")
+        self.assertEqual(medium["level"], "moderate")
+        self.assertEqual(medium["recovery_window"], "next_available_gap")
+        self.assertEqual(long["support_hint"], "strong")
+        self.assertEqual(very_long["level"], "very_high")
+        self.assertEqual(long["confidence"], "syllable_estimate")
+
+    def test_phrase_energy_distinguishes_internal_section_and_song_endings(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        phrases = compose_plan(lyrics)["composition"]["melody"]
+        for index, phrase in enumerate(phrases):
+            energy = phrase["phrase_energy"]
+            if index == len(phrases) - 1:
+                self.assertEqual(energy["role"], "final_release")
+                self.assertEqual(energy["cadence_release_scale"], 0.90)
+            elif phrase["is_section_final_phrase"]:
+                self.assertEqual(energy["role"], "section_cadence")
+                self.assertEqual(energy["cadence_release_scale"], 0.97)
+            else:
+                self.assertEqual(energy["role"], "continuing")
+                self.assertEqual(energy["cadence_release_scale"], 1.0)
+
+    def test_section_transition_energy_intent_is_descriptive_and_non_forcing(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        phrases = compose_plan(lyrics)["composition"]["melody"]
+        transitions = [
+            phrase["phrase_energy"]["section_transition"]
+            for phrase in phrases if phrase["is_section_final_phrase"]
+        ]
+        self.assertTrue(transitions)
+        self.assertEqual(transitions[-1]["next_section"], None)
+        for transition in transitions[:-1]:
+            self.assertIsNotNone(transition["next_section"])
+            self.assertIsNotNone(transition["energy_change"])
+            self.assertEqual(transition["basis"], "section_arrangement_intent")
+        for phrase in phrases:
+            if not phrase["is_section_final_phrase"]:
+                self.assertIsNone(phrase["phrase_energy"]["section_transition"])
+
+    def test_section_end_phrases_receive_breath_recovery_priority(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        sections = plan["composition"]["sections"]
+        section_ends = {section["end_line"] - 1 for section in sections}
+        for index, phrase in enumerate(phrases):
+            expected = index in section_ends
+            self.assertEqual(phrase["is_section_final_phrase"], expected)
+            self.assertEqual(phrase["breath_demand"]["section_boundary"], expected)
+            self.assertEqual(
+                phrase["breath_demand"]["recovery_priority"],
+                "highest" if index == len(phrases) - 1 else
+                "elevated" if expected else "normal",
+            )
+            self.assertEqual(
+                phrase["breath_window"]["boundary"],
+                "final_song_end" if index == len(phrases) - 1 else
+                "section_end" if expected else "internal_phrase",
+            )
+
+    def test_section_boundary_does_not_invent_a_breath_pause(self):
+        lyrics = "\n".join([
+            "دلم گرفته از این شب", "صدای باران می‌آید",
+            "برگرد به خانه", "هنوز چشم به راهت",
+            "دوباره برگرد ای عشق", "چراغ خانه روشن است",
+            "بهار از راه رسیده", "امید در دل ماست",
+        ])
+        plan = compose_plan(lyrics)
+        phrases = plan["composition"]["melody"]
+        for phrase in phrases:
+            if phrase["is_section_final_phrase"] and phrase["phrase_pause_ticks"] == 0:
+                self.assertEqual(phrase["breath_window"]["duration_ticks"], 0)
+                self.assertEqual(phrase["breath_window"]["kind"], "none")
+                self.assertEqual(phrase["breath_window"]["timing_basis"],
+                                 "written_punctuation")
+
+    def test_composition_exposes_phrase_breath_demand(self):
+        plan = compose_plan("دلم گرفته،\nبرگرد ای عشق؟")
+        phrases = plan["composition"]["melody"]
+        self.assertEqual(phrases[0]["breath_demand"]["level"], "low")
+        self.assertEqual(phrases[0]["breath_demand"]["recovery_window"], "written_pause")
+        self.assertEqual(phrases[1]["breath_demand"]["pause_ticks"], 360)
+        self.assertEqual(phrases[1]["breath_demand"]["method"],
+                         "conservative_phrase_length_bands_v1")
+
+
+    def test_composition_plan_assigns_instrument_articulations_to_melody_events(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            melody_instrument="violin",
+            articulation_style="legato",
+        )
+        composition = plan["composition"]
+        self.assertEqual(composition["melody_performance"]["instrument"], "violin")
+        self.assertEqual(composition["melody_performance"]["event_count"],
+                         sum(len(phrase["midi_notes"]) for phrase in composition["melody"]))
+        self.assertFalse(composition["melody_performance"]["audio_rendered"])
+        for phrase in composition["melody"]:
+            for note in phrase["note_lyric_map"]:
+                self.assertIn(note["articulation"],
+                              {"long_bow", "sustain", "short_bow", "staccato",
+                               "pizzicato", "tremolo"})
+                self.assertTrue(note["articulation_reason"])
+
+    def test_composition_attaches_deterministic_per_note_dynamics(self):
+        plan = compose_plan("دلم گرفته از این شب\\nبرگرد به خانه", dynamics_style="crescendo")
+        composition = plan["composition"]
+        self.assertEqual(plan["engine_version"], "0.8.0")
+        self.assertEqual(composition["melody_performance"]["dynamics_style"], "crescendo")
+        for phrase in composition["melody"]:
+            for item in phrase["note_lyric_map"]:
+                self.assertTrue(1 <= item["dynamics_velocity"] <= 127)
+                self.assertIn(item["dynamic_mark"], {"pp", "p", "mp", "mf", "f", "ff"})
+        self.assertEqual(composition["melody_performance"]["dynamics_planner"],
+                         "deterministic_phrase_dynamics_v1")
+
+    def test_composition_rejects_unknown_melody_instrument(self):
+        with self.assertRaises(ValueError):
+            compose_plan("یک شعر کوتاه", melody_instrument="made_up")
+
+
+    def test_composition_accepts_explicit_persian_dastgah_for_response_fills(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+        )
+        self.assertEqual(plan["composition"]["persian_dastgah"], "shur")
+        self.assertEqual(plan["composition"]["persian_modal_profile"]["tuning"],
+                         "12tet_approximation")
+        self.assertEqual(plan["composition"]["persian_modal_profile"]["scope"],
+                         "melody_and_response_fills")
+        self.assertFalse(plan["composition"]["persian_modal_profile"]["microtonal_audio_rendered"])
+
+    def test_composition_rejects_unknown_persian_dastgah(self):
+        with self.assertRaisesRegex(ValueError, "persian_dastgah"):
+            compose_plan("دلم گرفته از این شب", persian_dastgah="unknown")
+
+
+    def test_composition_applies_explicit_persian_degree_cents_to_melody(self):
+        plan = compose_plan(
+            "دلم گرفته از این شب\\nبرگرد به خانه",
+            persian_dastgah="shur",
+            persian_degree_cents={1: 50, 4: -50},
+        )
+        profile = plan["composition"]["persian_modal_profile"]
+        self.assertEqual(profile["tuning"], "custom_degree_cents")
+        self.assertEqual(profile["scope"], "melody_and_response_fills")
+        offsets = [
+            item.get("pitch_cents", 0.0)
+            for phrase in plan["composition"]["melody"]
+            for item in phrase["note_lyric_map"]
+        ]
+        self.assertTrue(any(value in (50.0, -50.0) for value in offsets))
+
+    def test_composition_rejects_invalid_persian_degree_cents(self):
+        with self.assertRaisesRegex(ValueError, "persian_degree_cents"):
+            compose_plan("یک شب آرام", persian_dastgah="shur",
+                         persian_degree_cents={8: 50})
+
+if __name__ == "__main__":
+    unittest.main()

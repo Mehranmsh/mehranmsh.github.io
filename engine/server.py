@@ -9,9 +9,11 @@ TLS/reverse-proxy and firewall.
 from __future__ import annotations
 
 import json
+import base64
 import ipaddress
 from contextlib import contextmanager
 import os
+import re
 import secrets
 import shutil
 import sqlite3
@@ -20,7 +22,7 @@ import time
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(os.environ.get("MEHRAN_STUDIO_HOME", Path.home() / ".mehran-music-studio")).expanduser()
 DB_PATH = ROOT / "studio.sqlite3"
@@ -32,7 +34,11 @@ PORT = int(os.environ.get("MEHRAN_STUDIO_PORT", "8765"))
 TOKEN = os.environ.get("MEHRAN_STUDIO_TOKEN", "")
 LOCK = threading.Lock()
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import model_policy
+from mehran_music_core import compose_plan, compose_instrumental_plan, compose_co_creation_plan, revise_co_creation_plan
+from midi_renderer import render_midi
+from sample_bank import (load_sample_bank, analyze_sample_bank_coverage,
+                         analyze_sample_bank_quality, analyze_sample_bank_instrument_health, build_sample_recording_checklist, build_sample_recording_sheet_csv, select_sample)
+from sample_renderer import render_composition_to_wav
 
 
 def database():
@@ -66,19 +72,15 @@ def db_session():
 
 
 def engine_status():
-    models_root = ROOT / "models"
-    manifest = models_root / "runtime.json"
-    if not manifest.is_file():
-        return {"ready": False, "state": "not_installed",
-                "message": "No locally installed model runtime. No generation can be started."}
-    validation = model_policy.validate_manifest(models_root, manifest)
-    if not validation["valid"]:
-        return {"ready": False, "state": "invalid_manifest",
-                "message": validation["message"]}
-    return {"ready": False, "state": "model_verified_runner_not_integrated",
-            "model_id": validation["model_id"], "license": validation["license"],
-            "verified_artifacts": validation["verified_artifacts"],
-            "message": "Local model files and approval are verified, but the inference runner is not integrated. Generation remains disabled."}
+    return {
+        "ready": False,
+        "state": "independent_composition_and_sample_renderer_prototype",
+        "composition_core": "available",
+        "audio_renderer": "recorded_sample_wav_prototype_available",
+        "audio_generation_enabled": False,
+        "external_model_dependencies": False,
+        "message": "The independent MEHRAN composition core and an offline recorded-sample WAV prototype are available. A complete licensed instrument bank, production mixing, mastering, and vocal synthesis are not implemented; the public job runner remains disabled.",
+    }
 
 
 def resource_status():
@@ -129,6 +131,80 @@ class Handler(BaseHTTPRequestHandler):
                 "service": "mehran-music-studio-control",
                 "engine": engine_status(), "resources": resource_status(),
                 "external_api_calls": False, "paid_fallback": False
+            })
+        if path == "/v1/sample-bank/recording-sheet.csv":
+            content = build_sample_recording_sheet_csv().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Content-Disposition", 'attachment; filename="mehran-sample-recording-sheet.csv"')
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(content)
+            return
+        if path == "/v1/sample-bank/requirements":
+            return self.send_json(200, {
+                "recording_checklist": build_sample_recording_checklist(),
+                "read_only": True,
+            })
+        if path == "/v1/sample-bank/preview":
+            query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+            required = {"instrument", "note", "velocity"}
+            allowed = required | {"articulation"}
+            if (not required.issubset(query) or not set(query).issubset(allowed)
+                    or any(len(values) != 1 for values in query.values())):
+                return self.send_json(400, {"error": "invalid_preview_parameters"})
+            instrument = query["instrument"][0]
+            articulation = query.get("articulation", ["sustain"])[0]
+            try:
+                note = int(query["note"][0])
+                velocity = int(query["velocity"][0])
+                if not instrument or len(instrument) > 40 or not instrument.replace("_", "").replace("-", "").isalnum():
+                    raise ValueError
+                if not isinstance(articulation, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", articulation):
+                    raise ValueError
+                if not 0 <= note <= 127 or not 1 <= velocity <= 127:
+                    raise ValueError
+            except (ValueError, TypeError):
+                return self.send_json(400, {"error": "invalid_preview_parameters"})
+            bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
+            try:
+                bank = load_sample_bank(bank_root)
+                sample = select_sample(bank, instrument, note, velocity, articulation)
+                if sample.midi_note != note:
+                    return self.send_json(404, {"error": "exact_note_sample_unavailable"})
+                size = sample.path.stat().st_size
+                if size > 32 * 1024 * 1024:
+                    return self.send_json(413, {"error": "sample_preview_too_large"})
+                audio = sample.path.read_bytes()
+            except (ValueError, OSError):
+                return self.send_json(404, {"error": "sample_preview_unavailable"})
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav")
+            self.send_header("Content-Length", str(len(audio)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Content-Disposition", "inline; filename=sample-preview.wav")
+            self.end_headers()
+            self.wfile.write(audio)
+            return
+        if path == "/v1/sample-bank/diagnostics":
+            bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
+            try:
+                bank = load_sample_bank(bank_root)
+            except ValueError as error:
+                return self.send_json(503, {
+                    "error": "sample_bank_unavailable",
+                    "detail": str(error),
+                    "diagnostics_available": False,
+                })
+            return self.send_json(200, {
+                "diagnostics_available": True,
+                "coverage": analyze_sample_bank_coverage(bank),
+                "signal_quality": analyze_sample_bank_quality(bank),
+                "instrument_health": analyze_sample_bank_instrument_health(bank),
+                "read_only": True,
             })
         if path == "/v1/projects":
             with db_session() as db:
@@ -221,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
                     "charged": False
                 })
             return self.send_json(501, {"error": "job_runner_not_implemented", "job_created": False, "charged": False})
-        if path != "/v1/projects":
+        if path not in ("/v1/projects", "/v1/compose", "/v1/compose-instrumental", "/v1/co-create", "/v1/revise-co-creation", "/v1/compose-audio", "/v1/compose-by-mode"):
             return self.send_json(404, {"error": "not_found"})
         length = self.headers.get("Content-Length", "")
         if not length.isdigit() or int(length) > MAX_BODY:
@@ -232,6 +308,346 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(400, {"error": "invalid_json"})
         if not isinstance(payload, dict):
             return self.send_json(400, {"error": "invalid_payload"})
+        if path == "/v1/compose-by-mode":
+            mode = payload.get("composition_mode")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            mood = payload.get("mood", "neutral")
+            bpm = payload.get("bpm")
+            phrase_count = payload.get("phrase_count", 8)
+            lyrics = payload.get("lyrics")
+            if mode not in ("lyrics_first", "instrumental_first", "co_creation"):
+                return self.send_json(400, {"error": "invalid_composition_mode"})
+            if (not isinstance(title, str) or not title.strip() or len(title) > 100
+                    or not isinstance(genre, str) or not genre.strip() or len(genre) > 60
+                    or not isinstance(mood, str) or len(mood) > 40):
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if isinstance(phrase_count, bool) or not isinstance(phrase_count, int) or not 4 <= phrase_count <= 16:
+                return self.send_json(400, {"error": "invalid_phrase_count"})
+            if mode in ("lyrics_first", "co_creation"):
+                if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                    return self.send_json(400, {"error": "invalid_lyrics"})
+            elif lyrics not in (None, ""):
+                return self.send_json(400, {"error": "instrumental_mode_does_not_accept_lyrics"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                if mode == "lyrics_first":
+                    plan = compose_plan(lyrics, title=title, genre=genre, target_bpm=bpm)
+                elif mode == "instrumental_first":
+                    plan = compose_instrumental_plan(
+                        title=title, genre=genre, mood=mood,
+                        target_bpm=bpm, phrase_count=phrase_count,
+                    )
+                else:
+                    plan = compose_co_creation_plan(
+                        lyrics=lyrics, title=title, genre=genre, mood=mood,
+                        target_bpm=bpm, phrase_count=phrase_count,
+                    )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except ValueError as error:
+                detail = str(error)
+                code = "lyrics_exceed_melody_capacity" if "more lines than" in detail else "composition_failed"
+                return self.send_json(400, {"error": code, "detail": detail})
+            except OSError as error:
+                return self.send_json(500, {"error": "midi_render_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "composition_mode": mode,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "content_base64": base64.b64encode(midi_path.read_bytes()).decode("ascii"), "local_path": str(midi_path)},
+                "message": "Composition mode dispatched to the independent MEHRAN core and editable MIDI created. No audio or vocal performance was rendered."
+            })
+        if path == "/v1/compose-instrumental":
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            mood = payload.get("mood", "neutral")
+            bpm = payload.get("bpm")
+            phrase_count = payload.get("phrase_count", 8)
+            if (not isinstance(title, str) or len(title) > 100
+                    or not isinstance(genre, str) or len(genre) > 60
+                    or not isinstance(mood, str)):
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if isinstance(phrase_count, bool) or not isinstance(phrase_count, int) or not 4 <= phrase_count <= 16:
+                return self.send_json(400, {"error": "invalid_phrase_count"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                plan = compose_instrumental_plan(
+                    title=title, genre=genre, mood=mood,
+                    target_bpm=bpm, phrase_count=phrase_count,
+                )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except (ValueError, OSError) as error:
+                return self.send_json(400, {"error": "composition_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Instrumental-first composition plan and MIDI file created. No lyrics or audio were generated."
+            })
+        if path == "/v1/co-create":
+            lyrics = payload.get("lyrics")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            mood = payload.get("mood", "neutral")
+            bpm = payload.get("bpm")
+            phrase_count = payload.get("phrase_count", 8)
+            if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if (not isinstance(title, str) or len(title) > 100
+                    or not isinstance(genre, str) or len(genre) > 60
+                    or not isinstance(mood, str)):
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if isinstance(phrase_count, bool) or not isinstance(phrase_count, int) or not 4 <= phrase_count <= 16:
+                return self.send_json(400, {"error": "invalid_phrase_count"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                plan = compose_co_creation_plan(
+                    lyrics=lyrics, title=title, genre=genre, mood=mood,
+                    target_bpm=bpm, phrase_count=phrase_count,
+                )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except ValueError as error:
+                detail = str(error)
+                code = "lyrics_exceed_melody_capacity" if "more lines than" in detail else "composition_failed"
+                return self.send_json(400, {"error": code, "detail": detail})
+            except OSError as error:
+                return self.send_json(500, {"error": "midi_render_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Co-creation plan and editable MIDI created. Existing instrumental melody, harmony, sections, and arrangement blueprint were preserved while lyrics were aligned. No audio or vocal performance was rendered."
+            })
+        if path == "/v1/revise-co-creation":
+            existing_plan = payload.get("plan")
+            lyrics = payload.get("lyrics")
+            melody_notes = payload.get("melody_notes")
+            if not isinstance(existing_plan, dict):
+                return self.send_json(400, {"error": "invalid_plan"})
+            if lyrics is None and melody_notes is None:
+                return self.send_json(400, {"error": "revision_required"})
+            if lyrics is not None and (not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000):
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if melody_notes is not None and not isinstance(melody_notes, list):
+                return self.send_json(400, {"error": "invalid_melody_notes"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_revised": False})
+            try:
+                revised_plan = revise_co_creation_plan(
+                    existing_plan, lyrics=lyrics, melody_notes=melody_notes,
+                )
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(revised_plan, midi_path)
+            except ValueError as error:
+                detail = str(error)
+                code = "lyrics_exceed_melody_capacity" if "more lines than" in detail else "invalid_revision"
+                return self.send_json(400, {"error": code, "detail": detail})
+            except OSError as error:
+                return self.send_json(500, {"error": "midi_render_failed", "detail": str(error)})
+            return self.send_json(200, {
+                "composition_revised": True,
+                "audio_rendered": False,
+                "plan": revised_plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Existing composition revised. Melody rhythm, harmony, sections, and arrangement are preserved; only submitted lyric alignment and/or melody pitches changed. No audio was rendered."
+            })
+        if path == "/v1/compose":
+            lyrics = payload.get("lyrics")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            bpm = payload.get("bpm")
+            if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if not isinstance(title, str) or len(title) > 100 or not isinstance(genre, str) or len(genre) > 60:
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "composition_created": False})
+            try:
+                plan = compose_plan(lyrics, title=title, genre=genre, target_bpm=bpm)
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                midi_path = render_dir / (render_id + ".mid")
+                midi_info = render_midi(plan, midi_path)
+            except (ValueError, OSError) as error:
+                return self.send_json(400, {"error": "composition_failed", "detail": str(error)})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": False,
+                "plan": plan,
+                "midi": {"id": render_id, "format": midi_info["format"],
+                         "tracks": midi_info["tracks"], "tempo_bpm": midi_info["tempo_bpm"],
+                         "note_events": midi_info["note_events"],
+                         "bass_note_events": midi_info["bass_note_events"],
+                         "guitar_note_events": midi_info["guitar_note_events"],
+                         "piano_note_events": midi_info["piano_note_events"],
+                         "drum_hits": midi_info["drum_hits"],
+                         "drum_channel": midi_info["drum_channel"],
+                         "duration_seconds": midi_info["duration_seconds"],
+                         "bytes": midi_info["bytes"], "local_path": str(midi_path)},
+                "message": "Composition plan and MIDI file created. Audio rendering is not implemented yet."
+            })
+        if path == "/v1/compose-audio":
+            lyrics = payload.get("lyrics")
+            title = payload.get("title", "Untitled")
+            genre = payload.get("genre", "pop")
+            bpm = payload.get("bpm")
+            if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 20000:
+                return self.send_json(400, {"error": "invalid_lyrics"})
+            if not isinstance(title, str) or len(title) > 100 or not isinstance(genre, str) or len(genre) > 60:
+                return self.send_json(400, {"error": "invalid_composition_fields"})
+            if bpm is not None and (isinstance(bpm, bool) or not isinstance(bpm, int) or not 50 <= bpm <= 200):
+                return self.send_json(400, {"error": "invalid_bpm"})
+            requested_parts = payload.get("parts")
+            if requested_parts is not None:
+                allowed_parts = {
+                    "melody", "chords", "bass", "kick", "snare", "closed_hat",
+                    "open_hat", "contrabass", "cajon", "kalimba", "guitar", "strings", "electric_guitar",
+                    "harp", "cello", "recorder", "dan_tranh", "flute", "nylon_guitar",
+                }
+                if (not isinstance(requested_parts, list) or not requested_parts
+                        or any(not isinstance(part, str) or part not in allowed_parts
+                               for part in requested_parts)
+                        or len(set(requested_parts)) != len(requested_parts)):
+                    return self.send_json(400, {"error": "invalid_composition_parts",
+                                                "audio_rendered": False, "charged": False})
+            if not resource_status()["within_limit"]:
+                return self.send_json(507, {"error": "resource_limit_reached", "audio_rendered": False})
+            bank_root = Path(os.environ.get("MEHRAN_SAMPLE_BANK", ROOT / "sample_bank")).expanduser()
+            try:
+                bank = load_sample_bank(bank_root)
+            except ValueError as error:
+                return self.send_json(503, {
+                    "error": "sample_bank_unavailable",
+                    "detail": str(error),
+                    "audio_rendered": False,
+                    "charged": False,
+                })
+            try:
+                plan = compose_plan(lyrics, title=title, genre=genre, target_bpm=bpm)
+                render_id = secrets.token_urlsafe(12)
+                render_dir = ROOT / "renders"
+                render_dir.mkdir(parents=True, exist_ok=True)
+                wav_path = render_dir / (render_id + ".wav")
+                render_options = {}
+                if requested_parts is not None:
+                    render_options["parts"] = requested_parts
+                if requested_parts is not None:
+                    # These optional parts are routed only to their exact,
+                    # separately recorded bank slugs. No substitute instrument
+                    # or synthesized fallback is allowed.
+                    verified_part_banks = {
+                        "guitar": "acoustic_guitar",
+                        "nylon_guitar": "nylon_guitar",
+                        "strings": "solo_violin",
+                        "contrabass": "contrabass",
+                        "cajon": "cajon",
+                        "kalimba": "kalimba",
+                        "harp": "concert_harp",
+                        "cello": "cello_section",
+                        "recorder": "baroque_soprano_recorder",
+                        "dan_tranh": "dan_tranh",
+                        "flute": "concert_flute",
+                    }
+                    selected_banks = {
+                        part: slug for part, slug in verified_part_banks.items()
+                        if part in requested_parts
+                    }
+                    if selected_banks:
+                        render_options["instruments"] = selected_banks
+                audio_info = render_composition_to_wav(
+                    plan, bank, wav_path, **render_options
+                )
+            except ValueError as error:
+                return self.send_json(422, {
+                    "error": "sample_render_failed",
+                    "detail": str(error),
+                    "audio_rendered": False,
+                    "charged": False,
+                })
+            except OSError:
+                return self.send_json(507, {"error": "audio_storage_unavailable", "audio_rendered": False})
+            return self.send_json(201, {
+                "composition_created": True,
+                "audio_rendered": True,
+                "plan": plan,
+                "audio": {
+                    "id": render_id,
+                    "format": audio_info["format"],
+                    "sample_rate": audio_info["sample_rate"],
+                    "channels": audio_info["channels"],
+                    "duration_seconds": audio_info["duration_seconds"],
+                    "events_rendered": audio_info["events_rendered"],
+                    "local_path": str(wav_path),
+                    "parts": requested_parts if requested_parts is not None else "all",
+                },
+                "message": "WAV rendered from the configured local recorded-sample bank.",
+            })
         name = str(payload.get("name", "")).strip()
         kind = str(payload.get("kind", "song")).strip()
         if not name or len(name) > 100 or len(kind) > 40:
@@ -263,13 +679,21 @@ class Handler(BaseHTTPRequestHandler):
                                                 "status": "draft", "created_at": now}})
 
 
-def validate_server_config(host, port):
+def validate_server_config(host, port, allow_container_bind=False):
     try:
         address = ipaddress.ip_address(host)
     except ValueError as exc:
-        raise SystemExit("MEHRAN_STUDIO_HOST must be an IPv4 loopback address such as 127.0.0.1.") from exc
-    if address.version != 4 or not address.is_loopback:
-        raise SystemExit("MEHRAN Studio may only bind to an IPv4 loopback address. Public/network binds are blocked.")
+        raise SystemExit("MEHRAN_STUDIO_HOST must be an IPv4 loopback address.") from exc
+    loopback = address.version == 4 and address.is_loopback
+    isolated_container_bind = (
+        address.version == 4 and address == ipaddress.ip_address("0.0.0.0")
+        and allow_container_bind is True
+    )
+    if not loopback and not isolated_container_bind:
+        raise SystemExit(
+            "MEHRAN Studio may bind to loopback only. 0.0.0.0 is allowed solely "
+            "inside an isolated container when MEHRAN_STUDIO_ALLOW_CONTAINER_BIND=1."
+        )
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise SystemExit("MEHRAN_STUDIO_PORT must be an integer from 1 to 65535.")
 
@@ -279,7 +703,8 @@ def main():
         raise SystemExit("Set MEHRAN_STUDIO_TOKEN to a long random secret before starting.")
     if len(TOKEN) < 32:
         raise SystemExit("MEHRAN_STUDIO_TOKEN must contain at least 32 characters.")
-    validate_server_config(HOST, PORT)
+    allow_container_bind = os.environ.get("MEHRAN_STUDIO_ALLOW_CONTAINER_BIND") == "1"
+    validate_server_config(HOST, PORT, allow_container_bind=allow_container_bind)
     connection = database()
     connection.close()
     server = ThreadingHTTPServer((HOST, PORT), Handler)

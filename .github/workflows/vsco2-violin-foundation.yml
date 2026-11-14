@@ -1,0 +1,47 @@
+name: MEHRAN VSCO2 CC0 Solo Violin
+on:
+  push:
+    branches: [feature/mehran-independent-music-core]
+    paths: ['engine/fetch_vsco2_violin.py','engine/test_fetch_vsco2_violin.py','engine/sample_bank.py','engine/sample_renderer.py','.github/workflows/vsco2-violin-foundation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  PYTHONPATH: engine
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: python3 -m unittest engine.test_fetch_vsco2_violin engine.test_sample_bank -v
+      - run: python3 engine/fetch_vsco2_violin.py sample-bank-vsco2-violin
+      - name: Render recorded audition
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+          bank=load_sample_bank('sample-bank-vsco2-violin')
+          notes=[55,57,60,64,67,69,72,76,79,81,84,88,91,93,96]
+          events=[{'instrument':'solo_violin','midi_note':n,'start_seconds':i*.48,'duration_seconds':.4,'velocity':48 if i%2==0 else 108,'articulation':'arco_vibrato'} for i,n in enumerate(notes)]
+          events += [{'instrument':'solo_violin','midi_note':n,'start_seconds':8+i*.4,'duration_seconds':.3,'velocity':v,'articulation':'pizzicato'} for i,(n,v) in enumerate([(55,48),(60,108),(64,48)])]
+          out='sample-bank-vsco2-violin/violin-audition.wav'
+          report=render_sample_events(events,bank,out,sample_rate=44100)
+          assert report['events_rendered']==len(events),report
+          with wave.open(out,'rb') as w:
+            assert (w.getnchannels(),w.getsampwidth(),w.getframerate())==(2,2,44100) and any(w.readframes(w.getnframes()))
+          print('VSCO2_RECORDED_VIOLIN_AUDITION_OK',report['sample_selection'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-vsco2-solo-violin
+          path: |
+            sample-bank-vsco2-violin/bank.json
+            sample-bank-vsco2-violin/LICENSE-CC0.txt
+            sample-bank-vsco2-violin/provenance.json
+            sample-bank-vsco2-violin/recordings/
+            sample-bank-vsco2-violin/violin-audition.wav
+          if-no-files-found: error
+          retention-days: 30

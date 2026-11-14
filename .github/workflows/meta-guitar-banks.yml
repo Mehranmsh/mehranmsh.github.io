@@ -1,0 +1,605 @@
+name: Full CC0 Recorded Instrument Banks
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_meta_guitar_banks.py'
+      - 'engine/test_fetch_meta_guitar_banks.py'
+      - 'engine/instrument_bank_audit.py'
+      - 'engine/test_instrument_bank_audit.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/test_sample_renderer.py'
+      - 'engine/test_percussion_round_robin.py'
+      - 'engine/fetch_virtuosity_drums.py'
+      - 'engine/data/virtuosity_drums_source_manifest.json'
+      - 'engine/test_fetch_virtuosity_drums.py'
+      - 'engine/fetch_freepats_electric_bass.py'
+      - 'engine/test_fetch_freepats_electric_bass.py'
+      - 'engine/fetch_karoryfer_babyblue_bass.py'
+      - 'engine/test_fetch_karoryfer_babyblue_bass.py'
+      - 'engine/fetch_karoryfer_meatbass.py'
+      - 'engine/test_fetch_karoryfer_meatbass.py'
+      - 'engine/fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/test_fetch_vsco2_contrabass_pizzicato.py'
+      - 'engine/build_contrabass_supplement_banks.py'
+      - 'engine/test_build_contrabass_supplement_banks.py'
+      - 'engine/sample_bank_install.py'
+      - 'engine/test_sample_bank_install.py'
+      - 'engine/guitar_string_planner.py'
+      - 'engine/fetch_meta_piano_bank.py'
+      - 'engine/test_fetch_meta_piano_bank.py'
+      - 'engine/mehran_music_core.py'
+      - 'engine/fetch_vcsl_cajon.py'
+      - 'engine/fetch_vcsl_kalimba.py'
+      - 'engine/fetch_dsmolken_double_bass.py'
+      - 'engine/fetch_vsco2_violin.py'
+      - 'engine/test_fetch_vsco2_violin.py'
+      - 'engine/fetch_vsco2_violin_spiccato.py'
+      - 'engine/test_fetch_vsco2_violin_spiccato.py'
+      - 'engine/fetch_vsco2_cello_section.py'
+      - 'engine/test_fetch_vsco2_cello_section.py'
+      - 'engine/fetch_vsco2_flute.py'
+      - 'engine/test_fetch_vsco2_flute.py'
+      - 'engine/fetch_vcsl_dan_tranh.py'
+      - 'engine/test_fetch_vcsl_dan_tranh.py'
+      - 'engine/fetch_vcsl_recorder.py'
+      - 'engine/fetch_vcsl_concert_harp.py'
+      - 'engine/test_fetch_vcsl_concert_harp.py'
+      - 'engine/test_fetch_vcsl_recorder.py'
+      - 'engine/velocity_layer_planner.py'
+      - 'engine/sfz_region_parser.py'
+      - 'engine/test_sfz_region_parser.py'
+      - '.github/workflows/meta-guitar-banks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run supersedes a stale render attempt on this branch.
+concurrency:
+  group: meta-guitar-banks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  build-guitar-banks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+      - name: Ensure FFmpeg is available
+        timeout-minutes: 6
+        run: |
+          if command -v ffmpeg >/dev/null 2>&1; then
+            ffmpeg -version | head -n 1
+          else
+            sudo timeout 240 apt-get update
+            sudo timeout 120 apt-get install -y ffmpeg
+            ffmpeg -version | head -n 1
+          fi
+      - name: Test SFZ guitar maps and checksum parser
+        run: python3 -m unittest engine.test_fetch_meta_guitar_banks engine.test_sfz_region_parser -v
+      - name: Validate the pinned 45-region Concert Harp SFZ map
+        run: |
+          python3 - <<'PY'
+          import urllib.request
+          from sfz_region_parser import parse_sfz_regions
+
+          url = 'https://raw.githubusercontent.com/danigb/samples/eae8c5c7a10f4b0e06281211e704c36c30e25342/audio/vcsl/Composite%20Chordophones/Concert%20Harp.sfz'
+          request = urllib.request.Request(url, headers={'User-Agent': 'MEHRAN-SFZ-validator/1.0'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              source = response.read().decode('utf-8')
+          regions = parse_sfz_regions(source)
+          assert len(regions) == 45, len(regions)
+          assert sum(bool(item['crossfade']) and item['crossfade']['direction'] == 'out' for item in regions) == 21
+          assert sum(bool(item['crossfade']) and item['crossfade']['direction'] == 'in' for item in regions) == 21
+          assert sum(item['velocity_range'] == [0, 100] for item in regions) == 1
+          assert sum(item['velocity_range'] == [101, 127] for item in regions) == 1
+          assert min(item['key_range'][0] for item in regions) == 28
+          assert max(item['key_range'][1] for item in regions) == 102
+          assert any(item['offset_sample_points'] > 0 for item in regions)
+          assert any(item['tune_cents'] != 0 for item in regions)
+          print('CONCERT_HARP_SFZ_MAP_OK', {
+              'regions': len(regions),
+              'crossfade_out_regions': 21,
+              'crossfade_in_regions': 21,
+              'hard_velocity_split_regions': 2,
+              'midi_key_range': [28, 102],
+          })
+          PY
+      - name: Test sample renderer and pitch coverage diagnostics
+        run: python3 -m unittest engine.test_sample_renderer -v
+      - name: Test safe recorded-bank installation and provenance
+        run: python3 -m unittest engine.test_sample_bank_install engine.test_build_contrabass_supplement_banks -v
+      - name: Test one-shot percussion and round-robin rendering
+        run: python3 -m unittest engine.test_percussion_round_robin -v
+      - name: Test CC0 percussion and electric bass SFZ maps
+        run: python3 -m unittest engine.test_fetch_virtuosity_drums engine.test_fetch_freepats_electric_bass engine.test_fetch_karoryfer_babyblue_bass -v
+      - name: Download, verify, convert, and validate nylon guitar
+        timeout-minutes: 20
+        run: python3 engine/fetch_meta_guitar_banks.py meta-nylon-guitar sample-bank-meta-nylon-guitar
+      - name: Download, verify, convert, and validate steel guitar
+        timeout-minutes: 20
+        run: python3 engine/fetch_meta_guitar_banks.py meta-steel-guitar sample-bank-meta-steel-guitar
+      - name: Render real guitar audition notes
+        run: |
+          python3 - <<'PY'
+          import wave
+          from sample_bank import load_sample_bank
+          from sample_renderer import render_sample_events
+
+          cases = [
+              ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'finger', 40, 64, 'nylon-E2-finger.wav'),
+              ('sample-bank-meta-nylon-guitar', 'nylon_guitar', 'pick', 40, 64, 'nylon-E2-pick-crossfade.wav'),
+              ('sample-bank-meta-steel-guitar', 'acoustic_guitar', 'sustain', 40, 70, 'steel-E2.wav'),
+          ]
+          for root, instrument, articulation, note, velocity, filename in cases:
+              bank = load_sample_bank(root)
+              output = f'{root}/{filename}'
+              report = render_sample_events([{
+                  'instrument': instrument,
+                  'midi_note': note,
+                  'start_seconds': 0,
+                  'duration_seconds': 0.8,
+                  'velocity': velocity,
+                  'articulation': articulation,
+                  'guitar_string': 'LowE',
+              }], bank, output, sample_rate=44100)
+              assert report['events_rendered'] == 1, report
+              assert report['guitar_string_selections'][0]['string'] == 'LowE', report
+              if articulation == 'pick':
+                  assert report['sample_selection']['equal_power_velocity_crossfade_events'] == 1, report
+                  assert report['sample_selection']['velocity_layers_rendered'] == 2, report
+              with wave.open(output, 'rb') as audio:
+                  assert audio.getnchannels() == 2
+                  assert audio.getsampwidth() == 2
+                  assert any(audio.readframes(audio.getnframes())), filename
+              print('REAL_GUITAR_PREVIEW_OK', filename, report['sample_selection'])
+          PY
+      - name: Download and verify the full CC0 piano bank
+        timeout-minutes: 20
+        run: python3 engine/fetch_meta_piano_bank.py sample-bank-meta-piano
+      - name: Download and validate the CC0 Virtuosity rhythm bank
+        timeout-minutes: 12
+        run: python3 engine/fetch_virtuosity_drums.py sample-bank-virtuosity-drums
+      - name: Download, verify, and validate the 492-sample CC0 Karoryfer Babyblue bass bank
+        timeout-minutes: 15
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 engine/fetch_karoryfer_babyblue_bass.py sample-bank-karoryfer-babyblue-bass
+      - name: Fetch and validate real CC0 cajon, kalimba, and contrabass banks
+        timeout-minutes: 24
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m unittest engine.test_fetch_vcsl_cajon engine.test_fetch_vcsl_kalimba -v
+          python3 engine/fetch_vcsl_cajon.py sample-bank-vcsl-cajon
+          python3 engine/fetch_vcsl_kalimba.py sample-bank-vcsl-kalimba
+          python3 engine/fetch_dsmolken_double_bass.py sample-bank-rubner-contrabass
+          python3 -m unittest engine.test_fetch_karoryfer_meatbass engine.test_fetch_vsco2_contrabass_pizzicato -v
+          python3 engine/fetch_karoryfer_meatbass.py sample-bank-meatbass-contrabass
+          python3 engine/fetch_vsco2_contrabass_pizzicato.py sample-bank-vsco2-contrabass-pizzicato
+      - name: Build exact-root contrabass supplement source banks
+        run: |
+          python3 engine/build_contrabass_supplement_banks.py \
+            sample-bank-meatbass-contrabass \
+            sample-bank-vsco2-contrabass-pizzicato \
+            sample-bank-meatbass-contrabass-supplement \
+            sample-bank-vsco2-contrabass-supplement
+      - name: Fetch and validate real CC0 violin and concert flute banks
+        timeout-minutes: 15
+        run: |
+          python3 -m unittest engine.test_fetch_vsco2_violin engine.test_fetch_vsco2_violin_spiccato engine.test_fetch_vsco2_flute -v
+          python3 engine/fetch_vsco2_violin.py sample-bank-vsco2-violin
+          python3 engine/fetch_vsco2_flute.py sample-bank-vsco2-flute
+      - name: Fetch and validate real CC0 Dan Tranh and Baroque soprano recorder banks
+        timeout-minutes: 20
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m unittest engine.test_fetch_vcsl_dan_tranh engine.test_fetch_vcsl_recorder -v
+          python3 engine/fetch_vcsl_dan_tranh.py sample-bank-vcsl-dan-tranh
+          python3 engine/fetch_vcsl_recorder.py sample-bank-vcsl-recorder
+      - name: Fetch and validate original CC0 VCSL Concert Harp
+        timeout-minutes: 15
+        run: |
+          python3 -m unittest engine.test_fetch_vcsl_concert_harp -v
+          python3 engine/fetch_vcsl_concert_harp.py sample-bank-vcsl-concert-harp
+      - name: Fetch and validate real CC0 VSCO 2 CE cello-section bank
+        timeout-minutes: 18
+        run: |
+          python3 -m unittest engine.test_fetch_vsco2_cello_section -v
+          python3 engine/fetch_vsco2_cello_section.py sample-bank-vsco2-cello-section
+      - name: Install and validate sixteen independent real instrument source banks
+        timeout-minutes: 24
+        run: python3 engine/sample_bank_install.py sample-bank-installed-all sample-bank-meta-nylon-guitar sample-bank-meta-steel-guitar sample-bank-meta-piano sample-bank-virtuosity-drums sample-bank-karoryfer-babyblue-bass sample-bank-vcsl-cajon sample-bank-vcsl-kalimba sample-bank-rubner-contrabass sample-bank-meatbass-contrabass-supplement sample-bank-vsco2-contrabass-supplement sample-bank-vsco2-violin sample-bank-vsco2-flute sample-bank-vcsl-dan-tranh sample-bank-vcsl-recorder sample-bank-vcsl-concert-harp sample-bank-vsco2-cello-section
+      - name: Audit actual roots, articulations, velocity layers and round robins
+        run: |
+          python3 -m unittest engine.test_instrument_bank_audit -v
+          python3 engine/instrument_bank_audit.py sample-bank-installed-all --output sample-bank-installed-all/instrument-bank-audit.json
+          python3 - <<'PY'
+          import json
+          with open('sample-bank-installed-all/instrument-bank-audit.json', encoding='utf-8') as source:
+              audit = json.load(source)
+          bass = audit['instruments']['contrabass']
+          assert bass['effective_velocity_gaps_after_source_priority'] == [], bass
+          print('CONTRABASS_EFFECTIVE_VELOCITY_COVERAGE_OK', bass['selection_priority_policies'])
+          PY
+      - name: Render and validate the real sixteen-bank recorded ensemble
+        timeout-minutes: 12
+        run: |
+          python3 - <<'PY'
+          import wave
+          from mehran_music_core import compose_plan
+          from sample_bank import load_sample_bank
+          from sample_renderer import build_composition_events, render_sample_events
+          from guitar_string_planner import plan_guitar_string
+
+          lyrics = "\n".join([
+              "برگرد ای عشق، کنار من بمان",
+              "در این شب سرد، چراغ خانه‌مان",
+              "صدای باران، روی پنجره‌ها",
+              "هنوز می‌خواند، ترانه‌ی ما",
+              "قدم به قدم، به سوی روشنایی",
+              "دوباره می‌سازیم، رؤیای رهایی",
+              "اگرچه دوری، هنوز امید هست",
+              "درون این دل، صدای تو زنده است",
+              "بمان کنارم، تا صبح فردا",
+              "بخوان دوباره، از عشق و دریا",
+              "جهان اگرچه، پر از غبار است",
+              "برای قلبم، هنوز بهار است",
+              "از کوچه‌های خیس شب گذشتیم",
+              "با دست‌های خسته، اما نترسیدیم",
+              "چراغ پنجره هنوز روشن مانده",
+              "صدای ساز ما به خانه برگشته",
+              "اگر سکوتی بین ما نشسته",
+              "ترانه راه تازه‌ای گشوده است",
+              "به شوق فردا، دوباره می‌خوانیم",
+              "تمام شب را، ستاره می‌کاریم",
+              "بمان که این صدا ادامه دارد",
+              "در این دل عاشق، بهار می‌ماند",
+              "کنار هم تا انتهای این رؤیا",
+              "دوباره می‌سازیم جهان فردا",
+          ])
+          plan = compose_plan(lyrics, title="MEHRAN Thirteen-Bank Recorded Ensemble 60 Second Preview", genre="pop", target_bpm=84)
+          for phrase in plan["composition"]["melody"]:
+              for item in phrase.get("note_lyric_map", []):
+                  if isinstance(item, dict):
+                      item["articulation"] = "sustain"
+          bank = load_sample_bank("sample-bank-installed-all")
+          assert len(bank.samples) >= 2259, len(bank.samples)
+          available = {sample.instrument for sample in bank.samples}
+          assert {"piano", "nylon_guitar", "acoustic_guitar", "electric_bass",
+                  "kick", "snare", "closed_hat", "open_hat", "cajon",
+                  "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp", "cello_section"} <= available, available
+          events = build_composition_events(
+              plan,
+              instruments={"guitar": "acoustic_guitar", "contrabass": "contrabass"},
+              response_fill_part=None,
+          )
+          # Render a continuous one-minute passage across the full arrangement,
+          # rather than limiting every part to a handful of isolated events.
+          preview_seconds = 60.0
+          rhythm_parts = {"kick", "snare", "closed_hat", "open_hat"}
+          selected = [
+              dict(event) for event in events
+              if event.get("part") in (
+                  "melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat"
+              )
+              and 0 <= event.get("start_seconds", 0) <
+                  preview_seconds - (3.0 if event.get("part") in rhythm_parts else 0)
+          ]
+          # Give the nylon guitar its own recorded part. Only include exact
+          # first-position string/note combinations present in the source bank.
+          nylon_notes = sorted({sample.midi_note for sample in bank.samples
+                                if sample.instrument == "nylon_guitar"})
+          nylon_added = 0
+          for note in nylon_notes:
+              string_plan = plan_guitar_string(
+                  bank, "nylon_guitar", note, 82, "finger", max_fret=12
+              )
+              if string_plan["status"] != "exact_recorded_string":
+                  continue
+              selected.append({
+                  "instrument": "nylon_guitar", "part": "nylon_guitar",
+                  "midi_note": note, "articulation": "finger",
+                  "start_seconds": 1.5 + nylon_added * 2.2,
+                  "duration_seconds": 0.72, "velocity": 82,
+                  "guitar_string": string_plan["selected_string"],
+                  "guitar_max_fret": 12,
+              })
+              nylon_added += 1
+              if nylon_added >= 12:
+                  break
+          assert nylon_added >= 6, f"Too few exact recorded nylon-guitar notes: {nylon_added}"
+          # Add recorded violin and concert-flute phrases using only pitch
+          # centers actually present in their verified multisample banks.
+          violin_notes = sorted({sample.midi_note for sample in bank.samples
+                                 if sample.instrument == "solo_violin"})
+          flute_notes = sorted({sample.midi_note for sample in bank.samples
+                                if sample.instrument == "concert_flute"})
+          assert len(violin_notes) >= 10 and len(flute_notes) >= 8, (violin_notes, flute_notes)
+          for index, note in enumerate(violin_notes[:12]):
+              selected.append({
+                  "instrument": "solo_violin", "part": "violin",
+                  "midi_note": note, "articulation": "arco_vibrato",
+                  "start_seconds": 4.0 + index * 1.35,
+                  "duration_seconds": 1.05, "velocity": 72 + (index % 3) * 14,
+              })
+          # Exercise the official spiccato low/high velocity layers and both
+          # source-defined round-robin sequence positions at exact recorded roots.
+          spiccato_added = 0
+          for note in violin_notes[:2]:
+              for velocity in (48, 96):
+                  for repeat in range(2):
+                      selected.append({
+                          "instrument": "solo_violin", "part": "violin_spiccato",
+                          "midi_note": note, "articulation": "spiccato",
+                          "start_seconds": 24.0 + spiccato_added * 0.32,
+                          "duration_seconds": 0.32, "velocity": velocity,
+                      })
+                      spiccato_added += 1
+          assert spiccato_added == 8
+          # Exercise all five official cello-section articulations at exact roots.
+          cello_notes = sorted({sample.midi_note for sample in bank.samples
+                                if sample.instrument == "cello_section"})
+          assert len(cello_notes) >= 10, cello_notes
+          cello_articulations = ("sustain_vibrato_quiet", "sustain_vibrato", "pizzicato", "spiccato", "tremolo")
+          for index, articulation in enumerate(cello_articulations):
+              selected.append({
+                  "instrument": "cello_section", "part": "cello_section",
+                  "midi_note": cello_notes[index], "articulation": articulation,
+                  "start_seconds": 43.0 + index * 0.62,
+                  "duration_seconds": 0.55,
+                  "velocity": (42, 88, 70, 96, 84)[index],
+              })
+          for index, note in enumerate(flute_notes[:10]):
+              selected.append({
+                  "instrument": "concert_flute", "part": "concert_flute",
+                  "midi_note": note,
+                  "articulation": "sustain_vibrato" if index % 2 == 0 else "expressive_vibrato",
+                  "start_seconds": 6.0 + index * 1.65,
+                  "duration_seconds": 1.2, "velocity": 88,
+              })
+          # Add independently articulated real-recording layers not yet
+          # generated by the general arrangement planner.
+          for index in range(24):
+              selected.append({
+                  "instrument": "cajon", "part": "cajon",
+                  "midi_note": 60 + (index % 3),
+                  "articulation": ("bass", "slap", "tone")[index % 3],
+                  "start_seconds": index * 2.5, "duration_seconds": 0.01,
+                  "velocity": (72, 96, 108)[index % 3],
+              })
+          for index in range(8):
+              selected.append({
+                  "instrument": "open_hat", "part": "open_hat", "midi_note": 42,
+                  "articulation": "open", "start_seconds": 3.0 + index * 7.0,
+                  "duration_seconds": 0.01, "velocity": 82,
+              })
+          for index, note in enumerate([63, 66, 68, 71, 75, 78, 81, 78, 75, 71, 68, 66]):
+              selected.append({
+                  "instrument": "kalimba", "part": "kalimba", "midi_note": note,
+                  "articulation": "pluck", "start_seconds": 1.0 + index * 1.1,
+                  "duration_seconds": 0.48, "velocity": 88,
+              })
+          dan_tranh_notes = sorted({sample.midi_note for sample in bank.samples
+                                    if sample.instrument == "dan_tranh"})
+          recorder_notes = sorted({sample.midi_note for sample in bank.samples
+                                   if sample.instrument == "baroque_soprano_recorder"})
+          assert len(dan_tranh_notes) >= 16 and len(recorder_notes) >= 13
+          for index, note in enumerate(dan_tranh_notes):
+              selected.append({
+                  "instrument": "dan_tranh", "part": "dan_tranh",
+                  "midi_note": note, "articulation": "pluck",
+                  "start_seconds": 2.0 + index * 2.6,
+                  "duration_seconds": 0.7, "velocity": 90,
+              })
+          for index, note in enumerate(recorder_notes):
+              selected.append({
+                  "instrument": "baroque_soprano_recorder", "part": "recorder",
+                  "midi_note": note, "articulation": "sustain",
+                  "start_seconds": 5.0 + index * 3.0,
+                  "duration_seconds": 0.9, "velocity": 88,
+              })
+          for index, note in enumerate(recorder_notes[:-1]):
+              selected.append({
+                  "instrument": "baroque_soprano_recorder", "part": "recorder",
+                  "midi_note": note, "articulation": "staccato",
+                  "start_seconds": 7.0 + index * 3.2,
+                  "duration_seconds": 0.22, "velocity": 92,
+              })
+          # Add a chord-aware concert-harp arpeggio from the composition's
+          # actual chord progression, using only the verified VCSL key range.
+          harp_pitch_classes = {
+              "C": 0, "C#": 1, "Db": 1, "D": 2, "D#": 3, "Eb": 3,
+              "E": 4, "F": 5, "F#": 6, "Gb": 6, "G": 7, "G#": 8,
+              "Ab": 8, "A": 9, "A#": 10, "Bb": 10, "B": 11,
+          }
+          harp_progression = plan["composition"]["chord_progression"]
+          harp_notes = sorted({sample.midi_note for sample in bank.samples
+                               if sample.instrument == "concert_harp"})
+          assert len(harp_notes) >= 20, harp_notes
+          harp_roots_by_pitch_class = {
+              pitch_class: [note for note in harp_notes if note % 12 == pitch_class]
+              for pitch_class in range(12)
+          }
+          harp_added = 0
+          harp_omitted_unrecorded_tones = 0
+          for cycle in range(5):
+              for chord_index, chord in enumerate(harp_progression):
+                  root = chord[:2] if len(chord) > 1 and chord[1] in "#b" else chord[:1]
+                  if root not in harp_pitch_classes:
+                      raise ValueError(f"Unsupported chord root for harp arpeggio: {chord}")
+                  suffix = chord[len(root):]
+                  intervals = [0, 3, 7] if "m" in suffix and "maj" not in suffix else [0, 4, 7]
+                  if "7" in suffix:
+                      intervals.append(10)
+                  root_note = 60 + harp_pitch_classes[root]
+                  bar_start = (cycle * len(harp_progression) + chord_index) * 2.7
+                  tone_index = 0
+                  for interval in intervals:
+                      intended_note = root_note + interval
+                      exact_roots = harp_roots_by_pitch_class[intended_note % 12]
+                      if not exact_roots:
+                          # Do not retune a neighboring harp string/sample to invent
+                          # an unrecorded chromatic pitch. Omit this chord tone.
+                          harp_omitted_unrecorded_tones += 1
+                          continue
+                      note = min(exact_roots, key=lambda candidate: (abs(candidate - intended_note), candidate))
+                      if note not in harp_notes:
+                          raise ValueError(f"Concert harp event is not an exact recorded root: {note}")
+                      selected.append({
+                          "instrument": "concert_harp", "part": "concert_harp",
+                          "midi_note": note, "articulation": "sustain",
+                          "start_seconds": bar_start + tone_index * 0.42,
+                          "duration_seconds": 1.25,
+                          "velocity": (72, 86, 98, 90)[tone_index % 4],
+                      })
+                      tone_index += 1
+                      harp_added += 1
+          assert harp_added >= 45, (
+              f"Too few exact-recorded-root chord-aware harp events: {harp_added}; "
+              f"omitted unrecorded chord tones: {harp_omitted_unrecorded_tones}"
+          )
+          for index in range(20):
+              selected.append({
+                  "instrument": "contrabass", "part": "contrabass",
+                  "midi_note": [38, 45, 41, 31][index % 4],
+                  "articulation": "pizzicato", "start_seconds": index * 2.8,
+                  "duration_seconds": 0.65, "velocity": 86,
+              })
+          # Exercise the two exact-root high-velocity supplements as well as
+          # the incumbent Rubner layer below the selection threshold.
+          for index, (note, velocity) in enumerate(
+              ((27, 100), (27, 123), (34, 100), (34, 123))
+          ):
+              selected.append({
+                  "instrument": "contrabass", "part": "contrabass",
+                  "midi_note": note, "articulation": "pizzicato",
+                  "start_seconds": 52.0 + index * 0.55,
+                  "duration_seconds": 0.42, "velocity": velocity,
+              })
+          for event in selected:
+              remaining = preview_seconds - event["start_seconds"]
+              if event.get("part") in rhythm_parts or event.get("part") == "cajon":
+                  event["duration_seconds"] = min(event["duration_seconds"], remaining)
+              else:
+                  event["duration_seconds"] = min(event["duration_seconds"], remaining, 0.9)
+          selected = [event for event in selected if event["duration_seconds"] > 0]
+          assert len(selected) >= 150, f"60-second passage has too few events: {len(selected)}"
+          selected_parts = {event.get("part") for event in selected}
+          selected_instruments = {event.get("instrument") for event in selected}
+          assert {"melody", "chords", "bass", "guitar", "kick", "snare", "closed_hat", "open_hat",
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "violin", "violin_spiccato", "concert_flute", "dan_tranh", "recorder", "concert_harp", "cello_section"} <= selected_parts, selected_parts
+          assert {"piano", "acoustic_guitar", "electric_bass", "kick", "snare", "closed_hat", "open_hat",
+                  "nylon_guitar", "cajon", "kalimba", "contrabass", "solo_violin", "concert_flute", "dan_tranh", "baroque_soprano_recorder", "concert_harp", "cello_section"} <= selected_instruments, selected_instruments
+          for event in selected:
+              # Babyblue replaced the old FreePats bank. Keep the composed bass
+              # MIDI notes intact: its recorded roots span MIDI 35-75, so an
+              # octave fold into the retired 26-45 range would alter the music.
+              if event.get("part") == "open_hat":
+                  # Virtuosity records the open hi-hat at MIDI key 42.
+                  # Arrangement planning may suggest a pitched cymbal note (46),
+                  # but one-shot recordings must never be pitch-transposed.
+                  event["midi_note"] = 42
+                  event["articulation"] = "open"
+              if event.get("part") == "guitar":
+                  event["guitar_max_fret"] = 12
+          output = "sample-bank-installed-all/mehran-sixteen-bank-recorded-ensemble.wav"
+          report = render_sample_events(selected, bank, output, sample_rate=44100)
+          assert report["sample_selection"]["one_shot_round_robin_events"] > 0, report
+          # The final note may end a few milliseconds before the requested
+          # preview boundary. Pad only the tail with digital silence so the
+          # published preview has an exact, predictable one-minute duration.
+          with wave.open(output, "rb") as rendered:
+              wav_params = rendered.getparams()
+              pcm = rendered.readframes(rendered.getnframes())
+          target_frames = round(preview_seconds * 44100)
+          actual_frames = len(pcm) // (wav_params.nchannels * wav_params.sampwidth)
+          if actual_frames < target_frames:
+              pcm += b"\x00" * (
+                  (target_frames - actual_frames)
+                  * wav_params.nchannels * wav_params.sampwidth
+              )
+          elif actual_frames > target_frames:
+              pcm = pcm[:target_frames * wav_params.nchannels * wav_params.sampwidth]
+          with wave.open(output, "wb") as exact_preview:
+              exact_preview.setnchannels(wav_params.nchannels)
+              exact_preview.setsampwidth(wav_params.sampwidth)
+              exact_preview.setframerate(wav_params.framerate)
+              exact_preview.setcomptype(wav_params.comptype, wav_params.compname)
+              exact_preview.writeframes(pcm)
+          report["duration_seconds"] = round(target_frames / 44100, 3)
+          assert report["events_rendered"] == len(selected), report
+          assert report["source"] == "recorded_sample_bank", report
+          assert report["sample_selection"]["pitch_shifted_key_zone_events"] == 0, report
+          assert report["sample_selection"]["pitch_shifted_nearest_note_events"] == 0, report
+          assert report["guitar_string_selections"], "No real guitar strings were selected"
+          with wave.open(output, "rb") as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getframerate() == 44100
+              assert audio.getnframes() == round(preview_seconds * 44100)
+              pcm = audio.readframes(audio.getnframes())
+          assert any(pcm), "Combined sixteen-bank ensemble WAV is silent"
+          import array
+          samples_pcm = array.array("h")
+          samples_pcm.frombytes(pcm)
+          peak = max(abs(value) for value in samples_pcm)
+          rms = (sum(value * value for value in samples_pcm) / len(samples_pcm)) ** 0.5
+          assert peak > 100, f"Combined WAV peak is unexpectedly quiet: {peak}"
+          assert rms > 10, f"Combined WAV RMS is unexpectedly quiet: {rms}"
+          assert report["peak_after_normalization"] > 0, report
+          assert report["clipping_samples"] == 0, report
+          print("REAL_RECORDED_THIRTEEN_BANK_ENSEMBLE_OK", {
+              "samples": len(bank.samples),
+              "parts": sorted(selected_parts),
+              "instruments": sorted(selected_instruments),
+              "events": report["events_rendered"],
+              "preview_window_seconds": preview_seconds,
+              "duration": report["duration_seconds"],
+              "guitar_strings": len(report["guitar_string_selections"]),
+              "peak": peak,
+              "rms": round(rms, 2),
+              "sample_selection": report["sample_selection"],
+          })
+          PY
+      - name: Publish compact sixteen-bank recorded ensemble preview WAV
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-sixteen-bank-recorded-ensemble-preview-wav
+          path: sample-bank-installed-all/mehran-sixteen-bank-recorded-ensemble.wav
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Publish verified guitar banks and audition WAVs
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-sixteen-cc0-banks-and-installed-ensemble
+          path: |
+            sample-bank-meta-nylon-guitar/
+            sample-bank-meta-steel-guitar/
+            sample-bank-meta-piano/
+            sample-bank-virtuosity-drums/
+            sample-bank-karoryfer-babyblue-bass/
+            sample-bank-vsco2-violin/
+            sample-bank-vsco2-flute/
+            sample-bank-vcsl-dan-tranh/
+            sample-bank-vcsl-recorder/
+            sample-bank-vcsl-cajon/
+            sample-bank-vcsl-kalimba/
+            sample-bank-rubner-contrabass/
+            sample-bank-meatbass-contrabass-supplement/
+            sample-bank-vsco2-contrabass-supplement/
+            sample-bank-vcsl-concert-harp/
+            sample-bank-installed-all/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

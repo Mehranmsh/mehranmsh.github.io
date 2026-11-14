@@ -64,6 +64,52 @@ def main():
                     raise AssertionError("Project creation did not persist. Browser errors: " + " | ".join(errors))
                 assert "Automated Audio QA" in library_text
 
+                # Exercise the authenticated composition UI with a mocked secure Worker response.
+                page.locator('[data-view="create"]').click()
+                page.locator("#projectName").fill("Engine Integration QA")
+                page.locator("#compositionMode").select_option("co_creation")
+                page.locator("#projectLyrics").fill("فردا دوباره می‌رسد\\nآفتاب از راه می‌رسد")
+                page.locator("#projectTempo").fill("96")
+                page.evaluate("localStorage.setItem('msh_admin_session', 'test-owner-session-token')")
+                engine_requests = []
+                def mock_engine(route):
+                    request = route.request
+                    import json
+                    engine_requests.append({
+                        "authorization": request.headers.get("authorization"),
+                        "payload": json.loads(request.post_data or "{}")
+                    })
+                    route.fulfill(status=201, content_type="application/json", body=json.dumps({
+                        "success": True,
+                        "composition_created": True,
+                        "composition_mode": "co_creation",
+                        "audio_rendered": False,
+                        "plan": {"source_mode": "co_creation"},
+                        "midi": {
+                            "id": "browser-smoke-midi",
+                            "format": "Standard MIDI",
+                            "content_base64": "TVRoZAAAAAYAAAAB",
+                            "tracks": 7,
+                            "tempo_bpm": 96,
+                            "note_events": 64,
+                            "duration_seconds": 20,
+                            "bytes": 12
+                        }
+                    }))
+                page.route("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose", mock_engine)
+                page.locator("#composeWithEngine").click()
+                page.wait_for_function("document.querySelector('#engineComposeStatus')?.textContent.includes('با موفقیت')")
+                assert engine_requests and engine_requests[0]["authorization"] == "Bearer test-owner-session-token", "Composition request did not use the owner session token."
+                assert engine_requests[0]["payload"]["composition_mode"] == "co_creation", "Selected composition workflow was not sent to the engine."
+                assert page.locator("#engineComposeResult").is_visible()
+                assert "Audio rendered: no" in page.locator("#engineComposeResult").inner_text()
+                with page.expect_download() as midi_download:
+                    page.locator("#downloadEngineMidi").click()
+                downloaded_midi = midi_download.value
+                assert downloaded_midi.suggested_filename == "Engine-Integration-QA.mid", "Editable MIDI download filename is incorrect."
+                page.evaluate("localStorage.removeItem('msh_admin_session')")
+                page.unroute("https://mehran-msh-auth.mehran79mehran.workers.dev/music/engine/compose")
+
                 # Import a phone-recorded vocal through Vocal Lab and verify it becomes a real audio track.
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")

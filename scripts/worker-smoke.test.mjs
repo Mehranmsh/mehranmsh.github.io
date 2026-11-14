@@ -76,6 +76,249 @@ test("database-backed routes fail closed when the DB binding is missing", async 
   }
 });
 
+test("music engine proxy requires a verified owner session", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          throw new Error("Unexpected SQL in music engine auth test: " + sql);
+        }
+      };
+    }
+  };
+  const response = await request("/music/engine/compose", {
+    method: "POST",
+    body: { composition_mode: "instrumental_first", title: "Test", genre: "pop", mood: "hopeful" }
+  }, { DB: db, MEHRAN_ENGINE_COMPOSE_URL: "https://engine.example/v1/compose-by-mode", MEHRAN_ENGINE_TOKEN: "x".repeat(40) });
+  assert.equal(response.status, 403);
+  const payload = await response.json();
+  assert.match(payload.error, /Verified owner session required/);
+});
+
+test("music engine proxy fails closed when private server credentials are not configured", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          }
+          throw new Error("Unexpected SQL in music engine config test: " + sql);
+        }
+      };
+    }
+  };
+  const response = await request("/music/engine/compose", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + "a".repeat(48) },
+    body: { composition_mode: "instrumental_first", title: "Test", genre: "pop", mood: "hopeful" }
+  }, { DB: db });
+  assert.equal(response.status, 503);
+  const payload = await response.json();
+  assert.match(payload.error, /not configured on the server/);
+});
+
+test("music engine proxy forwards an owner request and strips private filesystem paths", async () => {
+  const engineToken = "server-only-engine-token-".padEnd(40, "x");
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          }
+          if (sql.includes("INSERT INTO social_auth_limits")) return { attempts: 1, blocked_until: null };
+          throw new Error("Unexpected SQL in music engine proxy test: " + sql);
+        }
+      };
+    }
+  };
+  const originalFetch = globalThis.fetch;
+  let upstreamRequest;
+  globalThis.fetch = async (url, options) => {
+    upstreamRequest = { url: String(url), options };
+    return new Response(JSON.stringify({
+      composition_created: true,
+      composition_mode: "instrumental_first",
+      audio_rendered: false,
+      plan: { source_mode: "instrumental_first" },
+      midi: { id: "safe-midi-id", format: "Standard MIDI", content_base64: "TVRoZAAAAAYAAQABAeA=",
+        bytes: 14,
+        note_events: 1, local_path: "/private/renders/safe-midi-id.mid" },
+      message: "MIDI created"
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    const response = await request("/music/engine/compose", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + "b".repeat(48) },
+      body: { composition_mode: "instrumental_first", title: "Test", genre: "pop", mood: "hopeful", phrase_count: 8 }
+    }, {
+      DB: db,
+      MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+      MEHRAN_ENGINE_TOKEN: engineToken
+    });
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.success, true);
+    assert.equal(payload.plan.source_mode, "instrumental_first");
+    assert.equal(payload.midi.id, "safe-midi-id");
+    assert.equal(payload.midi.content_base64, "TVRoZAAAAAYAAQABAeA=");
+    assert.equal("local_path" in payload.midi, false);
+    assert.equal(upstreamRequest.url, "https://private-engine.example/v1/compose-by-mode");
+    assert.equal(upstreamRequest.options.headers.Authorization, "Bearer " + engineToken);
+    assert.equal(JSON.parse(upstreamRequest.options.body).composition_mode, "instrumental_first");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("music engine proxy forwards all three composition modes with mode-safe lyric payloads", async () => {
+  const engineToken = "server-only-engine-token-".padEnd(40, "x");
+  const forwarded = [];
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: Math.floor(Date.now() / 1000) + 3600 };
+          }
+          if (sql.includes("INSERT INTO social_auth_limits")) return { attempts: 1, blocked_until: null };
+          throw new Error("Unexpected SQL in composition-mode proxy test: " + sql);
+        }
+      };
+    }
+  };
+  const cases = [
+    {
+      composition_mode: "lyrics_first",
+      title: "Lyrics first",
+      genre: "pop",
+      mood: "hopeful",
+      phrase_count: 8,
+      lyrics: "فردا دوباره می‌رسد"
+    },
+    {
+      composition_mode: "instrumental_first",
+      title: "Instrumental first",
+      genre: "cinematic",
+      mood: "hopeful",
+      phrase_count: 8
+    },
+    {
+      composition_mode: "co_creation",
+      title: "Co-creation",
+      genre: "pop",
+      mood: "hopeful",
+      phrase_count: 8,
+      lyrics: "فردا دوباره می‌رسد"
+    }
+  ];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    forwarded.push({ url: String(url), authorization: options.headers.Authorization, redirect: options.redirect, body });
+    return new Response(JSON.stringify({
+      composition_created: true,
+      composition_mode: body.composition_mode,
+      audio_rendered: false,
+      plan: { source_mode: body.composition_mode },
+      midi: {
+        id: "mode-midi",
+        format: "Standard MIDI",
+        content_base64: "TVRoZAAAAAYAAQABAeA=",
+         bytes: 14,
+         note_events: 1,
+        local_path: "/private/renders/mode-midi.mid"
+      },
+      message: "MIDI created"
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+  };
+  try {
+    for (const input of cases) {
+      const response = await request("/music/engine/compose", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + "c".repeat(48) },
+        body: input
+      }, {
+        DB: db,
+        MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+        MEHRAN_ENGINE_TOKEN: engineToken
+      });
+      assert.equal(response.status, 201, input.composition_mode);
+      const payload = await response.json();
+      assert.equal(payload.success, true);
+      assert.equal(payload.composition_mode, input.composition_mode);
+      assert.equal(payload.plan.source_mode, input.composition_mode);
+      assert.equal("local_path" in payload.midi, false);
+    }
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      composition_created: true,
+      composition_mode: "lyrics_first",
+      plan: { source_mode: "lyrics_first" },
+      midi: {
+        id: "bad-midi",
+        format: "Standard MIDI",
+        content_base64: "not-valid-midi",
+        note_events: 1,
+        bytes: 14
+      }
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+    const invalidResponse = await request("/music/engine/compose", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + "c".repeat(48) },
+      body: cases[0]
+    }, {
+      DB: db,
+      MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+      MEHRAN_ENGINE_TOKEN: engineToken
+    });
+    assert.equal(invalidResponse.status, 502);
+    globalThis.fetch = async () => new Response("x".repeat(2 * 1024 * 1024 + 1));
+    const oversizedResponse = await request("/music/engine/compose", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + "c".repeat(48) },
+      body: cases[0]
+    }, {
+      DB: db,
+      MEHRAN_ENGINE_COMPOSE_URL: "https://private-engine.example/v1/compose-by-mode",
+      MEHRAN_ENGINE_TOKEN: engineToken
+    });
+    assert.equal(oversizedResponse.status, 502);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(forwarded.length, 3);
+  for (let index = 0; index < cases.length; index += 1) {
+    assert.equal(forwarded[index].url, "https://private-engine.example/v1/compose-by-mode");
+    assert.equal(forwarded[index].authorization, "Bearer " + engineToken);
+    assert.equal(forwarded[index].redirect, "error");
+    assert.equal(forwarded[index].body.composition_mode, cases[index].composition_mode);
+    assert.equal("lyrics" in forwarded[index].body, cases[index].composition_mode !== "instrumental_first");
+  }
+});
+
+test("music engine proxy keeps the private engine credential out of the public studio", () => {
+  assert.match(workerSource, /env\.MEHRAN_ENGINE_COMPOSE_URL/);
+  assert.match(workerSource, /env\.MEHRAN_ENGINE_TOKEN/);
+  assert.match(workerSource, /"Authorization": "Bearer " \+ engineToken/);
+  assert.match(workerSource, /local_path: _privateMidiPath/);
+  assert.doesNotMatch(musicStudioSource, /MEHRAN_ENGINE_TOKEN|MEHRAN_ENGINE_COMPOSE_URL/);
+});
+
 test("unknown routes return a structured 404 response", async () => {
   const response = await request("/this-route-does-not-exist");
   assert.equal(response.status, 404);

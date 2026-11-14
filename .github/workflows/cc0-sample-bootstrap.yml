@@ -1,0 +1,78 @@
+name: CC0 Real Instrument Sample Bootstrap
+
+on:
+  push:
+    branches:
+      - feature/mehran-independent-music-core
+    paths:
+      - 'engine/fetch_cc0_piano_sample.py'
+      - 'engine/sample_bank.py'
+      - 'engine/sample_renderer.py'
+      - 'engine/sample_bank_preview.py'
+      - '.github/workflows/cc0-sample-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHONPATH: engine
+
+jobs:
+  prepare-first-real-sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MEHRAN engine
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install audio decoder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Fetch and verify CC0 piano recording
+        run: python3 engine/fetch_cc0_piano_sample.py sample-bank-bootstrap
+      - name: Validate bank and render a real recorded note
+        run: |
+          python3 - <<'PY'
+          from sample_bank import load_sample_bank
+          bank = load_sample_bank('sample-bank-bootstrap')
+          assert len(bank.samples) == 1
+          assert bank.samples[0].midi_note == 60
+          print('SAMPLE_BANK_VALIDATED', len(bank.samples))
+          PY
+          python3 engine/sample_bank_preview.py sample-bank-bootstrap piano 60 sample-bank-bootstrap/piano-C4-preview.wav --velocity 80 --articulation sustain
+          python3 - <<'PY'
+          import wave
+          from pathlib import Path
+          path = Path('sample-bank-bootstrap/piano-C4-preview.wav')
+          with wave.open(str(path), 'rb') as audio:
+              assert audio.getnchannels() == 2
+              assert audio.getsampwidth() == 2
+              assert audio.getnframes() > 0
+              pcm = audio.readframes(audio.getnframes())
+          assert any(pcm), 'Rendered preview is silent'
+          print(f'REAL_SAMPLE_PREVIEW_OK frames={len(pcm)//4}')
+          PY
+      - name: Commit the imported CC0 sample bank to the feature branch
+        run: |
+          git fetch origin feature/mehran-independent-music-core
+          if git ls-tree -r --name-only origin/feature/mehran-independent-music-core -- sample-bank-bootstrap | grep -q .; then
+            echo 'Sample bank is already committed on the feature branch.'
+          else
+            mv sample-bank-bootstrap "$RUNNER_TEMP/sample-bank-bootstrap"
+            git checkout -B feature/mehran-independent-music-core origin/feature/mehran-independent-music-core
+            mv "$RUNNER_TEMP/sample-bank-bootstrap" sample-bank-bootstrap
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add sample-bank-bootstrap
+            git commit -m 'Import first verified CC0 piano recording'
+            git push origin HEAD:feature/mehran-independent-music-core
+          fi
+      - name: Publish sample bank and audition WAV
+        uses: actions/upload-artifact@v4
+        with:
+          name: mehran-cc0-piano-first-sample
+          path: sample-bank-bootstrap/
+          if-no-files-found: error
+          retention-days: 30

@@ -5329,6 +5329,132 @@ export default {
         return json({success:true,backup});
       }
 
+      if (path === "/music/engine/compose" && method === "POST") {
+        await ensureSocialTables(env);
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Verified owner session required for engine access", 403);
+
+        const endpoint = String(env.MEHRAN_ENGINE_COMPOSE_URL || "").trim();
+        const engineToken = String(env.MEHRAN_ENGINE_TOKEN || "");
+        if (!endpoint || engineToken.length < 32) {
+          return error("The private composition engine is not configured on the server", 503);
+        }
+        let engineUrl;
+        try {
+          engineUrl = new URL(endpoint);
+          if (engineUrl.protocol !== "https:" || engineUrl.username || engineUrl.password ||
+              engineUrl.search || engineUrl.hash) throw new Error("Invalid engine endpoint");
+        } catch {
+          return error("The private composition engine endpoint is invalid", 503);
+        }
+
+        if (!await checkRateLimit(env, request, "music-engine-compose", 10, 3600, 900, admin.uid)) {
+          return error("Composition requests are temporarily rate limited", 429);
+        }
+
+        const body = await readBody(request);
+        if (!body) return error("Invalid composition request body");
+        const mode = body.composition_mode;
+        if (!["lyrics_first", "instrumental_first", "co_creation"].includes(mode)) {
+          return error("Invalid composition mode");
+        }
+        const title = cleanText(body.title, 100);
+        const genre = cleanText(body.genre, 60);
+        const mood = cleanText(body.mood, 40);
+        const bpm = body.bpm === undefined || body.bpm === null ? null : body.bpm;
+        const phraseCount = body.phrase_count === undefined ? 8 : body.phrase_count;
+        const lyrics = typeof body.lyrics === "string" ? body.lyrics.trim() : "";
+        if (!title || !genre || !mood ||
+            (bpm !== null && (!Number.isInteger(bpm) || bpm < 50 || bpm > 200)) ||
+            !Number.isInteger(phraseCount) || phraseCount < 4 || phraseCount > 16 ||
+            (["lyrics_first", "co_creation"].includes(mode) && (!lyrics || lyrics.length > 20000)) ||
+            (mode === "instrumental_first" && lyrics)) {
+          return error("Composition fields are invalid");
+        }
+
+        const enginePayload = {
+          composition_mode: mode, title, genre, mood,
+          bpm, phrase_count: phraseCount,
+          ...(mode === "instrumental_first" ? {} : { lyrics })
+        };
+        try {
+          const upstream = await fetch(engineUrl.toString(), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + engineToken
+            },
+            body: JSON.stringify(enginePayload),
+            redirect: "error",
+            signal: AbortSignal.timeout(30000)
+          });
+          const responseReader = upstream.body?.getReader();
+          if (!responseReader) return error("Composition engine returned an empty response", 502);
+          const responseChunks = [];
+          let responseSize = 0;
+          while (true) {
+            const chunk = await responseReader.read();
+            if (chunk.done) break;
+            responseSize += chunk.value.byteLength;
+            if (responseSize > 2 * 1024 * 1024) {
+              await responseReader.cancel();
+              return error("Composition engine response exceeded the safety limit", 502);
+            }
+            responseChunks.push(chunk.value);
+          }
+          const responseBytes = new Uint8Array(responseSize);
+          let responseOffset = 0;
+          for (const chunk of responseChunks) {
+            responseBytes.set(chunk, responseOffset);
+            responseOffset += chunk.byteLength;
+          }
+          const responseText = new TextDecoder().decode(responseBytes);
+          let result;
+          try { result = JSON.parse(responseText); } catch {
+            return error("Composition engine returned an invalid response", 502);
+          }
+          if (!upstream.ok) {
+            const safeStatus = [400, 422, 507].includes(upstream.status) ? upstream.status : 502;
+            return json({ success: false, error: "Composition engine rejected the request",
+              engine_error: cleanText(result?.error, 80) }, safeStatus);
+          }
+          if (!result || typeof result !== "object" || result.composition_created !== true ||
+              result.composition_mode !== mode ||
+              !result.plan || typeof result.plan !== "object" || result.plan.source_mode !== mode ||
+              !result.midi || typeof result.midi !== "object" ||
+              result.midi.format !== "Standard MIDI") {
+            return error("Composition engine response is incomplete or mismatched", 502);
+          }
+          const midiBase64 = typeof result.midi.content_base64 === "string"
+            ? result.midi.content_base64 : "";
+          if (!midiBase64 || midiBase64.length > 1800000 ||
+              !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(midiBase64) ||
+              !Number.isInteger(result.midi.note_events) || result.midi.note_events < 1) {
+            return error("Composition engine returned invalid MIDI data", 502);
+          }
+          let midiBinary;
+          try { midiBinary = atob(midiBase64); } catch {
+            return error("Composition engine returned invalid MIDI data", 502);
+          }
+          if (midiBinary.length < 14 || midiBinary.slice(0, 4) !== "MThd" ||
+              (Number.isInteger(result.midi.bytes) && result.midi.bytes !== midiBinary.length)) {
+            return error("Composition engine returned invalid MIDI data", 502);
+          }
+          const { local_path: _privateMidiPath, ...safeMidi } = result.midi;
+          return json({
+            success: true,
+            composition_created: true,
+            composition_mode: mode,
+            audio_rendered: result.audio_rendered === true,
+            plan: result.plan,
+            midi: safeMidi,
+            message: cleanText(result.message, 300)
+          }, 201);
+        } catch {
+          return error("Private composition engine is temporarily unavailable", 502);
+        }
+      }
+
       if (path === "/music/lyrics/generate" && method === "POST") {
         await ensureSocialTables(env);
         return await musicGenerateLyrics(request, env);
