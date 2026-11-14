@@ -125,6 +125,11 @@ def compare_heldout_bundles(
         raise ModelComparisonError("bundles use different acoustic feature configurations")
 
     feature_config = AcousticModelConfig.model_validate(baseline_features)
+    manifest_file = Path(manifest_path).expanduser()
+    try:
+        manifest_digest_before = hashlib.sha256(manifest_file.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ModelComparisonError("test manifest could not be read") from exc
     examples = load_training_examples(
         manifest_path,
         feature_config,
@@ -140,11 +145,17 @@ def compare_heldout_bundles(
     candidate_runtime = SingingInferenceRuntime.from_bundle(candidate_root, device=device)
     baseline_summary = evaluate_heldout_examples(examples, baseline_runtime, feature_config)
     candidate_summary = evaluate_heldout_examples(examples, candidate_runtime, feature_config)
+    try:
+        manifest_digest_after = hashlib.sha256(manifest_file.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ModelComparisonError("test manifest became unavailable during comparison") from exc
+    if manifest_digest_after != manifest_digest_before:
+        raise ModelComparisonError("test manifest changed during model comparison")
     comparison = compare_metric_summaries(baseline_summary, candidate_summary)
     comparison.update({
         "baseline_bundle_id": baseline_manifest["bundle_id"],
         "candidate_bundle_id": candidate_manifest["bundle_id"],
-        "test_manifest_sha256": hashlib.sha256(Path(manifest_path).expanduser().read_bytes()).hexdigest(),
+        "test_manifest_sha256": manifest_digest_before,
         "baseline_bundle_manifest_sha256": baseline_hash,
         "candidate_bundle_manifest_sha256": candidate_hash,
         "same_test_examples_loaded_once": True,
