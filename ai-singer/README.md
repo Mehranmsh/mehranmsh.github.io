@@ -117,6 +117,17 @@ Each JSONL record declares `recording_id`, a relative `audio_path`, `language`, 
 
 No training recordings or model weights are included in this repository. Do not add private voice recordings, consent forms, access tokens, or other personal data to Git.
 
+### Privacy-safe dataset readiness report
+
+After preparing the local manifest and audio files, run:
+
+```bash
+python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/dataset
+```
+
+The command prints aggregate-only JSON. It separates dataset blockers for staged training from held-out test-split readiness, and lists actionable next steps without printing speaker IDs, recording IDs, transcripts, audio paths, or rights text. `ready_for_staged_training` means the dataset passes this audit only; it does **not** mean training can start by itself. The acoustic-stage and teacher-forced waveform-decoder checkpoints are still required by the current joint trainer. A test split is not required for training readiness, but a valid, separate test split is required before claiming held-out evaluation readiness. The audit never uploads audio or creates model weights.
+
+
 ### Browser connection and CORS
 - Set `MEHRAN_SVS_ALLOWED_ORIGINS` to a comma-separated allowlist of exact HTTPS origins for the deployed studio. The default allows the GitHub Pages origin and the currently used Pi ecosystem origin.
 - The API exposes only GET/POST/OPTIONS for browser access; credentials are not enabled.
