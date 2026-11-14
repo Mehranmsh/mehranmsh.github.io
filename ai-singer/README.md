@@ -224,3 +224,10 @@ The command writes `latest.pt` and `best.pt` under the chosen output directory. 
 
 This is now an executable, reference-conditioned training pipeline, but no training has been run because no consented local dataset has been supplied. A trained checkpoint, evaluation of voice similarity and singing quality, a waveform decoder/vocoder, inference service, and end-user generation workflow are still outstanding. It is not yet a singing-generation feature.
 
+
+
+## Experimental neural waveform decoder
+
+`waveform_decoder.py` adds an initial reference-conditioned waveform decoder. It consumes predicted log-Mel, F0, voicing, and energy tracks plus a separate reference recording, then upsamples frame features to mono floating-point samples at the configured hop ratio. The initial network uses staged transposed convolutions and residual temporal blocks, with a bounded tanh output. Its upsampling factors are validated to multiply exactly to the acoustic hop length.
+
+This is an architecture and forward-pass milestone only. The current training examples contain acoustic feature targets, not paired raw waveform tensors; the decoder is not yet included in the optimizer loop and has not been trained. Before it can be used, the pipeline needs aligned waveform target collation, waveform reconstruction and adversarial/multi-resolution spectral losses, stable chunked inference, and listening tests on held-out consented speakers. The output is not currently a usable singing WAV.
