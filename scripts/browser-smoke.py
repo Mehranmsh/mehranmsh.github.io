@@ -376,7 +376,17 @@ def main():
                     early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 4]
                     early_mix = struct.unpack("<" + "h" * (len(early_mix_bytes) // 2), early_mix_bytes)
                     early_peak = max(map(abs, early_mix), default=0)
-                    assert early_peak < 100, "Pre-entry mix peak was "+str(early_peak)+" PCM units; expected silence before the track start offset."
+                    early_first_sample = next((index for index, value in enumerate(early_mix) if abs(value) >= 100), None)
+                    mix_project_id = page.locator("#mixProject").input_value()
+                    mix_tracks_debug = page.evaluate("""id => {
+                        const list = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]');
+                        const project = list.find(item => item.id === id);
+                        return (project?.tracks || []).map(track => ({
+                            id: track.id, startOffset: track.startOffset, trimStart: track.trimStart,
+                            trimEnd: track.trimEnd, delay: track.delay, audioName: track.audioName
+                        }));
+                    }""", mix_project_id)
+                    assert early_peak < 100, "Pre-entry mix peak was "+str(early_peak)+" PCM units; first audible sample "+str(early_first_sample)+"; selected tracks "+str(mix_tracks_debug)+". Expected silence before track start."
                     assert any(mix_pcm[int(1.30 * mix_sample_rate) * 4:int(1.45 * mix_sample_rate) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
