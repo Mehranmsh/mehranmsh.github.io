@@ -495,9 +495,11 @@ def main():
                 with wave.open(str(stem_file), "rb") as original_stem, wave.open(str(tuned_file), "rb") as tuned_stem:
                     assert tuned_stem.getnframes() == original_stem.getnframes(), "Pitch correction changed the stem duration."
                     assert tuned_stem.getnchannels() == 2 and tuned_stem.getframerate() == 44100
+                    assert tuned_stem.getsampwidth() == 3, "Pitch-corrected stem must remain 24-bit PCM."
                     frames = tuned_stem.getnframes()
                     pcm = tuned_stem.readframes(frames)
-                    values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
+                    values = [int.from_bytes(pcm[i:i+3], "little", signed=True)
+                              for i in range(0, len(pcm) - 2, 3)]
                     # After the 0.10 s source trim, the 440 Hz tone begins at 0.05 s in the rendered stem.
                     # Use autocorrelation in a retained, non-silent window so fade-in does not bias zero-crossing counts.
                     segment = values[int(0.06 * 44100) * 2:int(0.24 * 44100) * 2:2]
