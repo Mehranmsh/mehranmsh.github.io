@@ -474,7 +474,7 @@
  function pitchScaleTarget(midi,root,scale){if(scale==="chromatic")return Math.round(midi);const intervals=scale==="minor"?[0,2,3,5,7,8,10]:[0,2,4,5,7,9,11];let best=Math.round(midi),distance=Infinity;for(let candidate=Math.floor(midi)-6;candidate<=Math.ceil(midi)+6;candidate++){const degree=((candidate-root)%12+12)%12;if(intervals.includes(degree)&&Math.abs(candidate-midi)<distance){best=candidate;distance=Math.abs(candidate-midi);}}return best;}
  function phaseVocoderShiftSamples(input,ratio){
   const n=2048,hop=512,half=n/2,padded=new Float32Array(input.length+2*n);padded.set(input,n);
-  const frameCount=Math.ceil((padded.length-n)/hop)+1,outLength=Math.ceil(padded.length/ratio)+n,acc=new Float64Array(half+1),previous=new Float64Array(half+1),sum=new Float64Array(outLength),weight=new Float64Array(outLength),window=new Float64Array(n);
+  const frameCount=Math.ceil((padded.length-n)/hop)+1,outLength=Math.ceil(padded.length*ratio)+n,acc=new Float64Array(half+1),previous=new Float64Array(half+1),sum=new Float64Array(outLength),weight=new Float64Array(outLength),window=new Float64Array(n);
   for(let i=0;i<n;i++)window[i]=0.5-0.5*Math.cos(2*Math.PI*i/(n-1));
   for(let frame=0;frame<frameCount;frame++){
    const start=frame*hop,re=new Float64Array(n),im=new Float64Array(n);
@@ -482,15 +482,15 @@
    fftRadix2(re,im,false);
    for(let k=0;k<=half;k++){
     const phase=Math.atan2(im[k],re[k]),mag=Math.hypot(re[k],im[k]);
-    if(frame===0)acc[k]=phase;else{const expected=2*Math.PI*k*hop/n,delta=phase-previous[k]-expected,wrapped=delta-2*Math.PI*Math.round(delta/(2*Math.PI));acc[k]+=expected+wrapped;}
+    if(frame===0)acc[k]=phase;else{const expected=2*Math.PI*k*hop/n,delta=phase-previous[k]-expected,wrapped=delta-2*Math.PI*Math.round(delta/(2*Math.PI));acc[k]+=(expected+wrapped)*ratio;}
     previous[k]=phase;re[k]=mag*Math.cos(acc[k]);im[k]=mag*Math.sin(acc[k]);
     if(k>0&&k<half){re[n-k]=re[k];im[n-k]=-im[k];}
    }
-   fftRadix2(re,im,true);const outStart=Math.round(frame*hop/ratio);
+   fftRadix2(re,im,true);const outStart=Math.round(frame*hop*ratio);
    for(let i=0;i<n;i++){const at=outStart+i;if(at<outLength){sum[at]+=re[i]*window[i];weight[at]+=window[i]*window[i];}}
   }
   const output=new Float32Array(input.length);
-  for(let i=0;i<input.length;i++){const pos=(n+i)/ratio,left=Math.floor(pos),frac=pos-left,a=left<outLength&&weight[left]>1e-8?sum[left]/weight[left]:0,b=left+1<outLength&&weight[left+1]>1e-8?sum[left+1]/weight[left+1]:a;output[i]=a+(b-a)*frac;}
+  for(let i=0;i<input.length;i++){const pos=(n+i)*ratio,left=Math.floor(pos),frac=pos-left,a=left<outLength&&weight[left]>1e-8?sum[left]/weight[left]:0,b=left+1<outLength&&weight[left+1]>1e-8?sum[left+1]/weight[left+1]:a;output[i]=a+(b-a)*frac;}
   return output;
  }
  function applyVocalPitchCorrection(buffer,root,scale,strength,toleranceCents,context){
