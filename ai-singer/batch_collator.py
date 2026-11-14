@@ -43,6 +43,8 @@ class TrainingBatch:
     target_log_rms: np.ndarray
     sample_rate: int
     hop_length: int
+    speaker_reference_log_mel: np.ndarray | None = None
+    speaker_reference_frame_mask: np.ndarray | None = None
 
 
 def collate_training_examples(
@@ -114,14 +116,30 @@ def collate_training_examples(
             raise ValueError("acoustic voicing mask must match positive target F0 values")
         if not np.array_equal(pitch.voicing_mask.astype(bool), pitch.f0_hz > 0):
             raise ValueError("conditioning voicing mask must match positive conditioning F0 values")
-        checked.append((example, frame_count))
+        reference = example.speaker_reference_log_mel
+        if reference is not None:
+            reference = np.asarray(reference)
+            if reference.ndim != 2 or reference.shape[0] < 1 or reference.shape[1] != config.mel_bins:
+                raise ValueError("speaker reference must have shape (non-empty frames, configured mel_bins)")
+            if not np.isfinite(reference).all():
+                raise ValueError("speaker reference features must contain finite values")
+        checked.append((example, frame_count, reference))
 
-    longest = max(length for _, length in checked)
+    has_references = [reference is not None for _, _, reference in checked]
+    if any(has_references) and not all(has_references):
+        raise ValueError("all examples in a batch must provide speaker references or none may provide them")
+    longest = max(length for _, length, _ in checked)
     padded_length = int(math.ceil(longest / pad_to_multiple_of) * pad_to_multiple_of)
     if padded_length > max_frames:
         raise ValueError("padded batch exceeds max_frames")
 
     batch_size = len(checked)
+    reference_mel = None
+    reference_mask = None
+    if all(has_references):
+        reference_frames = max(ref.shape[0] for _, _, ref in checked)
+        reference_mel = np.full((batch_size, reference_frames, config.mel_bins), mel_pad, dtype=np.float32)
+        reference_mask = np.zeros((batch_size, reference_frames), dtype=np.uint8)
     mel_pad = float(np.log(config.log_floor))
     mel = np.full((batch_size, padded_length, config.mel_bins), mel_pad, dtype=np.float32)
     phoneme = np.zeros((batch_size, padded_length), dtype=np.int32)
@@ -137,7 +155,7 @@ def collate_training_examples(
     valid = np.zeros((batch_size, padded_length), dtype=np.uint8)
     lengths = np.zeros(batch_size, dtype=np.int32)
 
-    for row, (example, length) in enumerate(checked):
+    for row, (example, length, reference) in enumerate(checked):
         a, t, p = example.acoustic, example.tokens, example.pitch_targets
         lengths[row] = length
         valid[row, :length] = 1
@@ -152,9 +170,13 @@ def collate_training_examples(
         target_f0[row, :length] = a.f0_hz
         target_voice[row, :length] = a.voicing_mask.astype(np.uint8)
         target_rms[row, :length] = a.log_rms
+        if reference_mel is not None:
+            reference_length = reference.shape[0]
+            reference_mel[row, :reference_length] = reference
+            reference_mask[row, :reference_length] = 1
 
     return TrainingBatch(
-        recording_ids=tuple(example.recording_id for example, _ in checked),
+        recording_ids=tuple(example.recording_id for example, _, _ in checked),
         lengths=lengths,
         valid_frame_mask=valid,
         phoneme_ids=phoneme,
@@ -170,4 +192,6 @@ def collate_training_examples(
         target_log_rms=target_rms,
         sample_rate=config.sample_rate,
         hop_length=config.hop_length,
+        speaker_reference_log_mel=reference_mel,
+        speaker_reference_frame_mask=reference_mask,
     )
