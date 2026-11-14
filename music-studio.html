@@ -955,7 +955,7 @@ async function renderPatternAudioChunk(pat,startBar=0){if(typeof bargardDebugLog
    const fade=Math.min(overlap,keep,offset);
    for(let i=0;i<fade;i++){
     const t=(i+1)/(fade+1),frame=offset-fade+i,at=44+frame*4,oldL=view.getInt16(at,true)/32767,oldR=view.getInt16(at+2,true)/32767;
-    put(at,pcm(oldL*(1-t)+left[i]*t));put(at+2,pcm(oldR*(1-t)+right[i]*t));
+    put(at,Math.round(oldL*(1-t)*32767+pcm(left[i])*t));put(at+2,Math.round(oldR*(1-t)*32767+pcm(right[i])*t));
    }
    for(let i=fade;i<keep;i++){const at=44+(offset+i-fade)*4;put(at,pcm(left[i]));put(at+2,pcm(right[i]));}
    offset+=keep-fade;
