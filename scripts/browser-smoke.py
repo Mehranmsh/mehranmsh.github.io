@@ -8,7 +8,7 @@ import math
 import struct
 import wave
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,7 +68,31 @@ def main():
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
-                page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
+                try:
+                    page.wait_for_function(
+                        """() => {
+                            const status = document.querySelector('#vocalImportStatus')?.textContent || '';
+                            return status.includes('Vocal recording imported and saved on this device.')
+                                || status.startsWith('Could not import the recording:')
+                                || status.includes('Project could not be saved.')
+                                || status.includes('Choose a project first.')
+                                || status.includes('Choose an audio file')
+                                || status.includes('does not appear to be a supported audio recording')
+                                || status.includes('track limit');
+                        }""",
+                        timeout=15000,
+                    )
+                except PlaywrightTimeoutError as error:
+                    status = page.locator("#vocalImportStatus").inner_text()
+                    raise AssertionError(
+                        "Vocal import did not reach a terminal status. "
+                        f"Status: {status!r}. Browser errors: {' | '.join(errors)}"
+                    ) from error
+                import_status = page.locator("#vocalImportStatus").inner_text()
+                if "Vocal recording imported and saved on this device." not in import_status:
+                    raise AssertionError(
+                        f"Vocal import failed: {import_status!r}. Browser errors: {' | '.join(errors)}"
+                    )
                 assert page.locator("#vocalRecordingPreview").is_visible()
                 assert page.locator("#vocalRecordingPreview").get_attribute("src")
                 saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
