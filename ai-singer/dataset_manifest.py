@@ -78,6 +78,37 @@ def _validate_alignment(record: dict, duration: float, line_number: int) -> None
         previous_end = end
 
 
+
+def _validate_notes(record: dict, duration: float, line_number: int) -> None:
+    notes = record.get("notes")
+    if record["alignment_status"] == "reviewed" and (not isinstance(notes, list) or not notes):
+        raise ManifestError(f"line {line_number}: reviewed alignment requires monophonic notes")
+    if notes is None:
+        return
+    if not isinstance(notes, list) or len(notes) > 20000:
+        raise ManifestError(f"line {line_number}: notes must be a bounded list")
+    previous_start = -1.0
+    previous_end = 0.0
+    for index, note in enumerate(notes):
+        if not isinstance(note, dict):
+            raise ManifestError(f"line {line_number}: invalid MIDI note event {index}")
+        midi = note.get("midi_note")
+        velocity = note.get("velocity", 80)
+        start = note.get("start_seconds")
+        length = note.get("duration_seconds")
+        if (isinstance(midi, bool) or not isinstance(midi, int) or not 0 <= midi <= 127
+                or isinstance(velocity, bool) or not isinstance(velocity, int) or not 1 <= velocity <= 127
+                or isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start)
+                or isinstance(length, bool) or not isinstance(length, (int, float)) or not math.isfinite(length)
+                or start < 0 or length <= 0 or length > 30
+                or start < previous_start or start < previous_end - 1e-9
+                or start + length > duration + 0.02):
+            raise ManifestError(
+                f"line {line_number}: MIDI notes must have valid pitch/velocity, ordered non-overlapping timing, and fit the audio"
+            )
+        previous_start = start
+        previous_end = start + length
+
 def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None = None) -> dict:
     """Validate JSONL metadata, rights declarations, speaker splits, and WAV headers."""
     raw_path = Path(manifest_path).expanduser()
@@ -157,6 +188,7 @@ def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None
                 raise ManifestError(f"line {line_number}: declared duration does not match WAV header")
 
             _validate_alignment(record, duration, line_number)
+            _validate_notes(record, duration, line_number)
             speaker_splits[speaker_id].add(record["split"])
             totals[record["split"]] += 1
             sample_rates.add(rate)
