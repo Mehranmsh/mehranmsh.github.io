@@ -529,6 +529,8 @@
    if(!Ctx||!Offline)throw Error("این مرورگر پردازش آفلاین صوت را پشتیبانی نمی‌کند.");
    decodeCtx=new Ctx();let decoded=await decodeCtx.decodeAudioData(await file.arrayBuffer());
    if(decoded.duration>600)throw Error("برای نسخهٔ اول، طول فایل باید کمتر از ۱۰ دقیقه باشد.");
+   const polishChannels=Math.min(2,decoded.numberOfChannels),decodedMemory=decoded.length*decoded.numberOfChannels*4,renderMemory=decoded.length*polishChannels*4,gateMemory=$("vocalGateEnabled").checked?renderMemory:0,pitchMemory=$("vocalPolishPitchCorrection").checked?decodedMemory:0,wavMemory=44+decoded.length*polishChannels*3,polishMemoryEstimate=decodedMemory+renderMemory+gateMemory+pitchMemory+wavMemory*2;
+   if(polishMemoryEstimate>256*1024*1024)throw Error("This vocal file may exceed the safe 256 MB processing memory budget. Shorten the recording or process it in smaller sections.");
    if($("vocalPolishPitchCorrection").checked){if(decoded.duration>45)throw Error("Pitch-corrected polish is limited to 45 seconds per pass. Split a longer vocal into sections.");status.textContent="Applying the selected scale correction locally…";const pitchContext=new Offline(decoded.numberOfChannels,decoded.length,decoded.sampleRate);decoded=applyVocalPitchCorrection(decoded,Number($("pitchKey").value)||0,$("pitchScale").value,Number($("vocalPolishPitchStrength").value)||0,Number($("vocalPolishPitchTolerance").value)||0,pitchContext);}
    const channels=Math.min(2,decoded.numberOfChannels),ctx=new Offline(channels,decoded.length,decoded.sampleRate),source=ctx.createBufferSource();source.buffer=decoded;
    const amount=Math.max(0,Math.min(1,Number($("vocalPolishAmount").value)/100)),profile=$("vocalPolishProfile").value;
