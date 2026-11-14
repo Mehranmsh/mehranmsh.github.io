@@ -23,6 +23,8 @@ class TrainingExample:
     tokens: FrameTokenSequence
     pitch_targets: PitchTargets
     speaker_reference_log_mel: np.ndarray | None = None
+    waveform_target: np.ndarray | None = None
+    waveform_sample_mask: np.ndarray | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,8 @@ class TrainingBatch:
     hop_length: int
     speaker_reference_log_mel: np.ndarray | None = None
     speaker_reference_frame_mask: np.ndarray | None = None
+    waveform_target: np.ndarray | None = None
+    waveform_sample_mask: np.ndarray | None = None
 
 
 def collate_training_examples(
@@ -53,6 +57,7 @@ def collate_training_examples(
     *,
     pad_to_multiple_of: int = 1,
     max_frames: int = 120_000,
+    max_waveform_samples: int = 30_720_000,
 ) -> TrainingBatch:
     """Validate alignment, then right-pad a batch to a shared frame length."""
     if not examples:
@@ -61,6 +66,8 @@ def collate_training_examples(
         raise ValueError("pad_to_multiple_of must be positive")
     if max_frames < 1:
         raise ValueError("max_frames must be positive")
+    if max_waveform_samples < 1:
+        raise ValueError("max_waveform_samples must be positive")
 
     checked = []
     seen_recording_ids = set()
@@ -123,22 +130,48 @@ def collate_training_examples(
                 raise ValueError("speaker reference must have shape (non-empty frames, configured mel_bins)")
             if not np.isfinite(reference).all():
                 raise ValueError("speaker reference features must contain finite values")
-        checked.append((example, frame_count, reference))
+        waveform = example.waveform_target
+        sample_mask = example.waveform_sample_mask
+        if (waveform is None) != (sample_mask is None):
+            raise ValueError("waveform target and sample mask must be supplied together")
+        if waveform is not None:
+            waveform = np.asarray(waveform, dtype=np.float32)
+            sample_mask = np.asarray(sample_mask)
+            expected_samples = frame_count * config.hop_length
+            if waveform.ndim != 1 or waveform.size != expected_samples:
+                raise ValueError("waveform target length must equal feature frames times hop_length")
+            if sample_mask.ndim != 1 or sample_mask.size != expected_samples:
+                raise ValueError("waveform sample mask must match waveform target length")
+            if not np.isfinite(waveform).all() or np.any(np.abs(waveform) > 1.00001):
+                raise ValueError("waveform target must contain finite normalized PCM samples")
+            if not np.isin(sample_mask, [0, 1]).all() or not np.any(sample_mask):
+                raise ValueError("waveform sample mask must contain valid binary sample positions")
+            valid_count = int(np.sum(sample_mask))
+            expected_mask = np.r_[np.ones(valid_count), np.zeros(expected_samples-valid_count)]
+            if not np.array_equal(sample_mask, expected_mask):
+                raise ValueError("waveform sample mask must be a contiguous valid prefix")
+        checked.append((example, frame_count, reference, waveform, sample_mask))
 
-    has_references = [reference is not None for _, _, reference in checked]
+    has_references = [reference is not None for _, _, reference, _, _ in checked]
     if any(has_references) and not all(has_references):
         raise ValueError("all examples in a batch must provide speaker references or none may provide them")
-    longest = max(length for _, length, _ in checked)
+    has_waveforms = [waveform is not None for _, _, _, waveform, _ in checked]
+    if any(has_waveforms) and not all(has_waveforms):
+        raise ValueError("all examples in a batch must provide waveform targets or none may provide them")
+    longest = max(length for _, length, _, _, _ in checked)
     padded_length = int(math.ceil(longest / pad_to_multiple_of) * pad_to_multiple_of)
     if padded_length > max_frames:
         raise ValueError("padded batch exceeds max_frames")
+    waveform_length = padded_length * config.hop_length
+    if all(has_waveforms) and waveform_length > max_waveform_samples:
+        raise ValueError("padded waveform batch exceeds max_waveform_samples")
 
     batch_size = len(checked)
     mel_pad = float(np.log(config.log_floor))
     reference_mel = None
     reference_mask = None
     if all(has_references):
-        reference_frames = max(ref.shape[0] for _, _, ref in checked)
+        reference_frames = max(ref.shape[0] for _, _, ref, _, _ in checked)
         reference_mel = np.full((batch_size, reference_frames, config.mel_bins), mel_pad, dtype=np.float32)
         reference_mask = np.zeros((batch_size, reference_frames), dtype=np.uint8)
     mel = np.full((batch_size, padded_length, config.mel_bins), mel_pad, dtype=np.float32)
@@ -154,8 +187,10 @@ def collate_training_examples(
     target_rms = np.zeros((batch_size, padded_length), dtype=np.float32)
     valid = np.zeros((batch_size, padded_length), dtype=np.uint8)
     lengths = np.zeros(batch_size, dtype=np.int32)
+    waveform_batch = np.zeros((batch_size, waveform_length), dtype=np.float32) if all(has_waveforms) else None
+    waveform_mask_batch = np.zeros((batch_size, waveform_length), dtype=np.uint8) if all(has_waveforms) else None
 
-    for row, (example, length, reference) in enumerate(checked):
+    for row, (example, length, reference, waveform, sample_mask) in enumerate(checked):
         a, t, p = example.acoustic, example.tokens, example.pitch_targets
         lengths[row] = length
         valid[row, :length] = 1
@@ -174,6 +209,10 @@ def collate_training_examples(
             reference_length = reference.shape[0]
             reference_mel[row, :reference_length] = reference
             reference_mask[row, :reference_length] = 1
+        if waveform_batch is not None:
+            sample_length = waveform.size
+            waveform_batch[row, :sample_length] = waveform
+            waveform_mask_batch[row, :sample_length] = sample_mask.astype(np.uint8)
 
     return TrainingBatch(
         recording_ids=tuple(example.recording_id for example, _, _ in checked),
@@ -194,4 +233,6 @@ def collate_training_examples(
         hop_length=config.hop_length,
         speaker_reference_log_mel=reference_mel,
         speaker_reference_frame_mask=reference_mask,
+        waveform_target=waveform_batch,
+        waveform_sample_mask=waveform_mask_batch,
     )
