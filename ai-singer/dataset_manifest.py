@@ -44,7 +44,7 @@ def _safe_audio_path(root: Path, value: object) -> Path:
 
 def _validate_alignment(record: dict, duration: float, line_number: int) -> None:
     status = record["alignment_status"]
-    if status not in ALLOWED_ALIGNMENTS:
+    if not isinstance(status, str) or status not in ALLOWED_ALIGNMENTS:
         raise ManifestError(f"line {line_number}: unsupported alignment_status")
     spans = record.get("phoneme_alignment")
     if status == "reviewed" and (not isinstance(spans, list) or not spans):
@@ -103,7 +103,7 @@ def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None
             seen_ids.add(recording_id)
             if not isinstance(speaker_id, str) or not speaker_id.strip() or len(speaker_id) > 160:
                 raise ManifestError(f"line {line_number}: invalid speaker_id")
-            if record["split"] not in ALLOWED_SPLITS:
+            if not isinstance(record["split"], str) or record["split"] not in ALLOWED_SPLITS:
                 raise ManifestError(f"line {line_number}: split must be train, validation, or test")
             if not isinstance(record["language"], str) or not record["language"].strip():
                 raise ManifestError(f"line {line_number}: language is required")
