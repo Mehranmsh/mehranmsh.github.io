@@ -134,13 +134,13 @@ def collate_training_examples(
         raise ValueError("padded batch exceeds max_frames")
 
     batch_size = len(checked)
+    mel_pad = float(np.log(config.log_floor))
     reference_mel = None
     reference_mask = None
     if all(has_references):
         reference_frames = max(ref.shape[0] for _, _, ref in checked)
         reference_mel = np.full((batch_size, reference_frames, config.mel_bins), mel_pad, dtype=np.float32)
         reference_mask = np.zeros((batch_size, reference_frames), dtype=np.uint8)
-    mel_pad = float(np.log(config.log_floor))
     mel = np.full((batch_size, padded_length, config.mel_bins), mel_pad, dtype=np.float32)
     phoneme = np.zeros((batch_size, padded_length), dtype=np.int32)
     note = np.zeros((batch_size, padded_length), dtype=np.int32)
