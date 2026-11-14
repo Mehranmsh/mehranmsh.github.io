@@ -81,6 +81,27 @@ class StudioDatasetExportTests(unittest.TestCase):
         with self.assertRaisesRegex(StudioDatasetExportError, "relative path"):
             self.make_record(audio_path=str(self.audio))
 
+    def test_rejects_conditioning_sample_rate_mismatch(self):
+        export = json.loads(json.dumps(self.export))
+        export["conditioning"]["sample_rate"] = 48000
+        with self.assertRaisesRegex(StudioDatasetExportError, "sample_rate does not match"):
+            build_manifest_record(export, **{
+                "dataset_root": self.root, "audio_path": "take.wav",
+                "recording_id": "take-001", "speaker_id": "speaker-01",
+                "split": "train", "transcript": "سلام",
+                "consent_confirmed": True, "rights_basis": "Owned",
+            })
+
+    def test_rejects_stereo_for_current_mono_training_frontend(self):
+        stereo = self.root / "stereo.wav"
+        with wave.open(str(stereo), "wb") as wav:
+            wav.setnchannels(2)
+            wav.setsampwidth(2)
+            wav.setframerate(24000)
+            wav.writeframes(bytes(9600))
+        with self.assertRaisesRegex(StudioDatasetExportError, "mono PCM"):
+            self.make_record(audio_path="stereo.wav")
+
     def test_rejects_audio_duration_mismatch(self):
         export = json.loads(json.dumps(self.export))
         export["conditioning"]["duration_seconds"] = 0.3
