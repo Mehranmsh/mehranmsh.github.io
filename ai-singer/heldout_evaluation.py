@@ -78,14 +78,18 @@ def evaluate_heldout_examples(examples, runtime, feature_config: AcousticModelCo
             _float_wav_bytes(generated, feature_config.sample_rate), feature_config
         )
         target_features = example.acoustic
-        common_frames = min(
-            target_features.f0_hz.size,
-            generated_features.f0_hz.size,
-            target_features.log_mel.shape[0],
-            generated_features.log_mel.shape[0],
+        target_frame_count = int(target_features.f0_hz.size)
+        generated_frame_count = int(generated_features.f0_hz.size)
+        if target_frame_count <= 0 or generated_frame_count != target_frame_count:
+            raise HeldoutEvaluationError("generated and reference feature frame counts do not match")
+        expected_shapes = (
+            (target_features.log_mel.shape, generated_features.log_mel.shape),
+            (target_features.voicing_mask.shape, generated_features.voicing_mask.shape),
+            (target_features.log_rms.shape, generated_features.log_rms.shape),
         )
-        if common_frames <= 0:
-            raise HeldoutEvaluationError("held-out feature extraction produced no aligned frames")
+        if any(reference_shape != generated_shape for reference_shape, generated_shape in expected_shapes):
+            raise HeldoutEvaluationError("generated and reference acoustic feature shapes do not match")
+        common_frames = target_frame_count
         reports.append(evaluate_singing_output(
             reference_waveform=reference_wave,
             generated_waveform=generated,
