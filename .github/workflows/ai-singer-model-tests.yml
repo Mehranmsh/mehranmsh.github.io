@@ -37,3 +37,5 @@ jobs:
           pip install --index-url https://download.pytorch.org/whl/cpu -r training-requirements.txt
       - name: Run neural architecture forward and gradient tests
         run: python -m unittest discover -s tests -p 'test_model_architecture.py' -v
+      - name: Run masked training and checkpoint tests
+        run: python -m unittest discover -s tests -p 'test_training_engine.py' -v
