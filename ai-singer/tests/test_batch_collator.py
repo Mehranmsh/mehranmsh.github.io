@@ -77,6 +77,8 @@ class BatchCollatorTests(unittest.TestCase):
         self.assertEqual(batch.target_log_mel.shape[1] % 8, 0)
         self.assertLess(batch.lengths[0], batch.lengths[1])
         self.assertEqual(int(batch.valid_frame_mask[0].sum()), int(batch.lengths[0]))
+        self.assertTrue(np.array_equal(batch.phoneme_mask[0, :batch.lengths[0]], batch.phoneme_ids[0, :batch.lengths[0]] != 0))
+        self.assertTrue(np.array_equal(batch.note_mask[0, :batch.lengths[0]], batch.note_ids[0, :batch.lengths[0]] != 0))
         self.assertTrue((batch.valid_frame_mask[0, batch.lengths[0]:] == 0).all())
         self.assertTrue((batch.target_f0_hz[0, batch.lengths[0]:] == 0).all())
         self.assertAlmostEqual(float(batch.target_log_mel[0, -1, 0]), float(np.log(cfg.log_floor)), places=5)
@@ -98,6 +100,23 @@ class BatchCollatorTests(unittest.TestCase):
         bad = TrainingExample(item.recording_id, broken, item.tokens, item.pitch_targets)
         with self.assertRaisesRegex(ValueError, "share one non-empty frame axis"):
             collate_training_examples([bad], config())
+
+    def test_rejects_inconsistent_phoneme_mask(self):
+        item = example("bad-mask", 0.1)
+        item.tokens.phoneme_mask[0] = 0
+        with self.assertRaisesRegex(ValueError, "phoneme mask"):
+            collate_training_examples([item], config())
+
+    def test_rejects_voicing_mask_inconsistent_with_f0(self):
+        item = example("bad-f0", 0.1)
+        item.acoustic.voicing_mask[0] = 0
+        with self.assertRaisesRegex(ValueError, "voicing mask"):
+            collate_training_examples([item], config())
+
+    def test_rejects_duplicate_recording_ids(self):
+        item = example("duplicate", 0.1)
+        with self.assertRaisesRegex(ValueError, "unique"):
+            collate_training_examples([item, item], config())
 
     def test_rejects_batch_over_frame_limit(self):
         with self.assertRaisesRegex(ValueError, "max_frames"):
