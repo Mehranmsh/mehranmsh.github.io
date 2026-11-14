@@ -637,7 +637,7 @@
   for(const line of overrideLines){const split=line.indexOf("=");if(split<=0||split===line.length-1){status.textContent="قالب تلفظ نامعتبر است. از واژه=هجا-هجا استفاده کن.";return;}const word=line.slice(0,split).trim(),pronunciation=line.slice(split+1).trim();if(!word||!pronunciation||Object.prototype.hasOwnProperty.call(pronunciationOverrides,word)){status.textContent="واژهٔ خالی یا تکراری در تلفظ‌ها وجود دارد.";return;}pronunciationOverrides[word]=pronunciation;}
   button.disabled=true;status.textContent="در حال ارسال شعر و ملودی به موتور اختصاصی و تحلیل هم‌ترازی…";
   try{
-   const response=await fetch(base+"/v1/jobs/align",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({job,manual_note_groups:groups,manual_timing_windows:saved.alignment.map(item=>{const usingMidi=Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds));const bpm=Number(selectedProject.tempo||selectedProject.patternStudio?.tempo);const secondsPerStep=60/Math.max(40,Math.min(220,bpm||120))/4;return {start_seconds:usingMidi?Number(item.startSeconds):Number(item.startStep)*secondsPerStep,end_seconds:usingMidi?Number(item.endSeconds):Number(item.endStep)*secondsPerStep};}),pronunciation_overrides:pronunciationOverrides})});
+   const response=await fetch(base+"/v1/jobs/align",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({job,reviewed_syllables:saved.syllables,manual_note_groups:groups,manual_timing_windows:saved.alignment.map(item=>{const usingMidi=Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds));const bpm=Number(selectedProject.tempo||selectedProject.patternStudio?.tempo);const secondsPerStep=60/Math.max(40,Math.min(220,bpm||120))/4;return {start_seconds:usingMidi?Number(item.startSeconds):Number(item.startStep)*secondsPerStep,end_seconds:usingMidi?Number(item.endSeconds):Number(item.endStep)*secondsPerStep};}),pronunciation_overrides:pronunciationOverrides})});
    let data={};try{data=await response.json();}catch{}
    if(!response.ok)throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data).slice(0,300));
    status.textContent=(data.alignment_ready?"هم‌ترازی انسانی در موتور تأیید شد. ":"پیشنهاد هم‌ترازی دریافت شد و نیاز به بازبینی دارد. ")+data.syllable_count+" هجا · "+data.note_count+" نت · منبع: "+data.melody_source+". تولید WAV هنوز آماده نیست.";
@@ -665,7 +665,6 @@
    if(reviewedSyllablePhonemes.length!==saved.syllables.length||phonemeDurationWeights.length!==saved.syllables.length)throw new Error("برای هر هجا دقیقاً یک خط واج و یک خط وزن زمانی لازم است.");
    for(let i=0;i<saved.syllables.length;i++)if(reviewedSyllablePhonemes[i].length!==phonemeDurationWeights[i].length)throw new Error("تعداد واج‌ها و وزن‌ها در خط "+(i+1)+" برابر نیست.");
   }catch(error){status.textContent=String(error.message||error);return;}
-  const job=window.mehranSingerJobSpec||null;
   await prepareMehranSingerJob();
   const preparedJob=window.mehranSingerJobSpec;
   if(!preparedJob){status.textContent="مشخصات پروژه آماده نشد؛ شعر، ملودی و پروفایل را بررسی کن.";return;}
@@ -674,7 +673,7 @@
   for(const line of overrideLines){const split=line.indexOf("=");if(split<=0||split===line.length-1){status.textContent="قالب تلفظ نامعتبر است. از واژه=هجا-هجا استفاده کن.";return;}const word=line.slice(0,split).trim(),pronunciation=line.slice(split+1).trim();if(!word||!pronunciation||Object.prototype.hasOwnProperty.call(pronunciationOverrides,word)){status.textContent="واژهٔ خالی یا تکراری در تلفظ‌ها وجود دارد.";return;}pronunciationOverrides[word]=pronunciation;}
   const bpm=Number(selectedProject.tempo||selectedProject.patternStudio?.tempo),secondsPerStep=60/Math.max(40,Math.min(220,bpm||120))/4;
   const manualTimingWindows=saved.alignment.map(item=>({start_seconds:Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds))?Number(item.startSeconds):Number(item.startStep)*secondsPerStep,end_seconds:Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds))?Number(item.endSeconds):Number(item.endStep)*secondsPerStep}));
-  const payload={job:preparedJob,manual_note_groups:saved.noteGroups,manual_timing_windows:manualTimingWindows,pronunciation_overrides:pronunciationOverrides,reviewed_syllable_phonemes:reviewedSyllablePhonemes,phoneme_duration_weights:phonemeDurationWeights};
+  const payload={job:preparedJob,reviewed_syllables:saved.syllables,manual_note_groups:saved.noteGroups,manual_timing_windows:manualTimingWindows,pronunciation_overrides:pronunciationOverrides,reviewed_syllable_phonemes:reviewedSyllablePhonemes,phoneme_duration_weights:phonemeDurationWeights};
   button.disabled=true;status.textContent="در حال ساخت ورودی استاندارد مدل از هجاها، واج‌ها و نت‌های تأییدشده…";
   try{
    const response=await fetch(base+"/v1/jobs/conditioning/prepare",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
