@@ -96,6 +96,26 @@ class AlignmentApiTests(unittest.TestCase):
         self.assertFalse(result["audio_generated"])
         self.assertFalse(result["generation_ready"])
 
+    def test_prepare_conditioning_accepts_per_syllable_reviewed_phonemes(self):
+        from server import prepare_job_conditioning
+        payload = {
+            "job": make_job(),
+            "pronunciation_overrides": {"سلام": "سَ-لام"},
+            "manual_note_groups": [[0], [1]],
+            "manual_timing_windows": [
+                {"start_seconds": 0.0, "end_seconds": 0.5},
+                {"start_seconds": 0.5, "end_seconds": 1.0},
+            ],
+            "reviewed_syllable_phonemes": [["s", "æ"], ["l", "ɒː", "m"]],
+            "phoneme_duration_weights": [[1, 1], [1, 2, 1]],
+        }
+        result = prepare_job_conditioning(payload)
+        self.assertEqual(
+            [p["phoneme"] for p in result["conditioning"]["phonemes"]],
+            ["s", "æ", "l", "ɒː", "m"],
+        )
+        self.assertFalse(result["accepted_for_inference"])
+
     def test_prepare_conditioning_rejects_ambiguous_syllable_phonemes(self):
         from server import prepare_job_conditioning
         payload = {
