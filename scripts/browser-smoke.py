@@ -500,9 +500,9 @@ def main():
                     pcm = tuned_stem.readframes(frames)
                     values = [int.from_bytes(pcm[i:i+3], "little", signed=True)
                               for i in range(0, len(pcm) - 2, 3)]
-                    # After the 0.10 s source trim, the 440 Hz tone begins at 0.05 s in the rendered stem.
+                    # The 440 Hz tone begins 0.05 s after trim, following the track's saved timeline offset.
                     # Use autocorrelation in a retained, non-silent window so fade-in does not bias zero-crossing counts.
-                    segment = values[int(0.06 * 44100) * 2:int(0.24 * 44100) * 2:2]
+                    segment = values[int((stem_active_start + 0.06) * 44100) * 2:int((stem_active_start + 0.24) * 44100) * 2:2]
                     mean = sum(segment) / len(segment)
                     centered = [sample - mean for sample in segment]
                     best_lag = max(range(90, 125), key=lambda lag: sum(centered[i] * centered[i + lag] for i in range(len(centered) - lag)))
