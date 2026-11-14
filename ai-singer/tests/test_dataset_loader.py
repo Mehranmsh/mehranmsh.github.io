@@ -49,6 +49,12 @@ class DatasetLoaderTests(unittest.TestCase):
             wav.setsampwidth(2)
             wav.setframerate(rate)
             wav.writeframes(audio.tobytes())
+        stereo = np.column_stack((audio, audio)).astype("<i2")
+        with wave.open(str(self.root / "stereo.wav"), "wb") as wav:
+            wav.setnchannels(2)
+            wav.setsampwidth(2)
+            wav.setframerate(rate)
+            wav.writeframes(stereo.tobytes())
 
     def tearDown(self):
         self.temp.cleanup()
@@ -103,7 +109,7 @@ class DatasetLoaderTests(unittest.TestCase):
             load_training_examples(self.write_manifest(record), config())
 
     def test_rejects_stereo_before_feature_extraction(self):
-        record = self.record(channels=2)
+        record = self.record(channels=2, audio_path="stereo.wav")
         with self.assertRaisesRegex(DatasetLoadError, "mono WAV"):
             load_training_examples(self.write_manifest(record), config())
 
