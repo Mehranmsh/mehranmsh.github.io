@@ -28,7 +28,7 @@ Python 3.10+ is recommended.
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn server:app --host 127.0.0.1 --port 8787
+uvicorn server:app --host 0.0.0.0 --port 8787
 ```
 
 Open `/docs` for API documentation and `/health` for capability status.
@@ -38,7 +38,13 @@ Open `/docs` for API documentation and `/health` for capability status.
 - `GET /health`: service and model readiness.
 - `POST /v1/jobs/validate`: validates a `mehran.svs.job.v1` job; does not synthesize.
 - `POST /v1/jobs/analyze`: parses an attached MIDI file and returns a tempo-aware note timeline; does not synthesize.
-- `POST /v1/jobs/align`: aligns human-reviewed syllables to MIDI note groups. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.
+- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.
+
+Piano Roll timing currently assumes four subdivisions per beat and uses the project BPM. This convention is explicit so timing is not silently inferred from a variable grid.
+
+## Browser deployment
+
+A Dockerfile is provided for self-hosted deployment. Set `MEHRAN_SVS_ALLOWED_ORIGINS` to the exact HTTPS origin(s) serving the studio, separated by commas. CORS is not authentication; do not expose this early-stage analysis API to untrusted traffic without adding an access-control layer and request throttling. Set the platform's `PORT` variable when required.
 
 ## MIDI parser limits
 
