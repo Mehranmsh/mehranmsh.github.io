@@ -87,6 +87,20 @@ class DatasetManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "does not match WAV header"):
             validate_manifest(self.write_manifest([self.record(sample_rate=48000)]))
 
+    def test_rejects_reused_audio_file_across_records(self):
+        second = self.record(recording_id="rec-002", audio_path="voice.wav", speaker_id="speaker-002", split="test")
+        with self.assertRaisesRegex(ManifestError, "audio file must not be reused"):
+            validate_manifest(self.write_manifest([self.record(), second]))
+
+    def test_rejects_audio_symlink(self):
+        link = self.root / "linked.wav"
+        try:
+            link.symlink_to(self.audio)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are unavailable")
+        with self.assertRaisesRegex(ManifestError, "symlinks"):
+            validate_manifest(self.write_manifest([self.record(audio_path="linked.wav")]))
+
     def test_rejects_duplicate_recording_ids(self):
         with self.assertRaisesRegex(ManifestError, "duplicate recording_id"):
             validate_manifest(self.write_manifest([self.record(), self.record()]))
