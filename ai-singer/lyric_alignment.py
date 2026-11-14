@@ -1,12 +1,14 @@
 """Conservative lyric-syllable to MIDI-note alignment for MEHRAN SVS."""
 from __future__ import annotations
 
+from phoneme_inventory import validate_phoneme_sequence
+
 
 class AlignmentError(ValueError):
     """Raised when manual note-to-syllable groups are invalid."""
 
 
-def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups: list[list[int]] | None = None, manual_timing_windows: list[dict] | None = None) -> dict:
+def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups: list[list[int]] | None = None, manual_timing_windows: list[dict] | None = None, reviewed_syllable_phonemes: list[list[str]] | None = None) -> dict:
     words = lyrics_analysis.get("words", [])
     unresolved = [word["text"] for word in words if word.get("needs_review") or not word.get("syllables")]
     syllables = []
@@ -19,10 +21,23 @@ def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups
                 "syllable_index": syllable_index,
             })
 
+    if reviewed_syllable_phonemes is not None:
+        if not isinstance(reviewed_syllable_phonemes, list) or len(reviewed_syllable_phonemes) != len(syllables):
+            raise AlignmentError("reviewed_syllable_phonemes must contain one phoneme array per syllable.")
+        for index, (syllable, phones) in enumerate(zip(syllables, reviewed_syllable_phonemes)):
+            try:
+                syllable["phoneme_symbols"] = validate_phoneme_sequence(phones)
+            except (TypeError, ValueError) as exc:
+                raise AlignmentError(f"Syllable {index} has an invalid reviewed phoneme sequence: {exc}") from exc
+            syllable["phoneme_ambiguity"] = False
+            syllable["phoneme_source"] = "human_syllable_override"
+
     # Keep phonemes attached only when the analyzer produced an unambiguous
     # one-to-one syllable annotation for this word. Word-level phone overrides
     # are not silently redistributed across syllables.
     for syllable in syllables:
+        if reviewed_syllable_phonemes is not None:
+            continue
         word = next((item for item in words if item.get("index") == syllable["word_index"]), None)
         phone_rows = word.get("phonemes", []) if word else []
         phone_index = syllable["syllable_index"]
