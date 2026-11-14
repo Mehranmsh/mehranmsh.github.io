@@ -47,6 +47,26 @@ class MidiParserTests(unittest.TestCase):
         self.assertEqual(result["noteCount"], 1)
         self.assertAlmostEqual(result["notes"][0]["durationSeconds"], 1.5)
 
+    def test_exact_note_limit_is_not_marked_truncated(self):
+        data = make_midi([
+            b"\x00\x90\x3c\x64",
+            vlq(480) + b"\x80\x3c\x00",
+        ])
+        result = parse_standard_midi(data, max_notes=1)
+        self.assertEqual(result["noteCount"], 1)
+        self.assertFalse(result["truncated"])
+
+    def test_more_than_note_limit_is_marked_truncated(self):
+        data = make_midi([
+            b"\x00\x90\x3c\x64",
+            vlq(120) + b"\x80\x3c\x00",
+            b"\x00\x90\x3e\x64",
+            vlq(120) + b"\x80\x3e\x00",
+        ])
+        result = parse_standard_midi(data, max_notes=1)
+        self.assertEqual(result["noteCount"], 1)
+        self.assertTrue(result["truncated"])
+
     def test_rejects_smpte_division(self):
         data = make_midi([b"\x00\x90\x3c\x64"], division=0xE728)
         with self.assertRaises(MidiParseError):
