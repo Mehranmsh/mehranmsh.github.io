@@ -67,8 +67,14 @@ class SignalFeatureTests(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(features.log_mel)))
 
     def test_rejects_stereo_and_wrong_sample_rate(self):
+        stereo = io.BytesIO()
+        with wave.open(stereo, "wb") as wav:
+            wav.setnchannels(2)
+            wav.setsampwidth(2)
+            wav.setframerate(48000)
+            wav.writeframes(np.zeros((4800, 2), dtype="<i2").tobytes())
         with self.assertRaisesRegex(ValueError, "mono"):
-            read_mono_pcm_wav(b"not a wav", 48000)
+            read_mono_pcm_wav(stereo.getvalue(), 48000)
         with self.assertRaisesRegex(ValueError, "sample rate"):
             read_mono_pcm_wav(wav_bytes(np.zeros(4800), 44100), 48000)
 
