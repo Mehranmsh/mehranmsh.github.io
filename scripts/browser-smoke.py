@@ -579,7 +579,7 @@ def main():
                 page.locator("#patternMidiFile").set_input_files(str(drum_midi_path))
                 page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('MIDI imported')", timeout=5000)
                 drum_roundtrip = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio")
-                assert drum_roundtrip["mode"] == "drums" and 7 in drum_roundtrip["openHat"] and 5 in drum_roundtrip["clap"] and 11 in drum_roundtrip["tom"] and 15 in drum_roundtrip["perc"]
+                assert drum_roundtrip["mode"] == "drums" and 7 in drum_roundtrip["openHat"] and 5 in drum_roundtrip["clap"] and 11 in drum_roundtrip["tom"] and 15 in drum_roundtrip["perc"], "Drum MIDI roundtrip lost lane events: " + json.dumps(drum_roundtrip, ensure_ascii=False)
                 assert generated_track["audioSize"] > 44 and page.locator("#patternPreview").get_attribute("src")
                 generated_blob_exists = page.evaluate("""async () => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1"))[0];
