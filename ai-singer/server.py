@@ -48,6 +48,7 @@ RATE_WINDOW_SECONDS = 60.0
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
 RATE_LIMITS = {
     "/v1/jobs/align": 10,
+    "/v1/jobs/conditioning/prepare": 10,
     "/v1/jobs/analyze": 20,
     "/v1/jobs/validate": 30,
     "/v1/lyrics/analyze": 30,
