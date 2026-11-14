@@ -482,7 +482,7 @@
    fftRadix2(re,im,false);
    for(let k=0;k<=half;k++){
     const phase=Math.atan2(im[k],re[k]),mag=Math.hypot(re[k],im[k]);
-    if(frame===0)acc[k]=phase;else{const expected=2*Math.PI*k*hop/n,delta=phase-previous[k]-expected,wrapped=delta-2*Math.PI*Math.round(delta/(2*Math.PI));acc[k]+=(expected+wrapped)*ratio;}
+    if(frame===0)acc[k]=phase;else{const expected=2*Math.PI*k*hop/n,delta=phase-previous[k]-expected,wrapped=delta-2*Math.PI*Math.round(delta/(2*Math.PI));acc[k]+=expected+wrapped;}
     previous[k]=phase;re[k]=mag*Math.cos(acc[k]);im[k]=mag*Math.sin(acc[k]);
     if(k>0&&k<half){re[n-k]=re[k];im[n-k]=-im[k];}
    }
