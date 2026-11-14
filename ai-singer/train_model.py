@@ -81,10 +81,12 @@ def run_training(args) -> dict:
 
     acoustic_config = _acoustic_config(args.sample_rate, args.hop_length, args.mel_bins)
     train_examples = load_training_examples(
-        args.manifest, acoustic_config, dataset_root=args.audio_root, split="train"
+        args.manifest, acoustic_config, dataset_root=args.audio_root, split="train",
+        require_speaker_references=True,
     )
     validation_examples = load_training_examples(
-        args.manifest, acoustic_config, dataset_root=args.audio_root, split="validation"
+        args.manifest, acoustic_config, dataset_root=args.audio_root, split="validation",
+        require_speaker_references=True,
     )
     if len(train_examples) < 2:
         raise ValueError("at least two reviewed training recordings are required")
