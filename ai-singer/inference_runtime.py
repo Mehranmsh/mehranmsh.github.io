@@ -14,6 +14,8 @@ from waveform_decoder import WaveformDecoderConfig
 from singing_pipeline import build_singing_pipeline
 from pipeline_training_engine import load_checkpoint
 from waveform_output import write_waveform_output
+from joint_model_bundle import inspect_joint_singing_bundle, MANIFEST_NAME as JOINT_BUNDLE_MANIFEST
+import json
 
 MAX_CHECKPOINT_BYTES = 20 * 1024 * 1024 * 1024
 
@@ -28,6 +30,7 @@ class SingingInferenceRuntime:
         self.decoder_config = decoder_config
         self.checkpoint_path = checkpoint_path
         self.checkpoint_metadata = checkpoint_metadata
+        self.bundle_verification = None
         self.pipeline.eval()
 
     @classmethod
@@ -65,6 +68,27 @@ class SingingInferenceRuntime:
             checkpoint_metadata=metadata,
         )
 
+
+    @classmethod
+    def from_bundle(cls, bundle_directory: str | Path, *, device: str = "cpu") -> "SingingInferenceRuntime":
+        """Verify a joint bundle manifest and checkpoint hash before loading weights."""
+        verification = inspect_joint_singing_bundle(bundle_directory)
+        if not verification.get("bundle_verified"):
+            raise ValueError(f"joint singing bundle verification failed: {verification.get('reason')}")
+        root = Path(bundle_directory).expanduser().resolve(strict=True)
+        manifest_path = root / JOINT_BUNDLE_MANIFEST
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        acoustic_config = SingingNetworkConfig(**manifest["acoustic_model_config"]).validate()
+        decoder_config = WaveformDecoderConfig(**manifest["waveform_decoder_config"]).validate()
+        runtime = cls.from_checkpoint(
+            verification["checkpoint_path"],
+            acoustic_config=acoustic_config,
+            decoder_config=decoder_config,
+            device=device,
+        )
+        runtime.bundle_verification = verification
+        return runtime
+
     def status(self) -> dict:
         return {
             "runtime_loaded": True,
@@ -74,6 +98,8 @@ class SingingInferenceRuntime:
             "sample_rate": self.decoder_config.sample_rate,
             "local_inference_available": True,
             "production_approved": False,
+            "bundle_verified": bool(self.bundle_verification and self.bundle_verification.get("bundle_verified")),
+            "bundle_id": self.bundle_verification.get("bundle_id") if self.bundle_verification else None,
             "reason": "local checkpoint loaded; held-out quality and deployment approval remain separate",
         }
 
