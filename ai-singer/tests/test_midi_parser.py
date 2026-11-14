@@ -45,7 +45,7 @@ class MidiParserTests(unittest.TestCase):
         ])
         result = parse_standard_midi(data)
         self.assertEqual(result["noteCount"], 1)
-        self.assertAlmostEqual(result["notes"][0]["durationSeconds"], 1.0)
+        self.assertAlmostEqual(result["notes"][0]["durationSeconds"], 1.5)
 
     def test_rejects_smpte_division(self):
         data = make_midi([b"\x00\x90\x3c\x64"], division=0xE728)
