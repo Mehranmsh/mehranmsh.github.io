@@ -8,7 +8,7 @@ try:
 except ImportError:
     torch = None
 
-from train_singing_pipeline import run_training
+from train_singing_pipeline import run_training, _upsample_factors_for_hop
 
 
 @unittest.skipIf(torch is None, "optional PyTorch training dependency is not installed")
@@ -22,6 +22,13 @@ class SingingPipelineCliTests(unittest.TestCase):
             waveform_learning_rate=5e-5, stft_sizes=[512], acoustic_loss_weight=1.0,
             waveform_loss_weight=1.0, weight_decay=1e-4, output_dir="./tmp",
         )
+
+    def test_derives_exact_even_decoder_stages_for_supported_hops(self):
+        self.assertEqual(_upsample_factors_for_hop(256), (4, 4, 4, 4))
+        self.assertEqual(_upsample_factors_for_hop(128), (4, 4, 4, 2))
+        self.assertEqual(_upsample_factors_for_hop(512), (4, 4, 4, 4, 2))
+        with self.assertRaisesRegex(ValueError, "power of two"):
+            _upsample_factors_for_hop(192)
 
     def test_requires_both_pretrained_stage_checkpoints(self):
         with self.assertRaisesRegex(ValueError, "both --acoustic-checkpoint"):
