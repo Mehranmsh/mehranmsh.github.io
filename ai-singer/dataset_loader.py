@@ -13,6 +13,7 @@ from dataset_manifest import ManifestError, _safe_audio_path, validate_manifest
 from model_config import AcousticModelConfig
 from pitch_targets import build_pitch_targets
 from signal_features import extract_acoustic_features
+from speaker_reference import SpeakerReferenceError, build_speaker_reference_map
 from token_encoder import build_frame_token_sequence
 
 
@@ -54,13 +55,12 @@ def load_training_examples(
     *,
     dataset_root: str | Path | None = None,
     split: str = "train",
+    require_speaker_references: bool = False,
 ) -> list[TrainingExample]:
-    """Load one manifest split into aligned acoustic, phoneme, and MIDI examples.
+    """Load one manifest split into aligned acoustic, phoneme, MIDI, and optional speaker-reference examples.
 
-    Every selected record must have explicit performer consent and rights
-    metadata (checked by validate_manifest), reviewed phoneme spans, and
-    monophonic MIDI note events. The loader rejects stereo recordings because
-    the current feature frontend is mono-only.
+    Speaker references are separate consented recordings from the same speaker
+    and same split. They are never the target recording itself.
     """
     if split not in {"train", "validation", "test"}:
         raise DatasetLoadError("split must be train, validation, or test")
@@ -77,6 +77,16 @@ def load_training_examples(
     if not selected:
         raise DatasetLoadError(f"manifest contains no records for split: {split}")
 
+    has_reference_metadata = any("speaker_reference_recording_id" in record for record in selected)
+    reference_map = {}
+    if require_speaker_references or has_reference_metadata:
+        try:
+            reference_map = build_speaker_reference_map(records, split)
+        except SpeakerReferenceError as exc:
+            raise DatasetLoadError(str(exc)) from exc
+
+    records_by_id = {record["recording_id"]: record for record in records}
+    reference_cache = {}
     examples = []
     for record in selected:
         recording_id = record["recording_id"]
@@ -118,6 +128,27 @@ def load_training_examples(
 
         if len(acoustic.f0_hz) != len(tokens.frame_times_seconds):
             raise DatasetLoadError(f"{recording_id}: WAV feature frames do not match reviewed alignment grid")
-        examples.append(TrainingExample(recording_id, acoustic, tokens, pitch))
+
+        reference_mel = None
+        if reference_map:
+            reference_id = reference_map[recording_id]
+            if reference_id not in reference_cache:
+                reference_record = records_by_id[reference_id]
+                if reference_record["sample_rate"] != config.sample_rate or reference_record["channels"] != 1:
+                    raise DatasetLoadError(
+                        f"{recording_id}: speaker reference must be mono and match the model sample rate"
+                    )
+                reference_path = _safe_audio_path(root, reference_record["audio_path"])
+                try:
+                    reference_features = extract_acoustic_features(reference_path.read_bytes(), config)
+                except (ValueError, TypeError, KeyError) as exc:
+                    raise DatasetLoadError(f"{recording_id}: invalid speaker reference: {exc}") from exc
+                reference_cache[reference_id] = reference_features.log_mel
+            reference_mel = reference_cache[reference_id]
+
+        examples.append(TrainingExample(
+            recording_id, acoustic, tokens, pitch,
+            speaker_reference_log_mel=reference_mel,
+        ))
 
     return examples
