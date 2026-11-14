@@ -84,8 +84,6 @@ def analyze_persian_lyrics(
             source = "human_phoneme_override"
             needs_review = False
             ambiguous = False
-        elif ambiguous:
-            needs_review = True
         words.append({
             "index": index, "text": word, "start": match.start(), "end": match.end(),
             "syllables": syllables, "syllable_count": len(syllables), "phonemes": phonemes,
