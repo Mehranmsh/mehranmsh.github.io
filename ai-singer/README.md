@@ -62,6 +62,19 @@ Supports Standard MIDI File format 0 and 1, PPQ timing, channel note-on/note-off
 Do not label this scaffold as an AI singer or use it to claim that a vocal WAV can already be generated.
 
 
+
+## Training dataset manifest gate
+
+Before collecting or training on singing recordings, validate a JSONL manifest with:
+
+```bash
+python dataset_manifest.py /path/to/manifest.jsonl --audio-root /path/to/dataset
+```
+
+Each JSONL record declares `recording_id`, a relative `audio_path`, `language`, pseudonymous `speaker_id`, `split` (`train`, `validation`, or `test`), transcript, WAV format metadata, duration, `consent_confirmed: true`, a non-empty `rights_basis`, and `alignment_status`. Reviewed phoneme timing must include ordered, non-overlapping spans within the recording. The validator checks real PCM WAV headers, prevents path traversal, rejects duplicate recording IDs, and prevents the same speaker appearing across different splits to reduce identity leakage. It does not upload audio, collect consent, verify a legal claim, or start training. A human must retain the underlying consent and rights records securely.
+
+No training recordings or model weights are included in this repository. Do not add private voice recordings, consent forms, access tokens, or other personal data to Git.
+
 ### Browser connection and CORS
 - Set `MEHRAN_SVS_ALLOWED_ORIGINS` to a comma-separated allowlist of exact HTTPS origins for the deployed studio. The default allows the GitHub Pages origin and the currently used Pi ecosystem origin.
 - The API exposes only GET/POST/OPTIONS for browser access; credentials are not enabled.
