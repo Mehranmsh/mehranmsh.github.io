@@ -24,7 +24,7 @@ class DatasetAuditTests(unittest.TestCase):
             output.setnchannels(1)
             output.setsampwidth(2)
             output.setframerate(rate)
-            output.writeframes(b"\\x00\\x00" * rate)
+            output.writeframes(b"\x00\x00" * rate)
 
     def record(self, rid, audio, split, speaker, **extra):
         value = {
