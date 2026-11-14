@@ -12,7 +12,9 @@ from batch_collator import TrainingExample
 from dataset_manifest import ManifestError, _safe_audio_path, validate_manifest
 from model_config import AcousticModelConfig
 from pitch_targets import build_pitch_targets
-from signal_features import extract_acoustic_features
+import numpy as np
+
+from signal_features import extract_acoustic_features, read_mono_pcm_wav
 from speaker_reference import SpeakerReferenceError, build_speaker_reference_map
 from token_encoder import build_frame_token_sequence
 
@@ -56,6 +58,7 @@ def load_training_examples(
     dataset_root: str | Path | None = None,
     split: str = "train",
     require_speaker_references: bool = False,
+    include_waveform_targets: bool = False,
 ) -> list[TrainingExample]:
     """Load one manifest split into aligned acoustic, phoneme, MIDI, and optional speaker-reference examples.
 
@@ -124,6 +127,22 @@ def load_training_examples(
         try:
             conditioning = validate_acoustic_conditioning(conditioning_payload)
             acoustic = extract_acoustic_features(audio_bytes, config)
+            waveform_target = None
+            waveform_sample_mask = None
+            if include_waveform_targets:
+                samples = read_mono_pcm_wav(audio_bytes, config.sample_rate).astype(np.float32)
+                expected_samples = acoustic.log_mel.shape[0] * config.hop_length
+                if samples.size > expected_samples:
+                    raise ValueError("decoded waveform exceeds centered feature grid")
+                pad_count = expected_samples - samples.size
+                if pad_count:
+                    pad_mode = "reflect" if samples.size > 1 else "edge"
+                    samples = np.pad(samples, (0, pad_count), mode=pad_mode)
+                waveform_target = samples
+                waveform_sample_mask = np.r_[
+                    np.ones(expected_samples - pad_count, dtype=np.uint8),
+                    np.zeros(pad_count, dtype=np.uint8),
+                ]
             tokens = build_frame_token_sequence(conditioning, config)
             pitch = build_pitch_targets(conditioning, config)
         except (ValueError, TypeError, KeyError) as exc:
@@ -152,6 +171,8 @@ def load_training_examples(
         examples.append(TrainingExample(
             recording_id, acoustic, tokens, pitch,
             speaker_reference_log_mel=reference_mel,
+            waveform_target=waveform_target,
+            waveform_sample_mask=waveform_sample_mask,
         ))
 
     return examples
