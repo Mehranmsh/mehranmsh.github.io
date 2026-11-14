@@ -1018,7 +1018,7 @@
   // Estimate DC only across the rendered signal window. Subtracting a whole-file
   // mean from leading/trailing digital silence creates an audible pre-roll offset.
   let activeStart=frames,activeEnd=-1;
-  for(let i=0;i<frames;i++)if(Math.abs(source[0][i])>1e-7||Math.abs(source[1][i])>1e-7){if(activeStart===frames)activeStart=i;activeEnd=i;}
+  for(let i=0;i<frames;i++)if(Math.abs(source[0][i])>1e-5||Math.abs(source[1][i])>1e-5){if(activeStart===frames)activeStart=i;activeEnd=i;}
   const dc=[0,0],activeFrames=activeEnd>=activeStart?activeEnd-activeStart+1:0;
   if(activeFrames)for(let c=0;c<channels;c++){for(let i=activeStart;i<=activeEnd;i++)dc[c]+=source[c][i];dc[c]/=activeFrames;}
   const corrected=[new Float32Array(frames),new Float32Array(frames)];let samplePeak=0,interpolatedPeak=0,sumSquares=0,preTrimClippedSamples=0,quantizedRailHits=0,quantizedSamplePeak=0;
