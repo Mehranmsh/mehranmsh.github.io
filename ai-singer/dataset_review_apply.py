@@ -120,7 +120,7 @@ def apply_review_queue(
 
         try:
             with tempfile.NamedTemporaryFile(
-                "w", encoding="utf-8", newline="\\n", dir=manifest_path_resolved.parent,
+                "w", encoding="utf-8", newline="\n", dir=manifest_path_resolved.parent,
                 prefix=manifest_path_resolved.name + ".", suffix=".tmp", delete=False,
             ) as target:
                 output_temp = Path(target.name)
