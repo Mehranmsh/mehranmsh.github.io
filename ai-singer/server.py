@@ -271,7 +271,10 @@ def align_job(payload: dict) -> dict:
         melody_source = "project_pattern"
     else:
         raise HTTPException(status_code=422, detail="Attach a MIDI file or add notes in the Piano Roll.")
-    try:\n        lyrics = analyze_persian_lyrics(job.project.lyrics, overrides, reviewed_phones)\n    except ValueError as exc:\n        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        lyrics = analyze_persian_lyrics(job.project.lyrics, overrides, reviewed_phones)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     manual_groups = payload.get("manual_note_groups")
     try:
         result = align_lyrics_to_midi(lyrics, melody, manual_groups)
