@@ -121,6 +121,22 @@ class StudioDatasetExportTests(unittest.TestCase):
         self.assertFalse(result["audio_uploaded"])
         self.assertEqual(len(output.read_text(encoding="utf-8").splitlines()), 1)
 
+    def test_manifest_output_cannot_overwrite_audio(self):
+        before = self.audio.read_bytes()
+        record = self.make_record()
+        with self.assertRaisesRegex(StudioDatasetExportError, "must not overwrite"):
+            append_manifest_record(self.audio, record, dataset_root=self.root)
+        self.assertEqual(self.audio.read_bytes(), before)
+
+    def test_rejects_symlinked_manifest_parent_directory(self):
+        link = self.root / "linked-output"
+        try:
+            link.symlink_to(self.root, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks are unavailable")
+        with self.assertRaisesRegex(StudioDatasetExportError, "parent symlinks"):
+            append_manifest_record(link / "manifest.jsonl", self.make_record(), dataset_root=self.root)
+
     def test_rejects_duplicate_audio_or_record_id_without_corrupting_manifest(self):
         record = self.make_record()
         output = self.root / "manifest.jsonl"
