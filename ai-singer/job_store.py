@@ -56,6 +56,27 @@ def initialize_job_store() -> None:
         """)
         db.execute("CREATE INDEX IF NOT EXISTS idx_job_events_job ON singing_job_events(job_id, event_id)")
 
+        # Forward-only schema migration for the future native worker queue.
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(singing_jobs)").fetchall()}
+        migrations = {
+            "priority": "INTEGER NOT NULL DEFAULT 0",
+            "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+            "max_attempts": "INTEGER NOT NULL DEFAULT 3",
+            "worker_id": "TEXT",
+            "lease_until": "REAL",
+        }
+        for column, declaration in migrations.items():
+            if column not in columns:
+                db.execute(f"ALTER TABLE singing_jobs ADD COLUMN {column} {declaration}")
+        db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_singing_jobs_queue
+            ON singing_jobs(status, priority DESC, created_at ASC)
+        """)
+        db.execute("""
+            CREATE INDEX IF NOT EXISTS idx_singing_jobs_lease
+            ON singing_jobs(status, lease_until)
+        """)
+
 
 def _public_record(row: sqlite3.Row) -> dict[str, Any]:
     return {
@@ -130,6 +151,122 @@ def cancel_job(job_id: str, token: str) -> dict | None:
             )
         updated = db.execute("SELECT * FROM singing_jobs WHERE job_id = ?", (job_id,)).fetchone()
         return _public_record(updated)
+
+
+def _insert_event(db: sqlite3.Connection, job_id: str, event_type: str, status: str, detail_code: str, now: float) -> None:
+    db.execute(
+        "INSERT INTO singing_job_events (job_id, event_type, status, detail_code, created_at) VALUES (?, ?, ?, ?, ?)",
+        (job_id, event_type, status, detail_code, now),
+    )
+
+
+def claim_next_job(worker_id: str, *, model_ready: bool, lease_seconds: int = 90) -> dict | None:
+    """Atomically lease one queued job. A worker cannot claim anything unless readiness is verified."""
+    if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id) > 128:
+        raise ValueError("worker_id must contain 1 to 128 characters")
+    if type(model_ready) is not bool or not model_ready:
+        return None
+    if type(lease_seconds) is not int or not 15 <= lease_seconds <= 900:
+        raise ValueError("lease_seconds must be an integer between 15 and 900")
+
+    now = time.time()
+    with _connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        # Expired leases are retried or terminally failed before selecting new work.
+        expired = db.execute(
+            """SELECT job_id, attempt_count, max_attempts FROM singing_jobs
+               WHERE status = 'processing' AND lease_until IS NOT NULL AND lease_until <= ?""",
+            (now,),
+        ).fetchall()
+        for item in expired:
+            if item["attempt_count"] < item["max_attempts"]:
+                db.execute(
+                    """UPDATE singing_jobs SET status = 'queued', worker_id = NULL,
+                       lease_until = NULL, updated_at = ? WHERE job_id = ?""",
+                    (now, item["job_id"]),
+                )
+                _insert_event(db, item["job_id"], "lease_expired", "queued", "retry_scheduled", now)
+            else:
+                db.execute(
+                    """UPDATE singing_jobs SET status = 'failed', worker_id = NULL,
+                       lease_until = NULL, updated_at = ? WHERE job_id = ?""",
+                    (now, item["job_id"]),
+                )
+                _insert_event(db, item["job_id"], "lease_expired", "failed", "max_attempts_reached", now)
+
+        row = db.execute(
+            """SELECT * FROM singing_jobs WHERE status = 'queued'
+               ORDER BY priority DESC, created_at ASC LIMIT 1"""
+        ).fetchone()
+        if row is None:
+            return None
+        lease_until = now + lease_seconds
+        updated = db.execute(
+            """UPDATE singing_jobs SET status = 'processing', worker_id = ?,
+               lease_until = ?, attempt_count = attempt_count + 1, updated_at = ?
+               WHERE job_id = ? AND status = 'queued'""",
+            (worker_id, lease_until, now, row["job_id"]),
+        )
+        if updated.rowcount != 1:
+            return None
+        _insert_event(db, row["job_id"], "claimed", "processing", "worker_lease_granted", now)
+        claimed = db.execute("SELECT * FROM singing_jobs WHERE job_id = ?", (row["job_id"],)).fetchone()
+        return {**_public_record(claimed), "attempt_count": claimed["attempt_count"],
+                "worker_id": claimed["worker_id"], "lease_until": claimed["lease_until"]}
+
+
+def renew_job_lease(job_id: str, worker_id: str, *, lease_seconds: int = 90) -> bool:
+    """Extend an unexpired lease held by the same worker; stale workers cannot revive it."""
+    if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id) > 128:
+        raise ValueError("worker_id must contain 1 to 128 characters")
+    if type(lease_seconds) is not int or not 15 <= lease_seconds <= 900:
+        raise ValueError("lease_seconds must be an integer between 15 and 900")
+    now = time.time()
+    with _connect() as db:
+        updated = db.execute(
+            """UPDATE singing_jobs SET lease_until = ?, updated_at = ?
+               WHERE job_id = ? AND status = 'processing' AND worker_id = ?
+               AND lease_until > ? AND cancellation_requested = 0""",
+            (now + lease_seconds, now, job_id, worker_id, now),
+        )
+        return updated.rowcount == 1
+
+
+def finish_job(job_id: str, worker_id: str, *, success: bool, error_code: str | None = None) -> bool:
+    """Close a worker lease. Success is only a lifecycle result, not proof of WAV quality."""
+    if not isinstance(worker_id, str) or not worker_id.strip() or len(worker_id) > 128:
+        raise ValueError("worker_id must contain 1 to 128 characters")
+    if type(success) is not bool:
+        raise ValueError("success must be a boolean")
+    if error_code is not None and (
+        not isinstance(error_code, str) or not error_code or len(error_code) > 80
+        or not error_code.replace("_", "").isalnum()
+    ):
+        raise ValueError("error_code must be a short internal code")
+    now = time.time()
+    with _connect() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute(
+            """SELECT attempt_count, max_attempts FROM singing_jobs
+               WHERE job_id = ? AND status = 'processing' AND worker_id = ?
+               AND lease_until > ?""",
+            (job_id, worker_id, now),
+        ).fetchone()
+        if row is None:
+            return False
+        if success:
+            status, event, detail = "completed", "completed", "worker_completed"
+        elif row["attempt_count"] < row["max_attempts"]:
+            status, event, detail = "queued", "retry_scheduled", error_code or "worker_retryable_error"
+        else:
+            status, event, detail = "failed", "failed", error_code or "max_attempts_reached"
+        db.execute(
+            """UPDATE singing_jobs SET status = ?, worker_id = NULL, lease_until = NULL,
+               updated_at = ? WHERE job_id = ?""",
+            (status, now, job_id),
+        )
+        _insert_event(db, job_id, event, status, detail, now)
+        return True
 
 
 
