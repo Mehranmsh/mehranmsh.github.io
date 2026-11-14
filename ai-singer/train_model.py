@@ -16,6 +16,7 @@ from batch_collator import collate_training_examples
 from batch_sampler import make_training_batches
 from dataset_loader import load_training_examples
 from model_architecture import SingingNetworkConfig, build_singing_model
+from phoneme_inventory import INVENTORY_VERSION
 from model_config import validate_acoustic_model_config
 from training_engine import (
     TrainingConfig,
@@ -32,7 +33,7 @@ def _acoustic_config(sample_rate: int, hop_length: int, mel_bins: int):
         "schema_version": "mehran.svs.acoustic-config.v1",
         "config_id": f"mehran-fa-{sample_rate}-{hop_length}-{mel_bins}-v1",
         "language": "fa",
-        "phoneme_inventory_version": __import__("phoneme_inventory").INVENTORY_VERSION,
+        "phoneme_inventory_version": INVENTORY_VERSION,
         "sample_rate": sample_rate,
         "n_fft": n_fft,
         "win_length": n_fft,
