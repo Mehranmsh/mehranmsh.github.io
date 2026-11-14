@@ -7,6 +7,8 @@ on:
       - "ai-singer/quality_evaluation.py"
       - "ai-singer/quality_report.py"
       - "ai-singer/heldout_evaluation.py"
+      - "ai-singer/model_comparison.py"
+      - "ai-singer/tests/test_model_comparison.py"
       - "ai-singer/tests/test_heldout_evaluation.py"
       - "ai-singer/tests/test_quality_report.py"
       - "ai-singer/tests/test_quality_evaluation.py"
@@ -51,6 +53,8 @@ on:
       - "ai-singer/quality_evaluation.py"
       - "ai-singer/quality_report.py"
       - "ai-singer/heldout_evaluation.py"
+      - "ai-singer/model_comparison.py"
+      - "ai-singer/tests/test_model_comparison.py"
       - "ai-singer/tests/test_heldout_evaluation.py"
       - "ai-singer/tests/test_quality_report.py"
       - "ai-singer/tests/test_quality_evaluation.py"
@@ -107,6 +111,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_quality_report.py' -v
       - name: Run held-out inference evaluation tests
         run: python -m unittest discover -s tests -p 'test_heldout_evaluation.py' -v
+      - name: Run same-split model comparison tests
+        run: python -m unittest discover -s tests -p 'test_model_comparison.py' -v
       - name: Run verified waveform output tests
         run: python -m unittest discover -s tests -p 'test_waveform_output.py' -v
       - name: Run model bundle integrity tests
