@@ -17,6 +17,7 @@ from persian_lyrics import analyze_persian_lyrics
 from lyric_alignment import AlignmentError, align_lyrics_to_midi
 from model_artifact import inspect_model_artifact
 from acoustic_contract import validate_acoustic_conditioning
+from phoneme_timing import PhonemeTimingError, build_phoneme_timing_plan
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine Analysis API",
@@ -49,6 +50,7 @@ RATE_LIMITS = {
     "/v1/jobs/validate": 30,
     "/v1/lyrics/analyze": 30,
     "/v1/model/conditioning/validate": 20,
+    "/v1/phonemes/timing": 20,
 }
 _request_times: dict[tuple[str, str], deque[float]] = {}
 
@@ -288,6 +290,18 @@ def align_job(payload: dict) -> dict:
         "third_party_generation_api": False,
     }
 
+
+
+@app.post("/v1/phonemes/timing")
+def plan_phoneme_timing(payload: dict) -> dict:
+    """Build a reviewed timing proposal from explicit syllable windows and weights."""
+    syllables = payload.get("syllables")
+    try:
+        return build_phoneme_timing_plan(syllables)
+    except PhonemeTimingError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.post("/v1/model/conditioning/validate")
