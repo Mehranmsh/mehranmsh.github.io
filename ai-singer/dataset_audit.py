@@ -41,6 +41,7 @@ def audit_dataset(
     minimum_phoneme_coverage: float | None = None,
     minimum_vowel_note_coverage: float | None = None,
     maximum_internal_gap_seconds: float | None = None,
+    maximum_edge_unannotated_seconds: float | None = None,
 ) -> dict:
     """Validate local data and return privacy-safe readiness aggregates."""
     if isinstance(expected_sample_rate, bool) or not isinstance(expected_sample_rate, int) or expected_sample_rate <= 0:
@@ -123,6 +124,7 @@ def audit_dataset(
                 minimum_phoneme_coverage=minimum_phoneme_coverage,
                 minimum_vowel_note_coverage=minimum_vowel_note_coverage,
                 maximum_internal_gap_seconds=maximum_internal_gap_seconds,
+                maximum_edge_unannotated_seconds=maximum_edge_unannotated_seconds,
             )
         except AnnotationQualityError as exc:
             raise DatasetAuditError("annotation quality analysis failed; details withheld") from exc
@@ -260,6 +262,7 @@ def main() -> int:
     parser.add_argument("--minimum-phoneme-coverage", type=float, help="Optional warning threshold from 0 to 1; no default cutoff")
     parser.add_argument("--minimum-vowel-note-coverage", type=float, help="Optional warning threshold from 0 to 1; no default cutoff")
     parser.add_argument("--maximum-internal-gap-seconds", type=float, help="Optional warning threshold; rests are not errors unless this is set")
+    parser.add_argument("--maximum-edge-unannotated-seconds", type=float, help="Optional warning threshold for unannotated audio at the start or end of a recording")
     args = parser.parse_args()
     try:
         result = audit_dataset(
@@ -267,6 +270,7 @@ def main() -> int:
             minimum_phoneme_coverage=args.minimum_phoneme_coverage,
             minimum_vowel_note_coverage=args.minimum_vowel_note_coverage,
             maximum_internal_gap_seconds=args.maximum_internal_gap_seconds,
+            maximum_edge_unannotated_seconds=args.maximum_edge_unannotated_seconds,
         )
     except DatasetAuditError as exc:
         parser.exit(2, f"INVALID: {exc}\n")
