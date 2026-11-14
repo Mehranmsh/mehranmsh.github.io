@@ -69,7 +69,7 @@ class DatasetManifestTests(unittest.TestCase):
             output.setnchannels(1)
             output.setsampwidth(2)
             output.setframerate(24000)
-            output.writeframes(b"\\x01\\x00" * 2400)
+            output.writeframes(b"\x01\x00" * 2400)
         second = self.record(recording_id="rec-002", audio_path="second.wav", split="test")
         with self.assertRaisesRegex(ManifestError, "speaker leakage"):
             validate_manifest(self.write_manifest([self.record(), second]))
