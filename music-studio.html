@@ -475,24 +475,24 @@
  function phaseVocoderShiftSamples(input,ratio){
   const r=Math.max(0.5,Math.min(2,Number(ratio)||1));
   if(Math.abs(r-1)<1e-6)return new Float32Array(input);
-  // First resample to change pitch while preserving the corresponding longer/shorter duration.
-  // Then use a phase vocoder to restore the original duration without undoing the pitch shift.
+  // Resample to shift pitch, then time-compress with a phase vocoder while preserving that shifted pitch.
   const shiftedLength=Math.max(1,Math.ceil(input.length/r)),shifted=new Float32Array(shiftedLength);
   for(let i=0;i<shiftedLength;i++){
    const sourcePosition=Math.min(input.length-1,i*r),left=Math.floor(sourcePosition),fraction=sourcePosition-left;
    const a=input[left]||0,b=input[Math.min(input.length-1,left+1)]||0;
    shifted[i]=a+(b-a)*fraction;
   }
-  const n=2048,hop=512,half=n/2,padded=new Float32Array(shifted.length+2*n);padded.set(shifted,n);
+  const n=4096,hop=1024,half=n/2,padded=new Float32Array(shifted.length+2*n);padded.set(shifted,n);
   const frameCount=Math.ceil((padded.length-n)/hop)+1,outLength=Math.ceil(padded.length*r)+n,acc=new Float64Array(half+1),previous=new Float64Array(half+1),sum=new Float64Array(outLength),weight=new Float64Array(outLength),window=new Float64Array(n);
   for(let i=0;i<n;i++)window[i]=0.5-0.5*Math.cos(2*Math.PI*i/(n-1));
   for(let frame=0;frame<frameCount;frame++){
-   const start=frame*hop,re=new Float64Array(n),im=new Float64Array(n);
-   for(let i=0;i<n;i++)re[i]=(start+i<padded.length?padded[start+i]:0)*window[i];
+   const frameStart=frame*hop,re=new Float64Array(n),im=new Float64Array(n);
+   for(let i=0;i<n;i++)re[i]=(frameStart+i<padded.length?padded[frameStart+i]:0)*window[i];
    fftRadix2(re,im,false);
    for(let k=0;k<=half;k++){
     const phase=Math.atan2(im[k],re[k]),mag=Math.hypot(re[k],im[k]);
-    if(frame===0)acc[k]=phase;else{const expected=2*Math.PI*k*hop/n,delta=phase-previous[k]-expected,wrapped=delta-2*Math.PI*Math.round(delta/(2*Math.PI));acc[k]+=(expected+wrapped);}
+    if(frame===0)acc[k]=phase;
+    else{const expected=2*Math.PI*k*hop/n,delta=phase-previous[k]-expected,wrapped=delta-2*Math.PI*Math.round(delta/(2*Math.PI));acc[k]+=(expected+wrapped)*r;}
     previous[k]=phase;re[k]=mag*Math.cos(acc[k]);im[k]=mag*Math.sin(acc[k]);
     if(k>0&&k<half){re[n-k]=re[k];im[n-k]=-im[k];}
    }
