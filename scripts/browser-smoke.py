@@ -85,6 +85,34 @@ def main():
                 page.wait_for_function("document.querySelector('#mehranSingerMidiStatus')?.textContent.includes('1 نت')", timeout=10000)
                 midi_notes_text = page.locator("#mehranSingerAlignmentNotes").text_content() or ""
                 assert "C4" in midi_notes_text and "0.500s" in midi_notes_text, "Imported MIDI note timeline was not rendered: " + midi_notes_text
+
+                # Review one Persian syllable against the imported MIDI note, adjust its timing,
+                # persist the alignment locally, and export the exact saved JSON artifact.
+                page.locator("#mehranSingerSyllables").fill("سَلام")
+                page.locator("#mehranSingerPronunciationOverrides").fill("سلام=سَ-لام")
+                page.locator("#mehranSingerNoteGroups").fill("0")
+                page.wait_for_function("document.querySelector('#mehranSingerTimeline [data-time-start=\"0\"]') !== null")
+                assert page.locator('#mehranSingerTimeline [data-time-start="0"]').input_value() == "0.000"
+                assert page.locator('#mehranSingerTimeline [data-time-end="0"]').input_value() == "0.500"
+                page.locator('#mehranSingerTimeline [data-time-start="0"]').fill("0.050")
+                page.locator('#mehranSingerTimeline [data-time-end="0"]').fill("0.420")
+                page.locator("#saveMehranSingerAlignment").click()
+                alignment_status = page.locator("#mehranSingerAlignmentStatus").inner_text()
+                saved_alignment = page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    return drafts.find(item => item.name === "Automated Audio QA")?.singerAlignment || null;
+                }""")
+                assert "هم‌ترازی در پروژه ذخیره شد" in alignment_status, "Manual singer alignment did not save: " + alignment_status
+                assert saved_alignment and saved_alignment["alignment"][0]["startSeconds"] == 0.05 and saved_alignment["alignment"][0]["endSeconds"] == 0.42, "Manual syllable timing was not persisted: " + str(saved_alignment)
+                assert saved_alignment["pronunciationOverrides"]["سلام"] == ["سَ", "لام"], "Persian pronunciation override was not persisted."
+                with page.expect_download() as alignment_download:
+                    page.locator("#exportMehranSingerAlignment").click()
+                alignment_path = Path(temp) / "mehran-singer-alignment.json"
+                alignment_download.value.save_as(alignment_path)
+                exported_alignment = __import__("json").loads(alignment_path.read_text(encoding="utf-8"))
+                assert exported_alignment["schema"] == "mehran.singer-alignment-export.v1"
+                assert exported_alignment["alignment"]["alignment"][0]["startSeconds"] == 0.05
+                assert exported_alignment["alignment"]["pronunciationOverrides"]["سلام"] == ["سَ", "لام"]
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
