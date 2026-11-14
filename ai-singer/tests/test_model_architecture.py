@@ -23,6 +23,30 @@ class SingingNetworkConfigTests(unittest.TestCase):
 
 @unittest.skipUnless(importlib.util.find_spec("torch"), "optional PyTorch training dependency is not installed")
 class SingingNetworkForwardTests(unittest.TestCase):
+    def test_reference_audio_conditions_network_and_receives_gradients(self):
+        import torch
+
+        model = build_singing_model(SingingNetworkConfig(
+            hidden_size=32, attention_heads=4, encoder_layers=1,
+            convolution_layers=1, feedforward_size=64, dropout=0.0,
+        ))
+        model.eval()
+        batch, frames, ref_frames = 2, 8, 11
+        phonemes = torch.ones((batch, frames), dtype=torch.long)
+        notes = torch.full((batch, frames), 60, dtype=torch.long)
+        f0 = torch.full((batch, frames), 220.0)
+        voice = torch.ones((batch, frames))
+        energy = torch.zeros((batch, frames))
+        valid = torch.ones((batch, frames), dtype=torch.bool)
+        reference = torch.randn(batch, ref_frames, 100)
+        reference_mask = torch.ones(batch, ref_frames, dtype=torch.bool)
+        reference_mask[1, 8:] = False
+        output = model(phonemes, notes, f0, voice, energy, valid, reference, reference_mask)
+        loss = output["log_mel"].square().mean()
+        loss.backward()
+        self.assertIsNotNone(model.speaker_encoder.frontend[0].weight.grad)
+        self.assertTrue(torch.isfinite(model.speaker_encoder.frontend[0].weight.grad).all())
+
     def test_forward_shapes_masks_and_gradients(self):
         import torch
 
