@@ -196,3 +196,12 @@ pip install -r training-requirements.txt
 
 Create the network with `build_singing_model(SingingNetworkConfig())`. It is an untrained architecture definition. There is no optimizer loop, trained checkpoint, speaker identity encoder, vocoder, inference service, or WAV generation yet. The optional forward/gradient test runs when PyTorch is installed; architecture configuration tests run in the standard lightweight CI suite.
 
+
+## Masked training, validation, and checkpoints
+
+`training_engine.py` adds the first optimizer-backed learning loop for the acoustic network. It provides masked multi-task losses for log-Mel reconstruction, voiced-frame log-F0 regression, voicing classification, and log-RMS prediction. Padding frames are excluded from every loss. It also provides one-epoch training, no-gradient validation, gradient clipping, and atomic checkpoint writes containing model/optimizer state plus versioned experiment metadata.
+
+Checkpoint loading uses PyTorch's restricted `weights_only=True` deserializer and checks the checkpoint schema. The dedicated neural CI installs the optional CPU PyTorch package and runs forward/gradient, training, validation, and checkpoint round-trip tests.
+
+These are training primitives, not a completed trainer product. A real run still requires a lawful, consented, reviewed Persian singing dataset on the operator's local storage, a training orchestration/configuration, experiment monitoring, held-out quality evaluation, and later a separately implemented and evaluated waveform decoder/vocoder. No user audio is included in the repository and no model checkpoint is committed.
+
