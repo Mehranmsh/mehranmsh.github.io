@@ -61,7 +61,7 @@ class DatasetReviewApplyTests(unittest.TestCase):
             fields = list(rows[0])
         rows[0]["phoneme_alignment_json"] = json.dumps([
             {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.4},
-            {"phoneme": "a", "start_seconds": 0.4, "end_seconds": 0.8},
+            {"phoneme": "e", "start_seconds": 0.4, "end_seconds": 0.8},
         ], ensure_ascii=False)
         rows[0]["notes_json"] = json.dumps([
             {"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.8}
