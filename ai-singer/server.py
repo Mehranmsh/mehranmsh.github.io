@@ -19,6 +19,7 @@ from model_artifact import inspect_model_artifact
 from acoustic_contract import validate_acoustic_conditioning
 from phoneme_timing import PhonemeTimingError, build_phoneme_timing_plan
 from conditioning_builder import prepare_acoustic_conditioning
+from job_store import initialize_job_store, create_job, get_job, cancel_job
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine Analysis API",
@@ -53,6 +54,9 @@ RATE_LIMITS = {
     "/v1/model/conditioning/validate": 20,
     "/v1/phonemes/timing": 20,
     "/v1/model/conditioning/prepare": 10,
+    "/v1/jobs/submit": 5,
+    "/v1/jobs/status": 30,
+    "/v1/jobs/cancel": 5,
 }
 _request_times: dict[tuple[str, str], deque[float]] = {}
 
@@ -75,6 +79,7 @@ def _allow_request(client_ip: str, path: str, now: float) -> bool:
 
 
 MODEL_STATUS = inspect_model_artifact()
+initialize_job_store()
 
 
 
@@ -167,6 +172,44 @@ def _validated_job(payload: dict) -> SingingJob:
         return SingingJob.model_validate(payload)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+
+
+@app.post("/v1/jobs/submit")
+def submit_job(payload: dict) -> dict:
+    """Persist a validated job privately; it remains blocked until native inference exists."""
+    job = _validated_job(payload)
+    try:
+        record, access_token = create_job(job.project.id, job.model_dump(mode="json"))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {
+        **record,
+        "access_token": access_token,
+        "accepted_for_generation": False,
+        "message": "Job saved securely for later processing. The native singing model is not available, so no generation queue or audio rendering has started.",
+    }
+
+
+@app.get("/v1/jobs/status/{job_id}")
+def read_job_status(job_id: str, request: Request) -> dict:
+    token = request.headers.get("X-Job-Token", "")
+    if not token or len(token) > 256:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    record = get_job(job_id, token)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return record
+
+
+@app.post("/v1/jobs/cancel/{job_id}")
+def stop_job(job_id: str, request: Request) -> dict:
+    token = request.headers.get("X-Job-Token", "")
+    if not token or len(token) > 256:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    record = cancel_job(job_id, token)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return record
 
 
 @app.post("/v1/jobs/validate")
