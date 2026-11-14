@@ -101,6 +101,29 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertNotIn("tr-target", str(caught.exception))
         self.assertNotIn("train.wav", str(caught.exception))
 
+    def test_reports_annotation_coverage_metrics_without_default_cutoffs(self):
+        report = audit_dataset(self.write(self.dataset()), expected_sample_rate=48000)
+        quality = report["splits"]["train"]["annotation_quality"]
+        self.assertEqual(quality["recordings_analyzed"], 1)
+        self.assertAlmostEqual(quality["phoneme_time_coverage"]["mean"], 0.5)
+        self.assertEqual(quality["warnings"], [])
+        self.assertTrue(report["training_readiness"]["ready_for_staged_training"])
+
+    def test_optional_annotation_thresholds_add_privacy_safe_warnings(self):
+        report = audit_dataset(
+            self.write(self.dataset()),
+            expected_sample_rate=48000,
+            minimum_phoneme_coverage=0.9,
+            minimum_vowel_note_coverage=0.9,
+            maximum_internal_gap_seconds=0.1,
+        )
+        self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
+        serialized = json.dumps(report)
+        self.assertNotIn("tr-target", serialized)
+        self.assertNotIn("speaker-A", serialized)
+        self.assertTrue(any("low_phoneme_time_coverage" in item
+                            for item in report["training_readiness"]["warnings"]))
+
     def test_rejects_invalid_expected_sample_rate(self):
         with self.assertRaises(DatasetAuditError):
             audit_dataset(self.write(self.dataset()), expected_sample_rate=True)
