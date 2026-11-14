@@ -276,3 +276,22 @@ The CLI reports `conditioning_mode: teacher_forced_ground_truth_acoustics` and `
 ## Two-checkpoint model bundle integrity gate
 
 `model_bundle.py` verifies the acoustic and waveform checkpoints as one Persian singing bundle. It validates the feature/model/decoder configuration agreement, rejects unsafe or symlink checkpoint paths, enforces bounded checkpoint sizes, and checks both SHA-256 digests. The result deliberately remains `model_loaded: false` and `inference_ready: false`; a valid bundle is only an integrity-verified artifact, not evidence that the weights are trained, perceptually acceptable, or safe to serve. The future runtime loader and quality approval remain separate gates.
+
+
+## End-to-end predicted-feature fine-tuning
+
+`pipeline_training_engine.py` is the next training stage after acoustic-model training and teacher-forced waveform-decoder training. It runs the acoustic network on phoneme/MIDI/speaker inputs, passes the *predicted* acoustic tracks into the waveform decoder, and jointly optimizes masked acoustic losses plus waveform L1 and multi-resolution STFT losses. The trainer requires both previously trained local checkpoints, uses speaker-disjoint validation recordings with paired waveform targets, and supports full optimizer-state resume through a restricted `weights_only=True` checkpoint loader.
+
+Run locally after both stage checkpoints have been trained and reviewed:
+
+```bash
+python train_singing_pipeline.py \\
+  --manifest /path/to/manifest.jsonl \\
+  --audio-root /path/to/audio \\
+  --acoustic-checkpoint /path/to/acoustic-best.pt \\
+  --waveform-checkpoint /path/to/waveform-best.pt \\
+  --output-dir ./checkpoints/mehran-fa-joint \\
+  --epochs 30 --batch-size 2 --device cuda
+```
+
+To continue a joint run, use `--resume /path/to/pipeline-latest.pt` instead of the two stage-checkpoint options. This stage is not executed by CI because no private training corpus is present. The CLI does not download, upload, or generate audio. A successful training loss or checkpoint does not establish singing quality or inference readiness; held-out listening tests, speaker similarity checks, artifact verification, and a separately approved inference runtime are still required.
