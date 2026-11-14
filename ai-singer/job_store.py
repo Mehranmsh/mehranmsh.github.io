@@ -21,6 +21,7 @@ def _connect() -> sqlite3.Connection:
     connection = sqlite3.connect(str(DB_PATH), timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout = 10000")
+    connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
@@ -89,6 +90,10 @@ def create_job(project_id: str, payload: dict) -> tuple[dict, str]:
             VALUES (?, ?, ?, 'blocked_model_unavailable', ?, ?, ?, ?)""",
             (job_id, token_hash, project_id, serialized, now, now, now + RETENTION_SECONDS),
         )
+        db.execute(
+            "INSERT INTO singing_job_events (job_id, event_type, status, detail_code, created_at) VALUES (?, ?, ?, ?, ?)",
+            (job_id, "created", "blocked_model_unavailable", "native_model_not_ready", now),
+        )
         row = db.execute("SELECT * FROM singing_jobs WHERE job_id = ?", (job_id,)).fetchone()
     return _public_record(row), token
 
@@ -118,6 +123,10 @@ def cancel_job(job_id: str, token: str) -> dict | None:
             db.execute(
                 "UPDATE singing_jobs SET status = 'cancelled', cancellation_requested = 1, updated_at = ? WHERE job_id = ?",
                 (now, job_id),
+            )
+            db.execute(
+                "INSERT INTO singing_job_events (job_id, event_type, status, detail_code, created_at) VALUES (?, ?, ?, ?, ?)",
+                (job_id, "cancelled", "cancelled", "user_requested", now),
             )
         updated = db.execute("SELECT * FROM singing_jobs WHERE job_id = ?", (job_id,)).fetchone()
         return _public_record(updated)
