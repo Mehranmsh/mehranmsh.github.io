@@ -96,6 +96,17 @@ class AlignmentApiTests(unittest.TestCase):
         self.assertFalse(result["audio_generated"])
         self.assertFalse(result["generation_ready"])
 
+    def test_alignment_uses_studio_reviewed_syllable_rows(self):
+        result = align_job({
+            "job": make_job(),
+            "pronunciation_overrides": {"سلام": "سَ-لام"},
+            "reviewed_syllables": ["سَلام"],
+            "manual_note_groups": [[0]],
+        })
+        self.assertEqual(result["syllable_count"], 1)
+        self.assertEqual(result["alignment"][0]["text"], "سَلام")
+        self.assertTrue(result["alignment"][0]["phoneme_ambiguity"])
+
     def test_prepare_conditioning_accepts_per_syllable_reviewed_phonemes(self):
         from server import prepare_job_conditioning
         payload = {
