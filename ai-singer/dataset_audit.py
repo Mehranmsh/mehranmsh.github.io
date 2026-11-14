@@ -1,0 +1,182 @@
+"""Privacy-preserving local audit for the MEHRAN Persian singing dataset.
+
+Only aggregate statistics are emitted. Recording IDs, speaker IDs, transcripts,
+audio paths, and rights text are never included in the report.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from collections import defaultdict
+from pathlib import Path
+
+from dataset_manifest import ALLOWED_SPLITS, ManifestError, validate_manifest
+from speaker_reference import SpeakerReferenceError, build_speaker_reference_map
+
+
+class DatasetAuditError(ValueError):
+    """Raised when the local dataset cannot be audited safely."""
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    records = []
+    try:
+        with path.open("r", encoding="utf-8") as source:
+            for raw in source:
+                if raw.strip():
+                    value = json.loads(raw)
+                    if not isinstance(value, dict):
+                        raise DatasetAuditError("manifest contains a non-object record")
+                    records.append(value)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise DatasetAuditError("manifest could not be read as valid UTF-8 JSONL") from exc
+    return records
+
+
+def audit_dataset(
+    manifest_path: str | Path,
+    dataset_root: str | Path | None = None,
+    *,
+    expected_sample_rate: int = 48000,
+) -> dict:
+    """Validate local data and return privacy-safe readiness aggregates."""
+    if isinstance(expected_sample_rate, bool) or not isinstance(expected_sample_rate, int) or expected_sample_rate <= 0:
+        raise DatasetAuditError("expected_sample_rate must be a positive integer")
+
+    manifest = Path(manifest_path).resolve()
+    root = Path(dataset_root).resolve() if dataset_root else manifest.parent.resolve()
+    try:
+        validation = validate_manifest(manifest, root)
+    except ManifestError as exc:
+        # Do not echo paths, IDs, transcripts, or other local metadata to stdout.
+        raise DatasetAuditError("manifest validation failed; details withheld to protect local dataset metadata") from exc
+
+    records = _read_jsonl(manifest)
+    by_split: dict[str, list[dict]] = {split: [] for split in sorted(ALLOWED_SPLITS)}
+    speakers: dict[str, set[str]] = {split: set() for split in ALLOWED_SPLITS}
+    durations = {split: 0.0 for split in ALLOWED_SPLITS}
+    rates: dict[str, set[int]] = {split: set() for split in ALLOWED_SPLITS}
+    targets = {split: [] for split in ALLOWED_SPLITS}
+    reference_only = {split: 0 for split in ALLOWED_SPLITS}
+    reviewed = {split: 0 for split in ALLOWED_SPLITS}
+    phoneme_aligned = {split: 0 for split in ALLOWED_SPLITS}
+    midi_annotated = {split: 0 for split in ALLOWED_SPLITS}
+
+    for record in records:
+        split = record["split"]
+        by_split[split].append(record)
+        speakers[split].add(record["speaker_id"])
+        durations[split] += float(record["duration_seconds"])
+        rates[split].add(int(record["sample_rate"]))
+        if record.get("speaker_reference_only") is True:
+            reference_only[split] += 1
+            continue
+        targets[split].append(record)
+        if record.get("alignment_status") == "reviewed":
+            reviewed[split] += 1
+            if isinstance(record.get("phoneme_alignment"), list) and record["phoneme_alignment"]:
+                phoneme_aligned[split] += 1
+        if isinstance(record.get("notes"), list) and record["notes"]:
+            midi_annotated[split] += 1
+
+    reference_pairs = {}
+    reference_warnings = []
+    for split in ("train", "validation", "test"):
+        split_targets = targets[split]
+        has_any_reference = any("speaker_reference_recording_id" in item for item in split_targets)
+        if not split_targets:
+            reference_pairs[split] = 0
+            continue
+        if not has_any_reference:
+            reference_pairs[split] = 0
+            if split in {"train", "validation"}:
+                reference_warnings.append(f"{split}: separate speaker references are not configured")
+            continue
+        try:
+            mapping = build_speaker_reference_map(records, split)
+        except SpeakerReferenceError as exc:
+            raise DatasetAuditError(
+                f"speaker reference validation failed for {split}; details withheld to protect local metadata"
+            ) from exc
+        reference_pairs[split] = len(mapping)
+
+    split_report = {}
+    for split in ("train", "validation", "test"):
+        split_report[split] = {
+            "recordings": len(by_split[split]),
+            "training_targets": len(targets[split]),
+            "speaker_reference_only": reference_only[split],
+            "unique_speakers": len(speakers[split]),
+            "total_audio_hours": round(durations[split] / 3600.0, 4),
+            "sample_rates": sorted(rates[split]),
+            "reviewed_alignments": reviewed[split],
+            "phoneme_aligned_targets": phoneme_aligned[split],
+            "midi_annotated_targets": midi_annotated[split],
+            "speaker_reference_pairs": reference_pairs[split],
+        }
+
+    warnings = list(reference_warnings)
+    if not targets["train"]:
+        warnings.append("train: no target recordings")
+    if not targets["validation"]:
+        warnings.append("validation: no target recordings")
+    for split in ("train", "validation"):
+        count = len(targets[split])
+        if count and reviewed[split] != count:
+            warnings.append(f"{split}: some targets do not have reviewed phoneme alignment")
+        if count and midi_annotated[split] != count:
+            warnings.append(f"{split}: some targets do not have reviewed MIDI note annotations")
+        if count and any(record["channels"] != 1 for record in targets[split]):
+            warnings.append(f"{split}: stereo targets are incompatible with the current training loader")
+        if count and any(record["sample_rate"] != expected_sample_rate for record in targets[split]):
+            warnings.append(f"{split}: target sample rate differs from the configured model rate")
+        if count and reference_pairs[split] != count:
+            if not any(item.startswith(f"{split}: separate speaker references") for item in warnings):
+                warnings.append(f"{split}: not every target has a valid separate speaker reference")
+
+    ready = bool(targets["train"] and targets["validation"])
+    ready = ready and not warnings
+    return {
+        "valid": True,
+        "privacy": {
+            "aggregate_only": True,
+            "speaker_ids_emitted": False,
+            "recording_ids_emitted": False,
+            "transcripts_emitted": False,
+            "audio_paths_emitted": False,
+            "audio_uploaded": False,
+        },
+        "manifest": {
+            "recordings": validation["recording_count"],
+            "unique_speakers": validation["speaker_count"],
+            "speaker_split_leakage": False,
+            "expected_sample_rate": expected_sample_rate,
+        },
+        "splits": split_report,
+        "training_readiness": {
+            "ready_for_staged_training": ready,
+            "warnings": warnings,
+            "training_started": False,
+            "model_weights_created": False,
+        },
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Audit a local MEHRAN Persian singing dataset; emits aggregate statistics only."
+    )
+    parser.add_argument("manifest", help="Path to the local JSONL manifest")
+    parser.add_argument("--audio-root", help="Root directory for relative audio_path entries")
+    parser.add_argument("--sample-rate", type=int, default=48000, help="Expected model sample rate (default: 48000)")
+    args = parser.parse_args()
+    try:
+        result = audit_dataset(args.manifest, args.audio_root, expected_sample_rate=args.sample_rate)
+    except DatasetAuditError as exc:
+        parser.exit(2, f"INVALID: {exc}\n")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
