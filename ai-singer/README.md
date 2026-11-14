@@ -62,6 +62,10 @@ Both modules are covered by synthetic-signal unit tests. The synthetic tones are
 
 `token_encoder.py` maps reviewed Persian phoneme spans and a monophonic MIDI line onto the exact centered feature-frame grid. Phoneme IDs are stable within the declared inventory version; ID 0 represents silence, note ID 0 represents rests, and masks expose active frames. It rejects unsupported language, sample-rate mismatches, and overlapping note/phoneme assignments. This is a deterministic input encoder, not a learned representation, model, or audio generator.
 
+## Training batch collation
+
+`batch_collator.py` validates that extracted WAV features, reviewed phoneme/note tokens, and MIDI pitch-conditioning targets share the same centered frame grid. It creates padded NumPy batches with lengths and a valid-frame mask, keeps padding distinct from real silence, and enforces a configurable frame cap. This is data collation only: no optimizer, model training, weights, or inference are included.
+
 ## Acoustic model artifact gate
 
 The API inspects an optional local `models/model-manifest.json` (or the directory set by `MEHRAN_SVS_MODEL_DIR`). The manifest schema is `mehran.svs.model.v1` and declares model identity, architecture, framework, task, sample rate, supported languages, checkpoint path, and SHA-256. The service rejects unsafe paths, unsupported metadata, missing files, and hash mismatches. Checkpoints are streamed through SHA-256 in bounded chunks and are never deserialized.
