@@ -350,3 +350,16 @@ python heldout_evaluation.py /local/dataset/manifest.jsonl /local/model-bundle -
 ```
 
 This first evaluation protocol uses ground-truth phoneme and MIDI conditioning. It measures voice rendering under reviewed symbolic input, not automatic lyric transcription or score-following. A successful run still does not set `quality_passed` or `production_approved`; calibrated thresholds and human listening review are required.
+
+
+## Same-split model comparison
+
+`model_comparison.py` compares a baseline and candidate joint bundle using the exact same locally loaded held-out test examples. It requires both bundles to pass hash and contract verification and to use an identical acoustic feature configuration. The test split is loaded once, then reused for both runtimes. The report includes aggregate metric deltas, metric direction labels, bundle IDs, and hashes of the manifests used. It does not emit recording or speaker identifiers, transcripts, audio, or local paths.
+
+Run locally after two trained, verified bundles and a reviewed dataset are available:
+
+```bash
+python model_comparison.py /local/dataset/manifest.jsonl /local/baseline-bundle /local/candidate-bundle --audio-root /local/dataset
+```
+
+The labels `improved` and `regressed` describe only the direction of a metric delta. They are not calibrated thresholds, statistical significance, listening-test results, or production approval. The tool never changes the held-out data or selects a model automatically.
