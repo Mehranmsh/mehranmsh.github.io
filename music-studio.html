@@ -728,7 +728,7 @@
  }
  function refreshMehranSingerAlignment(){
   const project=mehranSingerAlignmentProject(),syllables=$("mehranSingerSyllables"),groups=$("mehranSingerNoteGroups"),status=$("mehranSingerAlignmentStatus"),notesRoot=$("mehranSingerAlignmentNotes");
-  if(!project){$("exportMehranSingerConditioning").disabled=true;$("mehranSingerReviewedSyllablePhonemes").value="";$("mehranSingerPhonemeWeights").value="";syllables.value="";groups.value="";status.textContent="ابتدا پروژه‌ای را انتخاب کن.";notesRoot.textContent="No project notes loaded.";return;}
+  if(!project){$("exportMehranDatasetPackage").disabled=true;$("mehranDatasetAudioTrack").innerHTML='<option value="">Choose an imported vocal recording…</option>';$("exportMehranSingerConditioning").disabled=true;$("mehranSingerReviewedSyllablePhonemes").value="";$("mehranSingerPhonemeWeights").value="";syllables.value="";groups.value="";status.textContent="ابتدا پروژه‌ای را انتخاب کن.";notesRoot.textContent="No project notes loaded.";return;}
   const notes=mehranSingerAlignmentNotes(project),saved=project.singerAlignment&&typeof project.singerAlignment==="object"?project.singerAlignment:null;
   syllables.value=Array.isArray(saved?.syllables)?saved.syllables.join("\n"):"";
   groups.value=Array.isArray(saved?.noteGroups)?saved.noteGroups.map(group=>group.join(",")).join("\n"):"";
@@ -968,7 +968,7 @@
     const preview=$("vocalRecordingPreview");
     if(preview.dataset.objectUrl)URL.revokeObjectURL(preview.dataset.objectUrl);
     preview.dataset.objectUrl=URL.createObjectURL(file);preview.src=preview.dataset.objectUrl;preview.style.display="block";
-    $("vocalImportStatus").textContent="Vocal recording imported and saved on this device. Open Arrangement & Mix to process it with your instrumental.";
+    $("vocalImportStatus").textContent="Vocal recording imported and saved on this device. Open Arrangement & Mix to process it with your instrumental.";if($("vocalProject").value===p.id){refreshMehranSingerAlignment();$("mehranDatasetAudioTrack").value=id;$("exportMehranDatasetPackage").disabled=!p.singerAlignment?.acousticConditioning;}
     render();renderPitchTrackOptions();refreshMixProjects(p.id);
    }catch(error){
     const index=p.tracks.findIndex(t=>t.id===id);if(index>=0)p.tracks.splice(index,1);
