@@ -671,6 +671,11 @@
   const pronunciationOverrides={};
   const overrideLines=$("mehranSingerPronunciationOverrides").value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean);
   for(const line of overrideLines){const split=line.indexOf("=");if(split<=0||split===line.length-1){status.textContent="قالب تلفظ نامعتبر است. از واژه=هجا-هجا استفاده کن.";return;}const word=line.slice(0,split).trim(),pronunciation=line.slice(split+1).trim();if(!word||!pronunciation||Object.prototype.hasOwnProperty.call(pronunciationOverrides,word)){status.textContent="واژهٔ خالی یا تکراری در تلفظ‌ها وجود دارد.";return;}pronunciationOverrides[word]=pronunciation;}
+  const priorPhones=saved.reviewedSyllablePhonemes,priorWeights=saved.phonemeDurationWeights,priorUpdated=selectedProject.updated;
+  saved.reviewedSyllablePhonemes=reviewedSyllablePhonemes;
+  saved.phonemeDurationWeights=phonemeDurationWeights;
+  selectedProject.updated=Date.now();
+  if(!save()){saved.reviewedSyllablePhonemes=priorPhones;saved.phonemeDurationWeights=priorWeights;selectedProject.updated=priorUpdated;return;}
   const bpm=Number(selectedProject.tempo||selectedProject.patternStudio?.tempo),secondsPerStep=60/Math.max(40,Math.min(220,bpm||120))/4;
   const manualTimingWindows=saved.alignment.map(item=>({start_seconds:Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds))?Number(item.startSeconds):Number(item.startStep)*secondsPerStep,end_seconds:Number.isFinite(Number(item.startSeconds))&&Number.isFinite(Number(item.endSeconds))?Number(item.endSeconds):Number(item.endStep)*secondsPerStep}));
   const payload={job:preparedJob,reviewed_syllables:saved.syllables,manual_note_groups:saved.noteGroups,manual_timing_windows:manualTimingWindows,pronunciation_overrides:pronunciationOverrides,reviewed_syllable_phonemes:reviewedSyllablePhonemes,phoneme_duration_weights:phonemeDurationWeights};
@@ -724,6 +729,8 @@
   syllables.value=Array.isArray(saved?.syllables)?saved.syllables.join("\n"):"";
   groups.value=Array.isArray(saved?.noteGroups)?saved.noteGroups.map(group=>group.join(",")).join("\n"):"";
   $("mehranSingerPronunciationOverrides").value=saved?.pronunciationOverrides&&typeof saved.pronunciationOverrides==="object"?Object.entries(saved.pronunciationOverrides).map(([word,phonemes])=>word+"="+phonemes.join("-")).join("\n"):"";
+  $("mehranSingerReviewedSyllablePhonemes").value=Array.isArray(saved?.reviewedSyllablePhonemes)?saved.reviewedSyllablePhonemes.map(row=>row.join(",")).join("\n"):"";
+  $("mehranSingerPhonemeWeights").value=Array.isArray(saved?.phonemeDurationWeights)?saved.phonemeDurationWeights.map(row=>row.join(",")).join("\n"):"";
   renderMehranSingerTimeline(saved);
   const usingMidi=Boolean(mehranSingerMidiFile&&mehranSingerMidiNotes.length);
   notesRoot.innerHTML=notes.length?notes.map((note,index)=>'<div>'+index+' · '+esc(note.note)+' · '+(usingMidi?('t '+Number(note.startSeconds).toFixed(3)+'s · '+Number(note.durationSeconds).toFixed(3)+'s'):('step '+Number(note.startStep)+' · length '+Number(note.lengthSteps)))+'</div>').join(""):'نتی در Piano Roll این پروژه پیدا نشد. ابتدا نت بساز یا فایل MIDI وارد کن.';
@@ -761,7 +768,7 @@
    if(a&&b){const x=Number(a.value),y=Number(b.value);if(usingMidi){item.startSeconds=x;item.endSeconds=y;item.durationSeconds=y-x;}else{item.startStep=x;item.endStep=y;item.durationSteps=y-x;}}
    return item;});
   const prior=project.singerAlignment,priorUpdated=project.updated;
-  project.singerAlignment={version:"mehran.studio.singer-alignment.v1",syllables,noteGroups:groups,alignment,pronunciationOverrides:overrides,reviewedByUser:true,requiresAcousticReview:true,savedAt:Date.now()};
+  project.singerAlignment={version:"mehran.studio.singer-alignment.v1",syllables,noteGroups:groups,alignment,pronunciationOverrides:overrides,reviewedSyllablePhonemes:[],phonemeDurationWeights:[],reviewedByUser:true,requiresAcousticReview:true,savedAt:Date.now()};
   project.updated=Date.now();
   if(!save()){project.singerAlignment=prior;project.updated=priorUpdated;return;}
   status.textContent="هم‌ترازی در پروژه ذخیره شد: "+syllables.length+" هجا، "+used.size+" نت از "+(usingMidi?"MIDI":"Piano Roll")+"، "+alignment.filter(item=>item.melisma).length+" هجای کشیده. بررسی زمان‌بندی آکوستیکی و تولید آواز هنوز مرحلهٔ جداگانه است.";
