@@ -13,7 +13,8 @@ This directory contains the first backend foundation for MEHRAN's own singing-vo
 - Human-confirmed syllable overrides and conservative grapheme annotation: implemented.
 - Unvowelled Persian remains flagged for manual review; automatic phoneme alignment is not claimed.
 - Lyric-syllable to MIDI-note alignment: implemented as a conservative proposal or human-directed mapping, including melisma groups.
-- Automatic Persian phoneme conversion and acoustic forced alignment: **not implemented**.\n- Human-directed phoneme timing plans from reviewed phonemes, syllable windows, and explicit duration weights: implemented; these are proposals, not acoustic alignment.
+- Automatic Persian phoneme conversion and acoustic forced alignment: **not implemented**.
+- Human-directed phoneme timing plans from reviewed phonemes, syllable windows, and explicit duration weights: implemented; these are proposals, not acoustic alignment.
 - Singing inference / WAV generation: **not implemented**.
 - No third-party generation API is called.
 - No model weights or GPU deployment are included.
@@ -38,7 +39,9 @@ Open `/docs` for API documentation and `/health` for capability status.
 - `GET /health`: service and model readiness.
 - `POST /v1/jobs/validate`: validates a `mehran.svs.job.v1` job; does not synthesize.
 - `POST /v1/jobs/analyze`: parses an attached MIDI file and returns a tempo-aware note timeline; does not synthesize.
-- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.\n- `POST /v1/model/conditioning/validate`: validates the versioned, model-neutral acoustic conditioning contract. It never loads a model or generates audio.\n- `POST /v1/phonemes/timing`: divides manually supplied syllable time windows using explicit per-phoneme duration weights. It is not forced alignment and always requires review.
+- `POST /v1/jobs/align`: aligns reviewed Persian syllables to either Standard MIDI or Piano Roll note events. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.
+- `POST /v1/model/conditioning/validate`: validates the versioned, model-neutral acoustic conditioning contract. It never loads a model or generates audio.
+- `POST /v1/phonemes/timing`: divides manually supplied syllable time windows using explicit per-phoneme duration weights. It is not forced alignment and always requires review.
 
 Piano Roll timing currently assumes four subdivisions per beat and uses the project BPM. This convention is explicit so timing is not silently inferred from a variable grid.
 
