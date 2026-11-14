@@ -145,3 +145,12 @@ These are **internal orchestration primitives only**. The public submit endpoint
 The future in-house synthesizer must implement the `SingingSynthesisRuntime` protocol in `synthesis_runtime.py`: `load(model_directory)` and `synthesize(conditioning, output_directory)`. Its output contract is `mehran.svs.output.v1`, describing one isolated mono PCM WAV stem (16/24/32-bit integer PCM; 22.05, 24, 44.1, or 48 kHz) plus frame count, duration, project ID, relative artifact path, and SHA-256.
 
 `verify_synthesis_output` independently checks project ownership, path containment (including symlink rejection), file size, WAV header/codec/channel/rate/frame metadata, duration, and content hash. This is an output-verification boundary, not a synthesizer. No runtime implementation, model loader, checkpoint execution, speaker encoder, or audio-generation endpoint is included yet; health must continue to report inference unavailable until those pieces exist and are tested with a real model.
+
+
+## Persian acoustic model configuration contract
+
+`model_config.py` defines the first versioned signal/feature contract for the in-house Persian singing model. It fixes the sample rate, STFT window and hop geometry, Slaney mel scale and normalization, frequency bounds, log floor, centered frame alignment, MIDI pitch encoding, continuous-F0 plus voicing-mask representation, log-RMS energy, and the exact target feature set. The config is explicitly tied to the installed `mehran.fa.phonemes.v1` inventory.
+
+The default 48 kHz / 2048-sample FFT / 256-sample hop setup yields 187.5 feature frames per second. These are declared engineering defaults for a first reproducible experiment, not claims that a trained model has validated them as optimal. Any future change must use a new config/schema version and be evaluated against held-out Persian singing recordings.
+
+This module validates configuration only. It does not compute spectrograms, estimate F0, train a network, load checkpoints, or synthesize audio. The target streams are specified as log-mel, F0 in Hz, a voicing mask, and log-RMS energy; model architecture and training remain separate milestones.
