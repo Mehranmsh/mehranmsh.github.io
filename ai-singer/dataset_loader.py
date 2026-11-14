@@ -68,8 +68,12 @@ def load_training_examples(
     if split not in {"train", "validation", "test"}:
         raise DatasetLoadError("split must be train, validation, or test")
 
-    manifest = Path(manifest_path).resolve()
-    root = Path(dataset_root).resolve() if dataset_root else manifest.parent.resolve()
+    raw_manifest = Path(manifest_path).expanduser()
+    raw_root = Path(dataset_root).expanduser() if dataset_root else raw_manifest.parent
+    if raw_manifest.is_symlink() or raw_root.is_symlink():
+        raise DatasetLoadError("manifest and dataset root symlinks are not allowed")
+    manifest = raw_manifest.resolve()
+    root = raw_root.resolve()
     try:
         validate_manifest(manifest, root)
     except ManifestError as exc:
