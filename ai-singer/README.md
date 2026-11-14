@@ -8,7 +8,8 @@ This directory contains the first backend foundation for MEHRAN's own singing-vo
 - Standard MIDI format 0/1 parsing: implemented for PPQ timing, note events, and tempo maps.
 - MIDI analysis endpoint: implemented; returns note names, pitch, beat positions, seconds, tempo map, and duration.
 - Persian text normalization and word extraction: implemented.\n- `POST /v1/lyrics/analyze`: returns normalized words, optional human-confirmed syllable splits, and conservative grapheme annotations.\n- Words without pronunciation overrides are explicitly flagged for review; no guessed syllable boundaries are returned.\n- Human-confirmed syllable overrides and conservative grapheme annotation: implemented.\n- Unvowelled Persian remains flagged for manual review; automatic phoneme alignment is not claimed.
-- Persian phoneme conversion, syllable segmentation, and lyric-to-note alignment: **not implemented**.
+- Lyric-syllable to MIDI-note alignment: implemented as a conservative proposal or human-directed mapping, including melisma groups.
+- Automatic Persian phoneme conversion and acoustic phoneme timing: **not implemented**.
 - Singing inference / WAV generation: **not implemented**.
 - No third-party generation API is called.
 - No model weights or GPU deployment are included.
@@ -32,7 +33,8 @@ Open `/docs` for API documentation and `/health` for capability status.
 
 - `GET /health`: service and model readiness.
 - `POST /v1/jobs/validate`: validates a `mehran.svs.job.v1` job; does not synthesize.
-- `POST /v1/jobs/analyze`: parses an attached MIDI file and returns a tempo-aware note timeline; does not synthesize or align lyrics.
+- `POST /v1/jobs/analyze`: parses an attached MIDI file and returns a tempo-aware note timeline; does not synthesize.
+- `POST /v1/jobs/align`: aligns human-reviewed syllables to MIDI note groups. Equal counts create a review-required proposal; mismatches are not guessed. Supply `manual_note_groups` for confirmed mappings and melisma.
 
 ## MIDI parser limits
 
@@ -41,7 +43,7 @@ Supports Standard MIDI File format 0 and 1, PPQ timing, channel note-on/note-off
 ## Next engineering milestones
 
 1. Add deterministic Persian text normalization and tested syllable/phoneme segmentation.
-2. Align reviewed syllables to the MIDI note timeline, with manual correction support.
+2. Build and evaluate Persian phoneme timing and acoustic alignment on verified singing data.
 3. Define the internal acoustic model interface and training-data manifest.
 4. Train/evaluate a Persian-capable singing model.
 5. Implement inference, vocal stem rendering, deterministic job tracking and audio quality tests.
