@@ -5,8 +5,10 @@ on:
     branches: [main]
     paths:
       - "ai-singer/model_architecture.py"
+      - "ai-singer/training_engine.py"
       - "ai-singer/training-requirements.txt"
       - "ai-singer/tests/test_model_architecture.py"
+      - "ai-singer/tests/test_training_engine.py"
       - ".github/workflows/ai-singer-model-tests.yml"
   pull_request:
     paths:
