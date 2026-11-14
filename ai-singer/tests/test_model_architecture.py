@@ -45,7 +45,7 @@ class SingingNetworkForwardTests(unittest.TestCase):
         energy = torch.zeros((batch, frames))
         output = model(phonemes, notes, f0, voice, energy, valid)
 
-        self.assertEqual(tuple(output["log_mel"].shape), (batch, frames, 40))
+        self.assertEqual(tuple(output["log_mel"].shape), (batch, frames, 100))
         for key in ("f0_hz", "voicing_logits", "log_rms"):
             self.assertEqual(tuple(output[key].shape), (batch, frames))
         self.assertTrue(torch.equal(output["log_mel"][1, 9:], torch.zeros_like(output["log_mel"][1, 9:])))
