@@ -91,6 +91,7 @@ class DatasetAuditTests(unittest.TestCase):
     def test_warns_when_reference_pairing_is_absent(self):
         records = self.dataset()
         records[0].pop("speaker_reference_recording_id")
+        records[1].pop("speaker_reference_recording_id")
         records[3].pop("speaker_reference_recording_id")
         report = audit_dataset(self.write(records))
         self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
