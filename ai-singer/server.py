@@ -18,6 +18,7 @@ from lyric_alignment import AlignmentError, align_lyrics_to_midi
 from model_artifact import inspect_model_artifact
 from acoustic_contract import validate_acoustic_conditioning
 from phoneme_timing import PhonemeTimingError, build_phoneme_timing_plan
+from conditioning_builder import prepare_acoustic_conditioning
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine Analysis API",
@@ -51,6 +52,7 @@ RATE_LIMITS = {
     "/v1/lyrics/analyze": 30,
     "/v1/model/conditioning/validate": 20,
     "/v1/phonemes/timing": 20,
+    "/v1/model/conditioning/prepare": 10,
 }
 _request_times: dict[tuple[str, str], deque[float]] = {}
 
@@ -302,6 +304,26 @@ def plan_phoneme_timing(payload: dict) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/v1/model/conditioning/prepare")
+def prepare_model_conditioning(payload: dict) -> dict:
+    """Assemble human-reviewed phoneme timing and notes into model-neutral conditioning."""
+    try:
+        result = prepare_acoustic_conditioning(
+            project_id=payload.get("project_id"),
+            timing_plan=payload.get("timing_plan"),
+            notes=payload.get("notes"),
+            duration_seconds=payload.get("duration_seconds"),
+            sample_rate=payload.get("sample_rate", 48000),
+            speaker_profile_id=payload.get("speaker_profile_id"),
+            style=payload.get("style"),
+        )
+    except (ValueError, TypeError, KeyError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    return result
 
 
 @app.post("/v1/model/conditioning/validate")
