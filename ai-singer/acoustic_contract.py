@@ -74,12 +74,16 @@ class AcousticConditioning(BaseModel):
             previous_end = span.end_seconds
 
         previous_note_start = -1.0
+        previous_note_end = 0.0
         for note in self.notes:
             if note.start_seconds < previous_note_start:
                 raise ValueError("note events must be ordered by start_seconds")
+            if note.start_seconds < previous_note_end - 1e-9:
+                raise ValueError("note events must be monophonic and non-overlapping")
             if note.start_seconds + note.duration_seconds > self.duration_seconds + 1e-6:
                 raise ValueError("note event exceeds conditioning duration")
             previous_note_start = note.start_seconds
+            previous_note_end = note.start_seconds + note.duration_seconds
         return self
 
 
