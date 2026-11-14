@@ -137,6 +137,43 @@ class StudioDatasetExportTests(unittest.TestCase):
         with self.assertRaisesRegex(StudioDatasetExportError, "parent symlinks"):
             append_manifest_record(link / "manifest.jsonl", self.make_record(), dataset_root=self.root)
 
+    def test_concurrent_appends_preserve_every_record(self):
+        import threading
+
+        output = self.root / "concurrent.jsonl"
+        records = []
+        for index in range(4):
+            audio_path = self.root / f"take-{index}.wav"
+            with wave.open(str(audio_path), "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(24000)
+                wav.writeframes(bytes([index + 1, 0]) * 2400)
+            records.append(self.make_record(
+                audio_path=audio_path.name,
+                recording_id=f"take-{index}",
+                speaker_id=f"speaker-{index}",
+            ))
+
+        failures = []
+        def append(record):
+            try:
+                append_manifest_record(output, record, dataset_root=self.root)
+            except Exception as exc:
+                failures.append(exc)
+
+        threads = [threading.Thread(target=append, args=(record,)) for record in records]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(failures, [])
+        lines = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(lines), 4)
+        self.assertEqual({item["recording_id"] for item in lines},
+                         {f"take-{index}" for index in range(4)})
+
     def test_rejects_duplicate_audio_or_record_id_without_corrupting_manifest(self):
         record = self.make_record()
         output = self.root / "manifest.jsonl"
