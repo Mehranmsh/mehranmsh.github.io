@@ -73,7 +73,10 @@ def load_training_examples(
         raise DatasetLoadError(str(exc)) from exc
 
     records = _read_records(manifest)
-    selected = [record for record in records if record.get("split") == split]
+    selected = [
+        record for record in records
+        if record.get("split") == split and record.get("speaker_reference_only") is not True
+    ]
     if not selected:
         raise DatasetLoadError(f"manifest contains no records for split: {split}")
 
