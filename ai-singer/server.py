@@ -1,4 +1,4 @@
-"""MEHRAN SVS job intake and MIDI analysis API. No vocal synthesis is deployed."""
+"""MEHRAN self-hosted job analysis API. No vocal synthesis is deployed."""
 from __future__ import annotations
 
 import base64
@@ -17,9 +17,9 @@ from persian_lyrics import analyze_persian_lyrics
 from lyric_alignment import AlignmentError, align_lyrics_to_midi
 
 app = FastAPI(
-    title="MEHRAN Self-Hosted Singing Engine",
+    title="MEHRAN Self-Hosted Singing Engine Analysis API",
     version="0.2.0",
-    description="Private job validation and melody analysis. Singing inference is not deployed.",
+    description="Self-hosted job validation and melody analysis. Singing inference is not deployed.",
 )
 
 allowed_origins = [
@@ -54,6 +54,9 @@ def _allow_request(client_ip: str, path: str, now: float) -> bool:
     limit = RATE_LIMITS.get(path)
     if limit is None:
         return True
+    if len(_request_times) >= 10000 and (client_ip, path) not in _request_times:
+        oldest_key = next(iter(_request_times))
+        _request_times.pop(oldest_key, None)
     key = (client_ip, path)
     recent = _request_times.setdefault(key, deque())
     while recent and recent[0] <= now - RATE_WINDOW_SECONDS:
