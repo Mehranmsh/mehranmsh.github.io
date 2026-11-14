@@ -38,7 +38,7 @@ class BatchSamplerTests(unittest.TestCase):
         data = examples([20, 10, 40, 30, 15])
         batches = make_training_batches(data, batch_size=2, seed=9, drop_last=True)
         self.assertEqual(len(batches), 2)
-        self.assertTrue(all(len(batch) == 2 for batch in batches)
+        self.assertTrue(all(len(batch) == 2 for batch in batches))
 
     def test_rejects_duplicate_recording_ids(self):
         data = examples([20, 10])
