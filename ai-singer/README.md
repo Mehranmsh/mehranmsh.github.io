@@ -322,3 +322,18 @@ A `ready_for_staged_training: true` result means the manifest has passed structu
 ## Held-out singing quality evaluation
 
 `quality_evaluation.py` compares aligned reference and generated arrays without loading or exporting recordings. It reports pitch error in cents on voiced-frame overlap, voicing precision/recall/F1, voiced-frame coverage, log-Mel and log-RMS MAE, waveform SNR, multi-resolution spectral convergence and log-magnitude error, peak level, and clipped-sample fraction. It emits aggregate metrics only and deliberately does not set quality approval: thresholds must be calibrated on a representative held-out speaker set, and human listening review remains mandatory. No metric from a synthetic unit test is evidence of real singing quality.
+
+
+## Aggregate held-out quality report
+
+`quality_report.py` combines per-recording objective reports into privacy-safe dataset summaries. It checks that every report uses the same sample-rate and hop-length contract, then emits macro means, frame-weighted means, median, and 90th percentile for each available metric. Missing metrics remain null rather than being treated as zero. The output contains only aggregate statistics and never copies speaker IDs, recording IDs, transcripts, or file paths. Quality approval remains false until thresholds are calibrated on a representative held-out speaker set and human listening review is complete.
+
+Example local use:
+
+```python
+from quality_report import summarize_quality_reports
+
+summary = summarize_quality_reports(per_recording_reports)
+```
+
+This aggregation utility does not load audio, run inference, train weights, or approve a model.
