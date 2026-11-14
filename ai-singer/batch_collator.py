@@ -215,7 +215,7 @@ def collate_training_examples(
             waveform_mask_batch[row, :sample_length] = sample_mask.astype(np.uint8)
 
     return TrainingBatch(
-        recording_ids=tuple(example.recording_id for example, _, _ in checked),
+        recording_ids=tuple(item[0].recording_id for item in checked),
         lengths=lengths,
         valid_frame_mask=valid,
         phoneme_ids=phoneme,
