@@ -27,6 +27,8 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertAlmostEqual(result["phoneme_time_coverage"], 0.9)
         self.assertEqual(result["internal_gap_count"], 1)
         self.assertAlmostEqual(result["maximum_internal_gap_seconds"], 0.1)
+        self.assertAlmostEqual(result["leading_unannotated_seconds"], 0.0)
+        self.assertAlmostEqual(result["trailing_unannotated_seconds"], 0.0)
         self.assertAlmostEqual(result["vowel_note_time_coverage"], 2 / 3)
         self.assertEqual(result["vowel_count"], 1)
 
@@ -34,6 +36,8 @@ class AnnotationQualityTests(unittest.TestCase):
         result = summarize_annotation_quality([record()])
         self.assertEqual(result["warnings"], [])
         self.assertEqual(result["thresholds"]["minimum_phoneme_coverage"], None)
+        self.assertEqual(result["edge_unannotated_audio"]["recordings_with_leading_audio"], 0)
+        self.assertEqual(result["edge_unannotated_audio"]["recordings_with_trailing_audio"], 0)
 
     def test_optional_thresholds_create_aggregate_warnings_only(self):
         result = summarize_annotation_quality(
