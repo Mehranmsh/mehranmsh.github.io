@@ -190,6 +190,8 @@ def audit_dataset(
     next_steps = []
     if not targets["train"]:
         next_steps.append("Add consented Persian target recordings to the train split.")
+    elif len(targets["train"]) < 2:
+        next_steps.append("Add at least one more distinct, consented training target recording.")
     if not targets["validation"]:
         next_steps.append("Add a speaker-disjoint validation split with consented target recordings.")
     if any("speaker reference" in item or "references are not configured" in item for item in blockers):
