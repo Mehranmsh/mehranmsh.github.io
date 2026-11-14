@@ -236,6 +236,7 @@
      <h3>LYRIC ↔ MELODY ALIGNMENT · هم‌ترازی شعر و ملودی</h3>
      <p style="color:var(--muted);font-size:11px;line-height:1.8">هجاهای تأییدشده را هرکدام در یک خط وارد کن. نت‌های موجود در Piano Roll پروژه با شماره‌گذاری صفرمبنا نمایش داده می‌شوند. برای هر هجا، شمارهٔ نت یا نت‌ها را در خط متناظر بنویس؛ مثلاً <b>0,1</b> یعنی کشیده‌شدن یک هجا روی دو نت. هیچ جای‌گذاری خودکاری بدون تأیید تو ذخیره نمی‌شود.</p>
      <div class="field"><label for="mehranSingerSyllables">REVIEWED SYLLABLES · هر هجا یک خط</label><textarea id="mehranSingerSyllables" rows="5" placeholder="سَ&#10;لام&#10;دِ&#10;لَم" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea></div>
+     <div class="field"><label for="mehranSingerPronunciationOverrides">PRONUNCIATION OVERRIDES · تلفظ تأییدشدهٔ واژه‌ها</label><textarea id="mehranSingerPronunciationOverrides" rows="3" placeholder="سلام=سَ-لام&#10;دنیا=دُن-یا" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea><small style="color:var(--muted)">هر خط: واژه=هجا-هجا. فقط واژه‌هایی را وارد کن که تلفظشان را بررسی کرده‌ای.</small></div>
      <div class="field"><label for="mehranSingerNoteGroups">NOTE GROUPS · یک خط برای هر هجا، شماره نت‌ها با کاما</label><textarea id="mehranSingerNoteGroups" rows="5" placeholder="0&#10;1,2&#10;3&#10;4" style="width:100%;border:1px solid #294761;border-radius:9px;background:#06111d;color:#d8efff;padding:10px"></textarea></div>
      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" id="proposeMehranSingerAlignment" type="button">پیشنهاد یک‌به‌یک</button><button class="btn" id="saveMehranSingerAlignment" type="button">اعتبارسنجی و ذخیره هم‌ترازی</button></div>
      <p id="mehranSingerAlignmentStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;line-height:1.8;margin-top:10px">ابتدا پروژه‌ای با نت‌های Piano Roll انتخاب کن.</p>
@@ -578,10 +579,12 @@
   const project=projects.find(item=>item.id===job.project.id);
   const saved=project&&project.singerAlignment;
   if(!saved||!Array.isArray(saved.syllables)||!Array.isArray(saved.noteGroups)){status.textContent="ابتدا هجاها و گروه نت‌ها را در پنل هم‌ترازی ذخیره کن.";return;}
-  const groups=saved.noteGroups;
+  const groups=saved.noteGroups,pronunciationOverrides={};
+  const overrideLines=$("mehranSingerPronunciationOverrides").value.split(/\r?\n/).map(value=>value.trim()).filter(Boolean);
+  for(const line of overrideLines){const split=line.indexOf("=");if(split<=0||split===line.length-1){status.textContent="قالب تلفظ نامعتبر است. از واژه=هجا-هجا استفاده کن.";return;}const word=line.slice(0,split).trim(),pronunciation=line.slice(split+1).trim();if(!word||!pronunciation||Object.prototype.hasOwnProperty.call(pronunciationOverrides,word)){status.textContent="واژهٔ خالی یا تکراری در تلفظ‌ها وجود دارد.";return;}pronunciationOverrides[word]=pronunciation;}
   button.disabled=true;status.textContent="در حال ارسال شعر و ملودی به موتور اختصاصی و تحلیل هم‌ترازی…";
   try{
-   const response=await fetch(base+"/v1/jobs/align",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({job,manual_note_groups:groups})});
+   const response=await fetch(base+"/v1/jobs/align",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({job,manual_note_groups:groups,pronunciation_overrides:pronunciationOverrides})});
    let data={};try{data=await response.json();}catch{}
    if(!response.ok)throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data).slice(0,300));
    status.textContent=(data.alignment_ready?"هم‌ترازی انسانی در موتور تأیید شد. ":"پیشنهاد هم‌ترازی دریافت شد و نیاز به بازبینی دارد. ")+data.syllable_count+" هجا · "+data.note_count+" نت · منبع: "+data.melody_source+". تولید WAV هنوز آماده نیست.";
