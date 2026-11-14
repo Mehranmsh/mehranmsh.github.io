@@ -363,3 +363,22 @@ python model_comparison.py /local/dataset/manifest.jsonl /local/baseline-bundle 
 ```
 
 The labels `improved` and `regressed` describe only the direction of a metric delta. They are not calibrated thresholds, statistical significance, listening-test results, or production approval. The tool never changes the held-out data or selects a model automatically.
+
+
+## Offline blind listening review
+
+`listening_review.py` builds a local A/B listening page from paired baseline and candidate PCM WAV files. It randomizes which model is shown as A or B for each sample, copies audio into an offline review folder under opaque filenames, and keeps the model mapping in a separate `PRIVATE-answer-key.json` file. The reviewer page has independent naturalness and Persian-pronunciation choices plus optional notes; answers are exported as a JSON file by the browser. The page uses no external scripts, fonts, network requests, or hosted audio.
+
+Example JSONL pair manifest (paths are relative to the local audio root):
+
+```json
+{"item_id":"sample-001","baseline_wav":"baseline/sample-001.wav","candidate_wav":"candidate/sample-001.wav"}
+```
+
+Build a review package:
+
+```bash
+python listening_review.py pairs.jsonl --audio-root /local/audio --output-dir ./blind-review
+```
+
+Open `blind-review/review.html` locally. Keep `PRIVATE-answer-key.json` away from reviewers and combine it with the exported answer JSON only after review completion. The builder accepts mono PCM WAV (16/24/32-bit), limits each source to 100 MiB and the total copied audio to 2 GiB, rejects symlinks/path traversal, and never uploads audio. It does not generate audio, identify the better model automatically, or approve production quality. Only use recordings for which the necessary rights and consent are documented.
