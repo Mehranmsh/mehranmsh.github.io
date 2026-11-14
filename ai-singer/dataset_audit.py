@@ -156,6 +156,10 @@ def audit_dataset(
         message = "train: no target recordings"
         warnings.append(message)
         blockers.append(message)
+    elif len(targets["train"]) < 2:
+        message = "train: at least two target recordings are required by the joint trainer"
+        warnings.append(message)
+        blockers.append(message)
     if not targets["validation"]:
         message = "validation: no target recordings"
         warnings.append(message)
@@ -226,6 +230,12 @@ def audit_dataset(
             "recommended_next_steps": next_steps,
             "training_started": False,
             "model_weights_created": False,
+            "dataset_readiness_only": True,
+            "additional_training_prerequisites": [
+                "trained acoustic stage checkpoint",
+                "trained teacher-forced waveform decoder checkpoint",
+            ],
+            "training_can_start_from_audit_alone": False,
         },
         "evaluation_readiness": {
             "test_target_recordings": len(targets["test"]),
