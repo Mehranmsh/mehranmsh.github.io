@@ -952,10 +952,14 @@ async function renderPatternAudioChunk(pat,startBar=0){if(typeof bargardDebugLog
    offset=keep;
   }else{
    const fade=Math.min(overlap,sourceOffset,offset),sourceStart=sourceOffset-fade;
+   let oldEnergy=0,prerollEnergy=0,blendEnergy=0,oldPeak=0,prerollPeak=0,blendPeak=0;
    for(let i=0;i<fade;i++){
-    const t=(i+1)/(fade+1),at=44+(offset-fade+i)*4,oldL=view.getInt16(at,true),oldR=view.getInt16(at+2,true);
-    put(at,Math.round(oldL*(1-t)+pcm(left[sourceStart+i])*t));put(at+2,Math.round(oldR*(1-t)+pcm(right[sourceStart+i])*t));
+    const t=(i+1)/(fade+1),at=44+(offset-fade+i)*4,oldL=view.getInt16(at,true),oldR=view.getInt16(at+2,true),newL=pcm(left[sourceStart+i]),newR=pcm(right[sourceStart+i]),mixL=Math.round(oldL*(1-t)+newL*t),mixR=Math.round(oldR*(1-t)+newR*t);
+    oldEnergy+=(oldL*oldL+oldR*oldR)*.5;prerollEnergy+=(newL*newL+newR*newR)*.5;blendEnergy+=(mixL*mixL+mixR*mixR)*.5;
+    oldPeak=Math.max(oldPeak,Math.abs(oldL),Math.abs(oldR));prerollPeak=Math.max(prerollPeak,Math.abs(newL),Math.abs(newR));blendPeak=Math.max(blendPeak,Math.abs(mixL),Math.abs(mixR));
+    put(at,mixL);put(at+2,mixR);
    }
+   if(typeof bargardDebugLog==="function"&&fade>0){const db=n=>20*Math.log10(Math.max(1,n)/32767);bargardDebugLog("CHUNK_SEAM_AUDIT",`fade=${(fade/rate*1000).toFixed(2)}ms; oldRMS=${db(Math.sqrt(oldEnergy/fade)).toFixed(2)}dBFS; prerollRMS=${db(Math.sqrt(prerollEnergy/fade)).toFixed(2)}dBFS; blendRMS=${db(Math.sqrt(blendEnergy/fade)).toFixed(2)}dBFS; oldPeak=${db(oldPeak).toFixed(2)}dBFS; prerollPeak=${db(prerollPeak).toFixed(2)}dBFS; blendPeak=${db(blendPeak).toFixed(2)}dBFS`);}
    for(let i=0;i<keep;i++){const at=44+(offset+i)*4;put(at,pcm(left[sourceOffset+i]));put(at+2,pcm(right[sourceOffset+i]));}
    offset+=keep;
   }
