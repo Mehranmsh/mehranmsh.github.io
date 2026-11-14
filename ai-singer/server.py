@@ -5,6 +5,7 @@ import base64
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
 from job_schema import SingingJob
@@ -16,6 +17,22 @@ app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine",
     version="0.2.0",
     description="Private job validation and melody analysis. Singing inference is not deployed.",
+)
+
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv(
+        "MEHRAN_SVS_ALLOWED_ORIGINS",
+        "https://mehranmsh.github.io,https://ecosystem.pinet.com",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 MODEL_READY = os.getenv("MEHRAN_SVS_MODEL_READY", "false").lower() == "true"
@@ -112,20 +129,47 @@ def align_job(payload: dict) -> dict:
     if not isinstance(raw_job, dict):
         raise HTTPException(status_code=422, detail="Provide the validated singing job under the 'job' field.")
     job = _validated_job(raw_job)
-    if not job.melody.midi:
-        raise HTTPException(status_code=422, detail="Lyric-to-note alignment currently requires an attached MIDI file.")
     overrides = payload.get("pronunciation_overrides", {})
     if not isinstance(overrides, dict) or len(overrides) > 500:
         raise HTTPException(status_code=422, detail="pronunciation_overrides must be an object with at most 500 entries.")
     if any(not isinstance(k, str) or not isinstance(v, str) for k, v in overrides.items()):
         raise HTTPException(status_code=422, detail="Every pronunciation override must map a word to a syllable-separated string.")
-    midi_bytes = base64.b64decode(job.melody.midi.data, validate=True)
-    try:
-        melody = parse_standard_midi(midi_bytes)
-    except MidiParseError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    if melody.get("truncated"):
-        raise HTTPException(status_code=422, detail="MIDI note limit was reached; alignment requires a complete note list.")
+    if job.melody.midi:
+        midi_bytes = base64.b64decode(job.melody.midi.data, validate=True)
+        try:
+            melody = parse_standard_midi(midi_bytes)
+        except MidiParseError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if melody.get("truncated"):
+            raise HTTPException(status_code=422, detail="MIDI note limit was reached; alignment requires a complete note list.")
+        melody_source = "midi_file"
+    elif job.melody.noteEvents:
+        bpm = job.project.tempo
+        if bpm is None or bpm <= 0:
+            raise HTTPException(status_code=422, detail="A valid project tempo is required to align Piano Roll notes.")
+        ordered_events = sorted(
+            job.melody.noteEvents,
+            key=lambda event: (event.startStep, event.note),
+        )
+        seconds_per_step = 60.0 / bpm / 4.0
+        notes = []
+        for index, event in enumerate(ordered_events):
+            start_seconds = float(event.startStep) * seconds_per_step
+            duration_seconds = float(event.lengthSteps) * seconds_per_step
+            notes.append({
+                "note": event.note,
+                "startSeconds": round(start_seconds, 6),
+                "durationSeconds": round(duration_seconds, 6),
+                "velocity": event.velocity,
+                "source": "piano_roll",
+                "sourceIndex": index,
+            })
+        melody = {"notes": notes, "noteCount": len(notes), "durationSeconds": max(
+            (note["startSeconds"] + note["durationSeconds"] for note in notes), default=0.0
+        )}
+        melody_source = "project_pattern"
+    else:
+        raise HTTPException(status_code=422, detail="Attach a MIDI file or add notes in the Piano Roll.")
     lyrics = analyze_persian_lyrics(job.project.lyrics, overrides)
     manual_groups = payload.get("manual_note_groups")
     try:
@@ -135,6 +179,7 @@ def align_job(payload: dict) -> dict:
     return {
         **result,
         "project_id": job.project.id,
+        "melody_source": melody_source,
         "generation_ready": False,
         "third_party_generation_api": False,
     }
