@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
     paths:
+      - "ai-singer/server.py"
+      - "ai-singer/lyric_alignment.py"
+      - "ai-singer/tests/test_api_alignment.py"
+      - "ai-singer/server.py"
+      - "ai-singer/lyric_alignment.py"
+      - "ai-singer/tests/test_api_alignment.py"
       - "ai-singer/quality_evaluation.py"
       - "ai-singer/quality_report.py"
       - "ai-singer/heldout_evaluation.py"
@@ -98,6 +104,8 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install --index-url https://download.pytorch.org/whl/cpu -r training-requirements.txt
+      - name: Run API syllable timing integration tests
+        run: python -m unittest discover -s tests -p 'test_api_alignment.py' -v
       - name: Run Persian annotation quality tests
         run: python -m unittest discover -s tests -p 'test_annotation_quality.py' -v
       - name: Run dataset manifest security tests
