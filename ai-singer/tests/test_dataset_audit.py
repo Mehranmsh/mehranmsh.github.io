@@ -63,6 +63,12 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertEqual(report["splits"]["train"]["training_targets"], 1)
         self.assertEqual(report["splits"]["train"]["speaker_reference_only"], 1)
         self.assertEqual(report["splits"]["validation"]["speaker_reference_pairs"], 1)
+        self.assertEqual(report["training_readiness"]["blockers"], [])
+        self.assertEqual(report["training_readiness"]["recommended_next_steps"], [])
+        # A test split is for held-out evaluation, not a prerequisite for staged training.
+        self.assertFalse(report["evaluation_readiness"]["held_out_test_split_available"])
+        self.assertEqual(report["evaluation_readiness"]["test_target_recordings"], 0)
+        self.assertIn("held-out test split", report["evaluation_readiness"]["recommended_next_step"])
         serialized = json.dumps(report)
         self.assertNotIn("speaker-A", serialized)
         self.assertNotIn("tr-target", serialized)
@@ -93,6 +99,8 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
         self.assertTrue(any("reviewed phoneme alignment" in item for item in report["training_readiness"]["warnings"]))
         self.assertTrue(any("MIDI note annotations" in item for item in report["training_readiness"]["warnings"]))
+        self.assertTrue(report["training_readiness"]["blockers"])
+        self.assertTrue(report["training_readiness"]["recommended_next_steps"])
 
     def test_manifest_validation_failure_does_not_echo_private_metadata(self):
         records = self.dataset()
