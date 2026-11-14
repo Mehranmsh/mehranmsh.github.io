@@ -40,8 +40,11 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertEqual(result["edge_unannotated_audio"]["recordings_with_trailing_audio"], 0)
 
     def test_optional_thresholds_create_aggregate_warnings_only(self):
+        item = record()
+        item["phoneme_alignment"][0]["start_seconds"] = 0.12
+        item["phoneme_alignment"][0]["end_seconds"] = 0.18
         result = summarize_annotation_quality(
-            [record()],
+            [item],
             minimum_phoneme_coverage=0.95,
             minimum_vowel_note_coverage=0.8,
             maximum_internal_gap_seconds=0.05,
@@ -63,6 +66,7 @@ class AnnotationQualityTests(unittest.TestCase):
     def test_edge_threshold_flags_unannotated_audio_only_when_configured(self):
         item = record()
         item["phoneme_alignment"][0]["start_seconds"] = 0.12
+        item["phoneme_alignment"][0]["end_seconds"] = 0.18
         summary = summarize_annotation_quality(
             [item], maximum_edge_unannotated_seconds=0.05
         )
