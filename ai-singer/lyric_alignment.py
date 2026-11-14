@@ -8,7 +8,7 @@ class AlignmentError(ValueError):
     """Raised when manual note-to-syllable groups are invalid."""
 
 
-def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups: list[list[int]] | None = None, manual_timing_windows: list[dict] | None = None, reviewed_syllable_phonemes: list[list[str]] | None = None) -> dict:
+def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups: list[list[int]] | None = None, manual_timing_windows: list[dict] | None = None, reviewed_syllable_phonemes: list[list[str]] | None = None, reviewed_syllables: list[str] | None = None) -> dict:
     words = lyrics_analysis.get("words", [])
     unresolved = [word["text"] for word in words if word.get("needs_review") or not word.get("syllables")]
     syllables = []
@@ -20,6 +20,17 @@ def align_lyrics_to_midi(lyrics_analysis: dict, melody: dict, manual_note_groups
                 "word_index": word["index"],
                 "syllable_index": syllable_index,
             })
+
+    if reviewed_syllables is not None:
+        if not isinstance(reviewed_syllables, list) or not reviewed_syllables or len(reviewed_syllables) > 512:
+            raise AlignmentError("reviewed_syllables must be a non-empty list of at most 512 syllable strings.")
+        if any(not isinstance(item, str) or not item.strip() or len(item) > 80 for item in reviewed_syllables):
+            raise AlignmentError("Every reviewed syllable must be a non-empty string of at most 80 characters.")
+        syllables = [{
+            "text": item.strip(), "word": "", "word_index": -1,
+            "syllable_index": index, "phoneme_symbols": [],
+            "phoneme_ambiguity": True, "phoneme_source": "not_reviewed",
+        } for index, item in enumerate(reviewed_syllables)]
 
     if reviewed_syllable_phonemes is not None:
         if not isinstance(reviewed_syllable_phonemes, list) or len(reviewed_syllable_phonemes) != len(syllables):
