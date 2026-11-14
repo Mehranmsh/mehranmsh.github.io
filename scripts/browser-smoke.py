@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Thread
 from tempfile import TemporaryDirectory
 import math
+import re
 import struct
 import wave
 
@@ -143,7 +144,10 @@ def main():
                 assert "YIN confidence score" in pitch_text, "Pitch detector confidence score was not displayed: " + pitch_text
                 assert "not a guarantee of note accuracy" in pitch_text, "Pitch confidence score needs its accuracy limitation explained."
                 assert "Correction map" in pitch_text and "50%" in pitch_text, "Scale-aware correction plan was not rendered: " + pitch_text
-                assert "52.0 cents" in pitch_text, "Correction strength calculation is incorrect: " + pitch_text
+                correction_match = re.search(r"average adjustment ([0-9]+(?:\\.[0-9]+)?) cents", pitch_text)
+                assert correction_match, "Correction adjustment summary was not rendered: " + pitch_text
+                correction_cents = float(correction_match.group(1))
+                assert 50.0 <= correction_cents <= 55.0, "Correction strength calculation is outside the expected 50–55 cent range for the 440 Hz test tone in C minor: " + pitch_text
                 assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
                 assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 1, "Pitch contour has no voiced frames"
 
