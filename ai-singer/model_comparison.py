@@ -53,15 +53,34 @@ def compare_metric_summaries(baseline: dict, candidate: dict) -> dict:
     if not isinstance(baseline_metrics, dict) or not isinstance(candidate_metrics, dict):
         raise ModelComparisonError("both summaries must contain aggregate metrics")
 
+    if set(METRIC_DIRECTIONS) != set(METRICS):
+        raise ModelComparisonError("metric direction configuration does not match the quality report schema")
+
+    def macro_mean(source, metric):
+        entry = source.get(metric)
+        if entry is None:
+            return None
+        if not isinstance(entry, dict):
+            raise ModelComparisonError(f"aggregate metric {metric} must be an object")
+        value = entry.get("macro_mean")
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ModelComparisonError(f"aggregate metric {metric} must be numeric or null")
+        import math
+        if not math.isfinite(float(value)):
+            raise ModelComparisonError(f"aggregate metric {metric} must be finite")
+        return float(value)
+
     results = {}
     for metric in METRICS:
-        base = baseline_metrics.get(metric, {}).get("macro_mean")
-        cand = candidate_metrics.get(metric, {}).get("macro_mean")
+        base = macro_mean(baseline_metrics, metric)
+        cand = macro_mean(candidate_metrics, metric)
         direction = METRIC_DIRECTIONS[metric]
         if base is None or cand is None:
             status, delta = "insufficient_data", None
         else:
-            delta = float(cand) - float(base)
+            delta = cand - base
             if direction == "informational":
                 status = "informational"
             elif delta == 0:
