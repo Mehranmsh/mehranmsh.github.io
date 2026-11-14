@@ -72,6 +72,11 @@ class AcousticConditioningContractTests(unittest.TestCase):
         payload["notes"][1]["start_seconds"] = 0.0
         self.assert_invalid(payload, "ordered")
 
+    def test_rejects_overlapping_monophonic_notes(self):
+        payload = valid_payload()
+        payload["notes"][1]["start_seconds"] = 0.5
+        self.assert_invalid(payload, "monophonic and non-overlapping")
+
     def test_rejects_timeline_overrun(self):
         payload = valid_payload()
         payload["notes"][1]["duration_seconds"] = 2
