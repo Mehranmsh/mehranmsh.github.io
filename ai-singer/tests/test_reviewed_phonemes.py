@@ -22,7 +22,8 @@ class ReviewedPersianPhonemeTests(unittest.TestCase):
 
     def test_legacy_syllable_override_does_not_claim_resolved_phones(self):
         result = analyze_persian_lyrics("سلام", pronunciation_overrides={"سلام": "سَ-لام"})
-        self.assertTrue(result["words"][0]["needs_review"])
+        self.assertFalse(result["words"][0]["needs_review"])
+        self.assertTrue(result["words"][0]["phoneme_ambiguity"])
 
 
 if __name__ == "__main__":
