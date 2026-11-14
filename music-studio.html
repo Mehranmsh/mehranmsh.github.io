@@ -850,8 +850,8 @@
    if(download){
     const link=document.createElement("a");const safeProject=(project.name||"project").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"project",safeTrack=(track.name||"stem").replace(/[^a-z0-9-_]+/gi,"-").slice(0,40)||"stem";
     link.href=renderedStemUrl;link.download=safeProject+"-"+safeTrack+"-stem.wav";link.hidden=true;document.body.appendChild(link);link.click();link.remove();
-    status.textContent="Stem download started · "+(trim.effectiveDuration+tailSeconds).toFixed(1)+" sec including effect tail · "+(wav.size/1024/1024).toFixed(1)+" MB"+metricText+"."+(pitchCorrected?" · vocal pitch correction applied locally.":"");
-   }else status.textContent="Preview rendered locally · "+(trim.effectiveDuration+tailSeconds).toFixed(1)+" sec"+metricText+" · listen to both versions, then download when ready."+(pitchCorrected?" Pitch correction is active.":"");
+    status.textContent="Stem download started · "+(trim.effectiveDuration+startOffset+tailSeconds).toFixed(1)+" sec including start offset and effect tail · "+(wav.size/1024/1024).toFixed(1)+" MB"+metricText+"."+(pitchCorrected?" · vocal pitch correction applied locally.":"");
+   }else status.textContent="Preview rendered locally · "+(trim.effectiveDuration+startOffset+tailSeconds).toFixed(1)+" sec including start offset and effect tail"+metricText+" · listen to both versions, then download when ready."+(pitchCorrected?" Pitch correction is active.":"");
   }catch(error){status.textContent="Stem export stopped safely: "+(error&&error.message?error.message:"Unexpected rendering error.");}
   finally{button.disabled=false;previewButton.disabled=false;}
  }
