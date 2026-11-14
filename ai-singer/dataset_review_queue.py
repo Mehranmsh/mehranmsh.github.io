@@ -94,7 +94,8 @@ def build_review_queue(
                     "has_phoneme_alignment": bool(record.get("phoneme_alignment")),
                     "has_midi_notes": bool(record.get("notes")),
                     "phoneme_alignment_json": json.dumps(record.get("phoneme_alignment", []), ensure_ascii=False),
-                    "notes_json": json.dumps(record.get("notes", []), ensure_ascii=False),\n                    "review_decision": "pending",
+                    "notes_json": json.dumps(record.get("notes", []), ensure_ascii=False),
+                    "review_decision": "pending",
                 })
     except (OSError, UnicodeError, json.JSONDecodeError, KeyError, TypeError) as exc:
         raise ReviewQueueError(
