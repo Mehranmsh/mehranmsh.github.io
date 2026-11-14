@@ -725,9 +725,10 @@ def main():
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
-                assert "C3" in page.locator("#vocalGuideNotes").input_value()
+                loaded_guide_notes = page.locator("#vocalGuideNotes").input_value()
+                assert "D3" in loaded_guide_notes and "F3" in loaded_guide_notes, "Vocal guide should import the actual polyphonic piano-roll notes: " + loaded_guide_notes
                 assert "melody notes loaded" in page.locator("#vocalGuideStatus").inner_text()
-                assert "Sing C3" in page.locator("#vocalGuideSteps").inner_text(), "Lyric rehearsal cards should show the pitch for each mapped step."
+                assert "Sing D3" in page.locator("#vocalGuideSteps").inner_text(), "Lyric rehearsal cards should show the first mapped pitch for each step."
                 assert page.locator("#vocalGuideBacking").is_checked(), "Chord backing should be enabled by default."
                 page.locator("#vocalGuideSyllables").fill("one / two / three / four / five / six / seven / eight")
                 page.locator("#vocalGuideNotes").fill("C3, D3, E3, F3, G3, A3, B3, C4")
