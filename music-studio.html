@@ -893,12 +893,10 @@
   $("stemPreviewPanel").classList.add("hidden");$("stemPreviewOriginal").disabled=true;$("stemPreviewCorrected").disabled=true;$("downloadStem").disabled=true;
   $("stemPreviewMode").textContent="Preview the original or corrected stem before downloading.";
  }
- async function renderWavExport(onlyBargardBacking=false){
-  const button=$("renderWav"),exportButton=onlyBargardBacking?$("exportBargardBacking"):button,status=$("renderWavStatus");if(wavExportInProgress||button.disabled||exportButton.disabled)return;
+ async function renderWavExport(){
+  const button=$("renderWav"),status=$("renderWavStatus");if(wavExportInProgress||button.disabled)return;
   const project=projects.find(p=>p.id===$("mixProject").value);if(!project){status.textContent="Choose a project first.";return;}
-  const legacyBackingNames=["BARGARD · Instrumental","BARGARD · Backing Vocals"];
-  const tracks=(project.tracks||[]).filter(t=>t.audioName&&(!onlyBargardBacking||legacyBackingNames.includes(t.name)));if(!tracks.length){status.textContent=onlyBargardBacking?"ابتدا موسیقی کامل «برگرد» را بساز تا دو لایهٔ آن برای خروجی آماده باشند.":"Attach at least one audio file to a track first.";return;}
-  if(onlyBargardBacking&&tracks.length!==2){status.textContent="برای خروجی یکپارچه، هر دو ترک موسیقی و هارمونی باید در همین پروژه موجود باشند.";return;}
+  const tracks=(project.tracks||[]).filter(t=>t.audioName);if(!tracks.length){status.textContent="Attach at least one audio file to a track first.";return;}
   if(tracks.length>WAV_EXPORT_MAX_TRACKS){status.textContent="For safe rendering, export up to 8 audio tracks at a time.";return;}
   if(!(window.AudioContext||window.webkitAudioContext)||!(window.OfflineAudioContext||window.webkitOfflineAudioContext)){status.textContent="This browser does not support offline audio rendering. Try a recent desktop browser.";return;}
   wavExportInProgress=true;button.disabled=true;exportButton.disabled=true;const decoded=[];let compressedBytes=0;
