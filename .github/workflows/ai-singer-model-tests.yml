@@ -27,11 +27,15 @@ on:
       - "ai-singer/tests/test_annotation_quality.py"
       - "ai-singer/tests/test_dataset_audit.py"
       - "ai-singer/dataset_manifest.py"
+      - "ai-singer/studio_dataset_export.py"
+      - "ai-singer/tests/test_studio_dataset_export.py"
       - "ai-singer/annotation_quality.py"
       - "ai-singer/tests/test_annotation_quality.py"
       - "ai-singer/tests/test_dataset_audit.py"
       - "ai-singer/dataset_audit.py"
       - "ai-singer/tests/test_dataset_manifest.py"
+      - "ai-singer/studio_dataset_export.py"
+      - "ai-singer/tests/test_studio_dataset_export.py"
       - "ai-singer/tests/test_dataset_audit.py"
       - "ai-singer/pipeline_training_engine.py"
       - "ai-singer/train_singing_pipeline.py"
@@ -112,6 +116,8 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_annotation_quality.py' -v
       - name: Run dataset manifest security tests
         run: python -m unittest discover -s tests -p 'test_dataset_manifest.py' -v
+      - name: Run local studio dataset export tests
+        run: python -m unittest discover -s tests -p 'test_studio_dataset_export.py' -v
       - name: Run privacy-preserving dataset audit tests
         run: python -m unittest discover -s tests -p 'test_dataset_audit.py' -v
       - name: Run leakage-safe speaker reference pairing tests
