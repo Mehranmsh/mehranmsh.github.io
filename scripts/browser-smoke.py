@@ -49,7 +49,7 @@ def main():
                 browser = playwright.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
                 context = browser.new_context(accept_downloads=True)
                 page = context.new_page()
-                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on("pageerror", lambda error: errors.append(getattr(error, "stack", None) or str(error)))
                 page.goto(base_url + "/music-studio.html", wait_until="networkidle")
                 assert "MEHRAN MUSIC" in page.title().upper() or page.locator(".brand").inner_text().upper().find("MEHRAN MUSIC") >= 0
 
