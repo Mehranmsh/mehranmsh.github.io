@@ -37,7 +37,7 @@ def config():
     })
 
 
-def example(recording_id, duration):
+def example(recording_id, duration, reference_frames=None):
     cfg = config()
     phonemes = [{"phoneme": "æ", "start_seconds": 0.0, "end_seconds": duration}]
     notes = [{"midi_note": 69, "start_seconds": 0.0, "duration_seconds": duration}]
@@ -61,7 +61,8 @@ def example(recording_id, duration):
         sample_rate=cfg.sample_rate,
         hop_length=cfg.hop_length,
     )
-    return TrainingExample(recording_id, acoustic, tokens, pitch)
+    reference = None if reference_frames is None else np.full((reference_frames, cfg.mel_bins), -8.0, dtype=np.float32)
+    return TrainingExample(recording_id, acoustic, tokens, pitch, speaker_reference_log_mel=reference)
 
 
 class BatchCollatorTests(unittest.TestCase):
@@ -82,6 +83,19 @@ class BatchCollatorTests(unittest.TestCase):
         self.assertTrue((batch.valid_frame_mask[0, batch.lengths[0]:] == 0).all())
         self.assertTrue((batch.target_f0_hz[0, batch.lengths[0]:] == 0).all())
         self.assertAlmostEqual(float(batch.target_log_mel[0, -1, 0]), float(np.log(cfg.log_floor)), places=5)
+
+    def test_pads_reference_audio_and_builds_reference_mask(self):
+        batch = collate_training_examples(
+            [example("ref-short", 0.1, 5), example("ref-long", 0.2, 9)], config()
+        )
+        self.assertEqual(batch.speaker_reference_log_mel.shape, (2, 9, config().mel_bins))
+        self.assertEqual(batch.speaker_reference_frame_mask.tolist(), [[1]*5+[0]*4, [1]*9])
+
+    def test_rejects_mixed_reference_presence(self):
+        with self.assertRaisesRegex(ValueError, "all examples"):
+            collate_training_examples(
+                [example("with-ref", 0.1, 5), example("without-ref", 0.1)], config()
+            )
 
     def test_rejects_empty_batch(self):
         with self.assertRaisesRegex(ValueError, "at least one"):
