@@ -15,6 +15,7 @@ from job_schema import SingingJob
 from midi_parser import MidiParseError, parse_standard_midi
 from persian_lyrics import analyze_persian_lyrics
 from lyric_alignment import AlignmentError, align_lyrics_to_midi
+from model_artifact import inspect_model_artifact
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine Analysis API",
@@ -67,7 +68,7 @@ def _allow_request(client_ip: str, path: str, now: float) -> bool:
     return True
 
 
-MODEL_READY = os.getenv("MEHRAN_SVS_MODEL_READY", "false").lower() == "true"
+MODEL_STATUS = inspect_model_artifact()
 
 
 
@@ -116,7 +117,8 @@ def health() -> dict:
         "service": "mehran-svs-intake",
         "service_ready": True,
         "generation_ready": False,
-        "model_weights_present": MODEL_READY,
+        "model_weights_present": MODEL_STATUS["artifact_verified"],
+        "model_artifact": MODEL_STATUS,
         "generation_implemented": False,
         "midi_analysis_available": True,
         "persian_lyrics_analysis_available": True,
