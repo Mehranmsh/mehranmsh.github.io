@@ -49,6 +49,34 @@ class AlignmentApiTests(unittest.TestCase):
         self.assertFalse(result["generation_ready"])
         self.assertFalse(result["third_party_generation_api"])
 
+    def test_align_endpoint_uses_human_edited_syllable_timing(self):
+        result = align_job({
+            "job": make_job(),
+            "pronunciation_overrides": {"سلام": "سَ-لام"},
+            "manual_note_groups": [[0], [1]],
+            "manual_timing_windows": [
+                {"start_seconds": 0.05, "end_seconds": 0.42},
+                {"start_seconds": 0.55, "end_seconds": 0.91},
+            ],
+        })
+        self.assertEqual(result["timing_source"], "human_edited_syllable_windows")
+        self.assertEqual(result["alignment"][0]["start_seconds"], 0.05)
+        self.assertEqual(result["alignment"][0]["end_seconds"], 0.42)
+        self.assertEqual(result["alignment"][1]["start_seconds"], 0.55)
+
+    def test_align_endpoint_rejects_timing_outside_melody(self):
+        with self.assertRaises(HTTPException) as error:
+            align_job({
+                "job": make_job(),
+                "pronunciation_overrides": {"سلام": "سَ-لام"},
+                "manual_note_groups": [[0], [1]],
+                "manual_timing_windows": [
+                    {"start_seconds": 0.0, "end_seconds": 0.5},
+                    {"start_seconds": 0.5, "end_seconds": 9.0},
+                ],
+            })
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_align_endpoint_refuses_unreviewed_persian_pronunciation(self):
         result = align_job({
             "job": make_job(),
