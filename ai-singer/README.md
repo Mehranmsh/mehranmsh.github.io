@@ -305,3 +305,15 @@ To continue a joint run, use `--resume /path/to/pipeline-latest.pt` instead of t
 ## Hash-verified joint inference bundle
 
 `joint_model_bundle.py` defines a compact manifest for the jointly fine-tuned pipeline checkpoint. Before loading a bundled model, `SingingInferenceRuntime.from_bundle()` validates the Persian feature/model/decoder contract, rejects path traversal and symlinks, checks the checkpoint size, and verifies its SHA-256 digest. The runtime reports bundle verification separately from runtime loading and production approval. This is an integrity check, not a cryptographic publisher signature: protect the bundle directory and manifest with normal host access controls. The public API remains disconnected from this local runtime.
+
+## Privacy-preserving local dataset audit
+
+`dataset_audit.py` runs the manifest validator and produces aggregate-only statistics for train, validation, and test: recording and speaker counts, audio hours, sample-rate coverage, reviewed phoneme/MIDI annotation coverage, reference-only recordings, and valid speaker-reference pairs. It also checks training-loader compatibility and reports readiness warnings without printing speaker IDs, recording IDs, transcripts, rights text, or audio paths. The audit reads local files only.
+
+Run before any training:
+
+```bash
+python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/audio --sample-rate 48000
+```
+
+A `ready_for_staged_training: true` result means the manifest has passed structural and rights validation and the train/validation splits meet the current data-loader prerequisites. It does not mean a model has been trained or that singing quality has been established. The audit never uploads audio, starts training, or creates model weights.
