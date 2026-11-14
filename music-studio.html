@@ -546,12 +546,13 @@
   const project=projects.find(x=>x.id===$("vocalProject").value),select=$("mehranSingerProfile"),previous=select.value;select.innerHTML='<option value="">Use project lead profile</option>';
   (Array.isArray(project?.singers)?project.singers:[]).forEach((s,index)=>{const option=document.createElement("option");option.value=String(s.id||"");option.textContent=String(s.name||("Singer "+(index+1)))+" · "+String(s.role||"Lead");select.appendChild(option);});
   if(previous&&[...select.options].some(o=>o.value===previous))select.value=previous;
+  if(typeof refreshMehranSingerAlignment==="function")refreshMehranSingerAlignment();
  }
 
  function mehranSingerAlignmentProject(){return projects.find(x=>x.id===$("vocalProject").value)||null;}
  function mehranSingerAlignmentNotes(project){
   const pattern=project&&project.patternStudio&&typeof project.patternStudio==="object"?project.patternStudio:{};
-  return Array.isArray(pattern.noteEvents)?pattern.noteEvents.filter(event=>event&&typeof event.note==="string"&&Number.isFinite(Number(event.startStep))&&Number.isFinite(Number(event.lengthSteps))).slice(0,256):[];
+  return Array.isArray(pattern.noteEvents)?pattern.noteEvents.filter(event=>event&&typeof event.note==="string"&&Number.isFinite(Number(event.startStep))&&Number.isFinite(Number(event.lengthSteps))).sort((a,b)=>Number(a.startStep)-Number(b.startStep)||String(a.note).localeCompare(String(b.note))).slice(0,256):[];
  }
  function refreshMehranSingerAlignment(){
   const project=mehranSingerAlignmentProject(),syllables=$("mehranSingerSyllables"),groups=$("mehranSingerNoteGroups"),status=$("mehranSingerAlignmentStatus"),notesRoot=$("mehranSingerAlignmentNotes");
@@ -586,10 +587,10 @@
    groups.push(group);
   }
   const alignment=syllables.map((syllable,index)=>({syllable,noteIndices:groups[index],notes:groups[index].map(noteIndex=>notes[noteIndex].note),melisma:groups[index].length>1}));
-  const prior=project.singerAlignment;
+  const prior=project.singerAlignment,priorUpdated=project.updated;
   project.singerAlignment={version:"mehran.studio.singer-alignment.v1",syllables,noteGroups:groups,alignment,reviewedByUser:true,requiresAcousticReview:true,savedAt:Date.now()};
   project.updated=Date.now();
-  if(!save()){project.singerAlignment=prior;return;}
+  if(!save()){project.singerAlignment=prior;project.updated=priorUpdated;return;}
   status.textContent="هم‌ترازی در پروژه ذخیره شد: "+syllables.length+" هجا، "+used.size+" نت تخصیص‌یافته، "+alignment.filter(item=>item.melisma).length+" هجای کشیده. بررسی زمان‌بندی آکوستیکی و تولید آواز هنوز مرحلهٔ جداگانه است.";
  }
  function addSinger(){const p=projects.find(x=>x.id===$("vocalProject").value);if(!p){alert("Choose a project first.");return;}const name=$("singerName").value.trim();if(!name){$("singerName").focus();alert("Enter a singer name or alias.");return;}p.singers=Array.isArray(p.singers)?p.singers:[];p.tracks=Array.isArray(p.tracks)?p.tracks:[];const existing=editingSingerId?p.singers.find(v=>v.id===editingSingerId):null;if(editingSingerId&&!existing){cancelSingerEdit();alert("This singer profile no longer exists. Please choose it again.");return;}if(!existing&&p.singers.length>=8){alert("A project can have up to 8 singer profiles.");return;}const singer={id:existing?existing.id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),name:name.slice(0,60),voiceType:$("singerType").value,role:$("singerRole").value,range:$("singerRange").value.trim().slice(0,40),language:$("singerLanguage").value.trim().slice(0,40),style:$("singerStyle").value.trim().slice(0,500),parts:$("singerParts").value.trim().slice(0,160)};const previous=existing?{...existing}:null;const previousTracks=p.tracks.map(t=>({...t}));const previousUpdated=p.updated;if(existing)Object.assign(existing,singer);else p.singers.push(singer);const linked=p.tracks.find(t=>t.sourceSingerId===singer.id);if(linked){const backing=["Backing vocals","Harmony","Ad-libs","Choir"].includes(singer.role);linked.name=singer.name;linked.type=backing?"Backing Vocal":"Lead Vocal";linked.role=backing?"Support":"Lead";linked.notes=[singer.style||"",singer.parts?"Parts: "+singer.parts:""].filter(Boolean).join(" · ").slice(0,500);}p.updated=Date.now();if(!save()){if(existing)Object.assign(existing,previous);else p.singers.pop();p.tracks=previousTracks;p.updated=previousUpdated;return;}cancelSingerEdit();$("vocalStatus").textContent=existing?"Singer profile and linked track updated locally.":"Singer profile saved locally.";render();renderVocalCast();refreshMixProjects();}
