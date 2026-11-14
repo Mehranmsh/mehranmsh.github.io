@@ -985,6 +985,7 @@ async function renderPatternAudioChunk(pat,startBar=0){if(typeof bargardDebugLog
   if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_DONE",`bars ${startBar+1}-${startBar+count}; ${keep} frames; preroll=${prerollFrames}; mergedOffset=${offset}; tails retained`);
   await new Promise(resolve=>setTimeout(resolve,0));
  }
+ const expectedFrames=Math.ceil(totalBars*barSeconds*rate)+tailFrames;if(!Number.isSafeInteger(expectedFrames)||offset!==expectedFrames||offset>maxFrames)throw new Error(`Pattern render frame count mismatch: expected ${expectedFrames} frames but assembled ${offset}; WAV export was stopped.`);
  const writeText=(at,value)=>{for(let i=0;i<value.length;i++)view.setUint8(at+i,value.charCodeAt(i));};
  const dataBytes=offset*4,totalBytes=44+dataBytes;assertPcmWavDimensions(totalBytes,rate,2,16);writeText(0,"RIFF");view.setUint32(4,36+dataBytes,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,2,true);view.setUint32(24,rate,true);view.setUint32(28,rate*4,true);view.setUint16(32,4,true);view.setUint16(34,16,true);writeText(36,"data");view.setUint32(40,dataBytes,true);validatePcmWavHeader(view,totalBytes,rate,2,16);
  if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_COMPLETE",`${chunkCount} chunks assembled with preroll tail continuity; ${offset} frames; ${(offset/rate).toFixed(2)}s; ${dataBytes} PCM bytes`);
