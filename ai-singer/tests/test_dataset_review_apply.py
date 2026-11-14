@@ -104,6 +104,27 @@ class DatasetReviewApplyTests(unittest.TestCase):
         with self.assertRaises(ReviewApplyError):
             apply_review_queue(self.manifest, queue, audio_root=self.root)
 
+    def test_rejects_review_queue_inside_audio_dataset(self):
+        queue = self.root / "unsafe-queue.csv"
+        build_review_queue(self.manifest, self.private / "safe.csv", audio_root=self.root)
+        safe = self.private / "safe.csv"
+        queue.write_bytes(safe.read_bytes())
+        with self.assertRaises(ReviewApplyError):
+            apply_review_queue(self.manifest, queue, audio_root=self.root)
+
+    def test_rejects_tampered_snapshot_fields(self):
+        queue = self._queue()
+        with queue.open("r", encoding="utf-8", newline="") as source:
+            rows = list(csv.DictReader(source))
+            fields = list(rows[0])
+        rows[0]["sample_rate"] = "22050"
+        with queue.open("w", encoding="utf-8", newline="") as target:
+            writer = csv.DictWriter(target, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        with self.assertRaises(ReviewApplyError):
+            apply_review_queue(self.manifest, queue, audio_root=self.root)
+
     def test_rejects_invalid_annotations_without_changing_manifest(self):
         queue = self._queue()
         self._approve(queue)
