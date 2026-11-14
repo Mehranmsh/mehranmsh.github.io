@@ -7,6 +7,8 @@ on:
       - "ai-singer/server.py"
       - "ai-singer/lyric_alignment.py"
       - "ai-singer/tests/test_api_alignment.py"
+      - "ai-singer/lyric_alignment.py"
+      - "ai-singer/tests/test_api_alignment.py"
       - "ai-singer/server.py"
       - "ai-singer/lyric_alignment.py"
       - "ai-singer/tests/test_api_alignment.py"
@@ -104,7 +106,7 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install --index-url https://download.pytorch.org/whl/cpu -r training-requirements.txt
-      - name: Run API syllable timing integration tests
+      - name: Run API syllable timing and conditioning integration tests
         run: python -m unittest discover -s tests -p 'test_api_alignment.py' -v
       - name: Run Persian annotation quality tests
         run: python -m unittest discover -s tests -p 'test_annotation_quality.py' -v
