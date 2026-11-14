@@ -117,6 +117,21 @@ class HeldoutEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(heldout_evaluation.HeldoutEvaluationError, "shorter"):
             heldout_evaluation.evaluate_heldout_examples([example], runtime, self.config)
 
+    def test_rejects_misaligned_generated_feature_frames(self):
+        example = make_example()
+        runtime = FakeRuntime(example.waveform_target.copy())
+        mismatched = AcousticFeatures(
+            log_mel=np.full((3, 40), -4.0, dtype=np.float32),
+            f0_hz=np.full(3, 220.0, dtype=np.float32),
+            voicing_mask=np.ones(3, dtype=np.float32),
+            log_rms=np.full(3, -2.0, dtype=np.float32),
+            sample_rate=48000,
+            hop_length=256,
+        )
+        with patch.object(heldout_evaluation, "extract_acoustic_features", return_value=mismatched):
+            with self.assertRaisesRegex(heldout_evaluation.HeldoutEvaluationError, "frame counts do not match"):
+                heldout_evaluation.evaluate_heldout_examples([example], runtime, self.config)
+
 
 if __name__ == "__main__":
     unittest.main()
