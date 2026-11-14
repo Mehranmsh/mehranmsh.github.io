@@ -50,6 +50,28 @@ A Dockerfile is provided for self-hosted deployment. Set `MEHRAN_SVS_ALLOWED_ORI
 
 Supports Standard MIDI File format 0 and 1, PPQ timing, channel note-on/note-off events, running status, and tempo meta-events. SMPTE division, format 2, and unsupported system-common events are rejected. Unmatched note-ons are not treated as completed notes. The parser caps output at 4096 note events.
 
+## Acoustic model artifact gate
+
+The API inspects an optional local `models/model-manifest.json` (or the directory set by `MEHRAN_SVS_MODEL_DIR`). The manifest schema is `mehran.svs.model.v1` and declares model identity, architecture, framework, task, sample rate, supported languages, checkpoint path, and SHA-256. The service rejects unsafe paths, unsupported metadata, missing files, and hash mismatches. Checkpoints are streamed through SHA-256 in bounded chunks and are never deserialized.
+
+A verified checkpoint is only an integrity-checked file. The API intentionally reports `model_loaded: false` and `inference_ready: false` until a reviewed architecture-specific loader, inference implementation, and audio-quality tests exist. Do not set an environment flag to pretend a model is ready.
+
+Example manifest (replace the digest and checkpoint only with a real, reviewed artifact):
+
+```json
+{
+  "schema_version": "mehran.svs.model.v1",
+  "model_id": "mehran-persian-svs-001",
+  "architecture": "mehran-acoustic-v1",
+  "framework": "pytorch",
+  "checkpoint": "weights/model.bin",
+  "sha256": "REPLACE_WITH_64_CHARACTER_SHA256",
+  "sample_rate": 48000,
+  "languages": ["fa"],
+  "task": "singing_voice_synthesis"
+}
+```
+
 ## Next engineering milestones
 
 1. Add deterministic Persian text normalization and tested syllable/phoneme segmentation.
