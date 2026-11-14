@@ -28,10 +28,10 @@ class SingingNetworkConfig:
     def validate(self) -> "SingingNetworkConfig":
         if self.mel_bins < 1 or self.phoneme_vocab_size < 2 or self.note_vocab_size != 129:
             raise ValueError("invalid acoustic or token vocabulary dimensions")
-        if self.hidden_size < 16 or self.hidden_size % self.attention_heads:
-            raise ValueError("hidden_size must be >=16 and divisible by attention_heads")
         if self.attention_heads < 1 or self.encoder_layers < 1 or self.convolution_layers < 1:
             raise ValueError("network depth and attention_heads must be positive")
+        if self.hidden_size < 16 or self.hidden_size % self.attention_heads:
+            raise ValueError("hidden_size must be >=16 and divisible by attention_heads")
         if self.feedforward_size < self.hidden_size:
             raise ValueError("feedforward_size must be >= hidden_size")
         if not 0.0 <= self.dropout < 1.0:
