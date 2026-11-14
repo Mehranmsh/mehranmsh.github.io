@@ -34,9 +34,9 @@ class JobStoreTests(unittest.TestCase):
         self.assertEqual([event["event_type"] for event in events], ["created", "cancelled"])
 
     def test_worker_cannot_claim_before_model_is_ready(self):
-        record, _ = job_store.create_job("project-not-ready", {"lyrics": "سلام"})
+        record, token = job_store.create_job("project-not-ready", {"lyrics": "سلام"})
         self.assertIsNone(job_store.claim_next_job("worker-a", model_ready=False))
-        self.assertEqual(job_store.get_job(record["job_id"], _)[ "status" ], "blocked_model_unavailable")
+        self.assertEqual(job_store.get_job(record["job_id"], token)["status"], "blocked_model_unavailable")
 
     def test_atomic_lease_and_worker_ownership(self):
         record, _token = job_store.create_job("project-queue", {"lyrics": "سلام"})
