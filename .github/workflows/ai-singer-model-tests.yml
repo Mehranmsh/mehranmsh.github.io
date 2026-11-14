@@ -71,6 +71,10 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_train_waveform_decoder.py' -v
       - name: Run end-to-end singing pipeline tests
         run: python -m unittest discover -s tests -p 'test_singing_pipeline.py' -v
+      - name: Run joint pipeline training engine tests
+        run: python -m unittest discover -s tests -p 'test_pipeline_training_engine.py' -v
+      - name: Run joint pipeline trainer CLI tests
+        run: python -m unittest discover -s tests -p 'test_train_singing_pipeline.py' -v
       - name: Run verified waveform output tests
         run: python -m unittest discover -s tests -p 'test_waveform_output.py' -v
       - name: Run model bundle integrity tests
