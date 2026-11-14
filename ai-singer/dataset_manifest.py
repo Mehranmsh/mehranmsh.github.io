@@ -6,6 +6,7 @@ upload recordings, or infer consent/rights from the presence of an audio file.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import wave
@@ -130,6 +131,7 @@ def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None
 
     seen_ids: set[str] = set()
     seen_audio_paths: set[Path] = set()
+    seen_audio_hashes: set[str] = set()
     speaker_splits: dict[str, set[str]] = defaultdict(set)
     totals = defaultdict(int)
     sample_rates = set()
@@ -172,6 +174,17 @@ def validate_manifest(manifest_path: str | Path, dataset_root: str | Path | None
             if audio_path in seen_audio_paths:
                 raise ManifestError(f"line {line_number}: audio file must not be reused by multiple records")
             seen_audio_paths.add(audio_path)
+            digest = hashlib.sha256()
+            try:
+                with audio_path.open("rb") as audio_source:
+                    for chunk in iter(lambda: audio_source.read(1024 * 1024), b""):
+                        digest.update(chunk)
+            except OSError as exc:
+                raise ManifestError(f"line {line_number}: audio file could not be fingerprinted") from exc
+            audio_fingerprint = digest.hexdigest()
+            if audio_fingerprint in seen_audio_hashes:
+                raise ManifestError(f"line {line_number}: duplicate audio content detected")
+            seen_audio_hashes.add(audio_fingerprint)
             try:
                 with wave.open(str(audio_path), "rb") as audio:
                     channels = audio.getnchannels()
