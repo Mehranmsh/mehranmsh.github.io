@@ -125,7 +125,7 @@ def apply_review_queue(
             ) as target:
                 output_temp = Path(target.name)
                 for record in records:
-                    target.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\\n")
+                    target.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
                 target.flush()
                 os.fsync(target.fileno())
             try:
