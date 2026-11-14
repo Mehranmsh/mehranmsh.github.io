@@ -360,7 +360,7 @@ def main():
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
                     assert rendered_mix.getframerate() == mix_sample_rate
-                    assert 3.52 * mix_sample_rate <= rendered_mix.getnframes() <= 3.54 * mix_sample_rate, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
+                    assert 3.88 * mix_sample_rate <= rendered_mix.getnframes() <= 3.89 * mix_sample_rate, "Mix duration did not include the 2.35 s calculated effect tail, 0.10 s trims, and 1.23 s timeline offset."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
                     early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 4]
