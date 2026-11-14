@@ -801,7 +801,7 @@
   const writeText=(offset,value)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i));};
   writeText(0,"RIFF");view.setUint32(4,36+dataBytes,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,channels,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*channels*2,true);view.setUint16(32,channels*2,true);view.setUint16(34,16,true);writeText(36,"data");view.setUint32(40,dataBytes,true);
   const left=audioBuffer.getChannelData(0),right=audioBuffer.numberOfChannels>1?audioBuffer.getChannelData(1):left;let peak=0;
-  if(Number.isFinite(ceilingDb)){for(let i=0;i<frames;i++){peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));}}
+  for(let i=0;i<frames;i++)peak=Math.max(peak,Math.abs(left[i]),Math.abs(right[i]));
   const ceiling=Number.isFinite(ceilingDb)?Math.pow(10,Math.max(-12,Math.min(0,ceilingDb))/20):1,trim=peak>ceiling&&peak>0?ceiling/peak:1;let offset=44;
   for(let i=0;i<frames;i++){const l=Math.max(-1,Math.min(1,left[i]*trim)),r=Math.max(-1,Math.min(1,right[i]*trim));view.setInt16(offset,Math.round(l<0?l*32768:l*32767),true);offset+=2;view.setInt16(offset,Math.round(r<0?r*32768:r*32767),true);offset+=2;}
   const wav=new Blob([buffer],{type:"audio/wav"});wav.samplePeakDb=peak>0?20*Math.log10(peak):-Infinity;wav.appliedPeakTrimDb=trim<1?20*Math.log10(trim):0;return wav;
