@@ -102,3 +102,8 @@ No training recordings or model weights are included in this repository. Do not 
 - The API exposes only GET/POST/OPTIONS for browser access; credentials are not enabled.
 - `POST /v1/jobs/align` accepts either an attached Standard MIDI file or Piano Roll note events. Piano Roll timing currently assumes four steps per beat and requires project tempo.
 - Browser alignment is available only after this self-hosted API is deployed and its base URL is configured in the studio. No third-party vocal generation service is used.
+
+
+## Reviewed Persian phoneme annotations
+
+`POST /v1/lyrics/analyze` and `POST /v1/jobs/align` accept `reviewed_phoneme_overrides`, mapping exact lyric words to lists of canonical symbols from `mehran.fa.phonemes.v1`. This is a human-reviewed annotation path, not automatic G2P. Invalid or ambiguous symbols are rejected; syllable spelling overrides alone do not mark phoneme pronunciation as resolved.
