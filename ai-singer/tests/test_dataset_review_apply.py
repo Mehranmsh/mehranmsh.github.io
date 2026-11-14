@@ -48,7 +48,7 @@ class DatasetReviewApplyTests(unittest.TestCase):
             output.writeframes(sample * 48000)
 
     def _write_manifest(self):
-        self.manifest.write_text(json.dumps(self.record, ensure_ascii=False) + "\\n", encoding="utf-8")
+        self.manifest.write_text(json.dumps(self.record, ensure_ascii=False) + "\n", encoding="utf-8")
 
     def _queue(self):
         output = self.private / "queue.csv"
