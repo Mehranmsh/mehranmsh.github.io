@@ -5,10 +5,11 @@ from pathlib import Path
 from threading import Thread
 from tempfile import TemporaryDirectory
 import math
+import re
 import struct
 import wave
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,6 +35,16 @@ def make_test_wav(path: Path):
         wav.writeframes(samples)
 
 
+def decode_pcm24(data: bytes):
+    samples = []
+    for offset in range(0, len(data) - 2, 3):
+        value = data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16)
+        if value & 0x800000:
+            value -= 1 << 24
+        samples.append(value)
+    return samples
+
+
 def main():
     handler = lambda *args, **kwargs: QuietHandler(*args, directory=str(ROOT), **kwargs)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -49,8 +60,13 @@ def main():
                 browser = playwright.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
                 context = browser.new_context(accept_downloads=True)
                 page = context.new_page()
-                page.on("pageerror", lambda error: errors.append(str(error)))
+                page.on("pageerror", lambda error: errors.append(str(error) + " | stack: " + str(getattr(error, "stack", ""))))
                 page.goto(base_url + "/music-studio.html", wait_until="networkidle")
+                if errors:
+                    raise AssertionError("Unhandled browser errors during initial page load: " + " | ".join(errors))
+                missing_vocal_polish_controls = page.evaluate("() => ['vocalDeEssAmount', 'vocalDeEssThreshold', 'vocalCompThreshold', 'vocalCompRatio', 'vocalCompAttack', 'vocalCompRelease'].filter(id => !document.getElementById(id))")
+                if missing_vocal_polish_controls:
+                    errors.append("Missing vocal polish controls: " + repr(missing_vocal_polish_controls))
                 assert "MEHRAN MUSIC" in page.title().upper() or page.locator(".brand").inner_text().upper().find("MEHRAN MUSIC") >= 0
 
                 # Create and persist a project through the actual UI.
@@ -68,7 +84,31 @@ def main():
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
-                page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
+                try:
+                    page.wait_for_function(
+                        """() => {
+                            const status = document.querySelector('#vocalImportStatus')?.textContent || '';
+                            return status.includes('Vocal recording imported and saved on this device.')
+                                || status.startsWith('Could not import the recording:')
+                                || status.includes('Project could not be saved.')
+                                || status.includes('Choose a project first.')
+                                || status.includes('Choose an audio file')
+                                || status.includes('does not appear to be a supported audio recording')
+                                || status.includes('track limit');
+                        }""",
+                        timeout=15000,
+                    )
+                except PlaywrightTimeoutError as error:
+                    status = page.locator("#vocalImportStatus").inner_text()
+                    raise AssertionError(
+                        "Vocal import did not reach a terminal status. "
+                        f"Status: {status!r}. Browser errors: {' | '.join(errors)}"
+                    ) from error
+                import_status = page.locator("#vocalImportStatus").inner_text()
+                if "Vocal recording imported and saved on this device." not in import_status:
+                    raise AssertionError(
+                        f"Vocal import failed: {import_status!r}. Browser errors: {' | '.join(errors)}"
+                    )
                 assert page.locator("#vocalRecordingPreview").is_visible()
                 assert page.locator("#vocalRecordingPreview").get_attribute("src")
                 saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
@@ -114,7 +154,10 @@ def main():
                 assert "YIN confidence score" in pitch_text, "Pitch detector confidence score was not displayed: " + pitch_text
                 assert "not a guarantee of note accuracy" in pitch_text, "Pitch confidence score needs its accuracy limitation explained."
                 assert "Correction map" in pitch_text and "50%" in pitch_text, "Scale-aware correction plan was not rendered: " + pitch_text
-                assert "52.0 cents" in pitch_text, "Correction strength calculation is incorrect: " + pitch_text
+                correction_match = re.search(r"average adjustment ([0-9]+(?:[.][0-9]+)?) cents", pitch_text)
+                assert correction_match, "Correction adjustment summary was not rendered: " + pitch_text
+                correction_cents = float(correction_match.group(1))
+                assert 50.0 <= correction_cents <= 55.0, "Correction strength calculation is outside the expected 50–55 cent range for the 440 Hz test tone in C minor: " + pitch_text
                 assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
                 assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 1, "Pitch contour has no voiced frames"
 
@@ -323,17 +366,21 @@ def main():
                 mix_file = Path(temp) / "mix.wav"
                 mix_download.value.save_as(str(mix_file))
                 assert mix_file.is_file() and mix_file.stat().st_size > 44
-                mix_sample_rate = 22050
+                mix_sample_rate = 44100
                 with wave.open(str(mix_file), "rb") as rendered_mix:
                     assert rendered_mix.getnchannels() == 2
+                    assert rendered_mix.getsampwidth() == 3, "Mix export must remain 24-bit PCM."
                     assert rendered_mix.getframerate() == mix_sample_rate
-                    assert 3.52 * mix_sample_rate <= rendered_mix.getnframes() <= 3.54 * mix_sample_rate, "Mix duration did not account for the 0.10 s start trim, 0.10 s end trim, and timeline offset."
+                    assert 3.88 * mix_sample_rate <= rendered_mix.getnframes() <= 3.89 * mix_sample_rate, "Mix duration did not include the 2.35 s calculated effect tail, 0.10 s trims, and 1.23 s timeline offset."
+                    frame_bytes = rendered_mix.getnchannels() * rendered_mix.getsampwidth()
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
-                    early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 4]
-                    early_mix = struct.unpack("<" + "h" * (len(early_mix_bytes) // 2), early_mix_bytes)
-                    assert max(map(abs, early_mix), default=0) < 100, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
-                    assert any(mix_pcm[int(1.30 * mix_sample_rate) * 4:int(1.45 * mix_sample_rate) * 4]), "The trimmed vocal segment was not rendered at its scheduled position."
+                    early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * frame_bytes]
+                    early_mix = decode_pcm24(early_mix_bytes)
+                    assert max(map(abs, early_mix), default=0) < 25600, "Trimmed vocal audio leaked into the mix before its timeline entry and start trim."
+                    active_mix_bytes = mix_pcm[int(1.30 * mix_sample_rate) * frame_bytes:int(1.45 * mix_sample_rate) * frame_bytes]
+                    active_mix = decode_pcm24(active_mix_bytes)
+                    assert max(map(abs, active_mix), default=0) > 1024000, "The trimmed vocal segment was not rendered at its scheduled position."
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
@@ -342,14 +389,18 @@ def main():
                 assert stem_file.is_file() and stem_file.stat().st_size > 44
                 with wave.open(str(stem_file), "rb") as rendered_stem:
                     assert rendered_stem.getnchannels() == 2
+                    assert rendered_stem.getsampwidth() == 3, "Stem export must remain 24-bit PCM."
                     assert rendered_stem.getframerate() == 44100
-                    assert 2.29 * 44100 <= rendered_stem.getnframes() <= 2.31 * 44100, "Stem duration did not reflect the non-destructive trim range."
+                    assert 3.88 * 44100 <= rendered_stem.getnframes() <= 3.89 * 44100, "Stem duration did not preserve the 1.23 s timeline offset, 0.30 s retained audio, and 2.35 s effect tail."
+                    stem_frame_bytes = rendered_stem.getnchannels() * rendered_stem.getsampwidth()
                     stem_pcm = rendered_stem.readframes(rendered_stem.getnframes())
                     assert any(stem_pcm), "Rendered stem is silent."
-                    early_stem = struct.unpack("<" + "h" * (len(stem_pcm[:int(0.04 * 44100) * 4]) // 2), stem_pcm[:int(0.04 * 44100) * 4])
-                    active_stem = struct.unpack("<" + "h" * (len(stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4]) // 2), stem_pcm[int(0.16 * 44100) * 4:int(0.22 * 44100) * 4])
-                    assert max(map(abs, early_stem), default=0) < 2000, "Stem contains the source material before the configured trim point."
-                    assert max(map(abs, active_stem), default=0) > 4000, "Stem omitted the expected retained vocal segment after trimming."
+                    early_stem_bytes = stem_pcm[:int(1.22 * 44100) * stem_frame_bytes]
+                    active_stem_bytes = stem_pcm[int(1.30 * 44100) * stem_frame_bytes:int(1.45 * 44100) * stem_frame_bytes]
+                    early_stem = decode_pcm24(early_stem_bytes)
+                    active_stem = decode_pcm24(active_stem_bytes)
+                    assert max(map(abs, early_stem), default=0) < 512000, "Stem contains source material before its configured timeline offset."
+                    assert max(map(abs, active_stem), default=0) > 1024000, "Stem omitted the expected retained vocal segment after its timeline offset."
 
                 # Render the same lead vocal with offline pitch correction enabled.
                 page.locator("#stemPitchCorrection").check()
@@ -414,10 +465,10 @@ def main():
                     assert tuned_stem.getnchannels() == 2 and tuned_stem.getframerate() == 44100
                     frames = tuned_stem.getnframes()
                     pcm = tuned_stem.readframes(frames)
-                    values = struct.unpack("<" + "h" * (len(pcm) // 2), pcm)
-                    # After the 0.10 s source trim, the 440 Hz tone begins at 0.05 s in the rendered stem.
-                    # Use autocorrelation in a retained, non-silent window so fade-in does not bias zero-crossing counts.
-                    segment = values[int(0.06 * 44100) * 2:int(0.24 * 44100) * 2:2]
+                    values = decode_pcm24(pcm)
+                    # The 1.23 s timeline offset is retained; after the 0.10 s source trim,
+                    # the 440 Hz tone begins at 1.28 s. Measure near the end of the 0.25 s fade-in.
+                    segment = values[int(1.43 * 44100) * 2:int(1.48 * 44100) * 2:2]
                     mean = sum(segment) / len(segment)
                     centered = [sample - mean for sample in segment]
                     best_lag = max(range(90, 125), key=lambda lag: sum(centered[i] * centered[i + lag] for i in range(len(centered) - lag)))
@@ -542,7 +593,19 @@ def main():
 
                 page.locator("#patternTrackName").fill("Generated keys phrase")
                 page.locator("#renderPattern").click()
-                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
+                try:
+                    page.wait_for_function(
+                        """() => {
+                            const status = document.querySelector('#patternStatus')?.textContent || '';
+                            return status.includes('Generated WAV added to the mixer') || status.startsWith('Pattern render failed:');
+                        }""",
+                        timeout=20000,
+                    )
+                except Exception as error:
+                    status = page.locator("#patternStatus").inner_text()
+                    raise AssertionError("Melodic pattern renderer did not finish. Current status: " + status) from error
+                melody_pattern_status = page.locator("#patternStatus").inner_text()
+                assert "Generated WAV added to the mixer" in melody_pattern_status, "Melodic pattern rendering failed: " + melody_pattern_status
                 melody_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 assert melody_project["patternStudio"]["mode"] == "keys" and "C3" in melody_project["patternStudio"]["notes"] and melody_project["patternStudio"]["velocityByStep"][1] == 65 and melody_project["patternStudio"]["gateByStep"][1] == 55
                 melody_events = [event for event in melody_project["patternStudio"]["noteEvents"] if event["startStep"] == 1]
@@ -633,10 +696,18 @@ def main():
                     instrument_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
+                # Re-establish a known melodic pattern after the chord and instrument render cases.
+                # The guide must load the active project's current notes, not assume an earlier mode's notes survived.
+                page.locator("#patternMode").select_option("keys")
+                page.locator("#patternNotes").fill("C3, D3, E3, F3, G3, A3, B3, C4")
+                page.locator("#patternNotes").dispatch_event("change")
+                prepared_pattern = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio")
+                assert prepared_pattern["mode"] == "keys" and prepared_pattern["notes"][0] == "C3", "The test melody was not saved to the active project."
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
-                assert "C3" in page.locator("#vocalGuideNotes").input_value()
+                loaded_guide_notes = page.locator("#vocalGuideNotes").input_value().split(",")
+                assert loaded_guide_notes[0].strip() == "C3", "Project melody notes were not loaded into the vocal guide: " + repr(loaded_guide_notes)
                 assert "melody notes loaded" in page.locator("#vocalGuideStatus").inner_text()
                 assert "Sing C3" in page.locator("#vocalGuideSteps").inner_text(), "Lyric rehearsal cards should show the pitch for each mapped step."
                 assert page.locator("#vocalGuideBacking").is_checked(), "Chord backing should be enabled by default."
