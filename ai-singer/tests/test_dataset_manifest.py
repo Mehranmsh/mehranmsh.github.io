@@ -64,7 +64,13 @@ class DatasetManifestTests(unittest.TestCase):
             validate_manifest(self.write_manifest([self.record(audio_path="../outside.wav")]))
 
     def test_rejects_speaker_leakage_between_splits(self):
-        second = self.record(recording_id="rec-002", split="test")
+        second_audio = self.root / "second.wav"
+        with wave.open(str(second_audio), "wb") as output:
+            output.setnchannels(1)
+            output.setsampwidth(2)
+            output.setframerate(24000)
+            output.writeframes(b"\\x01\\x00" * 2400)
+        second = self.record(recording_id="rec-002", audio_path="second.wav", split="test")
         with self.assertRaisesRegex(ManifestError, "speaker leakage"):
             validate_manifest(self.write_manifest([self.record(), second]))
 
