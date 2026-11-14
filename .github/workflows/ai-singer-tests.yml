@@ -30,3 +30,16 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Build deployment container
         run: docker build -t mehran-ai-singer-test .
+      - name: Smoke test deployed API container
+        run: |
+          docker run -d --name mehran-ai-singer-smoke -p 8787:8787 mehran-ai-singer-test
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8787/health; then
+              docker rm -f mehran-ai-singer-smoke
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs mehran-ai-singer-smoke
+          docker rm -f mehran-ai-singer-smoke
+          exit 1
