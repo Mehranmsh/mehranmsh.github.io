@@ -261,3 +261,8 @@ python train_waveform_decoder.py --manifest /path/to/manifest.jsonl --audio-root
 ```
 
 The CLI reports `conditioning_mode: teacher_forced_ground_truth_acoustics` and `audio_generated: false`. It trains only the waveform decoder against ground-truth acoustic tracks. It does not yet combine predicted acoustic tracks from the learned singer model, run perceptual evaluation, implement streaming/chunked inference, or generate an end-user singing WAV. No real dataset is included and no training has been run.
+
+
+## Experimental end-to-end singing graph
+
+`singing_pipeline.py` now composes the phoneme/MIDI-conditioned acoustic network with the reference-conditioned waveform decoder. It feeds predicted log-Mel, F0, voicing probability, and energy into the decoder and reports the exact sample length for each valid frame sequence. This closes the model-graph wiring at the architecture level only. Both networks remain untrained, no inference checkpoint is available, no real audio quality has been evaluated, and the public API continues to report synthesis unavailable. The graph must not be presented to users as a functioning singer until trained checkpoints, robust inference, verified WAV writing, and held-out listening tests exist.
