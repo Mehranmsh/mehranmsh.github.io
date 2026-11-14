@@ -117,3 +117,13 @@ Send `POST /v1/phonemes/timing` with a `syllables` array. Each item requires `st
 ## Preparing the model-neutral acoustic input
 
 `POST /v1/model/conditioning/prepare` accepts a reviewed `mehran.phoneme-timing-plan.v1`, note events, project ID, and duration. It validates the timing and canonical Persian phonemes, then maps each phoneme to every note whose time interval overlaps it. This mapping is explicitly based on user-supplied intervals, not audio analysis or forced alignment. The response includes the complete `mehran.svs.conditioning.v1` payload and a review-required phoneme-to-note mapping. It does not load model weights, accept the job for inference, or generate audio.
+
+
+## Private job registry
+
+- `POST /v1/jobs/submit` validates and stores a project job in a local SQLite registry. The response returns a one-time random access token; store it securely because it is not returned again.
+- `GET /v1/jobs/status/{job_id}` requires the `X-Job-Token` header.
+- `POST /v1/jobs/cancel/{job_id}` also requires `X-Job-Token`.
+- Job tokens are stored only as SHA-256 hashes and unknown IDs or invalid tokens return the same 404 response. Records expire after seven days and the registry caps active records at 1,000.
+- Set `MEHRAN_SVS_JOB_DB` to a persistent writable volume path in deployment. Without a mounted persistent volume, local container storage may be lost when the container is replaced.
+- Current job status is `blocked_model_unavailable`. This is durable intake and status tracking, not a live audio-rendering queue. No worker is started and no WAV is produced until the native model and inference runtime exist.
