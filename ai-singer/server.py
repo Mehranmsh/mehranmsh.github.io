@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from job_schema import SingingJob
 from midi_parser import MidiParseError, parse_standard_midi\nfrom persian_lyrics import analyze_persian_lyrics
+from lyric_alignment import AlignmentError, align_lyrics_to_midi
 
 app = FastAPI(
     title="MEHRAN Self-Hosted Singing Engine",
@@ -99,4 +100,38 @@ def analyze_job(payload: dict) -> dict:
         "alignment_ready": False,
         "generation_ready": False,
         "message": "MIDI notes and tempo timeline analyzed. Lyrics have not been aligned to phonemes and no vocal audio was generated.",
+    }
+
+
+@app.post("/v1/jobs/align")
+def align_job(payload: dict) -> dict:
+    raw_job = payload.get("job")
+    if not isinstance(raw_job, dict):
+        raise HTTPException(status_code=422, detail="Provide the validated singing job under the 'job' field.")
+    job = _validated_job(raw_job)
+    if not job.melody.midi:
+        raise HTTPException(status_code=422, detail="Lyric-to-note alignment currently requires an attached MIDI file.")
+    overrides = payload.get("pronunciation_overrides", {})
+    if not isinstance(overrides, dict) or len(overrides) > 500:
+        raise HTTPException(status_code=422, detail="pronunciation_overrides must be an object with at most 500 entries.")
+    if any(not isinstance(k, str) or not isinstance(v, str) for k, v in overrides.items()):
+        raise HTTPException(status_code=422, detail="Every pronunciation override must map a word to a syllable-separated string.")
+    midi_bytes = base64.b64decode(job.melody.midi.data, validate=True)
+    try:
+        melody = parse_standard_midi(midi_bytes)
+    except MidiParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if melody.get("truncated"):
+        raise HTTPException(status_code=422, detail="MIDI note limit was reached; alignment requires a complete note list.")
+    lyrics = analyze_persian_lyrics(job.project.lyrics, overrides)
+    manual_groups = payload.get("manual_note_groups")
+    try:
+        result = align_lyrics_to_midi(lyrics, melody, manual_groups)
+    except AlignmentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        **result,
+        "project_id": job.project.id,
+        "generation_ready": False,
+        "third_party_generation_api": False,
     }
