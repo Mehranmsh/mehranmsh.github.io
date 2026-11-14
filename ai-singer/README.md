@@ -295,3 +295,8 @@ python train_singing_pipeline.py \\
 ```
 
 To continue a joint run, use `--resume /path/to/pipeline-latest.pt` instead of the two stage-checkpoint options. This stage is not executed by CI because no private training corpus is present. The CLI does not download, upload, or generate audio. A successful training loss or checkpoint does not establish singing quality or inference readiness; held-out listening tests, speaker similarity checks, artifact verification, and a separately approved inference runtime are still required.
+
+
+## Guarded local inference runtime
+
+`inference_runtime.py` loads a joint pipeline checkpoint with strict acoustic/decoder configuration matching and PyTorch's restricted `weights_only=True` checkpoint loading. It validates frame-aligned Persian phoneme, MIDI, pitch, voicing, energy, and separate speaker-reference features, enforces inference length bounds, runs the complete acoustic-to-waveform graph under inference mode, and can write a verified PCM WAV artifact. The runtime status deliberately distinguishes `local_inference_available` from `production_approved`. It is not connected to the public API and does not change `/health` or unblock submitted jobs. Do not deploy it with random, untrained, or unreviewed weights.
