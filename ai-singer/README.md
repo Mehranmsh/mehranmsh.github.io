@@ -300,3 +300,8 @@ To continue a joint run, use `--resume /path/to/pipeline-latest.pt` instead of t
 ## Guarded local inference runtime
 
 `inference_runtime.py` loads a joint pipeline checkpoint with strict acoustic/decoder configuration matching and PyTorch's restricted `weights_only=True` checkpoint loading. It validates frame-aligned Persian phoneme, MIDI, pitch, voicing, energy, and separate speaker-reference features, enforces inference length bounds, runs the complete acoustic-to-waveform graph under inference mode, and can write a verified PCM WAV artifact. The runtime status deliberately distinguishes `local_inference_available` from `production_approved`. It is not connected to the public API and does not change `/health` or unblock submitted jobs. Do not deploy it with random, untrained, or unreviewed weights.
+
+
+## Hash-verified joint inference bundle
+
+`joint_model_bundle.py` defines a compact manifest for the jointly fine-tuned pipeline checkpoint. Before loading a bundled model, `SingingInferenceRuntime.from_bundle()` validates the Persian feature/model/decoder contract, rejects path traversal and symlinks, checks the checkpoint size, and verifies its SHA-256 digest. The runtime reports bundle verification separately from runtime loading and production approval. This is an integrity check, not a cryptographic publisher signature: protect the bundle directory and manifest with normal host access controls. The public API remains disconnected from this local runtime.
