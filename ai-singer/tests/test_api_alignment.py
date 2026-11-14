@@ -77,6 +77,36 @@ class AlignmentApiTests(unittest.TestCase):
             })
         self.assertEqual(error.exception.status_code, 422)
 
+    def test_prepare_conditioning_requires_explicit_phoneme_weights(self):
+        from server import prepare_job_conditioning
+        payload = {
+            "job": make_job() | {"project": make_job()["project"] | {"lyrics": "سَم"}},
+            "pronunciation_overrides": {"سَم": "سَم"},
+            "manual_note_groups": [[0]],
+            "manual_timing_windows": [{"start_seconds": 0.0, "end_seconds": 0.5}],
+            "reviewed_phoneme_overrides": {"سَم": ["s", "æ", "m"]},
+            "phoneme_duration_weights": [[1, 2, 1]],
+        }
+        result = prepare_job_conditioning(payload)
+        self.assertEqual(result["conditioning"]["schema_version"], "mehran.svs.conditioning.v1")
+        self.assertEqual([p["phoneme"] for p in result["conditioning"]["phonemes"]], ["s", "æ", "m"])
+        self.assertFalse(result["accepted_for_inference"])
+        self.assertFalse(result["audio_generated"])
+        self.assertFalse(result["generation_ready"])
+
+    def test_prepare_conditioning_rejects_missing_weights(self):
+        from server import prepare_job_conditioning
+        payload = {
+            "job": make_job() | {"project": make_job()["project"] | {"lyrics": "سَم"}},
+            "pronunciation_overrides": {"سَم": "سَم"},
+            "manual_note_groups": [[0]],
+            "manual_timing_windows": [{"start_seconds": 0.0, "end_seconds": 0.5}],
+            "reviewed_phoneme_overrides": {"سَم": ["s", "æ", "m"]},
+        }
+        with self.assertRaises(HTTPException) as error:
+            prepare_job_conditioning(payload)
+        self.assertEqual(error.exception.status_code, 422)
+
     def test_align_endpoint_refuses_unreviewed_persian_pronunciation(self):
         result = align_job({
             "job": make_job(),
