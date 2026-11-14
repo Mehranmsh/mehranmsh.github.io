@@ -83,7 +83,7 @@ def main():
                 # Import a Standard MIDI file and verify the studio parses and displays its real note timeline.
                 page.locator("#mehranSingerMidiFile").set_input_files(str(midi_path))
                 page.wait_for_function("document.querySelector('#mehranSingerMidiStatus')?.textContent.includes('1 نت')", timeout=10000)
-                midi_notes_text = page.locator("#mehranSingerAlignmentNotes").inner_text()
+                midi_notes_text = page.locator("#mehranSingerAlignmentNotes").text_content() or ""
                 assert "C4" in midi_notes_text and "0.500s" in midi_notes_text, "Imported MIDI note timeline was not rendered: " + midi_notes_text
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
