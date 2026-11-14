@@ -157,6 +157,97 @@ def train_one_epoch(model, batches: Iterable[TrainingBatch], optimizer, config: 
     return {key: value / count for key, value in totals.items()} | {"batches": count}
 
 
-@torch_no_grad_placeholder
-def _placeholder():
-    pass
+def evaluate(model, batches: Iterable[TrainingBatch], config: TrainingConfig, *, device="cpu"):
+    """Evaluate without gradient updates and return mean batch losses."""
+    torch, _ = _torch()
+    config.validate()
+    model.eval()
+    totals = {"loss": 0.0, "mel": 0.0, "f0": 0.0, "voicing": 0.0, "energy": 0.0}
+    count = 0
+    with torch.no_grad():
+        for batch in batches:
+            tensors = _batch_tensors(batch, device)
+            outputs = _forward(model, tensors)
+            loss, parts = compute_training_loss(outputs, batch, config)
+            if not torch.isfinite(loss):
+                raise FloatingPointError("non-finite validation loss")
+            totals["loss"] += float(loss.cpu())
+            for key, value in parts.items():
+                totals[key] += float(value.cpu())
+            count += 1
+    if count == 0:
+        raise ValueError("validation requires at least one batch")
+    return {key: value / count for key, value in totals.items()} | {"batches": count}
+
+
+def save_checkpoint(path, model, optimizer, *, epoch: int, metrics: dict,
+                    model_config: SingingNetworkConfig, training_config: TrainingConfig):
+    """Atomically save model/optimizer state and JSON-safe experiment metadata."""
+    torch, _ = _torch()
+    model_config.validate()
+    training_config.validate()
+    if isinstance(epoch, bool) or not isinstance(epoch, int) or epoch < 0:
+        raise ValueError("epoch must be a non-negative integer")
+    if not isinstance(metrics, dict) or any(
+        not isinstance(key, str) or not isinstance(value, (int, float))
+        or not math.isfinite(float(value)) for key, value in metrics.items()
+    ):
+        raise ValueError("metrics must be a mapping of finite numeric values")
+    destination = Path(path)
+    if destination.suffix.lower() not in {".pt", ".pth"}:
+        raise ValueError("checkpoint path must end in .pt or .pth")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.is_symlink():
+        raise ValueError("checkpoint destination cannot be a symlink")
+    payload = {
+        "schema_version": "mehran.svs.training-checkpoint.v1",
+        "epoch": epoch,
+        "metrics": {key: float(value) for key, value in metrics.items()},
+        "model_config": asdict(model_config),
+        "training_config": asdict(training_config),
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+    }
+    temp_name = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", prefix=".mehran-checkpoint-", suffix=".tmp",
+            dir=destination.parent, delete=False
+        ) as handle:
+            temp_name = handle.name
+            torch.save(payload, handle)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, destination)
+    finally:
+        if temp_name and os.path.exists(temp_name):
+            os.unlink(temp_name)
+    return destination
+
+
+def load_checkpoint(path, model, optimizer=None, *, expected_model_config: SingingNetworkConfig | None = None, map_location="cpu"):
+    """Load a checkpoint using PyTorch's restricted weights-only unpickler."""
+    torch, _ = _torch()
+    source = Path(path)
+    if not source.is_file() or source.is_symlink():
+        raise ValueError("checkpoint must be an existing regular file")
+    payload = torch.load(source, map_location=map_location, weights_only=True)
+    if not isinstance(payload, dict) or payload.get("schema_version") != "mehran.svs.training-checkpoint.v1":
+        raise ValueError("unsupported or invalid MEHRAN training checkpoint")
+    if expected_model_config is not None:
+        expected = asdict(expected_model_config.validate())
+        if payload.get("model_config") != expected:
+            raise ValueError("checkpoint model configuration does not match requested model")
+    if not isinstance(payload.get("model_state_dict"), dict):
+        raise ValueError("checkpoint model state is missing")
+    model.load_state_dict(payload["model_state_dict"], strict=True)
+    if optimizer is not None:
+        if not isinstance(payload.get("optimizer_state_dict"), dict):
+            raise ValueError("checkpoint optimizer state is missing")
+        optimizer.load_state_dict(payload["optimizer_state_dict"])
+    return {
+        "epoch": payload["epoch"],
+        "metrics": payload["metrics"],
+        "model_config": payload["model_config"],
+        "training_config": payload["training_config"],
+    }
