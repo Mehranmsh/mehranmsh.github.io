@@ -964,7 +964,7 @@ async function renderPatternAudioChunk(pat,startBar=0){if(typeof bargardDebugLog
   const count=Math.min(chunkBars,totalBars-startBar),hasPreroll=startBar>0,prerollFrames=hasPreroll?Math.ceil(barSeconds*rate):0,chunkStartFrame=Math.ceil(startBar*barSeconds*rate),chunkEndFrame=Math.ceil((startBar+count)*barSeconds*rate),mainFrames=chunkEndFrame-chunkStartFrame,chunkPat={...pat,bars:count+(hasPreroll?1:0),totalBars,chunked:true,initialChordVoicing:pat.mode==="chords"?carryChordVoicing:null};
   if(typeof bargardDebugLog==="function")bargardDebugLog("CHUNK_RENDER_START",`bars ${startBar+1}-${startBar+count} of ${totalBars}${hasPreroll?" with one-bar preroll":""}`);
   let rendered=await renderPatternAudioChunk(chunkPat,startBar-(hasPreroll?1:0));if(pat.mode==="chords"&&Array.isArray(chunkPat.finalChordVoicing))carryChordVoicing=chunkPat.finalChordVoicing.slice();sampleStatuses.push(chunkPat.sampleEngineStatus||"unknown sample status");
-  const left=rendered.getChannelData(0),right=rendered.getChannelData(1),sourceOffset=prerollFrames,keep=Math.min(rendered.length-sourceOffset,mainFrames+(startBar+count===totalBars?tailFrames:0));
+  const left=rendered.getChannelData(0),right=rendered.getChannelData(1),sourceOffset=prerollFrames,keep=Math.min(rendered.length-sourceOffset,mainFrames+(startBar+count===totalBars?tailFrames:0));if(!Number.isSafeInteger(sourceOffset)||sourceOffset<0||!Number.isSafeInteger(keep)||keep<0||sourceOffset+keep>rendered.length||offset+keep>maxFrames)throw new Error("Pattern chunk frame accounting exceeded the allocated render buffer; export was stopped.");
   if(!hasPreroll){
    for(let i=0;i<keep;i++){const at=44+i*4;put(at,pcm(left[i]));put(at+2,pcm(right[i]));}
    offset=keep;
