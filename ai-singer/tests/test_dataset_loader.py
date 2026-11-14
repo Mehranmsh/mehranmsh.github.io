@@ -55,6 +55,12 @@ class DatasetLoaderTests(unittest.TestCase):
             wav.setsampwidth(2)
             wav.setframerate(rate)
             wav.writeframes(stereo.tobytes())
+        reference = (0.15 * np.sin(2 * np.pi * 330 * samples) * 32767).astype("<i2")
+        with wave.open(str(self.root / "reference.wav"), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(rate)
+            wav.writeframes(reference.tobytes())
 
     def tearDown(self):
         self.temp.cleanup()
@@ -112,6 +118,29 @@ class DatasetLoaderTests(unittest.TestCase):
         record = self.record(channels=2, audio_path="stereo.wav")
         with self.assertRaisesRegex(DatasetLoadError, "mono WAV"):
             load_training_examples(self.write_manifest(record), config())
+
+    def test_loads_separate_same_speaker_reference_features(self):
+        target = self.record(speaker_reference_recording_id="rec-002")
+        reference = self.record(
+            recording_id="rec-002", audio_path="reference.wav",
+            alignment_status="unreviewed", phoneme_alignment=None,
+            split="train",
+        )
+        path = self.root / "manifest.jsonl"
+        path.write_text(
+            json.dumps(target, ensure_ascii=False) + "\\n"
+            + json.dumps(reference, ensure_ascii=False) + "\\n", encoding="utf-8"
+        )
+        examples = load_training_examples(path, config(), require_speaker_references=True)
+        self.assertEqual(len(examples), 1)
+        self.assertIsNotNone(examples[0].speaker_reference_log_mel)
+        self.assertEqual(examples[0].speaker_reference_log_mel.shape[1], config().mel_bins)
+
+    def test_requires_reference_when_training_option_enabled(self):
+        with self.assertRaisesRegex(DatasetLoadError, "speaker_reference_recording_id is required"):
+            load_training_examples(
+                self.write_manifest(self.record()), config(), require_speaker_references=True
+            )
 
     def test_loads_only_requested_split(self):
         record = self.record(split="validation")
