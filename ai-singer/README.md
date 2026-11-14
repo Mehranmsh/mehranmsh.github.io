@@ -54,3 +54,10 @@ Supports Standard MIDI File format 0 and 1, PPQ timing, channel note-on/note-off
 6. Deploy on MEHRAN-controlled compute, then connect the studio UI.
 
 Do not label this scaffold as an AI singer or use it to claim that a vocal WAV can already be generated.
+
+
+### Browser connection and CORS
+- Set `MEHRAN_SVS_ALLOWED_ORIGINS` to a comma-separated allowlist of exact HTTPS origins for the deployed studio. The default allows the GitHub Pages origin and the currently used Pi ecosystem origin.
+- The API exposes only GET/POST/OPTIONS for browser access; credentials are not enabled.
+- `POST /v1/jobs/align` accepts either an attached Standard MIDI file or Piano Roll note events. Piano Roll timing currently assumes four steps per beat and requires project tempo.
+- Browser alignment is available only after this self-hosted API is deployed and its base URL is configured in the studio. No third-party vocal generation service is used.
