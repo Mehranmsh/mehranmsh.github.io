@@ -11,7 +11,7 @@
  function midiValue(value){
   const raw=String(value??"").trim();
   if(raw!==""&&Number.isFinite(Number(raw)))return Number(raw);
-  const match=/^(Cs|Ds|Fs|Gs|As|[CDEFGAB])(-?\\d)$/i.exec(raw);
+  const match=/^(Cs|Ds|Fs|Gs|As|[CDEFGAB])(-?\d)$/i.exec(raw);
   if(!match)return NaN;
   return (Number(match[2])+1)*12+NOTE_SEMITONES[match[1][0].toUpperCase()+match[1].slice(1)];
  }
