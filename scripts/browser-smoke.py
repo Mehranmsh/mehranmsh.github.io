@@ -62,6 +62,7 @@ def main():
                 browser = playwright.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
                 context = browser.new_context(accept_downloads=True)
                 page = context.new_page()
+                page.on("dialog", lambda dialog: dialog.accept())
                 page.on("pageerror", lambda error: errors.append(getattr(error, "stack", None) or str(error)))
                 page.goto(base_url + "/music-studio.html", wait_until="networkidle")
                 assert "MEHRAN MUSIC" in page.title().upper() or page.locator(".brand").inner_text().upper().find("MEHRAN MUSIC") >= 0
@@ -1046,6 +1047,15 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     print("LIVE BANK RESULT:", mode, live_status, flush=True)
                     assert "Generated WAV added to the mixer" in live_status, "Imported live instrument did not render from recorded samples: " + mode + "; " + live_status
+                    # Keep the QA project below its 32-track product limit while testing every bank.
+                    page.locator('[data-view="mix"]').click()
+                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    latest_track_delete = page.locator("[data-track-delete]").last
+                    latest_track_text = latest_track_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
+                    if "Live QA " + mode not in latest_track_text:
+                        raise AssertionError("Could not isolate the generated QA track for " + mode + ": " + latest_track_text)
+                    latest_track_delete.click()
+                    page.wait_for_timeout(150)
                 print("PASS: 19 melodic instrument banks render from self-hosted recorded samples")
                 for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
