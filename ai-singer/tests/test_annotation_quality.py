@@ -103,6 +103,28 @@ class AnnotationQualityTests(unittest.TestCase):
                 maximum_phoneme_duration_seconds=0.1,
             )
 
+    def test_reports_per_phoneme_note_coverage_and_uncovered_counts(self):
+        summary = summarize_annotation_quality([record()])
+        coverage = summary["phoneme_note_time_coverage"]
+        self.assertEqual(coverage["phonemes_analyzed"], 3)
+        self.assertAlmostEqual(coverage["mean"], 2 / 9)
+        self.assertEqual(coverage["p50"], 0.0)
+        self.assertAlmostEqual(coverage["p90"], 2 / 3)
+        self.assertEqual(coverage["uncovered_phonemes"], 2)
+        self.assertEqual(coverage["recordings_with_uncovered_phonemes"], 1)
+
+    def test_phoneme_note_coverage_warning_is_opt_in(self):
+        summary = summarize_annotation_quality(
+            [record()], minimum_phoneme_note_coverage=0.7
+        )
+        self.assertIn(
+            {"code": "low_phoneme_note_coverage", "recordings": 1},
+            summary["warnings"],
+        )
+        self.assertEqual(
+            summary["thresholds"]["minimum_phoneme_note_coverage"], 0.7
+        )
+
     def test_no_vowels_reports_null_vowel_note_coverage(self):
         item = record()
         item["phoneme_alignment"] = [
