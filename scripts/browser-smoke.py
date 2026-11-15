@@ -1063,11 +1063,6 @@ def main():
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
                         page.locator("#vocalVowel").select_option("o")
-                        if mode == "live_female_vocal":
-                            page.locator("#addVocalThird").click()
-                            assert "major-third" in page.locator("#patternStatus").inner_text(), "Third harmony was not added"
-                            page.locator("#addVocalFifth").click()
-                            assert "perfect-fifth" in page.locator("#patternStatus").inner_text(), "Fifth harmony was not added"
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
                     try:
@@ -1092,7 +1087,25 @@ def main():
                         raise AssertionError("Could not isolate the generated QA track for " + mode + ": " + latest_track_text)
                     latest_track_delete.click()
                     page.wait_for_timeout(150)
-                print("PASS: 19 melodic instrument banks render from self-hosted recorded samples")
+                # Test human third/fifth harmony after ensemble banks so choir QA stays unison and efficient.
+                page.locator("#patternMode").select_option("live_female_vocal")
+                page.locator("#vocalVowel").select_option("o")
+                page.locator("#addVocalThird").click()
+                assert "major-third" in page.locator("#patternStatus").inner_text(), "Third harmony was not added"
+                page.locator("#addVocalFifth").click()
+                assert "perfect-fifth" in page.locator("#patternStatus").inner_text(), "Fifth harmony was not added"
+                page.locator("#patternTrackName").fill("Live QA human vocal harmony")
+                page.locator("#renderPattern").click()
+                page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
+                harmony_status = page.locator("#patternStatus").inner_text()
+                assert "Generated WAV added to the mixer" in harmony_status, "Human vocal harmony render failed: " + harmony_status
+                page.locator('[data-view="mix"]').click()
+                page.locator("#mixProject").select_option(label="Automated Audio QA")
+                harmony_track = page.locator("[data-track-delete]").last
+                assert "Live QA human vocal harmony" in harmony_track.evaluate("(el) => el.closest('article')?.innerText || ''")
+                harmony_track.click()
+                page.wait_for_timeout(150)
+                print("PASS: 19 melodic instrument banks, 2 solo vocal banks and 3 layered human ensembles")
                 for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
