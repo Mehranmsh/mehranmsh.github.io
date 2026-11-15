@@ -1589,7 +1589,7 @@ const persianPhraseSources={phrase_tar:["tar","01","02","03","04"],phrase_santur
   const rendered=await ctx.startRendering(),left=rendered.getChannelData(0),right=rendered.getChannelData(1),windows=[];for(let start=0;start<bars*4*beat;start++){const from=Math.floor(start*rate),to=Math.min(left.length,from+rate);let sum=0;for(let i=from;i<to;i+=32){const v=(left[i]+right[i])*.5;sum+=v*v;}windows.push(Math.sqrt(sum/Math.max(1,Math.ceil((to-from)/32))));}
   const active=windows.filter(v=>v>.00035).length;if(pat.recordedAudition===true&&active<windows.length-1)throw new Error("Audition audio has silent sections: "+active+"/"+windows.length+" seconds active.");
   pat.sampleEngineStatus="recorded samples only · "+bank+" · "+scheduled+" notes · "+active+"/"+windows.length+" active seconds"+(pat.humanVocalLayerCount>1?" · "+pat.humanVocalLayerCount+" recorded human singers layered":"");
-  if(typeof patternDebugLog==="function")patternDebugLog("RECORDED_AUDITION_LEVEL_AUDIT",`bank=${bank}; events=${scheduled}; active seconds=${active}/${windows.length}; RMS=${windows.map(v=>v.toFixed(4)).join(",")}`);
+  if(typeof patternDebugLog==="function"){patternDebugLog("RECORDED_AUDITION_LEVEL_AUDIT",`bank=${bank}; events=${scheduled}; active seconds=${active}/${windows.length}; RMS=${windows.map(v=>v.toFixed(4)).join(",")}`);if(bank==="setar")patternDebugLog("RECORDED_SAMPLE_SOURCE_AUDIT",JSON.stringify(player.sampleDiagnostics));}
   return rendered;
  }
  async function renderPatternAudio(pat){
