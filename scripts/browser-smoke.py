@@ -873,62 +873,17 @@ def main():
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
 
-                # Exercise four independent instrument auditions and verify each WAV contains audible signal.
+                # Confirm the audition blocks honestly until recorded assets are installed.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#buildListeningDemo").click()
-                try:
-                    page.wait_for_function("""(() => {
-                        const status = document.querySelector('#patternStatus')?.textContent || '';
-                        return status.includes('تست چهار ساز ساخته شد') || status.includes('ساخت تست ساز کامل نشد');
-                    })()""", timeout=120000)
-                except Exception as error:
-                    raise AssertionError("Instrument audition did not finish: " + page.locator("#patternStatus").inner_text()) from error
                 demo_status = page.locator("#patternStatus").inner_text()
-                assert "تست چهار ساز ساخته شد" in demo_status, "Instrument audition render failed: " + demo_status
-                demo_project = page.evaluate("""() => {
+                assert "بانک صدای واقعی آماده نیست" in demo_status and "هیچ صدای مصنوعی" in demo_status, "Instrument audition must clearly block synthetic fallback: " + demo_status
+                demo_projects = page.evaluate("""() => {
                     const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
-                    const project = drafts.find(item => item.name === "MEHRAN Instrument Audition");
-                    return project ? {id: project.id, tracks: project.tracks || []} : null;
+                    return drafts.filter(item => item.name === "MEHRAN Instrument Audition");
                 }""")
-                assert demo_project and len(demo_project["tracks"]) == 4, "Instrument audition did not create all four tracks: " + str(demo_project)
-                expected_demo_tracks = {"01 · Piano", "02 · Steel Guitar", "03 · Violin", "04 · Santur"}
-                assert {track["name"] for track in demo_project["tracks"]} == expected_demo_tracks
-                demo_audio_metrics = page.evaluate("""async ({projectId, tracks}) => {
-                    const db = await new Promise((resolve, reject) => {
-                        const req = indexedDB.open("mehran_music_studio_audio_v1", 1);
-                        req.onsuccess = () => resolve(req.result);
-                        req.onerror = () => reject(req.error);
-                    });
-                    const audio = new AudioContext();
-                    const metrics = await Promise.all(tracks.map(async track => {
-                        const record = await new Promise((resolve, reject) => {
-                            const req = db.transaction("trackAudio").objectStore("trackAudio").get(projectId + ":" + track.id);
-                            req.onsuccess = () => resolve(req.result);
-                            req.onerror = () => reject(req.error);
-                        });
-                        if (!record?.blob || record.blob.size <= 44) return {name: track.name, size: 0, rms: 0, peak: 0};
-                        const decoded = await audio.decodeAudioData(await record.blob.arrayBuffer());
-                        let sum = 0, peak = 0, count = 0;
-                        for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
-                            const samples = decoded.getChannelData(channel);
-                            for (let i = 0; i < samples.length; i += 8) {
-                                const value = samples[i];
-                                sum += value * value;
-                                peak = Math.max(peak, Math.abs(value));
-                                count++;
-                            }
-                        }
-                        return {name: track.name, size: record.blob.size, rms: Math.sqrt(sum / Math.max(1, count)), peak};
-                    }));
-                    await audio.close();
-                    db.close();
-                    return metrics;
-                }""", {"projectId": demo_project["id"], "tracks": demo_project["tracks"]})
-                for metric in demo_audio_metrics:
-                    assert metric["size"] > 44 and metric["rms"] > 0.001 and metric["peak"] > 0.005, "Silent or near-silent instrument WAV: " + str(metric)
-                page.locator("#playMix").click()
-                page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 4 track(s) together')", timeout=10000)
-                print("PASS: four separate local instrument WAVs (piano, steel guitar, violin, santur) contain measurable audio and play together")
+                assert not demo_projects, "Blocked audition must not leave an empty or misleading project."
+                print("PASS: recorded-instrument audition blocks honestly when no real samples are installed")
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
@@ -1068,188 +1023,19 @@ def main():
                     instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
 
-                # Exercise every MEHRAN live-instrument mode through the local synthesis
-                # engine, then inspect the actual persisted PCM samples for non-silent output.
-                live_modes = [
-                    ("live_piano", "acoustic_grand_piano"),
-                    ("live_guitar", "acoustic_guitar_steel"),
-                    ("live_violin", "violin"),
-                    ("live_cello", "cello"),
-                    ("live_tar", "tar"),
-                    ("live_setar", "setar"),
-                    ("live_santur", "santur"),
-                    ("live_ney", "ney"),
-                    ("live_kalimba", "kalimba"),
-                    ("live_bass", "acoustic_bass"),
-                ]
+                # All live-instrument modes must fail closed until actual recorded samples are present.
+                live_modes = ["live_piano", "live_guitar", "live_violin", "live_cello", "live_tar", "live_setar", "live_santur", "live_ney", "live_kalimba", "live_bass"]
                 page.locator("#patternBars").select_option("1")
                 page.locator("#patternNotes").fill("C3, E3, G3, C4, G3, E3, D3, C3, -, -, -, -, -, -, -, -")
-                for mode, engine_name in live_modes:
+                for mode in live_modes:
                     page.locator("#patternMode").select_option(mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
-                    try:
-                        page.wait_for_function("""(() => {
-                            const status = document.querySelector('#patternStatus')?.textContent || '';
-                            return status.includes('Generated WAV added to the mixer') || status.includes('Pattern render failed:');
-                        })()""", timeout=20000)
-                    except Exception as error:
-                        raise AssertionError("Live instrument render timed out: " + mode + "; " + page.locator("#patternStatus").inner_text()) from error
+                    page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Pattern render failed:')", timeout=20000)
                     live_status = page.locator("#patternStatus").inner_text()
-                    if "Generated WAV added to the mixer" not in live_status:
-                        raise AssertionError("Live instrument render failed: " + mode + "; " + live_status)
-                    live_audio = page.evaluate("""async (mode) => {
-                        const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")[0];
-                        const track = project.tracks.find(item => item.generated && item.name === "Live QA " + mode);
-                        if (!track) return { error: "generated track missing" };
-                        const db = await new Promise((resolve, reject) => {
-                            const req = indexedDB.open("mehran_music_studio_audio_v1", 1);
-                            req.onsuccess = () => resolve(req.result);
-                            req.onerror = () => reject(req.error);
-                        });
-                        const record = await new Promise((resolve, reject) => {
-                            const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id);
-                            req.onsuccess = () => resolve(req.result);
-                            req.onerror = () => reject(req.error);
-                        });
-                        db.close();
-                        if (!record?.blob) return { error: "persisted WAV blob missing", engine: track.notes, bytes: track.audioSize };
-                        const bytes = new Uint8Array(await record.blob.arrayBuffer());
-                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        let sum = 0, peak = 0, nonzero = 0, count = 0;
-                        for (let offset = 44; offset + 1 < bytes.length; offset += 2) {
-                            const sample = view.getInt16(offset, true) / 32768;
-                            sum += sample * sample;
-                            peak = Math.max(peak, Math.abs(sample));
-                            if (sample !== 0) nonzero++;
-                            count++;
-                        }
-                        return {
-                            type: track.type, bytes: bytes.length, header: String.fromCharCode(...bytes.slice(0, 4)),
-                            rms: Math.sqrt(sum / Math.max(1, count)), peak, nonzero, count,
-                            notes: track.notes
-                        };
-                    }""", mode)
-                    if live_audio.get("error") or live_audio.get("header") != "RIFF" or live_audio.get("bytes", 0) <= 44:
-                        raise AssertionError("Live instrument WAV artifact invalid: " + mode + "; " + str(live_audio))
-                    if live_audio.get("nonzero", 0) < 100 or live_audio.get("rms", 0) <= 0.00001 or live_audio.get("peak", 0) <= 0.0001:
-                        raise AssertionError("Live instrument WAV is silent or near-silent: " + mode + "; " + str(live_audio))
-                    if engine_name not in live_status and "local instruments ready" not in live_status:
-                        raise AssertionError("Live instrument engine readiness not reported for " + mode + ": " + live_status)
-
-                # Put multiple independently rendered live instruments into the same
-                # arrangement sections, then verify the exported stereo mix contains audio.
-                live_track_ids = page.evaluate("""() => {
-                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")[0];
-                    return Object.fromEntries(["live_piano", "live_guitar", "live_violin", "live_tar"].map(mode => {
-                        const track = project.tracks.find(item => item.generated && item.name === "Live QA " + mode);
-                        return [mode, track?.id || null];
-                    }));
-                }""")
-                if any(not value for value in live_track_ids.values()):
-                    raise AssertionError("Could not locate all generated live-instrument tracks: " + str(live_track_ids))
-                arrangement_selects = page.locator("#arrangementTimeline select[data-arrangement-tracks]")
-                if arrangement_selects.count() < 2:
-                    raise AssertionError("Expected two song sections for multi-instrument arrangement test.")
-                arrangement_selects.nth(0).select_option([live_track_ids["live_piano"], live_track_ids["live_tar"]])
-                arrangement_selects.nth(1).select_option([live_track_ids["live_guitar"], live_track_ids["live_violin"]])
-                selected_tracks = page.evaluate("""() => JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1"))[0].arrangement.map(section => section.trackIds)""")
-                if not all(set(pair).issubset(set(selected_tracks[index])) for index, pair in enumerate([
-                    [live_track_ids["live_piano"], live_track_ids["live_tar"]],
-                    [live_track_ids["live_guitar"], live_track_ids["live_violin"]]
-                ])):
-                    raise AssertionError("Multiple live instrument selections were not saved per section: " + str(selected_tracks))
-                try:
-                    with page.expect_download(timeout=120000) as live_mix_download:
-                        page.locator("#exportArrangement").click()
-                except Exception as export_error:
-                    export_status = page.locator("#arrangementExportStatus").inner_text()
-                    raise AssertionError("Multi-instrument arrangement export did not produce a download. Export status: " + export_status) from export_error
-                live_mix_path = Path(temp) / "mehran-live-multi-instrument-mix.wav"
-                live_mix_download.value.save_as(live_mix_path)
-                with wave.open(str(live_mix_path), "rb") as live_mix:
-                    mix_channels = live_mix.getnchannels()
-                    mix_rate = live_mix.getframerate()
-                    mix_width = live_mix.getsampwidth()
-                    mix_frames = live_mix.getnframes()
-                    mix_pcm = live_mix.readframes(mix_frames)
-                if mix_channels != 2 or mix_rate != 44100 or mix_width not in (2, 3, 4) or mix_frames < 1000:
-                    raise AssertionError("Multi-instrument arrangement WAV format/duration invalid: " + str((mix_channels, mix_rate, mix_width, mix_frames)))
-                if not any(mix_pcm):
-                    raise AssertionError("Multi-instrument arrangement WAV export is silent.")
-                if "track placements" not in page.locator("#arrangementExportStatus").inner_text():
-                    raise AssertionError("Multi-instrument arrangement export did not report completed track placements.")
-
-                # Export isolated live-instrument WAVs into a stable directory so they
-                # can be auditioned outside CI. The WAVs remain workflow artifacts,
-                # never committed to the repository.
-                import csv
-                import os
-                audition_dir = Path(os.environ.get("MEHRAN_AUDIO_AUDITION_DIR", ROOT / "test-audio-output"))
-                audition_dir.mkdir(parents=True, exist_ok=True)
-                for previous in audition_dir.glob("*.wav"):
-                    previous.unlink()
-                manifest_rows = []
-                solo_section = {"live_piano": 0, "live_tar": 0, "live_guitar": 1, "live_violin": 1}
-                instrument_signatures = {}
-                for mode, track_id in live_track_ids.items():
-                    for section_index, selector in enumerate(arrangement_selects.all()):
-                        selector.select_option([track_id] if section_index == solo_section[mode] else [])
-                    try:
-                        with page.expect_download(timeout=120000) as solo_download:
-                            page.locator("#exportArrangement").click()
-                    except Exception as export_error:
-                        export_status = page.locator("#arrangementExportStatus").inner_text()
-                        raise AssertionError("Solo instrument export failed for " + mode + ". Export status: " + export_status) from export_error
-                    solo_path = audition_dir / ("mehran-" + mode.replace("live_", "") + ".wav")
-                    solo_download.value.save_as(solo_path)
-                    with wave.open(str(solo_path), "rb") as solo_wav:
-                        solo_channels = solo_wav.getnchannels()
-                        solo_rate = solo_wav.getframerate()
-                        solo_width = solo_wav.getsampwidth()
-                        solo_frames = solo_wav.getnframes()
-                        solo_pcm = solo_wav.readframes(solo_frames)
-                    if solo_channels != 2 or solo_rate != 44100 or solo_width != 2 or solo_frames < 1000:
-                        raise AssertionError("Solo instrument WAV format/duration invalid for " + mode + ": " + str((solo_channels, solo_rate, solo_width, solo_frames)))
-                    solo_samples = [sample[0] for sample in struct.iter_unpack("<h", solo_pcm)]
-                    solo_peak = max((abs(sample) for sample in solo_samples), default=0)
-                    solo_rms = math.sqrt(sum(sample * sample for sample in solo_samples) / max(1, len(solo_samples)))
-                    solo_rail_hits = sum(1 for sample in solo_samples if abs(sample) >= 32767)
-                    if solo_peak == 0 or solo_rms < 1.0:
-                        raise AssertionError("Solo instrument render is silent for " + mode + ": " + str((solo_peak, solo_rms)))
-                    if solo_rail_hits:
-                        raise AssertionError("Solo instrument render hit 16-bit PCM full scale for " + mode + ": " + str((solo_peak, solo_rail_hits)))
-                    diff_energy = sum((solo_samples[index] - solo_samples[index - 1]) ** 2 for index in range(1, len(solo_samples)))
-                    signal_energy = sum(sample * sample for sample in solo_samples)
-                    brightness_proxy = math.sqrt(diff_energy / max(1, signal_energy))
-                    instrument_signatures[mode] = round(brightness_proxy, 4)
-                    manifest_rows.append({
-                        "instrument": mode.replace("live_", ""),
-                        "mode": mode,
-                        "file": solo_path.name,
-                        "sample_rate_hz": solo_rate,
-                        "channels": solo_channels,
-                        "pcm_bits": solo_width * 8,
-                        "duration_seconds": round(solo_frames / solo_rate, 3),
-                        "rms": round(solo_rms, 2),
-                        "peak": solo_peak,
-                        "brightness_proxy": round(brightness_proxy, 4),
-                    })
-                    print("PASS: isolated live instrument render " + mode + " · RMS " + str(round(solo_rms, 2)) + " · peak " + str(solo_peak) + " · brightness proxy " + str(round(brightness_proxy, 4)))
-                if len(set(instrument_signatures.values())) < 3:
-                    raise AssertionError("Live instruments are producing insufficiently distinct spectral-shape signatures: " + str(instrument_signatures))
-                with (audition_dir / "manifest.csv").open("w", newline="", encoding="utf-8") as manifest_file:
-                    writer = csv.DictWriter(manifest_file, fieldnames=list(manifest_rows[0].keys()))
-                    writer.writeheader()
-                    writer.writerows(manifest_rows)
-                (audition_dir / "README.txt").write_text(
-                    "MEHRAN Music Studio isolated instrument audition pack\\n"
-                    "Four dry/local-synth instrument stems rendered by the studio's own engine.\\n"
-                    "These files validate technical WAV output only; they are not proof of acoustic realism.\\n"
-                    "Listen and compare with real instrument recordings before judging naturalness.\\n",
-                    encoding="utf-8",
-                )
-                print("PASS: audition pack written to " + str(audition_dir) + " · " + str(len(manifest_rows)) + " WAV files")
+                    assert "No real recorded samples are installed" in live_status, "Live instrument must fail closed without recorded assets: " + mode + "; " + live_status
+                print("PASS: all 10 live-instrument modes reject synthetic fallback without recorded samples")
+                
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
