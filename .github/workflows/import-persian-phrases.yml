@@ -34,14 +34,22 @@ jobs:
           test -s "$ROOT/Santur/Santur (1).mp3"
           test -s "$ROOT/Ney/Ney (1).mp3"
           test -s "$ROOT/Kamancheh/Kamancheh (1).mp3"
-          ffmpeg -nostdin -y -v error -i "$ROOT/Tar/Tar (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/tar-phrase-01.ogg
-          ffmpeg -nostdin -y -v error -i "$ROOT/Santur/Santur (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/santur-phrase-01.ogg
-          ffmpeg -nostdin -y -v error -i "$ROOT/Ney/Ney (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/ney-phrase-01.ogg
-          ffmpeg -nostdin -y -v error -i "$ROOT/Kamancheh/Kamancheh (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/kamancheh-phrase-01.ogg
+          for instrument in Tar Santur Ney Kamancheh; do
+            lower="$(printf '%s' "$instrument" | tr '[:upper:]' '[:lower:]')"
+            mapfile -t recordings < <(find "$ROOT/$instrument" -maxdepth 1 -type f -iname '*.mp3' | sort -V | head -n 4)
+            if [ "${#recordings[@]}" -lt 4 ]; then
+              echo "Expected at least four real $instrument recordings; found ${#recordings[@]}" >&2
+              exit 1
+            fi
+            for index in 0 1 2 3; do
+              number="$(printf '%02d' "$((index+1))")"
+              ffmpeg -nostdin -y -v error -i "${recordings[$index]}" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 "assets/instruments/phrases/persian/$lower-phrase-$number.ogg"
+            done
+          done
           cat > assets/instruments/phrases/persian/README.txt <<'EOF'
           MEHRAN MUSIC Persian recorded phrase previews
 
-          These are short real-performance excerpts, not isolated notes or full chromatic multisample banks.
+          These are short real-performance excerpts (four per instrument), not isolated notes or full chromatic multisample banks.
           Intended use: one-shot phrase playback in MEHRAN MUSIC. Do not pitch-shift them and label them as playable multisampled instruments.
 
           Dataset: Persian Classical Music Instrument Recognition (PCMIR) Database
@@ -54,7 +62,7 @@ jobs:
           Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan.
           Persian Classical Music Instrument Recognition (PCMIR) Database, 2020.
 
-          Changes: selected five-second excerpts transcoded from MP3 to OGG Vorbis for local same-origin playback.
+          Changes: four selected real-performance excerpts per instrument transcoded from MP3 to OGG Vorbis for local same-origin playback.
           EOF
           cat > assets/instruments/phrases/persian/manifest.json <<'EOF'
           {
@@ -66,10 +74,10 @@ jobs:
             "sourceUrl": "https://data.mendeley.com/datasets/bpyxwkv9wj/1",
             "attribution": "Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan. Persian Classical Music Instrument Recognition (PCMIR) Database, 2020.",
             "instruments": {
-              "tar": {"displayName": "Persian Tar", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/tar-phrase-01.ogg"]},
-              "santur": {"displayName": "Persian Santur", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/santur-phrase-01.ogg"]},
-              "ney": {"displayName": "Persian Ney", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/ney-phrase-01.ogg"]},
-              "kamancheh": {"displayName": "Persian Kamancheh", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/kamancheh-phrase-01.ogg"]}
+              "tar": {"displayName": "Persian Tar", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/tar-phrase-01.ogg", "./assets/instruments/phrases/persian/tar-phrase-02.ogg", "./assets/instruments/phrases/persian/tar-phrase-03.ogg", "./assets/instruments/phrases/persian/tar-phrase-04.ogg"]},
+              "santur": {"displayName": "Persian Santur", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/santur-phrase-01.ogg", "./assets/instruments/phrases/persian/santur-phrase-02.ogg", "./assets/instruments/phrases/persian/santur-phrase-03.ogg", "./assets/instruments/phrases/persian/santur-phrase-04.ogg"]},
+              "ney": {"displayName": "Persian Ney", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/ney-phrase-01.ogg", "./assets/instruments/phrases/persian/ney-phrase-02.ogg", "./assets/instruments/phrases/persian/ney-phrase-03.ogg", "./assets/instruments/phrases/persian/ney-phrase-04.ogg"]},
+              "kamancheh": {"displayName": "Persian Kamancheh", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/kamancheh-phrase-01.ogg", "./assets/instruments/phrases/persian/kamancheh-phrase-02.ogg", "./assets/instruments/phrases/persian/kamancheh-phrase-03.ogg", "./assets/instruments/phrases/persian/kamancheh-phrase-04.ogg"]}
             }
           }
           EOF
