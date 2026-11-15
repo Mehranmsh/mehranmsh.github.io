@@ -793,7 +793,7 @@
   $("mehranSingerPronunciationOverrides").value=saved?.pronunciationOverrides&&typeof saved.pronunciationOverrides==="object"?Object.entries(saved.pronunciationOverrides).map(([word,phonemes])=>word+"="+phonemes.join("-")).join("\n"):"";
   $("mehranSingerReviewedSyllablePhonemes").value=Array.isArray(saved?.reviewedSyllablePhonemes)?saved.reviewedSyllablePhonemes.map(row=>row.join(",")).join("\n"):"";
   $("mehranSingerPhonemeWeights").value=Array.isArray(saved?.phonemeDurationWeights)?saved.phonemeDurationWeights.map(row=>row.join(",")).join("\n"):"";
-  $("exportMehranSingerConditioning").disabled=!saved?.acousticConditioning;$("exportMehranSyllableQualityReport").disabled=!Array.isArray(saved?.syllableAlignment)||!saved.syllableAlignment.length||!Array.isArray(saved?.acousticConditioning?.phonemes)||!saved.acousticConditioning.phonemes.length;
+  $("exportMehranSingerConditioning").disabled=!saved?.acousticConditioning;const qualityExportButton=$("exportMehranSyllableQualityReport");if(qualityExportButton)qualityExportButton.disabled=!Array.isArray(saved?.syllableAlignment)||!saved.syllableAlignment.length||!Array.isArray(saved?.acousticConditioning?.phonemes)||!saved.acousticConditioning.phonemes.length;
   const audioSelect=$("mehranDatasetAudioTrack"),previousAudio=audioSelect.value;
   audioSelect.innerHTML='<option value="">Choose an imported vocal recording…</option>';
   (Array.isArray(project.tracks)?project.tracks:[]).filter(track=>track.audioName).forEach(track=>{const option=document.createElement("option");option.value=String(track.id);option.textContent=String(track.name||"Vocal")+" · "+String(track.audioName||"").slice(0,100);audioSelect.appendChild(option);});
