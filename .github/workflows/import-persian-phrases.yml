@@ -98,5 +98,15 @@ jobs:
             echo "No new phrase assets to commit."
           else
             git commit -m "Add CC BY Persian recorded phrase previews"
-            git push
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push; then
+                exit 0
+              fi
+              echo "Push raced with another MEHRAN commit; retrying after rebase ($attempt/5)."
+              sleep 2
+            done
+            echo "Could not push phrase assets after five rebase attempts." >&2
+            exit 1
           fi
