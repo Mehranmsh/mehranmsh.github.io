@@ -1052,6 +1052,10 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     print("LIVE BANK RESULT:", mode, live_status, flush=True)
                     assert "Generated WAV added to the mixer" in live_status, "Imported live instrument did not render from recorded samples: " + mode + "; " + live_status
+                    expected_ensemble_layers = {"live_female_choir": 9, "live_male_choir": 11, "live_mixed_choir": 20}
+                    if mode in expected_ensemble_layers:
+                        actual_layers = page.evaluate("window.__mehranLastSampleVoices || 0")
+                        assert actual_layers == expected_ensemble_layers[mode], "Human ensemble did not load every recorded singer: " + mode + "; loaded=" + str(actual_layers)
                     # Keep the QA project below its 32-track product limit while testing every bank.
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
