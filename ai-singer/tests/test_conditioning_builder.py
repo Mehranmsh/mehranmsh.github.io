@@ -45,19 +45,19 @@ class ConditioningBuilderTests(unittest.TestCase):
         self.assertFalse(result["mapping_is_acoustic_alignment"])
         self.assertFalse(result["accepted_for_inference"])
 
-    def test_note_coverage_uses_interval_union_for_overlapping_notes(self):
+    def test_note_coverage_counts_disjoint_note_intervals_without_filling_gaps(self):
         result = prepare_acoustic_conditioning(
             project_id="project-1", timing_plan=self.timing_plan(),
             notes=[
-                {"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.6},
-                {"midi_note": 64, "start_seconds": 0.4, "duration_seconds": 0.6},
+                {"midi_note": 60, "start_seconds": 0.2, "duration_seconds": 0.2},
+                {"midi_note": 64, "start_seconds": 0.6, "duration_seconds": 0.2},
             ],
             duration_seconds=1.0,
         )
         vowel_mapping = result["phoneme_note_mapping"][1]
         self.assertEqual(vowel_mapping["note_indices"], [0, 1])
-        self.assertAlmostEqual(vowel_mapping["note_covered_seconds"], 0.6)
-        self.assertAlmostEqual(vowel_mapping["note_coverage_ratio"], 1.0)
+        self.assertAlmostEqual(vowel_mapping["note_covered_seconds"], 0.4)
+        self.assertAlmostEqual(vowel_mapping["note_coverage_ratio"], 2 / 3)
 
     def test_rejects_unreviewed_plan(self):
         plan = self.timing_plan()
