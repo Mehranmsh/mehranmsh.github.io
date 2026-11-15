@@ -738,7 +738,8 @@
   const percentile=(values,p)=>{if(!values.length)return null;const a=values.slice().sort((x,y)=>x-y),i=(a.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return a[lo]+(a[hi]-a[lo])*(i-lo);};
   const fmt=(v)=>finite(v)?(v*1000).toFixed(1)+" ms":unavailable;
   const coverage=[],gaps=[],uncoveredTimes=[],detailRows=[];let valid=0,invalid=0;
-  for(const syl of syllables){
+  for(let syllableIndex=0;syllableIndex<syllables.length;syllableIndex++){
+   const syl=syllables[syllableIndex];
    const start=Number(syl?.start_seconds),end=Number(syl?.end_seconds),from=Number(syl?.phoneme_start_index),to=Number(syl?.phoneme_end_index);
    if(!finite(start)||!finite(end)||end<=start||!Number.isInteger(from)||!Number.isInteger(to)||from<0||to<=from||to>phonemes.length){invalid++;continue;}
    const spans=phonemes.slice(from,to).map(p=>({start:Number(p?.start_seconds),end:Number(p?.end_seconds)}));
@@ -751,7 +752,7 @@
     else cursorEnd=Math.max(cursorEnd,span.end);
    }
    if(cursorStart!==null)union+=cursorEnd-cursorStart;
-   const ratio=Math.min(1,union/(end-start)),uncovered=Math.max(0,(end-start)-union);coverage.push(ratio);uncoveredTimes.push(uncovered);valid++;detailRows.push({index:detailRows.length,text:String(syl?.text||'هجا'),duration:end-start,phonemes:spans.length,coverage:ratio,gap:internalGap,uncovered});
+   const ratio=Math.min(1,union/(end-start)),uncovered=Math.max(0,(end-start)-union);coverage.push(ratio);uncoveredTimes.push(uncovered);valid++;detailRows.push({index:syllableIndex,text:String(syl?.text||'هجا'),duration:end-start,phonemes:spans.length,coverage:ratio,gap:internalGap,uncovered});
   }
   const mean=coverage.length?coverage.reduce((a,b)=>a+b,0)/coverage.length:null;
   const priorityRows=detailRows.map((row,index)=>({...row,originalIndex:index})).sort((a,b)=>b.uncovered-a.uncovered||a.coverage-b.coverage||b.gap-a.gap).slice(0,5);
