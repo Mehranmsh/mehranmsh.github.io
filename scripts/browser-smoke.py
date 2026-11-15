@@ -1121,6 +1121,7 @@ def main():
                 # Export each live instrument alone so a non-silent combined mix cannot
                 # hide a missing or disconnected instrument contribution.
                 solo_section = {"live_piano": 0, "live_tar": 0, "live_guitar": 1, "live_violin": 1}
+                instrument_signatures = {}
                 for mode, track_id in live_track_ids.items():
                     for section_index, selector in enumerate(arrangement_selects.all()):
                         selector.select_option([track_id] if section_index == solo_section[mode] else [])
@@ -1148,7 +1149,17 @@ def main():
                         raise AssertionError("Solo instrument render is silent for " + mode + ": " + str((solo_peak, solo_rms)))
                     if solo_rail_hits:
                         raise AssertionError("Solo instrument render hit 16-bit PCM full scale for " + mode + ": " + str((solo_peak, solo_rail_hits)))
-                    print("PASS: isolated live instrument render " + mode + " · RMS " + str(round(solo_rms, 2)) + " · peak " + str(solo_peak))
+                    # A compact spectral-shape proxy: normalized first-difference energy
+                    # rises with brighter/high-frequency content. It is not a timbre
+                    # naturalness test, but catches identical generic output profiles.
+                    diff_energy = sum((solo_samples[index] - solo_samples[index - 1]) ** 2 for index in range(1, len(solo_samples)))
+                    signal_energy = sum(sample * sample for sample in solo_samples)
+                    brightness_proxy = diff_energy / max(1, signal_energy)
+                    instrument_signatures[mode] = round(brightness_proxy, 4)
+                    print("PASS: isolated live instrument render " + mode + " · RMS " + str(round(solo_rms, 2)) + " · peak " + str(solo_peak) + " · brightness proxy " + str(round(brightness_proxy, 4)))
+                if len(set(instrument_signatures.values())) < 3:
+                    raise AssertionError("Live instruments are producing insufficiently distinct spectral-shape signatures: " + str(instrument_signatures))
+                print("PASS: live instrument spectral-shape signatures are differentiated " + str(instrument_signatures))
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
