@@ -1452,6 +1452,66 @@
       const hz=440*Math.pow(2,(note-69)/12),gain=Math.max(0,Math.min(1.5,noteGain))*instrumentGain;if(gain===0||velocityInput===0)return;
       const length=Math.max(.045,Math.min(5,noteDuration)),bus=options.destination||ctx.destination,voice=ctx.createGain(),filter=ctx.createBiquadFilter(),velocity=Math.max(0,Math.min(1,velocityInput)),brightness=.62+.58*Math.pow(velocity,.7);
       filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.44,profile.filter*brightness),start);filter.Q.value=profile.kind==="pluck"?.72:.58;filter.connect(voice);voice.connect(bus);
+
+      // Dedicated local physical-ish voices: these paths intentionally do not share the old oscillator recipe.
+      if(["acoustic_grand_piano","acoustic_guitar_steel","tar","violin"].includes(name)){
+       filter.type="lowpass";
+       filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.44,profile.filter*brightness),start);
+       filter.Q.value=name==="tar"?.9:name==="acoustic_guitar_steel"?.62:.707;
+       filter.connect(voice);voice.connect(bus);
+       voice.gain.setValueAtTime(.0001,start);
+       voice.gain.linearRampToValueAtTime(peak,start+Math.max(.001,attack));
+       voice.gain.setValueAtTime(Math.max(.0001,peak*(name==="violin"?.78:.12)),releaseStart);
+       voice.gain.exponentialRampToValueAtTime(.0001,start+length);
+       const frames=Math.max(256,Math.ceil((length+.08)*ctx.sampleRate)),audio=ctx.createBuffer(1,frames,ctx.sampleRate),data=audio.getChannelData(0),sr=ctx.sampleRate;
+       if(name==="acoustic_guitar_steel"||name==="tar"){
+        // Karplus-Strong plucked-string loop with frequency-dependent damping and dispersion.
+        const delay=Math.max(2,Math.round(sr/hz)),line=new Float32Array(delay+2),rng=()=>Math.random()*2-1;
+        const excitation=name==="tar"?.78:.58;
+        for(let i=0;i<line.length;i++)line[i]=rng()*excitation*(i<Math.min(delay,Math.floor(sr*.012))?1:.16);
+        const damping=name==="tar"?.497:.492,brightnessLoss=name==="tar"?.12:.22;
+        for(let i=0;i<frames;i++){
+         const p=i%(delay),next=(p+1)%delay,raw=(line[p]+line[next])*.5;
+         const value=raw*damping*(1-brightnessLoss*Math.min(1,i/(sr*.55)));
+         line[p]=value;let sample=value;
+         // Distinct body signatures and a quiet sympathetic octave on the Persian tar.
+         const t=i/sr,body=name==="tar"
+          ? .12*Math.sin(2*Math.PI*185*t)*Math.exp(-t*5)+.075*Math.sin(2*Math.PI*415*t)*Math.exp(-t*7)
+          : .10*Math.sin(2*Math.PI*118*t)*Math.exp(-t*8)+.045*Math.sin(2*Math.PI*245*t)*Math.exp(-t*10);
+         if(name==="tar")sample+=.075*Math.sin(2*Math.PI*hz*2.003*t)*Math.exp(-t*2.8);
+         data[i]=sample+body;
+        }
+       }else if(name==="acoustic_grand_piano"){
+        // Hammer-excited inharmonic strings: each partial has its own decay and hammer contact spectrum.
+        const B=.00016*Math.pow(440/Math.max(55,hz),.45),partials=[1,.72,.43,.25,.14,.075,.038,.018,.009];
+        for(let i=0;i<frames;i++){
+         const t=i/sr;let sample=0;
+         for(let k=1;k<=partials.length;k++){
+          const f=hz*k*Math.sqrt(1+B*k*k),tau=(1.9/(1+.19*k))*(440/Math.max(110,hz))**.12;
+          const hammer=Math.exp(-Math.pow(k/(2.2+hz/900),2));
+          sample+=partials[k-1]*hammer*Math.sin(2*Math.PI*f*t)*Math.exp(-t/tau);
+         }
+         const hammerNoise=(Math.random()*2-1)*Math.exp(-t*1800)*.045;
+         data[i]=sample*.42+hammerNoise;
+        }
+       }else{
+        // Bowed-string oscillator: continuously sustained harmonics, moving bow pressure and vibrato.
+        const partials=[1,.82,.62,.43,.29,.19,.12,.075,.045,.025],phase=0;
+        let ph=phase;
+        for(let i=0;i<frames;i++){
+         const t=i/sr, vibratoCents=7*Math.sin(2*Math.PI*5.25*t)*(1-Math.exp(-t*5)),f=hz*Math.pow(2,vibratoCents/1200);
+         ph+=2*Math.PI*f/sr;let sample=0;
+         for(let k=1;k<=partials.length;k++){
+          const bowFormant=Math.exp(-Math.pow((k*hz-2600)/1900,2))*.42+.58;
+          sample+=partials[k-1]*bowFormant*Math.sin(ph*k+.13*Math.sin(t*2.1+k)) / Math.pow(k,.72);
+         }
+         const bowNoise=(Math.random()*2-1)*.012*(.35+.65*Math.sin(ph*.5)**2);
+         data[i]=(sample*.24+bowNoise)*(.86+.14*Math.sin(2*Math.PI*.73*t));
+        }
+       }
+       const source=ctx.createBufferSource();source.buffer=audio;source.connect(filter);source.start(start);source.stop(start+frames/sr);
+       return;
+      }
       const attack=Math.min(length*.48,profile.attack),release=Math.min(profile.release,Math.max(.035,length*.32)),releaseStart=Math.max(start+attack,start+length-release),peak=Math.max(.0001,.105*gain*(.45+.55*velocity));
       voice.gain.setValueAtTime(.0001,start);voice.gain.linearRampToValueAtTime(peak,start+Math.max(.001,attack));
       const decayTime=Math.min(length*.72,profile.decay);if(profile.kind!=="bowed"&&profile.kind!=="wind"&&decayTime<releaseStart-start)voice.gain.setTargetAtTime(Math.max(.0001,peak*(profile.kind==="piano"?.22:.34)),start+Math.max(attack+.012,decayTime*.45),Math.max(.025,profile.decay*.24));
