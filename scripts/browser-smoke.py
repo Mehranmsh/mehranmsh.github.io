@@ -1143,6 +1143,7 @@ def main():
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
                         page.locator("#vocalVowel").select_option("o")
                     page.locator("#patternTrackName").fill("Live QA " + mode)
+                    print("LIVE PATTERN INPUT:", mode, page.locator("#patternNotes").input_value(), page.evaluate("""() => { const all=JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1")||"[]"); const p=all.find(x=>x.name==="Automated Audio QA"); const pat=p?.patternStudio||{}; return {mode:pat.mode,notes:pat.notes,noteEvents:pat.noteEvents?.slice(0,12),eventCount:pat.noteEvents?.length}; }"""), flush=True)
                     page.locator("#renderPattern").click()
                     try:
                         page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
