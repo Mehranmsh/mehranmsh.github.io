@@ -6074,7 +6074,8 @@
           "sourceFile": "File:Setar 1st string tuned to C, 25th fret A flat.ogg",
           "noteLabel": "A flat"
         }
-      ]
+      ],
+      "maxNormalizationGain": 8192
     },
     "santur": {
       "displayName": "Santur",
@@ -13177,7 +13178,7 @@
       "samples": [
         {
           "rootNote": 42,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr1.ogg",
           "sourceFile": "hhc_vl1_rr1.flac",
@@ -13185,7 +13186,7 @@
         },
         {
           "rootNote": 42,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr2.ogg",
           "sourceFile": "hhc_vl1_rr2.flac",
@@ -13193,7 +13194,7 @@
         },
         {
           "rootNote": 42,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr3.ogg",
           "sourceFile": "hhc_vl1_rr3.flac",
@@ -13201,7 +13202,7 @@
         },
         {
           "rootNote": 42,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr4.ogg",
           "sourceFile": "hhc_vl1_rr4.flac",
@@ -13274,7 +13275,7 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr1.ogg",
           "sourceFile": "hhc_vl4_rr1.flac",
           "roundRobin": 1
@@ -13282,7 +13283,7 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr2.ogg",
           "sourceFile": "hhc_vl4_rr2.flac",
           "roundRobin": 2
@@ -13290,7 +13291,7 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr3.ogg",
           "sourceFile": "hhc_vl4_rr3.flac",
           "roundRobin": 3
@@ -13298,14 +13299,14 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr4.ogg",
           "sourceFile": "hhc_vl4_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 46,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl1_rr1.ogg",
           "sourceFile": "hho_vl1_rr1.flac",
@@ -13313,7 +13314,7 @@
         },
         {
           "rootNote": 46,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl1_rr2.ogg",
           "sourceFile": "hho_vl1_rr2.flac",
@@ -13321,7 +13322,7 @@
         },
         {
           "rootNote": 46,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl1_rr3.ogg",
           "sourceFile": "hho_vl1_rr3.flac",
@@ -13378,7 +13379,7 @@
         {
           "rootNote": 46,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl4_rr1.ogg",
           "sourceFile": "hho_vl4_rr1.flac",
           "roundRobin": 1
@@ -13386,7 +13387,7 @@
         {
           "rootNote": 46,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl4_rr2.ogg",
           "sourceFile": "hho_vl4_rr2.flac",
           "roundRobin": 2
@@ -13394,14 +13395,14 @@
         {
           "rootNote": 46,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl4_rr3.ogg",
           "sourceFile": "hho_vl4_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 44,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr1.ogg",
           "sourceFile": "hhp_vl1_rr1.flac",
@@ -13409,7 +13410,7 @@
         },
         {
           "rootNote": 44,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr2.ogg",
           "sourceFile": "hhp_vl1_rr2.flac",
@@ -13417,7 +13418,7 @@
         },
         {
           "rootNote": 44,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr3.ogg",
           "sourceFile": "hhp_vl1_rr3.flac",
@@ -13425,7 +13426,7 @@
         },
         {
           "rootNote": 44,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr4.ogg",
           "sourceFile": "hhp_vl1_rr4.flac",
@@ -13466,7 +13467,7 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr1.ogg",
           "sourceFile": "hhp_vl3_rr1.flac",
           "roundRobin": 1
@@ -13474,7 +13475,7 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr2.ogg",
           "sourceFile": "hhp_vl3_rr2.flac",
           "roundRobin": 2
@@ -13482,7 +13483,7 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr3.ogg",
           "sourceFile": "hhp_vl3_rr3.flac",
           "roundRobin": 3
@@ -13490,14 +13491,14 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr4.ogg",
           "sourceFile": "hhp_vl3_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 36,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr1.ogg",
           "sourceFile": "kick_vl1_rr1.flac",
@@ -13505,7 +13506,7 @@
         },
         {
           "rootNote": 36,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr2.ogg",
           "sourceFile": "kick_vl1_rr2.flac",
@@ -13513,7 +13514,7 @@
         },
         {
           "rootNote": 36,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr3.ogg",
           "sourceFile": "kick_vl1_rr3.flac",
@@ -13521,7 +13522,7 @@
         },
         {
           "rootNote": 36,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr4.ogg",
           "sourceFile": "kick_vl1_rr4.flac",
@@ -13594,7 +13595,7 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr1.ogg",
           "sourceFile": "kick_vl4_rr1.flac",
           "roundRobin": 1
@@ -13602,7 +13603,7 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr2.ogg",
           "sourceFile": "kick_vl4_rr2.flac",
           "roundRobin": 2
@@ -13610,7 +13611,7 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr3.ogg",
           "sourceFile": "kick_vl4_rr3.flac",
           "roundRobin": 3
@@ -13618,14 +13619,14 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr4.ogg",
           "sourceFile": "kick_vl4_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 51,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr1.ogg",
           "sourceFile": "ride_vl1_rr1.flac",
@@ -13633,7 +13634,7 @@
         },
         {
           "rootNote": 51,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr2.ogg",
           "sourceFile": "ride_vl1_rr2.flac",
@@ -13641,7 +13642,7 @@
         },
         {
           "rootNote": 51,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr3.ogg",
           "sourceFile": "ride_vl1_rr3.flac",
@@ -13649,7 +13650,7 @@
         },
         {
           "rootNote": 51,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr4.ogg",
           "sourceFile": "ride_vl1_rr4.flac",
@@ -13690,7 +13691,7 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr1.ogg",
           "sourceFile": "ride_vl3_rr1.flac",
           "roundRobin": 1
@@ -13698,7 +13699,7 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr2.ogg",
           "sourceFile": "ride_vl3_rr2.flac",
           "roundRobin": 2
@@ -13706,7 +13707,7 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr3.ogg",
           "sourceFile": "ride_vl3_rr3.flac",
           "roundRobin": 3
@@ -13714,14 +13715,14 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr4.ogg",
           "sourceFile": "ride_vl3_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 53,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl1_rr1.ogg",
           "sourceFile": "ridebell_vl1_rr1.flac",
@@ -13729,7 +13730,7 @@
         },
         {
           "rootNote": 53,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl1_rr2.ogg",
           "sourceFile": "ridebell_vl1_rr2.flac",
@@ -13737,7 +13738,7 @@
         },
         {
           "rootNote": 53,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl1_rr3.ogg",
           "sourceFile": "ridebell_vl1_rr3.flac",
@@ -13770,7 +13771,7 @@
         {
           "rootNote": 53,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl3_rr1.ogg",
           "sourceFile": "ridebell_vl3_rr1.flac",
           "roundRobin": 1
@@ -13778,7 +13779,7 @@
         {
           "rootNote": 53,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl3_rr2.ogg",
           "sourceFile": "ridebell_vl3_rr2.flac",
           "roundRobin": 2
@@ -13786,14 +13787,14 @@
         {
           "rootNote": 53,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl3_rr3.ogg",
           "sourceFile": "ridebell_vl3_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 37,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.3700787401574803,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl1_rr1.ogg",
           "sourceFile": "sidestick_vl1_rr1.flac",
@@ -13801,7 +13802,7 @@
         },
         {
           "rootNote": 37,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.3700787401574803,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl1_rr2.ogg",
           "sourceFile": "sidestick_vl1_rr2.flac",
@@ -13809,7 +13810,7 @@
         },
         {
           "rootNote": 37,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.3700787401574803,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl1_rr3.ogg",
           "sourceFile": "sidestick_vl1_rr3.flac",
@@ -13842,7 +13843,7 @@
         {
           "rootNote": 37,
           "velocityMin": 0.6929133858267716,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl3_rr1.ogg",
           "sourceFile": "sidestick_vl3_rr1.flac",
           "roundRobin": 1
@@ -13850,7 +13851,7 @@
         {
           "rootNote": 37,
           "velocityMin": 0.6929133858267716,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl3_rr2.ogg",
           "sourceFile": "sidestick_vl3_rr2.flac",
           "roundRobin": 2
@@ -13858,14 +13859,14 @@
         {
           "rootNote": 37,
           "velocityMin": 0.6929133858267716,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl3_rr3.ogg",
           "sourceFile": "sidestick_vl3_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 38,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.16535433070866143,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl1_rr1.ogg",
           "sourceFile": "snare_vl1_rr1.flac",
@@ -13873,7 +13874,7 @@
         },
         {
           "rootNote": 38,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.16535433070866143,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl1_rr2.ogg",
           "sourceFile": "snare_vl1_rr2.flac",
@@ -13881,7 +13882,7 @@
         },
         {
           "rootNote": 38,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.16535433070866143,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl1_rr3.ogg",
           "sourceFile": "snare_vl1_rr3.flac",
@@ -13986,7 +13987,7 @@
         {
           "rootNote": 38,
           "velocityMin": 0.8346456692913385,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl6_rr1.ogg",
           "sourceFile": "snare_vl6_rr1.flac",
           "roundRobin": 1
@@ -13994,7 +13995,7 @@
         {
           "rootNote": 38,
           "velocityMin": 0.8346456692913385,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl6_rr2.ogg",
           "sourceFile": "snare_vl6_rr2.flac",
           "roundRobin": 2
@@ -14002,14 +14003,14 @@
         {
           "rootNote": 38,
           "velocityMin": 0.8346456692913385,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl6_rr3.ogg",
           "sourceFile": "snare_vl6_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 50,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl1_rr1.ogg",
           "sourceFile": "tomhi_vl1_rr1.flac",
@@ -14017,7 +14018,7 @@
         },
         {
           "rootNote": 50,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl1_rr2.ogg",
           "sourceFile": "tomhi_vl1_rr2.flac",
@@ -14025,7 +14026,7 @@
         },
         {
           "rootNote": 50,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl1_rr3.ogg",
           "sourceFile": "tomhi_vl1_rr3.flac",
@@ -14082,7 +14083,7 @@
         {
           "rootNote": 50,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl4_rr1.ogg",
           "sourceFile": "tomhi_vl4_rr1.flac",
           "roundRobin": 1
@@ -14090,7 +14091,7 @@
         {
           "rootNote": 50,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl4_rr2.ogg",
           "sourceFile": "tomhi_vl4_rr2.flac",
           "roundRobin": 2
@@ -14098,14 +14099,14 @@
         {
           "rootNote": 50,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl4_rr3.ogg",
           "sourceFile": "tomhi_vl4_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 43,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl1_rr1.ogg",
           "sourceFile": "tomlo_vl1_rr1.flac",
@@ -14113,7 +14114,7 @@
         },
         {
           "rootNote": 43,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl1_rr2.ogg",
           "sourceFile": "tomlo_vl1_rr2.flac",
@@ -14121,7 +14122,7 @@
         },
         {
           "rootNote": 43,
-          "velocityMin": 0.0,
+          "velocityMin": 0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl1_rr3.ogg",
           "sourceFile": "tomlo_vl1_rr3.flac",
@@ -14178,7 +14179,7 @@
         {
           "rootNote": 43,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl4_rr1.ogg",
           "sourceFile": "tomlo_vl4_rr1.flac",
           "roundRobin": 1
@@ -14186,7 +14187,7 @@
         {
           "rootNote": 43,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl4_rr2.ogg",
           "sourceFile": "tomlo_vl4_rr2.flac",
           "roundRobin": 2
@@ -14194,7 +14195,7 @@
         {
           "rootNote": 43,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1.0,
+          "velocityMax": 1,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl4_rr3.ogg",
           "sourceFile": "tomlo_vl4_rr3.flac",
           "roundRobin": 3
@@ -14218,7 +14219,7 @@
           "sourceFile": "f1_long_straight_a.wav",
           "singer": "f1",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.96,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14231,7 +14232,7 @@
           "sourceFile": "f1_long_straight_e.wav",
           "singer": "f1",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.89,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14244,7 +14245,7 @@
           "sourceFile": "f1_long_straight_i.wav",
           "singer": "f1",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.929,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14257,7 +14258,7 @@
           "sourceFile": "f1_long_straight_o.wav",
           "singer": "f1",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14270,7 +14271,7 @@
           "sourceFile": "f1_long_straight_u.wav",
           "singer": "f1",
           "vowel": "u",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.991,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14283,7 +14284,7 @@
           "sourceFile": "f2_long_straight_a.wav",
           "singer": "f2",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14296,7 +14297,7 @@
           "sourceFile": "f2_long_straight_e.wav",
           "singer": "f2",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.966,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14309,7 +14310,7 @@
           "sourceFile": "f2_long_straight_i.wav",
           "singer": "f2",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14413,7 +14414,7 @@
           "sourceFile": "f4_long_straight_a.wav",
           "singer": "f4",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14426,7 +14427,7 @@
           "sourceFile": "f4_long_straight_e.wav",
           "singer": "f4",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.997,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14439,7 +14440,7 @@
           "sourceFile": "f4_long_straight_i.wav",
           "singer": "f4",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.999,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14452,7 +14453,7 @@
           "sourceFile": "f4_long_straight_o.wav",
           "singer": "f4",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14465,7 +14466,7 @@
           "sourceFile": "f4_long_straight_u.wav",
           "singer": "f4",
           "vowel": "u",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14478,7 +14479,7 @@
           "sourceFile": "f5_long_straight_a.wav",
           "singer": "f5",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.258
@@ -14504,7 +14505,7 @@
           "sourceFile": "f5_long_straight_i.wav",
           "singer": "f5",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14543,7 +14544,7 @@
           "sourceFile": "f6_long_straight_a.wav",
           "singer": "f6",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.983,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14556,7 +14557,7 @@
           "sourceFile": "f6_long_straight_e.wav",
           "singer": "f6",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.987,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14608,7 +14609,7 @@
           "sourceFile": "f7_long_straight_a.wav",
           "singer": "f7",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 0.928
@@ -14673,7 +14674,7 @@
           "sourceFile": "f8_long_straight_a.wav",
           "singer": "f8",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14738,7 +14739,7 @@
           "sourceFile": "f9_long_straight_a.wav",
           "singer": "f9",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.976,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15334,7 +15335,7 @@
           "sourceFile": "m9_long_straight_a.wav",
           "singer": "m9",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.128
@@ -15347,7 +15348,7 @@
           "sourceFile": "m9_long_straight_e.wav",
           "singer": "m9",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.994,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15373,7 +15374,7 @@
           "sourceFile": "m9_long_straight_o.wav",
           "singer": "m9",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15540,7 +15541,7 @@
           "sourceFile": "f1_long_straight_a.wav",
           "singer": "f1",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.96,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15553,7 +15554,7 @@
           "sourceFile": "f1_long_straight_e.wav",
           "singer": "f1",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.89,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15566,7 +15567,7 @@
           "sourceFile": "f1_long_straight_i.wav",
           "singer": "f1",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.929,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15579,7 +15580,7 @@
           "sourceFile": "f1_long_straight_o.wav",
           "singer": "f1",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15592,7 +15593,7 @@
           "sourceFile": "f1_long_straight_u.wav",
           "singer": "f1",
           "vowel": "u",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.991,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15605,7 +15606,7 @@
           "sourceFile": "f2_long_straight_a.wav",
           "singer": "f2",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15618,7 +15619,7 @@
           "sourceFile": "f2_long_straight_e.wav",
           "singer": "f2",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.966,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15631,7 +15632,7 @@
           "sourceFile": "f2_long_straight_i.wav",
           "singer": "f2",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15735,7 +15736,7 @@
           "sourceFile": "f4_long_straight_a.wav",
           "singer": "f4",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15748,7 +15749,7 @@
           "sourceFile": "f4_long_straight_e.wav",
           "singer": "f4",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.997,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15761,7 +15762,7 @@
           "sourceFile": "f4_long_straight_i.wav",
           "singer": "f4",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.999,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15774,7 +15775,7 @@
           "sourceFile": "f4_long_straight_o.wav",
           "singer": "f4",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15787,7 +15788,7 @@
           "sourceFile": "f4_long_straight_u.wav",
           "singer": "f4",
           "vowel": "u",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15800,7 +15801,7 @@
           "sourceFile": "f5_long_straight_a.wav",
           "singer": "f5",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.258
@@ -15826,7 +15827,7 @@
           "sourceFile": "f5_long_straight_i.wav",
           "singer": "f5",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15865,7 +15866,7 @@
           "sourceFile": "f6_long_straight_a.wav",
           "singer": "f6",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.983,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15878,7 +15879,7 @@
           "sourceFile": "f6_long_straight_e.wav",
           "singer": "f6",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.987,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15930,7 +15931,7 @@
           "sourceFile": "f7_long_straight_a.wav",
           "singer": "f7",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 0.928
@@ -15995,7 +15996,7 @@
           "sourceFile": "f8_long_straight_a.wav",
           "singer": "f8",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16060,7 +16061,7 @@
           "sourceFile": "f9_long_straight_a.wav",
           "singer": "f9",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.976,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16656,7 +16657,7 @@
           "sourceFile": "m9_long_straight_a.wav",
           "singer": "m9",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.128
@@ -16669,7 +16670,7 @@
           "sourceFile": "m9_long_straight_e.wav",
           "singer": "m9",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.994,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16695,7 +16696,7 @@
           "sourceFile": "m9_long_straight_o.wav",
           "singer": "m9",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16862,7 +16863,7 @@
           "sourceFile": "f1_long_straight_a.wav",
           "singer": "f1",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.96,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16875,7 +16876,7 @@
           "sourceFile": "f1_long_straight_e.wav",
           "singer": "f1",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.89,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16888,7 +16889,7 @@
           "sourceFile": "f1_long_straight_i.wav",
           "singer": "f1",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.929,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16901,7 +16902,7 @@
           "sourceFile": "f1_long_straight_o.wav",
           "singer": "f1",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16914,7 +16915,7 @@
           "sourceFile": "f1_long_straight_u.wav",
           "singer": "f1",
           "vowel": "u",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.991,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16927,7 +16928,7 @@
           "sourceFile": "f2_long_straight_a.wav",
           "singer": "f2",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16940,7 +16941,7 @@
           "sourceFile": "f2_long_straight_e.wav",
           "singer": "f2",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.966,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16953,7 +16954,7 @@
           "sourceFile": "f2_long_straight_i.wav",
           "singer": "f2",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17057,7 +17058,7 @@
           "sourceFile": "f4_long_straight_a.wav",
           "singer": "f4",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17070,7 +17071,7 @@
           "sourceFile": "f4_long_straight_e.wav",
           "singer": "f4",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.997,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17083,7 +17084,7 @@
           "sourceFile": "f4_long_straight_i.wav",
           "singer": "f4",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.999,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17096,7 +17097,7 @@
           "sourceFile": "f4_long_straight_o.wav",
           "singer": "f4",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17109,7 +17110,7 @@
           "sourceFile": "f4_long_straight_u.wav",
           "singer": "f4",
           "vowel": "u",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17122,7 +17123,7 @@
           "sourceFile": "f5_long_straight_a.wav",
           "singer": "f5",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.258
@@ -17148,7 +17149,7 @@
           "sourceFile": "f5_long_straight_i.wav",
           "singer": "f5",
           "vowel": "i",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17187,7 +17188,7 @@
           "sourceFile": "f6_long_straight_a.wav",
           "singer": "f6",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.983,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17200,7 +17201,7 @@
           "sourceFile": "f6_long_straight_e.wav",
           "singer": "f6",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.987,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17252,7 +17253,7 @@
           "sourceFile": "f7_long_straight_a.wav",
           "singer": "f7",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 0.928
@@ -17317,7 +17318,7 @@
           "sourceFile": "f8_long_straight_a.wav",
           "singer": "f8",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17382,7 +17383,7 @@
           "sourceFile": "f9_long_straight_a.wav",
           "singer": "f9",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.976,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17967,7 +17968,7 @@
           "sourceFile": "m9_long_straight_a.wav",
           "singer": "m9",
           "vowel": "a",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.128
@@ -17980,7 +17981,7 @@
           "sourceFile": "m9_long_straight_e.wav",
           "singer": "m9",
           "vowel": "e",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.994,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -18006,7 +18007,7 @@
           "sourceFile": "m9_long_straight_o.wav",
           "singer": "m9",
           "vowel": "o",
-          "rootHz": 525.0,
+          "rootHz": 525,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.318
