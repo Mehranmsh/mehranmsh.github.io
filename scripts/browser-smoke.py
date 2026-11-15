@@ -171,6 +171,7 @@ def main():
                 assert "مبنای مقایسه" in comparison_text
                 assert "-20.0 pp" in comparison_text
                 assert "1" in comparison_text
+                assert page.locator('#mehranQualityComparison [role="img"][aria-label="روند پوشش واجی"] svg').is_visible()
                 with page.expect_download() as comparison_download:
                     page.locator("#mehranQualityComparison button").click()
                 comparison_path = Path(temp) / "mehran-syllable-quality-comparison.json"
