@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "name": "MEHRAN Persian Recorded Phrases",
+  "kind": "one-shot-phrase-library",
+  "source": "PCMIR Persian Classical Music Instrument Recognition Database",
+  "license": "CC-BY-4.0",
+  "sourceUrl": "https://data.mendeley.com/datasets/bpyxwkv9wj/1",
+  "attribution": "Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan. Persian Classical Music Instrument Recognition (PCMIR) Database, 2020.",
+  "instruments": {
+    "tar": {"displayName": "Persian Tar", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/tar-phrase-01.ogg"]},
+    "santur": {"displayName": "Persian Santur", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/santur-phrase-01.ogg"]},
+    "ney": {"displayName": "Persian Ney", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/ney-phrase-01.ogg"]},
+    "kamancheh": {"displayName": "Persian Kamancheh", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/kamancheh-phrase-01.ogg"]}
+  }
+}
