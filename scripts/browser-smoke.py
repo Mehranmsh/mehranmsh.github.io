@@ -171,6 +171,23 @@ def main():
                 assert "مبنای مقایسه" in comparison_text
                 assert "-20.0 pp" in comparison_text
                 assert "1" in comparison_text
+                # Reports from different projects must be rejected.
+                mismatched_report = dict(second_report)
+                mismatched_report["project_id"] = "different-project"
+                mismatched_path = Path(temp) / "mehran-different-project.json"
+                mismatched_path.write_text(__import__("json").dumps(mismatched_report), encoding="utf-8")
+                page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(mismatched_path)])
+                page.locator("#compareMehranQualityReports").click()
+                page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('پروژه‌های متفاوت')")
+                # Negative summary counts must also be rejected.
+                invalid_report = dict(second_report)
+                invalid_report["summary"] = dict(second_report["summary"])
+                invalid_report["summary"]["internal_gap_count"] = -1
+                invalid_path = Path(temp) / "mehran-invalid-summary.json"
+                invalid_path.write_text(__import__("json").dumps(invalid_report), encoding="utf-8")
+                page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(invalid_path)])
+                page.locator("#compareMehranQualityReports").click()
+                page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('شاخص‌های خلاصه')")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
