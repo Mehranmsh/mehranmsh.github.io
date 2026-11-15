@@ -1005,6 +1005,75 @@ def main():
                     instrument_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
+
+                # Exercise every MEHRAN live-instrument mode through the local synthesis
+                # engine, then inspect the actual persisted PCM samples for non-silent output.
+                live_modes = [
+                    ("live_piano", "acoustic_grand_piano"),
+                    ("live_guitar", "acoustic_guitar_steel"),
+                    ("live_violin", "violin"),
+                    ("live_cello", "cello"),
+                    ("live_tar", "tar"),
+                    ("live_setar", "setar"),
+                    ("live_santur", "santur"),
+                    ("live_ney", "ney"),
+                    ("live_kalimba", "kalimba"),
+                    ("live_bass", "acoustic_bass"),
+                ]
+                page.locator("#patternBars").select_option("1")
+                page.locator("#patternNotes").fill("C3, E3, G3, C4, G3, E3, D3, C3, -, -, -, -, -, -, -, -")
+                for mode, engine_name in live_modes:
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternTrackName").fill("Live QA " + mode)
+                    page.locator("#renderPattern").click()
+                    try:
+                        page.wait_for_function("""(() => {
+                            const status = document.querySelector('#patternStatus')?.textContent || '';
+                            return status.includes('Generated WAV added to the mixer') || status.includes('Pattern render failed:');
+                        })()""", timeout=20000)
+                    except Exception as error:
+                        raise AssertionError("Live instrument render timed out: " + mode + "; " + page.locator("#patternStatus").inner_text()) from error
+                    live_status = page.locator("#patternStatus").inner_text()
+                    if "Generated WAV added to the mixer" not in live_status:
+                        raise AssertionError("Live instrument render failed: " + mode + "; " + live_status)
+                    live_audio = page.evaluate("""async (mode) => {
+                        const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")[0];
+                        const track = project.tracks.find(item => item.generated && item.name === "Live QA " + mode);
+                        if (!track) return { error: "generated track missing" };
+                        const db = await new Promise((resolve, reject) => {
+                            const req = indexedDB.open("mehran_music_studio_audio_v1", 1);
+                            req.onsuccess = () => resolve(req.result);
+                            req.onerror = () => reject(req.error);
+                        });
+                        const record = await new Promise((resolve, reject) => {
+                            const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id);
+                            req.onsuccess = () => resolve(req.result);
+                            req.onerror = () => reject(req.error);
+                        });
+                        db.close();
+                        if (!record?.blob) return { error: "persisted WAV blob missing", engine: track.notes, bytes: track.audioSize };
+                        const bytes = new Uint8Array(await record.blob.arrayBuffer());
+                        const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                        let sum = 0, peak = 0, nonzero = 0, count = 0;
+                        for (let offset = 44; offset + 1 < bytes.length; offset += 2) {
+                            const sample = view.getInt16(offset, true) / 32768;
+                            sum += sample * sample;
+                            peak = Math.max(peak, Math.abs(sample));
+                            if (sample !== 0) nonzero++;
+                            count++;
+                        }
+                        return {
+                            type: track.type, bytes: bytes.length, header: String.fromCharCode(...bytes.slice(0, 4)),
+                            rms: Math.sqrt(sum / Math.max(1, count)), peak, nonzero, count,
+                            notes: track.notes
+                        };
+                    }""", mode)
+                    if live_audio.get("error") or live_audio.get("header") != "RIFF" or live_audio.get("bytes", 0) <= 44:
+                        raise AssertionError("Live instrument WAV artifact invalid: " + mode + "; " + str(live_audio))
+                    if live_audio.get("nonzero", 0) < 100 or live_audio.get("rms", 0) <= 0.00001 or live_audio.get("peak", 0) <= 0.0001:
+                        raise AssertionError("Live instrument WAV is silent or near-silent: " + mode + "; " + str(live_audio))
+                    if engine_name not in live_status and "local instruments ready" not in live_status:
+                        raise AssertionError("Live instrument engine readiness not reported for " + mode + ": " + live_status)
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
