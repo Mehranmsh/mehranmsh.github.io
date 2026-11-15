@@ -171,7 +171,7 @@ def main():
     for pitch, path in sorted(by_note.items(), key=lambda pair:midi(pair[0])):
         filename = path.rsplit("/", 1)[-1]
         wav_path = kalimba_dir / filename
-        ogg_path = kalimba_dir / (filename[:-4] + ".ogg")
+        ogg_path = kalimba_dir / f"kalimba-midi-{midi(pitch)}.ogg"
         if not ogg_path.exists() or ogg_path.stat().st_size < 128:
             if not wav_path.exists() or wav_path.stat().st_size < 128:
                 wav_path.write_bytes(get(VCSL_RAW + urllib.parse.quote(path)))
