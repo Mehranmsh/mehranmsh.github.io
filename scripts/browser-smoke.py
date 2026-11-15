@@ -922,21 +922,45 @@ def main():
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
 
-                # Render a three-instrument audition from the self-hosted recorded sample bank.
+                # Render a single selected instrument through the dedicated recorded-sample path.
                 page.locator('[data-view="mix"]').click()
+                page.locator("#patternMode").select_option("live_violin")
                 page.locator("#buildListeningDemo").click()
                 page.wait_for_function("""() => {
                     const text = document.querySelector('#patternStatus')?.textContent || '';
-                    return text.includes('سه تست ساز') || text.includes('ساخت تست ساز کامل نشد');
+                    return text.includes('تست تک‌ساز violin آماده شد') || text.includes('ساخت تست ساز کامل نشد');
                 }""", timeout=120000)
                 demo_status = page.locator("#patternStatus").inner_text()
-                assert "سه تست ساز" in demo_status, "Recorded-instrument audition did not render: " + demo_status + " | Browser errors: " + " | ".join(errors)
+                assert "تست تک‌ساز violin آماده شد" in demo_status, "Recorded violin audition did not render: " + demo_status + " | Browser errors: " + " | ".join(errors)
                 demo_project = page.evaluate("""() => {
                     const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
-                    return drafts.find(item => item.name === "MEHRAN Real Instrument Audition") || null;
+                    return drafts.find(item => item.name === "MEHRAN · violin Recorded Audition") || null;
                 }""")
-                assert demo_project and len([track for track in demo_project["tracks"] if track.get("generated") and track.get("audioSize", 0) > 44]) == 3, "Audition must contain three real recorded instrument WAV tracks."
-                print("PASS: recorded piano, steel guitar and nylon guitar render from same-origin CC0 sample assets")
+                assert demo_project and len([track for track in demo_project["tracks"] if track.get("generated") and track.get("audioSize", 0) > 44]) == 1, "Audition must contain exactly one recorded violin WAV track."
+                assert "8/8 active seconds" in demo_project["tracks"][0]["notes"], "Audition WAV must contain active audio throughout its eight-second windows: " + str(demo_project["tracks"][0].get("notes"))
+                audio_audit = page.evaluate("""async () => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "MEHRAN · violin Recorded Audition");
+                    const track = project?.tracks?.find(item => item.generated);
+                    const db = await new Promise((resolve, reject) => { const req = indexedDB.open("mehran_music_studio_audio_v1", 1); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    const record = await new Promise((resolve, reject) => { const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    db.close();
+                    const ctx = new AudioContext();
+                    const buffer = await ctx.decodeAudioData(await record.blob.arrayBuffer());
+                    const left = buffer.getChannelData(0), right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
+                    const rms = [];
+                    for (let sec = 0; sec < 8; sec++) {
+                        let sum = 0, count = 0;
+                        for (let i = sec * buffer.sampleRate; i < Math.min(left.length, (sec + 1) * buffer.sampleRate); i += 32) {
+                            const value = (left[i] + right[i]) * 0.5; sum += value * value; count++;
+                        }
+                        rms.push(Math.sqrt(sum / Math.max(1, count)));
+                    }
+                    await ctx.close();
+                    return {duration: buffer.duration, rms};
+                }""")
+                assert audio_audit["duration"] >= 20.5, "Eight-bar audition should be about 21 seconds: " + str(audio_audit)
+                assert all(level > 0.00035 for level in audio_audit["rms"]), "Audition contains silent seconds: " + str(audio_audit)
+                print("PASS: selected violin uses only self-hosted recorded samples; 21-second WAV has active audio in every one-second window")
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
