@@ -10,7 +10,9 @@ import json
 ROOT = Path(__file__).resolve().parents[1]
 HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
 WORKER_FILE = ROOT / "worker.js"
-ENGINE_FILE = ROOT / "engine" / "server.py"\nSAMPLER_FILE = ROOT / "instrument-sampler.js"\nSAMPLE_MANIFEST = ROOT / "assets" / "instruments" / "manifest.json"
+ENGINE_FILE = ROOT / "engine" / "server.py"
+SAMPLER_FILE = ROOT / "instrument-sampler.js"
+SAMPLE_MANIFEST = ROOT / "assets" / "instruments" / "manifest.json"
 
 class InlineScripts(HTMLParser):
     def __init__(self):
