@@ -145,6 +145,7 @@ def import_drum_and_percussion_banks(manifest):
                     cajon_entries.append(entry)
         if len(cajon_entries) < 20 or len(percussion_entries) < 150:
             raise RuntimeError(f"FreePats percussion import incomplete: cajon={len(cajon_entries)}, total={len(percussion_entries)}")
+        freepats_license = bundle.read(next(n for n in bundle.namelist() if n.endswith("/LICENSE.txt")))
     manifest["instruments"]["cajon"] = {
         "displayName":"Cajón Flamenco","attackSeconds":0.001,"releaseSeconds":0.22,
         "filterHz":16000,"source":"FreePats World Percussion, recorded by Xavimart, Gonzalo and Roberto",
@@ -155,7 +156,6 @@ def import_drum_and_percussion_banks(manifest):
         "filterHz":16000,"source":"FreePats World Percussion, real recorded instruments",
         "license":"CC0-1.0","roundRobin":True,"samples":percussion_entries
     }
-    freepats_license = bundle.read(next(n for n in bundle.namelist() if n.endswith("/LICENSE.txt")))
     (sample_root / "FREEPATS-CC0-LICENSE.txt").write_bytes(freepats_license)
 
     # Virtuosity Drums: compact 128-take CC0 acoustic kit with velocity layers and round robins.
@@ -192,15 +192,15 @@ def import_drum_and_percussion_banks(manifest):
                 "sourceFile":filename,"roundRobin":int(rr_text)})
         if len(drum_entries) != 128:
             raise RuntimeError(f"Virtuosity drum import expected 128 samples, found {len(drum_entries)}")
+        drum_license_bytes = package.extractfile(next(m for m in package.getmembers() if m.isfile() and m.name.endswith("/LICENSE-CC0"))).read()
+        drum_provenance_bytes = package.extractfile(next(m for m in package.getmembers() if m.isfile() and m.name.endswith("/PROVENANCE.md"))).read()
     manifest["instruments"]["acoustic_drums"] = {
         "displayName":"Acoustic Drum Kit","attackSeconds":0.001,"releaseSeconds":0.18,
         "filterHz":18000,"source":"Virtuosity Drums (CC0) via ferrosintesis-samples-drumkit",
         "license":"CC0-1.0","roundRobin":True,"samples":drum_entries
     }
-    drum_license = next(m for m in package.getmembers() if m.isfile() and m.name.endswith("/LICENSE-CC0"))
-    drum_provenance = next(m for m in package.getmembers() if m.isfile() and m.name.endswith("/PROVENANCE.md"))
-    (sample_root / "VIRTUOSITY-DRUMS-CC0-LICENSE.txt").write_bytes(package.extractfile(drum_license).read())
-    (sample_root / "VIRTUOSITY-DRUMS-ATTRIBUTION.txt").write_bytes(package.extractfile(drum_provenance).read())
+    (sample_root / "VIRTUOSITY-DRUMS-CC0-LICENSE.txt").write_bytes(drum_license_bytes)
+    (sample_root / "VIRTUOSITY-DRUMS-ATTRIBUTION.txt").write_bytes(drum_provenance_bytes)
     print(f"Imported cajon {len(cajon_entries)} samples, world percussion {len(percussion_entries)} samples, acoustic drums {len(drum_entries)} samples")
 
 def main():
