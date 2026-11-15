@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "name": "MEHRAN Recorded Instrument Library",
+  "policy": "same-origin-only",
+  "status": "awaiting-recorded-assets",
+  "instruments": {
+    "acoustic_grand_piano": {
+      "displayName": "Acoustic Piano",
+      "attackSeconds": 0.004,
+      "releaseSeconds": 0.35,
+      "filterHz": 16000,
+      "samples": []
+    },
+    "acoustic_guitar_steel": {
+      "displayName": "Steel-string Acoustic Guitar",
+      "attackSeconds": 0.002,
+      "releaseSeconds": 0.22,
+      "filterHz": 14000,
+      "samples": []
+    },
+    "violin": {
+      "displayName": "Violin",
+      "attackSeconds": 0.08,
+      "releaseSeconds": 0.3,
+      "filterHz": 12500,
+      "samples": []
+    },
+    "cello": {
+      "displayName": "Cello",
+      "attackSeconds": 0.1,
+      "releaseSeconds": 0.35,
+      "filterHz": 10000,
+      "samples": []
+    },
+    "tar": {
+      "displayName": "Tar",
+      "attackSeconds": 0.003,
+      "releaseSeconds": 0.2,
+      "filterHz": 14000,
+      "samples": []
+    },
+    "setar": {
+      "displayName": "Setar",
+      "attackSeconds": 0.003,
+      "releaseSeconds": 0.22,
+      "filterHz": 13000,
+      "samples": []
+    },
+    "santur": {
+      "displayName": "Santur",
+      "attackSeconds": 0.002,
+      "releaseSeconds": 0.25,
+      "filterHz": 16000,
+      "samples": []
+    },
+    "ney": {
+      "displayName": "Ney",
+      "attackSeconds": 0.07,
+      "releaseSeconds": 0.25,
+      "filterHz": 11000,
+      "samples": []
+    },
+    "acoustic_bass": {
+      "displayName": "Acoustic Bass",
+      "attackSeconds": 0.008,
+      "releaseSeconds": 0.2,
+      "filterHz": 8000,
+      "samples": []
+    },
+    "kalimba": {
+      "displayName": "Kalimba",
+      "attackSeconds": 0.001,
+      "releaseSeconds": 0.2,
+      "filterHz": 15000,
+      "samples": []
+    }
+  }
+}\n
