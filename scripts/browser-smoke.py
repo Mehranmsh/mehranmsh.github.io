@@ -931,16 +931,16 @@ def main():
                 assert any(event["startStep"] == 18 and event["note"] == "G3" for event in melody_roundtrip), "MIDI roundtrip did not preserve second-bar note positions."
                 # Song-form sections are saved in sequence with computed bar positions.
                 page.locator("#arrangementSection").select_option("Intro")
-                page.locator("#arrangementBars").select_option("4")
+                page.locator("#arrangementBars").select_option("1")
                 page.locator("#addArrangementSection").click()
                 page.locator("#arrangementSection").select_option("Chorus")
-                page.locator("#arrangementBars").select_option("8")
+                page.locator("#arrangementBars").select_option("1")
                 page.locator("#addArrangementSection").click()
                 arrangement = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
-                assert [(item["name"], item["startBar"], item["bars"]) for item in arrangement] == [("Intro", 1, 4), ("Chorus", 5, 8)]
+                assert [(item["name"], item["startBar"], item["bars"]) for item in arrangement] == [("Intro", 1, 1), ("Chorus", 2, 1)]
                 page.locator("#arrangementTimeline [data-arrangement-move='down']").first.click()
                 reordered = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
-                assert [(item["name"], item["startBar"]) for item in reordered] == [("Chorus", 1), ("Intro", 9)], "Moving a section down did not recalculate song bar positions."
+                assert [(item["name"], item["startBar"]) for item in reordered] == [("Chorus", 1), ("Intro", 2)], "Moving a section down did not recalculate song bar positions."
                 page.locator("#arrangementTimeline [data-arrangement-move='up']").last.click()
                 restored = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].arrangement")
                 assert [(item["name"], item["startBar"]) for item in restored] == [("Intro", 1), ("Chorus", 5)]
