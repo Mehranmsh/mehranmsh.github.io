@@ -173,22 +173,28 @@ class AnnotationQualityTests(unittest.TestCase):
         second = record()
         second["alignment_status"] = "reviewed"
         second["syllable_alignment"] = [
-            {"text": "second-a", "start_seconds": 0.0, "end_seconds": 0.6,
-             "phoneme_start_index": 0, "phoneme_end_index": 2},
-            {"text": "second-b", "start_seconds": 0.6, "end_seconds": 1.0,
-             "phoneme_start_index": 2, "phoneme_end_index": 3},
+            {"text": "second-whole", "start_seconds": 0.0, "end_seconds": 1.0,
+             "phoneme_start_index": 0, "phoneme_end_index": 3},
         ]
 
         summary = summarize_annotation_quality([first, second])
         durations = summary["syllable_alignment"]["duration_seconds"]
         self.assertEqual(summary["syllable_alignment"]["recordings_with_syllables"], 2)
-        self.assertEqual(summary["syllable_alignment"]["total_syllables"], 4)
+        self.assertEqual(summary["syllable_alignment"]["total_syllables"], 3)
         self.assertAlmostEqual(durations["minimum"], 0.2)
-        self.assertAlmostEqual(durations["maximum"], 0.8)
-        self.assertAlmostEqual(durations["range"], 0.6)
-        self.assertAlmostEqual(durations["mean"], 0.5)
-        self.assertAlmostEqual(durations["p50"], 0.4)
-        self.assertAlmostEqual(durations["p90"], 0.8)
+        self.assertAlmostEqual(durations["maximum"], 1.0)
+        self.assertAlmostEqual(durations["range"], 0.8)
+        self.assertAlmostEqual(durations["mean"], 2.0 / 3.0)
+        self.assertAlmostEqual(durations["p50"], 0.8)
+        self.assertAlmostEqual(durations["p90"], 1.0)
+        recording_means = durations["recording_mean_distribution"]
+        self.assertEqual(recording_means["recordings"], 2)
+        self.assertAlmostEqual(recording_means["minimum"], 0.5)
+        self.assertAlmostEqual(recording_means["maximum"], 1.0)
+        self.assertAlmostEqual(recording_means["range"], 0.5)
+        self.assertAlmostEqual(recording_means["mean"], 0.75)
+        self.assertAlmostEqual(recording_means["p50"], 0.5)
+        self.assertAlmostEqual(recording_means["p90"], 1.0)
         self.assertNotIn("first-a", str(summary))
         self.assertNotIn("second-a", str(summary))
 

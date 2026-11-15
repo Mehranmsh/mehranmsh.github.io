@@ -232,6 +232,10 @@ def summarize_annotation_quality(
     syllable_durations = [
         value for item in diagnostics for value in item["syllable_durations_seconds"]
     ]
+    recording_mean_syllable_durations = [
+        sum(item["syllable_durations_seconds"]) / item["syllable_count"]
+        for item in diagnostics if item["syllable_count"] > 0
+    ]
     phonemes_per_syllable = [
         value for item in diagnostics for value in item["phonemes_per_syllable"]
     ]
@@ -339,6 +343,21 @@ def summarize_annotation_quality(
                 "mean": sum(syllable_durations) / len(syllable_durations) if syllable_durations else None,
                 "p50": _percentile(syllable_durations, 0.50),
                 "p90": _percentile(syllable_durations, 0.90),
+                "recording_mean_distribution": {
+                    "recordings": len(recording_mean_syllable_durations),
+                    "minimum": min(recording_mean_syllable_durations, default=None),
+                    "maximum": max(recording_mean_syllable_durations, default=None),
+                    "range": (
+                        max(recording_mean_syllable_durations) - min(recording_mean_syllable_durations)
+                        if recording_mean_syllable_durations else None
+                    ),
+                    "mean": (
+                        sum(recording_mean_syllable_durations) / len(recording_mean_syllable_durations)
+                        if recording_mean_syllable_durations else None
+                    ),
+                    "p50": _percentile(recording_mean_syllable_durations, 0.50),
+                    "p90": _percentile(recording_mean_syllable_durations, 0.90),
+                },
             },
             "phonemes_per_syllable": {
                 "mean": sum(phonemes_per_syllable) / len(phonemes_per_syllable) if phonemes_per_syllable else None,
