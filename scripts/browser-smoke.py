@@ -8,6 +8,7 @@ import math
 import base64
 import struct
 import wave
+import array
 
 from playwright.sync_api import sync_playwright
 
@@ -74,7 +75,19 @@ def export_track_audio(page, project_id: str, track_id: str, filename: str):
     path.write_bytes(base64.b64decode(encoded))
     if path.stat().st_size < 44:
         raise AssertionError("Audition WAV is too small: " + str(path))
-    print("AUDITION WAV SAVED:", path.name, path.stat().st_size, "bytes", flush=True)
+    with wave.open(str(path), "rb") as rendered:
+        width = rendered.getsampwidth()
+        frames = rendered.getnframes()
+        raw_pcm = rendered.readframes(frames)
+    if width != 2:
+        raise AssertionError("Audition WAV must be 16-bit PCM: " + str(path))
+    pcm = array.array("h")
+    pcm.frombytes(raw_pcm)
+    rms = math.sqrt(sum(sample * sample for sample in pcm) / max(1, len(pcm))) / 32768
+    peak = max((abs(sample) for sample in pcm), default=0) / 32768
+    if rms < 0.001 or peak < 0.005:
+        raise AssertionError(f"Audition WAV is silent or near-silent: {path.name}; RMS={rms:.6f}; peak={peak:.6f}")
+    print("AUDITION WAV SAVED:", path.name, path.stat().st_size, f"bytes RMS={rms:.4f} peak={peak:.4f}", flush=True)
     return path
 
 
@@ -1196,6 +1209,13 @@ def main():
                 for kit in ["recorded", "cajon", "world_percussion"]:
                     page.locator("#patternMode").select_option("drums")
                     page.locator("#drumKit").select_option(kit)
+                    # Explicitly activate recorded drum hits instead of trusting inherited defaults.
+                    for lane, step in [("kick", 0), ("snare", 4), ("hat", 2), ("perc", 8)]:
+                        cell = page.locator(f'[data-pattern-lane="{lane}"][data-pattern-step="{step}"]')
+                        if cell.get_attribute("aria-pressed") != "true":
+                            cell.click()
+                        if cell.get_attribute("aria-pressed") != "true":
+                            raise AssertionError(f"Could not activate drum lane {lane} step {step} for kit {kit}")
                     page.locator("#patternTrackName").fill("Recorded drum grid QA " + kit)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
