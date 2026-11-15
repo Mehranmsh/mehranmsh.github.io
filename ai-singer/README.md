@@ -480,3 +480,17 @@ The CSV contains private transcripts and recording metadata. Keep it outside the
 ### Phoneme-to-note temporal coverage
 
 The reviewed conditioning builder reports the note indices that temporally overlap each phoneme, the phoneme duration, the union of time covered by those notes, and a coverage ratio between 0 and 1. Coverage uses the union of overlap intervals, so simultaneous notes do not double-count the same time. This is a symbolic timing diagnostic only: it does not identify the sung pitch, prove that a phoneme was acoustically produced on a note, or perform forced alignment. Every mapping remains marked for human review and is not accepted for inference.
+
+
+### Aggregate phoneme-to-note coverage audit
+
+The annotation audit now measures temporal note coverage for every reviewed phoneme, not only vowels. Each phoneme interval is compared with the union of overlapping monophonic MIDI-note intervals. The privacy-safe summary reports the number of phonemes analyzed, mean/p50/p90 coverage, the number with zero note coverage, and the number of recordings containing at least one uncovered phoneme. Consonants and rests can legitimately have different timing behavior, so zero coverage is reported as a diagnostic and does not create a warning by default.
+
+An optional operator-selected threshold can flag recordings with any phoneme below the chosen coverage ratio:
+
+```bash
+python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/audio \
+  --minimum-phoneme-note-coverage 0.5
+```
+
+This is temporal overlap of reviewed symbolic intervals only. It is not acoustic alignment, sung-pitch verification, or a universal Persian pronunciation rule. The threshold is an operator choice and remains unset unless explicitly supplied.
