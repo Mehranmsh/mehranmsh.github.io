@@ -70,7 +70,7 @@
      for(const sample of bankSamples)selected.set(sample.url,sample);
     }
     if(!selected.size)throw new Error("No playable note samples selected for "+name+"; event note examples: "+requested.slice(0,4).map(event=>String(event&&event.note)).join(", "));
-    const prepared=await Promise.all([...selected.values()].map(async sample=>({...sample,buffer:await decodeSample(ctx,sample)})));const roundRobinCounters=new Map();
+    const prepared=await Promise.all([...selected.values()].map(async sample=>{const buffer=await decodeSample(ctx,sample);let samplePeak=0;for(let channel=0;channel<buffer.numberOfChannels;channel++){const data=buffer.getChannelData(channel);for(let i=0;i<data.length;i++)samplePeak=Math.max(samplePeak,Math.abs(data[i]));}const normalizationGain=samplePeak>0?Math.min(16,.78/samplePeak):1;return {...sample,buffer,normalizationGain};}));const roundRobinCounters=new Map();
     return {layeredVoiceCount:spec.layered===true?prepared.length:1,play(midi,at,duration,settings){
      const note=Number(midi),start=Number(at),length=Number(duration),velocity=clamp(Number((settings&&settings.velocity)??(settings&&settings.gain)??.8),.01,1);
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
@@ -113,7 +113,7 @@
       source.buffer=selected.buffer;
       source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),voiceStart);
       filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),voiceStart);
-      gain.gain.setValueAtTime(.0001,voiceStart);gain.gain.linearRampToValueAtTime(voicePeak,voiceStart+attack);
+      gain.gain.setValueAtTime(.0001,voiceStart);voicePeak=Math.min(1.35,voicePeak*Math.max(1,Number(selected.normalizationGain)||1));gain.gain.linearRampToValueAtTime(voicePeak,voiceStart+attack);
       const loop=Number.isFinite(selected.loopStart)&&Number.isFinite(selected.loopEnd)&&selected.loopEnd>selected.loopStart;
       if(loop){
        source.loop=true;source.loopStart=selected.loopStart;source.loopEnd=selected.loopEnd;
