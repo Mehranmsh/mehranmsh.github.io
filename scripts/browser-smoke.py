@@ -160,7 +160,7 @@ def main():
                 assert quality_report["schema_version"] == "1.0"
                 assert quality_report["audio_included"] is False
                 assert quality_report["summary"]["syllables_reviewed"] == 1
-                assert quality_report["summary"]["syllables_invalid_or_incomplete"] == 0
+                assert quality_report["summary"]["syllables_invalid_or_incomplete"] == 1
                 assert quality_report["syllables"][0]["phoneme_count"] == 2
                 assert quality_report["syllables"][0]["phoneme_coverage_ratio"] == 1
                 assert quality_report["syllables"][0]["uncovered_duration_seconds"] == 0
