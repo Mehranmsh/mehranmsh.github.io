@@ -990,6 +990,7 @@ def main():
                 chord_status = page.locator("#patternStatus").inner_text()
                 print("CHORD RENDER DIAGNOSTIC:", chord_status)
                 assert "Generated WAV added to the mixer" in chord_status, "Chord render failed: " + chord_status
+                assert "cajonLow" in chord_status and "cajonSlap" in chord_status, "Song arrangement must load real recorded cajon low/slap samples: " + chord_status
                 chord_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 chord_track = next(track for track in chord_project["tracks"] if track.get("generated") and track["name"] == "Generated chord backing")
                 assert chord_track["type"] == "Chord Backing" and chord_track["audioSize"] > 44
@@ -1062,6 +1063,16 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in live_status, "Recorded percussion/drum instrument did not render: " + mode + "; " + live_status
                 print("PASS: cajon, world percussion and acoustic drums render from self-hosted recorded samples")
+                # The drum step sequencer must use recorded samples when a recorded kit is selected.
+                for kit in ["recorded", "cajon", "world_percussion"]:
+                    page.locator("#patternMode").select_option("drums")
+                    page.locator("#drumKit").select_option(kit)
+                    page.locator("#patternTrackName").fill("Recorded drum grid QA " + kit)
+                    page.locator("#renderPattern").click()
+                    page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
+                    drum_status = page.locator("#patternStatus").inner_text()
+                    assert "Generated WAV added to the mixer" in drum_status, "Recorded drum grid failed: " + kit + "; " + drum_status
+                print("PASS: drum sequencer uses real recorded acoustic drums, cajon and world percussion")
                 
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
