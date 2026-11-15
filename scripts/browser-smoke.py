@@ -1285,6 +1285,7 @@ def main():
                     playback_audit = page.evaluate("window.__mehranDrumPlaybackAudit")
                     render_state = page.evaluate("window.__mehranDrumRenderState")
                     print("DRUM RENDER INPUT STATE:", kit, render_state, flush=True)
+                    print("DRUM LOOP DIAGNOSTIC:", kit, {"loopSteps": (render_state or {}).get("loopSteps", []), "hitCalls": (render_state or {}).get("hitCalls", [])}, flush=True)
                     print("DRUM SAMPLE PLAYBACK AUDIT:", kit, playback_audit, flush=True)
                     if playback_audit["engineCreates"] < 1 or not playback_audit["playCalls"]:
                         raise AssertionError("Recorded drum renderer did not schedule any sample voices: " + kit + "; " + str(playback_audit))
