@@ -39,7 +39,7 @@ def main():
         names = sorted(item["path"].split("/")[-1] for item in tone_tree
             if item.get("type") == "blob" and item["path"].startswith(f"samples/{folder}/")
             and item["path"].lower().endswith(".ogg")
-            and re.fullmatch(r"(?:Cs|Ds|Fs|Gs|As|[A-G])\\d+\\.ogg", item["path"].split("/")[-1]))
+            and re.fullmatch(r"(?:Cs|Ds|Fs|Gs|As|[A-G])\d+\.ogg", item["path"].split("/")[-1]))
         if not names:
             raise RuntimeError("No recorded OGG notes found for " + instrument)
         target_dir = ROOT / "assets/instruments/samples" / folder
