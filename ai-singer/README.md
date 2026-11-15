@@ -345,7 +345,7 @@ These example thresholds are operator choices, not universal Persian singing sta
 
 ### Explicit syllable-to-phoneme annotations
 
-A manifest record may optionally include `syllable_alignment` when a qualified reviewer has confirmed the syllable boundaries. Each item contains a reviewed `text` label, `start_seconds`, `end_seconds`, and a half-open phoneme index range (`phoneme_start_index`, `phoneme_end_index`). The ranges must partition the complete `phoneme_alignment` in order, without omissions or overlap, and each syllable time span must cover its assigned phoneme spans. The validator never derives syllables from unvowelled Persian text. Records without this optional field remain valid and are not penalized.
+A manifest record may optionally include `syllable_alignment` only after a qualified reviewer has confirmed the syllable boundaries. Such a record must set `alignment_status` to `reviewed` and include valid `phoneme_alignment` and reviewed MIDI `notes`. Each syllable item contains a reviewed `text` label, `start_seconds`, `end_seconds`, and a half-open phoneme index range (`phoneme_start_index`, `phoneme_end_index`). The ranges must partition the complete `phoneme_alignment` in order, without omissions or overlap, and each syllable time span must cover its assigned phoneme spans. The validator never derives syllables from unvowelled Persian text. Records without this optional field remain valid and are not penalized.
 
 
 ## Held-out singing quality evaluation
