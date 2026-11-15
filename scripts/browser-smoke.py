@@ -154,6 +154,9 @@ def main():
                 assert quality_report["syllables"][0]["phoneme_count"] == 2
                 assert quality_report["syllables"][0]["phoneme_coverage_ratio"] == 1
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
+                # Give the comparison-only baseline a valid gap metric so both trend endpoints exist.
+                quality_report["summary"]["internal_gap_mean_seconds"] = 0.01
+                quality_path.write_text(__import__("json").dumps(quality_report), encoding="utf-8")
                 # Compare two local JSON reports from the same project without uploading either file.
                 second_report = dict(quality_report)
                 second_report["generated_at"] = "2099-01-01T00:00:00Z"
