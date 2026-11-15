@@ -1080,6 +1080,7 @@ def main():
                     if mode in expected_ensemble_layers:
                         actual_layers = page.evaluate("window.__mehranLastSampleVoices || 0")
                         assert actual_layers == expected_ensemble_layers[mode], "Human ensemble did not load every recorded singer: " + mode + "; loaded=" + str(actual_layers)
+                        assert str(expected_ensemble_layers[mode]) + " recorded human singers layered" in live_status, "Layer count was not shown in the mixer status: " + live_status
                     # Keep the QA project below its 32-track product limit while testing every bank.
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
