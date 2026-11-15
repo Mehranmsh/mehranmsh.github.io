@@ -98,24 +98,36 @@
      const stopAt=start+length,destination=options&&options.destination||ctx.destination;
      voices.forEach((selected,index)=>{
       const source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
+      const ensemble=spec.layered===true;
+      let voiceStart=start,voiceStopAt=stopAt,voicePeak=peak;
+      if(ensemble){
+       const identity=String(selected.singer||selected.url);
+       let seed=0;for(let i=0;i<identity.length;i++)seed=(seed*31+identity.charCodeAt(i))>>>0;
+       const variation=(seed%1000)/1000;
+       const cents=(variation-.5)*10;
+       const onset=((Math.floor(seed/1000)%19)/1000);
+       const level=.88+((Math.floor(seed/19000)%25)/100);
+       voiceStart=start+onset;voiceStopAt=stopAt+onset;voicePeak=peak*level;
+       if(source.detune)source.detune.setValueAtTime(cents,voiceStart);
+      }
       source.buffer=selected.buffer;
-      source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),start);
-      filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),start);
-      gain.gain.setValueAtTime(.0001,start);gain.gain.linearRampToValueAtTime(peak,start+attack);
+      source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),voiceStart);
+      filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),voiceStart);
+      gain.gain.setValueAtTime(.0001,voiceStart);gain.gain.linearRampToValueAtTime(voicePeak,voiceStart+attack);
       const loop=Number.isFinite(selected.loopStart)&&Number.isFinite(selected.loopEnd)&&selected.loopEnd>selected.loopStart;
       if(loop){
        source.loop=true;source.loopStart=selected.loopStart;source.loopEnd=selected.loopEnd;
-       gain.gain.setValueAtTime(peak,Math.max(start+attack,stopAt-release));
-       gain.gain.setTargetAtTime(.0001,Math.max(start+attack,stopAt-release),Math.max(.008,release/4));
-       source.start(start,0);
-       source.stop(stopAt+release);
+       gain.gain.setValueAtTime(voicePeak,Math.max(voiceStart+attack,voiceStopAt-release));
+       gain.gain.setTargetAtTime(.0001,Math.max(voiceStart+attack,voiceStopAt-release),Math.max(.008,release/4));
+       source.start(voiceStart,0);
+       source.stop(voiceStopAt+release);
       }else{
-       gain.gain.setTargetAtTime(.0001,stopAt,Math.max(.008,release/4));
-       source.start(start);
-       source.stop(Math.min(start+selected.buffer.duration/Math.max(.125,source.playbackRate.value)+.02,stopAt+release));
+       gain.gain.setTargetAtTime(.0001,voiceStopAt,Math.max(.008,release/4));
+       source.start(voiceStart);
+       source.stop(Math.min(voiceStart+selected.buffer.duration/Math.max(.125,source.playbackRate.value)+.02,voiceStopAt+release));
       }
       source.connect(filter);filter.connect(gain);
-      if(spec.layered===true){
+      if(ensemble){
        const panner=ctx.createStereoPanner();
        panner.pan.value=voices.length>1?-.48+.96*(index/(voices.length-1)):0;
        gain.connect(panner);panner.connect(destination);
