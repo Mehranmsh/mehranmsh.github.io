@@ -70,9 +70,11 @@ jobs:
           assert len(data["instruments"]["cajon"]["samples"]) >= 20
           assert len(data["instruments"]["world_percussion"]["samples"]) >= 150
           assert len(data["instruments"]["acoustic_drums"]["samples"]) == 128
-          for key, expected in {"female_vocal":45,"male_vocal":55}.items():
+          for key, expected in {"female_vocal":45,"male_vocal":55,"female_choir":45,"male_choir":55,"mixed_choir":100}.items():
               samples = data["instruments"][key]["samples"]
               assert len(samples) == expected, (key, len(samples), expected)
+              if key.endswith("_choir"):
+                  assert data["instruments"][key].get("layered") is True
               for sample in samples:
                   file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
                   assert file.is_file() and file.stat().st_size > 256, str(file)
@@ -90,6 +92,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "No sample changes to commit."
           else
-            git commit -m "Import CC0 recorded piano and guitar sample banks"
+            git commit -m "Import CC0 recorded piano, guitar and human vocal banks"
+            git pull --rebase origin main
             git push
           fi
