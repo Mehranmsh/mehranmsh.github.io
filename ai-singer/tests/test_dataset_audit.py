@@ -141,12 +141,18 @@ class DatasetAuditTests(unittest.TestCase):
             minimum_phoneme_coverage=0.9,
             minimum_vowel_note_coverage=0.9,
             maximum_internal_gap_seconds=0.1,
+            minimum_phoneme_duration_seconds=0.6,
+            maximum_phoneme_duration_seconds=0.4,
         )
         self.assertFalse(report["training_readiness"]["ready_for_staged_training"])
         serialized = json.dumps(report)
         self.assertNotIn("tr-target", serialized)
         self.assertNotIn("speaker-A", serialized)
         self.assertTrue(any("low_phoneme_time_coverage" in item
+                            for item in report["training_readiness"]["warnings"]))
+        self.assertTrue(any("very_short_phoneme_span" in item
+                            for item in report["training_readiness"]["warnings"]))
+        self.assertTrue(any("very_long_phoneme_span" in item
                             for item in report["training_readiness"]["warnings"]))
 
     def test_rejects_invalid_expected_sample_rate(self):
