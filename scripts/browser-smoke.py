@@ -911,6 +911,8 @@ def main():
                 page.locator("#playMix").click()
                 page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 3 track(s) together')", timeout=10000)
                 print("PASS: one-click 8-bar listening demo creates 3 local WAV tracks and plays them together")
+                page.locator("#mixProject").select_option(label="Automated Audio QA")
+                page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
                 page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
