@@ -961,6 +961,15 @@ def main():
                 overlapping = [event for event in event_model if event["startStep"] == 1]
                 assert {event["note"] for event in overlapping} == {"D3", "F3"}
                 assert all(event["lengthSteps"] == 4 and event["velocity"] == 65 and event["gate"] == 55 for event in overlapping)
+                # Per-note microtonal cents must update the visible value and persist on that exact note event.
+                micro_slider = page.locator("#patternMicroTuneRows [data-micro-note-id]").first
+                assert micro_slider.count() == 1, "Microtuning slider was not rendered for selected piano-roll notes."
+                micro_note_id = micro_slider.get_attribute("data-micro-note-id")
+                micro_slider.evaluate("""el => { el.value = '37'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }""")
+                micro_saved = page.evaluate("""id => JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents.find(event => event.id === id)""", micro_note_id)
+                assert micro_saved and micro_saved["detuneCents"] == 37, "Per-note microtuning cents did not persist to the selected note."
+                assert "+37 ¢" in page.locator("#patternMicroTuneRows").inner_text(), "Microtuning slider output did not reflect the selected cents value."
+                print("PASS: per-note microtuning control updates and persists cents independently")
                 page.locator("#patternNoteLength").select_option("8")
                 page.locator("#applyPatternNoteLength").click()
                 resized_events = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0].patternStudio.noteEvents.filter(event => event.startStep === 1)")
