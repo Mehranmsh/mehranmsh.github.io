@@ -764,7 +764,8 @@ test("MEHRAN MUSIC STUDIO is linked from Services as an independent workspace", 
 test("MEHRAN MUSIC STUDIO keeps drafts local and separates free lyric AI from disabled audio generation", () => {
   assert.match(musicStudioSource, /mehran_music_studio_drafts_v1/);
   assert.match(musicStudioSource, /localStorage\.setItem\(KEY,JSON\.stringify\(projects\)\)/);
-  assert.match(musicStudioSource, /AUDIO ENGINE NOT CONNECTED/);
+  assert.match(musicStudioSource, /LOCAL AUDIO ENGINE/);
+  assert.match(musicStudioSource, /QUALITY TESTING/);
   assert.match(musicStudioSource, /Audio generation is not active yet/);
   assert.match(musicStudioSource, /AI Songwriter/);
   assert.match(musicStudioSource, /music\/lyrics\/generate/);
