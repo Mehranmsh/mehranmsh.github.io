@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/import-recorded-instruments.yml"
+      - "scripts/import-additional-instruments.py"
   workflow_dispatch:
 
 permissions:
@@ -29,8 +30,14 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install audio conversion tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Import CC0 recorded piano and guitar samples
         run: python scripts/import-recorded-instruments.py
+
+      - name: Import violin, cello, acoustic bass, and kalimba
+        run: python scripts/import-additional-instruments.py
 
       - name: Validate imported sample bank
         run: |
@@ -50,7 +57,13 @@ jobs:
               for sample in samples:
                   file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
                   assert file.is_file() and file.stat().st_size > 128, str(file)
-          print("Recorded sample bank validation passed.")
+          for key in ["violin", "cello", "acoustic_bass", "kalimba"]:
+              samples = data["instruments"][key]["samples"]
+              assert len(samples) >= 8, (key, len(samples))
+              for sample in samples:
+                  file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
+                  assert file.is_file() and file.stat().st_size > 128, str(file)
+          print("Recorded sample bank validation passed for all seven instruments.")
           PY
 
       - name: Commit self-hosted samples
