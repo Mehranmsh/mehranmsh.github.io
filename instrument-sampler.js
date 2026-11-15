@@ -36,7 +36,21 @@
  async function decodeSample(ctx,sample){
   const url=sameOriginUrl(sample.url);
   if(!decodedCache.has(url)){
-   const pending=fetchWithTimeout(url,{},18000).then(r=>{if(!r.ok)throw new Error("Missing recorded sample ("+r.status+"): "+sample.url);return r.arrayBuffer();}).then(b=>ctx.decodeAudioData(b.slice(0))).catch(error=>{decodedCache.delete(url);throw error;});
+   const pending=(async()=>{
+    let lastError;
+    for(let attempt=0;attempt<2;attempt++){
+     try{
+      const response=await fetchWithTimeout(url,{cache:"no-store"},45000);
+      if(!response.ok)throw new Error("Missing recorded sample ("+response.status+"): "+sample.url);
+      const bytes=await response.arrayBuffer();
+      return await ctx.decodeAudioData(bytes.slice(0));
+     }catch(error){
+      lastError=error;
+      if(attempt===0)await new Promise(resolve=>setTimeout(resolve,600));
+     }
+    }
+    throw lastError;
+   })().catch(error=>{decodedCache.delete(url);throw error;});
    decodedCache.set(url,pending);
   }
   return decodedCache.get(url);
