@@ -158,6 +158,30 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertNotIn("سَ", str(summary))
         self.assertNotIn("text", str(summary))
 
+    def test_reports_syllable_phoneme_time_coverage_and_optional_warning(self):
+        item = record()
+        item["alignment_status"] = "reviewed"
+        item["syllable_alignment"] = [
+            {"text": "سَ", "start_seconds": 0.0, "end_seconds": 0.8,
+             "phoneme_start_index": 0, "phoneme_end_index": 2},
+            {"text": "ل", "start_seconds": 0.8, "end_seconds": 1.0,
+             "phoneme_start_index": 2, "phoneme_end_index": 3},
+        ]
+        summary = summarize_annotation_quality(
+            [item], minimum_syllable_phoneme_coverage=0.9
+        )
+        coverage = summary["syllable_alignment"]["phoneme_time_coverage"]
+        self.assertEqual(coverage["mean"], 0.9375)
+        self.assertEqual(coverage["p50"], 0.875)
+        self.assertEqual(coverage["p90"], 1.0)
+        self.assertEqual(coverage["syllables_with_uncovered_time"], 1)
+        self.assertIn(
+            {"code": "low_syllable_phoneme_coverage", "recordings": 1},
+            summary["warnings"],
+        )
+        self.assertNotIn("سَ", str(summary))
+        self.assertNotIn("text", str(summary))
+
     def test_rejects_unreviewed_syllable_metrics(self):
         item = record()
         item["alignment_status"] = "unreviewed"
