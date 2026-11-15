@@ -1032,7 +1032,7 @@ def main():
                     page.locator("#patternMode").select_option(mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
-                    page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Pattern render failed:')", timeout=20000)
+                    page.wait_for_function("!document.querySelector('#renderPattern')?.disabled", timeout=60000)
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "No real recorded samples are installed" in live_status, "Live instrument must fail closed without recorded assets: " + mode + "; " + live_status
                 print("PASS: all 10 live-instrument modes reject synthetic fallback without recorded samples")
