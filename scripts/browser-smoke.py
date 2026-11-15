@@ -1117,6 +1117,38 @@ def main():
                     raise AssertionError("Multi-instrument arrangement WAV export is silent.")
                 if "track placements" not in page.locator("#arrangementExportStatus").inner_text():
                     raise AssertionError("Multi-instrument arrangement export did not report completed track placements.")
+
+                # Export each live instrument alone so a non-silent combined mix cannot
+                # hide a missing or disconnected instrument contribution.
+                solo_section = {"live_piano": 0, "live_tar": 0, "live_guitar": 1, "live_violin": 1}
+                for mode, track_id in live_track_ids.items():
+                    for section_index, selector in enumerate(arrangement_selects.all()):
+                        selector.select_option([track_id] if section_index == solo_section[mode] else [])
+                    try:
+                        with page.expect_download(timeout=120000) as solo_download:
+                            page.locator("#exportArrangement").click()
+                    except Exception as export_error:
+                        export_status = page.locator("#arrangementExportStatus").inner_text()
+                        raise AssertionError("Solo instrument export failed for " + mode + ". Export status: " + export_status) from export_error
+                    solo_path = Path(temp) / ("mehran-solo-" + mode + ".wav")
+                    solo_download.value.save_as(solo_path)
+                    with wave.open(str(solo_path), "rb") as solo_wav:
+                        solo_channels = solo_wav.getnchannels()
+                        solo_rate = solo_wav.getframerate()
+                        solo_width = solo_wav.getsampwidth()
+                        solo_frames = solo_wav.getnframes()
+                        solo_pcm = solo_wav.readframes(solo_frames)
+                    if solo_channels != 2 or solo_rate != 44100 or solo_width != 2 or solo_frames < 1000:
+                        raise AssertionError("Solo instrument WAV format/duration invalid for " + mode + ": " + str((solo_channels, solo_rate, solo_width, solo_frames)))
+                    solo_samples = [sample[0] for sample in struct.iter_unpack("<h", solo_pcm)]
+                    solo_peak = max((abs(sample) for sample in solo_samples), default=0)
+                    solo_rms = math.sqrt(sum(sample * sample for sample in solo_samples) / max(1, len(solo_samples)))
+                    solo_rail_hits = sum(1 for sample in solo_samples if abs(sample) >= 32767)
+                    if solo_peak == 0 or solo_rms < 1.0:
+                        raise AssertionError("Solo instrument render is silent for " + mode + ": " + str((solo_peak, solo_rms)))
+                    if solo_rail_hits:
+                        raise AssertionError("Solo instrument render hit 16-bit PCM full scale for " + mode + ": " + str((solo_peak, solo_rail_hits)))
+                    print("PASS: isolated live instrument render " + mode + " · RMS " + str(round(solo_rms, 2)) + " · peak " + str(solo_peak))
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
