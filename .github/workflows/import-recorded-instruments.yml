@@ -39,6 +39,9 @@ jobs:
       - name: Import violin, cello, acoustic bass, and kalimba
         run: python scripts/import-additional-instruments.py
 
+      - name: Import real female and male human vocal samples
+        run: python scripts/import-vocalset.py
+
       - name: Validate imported sample bank
         run: |
           python - <<'PY'
@@ -66,7 +69,16 @@ jobs:
           assert len(data["instruments"]["cajon"]["samples"]) >= 20
           assert len(data["instruments"]["world_percussion"]["samples"]) >= 150
           assert len(data["instruments"]["acoustic_drums"]["samples"]) == 128
-          print("Recorded sample bank validation passed for all expanded instrument banks.")
+          for key, expected in {"female_vocal":45,"male_vocal":55}.items():
+              samples = data["instruments"][key]["samples"]
+              assert len(samples) == expected, (key, len(samples), expected)
+              for sample in samples:
+                  file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
+                  assert file.is_file() and file.stat().st_size > 256, str(file)
+                  assert sample["loopEnd"] > sample["loopStart"] >= 0
+                  assert 30 <= sample["rootNote"] <= 90
+          assert (Path("assets/instruments/samples/vocalset/VOCALSET-ATTRIBUTION.txt")).is_file()
+          print("Recorded instrument and human vocal sample bank validation passed.")
           PY
 
       - name: Commit self-hosted samples
