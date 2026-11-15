@@ -17,7 +17,7 @@ jobs:
       - name: Install archive and audio inspection tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y 7zip ffmpeg
+          sudo apt-get install -y unar ffmpeg
       - name: Download and inspect licensed PCMIR source
         shell: bash
         run: |
@@ -27,22 +27,28 @@ jobs:
             "https://data.mendeley.com/public-files/datasets/bpyxwkv9wj/files/fe2e9091-1b8c-4ae0-b331-725b45431125/file_downloaded" \
             --output /tmp/pcmir-source.rar
           echo "Downloaded archive size: $(stat -c%s /tmp/pcmir-source.rar) bytes"
-          7zz x -y -o\"$PWD/source-audit/extracted\" /tmp/pcmir-source.rar
+          unar -quiet -o source-audit/extracted /tmp/pcmir-source.rar > source-audit/extraction.log 2>&1 || true
           python3 - <<'PY'
           import csv, json, subprocess
           from pathlib import Path
+          from collections import Counter
           root = Path("source-audit/extracted")
           audio_exts = {".wav", ".mp3", ".ogg", ".flac", ".aiff", ".aif"}
           files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in audio_exts)
           rows = []
+          bad_files = []
           for path in files:
-              result = subprocess.run(
-                  ["ffprobe", "-v", "error", "-show_entries",
-                   "format=duration:stream=codec_name,sample_rate,channels",
-                   "-of", "json", str(path)],
-                  capture_output=True, text=True, check=True
-              )
-              metadata = json.loads(result.stdout)
+              try:
+                  result = subprocess.run(
+                      ["ffprobe", "-v", "error", "-show_entries",
+                       "format=duration:stream=codec_name,sample_rate,channels",
+                       "-of", "json", str(path)],
+                      capture_output=True, text=True, check=True
+                  )
+                  metadata = json.loads(result.stdout)
+              except Exception as error:
+                  bad_files.append((str(path.relative_to(root)), str(error)))
+                  continue
               stream = next((x for x in metadata.get("streams", []) if "codec_name" in x), {})
               duration = float(metadata.get("format", {}).get("duration", 0) or 0)
               rows.append({
@@ -58,7 +64,6 @@ jobs:
                   ["file", "folder", "duration_seconds", "codec", "sample_rate", "channels"])
               writer.writeheader()
               writer.writerows(rows)
-          from collections import Counter
           counts = Counter(row["folder"] for row in rows)
           with open("source-audit/SUMMARY.txt", "w", encoding="utf-8") as handle:
               handle.write("PCMIR Persian instrument source audit\n")
@@ -67,15 +72,20 @@ jobs:
               handle.write("License: CC BY 4.0 (dataset metadata)\n")
               handle.write("Source: https://data.mendeley.com/datasets/bpyxwkv9wj/1\n")
               handle.write("Attribution: Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan.\n")
-              handle.write(f"Audio files inspected: {len(rows)}\n")
+              handle.write(f"Audio files successfully inspected: {len(rows)}\n")
+              handle.write(f"Files that could not be probed: {len(bad_files)}\n")
               handle.write("Files by containing folder:\n")
               for folder, count in sorted(counts.items()):
                   handle.write(f"  {folder}: {count}\n")
               if rows:
                   handle.write(f"Total audio duration: {sum(r['duration_seconds'] for r in rows):.1f} seconds\n")
+              if bad_files:
+                  handle.write("Unusable files (first 30):\n")
+                  for name, error in bad_files[:30]:
+                      handle.write(f"  {name}: {error[:180]}\n")
           print(Path("source-audit/SUMMARY.txt").read_text(encoding="utf-8"))
           if not rows:
-              raise SystemExit("No audio files found in PCMIR archive")
+              raise SystemExit("No usable audio files found in PCMIR archive")
           PY
       - name: Upload source inventory
         uses: actions/upload-artifact@v4
