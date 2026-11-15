@@ -1455,11 +1455,10 @@
 
       // Dedicated local physical-ish voices: these paths intentionally do not share the old oscillator recipe.
       if(["acoustic_grand_piano","acoustic_guitar_steel","tar","violin"].includes(name)){
-       const specialAttack=Math.min(length*.48,profile.attack),specialRelease=Math.min(profile.release,Math.max(.035,length*.32)),specialReleaseStart=Math.max(start+specialAttack,start+length-specialRelease),specialPeak=Math.max(.0001,.105*gain*(.45+.55*velocity));
+       const specialAttack=Math.min(length*.48,profile.attack),specialRelease=Math.min(profile.release,Math.max(.035,length*.32)),specialReleaseStart=Math.max(start+specialAttack,start+length-specialRelease),specialPeak=Math.max(.0001,.24*gain*(.45+.55*velocity));
        filter.type="lowpass";
        filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.44,profile.filter*brightness),start);
        filter.Q.value=name==="tar"?.9:name==="acoustic_guitar_steel"?.62:.707;
-       filter.connect(voice);voice.connect(bus);
        voice.gain.setValueAtTime(.0001,start);
        voice.gain.linearRampToValueAtTime(specialPeak,start+Math.max(.001,specialAttack));
        voice.gain.setValueAtTime(Math.max(.0001,specialPeak*(name==="violin"?.78:.12)),specialReleaseStart);
@@ -1513,7 +1512,7 @@
        const source=ctx.createBufferSource();source.buffer=audio;source.connect(filter);source.start(start);source.stop(start+frames/sr);
        return;
       }
-      const attack=Math.min(length*.48,profile.attack),release=Math.min(profile.release,Math.max(.035,length*.32)),releaseStart=Math.max(start+attack,start+length-release),peak=Math.max(.0001,.105*gain*(.45+.55*velocity));
+      const attack=Math.min(length*.48,profile.attack),release=Math.min(profile.release,Math.max(.035,length*.32)),releaseStart=Math.max(start+attack,start+length-release),peak=Math.max(.0001,.20*gain*(.45+.55*velocity));
       voice.gain.setValueAtTime(.0001,start);voice.gain.linearRampToValueAtTime(peak,start+Math.max(.001,attack));
       const decayTime=Math.min(length*.72,profile.decay);if(profile.kind!=="bowed"&&profile.kind!=="wind"&&decayTime<releaseStart-start)voice.gain.setTargetAtTime(Math.max(.0001,peak*(profile.kind==="piano"?.22:.34)),start+Math.max(attack+.012,decayTime*.45),Math.max(.025,profile.decay*.24));
       voice.gain.setValueAtTime(Math.max(.0001,peak*(profile.kind==="bowed"?.72:.16)),releaseStart);voice.gain.exponentialRampToValueAtTime(.0001,start+length);
@@ -1597,30 +1596,38 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  async function buildListeningDemo(){
  const button=$("buildListeningDemo");if(button)button.disabled=true;
  const id=crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random(),now=Date.now();
- const p={id,name:"MEHRAN Listening Demo",type:"instrumental",language:"Instrumental / No lyrics",genre:"Pop",mood:"Emotional",tempo:"92",brief:"Original local-engine listening test · Am–F–C–G · piano-led ensemble, plucked guitar motif and percussion.",lyrics:"",created:now,updated:now,tracks:[],arrangement:[]};
+ const p={id,name:"MEHRAN Instrument Audition",type:"instrumental",language:"Instrumental / No lyrics",genre:"Pop",mood:"Emotional",tempo:"92",brief:"Four separate local instrument auditions: piano, steel-string guitar, violin and acoustic percussion. Synthetic instrument modelling, not recorded samples.",lyrics:"",created:now,updated:now,tracks:[],arrangement:[]};
  try{
-  projects.push(p);if(!save()){projects=projects.filter(x=>x.id!==id);throw new Error("Could not save the demo project in this browser.");}
+  projects.push(p);if(!save()){projects=projects.filter(x=>x.id!==id);throw new Error("Could not save the audition project in this browser.");}
   show("mix");refreshMixProjects(id);$("mixProject").value=id;
   const base=JSON.parse(JSON.stringify(PATTERN_DEFAULT));
   const specs=[
-   {name:"01 · Harmony Ensemble",mode:"chords",bars:8,chords:["Am","F","C","G"],customChordProgression:true,notes:[],noteEvents:[]},
-   {name:"02 · Live Guitar Motif",mode:"live_guitar",bars:8,chords:["Am","F","C","G"],notes:Array(16).fill("-"),noteEvents:[]},
-   {name:"03 · Drum Groove",mode:"drums",bars:8,chords:["Am","F","C","G"],notes:[],noteEvents:[]}
+   {name:"01 · Piano",mode:"live_piano",bars:8,chords:["Am","F","C","G"],notes:Array(16).fill("-"),noteEvents:[]},
+   {name:"02 · Steel Guitar",mode:"live_guitar",bars:8,chords:["Am","F","C","G"],notes:Array(16).fill("-"),noteEvents:[]},
+   {name:"03 · Violin",mode:"live_violin",bars:8,chords:["Am","F","C","G"],notes:Array(16).fill("-"),noteEvents:[]},
+   {name:"04 · Acoustic Drums",mode:"drums",bars:8,chords:["Am","F","C","G"],notes:[],noteEvents:[]}
   ];
-  const guitar=["E3","B3","G3","B3","E4","B3","G3","B3"];
-  for(let bar=0;bar<8;bar++)guitar.forEach((note,step)=>specs[1].noteEvents.push({id:"demo-g-"+bar+"-"+step,note,startStep:bar*16+step*2,lengthSteps:1,velocity:bar%2?66:74,gate:72}));
-  specs[2].kick=[];specs[2].snare=[];specs[2].hat=[];specs[2].openHat=[];specs[2].clap=[];specs[2].tom=[];specs[2].perc=[];
-  for(let bar=0;bar<8;bar++){const b=bar*16;specs[2].kick.push(b,b+8);specs[2].snare.push(b+4,b+12);for(let step=0;step<16;step+=2)specs[2].hat.push(b+step);specs[2].openHat.push(b+14);}
+  const chords=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]];
+  for(let bar=0;bar<8;bar++){
+   const root=chords[bar%4];
+   for(let beat=0;beat<4;beat++)root.forEach((note,index)=>specs[0].noteEvents.push({id:"demo-p-"+bar+"-"+beat+"-"+index,note:note+(beat===3?12:0),startStep:bar*16+beat*4,lengthSteps:3,velocity:beat===0?88:72,gate:90}));
+   const guitar=["E3","B3","G3","B3","E4","B3","G3","B3"];
+   guitar.forEach((note,step)=>specs[1].noteEvents.push({id:"demo-g-"+bar+"-"+step,note,startStep:bar*16+step*2,lengthSteps:2,velocity:bar%2?72:84,gate:88}));
+   const violin=["A4","C5","E5","C5","G4","B4","D5","B4"];
+   [0,2,4,6].forEach((step,index)=>specs[2].noteEvents.push({id:"demo-v-"+bar+"-"+step,note:violin[(bar%2)*4+index],startStep:bar*16+step,lengthSteps:4,velocity:index===0?82:72,gate:94}));
+  }
+  const drums=specs[3];drums.kick=[];drums.snare=[];drums.hat=[];drums.openHat=[];drums.clap=[];drums.tom=[];drums.perc=[];
+  for(let bar=0;bar<8;bar++){const b=bar*16;drums.kick.push(b,b+8);drums.snare.push(b+4,b+12);for(let step=0;step<16;step+=2)drums.hat.push(b+step);drums.openHat.push(b+14);}
   for(const spec of specs){
    const pat={...base,...spec,tempo:92,drumKit:"acoustic",noteEvents:spec.noteEvents||[]};
    p.patternStudio=pat;$("patternTempo").value="92";$("patternMode").value=spec.mode;$("patternBars").value="8";$("patternNotes").value=(pat.notes||[]).join(", ");$("patternChords").value=spec.chords.join(", ");$("patternTrackName").value=spec.name;$("drumKit").value=pat.drumKit;renderPatternGrid();
-   $("patternStatus").textContent="ساخت قطعهٔ آزمایشی: "+spec.name+"…";
+   $("patternStatus").textContent="ساخت تست ساز: "+spec.name+"…";
    if(!await generatePatternTrack())throw new Error(spec.name+": "+$("patternStatus").textContent);
   }
-  $("mixProject").value=id;renderMixTracks();$("mixerStatus").textContent="قطعهٔ آزمایشی آماده است: سه ترک WAV محلی ساخته شد. برای شنیدن، Play mix را بزن.";
-  $("patternStatus").textContent="قطعهٔ آزمایشی ساخته شد: هارمونی چندسازه، موتیف گیتار و درام. کیفیت طبیعی‌بودن سازها هنوز نیازمند ارزیابی شنیداری است.";
+  $("mixProject").value=id;renderMixTracks();$("mixerStatus").textContent="چهار ترک مستقل ساخته شد: پیانو، گیتار، ویولن و درام. برای شنیدن همه، Play mix را بزن.";
+  $("patternStatus").textContent="تست چهار ساز ساخته شد. این صداها مدل‌سازی نرم‌افزاری‌اند، نه نمونه‌ضبط‌شده؛ طبیعی‌بودن آن‌ها هنوز تأیید نشده است.";
   show("mix");
- }catch(error){$("patternStatus").textContent="ساخت قطعه کامل نشد: "+error.message;}
+ }catch(error){$("patternStatus").textContent="ساخت تست ساز کامل نشد: "+error.message;}
  finally{if(button)button.disabled=false;}
  }
  function resetPattern(){const p=patternProject();if(!p)return;$("patternStatus").textContent="Pattern reset.";p.patternStudio=JSON.parse(JSON.stringify(PATTERN_DEFAULT));p.updated=Date.now();if(save())renderPatternGrid();}
