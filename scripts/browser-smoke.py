@@ -1132,6 +1132,35 @@ def main():
                 }""")
                 assert vocal_assets == {"female_vocal": 45, "male_vocal": 55, "female_choir": 45, "male_choir": 55, "mixed_choir": 100}, "Self-hosted human vocal assets are incomplete: " + str(vocal_assets)
 
+                # Inspect the full recorded Setar note bank at source level before judging the rendered sampler.
+                setar_diagnostics = page.evaluate("""async () => {
+                    const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
+                    const bank = manifest.instruments.setar;
+                    const ctx = new AudioContext();
+                    const rows = [];
+                    for (const sample of bank.samples) {
+                        const response = await fetch(sample.url, {cache: "no-store"});
+                        if (!response.ok) throw new Error("Setar sample unavailable: " + sample.url);
+                        const buffer = await ctx.decodeAudioData(await response.arrayBuffer());
+                        let peak = 0, square = 0, count = 0, activeSeconds = 0, firstActive = null;
+                        const data = buffer.getChannelData(0);
+                        for (let i = 0; i < data.length; i++) {
+                            const value = data[i], magnitude = Math.abs(value);
+                            peak = Math.max(peak, magnitude); square += value * value; count++;
+                            if (magnitude > 0.003 && firstActive === null) firstActive = i / buffer.sampleRate;
+                        }
+                        for (let sec = 0; sec < Math.ceil(buffer.duration); sec++) {
+                            let localPeak = 0;
+                            for (let i = sec * buffer.sampleRate; i < Math.min(data.length, (sec + 1) * buffer.sampleRate); i += 32) localPeak = Math.max(localPeak, Math.abs(data[i]));
+                            if (localPeak > 0.003) activeSeconds++;
+                        }
+                        rows.push({note: sample.noteLabel, rootNote: sample.rootNote, duration: Number(buffer.duration.toFixed(2)), peak: Number(peak.toFixed(5)), rms: Number(Math.sqrt(square / Math.max(1, count)).toFixed(6)), firstActive: firstActive === null ? null : Number(firstActive.toFixed(3)), activeSeconds});
+                    }
+                    await ctx.close();
+                    return rows;
+                }""")
+                print("SETAR SOURCE DIAGNOSTICS:", JSON.stringify(setar_diagnostics), flush=True)
+
                 live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
                 live_modes_missing = ["live_tar", "live_santur", "live_ney", "live_kamancheh"]
                 page.locator("#patternBars").select_option("1")
