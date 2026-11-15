@@ -17,7 +17,7 @@ jobs:
       - name: Install archive and audio inspection tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y unar ffmpeg
+          sudo apt-get install -y 7zip ffmpeg
       - name: Download and inspect licensed PCMIR source
         shell: bash
         run: |
@@ -27,7 +27,7 @@ jobs:
             "https://data.mendeley.com/public-files/datasets/bpyxwkv9wj/files/fe2e9091-1b8c-4ae0-b331-725b45431125/file_downloaded" \
             --output /tmp/pcmir-source.rar
           echo "Downloaded archive size: $(stat -c%s /tmp/pcmir-source.rar) bytes"
-          unar -quiet -o source-audit/extracted /tmp/pcmir-source.rar
+          7zz x -y -o\"$PWD/source-audit/extracted\" /tmp/pcmir-source.rar
           python3 - <<'PY'
           import csv, json, subprocess
           from pathlib import Path
