@@ -53,7 +53,7 @@
       const pool=candidates.length?candidates:valid;
       const bestDistance=Math.min(...pool.map(sample=>Math.abs(sample.rootNote-note)));
       const nearest=pool.filter(sample=>Math.abs(sample.rootNote-note)===bestDistance);
-      if(spec.roundRobin===true){for(const sample of nearest)selected.set(sample.url,sample);}
+      if(spec.roundRobin===true){for(const sample of valid.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
       else{const best=nearest.reduce((a,b)=>Number(b.stringRank??99)<Number(a.stringRank??99)?b:a);selected.set(best.url,best);}
      }
     }else{
