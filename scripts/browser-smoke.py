@@ -115,6 +115,7 @@ def main():
 
                 # Create and persist a project through the actual UI.
                 page.locator('[data-view="create"]').click()
+                page.locator("#patternMode").select_option("live_cajon")
                 page.locator("#projectName").fill("Automated Audio QA")
                 page.locator("#saveProject").click()
                 page.wait_for_timeout(250)
