@@ -45,6 +45,7 @@ def audit_dataset(
     minimum_phoneme_duration_seconds: float | None = None,
     maximum_phoneme_duration_seconds: float | None = None,
     minimum_phoneme_note_coverage: float | None = None,
+    minimum_syllable_phoneme_coverage: float | None = None,
 ) -> dict:
     """Validate local data and return privacy-safe readiness aggregates."""
     if isinstance(expected_sample_rate, bool) or not isinstance(expected_sample_rate, int) or expected_sample_rate <= 0:
@@ -131,6 +132,7 @@ def audit_dataset(
                 minimum_phoneme_duration_seconds=minimum_phoneme_duration_seconds,
                 maximum_phoneme_duration_seconds=maximum_phoneme_duration_seconds,
                 minimum_phoneme_note_coverage=minimum_phoneme_note_coverage,
+                minimum_syllable_phoneme_coverage=minimum_syllable_phoneme_coverage,
             )
         except AnnotationQualityError as exc:
             raise DatasetAuditError("annotation quality analysis failed; details withheld") from exc
@@ -272,6 +274,7 @@ def main() -> int:
     parser.add_argument("--minimum-phoneme-duration-seconds", type=float, help="Optional advisory threshold for unusually short phoneme spans")
     parser.add_argument("--maximum-phoneme-duration-seconds", type=float, help="Optional advisory threshold for unusually long phoneme spans")
     parser.add_argument("--minimum-phoneme-note-coverage", type=float, help="Optional warning threshold from 0 to 1 for temporal phoneme-to-note coverage")
+    parser.add_argument("--minimum-syllable-phoneme-coverage", type=float, help="Optional warning threshold from 0 to 1 for reviewed syllable time covered by its assigned phonemes")
     args = parser.parse_args()
     try:
         result = audit_dataset(
@@ -283,6 +286,7 @@ def main() -> int:
             minimum_phoneme_duration_seconds=args.minimum_phoneme_duration_seconds,
             maximum_phoneme_duration_seconds=args.maximum_phoneme_duration_seconds,
             minimum_phoneme_note_coverage=args.minimum_phoneme_note_coverage,
+            minimum_syllable_phoneme_coverage=args.minimum_syllable_phoneme_coverage,
         )
     except DatasetAuditError as exc:
         parser.exit(2, f"INVALID: {exc}\n")
