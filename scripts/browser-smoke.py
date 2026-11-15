@@ -1042,6 +1042,8 @@ def main():
                         const bank = manifest.instruments?.[name];
                         if (!bank || bank.samples?.length !== count) throw new Error("Wrong sample count for " + name);
                         if (name.endsWith("_choir") && bank.layered !== true) throw new Error("Ensemble bank is not layered: " + name);
+                        const loopLengths = bank.samples.map(sample => sample.loopEnd - sample.loopStart);
+                        if (Math.min(...loopLengths) < 0.48 || Math.max(...loopLengths) < 1.30) throw new Error("Human vowel sustains are too short: " + name);
                         const sample = bank.samples[0];
                         const audio = await fetch(sample.url, {cache: "no-store"});
                         if (!audio.ok || (await audio.arrayBuffer()).byteLength < 256) throw new Error("Vocal sample failed to load: " + sample.url);
