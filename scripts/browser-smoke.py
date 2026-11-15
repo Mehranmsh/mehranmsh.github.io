@@ -164,6 +164,7 @@ def main():
                 second_report["summary"]["mean_phoneme_coverage_ratio"] = 0.8
                 second_report["summary"]["internal_gap_count"] = 1
                 second_report["summary"]["internal_gap_mean_seconds"] = 0.02
+                second_report["summary"]["syllables_invalid_or_incomplete"] = 1
                 second_path = Path(temp) / "mehran-second-take.json"
                 second_path.write_text(__import__("json").dumps(second_report), encoding="utf-8")
                 page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(second_path)])
@@ -179,6 +180,8 @@ def main():
                 assert page.locator('#mehranQualityComparison [role="img"][aria-label="روند میانگین شکاف زمانی"] svg').is_visible()
                 assert "تغییر پوشش واجی" in comparison_text
                 assert "تغییر میانگین شکاف زمانی" in comparison_text
+                assert "تغییر هجاهای ناقص / نامعتبر" in comparison_text
+                assert "+1.0" in comparison_text
                 with page.expect_download() as comparison_download:
                     page.locator("#mehranQualityComparison button").click()
                 comparison_path = Path(temp) / "mehran-syllable-quality-comparison.json"
@@ -192,6 +195,9 @@ def main():
                 assert comparison_report["trend_summary"]["coverage"]["delta_percentage_points"] == -20.0
                 assert comparison_report["trend_summary"]["internal_gap"]["valid_reports"] == 2
                 assert comparison_report["trend_summary"]["internal_gap"]["delta_milliseconds"] == 10.0
+                assert comparison_report["trend_summary"]["incomplete_syllables"]["valid_reports"] == 2
+                assert comparison_report["trend_summary"]["incomplete_syllables"]["delta_count"] == 1
+                assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 1
                 assert comparison_report["rows"][0]["syllables_invalid_or_incomplete"] == 0
                 assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 0
                 # Reports from different projects must be rejected.
