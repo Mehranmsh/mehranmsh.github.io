@@ -1,0 +1,5 @@
+Persian Setar recorded notes by Jacqke, sourced from Wikimedia Commons Category:Setar.
+License: Creative Commons Attribution-ShareAlike 4.0 International.
+https://creativecommons.org/licenses/by-sa/4.0/
+Source category: https://commons.wikimedia.org/wiki/Category:Setar
+The samples are redistributed in the original OGG format. The root-key mapping follows the recorded 1st-string fret positions; Persian quarter-tone labels are retained in manifest noteLabel metadata.
