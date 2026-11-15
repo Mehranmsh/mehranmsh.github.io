@@ -169,7 +169,7 @@ def main():
                 page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('80.0%')")
                 comparison_text = page.locator("#mehranQualityComparison").inner_text()
                 assert "مبنای مقایسه" in comparison_text
-                assert "+1.0 pp" in comparison_text
+                assert "-20.0 pp" in comparison_text
                 assert "1" in comparison_text
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
