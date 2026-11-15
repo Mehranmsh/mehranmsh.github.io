@@ -1074,6 +1074,45 @@ def main():
                         raise AssertionError("Live instrument WAV is silent or near-silent: " + mode + "; " + str(live_audio))
                     if engine_name not in live_status and "local instruments ready" not in live_status:
                         raise AssertionError("Live instrument engine readiness not reported for " + mode + ": " + live_status)
+
+                # Put multiple independently rendered live instruments into the same
+                # arrangement sections, then verify the exported stereo mix contains audio.
+                live_track_ids = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")[0];
+                    return Object.fromEntries(["live_piano", "live_guitar", "live_violin", "live_tar"].map(mode => {
+                        const track = project.tracks.find(item => item.generated && item.name === "Live QA " + mode);
+                        return [mode, track?.id || null];
+                    }));
+                }""")
+                if any(not value for value in live_track_ids.values()):
+                    raise AssertionError("Could not locate all generated live-instrument tracks: " + str(live_track_ids))
+                arrangement_selects = page.locator("#arrangementTimeline select[data-arrangement-tracks]")
+                if arrangement_selects.count() < 2:
+                    raise AssertionError("Expected two song sections for multi-instrument arrangement test.")
+                arrangement_selects.nth(0).select_option([live_track_ids["live_piano"], live_track_ids["live_tar"]])
+                arrangement_selects.nth(1).select_option([live_track_ids["live_guitar"], live_track_ids["live_violin"]])
+                selected_tracks = page.evaluate("""() => JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1"))[0].arrangement.map(section => section.trackIds)""")
+                if not all(set(pair).issubset(set(selected_tracks[index])) for index, pair in enumerate([
+                    [live_track_ids["live_piano"], live_track_ids["live_tar"]],
+                    [live_track_ids["live_guitar"], live_track_ids["live_violin"]]
+                ])):
+                    raise AssertionError("Multiple live instrument selections were not saved per section: " + str(selected_tracks))
+                with page.expect_download(timeout=45000) as live_mix_download:
+                    page.locator("#exportArrangement").click()
+                live_mix_path = Path(temp) / "mehran-live-multi-instrument-mix.wav"
+                live_mix_download.value.save_as(live_mix_path)
+                with wave.open(str(live_mix_path), "rb") as live_mix:
+                    mix_channels = live_mix.getnchannels()
+                    mix_rate = live_mix.getframerate()
+                    mix_width = live_mix.getsampwidth()
+                    mix_frames = live_mix.getnframes()
+                    mix_pcm = live_mix.readframes(mix_frames)
+                if mix_channels != 2 or mix_rate != 44100 or mix_width not in (2, 3, 4) or mix_frames < 1000:
+                    raise AssertionError("Multi-instrument arrangement WAV format/duration invalid: " + str((mix_channels, mix_rate, mix_width, mix_frames)))
+                if not any(mix_pcm):
+                    raise AssertionError("Multi-instrument arrangement WAV export is silent.")
+                if "track placements" not in page.locator("#arrangementExportStatus").inner_text():
+                    raise AssertionError("Multi-instrument arrangement export did not report completed track placements.")
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
