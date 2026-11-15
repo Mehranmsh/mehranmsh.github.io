@@ -141,6 +141,10 @@ def main():
                 page.reload(wait_until="networkidle")
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
+                # Re-import MIDI after reload because imported MIDI notes are intentionally session-local.
+                page.locator("#mehranSingerMidiFile").set_input_files(str(midi_path))
+                page.wait_for_function("document.querySelector('#mehranSingerMidiStatus')?.textContent.includes('1 نت')", timeout=10000)
+                page.wait_for_function("document.querySelector('#mehranSingerTimeline [data-syllable-index=\"0\"]') !== null", timeout=10000)
                 assert page.locator("#exportMehranSyllableQualityReport").is_enabled(), "Quality JSON export did not enable for complete local metadata."
                 with page.expect_download() as quality_download:
                     page.locator("#exportMehranSyllableQualityReport").click()
