@@ -1455,14 +1455,14 @@
 
       // Dedicated local physical-ish voices: these paths intentionally do not share the old oscillator recipe.
       if(["acoustic_grand_piano","acoustic_guitar_steel","tar","violin"].includes(name)){
-       const specialPeak=Math.max(.0001,.105*gain*(.45+.55*velocity));
+       const specialAttack=Math.min(length*.48,profile.specialAttack),specialRelease=Math.min(profile.release,Math.max(.035,length*.32)),specialReleaseStart=Math.max(start+specialAttack,start+length-specialRelease),specialPeak=Math.max(.0001,.105*gain*(.45+.55*velocity));
        filter.type="lowpass";
        filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.44,profile.filter*brightness),start);
        filter.Q.value=name==="tar"?.9:name==="acoustic_guitar_steel"?.62:.707;
        filter.connect(voice);voice.connect(bus);
        voice.gain.setValueAtTime(.0001,start);
-       voice.gain.linearRampToValueAtTime(specialPeak,start+Math.max(.001,attack));
-       voice.gain.setValueAtTime(Math.max(.0001,specialPeak*(name==="violin"?.78:.12)),releaseStart);
+       voice.gain.linearRampToValueAtTime(specialPeak,start+Math.max(.001,specialAttack));
+       voice.gain.setValueAtTime(Math.max(.0001,specialPeak*(name==="violin"?.78:.12)),specialReleaseStart);
        voice.gain.exponentialRampToValueAtTime(.0001,start+length);
        const frames=Math.max(256,Math.ceil((length+.08)*ctx.sampleRate)),audio=ctx.createBuffer(1,frames,ctx.sampleRate),data=audio.getChannelData(0),sr=ctx.sampleRate;
        if(name==="acoustic_guitar_steel"||name==="tar"){
