@@ -218,6 +218,14 @@ def main():
                 page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(invalid_path)])
                 page.locator("#compareMehranQualityReports").click()
                 page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('شاخص‌های خلاصه')")
+                # Invalid report timestamps must not silently become the Unix epoch.
+                invalid_timestamp_report = dict(second_report)
+                invalid_timestamp_report["generated_at"] = "not-a-date"
+                invalid_timestamp_path = Path(temp) / "mehran-invalid-timestamp.json"
+                invalid_timestamp_path.write_text(__import__("json").dumps(invalid_timestamp_report), encoding="utf-8")
+                page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(invalid_timestamp_path)])
+                page.locator("#compareMehranQualityReports").click()
+                page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('زمان تولید معتبر نیست')")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
