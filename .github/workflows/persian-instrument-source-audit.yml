@@ -1,0 +1,86 @@
+name: Persian instrument source audit
+
+on:
+  push:
+    paths:
+      - ".github/workflows/persian-instrument-source-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Install archive and audio inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unar ffmpeg
+      - name: Download and inspect licensed PCMIR source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source-audit/extracted
+          curl --fail --location --retry 4 --retry-delay 3 \
+            "https://data.mendeley.com/public-files/datasets/bpyxwkv9wj/files/fe2e9091-1b8c-4ae0-b331-725b45431125/file_downloaded" \
+            --output /tmp/pcmir-source.rar
+          echo "Downloaded archive size: $(stat -c%s /tmp/pcmir-source.rar) bytes"
+          unar -quiet -o source-audit/extracted /tmp/pcmir-source.rar
+          python3 - <<'PY'
+          import csv, json, subprocess
+          from pathlib import Path
+          root = Path("source-audit/extracted")
+          audio_exts = {".wav", ".mp3", ".ogg", ".flac", ".aiff", ".aif"}
+          files = sorted(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in audio_exts)
+          rows = []
+          for path in files:
+              result = subprocess.run(
+                  ["ffprobe", "-v", "error", "-show_entries",
+                   "format=duration:stream=codec_name,sample_rate,channels",
+                   "-of", "json", str(path)],
+                  capture_output=True, text=True, check=True
+              )
+              metadata = json.loads(result.stdout)
+              stream = next((x for x in metadata.get("streams", []) if "codec_name" in x), {})
+              duration = float(metadata.get("format", {}).get("duration", 0) or 0)
+              rows.append({
+                  "file": str(path.relative_to(root)),
+                  "folder": path.parent.name,
+                  "duration_seconds": round(duration, 3),
+                  "codec": stream.get("codec_name", ""),
+                  "sample_rate": stream.get("sample_rate", ""),
+                  "channels": stream.get("channels", "")
+              })
+          with open("source-audit/audio-inventory.csv", "w", newline="", encoding="utf-8") as handle:
+              writer = csv.DictWriter(handle, fieldnames=list(rows[0]) if rows else
+                  ["file", "folder", "duration_seconds", "codec", "sample_rate", "channels"])
+              writer.writeheader()
+              writer.writerows(rows)
+          from collections import Counter
+          counts = Counter(row["folder"] for row in rows)
+          with open("source-audit/SUMMARY.txt", "w", encoding="utf-8") as handle:
+              handle.write("PCMIR Persian instrument source audit\n")
+              handle.write("Dataset: Persian Classical Music Instrument Recognition (PCMIR) Database\n")
+              handle.write("DOI: 10.17632/bpyxwkv9wj.1\n")
+              handle.write("License: CC BY 4.0 (dataset metadata)\n")
+              handle.write("Source: https://data.mendeley.com/datasets/bpyxwkv9wj/1\n")
+              handle.write("Attribution: Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan.\n")
+              handle.write(f"Audio files inspected: {len(rows)}\n")
+              handle.write("Files by containing folder:\n")
+              for folder, count in sorted(counts.items()):
+                  handle.write(f"  {folder}: {count}\n")
+              if rows:
+                  handle.write(f"Total audio duration: {sum(r['duration_seconds'] for r in rows):.1f} seconds\n")
+          print(Path("source-audit/SUMMARY.txt").read_text(encoding="utf-8"))
+          if not rows:
+              raise SystemExit("No audio files found in PCMIR archive")
+          PY
+      - name: Upload source inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcmir-persian-instrument-source-audit
+          path: source-audit/
+          if-no-files-found: error
+          retention-days: 14
