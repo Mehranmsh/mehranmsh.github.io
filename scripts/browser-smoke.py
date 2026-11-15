@@ -172,6 +172,7 @@ def main():
                 page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('80.0%')")
                 comparison_text = page.locator("#mehranQualityComparison").inner_text()
                 assert "مبنای مقایسه" in comparison_text
+                assert "ناقص / نامعتبر" in comparison_text
                 assert "-20.0 pp" in comparison_text
                 assert "1" in comparison_text
                 assert page.locator('#mehranQualityComparison [role="img"][aria-label="روند پوشش واجی"] svg').is_visible()
@@ -187,6 +188,8 @@ def main():
                 assert comparison_report["audio_included"] is False
                 assert comparison_report["report_count"] == 2
                 assert comparison_report["rows"][1]["coverage_delta_percentage_points"] == -20.0
+                assert comparison_report["rows"][0]["syllables_invalid_or_incomplete"] == 0
+                assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 0
                 # Reports from different projects must be rejected.
                 mismatched_report = dict(second_report)
                 mismatched_report["project_id"] = "different-project"
