@@ -111,6 +111,8 @@ def analyze_annotation(record: dict) -> dict:
     syllable_trailing_slack = []
     syllable_internal_gap_maxima = []
     syllable_internal_gap_totals = []
+    syllable_vowel_counts = []
+    syllable_consonant_counts = []
     if syllables is not None:
         if record.get("alignment_status") != "reviewed" or not isinstance(syllables, list):
             raise AnnotationQualityError("syllable alignment must be reviewed and well-formed")
@@ -130,6 +132,12 @@ def analyze_annotation(record: dict) -> dict:
             syllable_durations.append(float(end - start))
             syllable_phoneme_counts.append(last - first)
             assigned_spans = spans[first:last]
+            assigned_features = [
+                PHONEME_FEATURES.get(canonicalize_phoneme(str(span["phoneme"])), {})
+                for span in assigned_spans
+            ]
+            syllable_vowel_counts.append(sum(feature.get("kind") == "vowel" for feature in assigned_features))
+            syllable_consonant_counts.append(sum(feature.get("kind") == "consonant" for feature in assigned_features))
             assigned_start = float(assigned_spans[0]["start_seconds"])
             assigned_end = float(assigned_spans[-1]["end_seconds"])
             assigned_gaps = [
@@ -160,6 +168,8 @@ def analyze_annotation(record: dict) -> dict:
         "syllable_trailing_boundary_slack_seconds": syllable_trailing_slack,
         "syllable_internal_gap_max_seconds": syllable_internal_gap_maxima,
         "syllable_internal_gap_total_seconds": syllable_internal_gap_totals,
+        "syllable_vowel_phoneme_counts": syllable_vowel_counts,
+        "syllable_consonant_phoneme_counts": syllable_consonant_counts,
         "minimum_phoneme_duration_seconds": min(phoneme_span_durations),
         "maximum_phoneme_duration_seconds": max(phoneme_span_durations),
         "phoneme_note_coverage_ratios": phoneme_note_coverages,
@@ -239,6 +249,12 @@ def summarize_annotation_quality(
     ]
     syllable_internal_gap_totals = [
         value for item in diagnostics for value in item["syllable_internal_gap_total_seconds"]
+    ]
+    syllable_vowel_counts = [
+        value for item in diagnostics for value in item["syllable_vowel_phoneme_counts"]
+    ]
+    syllable_consonant_counts = [
+        value for item in diagnostics for value in item["syllable_consonant_phoneme_counts"]
     ]
     recordings_with_syllables = sum(item["syllable_count"] > 0 for item in diagnostics)
     phoneme_note_coverage = [
@@ -341,6 +357,14 @@ def summarize_annotation_quality(
                 "maximum": max(syllable_internal_gap_maxima, default=None),
                 "mean_total_per_syllable": sum(syllable_internal_gap_totals) / len(syllable_internal_gap_totals) if syllable_internal_gap_totals else None,
                 "syllables_with_gaps": sum(value > 0 for value in syllable_internal_gap_maxima),
+            },
+            "phoneme_composition": {
+                "vowel_phonemes_total": sum(syllable_vowel_counts),
+                "consonant_phonemes_total": sum(syllable_consonant_counts),
+                "syllables_with_no_vowel_phoneme": sum(value == 0 for value in syllable_vowel_counts),
+                "syllables_with_multiple_vowel_phonemes": sum(value > 1 for value in syllable_vowel_counts),
+                "mean_vowel_phonemes_per_syllable": sum(syllable_vowel_counts) / len(syllable_vowel_counts) if syllable_vowel_counts else None,
+                "mean_consonant_phonemes_per_syllable": sum(syllable_consonant_counts) / len(syllable_consonant_counts) if syllable_consonant_counts else None,
             },
         },
         "phoneme_durations": {
