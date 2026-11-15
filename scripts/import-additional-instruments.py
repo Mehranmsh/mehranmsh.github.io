@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Import four additional recorded instruments into the self-hosted MEHRAN bank."""
 import json
+import io
 import re
 import subprocess
+import tarfile
+import zipfile
 import time
 import urllib.parse
 from urllib.error import HTTPError
@@ -104,6 +107,101 @@ def import_setar_commons(manifest):
     (ROOT / "assets/instruments/samples/SETAR-ATTRIBUTION.txt").write_text("\n".join(attribution)+"\n", encoding="utf-8")
     return len(entries)
 
+
+def import_drum_and_percussion_banks(manifest):
+    sample_root = ROOT / "assets/instruments/samples"
+    # FreePats: authentic cajon and world-percussion recordings, CC0.
+    archive = get("https://codeload.github.com/freepats/world-percussion/zip/refs/heads/main")
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        sfz_name = next(n for n in bundle.namelist() if n.endswith("WorldPercussion 20200905.sfz"))
+        sfz = bundle.read(sfz_name).decode("utf-8")
+        groups = re.findall(r"<group>(.*?)(?=<group>|$)", sfz, re.S)
+        percussion_entries = []
+        cajon_entries = []
+        world_dir = sample_root / "freepats-world"
+        world_dir.mkdir(parents=True, exist_ok=True)
+        for group in groups:
+            key_match = re.search(r"(?m)^\s*key=(\d+)", group)
+            if not key_match:
+                continue
+            root_note = int(key_match.group(1))
+            for source_path in re.findall(r"(?m)^\s*sample=([^\s]+)", group):
+                archive_path = next((n for n in bundle.namelist() if n.endswith("/" + source_path)), None)
+                if not archive_path:
+                    raise RuntimeError("Missing FreePats sample in source archive: " + source_path)
+                original = Path(source_path).name
+                target = world_dir / (Path(original).stem + ".ogg")
+                if not target.exists() or target.stat().st_size < 128:
+                    raw_path = ROOT / "tmp-freepats-" / original
+                    raw_path.parent.mkdir(parents=True, exist_ok=True)
+                    raw_path.write_bytes(bundle.read(archive_path))
+                    subprocess.run(["ffmpeg","-nostdin","-y","-loglevel","error","-i",str(raw_path),"-c:a","libvorbis","-q:a","5",str(target)],check=True)
+                    raw_path.unlink(missing_ok=True)
+                entry = {"rootNote":root_note,"velocityMin":0,"velocityMax":1,
+                    "url":f"./assets/instruments/samples/freepats-world/{target.name}","sourceFile":source_path}
+                percussion_entries.append(entry)
+                if source_path.startswith("samples/CajonFlamenco/"):
+                    cajon_entries.append(entry)
+        if len(cajon_entries) < 20 or len(percussion_entries) < 150:
+            raise RuntimeError(f"FreePats percussion import incomplete: cajon={len(cajon_entries)}, total={len(percussion_entries)}")
+    manifest["instruments"]["cajon"] = {
+        "displayName":"Cajón Flamenco","attackSeconds":0.001,"releaseSeconds":0.22,
+        "filterHz":16000,"source":"FreePats World Percussion, recorded by Xavimart, Gonzalo and Roberto",
+        "license":"CC0-1.0","roundRobin":True,"samples":cajon_entries
+    }
+    manifest["instruments"]["world_percussion"] = {
+        "displayName":"World Percussion Kit","attackSeconds":0.001,"releaseSeconds":0.28,
+        "filterHz":16000,"source":"FreePats World Percussion, real recorded instruments",
+        "license":"CC0-1.0","roundRobin":True,"samples":percussion_entries
+    }
+    freepats_license = bundle.read(next(n for n in bundle.namelist() if n.endswith("/LICENSE.txt")))
+    (sample_root / "FREEPATS-CC0-LICENSE.txt").write_bytes(freepats_license)
+
+    # Virtuosity Drums: compact 128-take CC0 acoustic kit with velocity layers and round robins.
+    crate = get("https://crates.io/api/v1/crates/ferrosintesis-samples-drumkit/0.2.0/download")
+    with tarfile.open(fileobj=io.BytesIO(crate), mode="r:gz") as package:
+        members = {Path(m.name).name:m for m in package.getmembers() if m.isfile() and "/samples/" in m.name and m.name.endswith(".flac")}
+        target_dir = sample_root / "virtuosity-drums"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        articulation_notes = {"kick":36,"snare":38,"sidestick":37,"hhc":42,"hho":46,"hhp":44,
+            "ride":51,"ridebell":53,"tomhi":50,"tomlo":43}
+        velocity_high = {"kick":[31,63,95,127],"snare":[21,41,63,84,105,127],
+            "sidestick":[47,87,127],"hhc":[31,63,95,127],"hho":[31,63,95,127],
+            "hhp":[42,85,127],"ride":[42,85,127],"ridebell":[42,85,127],
+            "tomhi":[31,63,95,127],"tomlo":[31,63,95,127]}
+        drum_entries = []
+        for filename, member in sorted(members.items()):
+            match = re.fullmatch(r"(kick|snare|sidestick|hhc|hho|hhp|ride|ridebell|tomhi|tomlo)_vl(\d+)_rr(\d+)\.flac", filename)
+            if not match:
+                continue
+            name, layer_text, rr_text = match.groups()
+            layer = int(layer_text)
+            highs = velocity_high[name]
+            low = 0 if layer == 1 else highs[layer-2] + 1
+            high = highs[layer-1]
+            target = target_dir / (Path(filename).stem + ".ogg")
+            if not target.exists() or target.stat().st_size < 128:
+                raw_path = ROOT / "tmp-virtuosity-" / filename
+                raw_path.parent.mkdir(parents=True, exist_ok=True)
+                raw_path.write_bytes(package.extractfile(member).read())
+                subprocess.run(["ffmpeg","-nostdin","-y","-loglevel","error","-i",str(raw_path),"-c:a","libvorbis","-q:a","5",str(target)],check=True)
+                raw_path.unlink(missing_ok=True)
+            drum_entries.append({"rootNote":articulation_notes[name],"velocityMin":low/127,
+                "velocityMax":high/127,"url":f"./assets/instruments/samples/virtuosity-drums/{target.name}",
+                "sourceFile":filename,"roundRobin":int(rr_text)})
+        if len(drum_entries) != 128:
+            raise RuntimeError(f"Virtuosity drum import expected 128 samples, found {len(drum_entries)}")
+    manifest["instruments"]["acoustic_drums"] = {
+        "displayName":"Acoustic Drum Kit","attackSeconds":0.001,"releaseSeconds":0.18,
+        "filterHz":18000,"source":"Virtuosity Drums (CC0) via ferrosintesis-samples-drumkit",
+        "license":"CC0-1.0","roundRobin":True,"samples":drum_entries
+    }
+    drum_license = next(m for m in package.getmembers() if m.isfile() and m.name.endswith("/LICENSE-CC0"))
+    drum_provenance = next(m for m in package.getmembers() if m.isfile() and m.name.endswith("/PROVENANCE.md"))
+    (sample_root / "VIRTUOSITY-DRUMS-CC0-LICENSE.txt").write_bytes(package.extractfile(drum_license).read())
+    (sample_root / "VIRTUOSITY-DRUMS-ATTRIBUTION.txt").write_bytes(package.extractfile(drum_provenance).read())
+    print(f"Imported cajon {len(cajon_entries)} samples, world percussion {len(percussion_entries)} samples, acoustic drums {len(drum_entries)} samples")
+
 def main():
     manifest_path = ROOT / "assets/instruments/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -188,6 +286,7 @@ def main():
     license_text = get("https://raw.githubusercontent.com/sgossner/VCSL/master/LICENSE").decode("utf-8")
     (ROOT / "assets/instruments/samples/VCSL-CC0-LICENSE.txt").write_text(license_text, encoding="utf-8")
     setar_count = import_setar_commons(manifest)
+    import_drum_and_percussion_banks(manifest)
     manifest["status"] = "expanded-recorded-bank"
     manifest["sourcePolicy"] = "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
