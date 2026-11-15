@@ -1463,7 +1463,7 @@
        osc.type=isBowed?"sawtooth":profile.kind==="wind"?"triangle":"sine";
        const inharmonicity=profile.inharmonicity||0,partialHz=hz*partial*Math.sqrt(1+inharmonicity*partial*partial);
        osc.frequency.setValueAtTime(partialHz,start);
-       if(vibratoDepth&&isBowed)vibratoDepth.connect(osc.detune);
+       if(vibratoDepth)vibratoDepth.connect(osc.detune);
        const partialLevel=level/(1+index*(profile.kind==="piano"?.17:.1));
        partialGain.gain.setValueAtTime(partialLevel,start);
        if(profile.kind==="piano"||profile.kind==="pluck"||profile.kind==="hammer"||profile.kind==="bass")partialGain.gain.setTargetAtTime(partialLevel*(index===0?.68:.3),start+.045,.18+index*.025);
@@ -1473,6 +1473,11 @@
        const noiseFrames=Math.max(32,Math.floor(ctx.sampleRate*(profile.kind==="hammer"?.012:.008))),noiseBuffer=ctx.createBuffer(1,noiseFrames,ctx.sampleRate),noiseData=noiseBuffer.getChannelData(0);
        for(let i=0;i<noiseFrames;i++)noiseData[i]=(Math.random()*2-1)*(1-i/noiseFrames);
        const noiseSource=ctx.createBufferSource(),noiseFilter=ctx.createBiquadFilter(),noiseGain=ctx.createGain();noiseSource.buffer=noiseBuffer;noiseFilter.type="bandpass";noiseFilter.frequency.value=Math.min(ctx.sampleRate*.4,profile.kind==="hammer"?Math.min(7200,hz*5):Math.min(5200,hz*3.2));noiseFilter.Q.value=.8;noiseGain.gain.setValueAtTime(peak*(profile.kind==="hammer"?.24:.12),start);noiseGain.gain.exponentialRampToValueAtTime(.0001,start+noiseFrames/ctx.sampleRate);noiseSource.connect(noiseFilter);noiseFilter.connect(noiseGain);noiseGain.connect(filter);noiseSource.start(start);noiseSource.stop(start+noiseFrames/ctx.sampleRate+.002);
+      }
+      if(name==="ney"){
+       const breathFrames=Math.max(64,Math.floor(ctx.sampleRate*Math.min(.16,length*.42))),breathBuffer=ctx.createBuffer(1,breathFrames,ctx.sampleRate),breathData=breathBuffer.getChannelData(0);
+       for(let i=0;i<breathFrames;i++)breathData[i]=(Math.random()*2-1)*(1-i/breathFrames);
+       const breathSource=ctx.createBufferSource(),breathFilter=ctx.createBiquadFilter(),breathGain=ctx.createGain();breathSource.buffer=breathBuffer;breathFilter.type="bandpass";breathFilter.frequency.value=Math.min(ctx.sampleRate*.38,Math.max(650,hz*2.1));breathFilter.Q.value=.62;breathGain.gain.setValueAtTime(.0001,start);breathGain.gain.linearRampToValueAtTime(peak*.075,start+Math.min(.025,length*.12));breathGain.gain.exponentialRampToValueAtTime(.0001,start+breathFrames/ctx.sampleRate);breathSource.connect(breathFilter);breathFilter.connect(breathGain);breathGain.connect(filter);breathSource.start(start);breathSource.stop(start+breathFrames/ctx.sampleRate+.002);
       }
      }};
     }
