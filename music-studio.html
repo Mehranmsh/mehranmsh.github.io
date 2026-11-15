@@ -1424,14 +1424,14 @@
  function addVocalHarmony(interval){
   const p=patternProject();if(!p)return;
   const pat=getPattern(),existing=Array.isArray(pat.noteEvents)?pat.noteEvents.slice():[];
-  const baseEvents=existing.length?existing:(Array.isArray(pat.notes)?pat.notes:[]).flatMap((note,startStep)=>note&&note!=="-"?[{id:"base-"+startStep,note,startStep,lengthSteps:Number(pat.selectedNoteLength)||2,velocity:Number(pat.velocity)||80,gate:Number(pat.gate)||80}]:[]);
+  const baseEvents=existing.length?existing.filter(event=>!event.harmonyInterval):(Array.isArray(pat.notes)?pat.notes:[]).flatMap((note,startStep)=>note&&note!=="-"?[{id:"base-"+startStep,note,startStep,lengthSteps:Number(pat.selectedNoteLength)||2,velocity:Number(pat.velocity)||80,gate:Number(pat.gate)||80}]:[]);
   const additions=[],toMidi=value=>Number.isFinite(Number(value))&&String(value).trim()!==""?Number(value):midiPitchFromName(String(value||"").trim());
   for(const event of baseEvents){
    const base=toMidi(event.note),next=base+interval;
    if(!Number.isFinite(base)||next<0||next>127)continue;
    const duplicate=[...baseEvents,...additions].some(item=>item.startStep===event.startStep&&toMidi(item.note)===next);
    if(duplicate)continue;
-   additions.push({...event,id:"harmony-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),note:patternMidiName(next)});
+   additions.push({...event,id:"harmony-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),note:patternMidiName(next),harmonyInterval:interval});
    if(baseEvents.length+additions.length>=256)break;
   }
   if(!additions.length){$("patternStatus").textContent="No new harmony notes to add. Check the melody or the 256-note limit.";return;}
