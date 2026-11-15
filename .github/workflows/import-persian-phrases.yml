@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - ".github/workflows/import-persian-phrases.yml"
+      - "assets/instruments/phrases/persian/manifest.json"
   workflow_dispatch:
 
 permissions:
@@ -67,6 +68,7 @@ jobs:
           cat > assets/instruments/phrases/persian/manifest.json <<'EOF'
           {
             "schemaVersion": 1,
+            "libraryRevision": 2,
             "name": "MEHRAN Persian Recorded Phrases",
             "kind": "one-shot-phrase-library",
             "source": "PCMIR Persian Classical Music Instrument Recognition Database",
