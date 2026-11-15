@@ -47,6 +47,16 @@ def main():
 
     print("1/3 Checking Cloudflare Worker JavaScript syntax...")
     run_node_check(WORKER_FILE)
+    for path in (SAMPLER_FILE, SAMPLE_MANIFEST):
+        if not path.is_file():
+            raise SystemExit(f"Required recorded-instrument asset file is missing: {path.relative_to(ROOT)}")
+    run_node_check(SAMPLER_FILE)
+    manifest = json.loads(SAMPLE_MANIFEST.read_text(encoding="utf-8"))
+    if manifest.get("schemaVersion") != 1 or manifest.get("policy") != "same-origin-only":
+        raise SystemExit("Recorded instrument manifest must use schema v1 and same-origin-only sample policy.")
+    required_instruments = {"acoustic_grand_piano", "acoustic_guitar_steel", "violin", "cello", "tar", "setar", "santur", "ney", "acoustic_bass", "kalimba"}
+    if not required_instruments.issubset(set(manifest.get("instruments", {}))):
+        raise SystemExit("Recorded instrument manifest is missing required instrument slots.")
 
     print("2/3 Parsing app HTML and checking inline JavaScript...")
     checked = 0
