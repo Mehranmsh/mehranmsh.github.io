@@ -100,7 +100,7 @@
       const source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
       const ensemble=spec.layered===true;
       let voiceStart=start,voiceStopAt=stopAt,voicePeak=peak;
-      const ensembleCents=ensemble?(((()=>{const identity=String(selected.singer||selected.url);let seed=0;for(let i=0;i<identity.length;i++)seed=(seed*31+identity.charCodeAt(i))>>>0;return ((seed%1000)/1000-.5)*10;})())):0;
+      let ensembleCents=ensemble?(((()=>{const identity=String(selected.singer||selected.url);let seed=0;for(let i=0;i<identity.length;i++)seed=(seed*31+identity.charCodeAt(i))>>>0;return ((seed%1000)/1000-.5)*10;})())):0;
       if(ensemble){
        const identity=String(selected.singer||selected.url);
        let seed=0;for(let i=0;i<identity.length;i++)seed=(seed*31+identity.charCodeAt(i))>>>0;
