@@ -873,18 +873,21 @@ def main():
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
 
-                # Confirm the audition blocks honestly until recorded assets are installed.
+                # Render a three-instrument audition from the self-hosted recorded sample bank.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#buildListeningDemo").click()
-                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('بانک صدای واقعی آماده نیست')", timeout=10000)
+                page.wait_for_function("""() => {
+                    const text = document.querySelector('#patternStatus')?.textContent || '';
+                    return text.includes('سه تست ساز') || text.includes('ساخت تست ساز کامل نشد');
+                }""", timeout=120000)
                 demo_status = page.locator("#patternStatus").inner_text()
-                assert "بانک صدای واقعی آماده نیست" in demo_status and "هیچ صدای مصنوعی" in demo_status, "Instrument audition must clearly block synthetic fallback: " + demo_status
-                demo_projects = page.evaluate("""() => {
+                assert "سه تست ساز" in demo_status, "Recorded-instrument audition did not render: " + demo_status + " | Browser errors: " + " | ".join(errors)
+                demo_project = page.evaluate("""() => {
                     const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
-                    return drafts.filter(item => item.name === "MEHRAN Instrument Audition");
+                    return drafts.find(item => item.name === "MEHRAN Real Instrument Audition") || null;
                 }""")
-                assert not demo_projects, "Blocked audition must not leave an empty or misleading project."
-                print("PASS: recorded-instrument audition blocks honestly when no real samples are installed")
+                assert demo_project and len([track for track in demo_project["tracks"] if track.get("generated") and track.get("audioSize", 0) > 44]) == 3, "Audition must contain three real recorded instrument WAV tracks."
+                print("PASS: recorded piano, steel guitar and nylon guitar render from same-origin CC0 sample assets")
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
@@ -1024,8 +1027,8 @@ def main():
                     instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
 
-                # All live-instrument modes must fail closed until actual recorded samples are present.
-                live_modes = ["live_piano", "live_guitar", "live_violin", "live_cello", "live_tar", "live_setar", "live_santur", "live_ney", "live_kalimba", "live_bass"]
+                # Only instruments with imported recorded sample banks may render in live mode.
+                live_modes = ["live_violin", "live_cello", "live_tar", "live_setar", "live_santur", "live_ney", "live_kalimba", "live_bass"]
                 page.locator("#patternBars").select_option("1")
                 page.locator("#patternNotes").fill("C3, E3, G3, C4, G3, E3, D3, C3, -, -, -, -, -, -, -, -")
                 for mode in live_modes:
@@ -1035,7 +1038,7 @@ def main():
                     page.wait_for_function("!document.querySelector('#renderPattern')?.disabled", timeout=60000)
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "No real recorded samples are installed" in live_status, "Live instrument must fail closed without recorded assets: " + mode + "; " + live_status
-                print("PASS: all 10 live-instrument modes reject synthetic fallback without recorded samples")
+                print("PASS: all 8 not-yet-imported live-instrument modes reject synthetic fallback")
                 
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
