@@ -684,9 +684,9 @@
    const response=await fetch(base+"/v1/jobs/conditioning/prepare",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
    let data={};try{data=await response.json();}catch{}
    if(!response.ok)throw new Error(typeof data.detail==="string"?data.detail:JSON.stringify(data.detail||data).slice(0,300));
-   const previousConditioning=saved.acousticConditioning,previousPreparedAt=saved.conditioningPreparedAt;
-   saved.acousticConditioning=data.conditioning;saved.conditioningPreparedAt=Date.now();selectedProject.updated=Date.now();
-   if(!save()){saved.acousticConditioning=previousConditioning;saved.conditioningPreparedAt=previousPreparedAt;return;}
+   const previousConditioning=saved.acousticConditioning,previousSyllableAlignment=saved.syllableAlignment,previousPreparedAt=saved.conditioningPreparedAt;
+   saved.acousticConditioning=data.conditioning;saved.syllableAlignment=Array.isArray(data.syllable_alignment)?data.syllable_alignment:null;saved.conditioningPreparedAt=Date.now();selectedProject.updated=Date.now();
+   if(!save()){saved.acousticConditioning=previousConditioning;saved.syllableAlignment=previousSyllableAlignment;saved.conditioningPreparedAt=previousPreparedAt;return;}
    $("exportMehranSingerConditioning").disabled=false;
    status.textContent="ورودی مدل آکوستیکی آماده شد؛ "+data.conditioning.phonemes.length+" واج و "+data.conditioning.notes.length+" نت. بازبینی انسانی لازم است و تولید WAV هنوز فعال نیست.";
    $("mehranSingerAlignmentStatus").textContent=data.message||status.textContent;
@@ -787,7 +787,8 @@
  function exportMehranSingerConditioning(){
   const project=mehranSingerAlignmentProject(),saved=project&&project.singerAlignment,status=$("mehranSingerAlignmentStatus");
   if(!saved||!saved.acousticConditioning){status.textContent="ابتدا ورودی آکوستیکی مدل را آماده و ذخیره کن.";return;}
-  const payload={schema:"mehran.svs.conditioning-export.v1",projectName:String(project.name||"").slice(0,120),exportedAt:new Date().toISOString(),conditioning:saved.acousticConditioning,review_required:true,accepted_for_inference:false,audio_generated:false};
+  const conditioning=JSON.parse(JSON.stringify(saved.acousticConditioning));if(Array.isArray(saved.syllableAlignment))conditioning.syllable_alignment=saved.syllableAlignment;
+  const payload={schema:"mehran.svs.conditioning-export.v1",projectName:String(project.name||"").slice(0,120),exportedAt:new Date().toISOString(),conditioning,review_required:true,accepted_for_inference:false,audio_generated:false};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");
   link.href=url;link.download="mehran-acoustic-conditioning.json";document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
   status.textContent="فایل JSON ورودی آکوستیکی روی همین دستگاه ذخیره شد؛ این فایل هنوز نیازمند بازبینی است و مدل را اجرا نمی‌کند.";
@@ -824,6 +825,7 @@
    writeText(0,"RIFF");view.setUint32(4,36+frameCount*2,true);writeText(8,"WAVE");writeText(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);writeText(36,"data");view.setUint32(40,frameCount*2,true);
    for(let i=0;i<frameCount;i++){const sample=Math.max(-1,Math.min(1,mono[i]));view.setInt16(44+i*2,sample<0?sample*32768:sample*32767,true);}
    const wavBlob=new Blob([buffer],{type:"audio/wav"}),conditioning=JSON.parse(JSON.stringify(saved.acousticConditioning));
+   if(Array.isArray(saved.syllableAlignment))conditioning.syllable_alignment=saved.syllableAlignment;
    conditioning.sample_rate=sampleRate;conditioning.duration_seconds=frameCount/sampleRate;
    const payload={schema:"mehran.svs.conditioning-export.v1",projectName:String(project.name||"").slice(0,120),exportedAt:new Date().toISOString(),conditioning,review_required:true,accepted_for_inference:false,audio_generated:false,source_recording:{track_name:String(track.name||"Lead Vocal").slice(0,120),original_format:String(stored.type||track.audioType||"unknown").slice(0,100),converted_locally:true}};
    const download=(blob,name)=>{const url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);};
