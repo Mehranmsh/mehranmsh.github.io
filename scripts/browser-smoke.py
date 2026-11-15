@@ -891,7 +891,7 @@ def main():
                     return project ? {id: project.id, tracks: project.tracks || []} : null;
                 }""")
                 assert demo_project and len(demo_project["tracks"]) == 4, "Instrument audition did not create all four tracks: " + str(demo_project)
-                expected_demo_tracks = {"01 · Piano", "02 · Steel Guitar", "03 · Violin", "04 · Acoustic Drums"}
+                expected_demo_tracks = {"01 · Piano", "02 · Steel Guitar", "03 · Violin", "04 · Santur"}
                 assert {track["name"] for track in demo_project["tracks"]} == expected_demo_tracks
                 demo_audio_metrics = page.evaluate("""async ({projectId, tracks}) => {
                     const db = await new Promise((resolve, reject) => {
@@ -928,7 +928,7 @@ def main():
                     assert metric["size"] > 44 and metric["rms"] > 0.001 and metric["peak"] > 0.005, "Silent or near-silent instrument WAV: " + str(metric)
                 page.locator("#playMix").click()
                 page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 4 track(s) together')", timeout=10000)
-                print("PASS: four separate local instrument WAVs (piano, steel guitar, violin, drums) contain measurable audio and play together")
+                print("PASS: four separate local instrument WAVs (piano, steel guitar, violin, santur) contain measurable audio and play together")
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
