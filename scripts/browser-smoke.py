@@ -156,6 +156,10 @@ def main():
                 assert quality_report["syllables"][0]["uncovered_duration_seconds"] == 0
                 assert quality_report["summary"]["mean_uncovered_duration_seconds"] == 0
                 assert quality_report["summary"]["max_uncovered_duration_seconds"] == 0
+                quality_panel_text = page.locator("#mehranSyllableQualityReport").inner_text()
+                assert "اولویت اصلاح هجاها" in quality_panel_text
+                assert "بیشترین زمان پوشش‌نیافته" in quality_panel_text
+                assert "۱" in quality_panel_text or "1" in quality_panel_text
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
                 # Give the comparison-only baseline a valid gap metric so both trend endpoints exist.
                 quality_report["summary"]["internal_gap_mean_seconds"] = 0.01
