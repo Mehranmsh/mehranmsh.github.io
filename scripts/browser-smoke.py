@@ -1257,11 +1257,35 @@ def main():
                     if saved_grid != expected_grid:
                         raise AssertionError("Drum-grid UI state did not persist before render: " + kit + "; " + str(saved_grid))
                     print("DRUM GRID STATE VERIFIED:", kit, saved_grid, flush=True)
+                    page.evaluate("""() => {
+                        window.__mehranDrumPlaybackAudit = {engineCreates: 0, instruments: [], playCalls: []};
+                        const originalCreate = window.MEHRAN_SAMPLE_ENGINE.create.bind(window.MEHRAN_SAMPLE_ENGINE);
+                        window.MEHRAN_SAMPLE_ENGINE.create = async (...args) => {
+                            window.__mehranDrumPlaybackAudit.engineCreates++;
+                            const engine = await originalCreate(...args);
+                            const originalInstrument = engine.instrument.bind(engine);
+                            engine.instrument = async (context, name, options) => {
+                                window.__mehranDrumPlaybackAudit.instruments.push({name, requestedEvents: options?.noteEvents?.length || 0});
+                                const player = await originalInstrument(context, name, options);
+                                const originalPlay = player.play.bind(player);
+                                player.play = (...playArgs) => {
+                                    window.__mehranDrumPlaybackAudit.playCalls.push({note: playArgs[0], at: playArgs[1], duration: playArgs[2], settings: playArgs[3]});
+                                    return originalPlay(...playArgs);
+                                };
+                                return player;
+                            };
+                            return engine;
+                        };
+                    }""")
                     page.locator("#patternTrackName").fill("Recorded drum grid QA " + kit)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                     drum_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in drum_status, "Recorded drum grid failed: " + kit + "; " + drum_status
+                    playback_audit = page.evaluate("window.__mehranDrumPlaybackAudit")
+                    print("DRUM SAMPLE PLAYBACK AUDIT:", kit, playback_audit, flush=True)
+                    if playback_audit["engineCreates"] < 1 or not playback_audit["playCalls"]:
+                        raise AssertionError("Recorded drum renderer did not schedule any sample voices: " + kit + "; " + str(playback_audit))
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
                     drum_project = page.evaluate("""() => {
