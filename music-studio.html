@@ -1455,7 +1455,7 @@
 
       // Dedicated local physical-ish voices: these paths intentionally do not share the old oscillator recipe.
       if(["acoustic_grand_piano","acoustic_guitar_steel","tar","violin"].includes(name)){
-       const specialAttack=Math.min(length*.48,profile.specialAttack),specialRelease=Math.min(profile.release,Math.max(.035,length*.32)),specialReleaseStart=Math.max(start+specialAttack,start+length-specialRelease),specialPeak=Math.max(.0001,.105*gain*(.45+.55*velocity));
+       const specialAttack=Math.min(length*.48,profile.attack),specialRelease=Math.min(profile.release,Math.max(.035,length*.32)),specialReleaseStart=Math.max(start+specialAttack,start+length-specialRelease),specialPeak=Math.max(.0001,.105*gain*(.45+.55*velocity));
        filter.type="lowpass";
        filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.44,profile.filter*brightness),start);
        filter.Q.value=name==="tar"?.9:name==="acoustic_guitar_steel"?.62:.707;
