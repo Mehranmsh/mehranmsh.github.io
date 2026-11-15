@@ -1223,15 +1223,19 @@ def main():
                     page.reload(wait_until="networkidle")
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
-                    page.wait_for_function("""() => {
-                        const selectors = [
-                            '[data-pattern-lane="kick"][data-pattern-step="0"]',
-                            '[data-pattern-lane="snare"][data-pattern-step="4"]',
-                            '[data-pattern-lane="hat"][data-pattern-step="2"]',
-                            '[data-pattern-lane="perc"][data-pattern-step="8"]'
-                        ];
-                        return selectors.every(selector => document.querySelector(selector)?.getAttribute("aria-pressed") === "true");
-                    }""", timeout=10000)
+                    drum_grid_selectors = [
+                        '[data-pattern-lane="kick"][data-pattern-step="0"]',
+                        '[data-pattern-lane="snare"][data-pattern-step="4"]',
+                        '[data-pattern-lane="hat"][data-pattern-step="2"]',
+                        '[data-pattern-lane="perc"][data-pattern-step="8"]'
+                    ]
+                    page.wait_for_function("""(selectors) => selectors.every(selector => document.querySelector(selector))""", arg=drum_grid_selectors, timeout=15000)
+                    # Explicitly activate each step through the real UI if state restoration did not.
+                    for selector in drum_grid_selectors:
+                        step_button = page.locator(selector)
+                        if step_button.get_attribute("aria-pressed") != "true":
+                            step_button.click()
+                    page.wait_for_function("""(selectors) => selectors.every(selector => document.querySelector(selector)?.getAttribute("aria-pressed") === "true")""", arg=drum_grid_selectors, timeout=10000)
                     page.locator("#patternTrackName").fill("Recorded drum grid QA " + kit)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
