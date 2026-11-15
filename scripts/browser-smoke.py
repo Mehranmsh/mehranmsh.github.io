@@ -1223,9 +1223,8 @@ def main():
                     page.reload(wait_until="networkidle")
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
-                    # Selecting the mix project does not guarantee the pattern editor has repainted.
-                    # Repaint from the seeded project state before querying its step buttons.
-                    page.evaluate("selectedPatternBar = 0; renderPatternGrid()")
+                    # Re-select drum mode through the real UI to repaint the grid from the chosen project.
+                    page.locator("#patternMode").select_option("drums")
                     drum_grid_selectors = [
                         '[data-pattern-lane="kick"][data-pattern-step="0"]',
                         '[data-pattern-lane="snare"][data-pattern-step="4"]',
