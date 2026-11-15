@@ -792,7 +792,7 @@
    const reports=items.map(({file,report})=>{
     if(!report||report.schema_version!=="1.0"||report.audio_included!==false||!report.summary||!report.project_id)throw new Error("ساختار گزارش نامعتبر است یا گزارش به پروژه مشخصی تعلق ندارد.");
     const s=report.summary,mean=s.mean_phoneme_coverage_ratio,gap=s.internal_gap_mean_seconds;
-    if(!Number.isInteger(s.syllables_reviewed)||!Number.isInteger(s.syllables_invalid_or_incomplete)||!(mean===null||Number.isFinite(mean)&&mean>=0&&mean<=1)||!(gap===null||Number.isFinite(gap)&&gap>=0)||!Number.isInteger(s.internal_gap_count))throw new Error("شاخص‌های خلاصه در یکی از گزارش‌ها معتبر نیستند.");
+    if(!Number.isInteger(s.syllables_reviewed)||s.syllables_reviewed<0||!Number.isInteger(s.syllables_invalid_or_incomplete)||s.syllables_invalid_or_incomplete<0||s.syllables_invalid_or_incomplete>s.syllables_reviewed||!(mean===null||Number.isFinite(mean)&&mean>=0&&mean<=1)||!(gap===null||Number.isFinite(gap)&&gap>=0)||!Number.isInteger(s.internal_gap_count)||s.internal_gap_count<0)throw new Error("شاخص‌های خلاصه در یکی از گزارش‌ها معتبر نیستند.");
     return {fileName:file.name,generatedAt:Date.parse(report.generated_at)||0,projectId:String(report.project_id),summary:s};
    }).sort((a,b)=>a.generatedAt-b.generatedAt);
    if(new Set(reports.map(r=>r.projectId)).size!==1)throw new Error("گزارش‌ها متعلق به پروژه‌های متفاوت‌اند؛ فقط برداشت‌های یک پروژه قابل مقایسه هستند.");
