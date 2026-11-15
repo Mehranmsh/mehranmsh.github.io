@@ -79,10 +79,55 @@ def _validate_alignment(record: dict, duration: float, line_number: int) -> None
                 or start < previous_end or end <= start or end > duration + 0.02):
             raise ManifestError(f"line {line_number}: phoneme spans must be ordered, non-overlapping, and within audio")
         previous_end = end
+    _validate_syllable_alignment(record, duration, line_number)
     try:
         validate_phoneme_sequence([span["phoneme"] for span in spans])
     except (TypeError, ValueError) as exc:
         raise ManifestError(f"line {line_number}: invalid Persian phoneme sequence: {exc}") from exc
+
+
+
+def _validate_syllable_alignment(record: dict, duration: float, line_number: int) -> None:
+    """Validate explicitly reviewed syllable-to-phoneme grouping; never infer syllables."""
+    syllables = record.get("syllable_alignment")
+    if syllables is None:
+        return
+    phonemes = record.get("phoneme_alignment")
+    if not isinstance(phonemes, list) or not phonemes:
+        raise ManifestError(f"line {line_number}: syllable_alignment requires phoneme_alignment")
+    if not isinstance(syllables, list) or not syllables or len(syllables) > 20000:
+        raise ManifestError(f"line {line_number}: syllable_alignment must be a non-empty bounded list")
+
+    expected_phoneme_start = 0
+    previous_syllable_end = 0.0
+    for index, syllable in enumerate(syllables):
+        if not isinstance(syllable, dict):
+            raise ManifestError(f"line {line_number}: invalid syllable span {index}")
+        label = syllable.get("text")
+        start, end = syllable.get("start_seconds"), syllable.get("end_seconds")
+        first = syllable.get("phoneme_start_index")
+        stop = syllable.get("phoneme_end_index")
+        if not isinstance(label, str) or not label.strip() or len(label) > 200:
+            raise ManifestError(f"line {line_number}: syllable text must be a non-empty reviewed label")
+        if (isinstance(start, bool) or isinstance(end, bool)
+                or not isinstance(start, (int, float)) or not isinstance(end, (int, float))
+                or not math.isfinite(start) or not math.isfinite(end)
+                or start < previous_syllable_end or end <= start or end > duration + 0.02):
+            raise ManifestError(f"line {line_number}: syllable spans must be ordered and within audio")
+        if (isinstance(first, bool) or not isinstance(first, int)
+                or isinstance(stop, bool) or not isinstance(stop, int)
+                or first != expected_phoneme_start or stop <= first or stop > len(phonemes)):
+            raise ManifestError(f"line {line_number}: syllables must partition phoneme indices in order")
+        first_phoneme = phonemes[first]
+        last_phoneme = phonemes[stop - 1]
+        if (start > float(first_phoneme["start_seconds"]) + 0.02
+                or end < float(last_phoneme["end_seconds"]) - 0.02):
+            raise ManifestError(f"line {line_number}: syllable timing must cover its assigned phonemes")
+        expected_phoneme_start = stop
+        previous_syllable_end = float(end)
+
+    if expected_phoneme_start != len(phonemes):
+        raise ManifestError(f"line {line_number}: syllable alignment must assign every phoneme")
 
 
 
