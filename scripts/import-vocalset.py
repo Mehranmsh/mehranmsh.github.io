@@ -17,8 +17,8 @@ OUT = ROOT / "assets/instruments/samples/vocalset"
 SINGERS = [("female", [f"f{i}" for i in range(1,10)]), ("male", [f"m{i}" for i in range(1,12)])]
 VOWELS = ("a","e","i","o","u")
 SR_OUT = 44100
-TARGET_SECONDS = 1.35
-CROSSFADE_SECONDS = 0.045
+TARGET_SECONDS = 0.42
+CROSSFADE_SECONDS = 0.032
 
 def fetch(url):
     req = Request(url, headers={"User-Agent":"MEHRAN-MUSIC/1.0 vocal sample importer"})
@@ -86,7 +86,7 @@ def estimate_pitch(x, sr):
 def make_loop(x, sr):
     a,b=stable_bounds(x,sr)
     length=min(round(TARGET_SECONDS*sr),b-a)
-    if length<round(.8*sr): raise ValueError(f"Stable vowel too short: {(b-a)/sr:.2f}s")
+    if length<round(.30*sr): raise ValueError(f"Stable vowel too short: {(b-a)/sr:.2f}s")
     center=(a+b)//2
     lo=max(a,min(center-length//2,b-length))
     segment=[float(v) for v in x[lo:lo+length]]
