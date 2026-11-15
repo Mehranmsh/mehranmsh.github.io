@@ -476,3 +476,7 @@ The importer matches every row against immutable manifest metadata, rejects dupl
 
 The CSV contains private transcripts and recording metadata. Keep it outside the audio dataset, restrict access to authorized reviewers, and never commit it to the repository. The tools are local-only: no audio or CSV is uploaded, no model is trained, and inference remains disabled.
 \n
+
+### Phoneme-to-note temporal coverage
+
+The reviewed conditioning builder reports the note indices that temporally overlap each phoneme, the phoneme duration, the union of time covered by those notes, and a coverage ratio between 0 and 1. Coverage uses the union of overlap intervals, so simultaneous notes do not double-count the same time. This is a symbolic timing diagnostic only: it does not identify the sung pitch, prove that a phoneme was acoustically produced on a note, or perform forced alignment. Every mapping remains marked for human review and is not accepted for inference.
