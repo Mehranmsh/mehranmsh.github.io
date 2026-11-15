@@ -137,6 +137,10 @@ def main():
                     localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(drafts));
                     document.querySelector("#vocalProject").dispatchEvent(new Event("change", { bubbles: true }));
                 }""")
+                # Reload so the application rehydrates its in-memory project state from local storage.
+                page.reload(wait_until="networkidle")
+                page.locator('[data-view="vocals"]').first.click()
+                page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 assert page.locator("#exportMehranSyllableQualityReport").is_enabled(), "Quality JSON export did not enable for complete local metadata."
                 with page.expect_download() as quality_download:
                     page.locator("#exportMehranSyllableQualityReport").click()
