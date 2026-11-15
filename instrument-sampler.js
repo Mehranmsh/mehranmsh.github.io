@@ -92,7 +92,7 @@
       voices=[nearest[spec.roundRobin===true?rrIndex%nearest.length:0]];
       if(spec.roundRobin===true)roundRobinCounters.set(rrKey,rrIndex+1);
      }
-     const basePeak=clamp(Number((options&&options.gain)??1)*Number((settings&&settings.gain)??1)*(.35+.65*velocity),.0001,1.5);
+     const requestedDetuneCents=clamp(Number(settings&&settings.detuneCents)||0,-200,200);const basePeak=clamp(Number((options&&options.gain)??1)*Number((settings&&settings.gain)??1)*(.35+.65*velocity),.0001,1.5);
      const peak=spec.layered===true?basePeak/Math.sqrt(Math.max(1,voices.length))*.72:basePeak;
      const attack=clamp(Number(spec.attackSeconds??.006),.001,.5),release=clamp(Number(spec.releaseSeconds??.12),.015,2);
      const stopAt=start+length,destination=options&&options.destination||ctx.destination;
@@ -104,11 +104,11 @@
        const identity=String(selected.singer||selected.url);
        let seed=0;for(let i=0;i<identity.length;i++)seed=(seed*31+identity.charCodeAt(i))>>>0;
        const variation=(seed%1000)/1000;
-       const cents=(variation-.5)*10;
+       const ensembleCents=(variation-.5)*10;
        const onset=((Math.floor(seed/1000)%19)/1000);
        const level=.88+((Math.floor(seed/19000)%25)/100);
        voiceStart=start+onset;voiceStopAt=stopAt+onset;voicePeak=peak*level;
-       if(source.detune)source.detune.setValueAtTime(cents,voiceStart);
+       if(source.detune)source.detune.setValueAtTime(requestedDetuneCents+(ensemble?ensembleCents:0),voiceStart);
       }
       source.buffer=selected.buffer;
       source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),voiceStart);
