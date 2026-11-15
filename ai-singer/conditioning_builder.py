@@ -22,9 +22,12 @@ def prepare_acoustic_conditioning(
         raise ValueError("notes must be a non-empty list")
 
     phoneme_spans = []
+    syllable_alignment = []
     mapping = []
     for syllable in timing_plan.get("syllables", []):
-        for event in syllable.get("phonemes", []):
+        phoneme_start_index = len(phoneme_spans)
+        syllable_events = syllable.get("phonemes", [])
+        for event in syllable_events:
             start = float(event["start_seconds"])
             end = float(event["end_seconds"])
             overlaps = []
@@ -45,6 +48,15 @@ def prepare_acoustic_conditioning(
                 "note_indices": overlaps,
                 "mapping_source": "temporal_overlap_of_human_supplied_intervals",
             })
+        if not syllable_events:
+            raise ValueError("every reviewed syllable must contain at least one phoneme")
+        syllable_alignment.append({
+            "text": str(syllable.get("text", "")),
+            "start_seconds": min(float(event["start_seconds"]) for event in syllable_events),
+            "end_seconds": max(float(event["end_seconds"]) for event in syllable_events),
+            "phoneme_start_index": phoneme_start_index,
+            "phoneme_end_index": len(phoneme_spans),
+        })
 
     payload = {
         "schema_version": "mehran.svs.conditioning.v1",
@@ -60,6 +72,7 @@ def prepare_acoustic_conditioning(
     validated = validate_acoustic_conditioning(payload)
     return {
         "conditioning": validated.model_dump(mode="json"),
+        "syllable_alignment": syllable_alignment,
         "phoneme_note_mapping": mapping,
         "mapping_review_required": True,
         "mapping_is_acoustic_alignment": False,
