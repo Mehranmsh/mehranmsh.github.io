@@ -1032,14 +1032,14 @@ def main():
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
 
                 # Every newly imported melodic instrument must render from its own same-origin recorded samples.
-                live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal"]
+                live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
                 live_modes_missing = ["live_tar", "live_santur", "live_ney"]
                 page.locator("#patternBars").select_option("1")
                 page.locator("#patternNotes").fill("C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -")
                 for mode in live_modes_available:
                     print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").select_option(mode)
-                    if mode in ["live_female_vocal", "live_male_vocal"]:
+                    if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
                         page.locator("#vocalVowel").select_option("o")
                     page.locator("#patternTrackName").fill("Live QA " + mode)
