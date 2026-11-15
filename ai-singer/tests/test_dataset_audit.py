@@ -150,6 +150,31 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertNotIn("tr-target", serialized)
         self.assertNotIn("speaker-A", serialized)
 
+    def test_audit_exposes_optional_reviewed_syllable_coverage_warning(self):
+        records = self.dataset()
+        records[0]["syllable_alignment"] = [{
+            "text": "سَ", "start_seconds": 0.0, "end_seconds": 0.6,
+            "phoneme_start_index": 0, "phoneme_end_index": 1,
+        }]
+        report = audit_dataset(
+            self.write(records),
+            minimum_syllable_phoneme_coverage=0.9,
+        )
+        quality = report["splits"]["train"]["annotation_quality"]
+        coverage = quality["syllable_alignment"]["phoneme_time_coverage"]
+        self.assertEqual(coverage["syllables_with_uncovered_time"], 1)
+        self.assertTrue(any(
+            item["code"] == "low_syllable_phoneme_coverage"
+            for item in quality["warnings"]
+        ))
+        self.assertTrue(any(
+            "low_syllable_phoneme_coverage" in warning
+            for warning in report["training_readiness"]["warnings"]
+        ))
+        serialized = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn("سَ", serialized)
+        self.assertNotIn("speaker-A", serialized)
+
     def test_optional_annotation_thresholds_add_privacy_safe_warnings(self):
         report = audit_dataset(
             self.write(self.dataset()),
