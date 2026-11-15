@@ -130,10 +130,16 @@ def main():
                         ],
                         notes: [{ midi_note: 60, start_seconds: 0, duration_seconds: 0.5 }]
                     };
-                    project.singerAlignment.syllableAlignment = [{
-                        text: "سَلام", start_seconds: 0.05, end_seconds: 0.42,
-                        phoneme_start_index: 0, phoneme_end_index: 2
-                    }];
+                    project.singerAlignment.syllables = ["نامعتبر", "سَلام"];
+                    project.singerAlignment.noteGroups = [[0], [0]];
+                    project.singerAlignment.alignment = [
+                        { startSeconds: 0, endSeconds: 0.5 },
+                        { startSeconds: 0.05, endSeconds: 0.42 }
+                    ];
+                    project.singerAlignment.syllableAlignment = [
+                        { text: "نامعتبر", start_seconds: 0.4, end_seconds: 0.2, phoneme_start_index: 0, phoneme_end_index: 2 },
+                        { text: "سَلام", start_seconds: 0.05, end_seconds: 0.42, phoneme_start_index: 0, phoneme_end_index: 2 }
+                    ];
                     localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(drafts));
                     document.querySelector("#vocalProject").dispatchEvent(new Event("change", { bubbles: true }));
                 }""")
@@ -162,11 +168,12 @@ def main():
                 assert quality_report["summary"]["max_uncovered_duration_seconds"] == 0
                 quality_panel_text = page.locator("#mehranSyllableQualityReport").inner_text()
                 assert "اولویت اصلاح هجاها" in quality_panel_text
-                jump_button = page.locator("#mehranSyllableQualityReport button[data-jump-syllable=\"0\"]")
-                assert jump_button.count() == 1, "Priority syllable did not expose a Timeline jump action."
-                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"0\"]").count() == 1, "Timeline row was not indexed by syllable."
+                jump_button = page.locator("#mehranSyllableQualityReport button[data-jump-syllable=\"1\"]")
+                assert jump_button.count() == 1, "Priority syllable did not preserve its original Timeline index after an invalid row."
+                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"0\"]").count() == 1, "Invalid leading syllable row was not present in Timeline."
+                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"1\"]").count() == 1, "Valid second syllable row was not indexed in Timeline."
                 jump_button.click()
-                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"0\"] input[data-time-start]").evaluate("(el) => document.activeElement === el"), "Timeline jump did not focus the matching syllable start time."
+                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"1\"] input[data-time-start]").evaluate("(el) => document.activeElement === el"), "Timeline jump did not focus the matching syllable start time."
                 assert "بیشترین زمان پوشش‌نیافته" in quality_panel_text
                 assert "۱" in quality_panel_text or "1" in quality_panel_text
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
