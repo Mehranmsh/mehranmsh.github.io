@@ -497,3 +497,8 @@ This is temporal overlap of reviewed symbolic intervals only. It is not acoustic
 
 
 Reviewed syllable annotations also receive a temporal consistency diagnostic: the audit measures how much of each syllable interval is covered by the phoneme spans assigned to it, then reports aggregate mean/p50/p90 coverage and the number of syllables with uncovered time. This can reveal timing gaps or generous syllable boundaries without changing the reviewed annotation. An optional threshold is available with `--minimum-syllable-phoneme-coverage 0.9`; it is an operator-selected warning level, not a Persian phonological standard. Syllable labels remain excluded from the report.
+
+
+### Syllable boundary and internal-gap diagnostics
+
+For explicitly reviewed syllable annotations, the audit separately measures leading and trailing boundary slack (the time between a syllable boundary and its first/last assigned phoneme) and internal gaps between assigned phoneme spans. Aggregate output includes boundary-slack mean/p50/p90, the largest internal gap, mean total internal gap per syllable, and the number of syllables containing a gap. These measurements are descriptive only: a boundary margin or gap may reflect annotation convention, coarticulation, or a genuine pause, so no default warning or automatic correction is applied. Syllable labels and recording identifiers are not emitted.
