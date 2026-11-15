@@ -737,7 +737,7 @@
   const finite=(v)=>typeof v==="number"&&Number.isFinite(v);
   const percentile=(values,p)=>{if(!values.length)return null;const a=values.slice().sort((x,y)=>x-y),i=(a.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return a[lo]+(a[hi]-a[lo])*(i-lo);};
   const fmt=(v)=>finite(v)?(v*1000).toFixed(1)+" ms":unavailable;
-  const coverage=[],gaps=[];let valid=0,invalid=0;
+  const coverage=[],gaps=[],detailRows=[];let valid=0,invalid=0;
   for(const syl of syllables){
    const start=Number(syl?.start_seconds),end=Number(syl?.end_seconds),from=Number(syl?.phoneme_start_index),to=Number(syl?.phoneme_end_index);
    if(!finite(start)||!finite(end)||end<=start||!Number.isInteger(from)||!Number.isInteger(to)||from<0||to<=from||to>phonemes.length){invalid++;continue;}
@@ -751,7 +751,7 @@
     else cursorEnd=Math.max(cursorEnd,span.end);
    }
    if(cursorStart!==null)union+=cursorEnd-cursorStart;
-   coverage.push(Math.min(1,union/(end-start)));valid++;
+   const ratio=Math.min(1,union/(end-start));coverage.push(ratio);valid++;detailRows.push({text:String(syl?.text||'هجا'),duration:end-start,phonemes:spans.length,coverage:ratio,gap:internalGap});
   }
   const mean=coverage.length?coverage.reduce((a,b)=>a+b,0)/coverage.length:null;
   const meanGap=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null;
@@ -764,7 +764,7 @@
    card("شکاف داخلی واج‌ها",gaps.length?gaps.length+" شکاف":"شکافی ثبت نشده",gaps.length?"میانگین "+fmt(meanGap)+" · بیشینه "+fmt(maxGap):"")+
    card("ترکیب واکه/همخوان",unavailable,"اطلاعات ویژگی واج در payload رابط موجود نیست")+
    card("فاصلهٔ مرزی ابتدا/انتها",unavailable,"مرز هجا در این payload از ابتدا/انتهای واج‌ها ساخته شده؛ سنجش مستقل ممکن نیست")+
-   '</div><p style="color:var(--muted);font-size:10px;margin:10px 0 0">این گزارش توصیفی است، نه تأیید کیفیت آکوستیکی یا پذیرش برای آموزش. محاسبات فقط از metadata ذخیره‌شده انجام می‌شوند؛ هیچ صدایی بارگذاری یا ارسال نمی‌شود.</p>';
+   '</div><h4 style="margin:16px 0 8px;font-size:12px">جزئیات هر هجا</h4><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--muted);text-align:right"><th style="padding:7px">هجا</th><th>مدت</th><th>تعداد واج</th><th>پوشش</th><th>شکاف داخلی</th></tr></thead><tbody>'+detailRows.map(row=>'<tr style="border-top:1px solid var(--line)"><td style="padding:8px">'+esc(row.text)+'</td><td>'+fmt(row.duration)+'</td><td>'+row.phonemes+'</td><td>'+(row.coverage*100).toFixed(1)+'%</td><td>'+fmt(row.gap)+'</td></tr>').join('')+'</tbody></table></div><p style="color:var(--muted);font-size:10px;margin:10px 0 0">این گزارش توصیفی است، نه تأیید کیفیت آکوستیکی یا پذیرش برای آموزش. محاسبات فقط از metadata ذخیره‌شده انجام می‌شوند؛ هیچ صدایی بارگذاری یا ارسال نمی‌شود.</p>';
  }
  function refreshMehranSingerAlignment(){
   const project=mehranSingerAlignmentProject(),syllables=$("mehranSingerSyllables"),groups=$("mehranSingerNoteGroups"),status=$("mehranSingerAlignmentStatus"),notesRoot=$("mehranSingerAlignmentNotes");
