@@ -169,8 +169,10 @@ class DatasetAuditTests(unittest.TestCase):
                             for item in report["training_readiness"]["warnings"]))
 
     def test_audit_includes_phoneme_note_coverage_and_optional_threshold(self):
+        records = self.dataset()
+        records[0]["notes"][0]["duration_seconds"] = 0.25
         report = audit_dataset(
-            self.write(self.dataset()),
+            self.write(records),
             minimum_phoneme_note_coverage=0.8,
         )
         quality = report["splits"]["train"]["annotation_quality"]
