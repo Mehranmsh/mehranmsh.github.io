@@ -75,6 +75,30 @@ class AnnotationQualityTests(unittest.TestCase):
             {"code": "excessive_edge_unannotated_audio", "recordings": 1}
         ])
 
+
+    def test_phoneme_duration_thresholds_are_opt_in_and_aggregate_only(self):
+        result = summarize_annotation_quality(
+            [record()],
+            minimum_phoneme_duration_seconds=0.15,
+            maximum_phoneme_duration_seconds=0.5,
+        )
+        self.assertEqual(
+            {item["code"] for item in result["warnings"]},
+            {"very_short_phoneme_span", "very_long_phoneme_span"},
+        )
+        self.assertEqual(result["phoneme_durations"]["minimum_seconds"], 0.1)
+        self.assertEqual(result["phoneme_durations"]["maximum_seconds"], 0.6)
+        self.assertTrue(all(item["recordings"] == 1 for item in result["warnings"]))
+        self.assertNotIn("recording_id", str(result))
+
+    def test_rejects_inverted_phoneme_duration_thresholds(self):
+        with self.assertRaises(AnnotationQualityError):
+            summarize_annotation_quality(
+                [record()],
+                minimum_phoneme_duration_seconds=0.5,
+                maximum_phoneme_duration_seconds=0.1,
+            )
+
     def test_no_vowels_reports_null_vowel_note_coverage(self):
         item = record()
         item["phoneme_alignment"] = [
