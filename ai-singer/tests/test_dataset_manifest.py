@@ -89,6 +89,61 @@ class DatasetManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(ManifestError, "ordered, non-overlapping"):
             validate_manifest(self.write_manifest([record]))
 
+    def test_accepts_explicit_syllable_alignment_partition(self):
+        record = self.record(
+            phoneme_alignment=[
+                {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.03},
+                {"phoneme": "æ", "start_seconds": 0.03, "end_seconds": 0.07},
+                {"phoneme": "l", "start_seconds": 0.07, "end_seconds": 0.1},
+            ],
+            syllable_alignment=[
+                {
+                    "text": "سَل",
+                    "start_seconds": 0.0,
+                    "end_seconds": 0.1,
+                    "phoneme_start_index": 0,
+                    "phoneme_end_index": 3,
+                }
+            ],
+        )
+        self.assertTrue(validate_manifest(self.write_manifest([record]))["valid"])
+
+    def test_rejects_syllable_alignment_without_phonemes(self):
+        record = self.record(syllable_alignment=[
+            {"text": "سلام", "start_seconds": 0.0, "end_seconds": 0.1,
+             "phoneme_start_index": 0, "phoneme_end_index": 1}
+        ])
+        with self.assertRaisesRegex(ManifestError, "requires phoneme_alignment"):
+            validate_manifest(self.write_manifest([record]))
+
+    def test_rejects_syllable_alignment_with_unassigned_phonemes(self):
+        record = self.record(
+            phoneme_alignment=[
+                {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.05},
+                {"phoneme": "æ", "start_seconds": 0.05, "end_seconds": 0.1},
+            ],
+            syllable_alignment=[
+                {"text": "سَ", "start_seconds": 0.0, "end_seconds": 0.05,
+                 "phoneme_start_index": 0, "phoneme_end_index": 1}
+            ],
+        )
+        with self.assertRaisesRegex(ManifestError, "assign every phoneme"):
+            validate_manifest(self.write_manifest([record]))
+
+    def test_rejects_syllable_timing_that_does_not_cover_phonemes(self):
+        record = self.record(
+            phoneme_alignment=[
+                {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.05},
+                {"phoneme": "æ", "start_seconds": 0.05, "end_seconds": 0.1},
+            ],
+            syllable_alignment=[
+                {"text": "سَ", "start_seconds": 0.0, "end_seconds": 0.06,
+                 "phoneme_start_index": 0, "phoneme_end_index": 2}
+            ],
+        )
+        with self.assertRaisesRegex(ManifestError, "must cover its assigned phonemes"):
+            validate_manifest(self.write_manifest([record]))
+
     def test_rejects_unknown_persian_phoneme_symbol(self):
         record = self.record(
             alignment_status="reviewed",
