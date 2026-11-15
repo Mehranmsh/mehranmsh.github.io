@@ -105,6 +105,57 @@ jobs:
           print("\nDeep audit complete. No PCMIR samples have been added to the playable instrument manifest.")
           PY
 
+      - name: Analyze pitch and usable note coverage of Persian recordings
+        run: |
+          python -m pip install --quiet numpy scipy librosa
+          python - <<'PY'
+          import io, urllib.request, zipfile, collections, os, tempfile, subprocess, json
+          import numpy as np
+          import librosa
+          url = "https://raw.githubusercontent.com/SeyedMuhammadHosseinMousavi/Persian-Classical-Music-Instrument-Recognition-PCMIR-Using-a-Novel-Persian-Music-Database/main/PCMIR%20Small.zip"
+          req = urllib.request.Request(url, headers={"User-Agent":"MEHRAN-MUSIC pitch coverage audit"})
+          with urllib.request.urlopen(req, timeout=90) as r:
+              z = zipfile.ZipFile(io.BytesIO(r.read()))
+          groups = collections.defaultdict(list)
+          for item in z.infolist():
+              if item.is_dir() or not item.filename.lower().endswith((".mp3",".wav",".flac",".ogg")):
+                  continue
+              parts = item.filename.replace("\\\\","/").split("/")
+              instrument = next((p.lower() for p in parts if p.lower() in {"ney","tar","santur","kamancheh"}), "unknown")
+              groups[instrument].append(item)
+          for instrument, items in sorted(groups.items()):
+              pitches, usable, silent = [], 0, 0
+              print(f"\n=== NOTE COVERAGE {instrument.upper()} ({len(items)} files) ===")
+              for item in sorted(items, key=lambda x:x.filename):
+                  suffix = os.path.splitext(item.filename)[1] or ".mp3"
+                  with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
+                      tmp.write(z.read(item)); tmp.flush()
+                      p = subprocess.run(["ffmpeg","-nostdin","-y","-loglevel","error","-i",tmp.name,"-ac","1","-ar","22050","-f","wav","pipe:1"],capture_output=True)
+                  if p.returncode:
+                      print("DECODE_FAIL",item.filename); continue
+                  import soundfile as sf
+                  y, sr = sf.read(io.BytesIO(p.stdout), dtype="float32")
+                  if len(y) < sr:
+                      print("TOO_SHORT",item.filename); continue
+                  rms = float(np.sqrt(np.mean(y*y)))
+                  if rms < 0.003:
+                      silent += 1
+                      print("LOW_LEVEL",round(rms,5),item.filename); continue
+                  f0 = librosa.yin(y, fmin=65, fmax=1400, sr=sr, frame_length=2048, hop_length=512)
+                  f0 = f0[np.isfinite(f0)]
+                  if not len(f0):
+                      print("NO_PITCH",item.filename); continue
+                  hz = float(np.median(f0))
+                  midi = int(round(69 + 12*np.log2(hz/440)))
+                  cents = round(100*(69 + 12*np.log2(hz/440)-midi),1)
+                  pitches.append(midi); usable += 1
+                  print(f"NOTE midi={midi} cents={cents:+} median_hz={hz:.1f} rms={rms:.4f} | {item.filename}")
+              print("SUMMARY usable:",usable,"low_level:",silent,"unique_midi:",sorted(set(pitches)))
+              if pitches:
+                  print("SUMMARY midi_span:",min(pitches),max(pitches),"unique_note_count:",len(set(pitches)))
+          print("\nPitch audit only. These recordings remain unimported until note coverage and license scope are reviewed.")
+          PY
+
       - name: Import real female and male human vocal samples
         run: python scripts/import-vocalset.py
 
