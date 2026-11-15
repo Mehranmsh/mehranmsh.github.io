@@ -1,0 +1,94 @@
+name: Import Persian recorded phrase previews
+
+on:
+  push:
+    paths:
+      - ".github/workflows/import-persian-phrases.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout MEHRAN MUSIC
+        uses: actions/checkout@v4
+      - name: Install audio tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unar ffmpeg
+      - name: Download licensed PCMIR recordings and convert selected phrases
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pcmir/extracted assets/instruments/phrases/persian
+          curl --fail --location --retry 4 --retry-delay 3 \
+            "https://data.mendeley.com/public-files/datasets/bpyxwkv9wj/files/fe2e9091-1b8c-4ae0-b331-725b45431125/file_downloaded" \
+            --output /tmp/pcmir-source.rar
+          unar -quiet -o /tmp/pcmir/extracted /tmp/pcmir-source.rar > /tmp/pcmir/extraction.log 2>&1 || true
+          ROOT="/tmp/pcmir/extracted/Persian Classical Music Instrument Recognition (PCMIR) Database"
+          test -s "$ROOT/Tar/Tar (1).mp3"
+          test -s "$ROOT/Santur/Santur (1).mp3"
+          test -s "$ROOT/Ney/Ney (1).mp3"
+          test -s "$ROOT/Kamancheh/Kamancheh (1).mp3"
+          ffmpeg -nostdin -y -v error -i "$ROOT/Tar/Tar (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/tar-phrase-01.ogg
+          ffmpeg -nostdin -y -v error -i "$ROOT/Santur/Santur (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/santur-phrase-01.ogg
+          ffmpeg -nostdin -y -v error -i "$ROOT/Ney/Ney (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/ney-phrase-01.ogg
+          ffmpeg -nostdin -y -v error -i "$ROOT/Kamancheh/Kamancheh (1).mp3" -ar 44100 -ac 1 -c:a libvorbis -q:a 5 assets/instruments/phrases/persian/kamancheh-phrase-01.ogg
+          cat > assets/instruments/phrases/persian/README.txt <<'EOF'
+          MEHRAN MUSIC Persian recorded phrase previews
+
+          These are short real-performance excerpts, not isolated notes or full chromatic multisample banks.
+          Intended use: one-shot phrase playback in MEHRAN MUSIC. Do not pitch-shift them and label them as playable multisampled instruments.
+
+          Dataset: Persian Classical Music Instrument Recognition (PCMIR) Database
+          DOI: 10.17632/bpyxwkv9wj.1
+          Source: https://data.mendeley.com/datasets/bpyxwkv9wj/1
+          License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+          License URL: https://creativecommons.org/licenses/by/4.0/
+
+          Attribution:
+          Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan.
+          Persian Classical Music Instrument Recognition (PCMIR) Database, 2020.
+
+          Changes: selected five-second excerpts transcoded from MP3 to OGG Vorbis for local same-origin playback.
+          EOF
+          cat > assets/instruments/phrases/persian/manifest.json <<'EOF'
+          {
+            "schemaVersion": 1,
+            "name": "MEHRAN Persian Recorded Phrases",
+            "kind": "one-shot-phrase-library",
+            "source": "PCMIR Persian Classical Music Instrument Recognition Database",
+            "license": "CC-BY-4.0",
+            "sourceUrl": "https://data.mendeley.com/datasets/bpyxwkv9wj/1",
+            "attribution": "Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad Hassan. Persian Classical Music Instrument Recognition (PCMIR) Database, 2020.",
+            "instruments": {
+              "tar": {"displayName": "Persian Tar", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/tar-phrase-01.ogg"]},
+              "santur": {"displayName": "Persian Santur", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/santur-phrase-01.ogg"]},
+              "ney": {"displayName": "Persian Ney", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/ney-phrase-01.ogg"]},
+              "kamancheh": {"displayName": "Persian Kamancheh", "kind": "recorded-phrase", "samples": ["./assets/instruments/phrases/persian/kamancheh-phrase-01.ogg"]}
+            }
+          }
+          EOF
+      - name: Verify phrase assets
+        run: |
+          set -euo pipefail
+          for file in assets/instruments/phrases/persian/*.ogg; do
+            test -s "$file"
+            ffprobe -v error -show_entries format=duration:stream=sample_rate,channels -of compact=p=0:nk=1 "$file"
+          done
+      - name: Commit self-hosted phrase assets
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/instruments/phrases/persian/
+          if git diff --cached --quiet; then
+            echo "No new phrase assets to commit."
+          else
+            git commit -m "Add CC BY Persian recorded phrase previews"
+            git push
+          fi
