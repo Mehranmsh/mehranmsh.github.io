@@ -1211,6 +1211,14 @@ def main():
                     drum_delete.click()
                     page.wait_for_timeout(150)
                 print("PASS: drum sequencer uses real recorded acoustic drums, cajon and world percussion")
+                # Write the manifest only after every melodic, vocal, percussion and drum-grid preview exists.
+                audition_files = sorted(audition_dir.glob("*.wav"))
+                manifest_lines = ["file,bank,source"]
+                for audition_file in audition_files:
+                    bank = audition_file.stem
+                    source = "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
+                    manifest_lines.append(f"{audition_file.name},{bank},{source}")
+                (audition_dir / "manifest.csv").write_text("\\n".join(manifest_lines) + "\\n", encoding="utf-8")
                 
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
