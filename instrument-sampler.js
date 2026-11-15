@@ -51,12 +51,10 @@
       const velocity=clamp(rawVelocity>1?rawVelocity/127:rawVelocity,.01,1);
       const candidates=valid.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
       const pool=candidates.length?candidates:valid;
-      const best=pool.reduce((a,b)=>{
-       const distanceA=Math.abs(a.rootNote-note),distanceB=Math.abs(b.rootNote-note);
-       if(distanceA!==distanceB)return distanceB<distanceA?b:a;
-       return Number(b.stringRank??99)<Number(a.stringRank??99)?b:a;
-      });
-      selected.set(best.url,best);
+      const bestDistance=Math.min(...pool.map(sample=>Math.abs(sample.rootNote-note)));
+      const nearest=pool.filter(sample=>Math.abs(sample.rootNote-note)===bestDistance);
+      if(spec.roundRobin===true){for(const sample of nearest)selected.set(sample.url,sample);}
+      else{const best=nearest.reduce((a,b)=>Number(b.stringRank??99)<Number(a.stringRank??99)?b:a);selected.set(best.url,best);}
      }
     }else{
      for(const sample of valid)selected.set(sample.url,sample);
