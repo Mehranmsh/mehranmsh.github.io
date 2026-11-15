@@ -188,6 +188,7 @@ def main():
                 second_report["summary"]["internal_gap_count"] = 1
                 second_report["summary"]["internal_gap_mean_seconds"] = 0.02
                 second_report["summary"]["syllables_invalid_or_incomplete"] = 2
+                second_report["summary"]["syllables_reviewed"] = 2
                 second_report["summary"]["mean_uncovered_duration_seconds"] = 0.04
                 second_report["summary"]["max_uncovered_duration_seconds"] = 0.08
                 second_path = Path(temp) / "mehran-second-take.json"
