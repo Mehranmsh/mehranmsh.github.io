@@ -232,6 +232,26 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertNotIn("syl-a", str(summary))
         self.assertNotIn("syl-b", str(summary))
 
+    def test_multiple_vowel_symbols_are_reported_without_rejection(self):
+        item = record()
+        item["phoneme_alignment"] = [
+            {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.1},
+            {"phoneme": "æ", "start_seconds": 0.1, "end_seconds": 0.4},
+            {"phoneme": "e", "start_seconds": 0.4, "end_seconds": 0.7},
+            {"phoneme": "l", "start_seconds": 0.7, "end_seconds": 1.0},
+        ]
+        item["alignment_status"] = "reviewed"
+        item["syllable_alignment"] = [
+            {"text": "syl-with-two-vowel-symbols", "start_seconds": 0.0, "end_seconds": 1.0,
+             "phoneme_start_index": 0, "phoneme_end_index": 4},
+        ]
+        result = analyze_annotation(item)
+        self.assertEqual(result["syllable_vowel_phoneme_counts"], [2])
+        self.assertEqual(result["syllable_consonant_phoneme_counts"], [2])
+        summary = summarize_annotation_quality([item])["syllable_alignment"]["phoneme_composition"]
+        self.assertEqual(summary["syllables_with_multiple_vowel_phonemes"], 1)
+        self.assertEqual(summary["syllables_with_no_vowel_phoneme"], 0)
+
     def test_rejects_unreviewed_syllable_metrics(self):
         item = record()
         item["alignment_status"] = "unreviewed"
