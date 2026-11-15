@@ -151,6 +151,9 @@ class AnnotationQualityTests(unittest.TestCase):
         metrics = summary["syllable_alignment"]
         self.assertEqual(metrics["recordings_with_syllables"], 1)
         self.assertEqual(metrics["total_syllables"], 2)
+        self.assertEqual(metrics["duration_seconds"]["minimum"], 0.2)
+        self.assertEqual(metrics["duration_seconds"]["maximum"], 0.8)
+        self.assertAlmostEqual(metrics["duration_seconds"]["range"], 0.6)
         self.assertAlmostEqual(metrics["duration_seconds"]["mean"], 0.5)
         self.assertEqual(metrics["duration_seconds"]["p50"], 0.2)
         self.assertEqual(metrics["duration_seconds"]["p90"], 0.8)
