@@ -10,6 +10,8 @@ on:
       - "worker.js"
       - "scripts/**"
       - "engine/**"
+      - "instrument-sampler.js"
+      - "assets/instruments/**"
       - ".github/workflows/quality-checks.yml"
   pull_request:
     paths:
@@ -18,6 +20,8 @@ on:
       - "worker.js"
       - "scripts/**"
       - "engine/**"
+      - "instrument-sampler.js"
+      - "assets/instruments/**"
       - ".github/workflows/quality-checks.yml"
   workflow_dispatch:
 
