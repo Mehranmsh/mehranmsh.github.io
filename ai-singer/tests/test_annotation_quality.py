@@ -112,6 +112,40 @@ class AnnotationQualityTests(unittest.TestCase):
         result = analyze_annotation(item)
         self.assertIsNone(result["vowel_note_time_coverage"])
 
+    def test_reports_reviewed_syllable_metrics_without_exposing_labels(self):
+        item = record()
+        item["alignment_status"] = "reviewed"
+        item["syllable_alignment"] = [
+            {"text": "سَ", "start_seconds": 0.0, "end_seconds": 0.2,
+             "phoneme_start_index": 0, "phoneme_end_index": 2},
+            {"text": "ل", "start_seconds": 0.2, "end_seconds": 1.0,
+             "phoneme_start_index": 2, "phoneme_end_index": 3},
+        ]
+        result = analyze_annotation(item)
+        self.assertEqual(result["syllable_count"], 2)
+        self.assertEqual(result["syllable_durations_seconds"], [0.2, 0.8])
+        self.assertEqual(result["phonemes_per_syllable"], [2, 1])
+        summary = summarize_annotation_quality([item])
+        metrics = summary["syllable_alignment"]
+        self.assertEqual(metrics["recordings_with_syllables"], 1)
+        self.assertEqual(metrics["total_syllables"], 2)
+        self.assertAlmostEqual(metrics["duration_seconds"]["mean"], 0.5)
+        self.assertEqual(metrics["duration_seconds"]["p50"], 0.2)
+        self.assertEqual(metrics["duration_seconds"]["p90"], 0.8)
+        self.assertAlmostEqual(metrics["phonemes_per_syllable"]["mean"], 1.5)
+        self.assertNotIn("سَ", str(summary))
+        self.assertNotIn("text", str(summary))
+
+    def test_rejects_unreviewed_syllable_metrics(self):
+        item = record()
+        item["alignment_status"] = "unreviewed"
+        item["syllable_alignment"] = [
+            {"text": "سَ", "start_seconds": 0.0, "end_seconds": 1.0,
+             "phoneme_start_index": 0, "phoneme_end_index": 3},
+        ]
+        with self.assertRaisesRegex(AnnotationQualityError, "must be reviewed"):
+            analyze_annotation(item)
+
     def test_rejects_invalid_threshold(self):
         with self.assertRaises(AnnotationQualityError):
             summarize_annotation_quality([record()], minimum_phoneme_coverage=1.5)
