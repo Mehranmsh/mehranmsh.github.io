@@ -7,6 +7,13 @@
  let manifestPromise=null;
  const decodedCache=new Map();
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+ const NOTE_SEMITONES={C:0,Cs:1,D:2,Ds:3,E:4,F:5,Fs:6,G:7,Gs:8,A:9,As:10,B:11};
+ function midiValue(value){
+  if(Number.isFinite(Number(value)))return Number(value);
+  const match=/^(Cs|Ds|Fs|Gs|As|[CDEFGAB])(-?\\d)$/.exec(String(value||""));
+  if(!match)return NaN;
+  return (Number(match[2])+1)*12+NOTE_SEMITONES[match[1]];
+ }
  async function loadManifest(){
   if(!manifestPromise)manifestPromise=fetch(MANIFEST_URL,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("Instrument manifest unavailable ("+r.status+").");return r.json();}).then(m=>{
    if(!m||m.schemaVersion!==1||!m.instruments||typeof m.instruments!=="object")throw new Error("Invalid MEHRAN instrument manifest.");
@@ -31,10 +38,30 @@
    async instrument(ctx,name,options){
     const spec=manifest.instruments[name];
     if(!spec||!Array.isArray(spec.samples)||spec.samples.length===0)throw new Error("No real recorded samples are installed for "+name+". Synthetic fallback is disabled.");
-    const prepared=await Promise.all(spec.samples.map(async s=>{
-     if(!Number.isInteger(s.rootNote)||s.rootNote<0||s.rootNote>127||typeof s.url!=="string")throw new Error("Invalid sample entry for "+name);
-     return {...s,buffer:await decodeSample(ctx,s)};
-    }));
+    const valid=spec.samples.filter(s=>Number.isInteger(s.rootNote)&&s.rootNote>=0&&s.rootNote<=127&&typeof s.url==="string");
+    if(valid.length!==spec.samples.length)throw new Error("Invalid sample entry for "+name);
+    const requested=Array.isArray(options&&options.noteEvents)?options.noteEvents:[];
+    const selected=new Map();
+    if(requested.length){
+     for(const event of requested){
+      const note=midiValue(event&&event.note);
+      if(!Number.isFinite(note))continue;
+      const rawVelocity=Number(event.velocity??80);
+      const velocity=clamp(rawVelocity>1?rawVelocity/127:rawVelocity,.01,1);
+      const candidates=valid.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
+      const pool=candidates.length?candidates:valid;
+      const best=pool.reduce((a,b)=>{
+       const distanceA=Math.abs(a.rootNote-note),distanceB=Math.abs(b.rootNote-note);
+       if(distanceA!==distanceB)return distanceB<distanceA?b:a;
+       return Number(b.stringRank??99)<Number(a.stringRank??99)?b:a;
+      });
+      selected.set(best.url,best);
+     }
+    }else{
+     for(const sample of valid)selected.set(sample.url,sample);
+    }
+    if(!selected.size)throw new Error("No playable note samples selected for "+name);
+    const prepared=await Promise.all([...selected.values()].map(async sample=>({...sample,buffer:await decodeSample(ctx,sample)})));
     return {play(midi,at,duration,settings){
      const note=Number(midi),start=Number(at),length=Number(duration),velocity=clamp(Number((settings&&settings.velocity)??(settings&&settings.gain)??.8),.01,1);
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
