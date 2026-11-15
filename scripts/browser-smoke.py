@@ -5,6 +5,7 @@ from pathlib import Path
 from threading import Thread
 from tempfile import TemporaryDirectory
 import math
+import base64
 import struct
 import wave
 
@@ -43,6 +44,38 @@ def make_test_midi(path: Path):
     header = b"MThd" + struct.pack(">IHHH", 6, 0, 1, 480)
     chunk = b"MTrk" + struct.pack(">I", len(track)) + track
     path.write_bytes(header + chunk)
+
+
+
+def export_track_audio(page, project_id: str, track_id: str, filename: str):
+    encoded = page.evaluate("""async ({projectId, trackId}) => {
+        const db = await new Promise((resolve, reject) => {
+            const request = indexedDB.open("mehran_music_studio_audio_v1", 1);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        const record = await new Promise((resolve, reject) => {
+            const request = db.transaction("trackAudio").objectStore("trackAudio").get(projectId + ":" + trackId);
+            request.onsuccess = () => resolve(request.result);
+            request.onerror = () => reject(request.error);
+        });
+        if (!record?.blob) throw new Error("Generated audition WAV is missing from IndexedDB: " + trackId);
+        const bytes = new Uint8Array(await record.blob.arrayBuffer());
+        let binary = "";
+        for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+            binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+        }
+        db.close();
+        return btoa(binary);
+    }""", {"projectId": project_id, "trackId": track_id})
+    output_dir = ROOT / "test-audio-output"
+    output_dir.mkdir(exist_ok=True)
+    path = output_dir / filename
+    path.write_bytes(base64.b64decode(encoded))
+    if path.stat().st_size < 44:
+        raise AssertionError("Audition WAV is too small: " + str(path))
+    print("AUDITION WAV SAVED:", path.name, path.stat().st_size, "bytes", flush=True)
+    return path
 
 
 def main():
@@ -1081,6 +1114,10 @@ def main():
                     # Keep the QA project below its 32-track product limit while testing every bank.
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
+                        project_for_audio = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                        vocal_track = next(track for track in project_for_audio["tracks"] if track.get("generated") and track["name"] == "Live QA " + mode)
+                        export_track_audio(page, project_for_audio["id"], vocal_track["id"], mode + ".wav")
                     latest_track_delete = page.locator("[data-track-delete]").last
                     latest_track_text = latest_track_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
                     if "Live QA " + mode not in latest_track_text:
@@ -1099,6 +1136,9 @@ def main():
                 page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                 harmony_status = page.locator("#patternStatus").inner_text()
                 assert "Generated WAV added to the mixer" in harmony_status, "Human vocal harmony render failed: " + harmony_status
+                harmony_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                harmony_track_record = next(track for track in harmony_project["tracks"] if track.get("generated") and track["name"] == "Live QA human vocal harmony")
+                export_track_audio(page, harmony_project["id"], harmony_track_record["id"], "human-vocal-harmony.wav")
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 harmony_track = page.locator("[data-track-delete]").last
