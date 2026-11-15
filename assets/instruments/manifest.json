@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "name": "MEHRAN Recorded Instrument Library",
   "policy": "same-origin-only",
-  "status": "partial-recorded-bank",
+  "status": "expanded-recorded-bank",
   "instruments": {
     "acoustic_grand_piano": {
       "displayName": "Acoustic Piano",
@@ -5490,17 +5490,366 @@
     },
     "violin": {
       "displayName": "Violin",
-      "attackSeconds": 0.08,
-      "releaseSeconds": 0.3,
-      "filterHz": 12500,
-      "samples": []
+      "attackSeconds": 0.008,
+      "releaseSeconds": 0.35,
+      "filterHz": 14500,
+      "source": "nbrosowsky/tonejs-instruments",
+      "license": "CC-BY-3.0",
+      "samples": [
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/A3.ogg",
+          "sourceFile": "A3.ogg"
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/A4.ogg",
+          "sourceFile": "A4.ogg"
+        },
+        {
+          "rootNote": 81,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/A5.ogg",
+          "sourceFile": "A5.ogg"
+        },
+        {
+          "rootNote": 93,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/A6.ogg",
+          "sourceFile": "A6.ogg"
+        },
+        {
+          "rootNote": 60,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/C4.ogg",
+          "sourceFile": "C4.ogg"
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/C5.ogg",
+          "sourceFile": "C5.ogg"
+        },
+        {
+          "rootNote": 84,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/C6.ogg",
+          "sourceFile": "C6.ogg"
+        },
+        {
+          "rootNote": 96,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/C7.ogg",
+          "sourceFile": "C7.ogg"
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/E4.ogg",
+          "sourceFile": "E4.ogg"
+        },
+        {
+          "rootNote": 76,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/E5.ogg",
+          "sourceFile": "E5.ogg"
+        },
+        {
+          "rootNote": 88,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/E6.ogg",
+          "sourceFile": "E6.ogg"
+        },
+        {
+          "rootNote": 55,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/G3.ogg",
+          "sourceFile": "G3.ogg"
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/G4.ogg",
+          "sourceFile": "G4.ogg"
+        },
+        {
+          "rootNote": 79,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/G5.ogg",
+          "sourceFile": "G5.ogg"
+        },
+        {
+          "rootNote": 91,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/violin/G6.ogg",
+          "sourceFile": "G6.ogg"
+        }
+      ]
     },
     "cello": {
       "displayName": "Cello",
-      "attackSeconds": 0.1,
+      "attackSeconds": 0.008,
       "releaseSeconds": 0.35,
-      "filterHz": 10000,
-      "samples": []
+      "filterHz": 14500,
+      "source": "nbrosowsky/tonejs-instruments",
+      "license": "CC-BY-3.0",
+      "samples": [
+        {
+          "rootNote": 45,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/A2.ogg",
+          "sourceFile": "A2.ogg"
+        },
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/A3.ogg",
+          "sourceFile": "A3.ogg"
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/A4.ogg",
+          "sourceFile": "A4.ogg"
+        },
+        {
+          "rootNote": 46,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/As2.ogg",
+          "sourceFile": "As2.ogg"
+        },
+        {
+          "rootNote": 58,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/As3.ogg",
+          "sourceFile": "As3.ogg"
+        },
+        {
+          "rootNote": 47,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/B2.ogg",
+          "sourceFile": "B2.ogg"
+        },
+        {
+          "rootNote": 59,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/B3.ogg",
+          "sourceFile": "B3.ogg"
+        },
+        {
+          "rootNote": 71,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/B4.ogg",
+          "sourceFile": "B4.ogg"
+        },
+        {
+          "rootNote": 36,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/C2.ogg",
+          "sourceFile": "C2.ogg"
+        },
+        {
+          "rootNote": 48,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/C3.ogg",
+          "sourceFile": "C3.ogg"
+        },
+        {
+          "rootNote": 60,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/C4.ogg",
+          "sourceFile": "C4.ogg"
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/C5.ogg",
+          "sourceFile": "C5.ogg"
+        },
+        {
+          "rootNote": 49,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Cs3.ogg",
+          "sourceFile": "Cs3.ogg"
+        },
+        {
+          "rootNote": 61,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Cs4.ogg",
+          "sourceFile": "Cs4.ogg"
+        },
+        {
+          "rootNote": 38,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/D2.ogg",
+          "sourceFile": "D2.ogg"
+        },
+        {
+          "rootNote": 50,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/D3.ogg",
+          "sourceFile": "D3.ogg"
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/D4.ogg",
+          "sourceFile": "D4.ogg"
+        },
+        {
+          "rootNote": 39,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Ds2.ogg",
+          "sourceFile": "Ds2.ogg"
+        },
+        {
+          "rootNote": 51,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Ds3.ogg",
+          "sourceFile": "Ds3.ogg"
+        },
+        {
+          "rootNote": 63,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Ds4.ogg",
+          "sourceFile": "Ds4.ogg"
+        },
+        {
+          "rootNote": 40,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/E2.ogg",
+          "sourceFile": "E2.ogg"
+        },
+        {
+          "rootNote": 52,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/E3.ogg",
+          "sourceFile": "E3.ogg"
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/E4.ogg",
+          "sourceFile": "E4.ogg"
+        },
+        {
+          "rootNote": 41,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/F2.ogg",
+          "sourceFile": "F2.ogg"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/F3.ogg",
+          "sourceFile": "F3.ogg"
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/F4.ogg",
+          "sourceFile": "F4.ogg"
+        },
+        {
+          "rootNote": 54,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Fs3.ogg",
+          "sourceFile": "Fs3.ogg"
+        },
+        {
+          "rootNote": 66,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Fs4.ogg",
+          "sourceFile": "Fs4.ogg"
+        },
+        {
+          "rootNote": 43,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/G2.ogg",
+          "sourceFile": "G2.ogg"
+        },
+        {
+          "rootNote": 55,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/G3.ogg",
+          "sourceFile": "G3.ogg"
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/G4.ogg",
+          "sourceFile": "G4.ogg"
+        },
+        {
+          "rootNote": 44,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Gs2.ogg",
+          "sourceFile": "Gs2.ogg"
+        },
+        {
+          "rootNote": 56,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Gs3.ogg",
+          "sourceFile": "Gs3.ogg"
+        },
+        {
+          "rootNote": 68,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/cello/Gs4.ogg",
+          "sourceFile": "Gs4.ogg"
+        }
+      ]
     },
     "tar": {
       "displayName": "Tar",
@@ -5531,18 +5880,290 @@
       "samples": []
     },
     "acoustic_bass": {
-      "displayName": "Acoustic Bass",
+      "displayName": "Acoustic Double Bass",
       "attackSeconds": 0.008,
-      "releaseSeconds": 0.2,
-      "filterHz": 8000,
-      "samples": []
+      "releaseSeconds": 0.22,
+      "filterHz": 14500,
+      "source": "nbrosowsky/tonejs-instruments",
+      "license": "CC-BY-3.0",
+      "samples": [
+        {
+          "rootNote": 45,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/A2.ogg",
+          "sourceFile": "A2.ogg"
+        },
+        {
+          "rootNote": 34,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/As1.ogg",
+          "sourceFile": "As1.ogg"
+        },
+        {
+          "rootNote": 59,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/B3.ogg",
+          "sourceFile": "B3.ogg"
+        },
+        {
+          "rootNote": 36,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/C2.ogg",
+          "sourceFile": "C2.ogg"
+        },
+        {
+          "rootNote": 49,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/Cs3.ogg",
+          "sourceFile": "Cs3.ogg"
+        },
+        {
+          "rootNote": 38,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/D2.ogg",
+          "sourceFile": "D2.ogg"
+        },
+        {
+          "rootNote": 40,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/E2.ogg",
+          "sourceFile": "E2.ogg"
+        },
+        {
+          "rootNote": 52,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/E3.ogg",
+          "sourceFile": "E3.ogg"
+        },
+        {
+          "rootNote": 30,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/Fs1.ogg",
+          "sourceFile": "Fs1.ogg"
+        },
+        {
+          "rootNote": 42,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/Fs2.ogg",
+          "sourceFile": "Fs2.ogg"
+        },
+        {
+          "rootNote": 31,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/G1.ogg",
+          "sourceFile": "G1.ogg"
+        },
+        {
+          "rootNote": 44,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/Gs2.ogg",
+          "sourceFile": "Gs2.ogg"
+        },
+        {
+          "rootNote": 56,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/contrabass/Gs3.ogg",
+          "sourceFile": "Gs3.ogg"
+        }
+      ]
     },
     "kalimba": {
       "displayName": "Kalimba",
-      "attackSeconds": 0.001,
-      "releaseSeconds": 0.2,
+      "attackSeconds": 0.003,
+      "releaseSeconds": 0.7,
       "filterHz": 15000,
-      "samples": []
+      "source": "Versilian Community Sample Library (VCSL), Kalimba Tanzania",
+      "license": "CC0-1.0",
+      "samples": [
+        {
+          "rootNote": 31,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_G1_k12_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_G1_k12_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 32,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_G#1_k11_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_G#1_k11_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 35,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_B1_k13_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_B1_k13_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 37,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_C#2_k10_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_C#2_k10_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 39,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_D#2_k14_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_D#2_k14_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 41,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_F2_k9alt_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_F2_k9alt_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 43,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_G2_k15_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_G2_k15_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 46,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_A#2_k8_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_A#2_k8_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 49,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_C#3_k16_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_C#3_k16_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 51,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_D#3_k7_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_D#3_k7_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_F3_k17_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_F3_k17_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 55,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_G3_k6_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_G3_k6_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 58,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_A#3_k18_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_A#3_k18_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 61,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_C#4_k5_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_C#4_k5_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_D4_k19_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_D4_k19_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 63,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_D#4_k20_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_D#4_k20_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_F4_k21_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_F4_k21_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_G4_k22_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_G4_k22_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 70,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_A#4_k2_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_A#4_k2_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 71,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_B4_k23_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_B4_k23_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 73,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_C#5_k24_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_C#5_k24_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 76,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_E5_k25_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_E5_k25_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 78,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_F#5_k1_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_F#5_k1_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 80,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_G#5_k26_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_G#5_k26_50_100_rr2.wav"
+        },
+        {
+          "rootNote": 85,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/vcsl-kalimba/MBira3_pluck_Main_C#6_k27_50_100_rr2.ogg",
+          "sourceFile": "MBira3_pluck_Main_C#6_k27_50_100_rr2.wav"
+        }
+      ]
     },
     "acoustic_guitar_nylon": {
       "displayName": "Nylon-string Classical Guitar",
@@ -8687,5 +9308,5 @@
       ]
     }
   },
-  "sourcePolicy": "CC0 samples imported once; runtime playback is same-origin only."
+  "sourcePolicy": "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
 }
