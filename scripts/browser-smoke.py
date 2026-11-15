@@ -1100,7 +1100,7 @@ def main():
                 assert vocal_assets == {"female_vocal": 45, "male_vocal": 55, "female_choir": 45, "male_choir": 55, "mixed_choir": 100}, "Self-hosted human vocal assets are incomplete: " + str(vocal_assets)
 
                 live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
-                live_modes_missing = ["live_tar", "live_santur", "live_ney"]
+                live_modes_missing = ["live_tar", "live_santur", "live_ney", "live_kamancheh"]
                 page.locator("#patternBars").select_option("1")
                 page.locator("#patternNotes").fill("C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -")
                 for mode in live_modes_available:
@@ -1163,14 +1163,15 @@ def main():
                     "WAV previews are rendered in Chromium from the studio's self-hosted recorded sample banks. "
                     "This pack is intended for technical and human listening review, not as proof of naturalness. "
                     "Some instruments have limited sample coverage and are not full chromatic libraries. "
-                    "Vocal samples are sustained human vowels from VocalSet (CC BY 4.0); ensemble files layer "
+                    "Persian Tar, Santur, Ney and Kamancheh phrase previews are real five-second recordings from PCMIR (CC BY 4.0), "
+                    "not note-level sampler banks. Vocal samples are sustained human vowels from VocalSet (CC BY 4.0); ensemble files layer "
                     "separate recorded singers and are not single live-choir recordings.\n",
                     encoding="utf-8")
                 audition_files = sorted(audition_dir.glob("*.wav"))
                 manifest_lines = ["file,bank,source"]
                 for audition_file in audition_files:
                     bank = audition_file.stem
-                    source = "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
+                    source = "PCMIR CC BY 4.0 recorded Persian phrase" if bank.startswith("phrase_") else "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 print("PASS: 19 melodic instrument banks, 2 solo vocal banks and 3 layered human ensembles")
@@ -1181,7 +1182,34 @@ def main():
                     page.wait_for_function("!document.querySelector('#renderPattern')?.disabled", timeout=60000)
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "No real recorded samples are installed" in live_status, "Missing live instrument must fail closed without synthetic fallback: " + mode + "; " + live_status
-                print("PASS: tar, santur and ney remain safely blocked until real samples are imported")
+                print("PASS: tar, santur, ney and kamancheh keyboard banks fail closed until note-level samples are imported")
+                # Real Persian performances are exposed as one-shot phrases, never mislabeled as chromatic note banks.
+                for mode, label in [
+                    ("phrase_tar", "Tar"),
+                    ("phrase_santur", "Santur"),
+                    ("phrase_ney", "Ney"),
+                    ("phrase_kamancheh", "Kamancheh")
+                ]:
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternBars").select_option("1")
+                    page.locator("#patternTrackName").fill("Persian Phrase QA " + label)
+                    page.locator("#renderPattern").click()
+                    page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=30000)
+                    phrase_status = page.locator("#patternStatus").inner_text()
+                    assert "Generated WAV added to the mixer" in phrase_status, "Recorded Persian phrase did not render: " + mode + "; " + phrase_status
+                    phrase_state = page.evaluate("window.__mehranPersianPhraseRenderState || null")
+                    assert phrase_state and phrase_state["mode"] == mode and phrase_state["scheduled"] == 1 and phrase_state["duration"] >= 5.0, "Persian phrase was not scheduled as a real one-shot: " + str(phrase_state)
+                    phrase_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    phrase_track = next(track for track in phrase_project["tracks"] if track.get("generated") and track["name"] == "Persian Phrase QA " + label)
+                    assert phrase_track["type"] == "Persian Recorded Phrase", "Phrase track was mislabeled: " + phrase_track["type"]
+                    export_track_audio(page, phrase_project["id"], phrase_track["id"], mode + ".wav")
+                    page.locator('[data-view="mix"]').click()
+                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    phrase_delete = page.locator("[data-track-delete]").last
+                    assert "Persian Phrase QA " + label in phrase_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
+                    phrase_delete.click()
+                    page.wait_for_timeout(150)
+                print("PASS: four Persian recorded phrases render from self-hosted CC BY 4.0 audio without pitch-shifting")
                 # Recorded percussion and acoustic drum-kit samples must render from local assets.
                 for mode, notes in [
                     ("live_cajon", "C3, C#3, D3, C3, C#3, D3, -, -, -, -, -, -, -, -, -, -"),
