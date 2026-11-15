@@ -277,6 +277,8 @@ def main():
                 saved_after_vocal = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))")
                 assert len(saved_after_vocal[0]["tracks"]) == 1
                 assert saved_after_vocal[0]["tracks"][0]["type"] == "Lead Vocal"
+                vocal_roles = page.locator("#vocalRecordingRole option").evaluate_all("(els) => els.map(el => el.value)")
+                assert vocal_roles == ["lead", "female_backing", "male_backing", "harmony", "choir", "adlib", "vocal_pad"], "Vocal part selector is incomplete: " + str(vocal_roles)
                 source_audio_hash = page.evaluate("""async () => {
                     const db = await new Promise((resolve, reject) => {
                         const request = indexedDB.open('mehran_music_studio_audio_v1', 1);
