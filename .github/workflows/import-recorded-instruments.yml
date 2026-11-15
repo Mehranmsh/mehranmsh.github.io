@@ -34,12 +34,6 @@ jobs:
       - name: Install audio conversion tools
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Import CC0 recorded piano and guitar samples
-        run: python scripts/import-recorded-instruments.py
-
-      - name: Import violin, cello, acoustic bass, and kalimba
-        run: python scripts/import-additional-instruments.py
-
       - name: Import real female and male human vocal samples
         run: python scripts/import-vocalset.py
 
