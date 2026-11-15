@@ -7,11 +7,15 @@ on:
     paths:
       - "music-studio.html"
       - "scripts/browser-smoke.py"
+      - "instrument-sampler.js"
+      - "assets/instruments/**"
       - ".github/workflows/browser-smoke.yml"
   pull_request:
     paths:
       - "music-studio.html"
       - "scripts/browser-smoke.py"
+      - "instrument-sampler.js"
+      - "assets/instruments/**"
       - ".github/workflows/browser-smoke.yml"
   workflow_dispatch:
 
