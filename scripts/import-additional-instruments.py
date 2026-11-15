@@ -300,7 +300,16 @@ def main():
     }
     license_text = get("https://raw.githubusercontent.com/sgossner/VCSL/master/LICENSE").decode("utf-8")
     (ROOT / "assets/instruments/samples/VCSL-CC0-LICENSE.txt").write_text(license_text, encoding="utf-8")
-    setar_count = import_setar_commons(manifest)
+    existing_setar = manifest.get("instruments", {}).get("setar", {}).get("samples", [])
+    setar_files_ready = len(existing_setar) >= 12 and all(
+        (ROOT / "assets/instruments" / sample["url"].removeprefix("./assets/instruments/")).is_file()
+        for sample in existing_setar
+    )
+    if setar_files_ready:
+        setar_count = len(existing_setar)
+        print(f"Setar: reusing {setar_count} already-installed recorded fret-note samples")
+    else:
+        setar_count = import_setar_commons(manifest)
     import_drum_and_percussion_banks(manifest)
     manifest["status"] = "expanded-recorded-bank"
     manifest["sourcePolicy"] = "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
