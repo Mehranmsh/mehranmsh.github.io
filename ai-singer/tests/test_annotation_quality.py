@@ -186,13 +186,15 @@ class AnnotationQualityTests(unittest.TestCase):
         item = record()
         item["alignment_status"] = "reviewed"
         item["syllable_alignment"] = [
-            {"text": "syllable-a", "start_seconds": 0.0, "end_seconds": 0.25,
+            {"text": "syllable-a", "start_seconds": 0.0, "end_seconds": 0.85,
              "phoneme_start_index": 0, "phoneme_end_index": 2},
-            {"text": "syllable-b", "start_seconds": 0.75, "end_seconds": 1.0,
+            {"text": "syllable-b", "start_seconds": 0.85, "end_seconds": 1.0,
              "phoneme_start_index": 2, "phoneme_end_index": 3},
         ]
-        # Make a deliberate 0.1-second gap between the two phonemes in syllable A.
+        # Add a 0.1-second internal gap in syllable A and a 0.05-second
+        # leading margin for syllable B while keeping each syllable over its phones.
         item["phoneme_alignment"][1]["start_seconds"] = 0.2
+        item["phoneme_alignment"][2]["start_seconds"] = 0.9
         result = analyze_annotation(item)
         self.assertEqual(result["syllable_leading_boundary_slack_seconds"][0], 0.0)
         self.assertAlmostEqual(result["syllable_leading_boundary_slack_seconds"][1], 0.05)
