@@ -1039,7 +1039,7 @@ def main():
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in live_status, "Imported live instrument did not render from recorded samples: " + mode + "; " + live_status
-                print("PASS: 19 melodic instruments render from self-hosted recorded samples")
+                print("PASS: 19 melodic instrument banks render from self-hosted recorded samples")
                 for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
