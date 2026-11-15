@@ -33,6 +33,10 @@ class StudioDatasetExportTests(unittest.TestCase):
                 "sample_rate": 24000,
                 "duration_seconds": 0.1,
                 "phonemes": [{"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.1}],
+                "syllable_alignment": [{
+                    "text": "سَ", "start_seconds": 0.0, "end_seconds": 0.1,
+                    "phoneme_start_index": 0, "phoneme_end_index": 1,
+                }],
                 "notes": [{"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.1, "velocity": 80}],
                 "style": {},
             },
@@ -58,6 +62,8 @@ class StudioDatasetExportTests(unittest.TestCase):
     def test_converts_reviewed_export_without_copying_audio(self):
         record = self.make_record()
         self.assertEqual(record["phoneme_alignment"][0]["phoneme"], "s")
+        self.assertEqual(record["syllable_alignment"][0]["text"], "سَ")
+        self.assertEqual(record["syllable_alignment"][0]["phoneme_end_index"], 1)
         self.assertEqual(record["notes"][0]["midi_note"], 60)
         self.assertEqual(record["audio_path"], "take.wav")
         self.assertEqual(record["duration_seconds"], 0.1)
