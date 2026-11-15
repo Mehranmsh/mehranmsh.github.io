@@ -62,13 +62,18 @@
      for(const sample of valid)selected.set(sample.url,sample);
     }
     if(!selected.size)throw new Error("No playable note samples selected for "+name+"; event note examples: "+requested.slice(0,4).map(event=>String(event&&event.note)).join(", "));
-    const prepared=await Promise.all([...selected.values()].map(async sample=>({...sample,buffer:await decodeSample(ctx,sample)})));
+    const prepared=await Promise.all([...selected.values()].map(async sample=>({...sample,buffer:await decodeSample(ctx,sample)})));const roundRobinCounters=new Map();
     return {play(midi,at,duration,settings){
      const note=Number(midi),start=Number(at),length=Number(duration),velocity=clamp(Number((settings&&settings.velocity)??(settings&&settings.gain)??.8),.01,1);
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
      const candidates=prepared.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
      const pool=candidates.length?candidates:prepared;
-     const selected=pool.reduce((best,s)=>Math.abs(s.rootNote-note)<Math.abs(best.rootNote-note)?s:best,pool[0]);
+     const nearestDistance=Math.min(...pool.map(s=>Math.abs(s.rootNote-note)));
+     const nearest=pool.filter(s=>Math.abs(s.rootNote-note)===nearestDistance);
+     const rrKey=String(note)+":"+String(Math.round(velocity*127));
+     const rrIndex=roundRobinCounters.get(rrKey)||0;
+     const selected=nearest[spec.roundRobin===true?rrIndex%nearest.length:0];
+     if(spec.roundRobin===true)roundRobinCounters.set(rrKey,rrIndex+1);
      const source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
      source.buffer=selected.buffer;
      source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),start);
