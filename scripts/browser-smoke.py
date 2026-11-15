@@ -199,7 +199,7 @@ def main():
                 assert comparison_report["trend_summary"]["incomplete_syllables"]["delta_count"] == 1
                 assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 1
                 assert comparison_report["rows"][0]["syllables_invalid_or_incomplete"] == 0
-                assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 0
+                assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 1
                 # Reports from different projects must be rejected.
                 mismatched_report = dict(second_report)
                 mismatched_report["project_id"] = "different-project"
