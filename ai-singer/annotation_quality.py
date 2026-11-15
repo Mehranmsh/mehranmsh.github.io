@@ -37,6 +37,7 @@ def analyze_annotation(record: dict) -> dict:
         raise AnnotationQualityError("reviewed phoneme and MIDI annotations are required")
 
     phoneme_duration = 0.0
+    phoneme_span_durations = []
     internal_gaps = []
     vowel_duration = 0.0
     vowel_note_overlap = 0.0
@@ -58,6 +59,7 @@ def analyze_annotation(record: dict) -> dict:
         previous_end = float(end)
         span_duration = float(end - start)
         phoneme_duration += span_duration
+        phoneme_span_durations.append(span_duration)
         vowel_spans.append((symbol, float(start), float(end)))
     from phoneme_inventory import PHONEME_FEATURES, canonicalize_phoneme
 
@@ -78,6 +80,8 @@ def analyze_annotation(record: dict) -> dict:
     )
     return {
         "phoneme_count": len(spans),
+        "minimum_phoneme_duration_seconds": min(phoneme_span_durations),
+        "maximum_phoneme_duration_seconds": max(phoneme_span_durations),
         "vowel_count": sum(
             1 for symbol, _, _ in vowel_spans
             if PHONEME_FEATURES.get(canonicalize_phoneme(symbol), {}).get("kind") == "vowel"
@@ -107,12 +111,18 @@ def summarize_annotation_quality(
     minimum_vowel_note_coverage: float | None = None,
     maximum_internal_gap_seconds: float | None = None,
     maximum_edge_unannotated_seconds: float | None = None,
+    minimum_phoneme_duration_seconds: float | None = None,
+    maximum_phoneme_duration_seconds: float | None = None,
 ) -> dict:
     """Summarize annotations and apply only explicitly configured warning thresholds."""
     min_phoneme = _threshold(minimum_phoneme_coverage, "minimum_phoneme_coverage", maximum=1.0)
     min_vowel = _threshold(minimum_vowel_note_coverage, "minimum_vowel_note_coverage", maximum=1.0)
     max_gap = _threshold(maximum_internal_gap_seconds, "maximum_internal_gap_seconds")
     max_edge = _threshold(maximum_edge_unannotated_seconds, "maximum_edge_unannotated_seconds")
+    min_phoneme_duration = _threshold(minimum_phoneme_duration_seconds, "minimum_phoneme_duration_seconds")
+    max_phoneme_duration = _threshold(maximum_phoneme_duration_seconds, "maximum_phoneme_duration_seconds")
+    if min_phoneme_duration is not None and max_phoneme_duration is not None and min_phoneme_duration > max_phoneme_duration:
+        raise AnnotationQualityError("minimum_phoneme_duration_seconds must not exceed maximum_phoneme_duration_seconds")
     diagnostics = [analyze_annotation(record) for record in records]
     coverage = [item["phoneme_time_coverage"] for item in diagnostics]
     vowel_coverage = [
@@ -122,6 +132,8 @@ def summarize_annotation_quality(
     gaps = [item["maximum_internal_gap_seconds"] for item in diagnostics]
     leading_gaps = [item["leading_unannotated_seconds"] for item in diagnostics]
     trailing_gaps = [item["trailing_unannotated_seconds"] for item in diagnostics]
+    shortest_phonemes = [item["minimum_phoneme_duration_seconds"] for item in diagnostics]
+    longest_phonemes = [item["maximum_phoneme_duration_seconds"] for item in diagnostics]
     warnings = []
     if min_phoneme is not None:
         count = sum(value < min_phoneme for value in coverage)
@@ -135,6 +147,14 @@ def summarize_annotation_quality(
         count = sum(value > max_gap for value in gaps)
         if count:
             warnings.append({"code": "long_internal_annotation_gap", "recordings": count})
+    if min_phoneme_duration is not None:
+        count = sum(value < min_phoneme_duration for value in shortest_phonemes)
+        if count:
+            warnings.append({"code": "very_short_phoneme_span", "recordings": count})
+    if max_phoneme_duration is not None:
+        count = sum(value > max_phoneme_duration for value in longest_phonemes)
+        if count:
+            warnings.append({"code": "very_long_phoneme_span", "recordings": count})
     if max_edge is not None:
         count = sum(
             item["leading_unannotated_seconds"] > max_edge
@@ -154,6 +174,10 @@ def summarize_annotation_quality(
             "mean": sum(vowel_coverage) / len(vowel_coverage) if vowel_coverage else None,
             "recordings_with_vowels": len(vowel_coverage),
         },
+        "phoneme_durations": {
+            "minimum_seconds": min(shortest_phonemes, default=None),
+            "maximum_seconds": max(longest_phonemes, default=None),
+        },
         "internal_gaps": {
             "total": sum(item["internal_gap_count"] for item in diagnostics),
             "maximum_seconds": max(gaps, default=0.0) if gaps else None,
@@ -170,5 +194,7 @@ def summarize_annotation_quality(
             "minimum_vowel_note_coverage": min_vowel,
             "maximum_internal_gap_seconds": max_gap,
             "maximum_edge_unannotated_seconds": max_edge,
+            "minimum_phoneme_duration_seconds": min_phoneme_duration,
+            "maximum_phoneme_duration_seconds": max_phoneme_duration,
         },
     }
