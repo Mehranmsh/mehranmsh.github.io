@@ -65,6 +65,7 @@ def _validate_alignment(record: dict, duration: float, line_number: int) -> None
     if status == "reviewed" and (not isinstance(spans, list) or not spans):
         raise ManifestError(f"line {line_number}: reviewed alignment requires phoneme_alignment")
     if spans is None:
+        _validate_syllable_alignment(record, duration, line_number)
         return
     if not isinstance(spans, list) or len(spans) > 20000:
         raise ManifestError(f"line {line_number}: phoneme_alignment must be a bounded list")
