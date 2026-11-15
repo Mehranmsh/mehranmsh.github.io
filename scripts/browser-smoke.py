@@ -356,7 +356,19 @@ def main():
                             "accepted_for_inference": False,
                         }),
                     )
+                # Keep the invalid-leading-syllable fixture for timeline-index coverage, then
+                # isolate the conditioning test with one valid, reviewed syllable.
+                page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    const project = drafts.find(item => item.name === "Automated Audio QA");
+                    if (!project?.singerAlignment) throw new Error("Singer alignment fixture missing");
+                    project.singerAlignment.syllables = ["سَلام"];
+                    project.singerAlignment.noteGroups = [[0]];
+                    project.singerAlignment.alignment = [{ startSeconds: 0.05, endSeconds: 0.42 }];
+                    localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(drafts));
+                }""")
                 page.route("https://engine.test/v1/jobs/conditioning/prepare", mock_conditioning)
+                page.reload()
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#mehranSingerApiBase").fill("https://engine.test")
