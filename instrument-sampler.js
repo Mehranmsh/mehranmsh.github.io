@@ -108,8 +108,8 @@
        const onset=((Math.floor(seed/1000)%19)/1000);
        const level=.88+((Math.floor(seed/19000)%25)/100);
        voiceStart=start+onset;voiceStopAt=stopAt+onset;voicePeak=peak*level;
-       if(source.detune)source.detune.setValueAtTime(requestedDetuneCents+(ensemble?ensembleCents:0),voiceStart);
       }
+      if(source.detune)source.detune.setValueAtTime(requestedDetuneCents+(ensemble?ensembleCents:0),voiceStart);
       source.buffer=selected.buffer;
       source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),voiceStart);
       filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),voiceStart);
