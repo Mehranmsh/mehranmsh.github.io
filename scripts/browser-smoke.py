@@ -876,6 +876,7 @@ def main():
                 # Confirm the audition blocks honestly until recorded assets are installed.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#buildListeningDemo").click()
+                page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('بانک صدای واقعی آماده نیست')", timeout=10000)
                 demo_status = page.locator("#patternStatus").inner_text()
                 assert "بانک صدای واقعی آماده نیست" in demo_status and "هیچ صدای مصنوعی" in demo_status, "Instrument audition must clearly block synthetic fallback: " + demo_status
                 demo_projects = page.evaluate("""() => {
