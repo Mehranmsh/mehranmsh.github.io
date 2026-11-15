@@ -57,13 +57,13 @@ jobs:
               for sample in samples:
                   file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
                   assert file.is_file() and file.stat().st_size > 128, str(file)
-          for key in ["violin", "cello", "acoustic_bass", "kalimba", "setar"]:
+          for key in ["violin", "cello", "acoustic_bass", "kalimba", "setar", "cajon", "world_percussion", "acoustic_drums"]:
               samples = data["instruments"][key]["samples"]
               assert len(samples) >= 8, (key, len(samples))
               for sample in samples:
                   file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
                   assert file.is_file() and file.stat().st_size > 128, str(file)
-          print("Recorded sample bank validation passed for all seven instruments.")
+          assert len(data["instruments"]["cajon"]["samples"]) >= 20\n          assert len(data["instruments"]["world_percussion"]["samples"]) >= 150\n          assert len(data["instruments"]["acoustic_drums"]["samples"]) == 128\n          print("Recorded sample bank validation passed for all expanded instrument banks.")
           PY
 
       - name: Commit self-hosted samples
