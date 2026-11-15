@@ -171,6 +171,15 @@ def main():
                 assert "مبنای مقایسه" in comparison_text
                 assert "-20.0 pp" in comparison_text
                 assert "1" in comparison_text
+                with page.expect_download() as comparison_download:
+                    page.locator("#mehranQualityComparison button").click()
+                comparison_path = Path(temp) / "mehran-syllable-quality-comparison.json"
+                comparison_download.value.save_as(comparison_path)
+                comparison_report = __import__("json").loads(comparison_path.read_text(encoding="utf-8"))
+                assert comparison_report["report_type"] == "mehran-syllable-quality-comparison"
+                assert comparison_report["audio_included"] is False
+                assert comparison_report["report_count"] == 2
+                assert comparison_report["rows"][1]["coverage_delta_percentage_points"] == -20.0
                 # Reports from different projects must be rejected.
                 mismatched_report = dict(second_report)
                 mismatched_report["project_id"] = "different-project"
