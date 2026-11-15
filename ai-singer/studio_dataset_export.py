@@ -129,6 +129,8 @@ def build_manifest_record(
         "rights_basis": rights_basis.strip(),
         "alignment_status": "reviewed",
         "phoneme_alignment": conditioning["phonemes"],
+        **({"syllable_alignment": conditioning["syllable_alignment"]}
+           if "syllable_alignment" in conditioning else {}),
         "notes": conditioning["notes"],
         "style": conditioning.get("style", {}),
     }
