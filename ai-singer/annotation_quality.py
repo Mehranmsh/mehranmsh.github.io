@@ -106,6 +106,7 @@ def analyze_annotation(record: dict) -> dict:
     syllables = record.get("syllable_alignment")
     syllable_durations = []
     syllable_phoneme_counts = []
+    syllable_phoneme_coverages = []
     if syllables is not None:
         if record.get("alignment_status") != "reviewed" or not isinstance(syllables, list):
             raise AnnotationQualityError("syllable alignment must be reviewed and well-formed")
@@ -124,11 +125,23 @@ def analyze_annotation(record: dict) -> dict:
                 raise AnnotationQualityError("invalid syllable timing or phoneme range")
             syllable_durations.append(float(end - start))
             syllable_phoneme_counts.append(last - first)
+            assigned_spans = spans[first:last]
+            syllable_phoneme_coverages.append(_union_coverage(
+                float(start), float(end),
+                [
+                    {
+                        "start_seconds": float(span["start_seconds"]),
+                        "duration_seconds": float(span["end_seconds"]) - float(span["start_seconds"]),
+                    }
+                    for span in assigned_spans
+                ],
+            ))
     return {
         "phoneme_count": len(spans),
         "syllable_count": len(syllable_durations),
         "syllable_durations_seconds": syllable_durations,
         "phonemes_per_syllable": syllable_phoneme_counts,
+        "syllable_phoneme_coverage_ratios": syllable_phoneme_coverages,
         "minimum_phoneme_duration_seconds": min(phoneme_span_durations),
         "maximum_phoneme_duration_seconds": max(phoneme_span_durations),
         "phoneme_note_coverage_ratios": phoneme_note_coverages,
@@ -164,6 +177,7 @@ def summarize_annotation_quality(
     minimum_phoneme_duration_seconds: float | None = None,
     maximum_phoneme_duration_seconds: float | None = None,
     minimum_phoneme_note_coverage: float | None = None,
+    minimum_syllable_phoneme_coverage: float | None = None,
 ) -> dict:
     """Summarize annotations and apply only explicitly configured warning thresholds."""
     min_phoneme = _threshold(minimum_phoneme_coverage, "minimum_phoneme_coverage", maximum=1.0)
@@ -173,6 +187,7 @@ def summarize_annotation_quality(
     min_phoneme_duration = _threshold(minimum_phoneme_duration_seconds, "minimum_phoneme_duration_seconds")
     max_phoneme_duration = _threshold(maximum_phoneme_duration_seconds, "maximum_phoneme_duration_seconds")
     min_phoneme_note = _threshold(minimum_phoneme_note_coverage, "minimum_phoneme_note_coverage", maximum=1.0)
+    min_syllable_phoneme = _threshold(minimum_syllable_phoneme_coverage, "minimum_syllable_phoneme_coverage", maximum=1.0)
     if min_phoneme_duration is not None and max_phoneme_duration is not None and min_phoneme_duration > max_phoneme_duration:
         raise AnnotationQualityError("minimum_phoneme_duration_seconds must not exceed maximum_phoneme_duration_seconds")
     diagnostics = [analyze_annotation(record) for record in records]
@@ -191,6 +206,9 @@ def summarize_annotation_quality(
     ]
     phonemes_per_syllable = [
         value for item in diagnostics for value in item["phonemes_per_syllable"]
+    ]
+    syllable_phoneme_coverage = [
+        value for item in diagnostics for value in item["syllable_phoneme_coverage_ratios"]
     ]
     recordings_with_syllables = sum(item["syllable_count"] > 0 for item in diagnostics)
     phoneme_note_coverage = [
@@ -228,6 +246,13 @@ def summarize_annotation_quality(
         )
         if count:
             warnings.append({"code": "low_phoneme_note_coverage", "recordings": count})
+    if min_syllable_phoneme is not None:
+        count = sum(
+            any(value < min_syllable_phoneme for value in item["syllable_phoneme_coverage_ratios"])
+            for item in diagnostics
+        )
+        if count:
+            warnings.append({"code": "low_syllable_phoneme_coverage", "recordings": count})
     if max_edge is not None:
         count = sum(
             item["leading_unannotated_seconds"] > max_edge
@@ -268,6 +293,12 @@ def summarize_annotation_quality(
                 "p50": _percentile(phonemes_per_syllable, 0.50),
                 "p90": _percentile(phonemes_per_syllable, 0.90),
             },
+            "phoneme_time_coverage": {
+                "mean": sum(syllable_phoneme_coverage) / len(syllable_phoneme_coverage) if syllable_phoneme_coverage else None,
+                "p50": _percentile(syllable_phoneme_coverage, 0.50),
+                "p90": _percentile(syllable_phoneme_coverage, 0.90),
+                "syllables_with_uncovered_time": sum(value < 1.0 for value in syllable_phoneme_coverage),
+            },
         },
         "phoneme_durations": {
             "minimum_seconds": min(shortest_phonemes, default=None),
@@ -300,5 +331,6 @@ def summarize_annotation_quality(
             "minimum_phoneme_duration_seconds": min_phoneme_duration,
             "maximum_phoneme_duration_seconds": max_phoneme_duration,
             "minimum_phoneme_note_coverage": min_phoneme_note,
+            "minimum_syllable_phoneme_coverage": min_syllable_phoneme,
         },
     }
