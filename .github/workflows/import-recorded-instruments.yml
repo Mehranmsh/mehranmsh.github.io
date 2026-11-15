@@ -58,6 +58,53 @@ jobs:
                   print(f"AUDIO {item.file_size:>10} bytes | {item.filename}")
           PY
 
+      - name: Deep-audit Persian recordings before any instrument import
+        run: |
+          python - <<'PY'
+          import io, urllib.request, zipfile, hashlib, collections, json, subprocess, tempfile, os, statistics
+          url = "https://raw.githubusercontent.com/SeyedMuhammadHosseinMousavi/Persian-Classical-Music-Instrument-Recognition-PCMIR-Using-a-Novel-Persian-Music-Database/main/PCMIR%20Small.zip"
+          req = urllib.request.Request(url, headers={"User-Agent":"MEHRAN-MUSIC audio quality audit"})
+          with urllib.request.urlopen(req, timeout=90) as r:
+              archive = r.read()
+          z = zipfile.ZipFile(io.BytesIO(archive))
+          grouped = collections.defaultdict(list)
+          for item in z.infolist():
+              if item.is_dir() or not item.filename.lower().endswith((".mp3",".wav",".flac",".ogg")):
+                  continue
+              parts = item.filename.replace("\\\\", "/").split("/")
+              name = next((p.lower() for p in parts if p.lower() in {"ney","tar","santur","kamancheh"}), "unknown")
+              grouped[name].append(item)
+          for name, items in sorted(grouped.items()):
+              hashes = collections.Counter()
+              durations, rates, channels, codecs = [], [], [], collections.Counter()
+              print(f"\n=== {name.upper()} | files={len(items)} ===")
+              for item in items:
+                  raw = z.read(item)
+                  hashes[hashlib.sha256(raw).hexdigest()] += 1
+                  suffix = os.path.splitext(item.filename)[1] or ".audio"
+                  with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
+                      tmp.write(raw); tmp.flush()
+                      p = subprocess.run(["ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=codec_name,sample_rate,channels,duration:format=duration","-of","json",tmp.name],capture_output=True,text=True)
+                  if p.returncode:
+                      print("PROBE_ERROR", item.filename, p.stderr[:180])
+                      continue
+                  info = json.loads(p.stdout)
+                  stream = (info.get("streams") or [{}])[0]
+                  duration = float(stream.get("duration") or info.get("format",{}).get("duration") or 0)
+                  durations.append(duration)
+                  rates.append(int(stream.get("sample_rate") or 0))
+                  channels.append(int(stream.get("channels") or 0))
+                  codecs[stream.get("codec_name","unknown")] += 1
+              print("unique_audio_hashes:",len(hashes),"duplicate_files:",sum(v-1 for v in hashes.values()))
+              print("codec_counts:",dict(codecs))
+              print("sample_rates_hz:",dict(collections.Counter(rates)))
+              print("channel_counts:",dict(collections.Counter(channels)))
+              if durations:
+                  print("duration_seconds_min_median_max:",round(min(durations),3),round(statistics.median(durations),3),round(max(durations),3))
+              print("file_size_bytes_min_max:",min(x.file_size for x in items),max(x.file_size for x in items))
+          print("\nDeep audit complete. No PCMIR samples have been added to the playable instrument manifest.")
+          PY
+
       - name: Import real female and male human vocal samples
         run: python scripts/import-vocalset.py
 
