@@ -893,7 +893,7 @@ def main():
                 assert demo_project and len(demo_project["tracks"]) == 3, "Listening demo did not create all three tracks: " + str(demo_project)
                 expected_demo_tracks = {"01 · Harmony Ensemble", "02 · Live Guitar Motif", "03 · Drum Groove"}
                 assert {track["name"] for track in demo_project["tracks"]} == expected_demo_tracks
-                demo_audio_assets = page.evaluate("""async (projectId, tracks) => {
+                demo_audio_assets = page.evaluate("""async ({projectId, tracks}) => {
                     const db = await new Promise((resolve, reject) => {
                         const req = indexedDB.open("mehran_music_studio_audio_v1", 1);
                         req.onsuccess = () => resolve(req.result);
@@ -906,7 +906,7 @@ def main():
                     })));
                     db.close();
                     return assets;
-                }""", demo_project["id"], demo_project["tracks"])
+                }""", {"projectId": demo_project["id"], "tracks": demo_project["tracks"]})
                 assert all(demo_audio_assets), "One or more demo WAVs were not persisted in IndexedDB: " + str(demo_audio_assets)
                 page.locator("#playMix").click()
                 page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 3 track(s) together')", timeout=10000)
