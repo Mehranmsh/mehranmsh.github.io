@@ -25,6 +25,29 @@ def _threshold(value: float | None, name: str, *, maximum: float | None = None) 
     return result
 
 
+def _union_coverage(start: float, end: float, notes: list[dict]) -> float:
+    intervals = []
+    for note in notes:
+        note_start = float(note["start_seconds"])
+        note_end = note_start + float(note["duration_seconds"])
+        left, right = max(start, note_start), min(end, note_end)
+        if right > left:
+            intervals.append((left, right))
+    covered = 0.0
+    merged_start = merged_end = None
+    for left, right in sorted(intervals):
+        if merged_start is None:
+            merged_start, merged_end = left, right
+        elif left <= merged_end:
+            merged_end = max(merged_end, right)
+        else:
+            covered += merged_end - merged_start
+            merged_start, merged_end = left, right
+    if merged_start is not None:
+        covered += merged_end - merged_start
+    return min(1.0, covered / (end - start))
+
+
 def analyze_annotation(record: dict) -> dict:
     """Return timing diagnostics for one already manifest-validated Persian record."""
     duration = record.get("duration_seconds")
@@ -38,6 +61,7 @@ def analyze_annotation(record: dict) -> dict:
 
     phoneme_duration = 0.0
     phoneme_span_durations = []
+    phoneme_note_coverages = []
     internal_gaps = []
     vowel_duration = 0.0
     vowel_note_overlap = 0.0
@@ -60,6 +84,7 @@ def analyze_annotation(record: dict) -> dict:
         span_duration = float(end - start)
         phoneme_duration += span_duration
         phoneme_span_durations.append(span_duration)
+        phoneme_note_coverages.append(_union_coverage(float(start), float(end), notes))
         vowel_spans.append((symbol, float(start), float(end)))
     from phoneme_inventory import PHONEME_FEATURES, canonicalize_phoneme
 
@@ -106,6 +131,7 @@ def analyze_annotation(record: dict) -> dict:
         "phonemes_per_syllable": syllable_phoneme_counts,
         "minimum_phoneme_duration_seconds": min(phoneme_span_durations),
         "maximum_phoneme_duration_seconds": max(phoneme_span_durations),
+        "phoneme_note_coverage_ratios": phoneme_note_coverages,
         "vowel_count": sum(
             1 for symbol, _, _ in vowel_spans
             if PHONEME_FEATURES.get(canonicalize_phoneme(symbol), {}).get("kind") == "vowel"
@@ -137,6 +163,7 @@ def summarize_annotation_quality(
     maximum_edge_unannotated_seconds: float | None = None,
     minimum_phoneme_duration_seconds: float | None = None,
     maximum_phoneme_duration_seconds: float | None = None,
+    minimum_phoneme_note_coverage: float | None = None,
 ) -> dict:
     """Summarize annotations and apply only explicitly configured warning thresholds."""
     min_phoneme = _threshold(minimum_phoneme_coverage, "minimum_phoneme_coverage", maximum=1.0)
@@ -145,6 +172,7 @@ def summarize_annotation_quality(
     max_edge = _threshold(maximum_edge_unannotated_seconds, "maximum_edge_unannotated_seconds")
     min_phoneme_duration = _threshold(minimum_phoneme_duration_seconds, "minimum_phoneme_duration_seconds")
     max_phoneme_duration = _threshold(maximum_phoneme_duration_seconds, "maximum_phoneme_duration_seconds")
+    min_phoneme_note = _threshold(minimum_phoneme_note_coverage, "minimum_phoneme_note_coverage", maximum=1.0)
     if min_phoneme_duration is not None and max_phoneme_duration is not None and min_phoneme_duration > max_phoneme_duration:
         raise AnnotationQualityError("minimum_phoneme_duration_seconds must not exceed maximum_phoneme_duration_seconds")
     diagnostics = [analyze_annotation(record) for record in records]
@@ -165,6 +193,13 @@ def summarize_annotation_quality(
         value for item in diagnostics for value in item["phonemes_per_syllable"]
     ]
     recordings_with_syllables = sum(item["syllable_count"] > 0 for item in diagnostics)
+    phoneme_note_coverage = [
+        value for item in diagnostics for value in item["phoneme_note_coverage_ratios"]
+    ]
+    recordings_with_uncovered_phonemes = sum(
+        any(value <= 0 for value in item["phoneme_note_coverage_ratios"])
+        for item in diagnostics
+    )
     warnings = []
     if min_phoneme is not None:
         count = sum(value < min_phoneme for value in coverage)
@@ -186,6 +221,13 @@ def summarize_annotation_quality(
         count = sum(value > max_phoneme_duration for value in longest_phonemes)
         if count:
             warnings.append({"code": "very_long_phoneme_span", "recordings": count})
+    if min_phoneme_note is not None:
+        count = sum(
+            any(value < min_phoneme_note for value in item["phoneme_note_coverage_ratios"])
+            for item in diagnostics
+        )
+        if count:
+            warnings.append({"code": "low_phoneme_note_coverage", "recordings": count})
     if max_edge is not None:
         count = sum(
             item["leading_unannotated_seconds"] > max_edge
@@ -204,6 +246,14 @@ def summarize_annotation_quality(
         "vowel_note_time_coverage": {
             "mean": sum(vowel_coverage) / len(vowel_coverage) if vowel_coverage else None,
             "recordings_with_vowels": len(vowel_coverage),
+        },
+        "phoneme_note_time_coverage": {
+            "phonemes_analyzed": len(phoneme_note_coverage),
+            "mean": sum(phoneme_note_coverage) / len(phoneme_note_coverage) if phoneme_note_coverage else None,
+            "p50": _percentile(phoneme_note_coverage, 0.50),
+            "p90": _percentile(phoneme_note_coverage, 0.90),
+            "uncovered_phonemes": sum(value <= 0 for value in phoneme_note_coverage),
+            "recordings_with_uncovered_phonemes": recordings_with_uncovered_phonemes,
         },
         "syllable_alignment": {
             "recordings_with_syllables": recordings_with_syllables,
@@ -249,5 +299,6 @@ def summarize_annotation_quality(
             "maximum_edge_unannotated_seconds": max_edge,
             "minimum_phoneme_duration_seconds": min_phoneme_duration,
             "maximum_phoneme_duration_seconds": max_phoneme_duration,
+            "minimum_phoneme_note_coverage": min_phoneme_note,
         },
     }
