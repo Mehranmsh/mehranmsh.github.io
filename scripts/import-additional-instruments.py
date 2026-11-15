@@ -25,6 +25,72 @@ def midi(note):
         raise ValueError("Unsupported sample pitch: " + note)
     return (int(match.group(2)) + 1) * 12 + NOTE[match.group(1)]
 
+
+def import_setar_commons(manifest):
+    params = {
+        "action":"query","format":"json","generator":"categorymembers",
+        "gcmtitle":"Category:Setar","gcmtype":"file","gcmlimit":"500",
+        "prop":"imageinfo","iiprop":"url|extmetadata"
+    }
+    api_url = "https://commons.wikimedia.org/w/api.php?" + urllib.parse.urlencode(params)
+    payload = json.loads(get(api_url).decode("utf-8"))
+    pages = payload.get("query", {}).get("pages", {}).values()
+    by_fret = {}
+    for page in pages:
+        title = page.get("title", "")
+        if not title.startswith("File:Setar 1st string tuned to C,") or not title.lower().endswith(".ogg"):
+            continue
+        info_list = page.get("imageinfo", [])
+        if not info_list:
+            continue
+        info = info_list[0]
+        ext = info.get("extmetadata", {})
+        license_name = re.sub(r"<[^>]+>", "", ext.get("LicenseShortName", {}).get("value", ""))
+        if "CC BY-SA 4.0" not in license_name:
+            continue
+        if "open string" in title.lower():
+            fret = 0
+            note_label = "C open string"
+        else:
+            match = re.search(r",\s*(\d+)(?:st|nd|rd|th)\s+fret\s+(.+?)\.ogg$", title, re.I)
+            if not match:
+                continue
+            fret = int(match.group(1))
+            note_label = match.group(2)
+        if 0 <= fret <= 25 and fret not in by_fret:
+            by_fret[fret] = {"title": title, "url": info["url"], "artist": "Jacqke",
+                "noteLabel": note_label, "license": license_name}
+    if len(by_fret) < 12:
+        raise RuntimeError(f"Not enough verified CC BY-SA setar note recordings: {len(by_fret)}")
+    target_dir = ROOT / "assets/instruments/samples/commons-setar"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for fret, item in sorted(by_fret.items()):
+        filename = f"setar-fret-{fret:02d}.ogg"
+        target = target_dir / filename
+        if not target.exists() or target.stat().st_size < 128:
+            audio = get(item["url"])
+            if not audio.startswith(b"OggS"):
+                raise RuntimeError("Invalid Commons OGG file: " + item["title"])
+            target.write_bytes(audio)
+        entries.append({"rootNote":60+fret,"velocityMin":0,"velocityMax":1,
+            "url":f"./assets/instruments/samples/commons-setar/{filename}",
+            "sourceFile":item["title"],"noteLabel":item["noteLabel"]})
+    manifest["instruments"]["setar"] = {
+        "displayName":"Persian Setar","attackSeconds":0.004,"releaseSeconds":0.55,
+        "filterHz":14500,"source":"Wikimedia Commons, note recordings by Jacqke",
+        "license":"CC-BY-SA-4.0","samples":entries
+    }
+    attribution = [
+        "Persian Setar recorded notes by Jacqke, sourced from Wikimedia Commons Category:Setar.",
+        "License: Creative Commons Attribution-ShareAlike 4.0 International.",
+        "https://creativecommons.org/licenses/by-sa/4.0/",
+        "Source category: https://commons.wikimedia.org/wiki/Category:Setar",
+        "The samples are redistributed in the original OGG format. The root-key mapping follows the recorded 1st-string fret positions; Persian quarter-tone labels are retained in manifest noteLabel metadata."
+    ]
+    (ROOT / "assets/instruments/samples/SETAR-ATTRIBUTION.txt").write_text("\n".join(attribution)+"\n", encoding="utf-8")
+    return len(entries)
+
 def main():
     manifest_path = ROOT / "assets/instruments/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -108,10 +174,12 @@ def main():
     }
     license_text = get("https://raw.githubusercontent.com/sgossner/VCSL/master/LICENSE").decode("utf-8")
     (ROOT / "assets/instruments/samples/VCSL-CC0-LICENSE.txt").write_text(license_text, encoding="utf-8")
+    setar_count = import_setar_commons(manifest)
     manifest["status"] = "expanded-recorded-bank"
     manifest["sourcePolicy"] = "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"Kalimba: {len(entries)} recorded pitch zones")
+    print(f"Setar: {setar_count} recorded fret-note zones")
     print(f"Downloaded {total_bytes/1024/1024:.1f} MiB of ToneJS OGG samples; VCSL kalimba converted to OGG.")
 
 if __name__ == "__main__":
