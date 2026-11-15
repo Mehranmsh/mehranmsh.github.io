@@ -60,7 +60,7 @@
     }else{
      for(const sample of valid)selected.set(sample.url,sample);
     }
-    if(!selected.size)throw new Error("No playable note samples selected for "+name);
+    if(!selected.size)throw new Error("No playable note samples selected for "+name+"; event note examples: "+requested.slice(0,4).map(event=>String(event&&event.note)).join(", "));
     const prepared=await Promise.all([...selected.values()].map(async sample=>({...sample,buffer:await decodeSample(ctx,sample)})));
     return {play(midi,at,duration,settings){
      const note=Number(midi),start=Number(at),length=Number(duration),velocity=clamp(Number((settings&&settings.velocity)??(settings&&settings.gain)??.8),.01,1);
