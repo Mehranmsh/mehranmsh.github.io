@@ -107,6 +107,10 @@ def analyze_annotation(record: dict) -> dict:
     syllable_durations = []
     syllable_phoneme_counts = []
     syllable_phoneme_coverages = []
+    syllable_leading_slack = []
+    syllable_trailing_slack = []
+    syllable_internal_gap_maxima = []
+    syllable_internal_gap_totals = []
     if syllables is not None:
         if record.get("alignment_status") != "reviewed" or not isinstance(syllables, list):
             raise AnnotationQualityError("syllable alignment must be reviewed and well-formed")
@@ -126,6 +130,16 @@ def analyze_annotation(record: dict) -> dict:
             syllable_durations.append(float(end - start))
             syllable_phoneme_counts.append(last - first)
             assigned_spans = spans[first:last]
+            assigned_start = float(assigned_spans[0]["start_seconds"])
+            assigned_end = float(assigned_spans[-1]["end_seconds"])
+            assigned_gaps = [
+                max(0.0, float(right["start_seconds"]) - float(left["end_seconds"]))
+                for left, right in zip(assigned_spans, assigned_spans[1:])
+            ]
+            syllable_leading_slack.append(max(0.0, assigned_start - float(start)))
+            syllable_trailing_slack.append(max(0.0, float(end) - assigned_end))
+            syllable_internal_gap_maxima.append(max(assigned_gaps, default=0.0))
+            syllable_internal_gap_totals.append(sum(assigned_gaps))
             syllable_phoneme_coverages.append(_union_coverage(
                 float(start), float(end),
                 [
@@ -142,6 +156,10 @@ def analyze_annotation(record: dict) -> dict:
         "syllable_durations_seconds": syllable_durations,
         "phonemes_per_syllable": syllable_phoneme_counts,
         "syllable_phoneme_coverage_ratios": syllable_phoneme_coverages,
+        "syllable_leading_boundary_slack_seconds": syllable_leading_slack,
+        "syllable_trailing_boundary_slack_seconds": syllable_trailing_slack,
+        "syllable_internal_gap_max_seconds": syllable_internal_gap_maxima,
+        "syllable_internal_gap_total_seconds": syllable_internal_gap_totals,
         "minimum_phoneme_duration_seconds": min(phoneme_span_durations),
         "maximum_phoneme_duration_seconds": max(phoneme_span_durations),
         "phoneme_note_coverage_ratios": phoneme_note_coverages,
@@ -209,6 +227,18 @@ def summarize_annotation_quality(
     ]
     syllable_phoneme_coverage = [
         value for item in diagnostics for value in item["syllable_phoneme_coverage_ratios"]
+    ]
+    syllable_leading_slack = [
+        value for item in diagnostics for value in item["syllable_leading_boundary_slack_seconds"]
+    ]
+    syllable_trailing_slack = [
+        value for item in diagnostics for value in item["syllable_trailing_boundary_slack_seconds"]
+    ]
+    syllable_internal_gap_maxima = [
+        value for item in diagnostics for value in item["syllable_internal_gap_max_seconds"]
+    ]
+    syllable_internal_gap_totals = [
+        value for item in diagnostics for value in item["syllable_internal_gap_total_seconds"]
     ]
     recordings_with_syllables = sum(item["syllable_count"] > 0 for item in diagnostics)
     phoneme_note_coverage = [
@@ -298,6 +328,19 @@ def summarize_annotation_quality(
                 "p50": _percentile(syllable_phoneme_coverage, 0.50),
                 "p90": _percentile(syllable_phoneme_coverage, 0.90),
                 "syllables_with_uncovered_time": sum(value < 1.0 for value in syllable_phoneme_coverage),
+            },
+            "boundary_slack_seconds": {
+                "leading_mean": sum(syllable_leading_slack) / len(syllable_leading_slack) if syllable_leading_slack else None,
+                "leading_p50": _percentile(syllable_leading_slack, 0.50),
+                "leading_p90": _percentile(syllable_leading_slack, 0.90),
+                "trailing_mean": sum(syllable_trailing_slack) / len(syllable_trailing_slack) if syllable_trailing_slack else None,
+                "trailing_p50": _percentile(syllable_trailing_slack, 0.50),
+                "trailing_p90": _percentile(syllable_trailing_slack, 0.90),
+            },
+            "internal_phoneme_gaps_seconds": {
+                "maximum": max(syllable_internal_gap_maxima, default=None),
+                "mean_total_per_syllable": sum(syllable_internal_gap_totals) / len(syllable_internal_gap_totals) if syllable_internal_gap_totals else None,
+                "syllables_with_gaps": sum(value > 0 for value in syllable_internal_gap_maxima),
             },
         },
         "phoneme_durations": {
