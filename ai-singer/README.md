@@ -494,3 +494,6 @@ python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/audio \
 ```
 
 This is temporal overlap of reviewed symbolic intervals only. It is not acoustic alignment, sung-pitch verification, or a universal Persian pronunciation rule. The threshold is an operator choice and remains unset unless explicitly supplied.
+
+
+Reviewed syllable annotations also receive a temporal consistency diagnostic: the audit measures how much of each syllable interval is covered by the phoneme spans assigned to it, then reports aggregate mean/p50/p90 coverage and the number of syllables with uncovered time. This can reveal timing gaps or generous syllable boundaries without changing the reviewed annotation. An optional threshold is available with `--minimum-syllable-phoneme-coverage 0.9`; it is an operator-selected warning level, not a Persian phonological standard. Syllable labels remain excluded from the report.
