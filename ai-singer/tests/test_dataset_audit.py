@@ -134,6 +134,22 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertEqual(quality["warnings"], [])
         self.assertTrue(report["training_readiness"]["ready_for_staged_training"])
 
+    def test_includes_aggregate_reviewed_syllable_metrics_without_labels(self):
+        records = self.dataset()
+        records[0]["syllable_alignment"] = [{
+            "text": "سَ", "start_seconds": 0.0, "end_seconds": 0.5,
+            "phoneme_start_index": 0, "phoneme_end_index": 1,
+        }]
+        report = audit_dataset(self.write(records))
+        metrics = report["splits"]["train"]["annotation_quality"]["syllable_alignment"]
+        self.assertEqual(metrics["recordings_with_syllables"], 1)
+        self.assertEqual(metrics["total_syllables"], 1)
+        self.assertEqual(metrics["duration_seconds"]["mean"], 0.5)
+        serialized = json.dumps(report, ensure_ascii=False)
+        self.assertNotIn("سَ", serialized)
+        self.assertNotIn("tr-target", serialized)
+        self.assertNotIn("speaker-A", serialized)
+
     def test_optional_annotation_thresholds_add_privacy_safe_warnings(self):
         report = audit_dataset(
             self.write(self.dataset()),
