@@ -118,6 +118,38 @@ def main():
                 assert page.locator("#mehranSingerReviewedSyllablePhonemes").count() == 1
                 assert page.locator("#mehranSingerPhonemeWeights").count() == 1
                 assert page.locator("#prepareMehranSingerConditioning").count() == 1
+
+                # Exercise the quality-report JSON export using explicit local-only fixture metadata.
+                page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    const project = drafts.find(item => item.name === "Automated Audio QA");
+                    project.singerAlignment.acousticConditioning = {
+                        phonemes: [
+                            { phoneme: "s", start_seconds: 0.05, end_seconds: 0.20 },
+                            { phoneme: "æ", start_seconds: 0.20, end_seconds: 0.42 }
+                        ],
+                        notes: [{ midi_note: 60, start_seconds: 0, duration_seconds: 0.5 }]
+                    };
+                    project.singerAlignment.syllableAlignment = [{
+                        text: "سَلام", start_seconds: 0.05, end_seconds: 0.42,
+                        phoneme_start_index: 0, phoneme_end_index: 2
+                    }];
+                    localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(drafts));
+                    document.querySelector("#vocalProject").dispatchEvent(new Event("change", { bubbles: true }));
+                }""")
+                assert page.locator("#exportMehranSyllableQualityReport").is_enabled(), "Quality JSON export did not enable for complete local metadata."
+                with page.expect_download() as quality_download:
+                    page.locator("#exportMehranSyllableQualityReport").click()
+                quality_path = Path(temp) / "mehran-syllable-timing-quality-report.json"
+                quality_download.value.save_as(quality_path)
+                quality_report = __import__("json").loads(quality_path.read_text(encoding="utf-8"))
+                assert quality_report["schema_version"] == "1.0"
+                assert quality_report["audio_included"] is False
+                assert quality_report["summary"]["syllables_reviewed"] == 1
+                assert quality_report["summary"]["syllables_invalid_or_incomplete"] == 0
+                assert quality_report["syllables"][0]["phoneme_count"] == 2
+                assert quality_report["syllables"][0]["phoneme_coverage_ratio"] == 1
+                assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
