@@ -1034,15 +1034,17 @@ def main():
                 page.locator("#patternBars").select_option("1")
                 page.locator("#patternNotes").fill("C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -")
                 for mode in live_modes_available:
+                    print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").select_option(mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
                     try:
                         page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                     except Exception as exc:
-                        print("LIVE INSTRUMENT TIMEOUT:", mode, "status=", page.locator("#patternStatus").inner_text(), "button_disabled=", page.locator("#renderPattern").is_disabled())
+                        print("LIVE INSTRUMENT TIMEOUT:", mode, "status=", page.locator("#patternStatus").inner_text(), "button_disabled=", page.locator("#renderPattern").is_disabled(), flush=True)
                         raise
                     live_status = page.locator("#patternStatus").inner_text()
+                    print("LIVE BANK RESULT:", mode, live_status, flush=True)
                     assert "Generated WAV added to the mixer" in live_status, "Imported live instrument did not render from recorded samples: " + mode + "; " + live_status
                 print("PASS: 19 melodic instrument banks render from self-hosted recorded samples")
                 for mode in live_modes_missing:
