@@ -49,13 +49,14 @@ class ConditioningBuilderTests(unittest.TestCase):
         result = prepare_acoustic_conditioning(
             project_id="project-1", timing_plan=self.timing_plan(),
             notes=[
+                {"midi_note": 57, "start_seconds": 0.0, "duration_seconds": 0.2},
                 {"midi_note": 60, "start_seconds": 0.2, "duration_seconds": 0.2},
                 {"midi_note": 64, "start_seconds": 0.6, "duration_seconds": 0.2},
             ],
             duration_seconds=1.0,
         )
         vowel_mapping = result["phoneme_note_mapping"][1]
-        self.assertEqual(vowel_mapping["note_indices"], [0, 1])
+        self.assertEqual(vowel_mapping["note_indices"], [1, 2])
         self.assertAlmostEqual(vowel_mapping["note_covered_seconds"], 0.4)
         self.assertAlmostEqual(vowel_mapping["note_coverage_ratio"], 2 / 3)
 
