@@ -1,0 +1,66 @@
+name: Import recorded instrument samples
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/import-recorded-instruments.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: recorded-instrument-import
+  cancel-in-progress: false
+
+jobs:
+  import-cc0-samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out MEHRAN MUSIC
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Import CC0 recorded piano and guitar samples
+        run: python scripts/import-recorded-instruments.py
+
+      - name: Validate imported sample bank
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("assets/instruments/manifest.json")
+          data = json.loads(p.read_text())
+          expected = {
+              "acoustic_grand_piano": 352,
+              "acoustic_guitar_steel": 375,
+              "acoustic_guitar_nylon": 348,
+          }
+          for key, count in expected.items():
+              samples = data["instruments"][key]["samples"]
+              assert len(samples) == count, (key, len(samples), count)
+              for sample in samples:
+                  file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
+                  assert file.is_file() and file.stat().st_size > 128, str(file)
+          print("Recorded sample bank validation passed.")
+          PY
+
+      - name: Commit self-hosted samples
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/instruments/manifest.json assets/instruments/samples
+          if git diff --cached --quiet; then
+            echo "No sample changes to commit."
+          else
+            git commit -m "Import CC0 recorded piano and guitar sample banks"
+            git push
+          fi
