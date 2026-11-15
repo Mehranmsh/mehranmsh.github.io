@@ -38,7 +38,8 @@ def main():
     for instrument, (folder, label) in mapping.items():
         names = sorted(item["path"].split("/")[-1] for item in tone_tree
             if item.get("type") == "blob" and item["path"].startswith(f"samples/{folder}/")
-            and item["path"].lower().endswith(".ogg"))
+            and item["path"].lower().endswith(".ogg")
+            and re.fullmatch(r"(?:Cs|Ds|Fs|Gs|As|[A-G])\\d+\\.ogg", item["path"].split("/")[-1]))
         if not names:
             raise RuntimeError("No recorded OGG notes found for " + instrument)
         target_dir = ROOT / "assets/instruments/samples" / folder
@@ -48,7 +49,7 @@ def main():
             note = name[:-4]
             target = target_dir / name
             if not target.exists() or target.stat().st_size < 128:
-                data = get(f"{BASE}/samples/{folder}/{name}")
+                data = get(f"{BASE}/samples/{folder}/{urllib.parse.quote(name)}")
                 if not data.startswith(b"OggS"):
                     raise RuntimeError("Invalid OGG sample: " + name)
                 target.write_bytes(data)
