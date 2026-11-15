@@ -1,0 +1,24 @@
+{
+  "provider": "Meta Creative Audio",
+  "repository": "https://github.com/facebookincubator/Meta-open-sound",
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "collections": [
+    {
+      "id": "meta-piano",
+      "path": "systems/instruments/meta-piano",
+      "sample_count": 352
+    },
+    {
+      "id": "meta-steel-guitar",
+      "path": "systems/instruments/meta-steel-guitar",
+      "sample_count": 375
+    },
+    {
+      "id": "meta-nylon-guitar",
+      "path": "systems/instruments/meta-nylon-guitar",
+      "sample_count": 348
+    }
+  ],
+  "note": "Recorded OGG web previews copied into this project for same-origin playback. Full-quality 24-bit/48kHz WAV source bundles are available from the upstream releases."
+}
