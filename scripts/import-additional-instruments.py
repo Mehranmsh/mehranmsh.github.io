@@ -113,6 +113,7 @@ def import_drum_and_percussion_banks(manifest):
     # FreePats: authentic cajon and world-percussion recordings, CC0.
     archive = get("https://codeload.github.com/freepats/world-percussion/zip/refs/heads/main")
     with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        freepats_license = bundle.read(next(n for n in bundle.namelist() if n.endswith("/LICENSE.txt")))
         sfz_name = next(n for n in bundle.namelist() if n.endswith("WorldPercussion 20200905.sfz"))
         sfz = bundle.read(sfz_name).decode("utf-8")
         groups = re.findall(r"<group>(.*?)(?=<group>|$)", sfz, re.S)
@@ -145,7 +146,6 @@ def import_drum_and_percussion_banks(manifest):
                     cajon_entries.append(entry)
         if len(cajon_entries) < 20 or len(percussion_entries) < 150:
             raise RuntimeError(f"FreePats percussion import incomplete: cajon={len(cajon_entries)}, total={len(percussion_entries)}")
-        freepats_license = bundle.read(next(n for n in bundle.namelist() if n.endswith("/LICENSE.txt")))
     manifest["instruments"]["cajon"] = {
         "displayName":"Cajón Flamenco","attackSeconds":0.001,"releaseSeconds":0.22,
         "filterHz":16000,"source":"FreePats World Percussion, recorded by Xavimart, Gonzalo and Roberto",
