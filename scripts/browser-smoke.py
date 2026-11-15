@@ -1027,18 +1027,27 @@ def main():
                     instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
 
-                # Only instruments with imported recorded sample banks may render in live mode.
-                live_modes = ["live_violin", "live_cello", "live_tar", "live_setar", "live_santur", "live_ney", "live_kalimba", "live_bass"]
+                # Four newly imported instruments must render from their own same-origin recorded samples.
+                live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass"]
+                live_modes_missing = ["live_tar", "live_setar", "live_santur", "live_ney"]
                 page.locator("#patternBars").select_option("1")
                 page.locator("#patternNotes").fill("C3, E3, G3, C4, G3, E3, D3, C3, -, -, -, -, -, -, -, -")
-                for mode in live_modes:
+                for mode in live_modes_available:
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternTrackName").fill("Live QA " + mode)
+                    page.locator("#renderPattern").click()
+                    page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
+                    live_status = page.locator("#patternStatus").inner_text()
+                    assert "Generated WAV added to the mixer" in live_status, "Imported live instrument did not render from recorded samples: " + mode + "; " + live_status
+                print("PASS: violin, cello, kalimba and acoustic bass render from self-hosted recorded samples")
+                for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("!document.querySelector('#renderPattern')?.disabled", timeout=60000)
                     live_status = page.locator("#patternStatus").inner_text()
-                    assert "No real recorded samples are installed" in live_status, "Live instrument must fail closed without recorded assets: " + mode + "; " + live_status
-                print("PASS: all 8 not-yet-imported live-instrument modes reject synthetic fallback")
+                    assert "No real recorded samples are installed" in live_status, "Missing live instrument must fail closed without synthetic fallback: " + mode + "; " + live_status
+                print("PASS: tar, setar, santur and ney remain safely blocked until real samples are imported")
                 
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
