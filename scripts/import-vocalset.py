@@ -141,6 +141,19 @@ def main():
                 "license":"CC-BY-4.0","roundRobin":True,"samples":entries
             }
             results[bank]=len(entries)
+    female_samples=manifest["instruments"]["female_vocal"]["samples"]
+    male_samples=manifest["instruments"]["male_vocal"]["samples"]
+    for bank,display,samples in [
+        ("female_choir","Female Human Ensemble · 9 singers",female_samples),
+        ("male_choir","Male Human Ensemble · 11 singers",male_samples),
+        ("mixed_choir","Mixed Human Ensemble · 20 singers",female_samples+male_samples),
+    ]:
+        manifest["instruments"][bank]={
+            "displayName":display,"attackSeconds":0.055,"releaseSeconds":0.28,
+            "filterHz":11500,"source":"Layered individual human singers from VocalSet",
+            "license":"CC-BY-4.0","layered":True,"samples":samples
+        }
+        results[bank]=len(samples)
     attribution = """MEHRAN MUSIC · VOCALSET HUMAN VOWEL BANKS
 
 Original recordings: VocalSet, a singing voice dataset by Julia Wilkins,
