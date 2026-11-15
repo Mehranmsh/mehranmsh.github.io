@@ -1146,12 +1146,12 @@ def main():
                 page.wait_for_timeout(150)
                 audition_dir = ROOT / "test-audio-output"
                 (audition_dir / "README.txt").write_text(
-                    "MEHRAN MUSIC isolated audition pack\\n\\n"
+                    "MEHRAN MUSIC isolated audition pack\n\n"
                     "WAV previews are rendered in Chromium from the studio's self-hosted recorded sample banks. "
                     "This pack is intended for technical and human listening review, not as proof of naturalness. "
                     "Some instruments have limited sample coverage and are not full chromatic libraries. "
                     "Vocal samples are sustained human vowels from VocalSet (CC BY 4.0); ensemble files layer "
-                    "separate recorded singers and are not single live-choir recordings.\\n",
+                    "separate recorded singers and are not single live-choir recordings.\n",
                     encoding="utf-8")
                 audition_files = sorted(audition_dir.glob("*.wav"))
                 manifest_lines = ["file,bank,source"]
@@ -1159,7 +1159,7 @@ def main():
                     bank = audition_file.stem
                     source = "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
-                (audition_dir / "manifest.csv").write_text("\\n".join(manifest_lines) + "\\n", encoding="utf-8")
+                (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 print("PASS: 19 melodic instrument banks, 2 solo vocal banks and 3 layered human ensembles")
                 for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
@@ -1218,7 +1218,7 @@ def main():
                     bank = audition_file.stem
                     source = "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
-                (audition_dir / "manifest.csv").write_text("\\n".join(manifest_lines) + "\\n", encoding="utf-8")
+                (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
