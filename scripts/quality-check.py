@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import sys
+import json
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
