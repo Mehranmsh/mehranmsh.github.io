@@ -1,0 +1,20 @@
+MEHRAN MUSIC · VOCALSET HUMAN VOWEL BANKS
+
+Original recordings: VocalSet, a singing voice dataset by Julia Wilkins,
+Prem Seetharaman, Alison Wahl, and Bryan Pardo (2018), ISMIR 2018.
+Source: https://zenodo.org/records/1442513
+Subset: long-straight sustained vowel recordings (a, e, i, o, u) from
+9 female and 11 male singers.
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+
+Changes made for MEHRAN MUSIC: stable sustained regions were selected,
+pitch was estimated for note mapping, loop points were prepared with a
+short circular crossfade, samples were peak-normalized to -12 dBFS, and
+audio was encoded as OGG Vorbis. These are original human recordings,
+not synthesized choir or AI-generated voices. Pitch-shifted playback is
+processed playback of the recorded human voice.
+
+Please credit:
+Wilkins, J., Seetharaman, P., Wahl, A., & Pardo, B. (2018).
+VocalSet: A Singing Voice Dataset. Proceedings of ISMIR 2018.
