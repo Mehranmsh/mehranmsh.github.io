@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/import-recorded-instruments.yml"
       - "scripts/import-additional-instruments.py"
+      - "scripts/import-vocalset.py"
   workflow_dispatch:
 
 permissions:
