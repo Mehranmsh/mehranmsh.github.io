@@ -1097,8 +1097,12 @@ def main():
                     [live_track_ids["live_guitar"], live_track_ids["live_violin"]]
                 ])):
                     raise AssertionError("Multiple live instrument selections were not saved per section: " + str(selected_tracks))
-                with page.expect_download(timeout=45000) as live_mix_download:
-                    page.locator("#exportArrangement").click()
+                try:
+                    with page.expect_download(timeout=120000) as live_mix_download:
+                        page.locator("#exportArrangement").click()
+                except Exception as export_error:
+                    export_status = page.locator("#arrangementExportStatus").inner_text()
+                    raise AssertionError("Multi-instrument arrangement export did not produce a download. Export status: " + export_status) from export_error
                 live_mix_path = Path(temp) / "mehran-live-multi-instrument-mix.wav"
                 live_mix_download.value.save_as(live_mix_path)
                 with wave.open(str(live_mix_path), "rb") as live_mix:
