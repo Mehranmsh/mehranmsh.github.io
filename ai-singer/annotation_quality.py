@@ -78,8 +78,32 @@ def analyze_annotation(record: dict) -> dict:
     vowel_note_coverage = (
         min(1.0, vowel_note_overlap / vowel_duration) if vowel_duration > 0 else None
     )
+    syllables = record.get("syllable_alignment")
+    syllable_durations = []
+    syllable_phoneme_counts = []
+    if syllables is not None:
+        if record.get("alignment_status") != "reviewed" or not isinstance(syllables, list):
+            raise AnnotationQualityError("syllable alignment must be reviewed and well-formed")
+        for syllable in syllables:
+            if not isinstance(syllable, dict):
+                raise AnnotationQualityError("invalid syllable annotation")
+            start, end = syllable.get("start_seconds"), syllable.get("end_seconds")
+            first, last = syllable.get("phoneme_start_index"), syllable.get("phoneme_end_index")
+            if (isinstance(start, bool) or isinstance(end, bool)
+                    or not isinstance(start, (int, float)) or not isinstance(end, (int, float))
+                    or not math.isfinite(start) or not math.isfinite(end)
+                    or start < 0 or end <= start or end > duration + 0.02
+                    or isinstance(first, bool) or isinstance(last, bool)
+                    or not isinstance(first, int) or not isinstance(last, int)
+                    or first < 0 or last <= first or last > len(spans)):
+                raise AnnotationQualityError("invalid syllable timing or phoneme range")
+            syllable_durations.append(float(end - start))
+            syllable_phoneme_counts.append(last - first)
     return {
         "phoneme_count": len(spans),
+        "syllable_count": len(syllable_durations),
+        "syllable_durations_seconds": syllable_durations,
+        "phonemes_per_syllable": syllable_phoneme_counts,
         "minimum_phoneme_duration_seconds": min(phoneme_span_durations),
         "maximum_phoneme_duration_seconds": max(phoneme_span_durations),
         "vowel_count": sum(
@@ -134,6 +158,13 @@ def summarize_annotation_quality(
     trailing_gaps = [item["trailing_unannotated_seconds"] for item in diagnostics]
     shortest_phonemes = [item["minimum_phoneme_duration_seconds"] for item in diagnostics]
     longest_phonemes = [item["maximum_phoneme_duration_seconds"] for item in diagnostics]
+    syllable_durations = [
+        value for item in diagnostics for value in item["syllable_durations_seconds"]
+    ]
+    phonemes_per_syllable = [
+        value for item in diagnostics for value in item["phonemes_per_syllable"]
+    ]
+    recordings_with_syllables = sum(item["syllable_count"] > 0 for item in diagnostics)
     warnings = []
     if min_phoneme is not None:
         count = sum(value < min_phoneme for value in coverage)
@@ -173,6 +204,20 @@ def summarize_annotation_quality(
         "vowel_note_time_coverage": {
             "mean": sum(vowel_coverage) / len(vowel_coverage) if vowel_coverage else None,
             "recordings_with_vowels": len(vowel_coverage),
+        },
+        "syllable_alignment": {
+            "recordings_with_syllables": recordings_with_syllables,
+            "total_syllables": len(syllable_durations),
+            "duration_seconds": {
+                "mean": sum(syllable_durations) / len(syllable_durations) if syllable_durations else None,
+                "p50": _percentile(syllable_durations, 0.50),
+                "p90": _percentile(syllable_durations, 0.90),
+            },
+            "phonemes_per_syllable": {
+                "mean": sum(phonemes_per_syllable) / len(phonemes_per_syllable) if phonemes_per_syllable else None,
+                "p50": _percentile(phonemes_per_syllable, 0.50),
+                "p90": _percentile(phonemes_per_syllable, 0.90),
+            },
         },
         "phoneme_durations": {
             "minimum_seconds": min(shortest_phonemes, default=None),
