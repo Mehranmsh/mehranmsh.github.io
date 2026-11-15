@@ -88,6 +88,10 @@ class AnnotationQualityTests(unittest.TestCase):
         )
         self.assertEqual(result["phoneme_durations"]["minimum_seconds"], 0.1)
         self.assertAlmostEqual(result["phoneme_durations"]["maximum_seconds"], 0.6)
+        self.assertAlmostEqual(result["phoneme_durations"]["shortest_per_recording_seconds"]["p50"], 0.1)
+        self.assertAlmostEqual(result["phoneme_durations"]["shortest_per_recording_seconds"]["p90"], 0.1)
+        self.assertAlmostEqual(result["phoneme_durations"]["longest_per_recording_seconds"]["p50"], 0.6)
+        self.assertAlmostEqual(result["phoneme_durations"]["longest_per_recording_seconds"]["p90"], 0.6)
         self.assertTrue(all(item["recordings"] == 1 for item in result["warnings"]))
         self.assertNotIn("recording_id", str(result))
 
