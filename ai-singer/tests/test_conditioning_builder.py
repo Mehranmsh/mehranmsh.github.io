@@ -9,6 +9,7 @@ class ConditioningBuilderTests(unittest.TestCase):
             "schema": "mehran.phoneme-timing-plan.v1",
             "requires_review": True,
             "syllables": [{
+                "text": "سَ",
                 "phonemes": [
                     {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.2},
                     {"phoneme": "æ", "start_seconds": 0.2, "end_seconds": 0.8},
@@ -28,6 +29,13 @@ class ConditioningBuilderTests(unittest.TestCase):
             notes=self.notes(), duration_seconds=1.0,
         )
         self.assertEqual(result["conditioning"]["schema_version"], "mehran.svs.conditioning.v1")
+        self.assertEqual(result["syllable_alignment"], [{
+            "text": "سَ",
+            "start_seconds": 0.0,
+            "end_seconds": 0.8,
+            "phoneme_start_index": 0,
+            "phoneme_end_index": 2,
+        }])
         self.assertEqual(result["phoneme_note_mapping"][0]["note_indices"], [0])
         self.assertEqual(result["phoneme_note_mapping"][1]["note_indices"], [0, 1])
         self.assertTrue(result["mapping_review_required"])
@@ -56,3 +64,4 @@ class ConditioningBuilderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
