@@ -41,6 +41,9 @@
     if(!spec||!Array.isArray(spec.samples)||spec.samples.length===0)throw new Error("No real recorded samples are installed for "+name+". Synthetic fallback is disabled.");
     const valid=spec.samples.filter(s=>Number.isInteger(s.rootNote)&&s.rootNote>=0&&s.rootNote<=127&&typeof s.url==="string");
     if(valid.length!==spec.samples.length)throw new Error("Invalid sample entry for "+name);
+    const requestedVowel=String(options&&options.vowel||"").toLowerCase();
+    const bankSamples=requestedVowel?valid.filter(s=>String(s.vowel||"").toLowerCase()===requestedVowel):valid;
+    if(!bankSamples.length)throw new Error("No recorded "+requestedVowel+" vowel samples are installed for "+name+".");
     const requested=Array.isArray(options&&options.noteEvents)?options.noteEvents:[];
     const selected=new Map();
     if(requested.length){
@@ -49,15 +52,15 @@
       if(!Number.isFinite(note))continue;
       const rawVelocity=Number(event.velocity??80);
       const velocity=clamp(rawVelocity>1?rawVelocity/127:rawVelocity,.01,1);
-      const candidates=valid.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
-      const pool=candidates.length?candidates:valid;
+      const candidates=bankSamples.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
+      const pool=candidates.length?candidates:bankSamples;
       const bestDistance=Math.min(...pool.map(sample=>Math.abs(sample.rootNote-note)));
       const nearest=pool.filter(sample=>Math.abs(sample.rootNote-note)===bestDistance);
-      if(spec.roundRobin===true){for(const sample of valid.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
+      if(spec.roundRobin===true){for(const sample of pool.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
       else{const best=nearest.reduce((a,b)=>Number(b.stringRank??99)<Number(a.stringRank??99)?b:a);selected.set(best.url,best);}
      }
     }else{
-     for(const sample of valid)selected.set(sample.url,sample);
+     for(const sample of bankSamples)selected.set(sample.url,sample);
     }
     if(!selected.size)throw new Error("No playable note samples selected for "+name+"; event note examples: "+requested.slice(0,4).map(event=>String(event&&event.note)).join(", "));
     const prepared=await Promise.all([...selected.values()].map(async sample=>({...sample,buffer:await decodeSample(ctx,sample)})));const roundRobinCounters=new Map();
