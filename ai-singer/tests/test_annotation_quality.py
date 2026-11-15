@@ -210,6 +210,28 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertNotIn("syllable-a", str(summary))
         self.assertNotIn("syllable-b", str(summary))
 
+    def test_reports_descriptive_syllable_vowel_and_consonant_composition(self):
+        item = record()
+        item["alignment_status"] = "reviewed"
+        item["syllable_alignment"] = [
+            {"text": "syl-a", "start_seconds": 0.0, "end_seconds": 0.8,
+             "phoneme_start_index": 0, "phoneme_end_index": 2},
+            {"text": "syl-b", "start_seconds": 0.8, "end_seconds": 1.0,
+             "phoneme_start_index": 2, "phoneme_end_index": 3},
+        ]
+        result = analyze_annotation(item)
+        self.assertEqual(result["syllable_vowel_phoneme_counts"], [1, 0])
+        self.assertEqual(result["syllable_consonant_phoneme_counts"], [1, 1])
+        summary = summarize_annotation_quality([item])["syllable_alignment"]["phoneme_composition"]
+        self.assertEqual(summary["vowel_phonemes_total"], 1)
+        self.assertEqual(summary["consonant_phonemes_total"], 2)
+        self.assertEqual(summary["syllables_with_no_vowel_phoneme"], 1)
+        self.assertEqual(summary["syllables_with_multiple_vowel_phonemes"], 0)
+        self.assertEqual(summary["mean_vowel_phonemes_per_syllable"], 0.5)
+        self.assertEqual(summary["mean_consonant_phonemes_per_syllable"], 1.0)
+        self.assertNotIn("syl-a", str(summary))
+        self.assertNotIn("syl-b", str(summary))
+
     def test_rejects_unreviewed_syllable_metrics(self):
         item = record()
         item["alignment_status"] = "unreviewed"
