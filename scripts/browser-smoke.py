@@ -1048,6 +1048,20 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "No real recorded samples are installed" in live_status, "Missing live instrument must fail closed without synthetic fallback: " + mode + "; " + live_status
                 print("PASS: tar, santur and ney remain safely blocked until real samples are imported")
+                # Recorded percussion and acoustic drum-kit samples must render from local assets.
+                for mode, notes in [
+                    ("live_cajon", "C3, C#3, D3, C3, C#3, D3, -, -, -, -, -, -, -, -, -, -"),
+                    ("live_world_percussion", "C3, C#3, D3, D#3, E3, F3, F#3, G3, -, -, -, -, -, -, -, -"),
+                    ("live_acoustic_drums", "C2, D2, C#2, F#2, A#2, D3, G2, D#3, -, -, -, -, -, -, -, -")
+                ]:
+                    page.locator("#patternNotes").fill(notes)
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternTrackName").fill("Live QA " + mode)
+                    page.locator("#renderPattern").click()
+                    page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
+                    live_status = page.locator("#patternStatus").inner_text()
+                    assert "Generated WAV added to the mixer" in live_status, "Recorded percussion/drum instrument did not render: " + mode + "; " + live_status
+                print("PASS: cajon, world percussion and acoustic drums render from self-hosted recorded samples")
                 
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
