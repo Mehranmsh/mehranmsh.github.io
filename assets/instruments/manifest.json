@@ -6075,7 +6075,8 @@
           "noteLabel": "A flat"
         }
       ],
-      "maxNormalizationGain": 8192
+      "maxNormalizationGain": 8192,
+      "trimLeadingSilence": true
     },
     "santur": {
       "displayName": "Santur",
