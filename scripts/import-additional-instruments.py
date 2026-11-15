@@ -130,7 +130,8 @@ def import_drum_and_percussion_banks(manifest):
                 if not archive_path:
                     raise RuntimeError("Missing FreePats sample in source archive: " + source_path)
                 original = Path(source_path).name
-                target = world_dir / (Path(original).stem + ".ogg")
+                target_name = source_path.replace("/", "-").replace(".flac", ".ogg").replace(".wav", ".ogg")
+                target = world_dir / target_name
                 if not target.exists() or target.stat().st_size < 128:
                     raw_path = ROOT / "tmp-freepats-" / original
                     raw_path.parent.mkdir(parents=True, exist_ok=True)
