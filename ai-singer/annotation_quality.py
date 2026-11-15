@@ -330,6 +330,12 @@ def summarize_annotation_quality(
             "recordings_with_syllables": recordings_with_syllables,
             "total_syllables": len(syllable_durations),
             "duration_seconds": {
+                "minimum": min(syllable_durations, default=None),
+                "maximum": max(syllable_durations, default=None),
+                "range": (
+                    max(syllable_durations) - min(syllable_durations)
+                    if syllable_durations else None
+                ),
                 "mean": sum(syllable_durations) / len(syllable_durations) if syllable_durations else None,
                 "p50": _percentile(syllable_durations, 0.50),
                 "p90": _percentile(syllable_durations, 0.90),
