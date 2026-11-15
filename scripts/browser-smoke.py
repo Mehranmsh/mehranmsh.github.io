@@ -1247,6 +1247,16 @@ def main():
                         if step_button.get_attribute("aria-pressed") != "true":
                             step_button.click()
                     page.wait_for_function("""(selectors) => selectors.every(selector => document.querySelector(selector)?.getAttribute("aria-pressed") === "true")""", arg=drum_grid_selectors, timeout=10000)
+                    saved_grid = page.evaluate("""() => {
+                        const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                        const project = drafts.find(item => item.name === "Automated Audio QA");
+                        const pat = project?.patternStudio || {};
+                        return { mode: pat.mode, kit: pat.drumKit, kick: pat.kick, snare: pat.snare, hat: pat.hat, perc: pat.perc };
+                    }""")
+                    expected_grid = {"mode": "drums", "kit": kit, "kick": [0, 8], "snare": [4, 12], "hat": [2, 6, 10, 14], "perc": [8]}
+                    if saved_grid != expected_grid:
+                        raise AssertionError("Drum-grid UI state did not persist before render: " + kit + "; " + str(saved_grid))
+                    print("DRUM GRID STATE VERIFIED:", kit, saved_grid, flush=True)
                     page.locator("#patternTrackName").fill("Recorded drum grid QA " + kit)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
