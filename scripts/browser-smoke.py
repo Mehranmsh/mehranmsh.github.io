@@ -154,6 +154,8 @@ def main():
                 assert quality_report["syllables"][0]["phoneme_count"] == 2
                 assert quality_report["syllables"][0]["phoneme_coverage_ratio"] == 1
                 assert quality_report["syllables"][0]["uncovered_duration_seconds"] == 0
+                assert quality_report["summary"]["mean_uncovered_duration_seconds"] == 0
+                assert quality_report["summary"]["max_uncovered_duration_seconds"] == 0
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
                 # Give the comparison-only baseline a valid gap metric so both trend endpoints exist.
                 quality_report["summary"]["internal_gap_mean_seconds"] = 0.01
