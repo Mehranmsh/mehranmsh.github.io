@@ -1264,7 +1264,13 @@ def main():
                     assert "Generated WAV added to the mixer" in drum_status, "Recorded drum grid failed: " + kit + "; " + drum_status
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
-                    drum_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    drum_project = page.evaluate("""() => {
+                        const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                        const selectedId = document.querySelector("#mixProject")?.value;
+                        const project = projects.find(item => item.id === selectedId && item.name === "Automated Audio QA");
+                        if (!project) throw new Error("Selected QA project could not be resolved for drum WAV export");
+                        return project;
+                    }""")
                     drum_track = next(track for track in drum_project["tracks"] if track.get("generated") and track["name"] == "Recorded drum grid QA " + kit)
                     export_track_audio(page, drum_project["id"], drum_track["id"], "drum_grid_" + kit + ".wav")
                     drum_delete = page.locator("[data-track-delete]").last
