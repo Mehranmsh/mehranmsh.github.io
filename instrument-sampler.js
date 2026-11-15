@@ -56,7 +56,14 @@
       const pool=candidates.length?candidates:bankSamples;
       const bestDistance=Math.min(...pool.map(sample=>Math.abs(sample.rootNote-note)));
       const nearest=pool.filter(sample=>Math.abs(sample.rootNote-note)===bestDistance);
-      if(spec.roundRobin===true){for(const sample of pool.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
+      if(spec.layered===true){
+       const perSinger=new Map();
+       for(const sample of pool){
+        const singer=String(sample.singer||sample.url),distance=Math.abs(sample.rootNote-note),previous=perSinger.get(singer);
+        if(!previous||distance<previous.distance)perSinger.set(singer,{sample,distance});
+       }
+       for(const item of perSinger.values())selected.set(item.sample.url,item.sample);
+      }else if(spec.roundRobin===true){for(const sample of pool.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
       else{const best=nearest.reduce((a,b)=>Number(b.stringRank??99)<Number(a.stringRank??99)?b:a);selected.set(best.url,best);}
      }
     }else{
@@ -69,33 +76,51 @@
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
      const candidates=prepared.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
      const pool=candidates.length?candidates:prepared;
-     const nearestDistance=Math.min(...pool.map(s=>Math.abs(s.rootNote-note)));
-     const nearest=pool.filter(s=>Math.abs(s.rootNote-note)===nearestDistance);
-     const rrKey=String(note)+":"+String(Math.round(velocity*127));
-     const rrIndex=roundRobinCounters.get(rrKey)||0;
-     const selected=nearest[spec.roundRobin===true?rrIndex%nearest.length:0];
-     if(spec.roundRobin===true)roundRobinCounters.set(rrKey,rrIndex+1);
-     const source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
-     source.buffer=selected.buffer;
-     source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),start);
-     filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),start);
-     const peak=clamp(Number((options&&options.gain)??1)*Number((settings&&settings.gain)??1)*(.35+.65*velocity),.0001,1.5);
-     const attack=clamp(Number(spec.attackSeconds??.006),.001,.5),release=clamp(Number(spec.releaseSeconds??.12),.015,2);
-     gain.gain.setValueAtTime(.0001,start);gain.gain.linearRampToValueAtTime(peak,start+attack);
-     const loop=Number.isFinite(selected.loopStart)&&Number.isFinite(selected.loopEnd)&&selected.loopEnd>selected.loopStart;
-     const stopAt=start+length;
-     if(loop){
-      source.loop=true;source.loopStart=selected.loopStart;source.loopEnd=selected.loopEnd;
-      gain.gain.setValueAtTime(peak,Math.max(start+attack,stopAt-release));
-      gain.gain.setTargetAtTime(.0001,Math.max(start+attack,stopAt-release),Math.max(.008,release/4));
-      source.start(start,0);
-      source.stop(stopAt+release);
+     let voices=[];
+     if(spec.layered===true){
+      const perSinger=new Map();
+      for(const sample of pool){
+       const singer=String(sample.singer||sample.url),distance=Math.abs(sample.rootNote-note),previous=perSinger.get(singer);
+       if(!previous||distance<previous.distance)perSinger.set(singer,{sample,distance});
+      }
+      voices=[...perSinger.values()].map(item=>item.sample);
      }else{
-      gain.gain.setTargetAtTime(.0001,stopAt,Math.max(.008,release/4));
-      source.start(start);
-      source.stop(Math.min(start+selected.buffer.duration/Math.max(.125,source.playbackRate.value)+.02,stopAt+release));
+      const nearestDistance=Math.min(...pool.map(s=>Math.abs(s.rootNote-note)));
+      const nearest=pool.filter(s=>Math.abs(s.rootNote-note)===nearestDistance);
+      const rrKey=String(note)+":"+String(Math.round(velocity*127));
+      const rrIndex=roundRobinCounters.get(rrKey)||0;
+      voices=[nearest[spec.roundRobin===true?rrIndex%nearest.length:0]];
+      if(spec.roundRobin===true)roundRobinCounters.set(rrKey,rrIndex+1);
      }
-     source.connect(filter);filter.connect(gain);gain.connect(options&&options.destination||ctx.destination);
+     const basePeak=clamp(Number((options&&options.gain)??1)*Number((settings&&settings.gain)??1)*(.35+.65*velocity),.0001,1.5);
+     const peak=spec.layered===true?basePeak/Math.sqrt(Math.max(1,voices.length))*.72:basePeak;
+     const attack=clamp(Number(spec.attackSeconds??.006),.001,.5),release=clamp(Number(spec.releaseSeconds??.12),.015,2);
+     const stopAt=start+length,destination=options&&options.destination||ctx.destination;
+     voices.forEach((selected,index)=>{
+      const source=ctx.createBufferSource(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
+      source.buffer=selected.buffer;
+      source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),start);
+      filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),start);
+      gain.gain.setValueAtTime(.0001,start);gain.gain.linearRampToValueAtTime(peak,start+attack);
+      const loop=Number.isFinite(selected.loopStart)&&Number.isFinite(selected.loopEnd)&&selected.loopEnd>selected.loopStart;
+      if(loop){
+       source.loop=true;source.loopStart=selected.loopStart;source.loopEnd=selected.loopEnd;
+       gain.gain.setValueAtTime(peak,Math.max(start+attack,stopAt-release));
+       gain.gain.setTargetAtTime(.0001,Math.max(start+attack,stopAt-release),Math.max(.008,release/4));
+       source.start(start,0);
+       source.stop(stopAt+release);
+      }else{
+       gain.gain.setTargetAtTime(.0001,stopAt,Math.max(.008,release/4));
+       source.start(start);
+       source.stop(Math.min(start+selected.buffer.duration/Math.max(.125,source.playbackRate.value)+.02,stopAt+release));
+      }
+      source.connect(filter);filter.connect(gain);
+      if(spec.layered===true){
+       const panner=ctx.createStereoPanner();
+       panner.pan.value=voices.length>1?-.48+.96*(index/(voices.length-1)):0;
+       gain.connect(panner);panner.connect(destination);
+      }else gain.connect(destination);
+     });
     }};
    }
   };
