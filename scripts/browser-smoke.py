@@ -229,6 +229,14 @@ def main():
                 page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(invalid_timestamp_path)])
                 page.locator("#compareMehranQualityReports").click()
                 page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('زمان تولید معتبر نیست')")
+                # Empty or whitespace-only project IDs must not be treated as valid identifiers.
+                blank_project_report = dict(second_report)
+                blank_project_report["project_id"] = "   "
+                blank_project_path = Path(temp) / "mehran-blank-project-id.json"
+                blank_project_path.write_text(__import__("json").dumps(blank_project_report), encoding="utf-8")
+                page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(blank_project_path)])
+                page.locator("#compareMehranQualityReports").click()
+                page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('پروژه مشخصی')")
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
