@@ -937,7 +937,7 @@ def main():
                     return drafts.find(item => item.name === "MEHRAN · violin Recorded Audition") || null;
                 }""")
                 assert demo_project and len([track for track in demo_project["tracks"] if track.get("generated") and track.get("audioSize", 0) > 44]) == 1, "Audition must contain exactly one recorded violin WAV track."
-                assert "8/8 active seconds" in demo_project["tracks"][0]["notes"], "Audition WAV must contain active audio throughout its eight-second windows: " + str(demo_project["tracks"][0].get("notes"))
+                assert "21/21 active seconds" in demo_project["tracks"][0]["notes"], "Audition WAV must contain active audio throughout its eight-second windows: " + str(demo_project["tracks"][0].get("notes"))
                 audio_audit = page.evaluate("""async () => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "MEHRAN · violin Recorded Audition");
                     const track = project?.tracks?.find(item => item.generated);
