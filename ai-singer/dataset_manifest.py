@@ -93,11 +93,11 @@ def _validate_syllable_alignment(record: dict, duration: float, line_number: int
     syllables = record.get("syllable_alignment")
     if syllables is None:
         return
-    if record.get("alignment_status") != "reviewed":
-        raise ManifestError(f"line {line_number}: syllable_alignment requires alignment_status='reviewed'")
     phonemes = record.get("phoneme_alignment")
     if not isinstance(phonemes, list) or not phonemes:
         raise ManifestError(f"line {line_number}: syllable_alignment requires phoneme_alignment")
+    if record.get("alignment_status") != "reviewed":
+        raise ManifestError(f"line {line_number}: syllable_alignment requires alignment_status='reviewed'")
     if not isinstance(syllables, list) or not syllables or len(syllables) > 20000:
         raise ManifestError(f"line {line_number}: syllable_alignment must be a non-empty bounded list")
 
