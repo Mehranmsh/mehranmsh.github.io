@@ -1145,6 +1145,9 @@ def main():
                 assert "Live QA human vocal harmony" in harmony_track.evaluate("(el) => el.closest('article')?.innerText || ''")
                 harmony_track.click()
                 page.wait_for_timeout(150)
+                audition_dir = ROOT / "test-audio-output"
+                (audition_dir / "README.txt").write_text("MEHRAN MUSIC human-vocal audition pack\\n\\nThese short WAVs are browser-rendered from self-hosted VocalSet human singing recordings (CC BY 4.0). Samples are pitch-mapped and loop-prepared from sustained vowels. Female/male ensemble files layer separate recorded singers; they are not one live choir recording.\\n", encoding="utf-8")
+                (audition_dir / "manifest.csv").write_text("file,voice bank,recorded singers\\nlive_female_vocal.wav,Female solo voice,1 selected singer per note\\nlive_male_vocal.wav,Male solo voice,1 selected singer per note\\nlive_female_choir.wav,Female ensemble,9\\nlive_male_choir.wav,Male ensemble,11\\nlive_mixed_choir.wav,Mixed ensemble,20\\nhuman-vocal-harmony.wav,Female solo with third and fifth harmonies,1 selected singer per note\\n", encoding="utf-8")
                 print("PASS: 19 melodic instrument banks, 2 solo vocal banks and 3 layered human ensembles")
                 for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
