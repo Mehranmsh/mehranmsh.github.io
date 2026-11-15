@@ -34,6 +34,30 @@ jobs:
       - name: Install audio conversion tools
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      - name: Audit public CC0 PCMIR archive for Persian instrument recordings
+        run: |
+          python - <<'PY'
+          import io, urllib.request, zipfile, collections
+          url = "https://raw.githubusercontent.com/SeyedMuhammadHosseinMousavi/Persian-Classical-Music-Instrument-Recognition-PCMIR-Using-a-Novel-Persian-Music-Database/main/PCMIR%20Small.zip"
+          request = urllib.request.Request(url, headers={"User-Agent":"MEHRAN-MUSIC sample-library audit"})
+          with urllib.request.urlopen(request, timeout=90) as response:
+              archive_bytes = response.read()
+          print(f"PCMIR archive bytes: {len(archive_bytes)}")
+          z = zipfile.ZipFile(io.BytesIO(archive_bytes))
+          files = [x for x in z.infolist() if not x.is_dir()]
+          print(f"PCMIR archive file count: {len(files)}")
+          groups = collections.Counter()
+          for item in files:
+              parts = item.filename.replace("\\\\", "/").split("/")
+              label = next((p for p in parts if p.lower() in {"ney","tar","santur","kamancheh","tonbak","oud","ud","setar"}), "UNCLASSIFIED")
+              if item.filename.lower().endswith((".wav",".mp3",".ogg",".flac")):
+                  groups[label] += 1
+          print("Audio files by folder:", dict(groups))
+          for item in files:
+              if item.filename.lower().endswith((".wav",".mp3",".ogg",".flac")):
+                  print(f"AUDIO {item.file_size:>10} bytes | {item.filename}")
+          PY
+
       - name: Import real female and male human vocal samples
         run: python scripts/import-vocalset.py
 
