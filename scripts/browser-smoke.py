@@ -158,6 +158,11 @@ def main():
                 assert quality_report["summary"]["max_uncovered_duration_seconds"] == 0
                 quality_panel_text = page.locator("#mehranSyllableQualityReport").inner_text()
                 assert "اولویت اصلاح هجاها" in quality_panel_text
+                jump_button = page.locator("#mehranSyllableQualityReport button[data-jump-syllable=\"0\"]")
+                assert jump_button.count() == 1, "Priority syllable did not expose a Timeline jump action."
+                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"0\"]").count() == 1, "Timeline row was not indexed by syllable."
+                jump_button.click()
+                assert page.locator("#mehranSingerTimeline [data-syllable-index=\"0\"] input[data-time-start]").evaluate("(el) => document.activeElement === el"), "Timeline jump did not focus the matching syllable start time."
                 assert "بیشترین زمان پوشش‌نیافته" in quality_panel_text
                 assert "۱" in quality_panel_text or "1" in quality_panel_text
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
