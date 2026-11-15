@@ -188,6 +188,10 @@ def main():
                 assert comparison_report["audio_included"] is False
                 assert comparison_report["report_count"] == 2
                 assert comparison_report["rows"][1]["coverage_delta_percentage_points"] == -20.0
+                assert comparison_report["trend_summary"]["coverage"]["valid_reports"] == 2
+                assert comparison_report["trend_summary"]["coverage"]["delta_percentage_points"] == -20.0
+                assert comparison_report["trend_summary"]["internal_gap"]["valid_reports"] == 2
+                assert comparison_report["trend_summary"]["internal_gap"]["delta_milliseconds"] == 10.0
                 assert comparison_report["rows"][0]["syllables_invalid_or_incomplete"] == 0
                 assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 0
                 # Reports from different projects must be rejected.
