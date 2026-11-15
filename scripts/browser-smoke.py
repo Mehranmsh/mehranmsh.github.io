@@ -872,6 +872,45 @@ def main():
                     db.close(); return !!record?.blob && record.blob.size > 44;
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
+
+                # Exercise the one-click eight-bar listening demo in the actual studio UI.
+                page.locator('[data-view="mix"]').click()
+                page.locator("#buildListeningDemo").click()
+                try:
+                    page.wait_for_function("""(() => {
+                        const status = document.querySelector('#patternStatus')?.textContent || '';
+                        return status.includes('قطعهٔ آزمایشی ساخته شد') || status.includes('ساخت قطعه کامل نشد');
+                    })()""", timeout=120000)
+                except Exception as error:
+                    raise AssertionError("Listening demo did not finish: " + page.locator("#patternStatus").inner_text()) from error
+                demo_status = page.locator("#patternStatus").inner_text()
+                assert "قطعهٔ آزمایشی ساخته شد" in demo_status, "Listening demo render failed: " + demo_status
+                demo_project = page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    const project = drafts.find(item => item.name === "MEHRAN Listening Demo");
+                    return project ? {id: project.id, tracks: project.tracks || []} : null;
+                }""")
+                assert demo_project and len(demo_project["tracks"]) == 3, "Listening demo did not create all three tracks: " + str(demo_project)
+                expected_demo_tracks = {"01 · Harmony Ensemble", "02 · Live Guitar Motif", "03 · Drum Groove"}
+                assert {track["name"] for track in demo_project["tracks"]} == expected_demo_tracks
+                demo_audio_assets = page.evaluate("""async (projectId, tracks) => {
+                    const db = await new Promise((resolve, reject) => {
+                        const req = indexedDB.open("mehran_music_studio_audio_v1", 1);
+                        req.onsuccess = () => resolve(req.result);
+                        req.onerror = () => reject(req.error);
+                    });
+                    const assets = await Promise.all(tracks.map(track => new Promise((resolve, reject) => {
+                        const req = db.transaction("trackAudio").objectStore("trackAudio").get(projectId + ":" + track.id);
+                        req.onsuccess = () => resolve(!!req.result?.blob && req.result.blob.size > 44);
+                        req.onerror = () => reject(req.error);
+                    })));
+                    db.close();
+                    return assets;
+                }""", demo_project["id"], demo_project["tracks"])
+                assert all(demo_audio_assets), "One or more demo WAVs were not persisted in IndexedDB: " + str(demo_audio_assets)
+                page.locator("#playMix").click()
+                page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 3 track(s) together')", timeout=10000)
+                print("PASS: one-click 8-bar listening demo creates 3 local WAV tracks and plays them together")
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
                 page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
