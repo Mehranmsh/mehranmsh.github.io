@@ -17,7 +17,7 @@ OUT = ROOT / "assets/instruments/samples/vocalset"
 SINGERS = [("female", [f"f{i}" for i in range(1,10)]), ("male", [f"m{i}" for i in range(1,12)])]
 VOWELS = ("a","e","i","o","u")
 SR_OUT = 44100
-TARGET_SECONDS = 0.42
+TARGET_SECONDS = 1.35
 CROSSFADE_SECONDS = 0.032
 
 def fetch(url):
