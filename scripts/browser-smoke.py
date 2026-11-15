@@ -1042,6 +1042,11 @@ def main():
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
                         page.locator("#vocalVowel").select_option("o")
+                        if mode == "live_female_vocal":
+                            page.locator("#addVocalThird").click()
+                            assert "major-third" in page.locator("#patternStatus").inner_text(), "Third harmony was not added"
+                            page.locator("#addVocalFifth").click()
+                            assert "perfect-fifth" in page.locator("#patternStatus").inner_text(), "Fifth harmony was not added"
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
                     try:
