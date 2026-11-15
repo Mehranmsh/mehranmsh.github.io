@@ -1184,6 +1184,10 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "No real recorded samples are installed" in live_status, "Missing live instrument must fail closed without synthetic fallback: " + mode + "; " + live_status
                 print("PASS: tar, santur, ney and kamancheh keyboard banks fail closed until note-level samples are imported")
+                # Verify the self-hosted Persian phrase manifest exposes four takes for each instrument.
+                phrase_manifest = page.evaluate("fetch('./assets/instruments/phrases/persian/manifest.json').then(r => r.json())")
+                for instrument_id in ["tar", "santur", "ney", "kamancheh"]:
+                    assert len(phrase_manifest["instruments"][instrument_id]["samples"]) == 4, "Expected four self-hosted recorded phrases for " + instrument_id
                 # Real Persian performances are exposed as one-shot phrases, never mislabeled as chromatic note banks.
                 for mode, label in [
                     ("phrase_tar", "Tar"),
@@ -1199,7 +1203,7 @@ def main():
                     phrase_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in phrase_status, "Recorded Persian phrase did not render: " + mode + "; " + phrase_status
                     phrase_state = page.evaluate("window.__mehranPersianPhraseRenderState || null")
-                    assert phrase_state and phrase_state["mode"] == mode and phrase_state["scheduled"] == 1 and phrase_state["duration"] >= 5.0, "Persian phrase was not scheduled as a real one-shot: " + str(phrase_state)
+                    assert phrase_state and phrase_state["mode"] == mode and phrase_state["scheduled"] == 1 and phrase_state["duration"] >= 5.0 and phrase_state["source"] in phrase_manifest["instruments"][mode.replace("phrase_", "")]["samples"], "Persian phrase was not scheduled from the licensed self-hosted sample list: " + str(phrase_state)
                     phrase_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     phrase_track = next(track for track in phrase_project["tracks"] if track.get("generated") and track["name"] == "Persian Phrase QA " + label)
                     assert phrase_track["type"] == "Persian Recorded Phrase", "Phrase track was mislabeled: " + phrase_track["type"]
