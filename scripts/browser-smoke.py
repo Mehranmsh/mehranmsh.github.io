@@ -9,6 +9,7 @@ import base64
 import struct
 import wave
 import array
+import json
 
 from playwright.sync_api import sync_playwright
 
@@ -1159,7 +1160,7 @@ def main():
                     await ctx.close();
                     return rows;
                 }""")
-                print("SETAR SOURCE DIAGNOSTICS:", JSON.stringify(setar_diagnostics), flush=True)
+                print("SETAR SOURCE DIAGNOSTICS:", json.dumps(setar_diagnostics), flush=True)
 
                 live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
                 live_modes_missing = ["live_tar", "live_santur", "live_ney", "live_kamancheh"]
