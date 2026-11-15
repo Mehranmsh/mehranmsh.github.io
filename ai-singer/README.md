@@ -433,7 +433,7 @@ python studio_dataset_export.py \
   --consent-confirmed
 ```
 
-The exporter writes only metadata and a relative pointer to the WAV. It does not copy or upload audio, retain consent documents, verify legal claims, start training, or enable inference. Keep the original consent and rights evidence in secure local storage, outside this repository. Use one stable pseudonymous speaker ID and keep that speaker in exactly one dataset split.
+The exporter writes only metadata and a relative pointer to the WAV. It does not copy or upload audio, retain consent documents, verify legal claims, start training, or enable inference. When the studio conditioning export includes the explicit `syllable_alignment` returned by the reviewed conditioning-preparation endpoint, the exporter preserves those syllable labels, time spans, and half-open phoneme index ranges in the manifest. The manifest validator then checks that the ranges partition every phoneme exactly once and that each syllable time span covers its assigned phonemes. Older conditioning exports without this optional field remain supported. Keep the original consent and rights evidence in secure local storage, outside this repository. Use one stable pseudonymous speaker ID and keep that speaker in exactly one dataset split.
 
 ## Private local annotation review queue
 
