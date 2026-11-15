@@ -177,6 +177,14 @@ def summarize_annotation_quality(
         "phoneme_durations": {
             "minimum_seconds": min(shortest_phonemes, default=None),
             "maximum_seconds": max(longest_phonemes, default=None),
+            "shortest_per_recording_seconds": {
+                "p50": _percentile(shortest_phonemes, 0.50),
+                "p90": _percentile(shortest_phonemes, 0.90),
+            },
+            "longest_per_recording_seconds": {
+                "p50": _percentile(longest_phonemes, 0.50),
+                "p90": _percentile(longest_phonemes, 0.90),
+            },
         },
         "internal_gaps": {
             "total": sum(item["internal_gap_count"] for item in diagnostics),
