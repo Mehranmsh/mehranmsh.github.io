@@ -9,10 +9,11 @@
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
  const NOTE_SEMITONES={C:0,Cs:1,D:2,Ds:3,E:4,F:5,Fs:6,G:7,Gs:8,A:9,As:10,B:11};
  function midiValue(value){
-  if(Number.isFinite(Number(value)))return Number(value);
-  const match=/^(Cs|Ds|Fs|Gs|As|[CDEFGAB])(-?\\d)$/.exec(String(value||""));
+  const raw=String(value??"").trim();
+  if(raw!==""&&Number.isFinite(Number(raw)))return Number(raw);
+  const match=/^(Cs|Ds|Fs|Gs|As|[CDEFGAB])(-?\\d)$/i.exec(raw);
   if(!match)return NaN;
-  return (Number(match[2])+1)*12+NOTE_SEMITONES[match[1]];
+  return (Number(match[2])+1)*12+NOTE_SEMITONES[match[1][0].toUpperCase()+match[1].slice(1)];
  }
  async function loadManifest(){
   if(!manifestPromise)manifestPromise=fetch(MANIFEST_URL,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("Instrument manifest unavailable ("+r.status+").");return r.json();}).then(m=>{
