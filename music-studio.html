@@ -1671,7 +1671,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
       let degree=motif[index%motif.length];
       if(bar===3||bar===7)degree=[...motif].reverse()[index%motif.length];
       if(bar===4&&index>1)degree=Math.min(6,degree+1);
-      const octave=profile.low?0:(profile.high?12:0);
+      const octave=0;
       note=profile.base+scale[degree]+octave;
       if(profile.plucked&&index%4===3)note+=12;
       if(profile.keys&&index===0&&bar%2===0)note-=12;
