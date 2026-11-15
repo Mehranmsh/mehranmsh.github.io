@@ -1210,6 +1210,7 @@ def main():
                     phrase_delete.click()
                     page.wait_for_timeout(150)
                 print("PASS: four Persian recorded phrases render from self-hosted CC BY 4.0 audio without pitch-shifting")
+                page.locator('[data-view="create"]').click()
                 # Recorded percussion and acoustic drum-kit samples must render from local assets.
                 for mode, notes in [
                     ("live_cajon", "C3, C#3, D3, C3, C#3, D3, -, -, -, -, -, -, -, -, -, -"),
