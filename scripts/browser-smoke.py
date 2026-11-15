@@ -873,44 +873,62 @@ def main():
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
 
-                # Exercise the one-click eight-bar listening demo in the actual studio UI.
+                # Exercise four independent instrument auditions and verify each WAV contains audible signal.
                 page.locator('[data-view="mix"]').click()
                 page.locator("#buildListeningDemo").click()
                 try:
                     page.wait_for_function("""(() => {
                         const status = document.querySelector('#patternStatus')?.textContent || '';
-                        return status.includes('قطعهٔ آزمایشی ساخته شد') || status.includes('ساخت قطعه کامل نشد');
+                        return status.includes('تست چهار ساز ساخته شد') || status.includes('ساخت تست ساز کامل نشد');
                     })()""", timeout=120000)
                 except Exception as error:
-                    raise AssertionError("Listening demo did not finish: " + page.locator("#patternStatus").inner_text()) from error
+                    raise AssertionError("Instrument audition did not finish: " + page.locator("#patternStatus").inner_text()) from error
                 demo_status = page.locator("#patternStatus").inner_text()
-                assert "قطعهٔ آزمایشی ساخته شد" in demo_status, "Listening demo render failed: " + demo_status
+                assert "تست چهار ساز ساخته شد" in demo_status, "Instrument audition render failed: " + demo_status
                 demo_project = page.evaluate("""() => {
                     const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
-                    const project = drafts.find(item => item.name === "MEHRAN Listening Demo");
+                    const project = drafts.find(item => item.name === "MEHRAN Instrument Audition");
                     return project ? {id: project.id, tracks: project.tracks || []} : null;
                 }""")
-                assert demo_project and len(demo_project["tracks"]) == 3, "Listening demo did not create all three tracks: " + str(demo_project)
-                expected_demo_tracks = {"01 · Harmony Ensemble", "02 · Live Guitar Motif", "03 · Drum Groove"}
+                assert demo_project and len(demo_project["tracks"]) == 4, "Instrument audition did not create all four tracks: " + str(demo_project)
+                expected_demo_tracks = {"01 · Piano", "02 · Steel Guitar", "03 · Violin", "04 · Acoustic Drums"}
                 assert {track["name"] for track in demo_project["tracks"]} == expected_demo_tracks
-                demo_audio_assets = page.evaluate("""async ({projectId, tracks}) => {
+                demo_audio_metrics = page.evaluate("""async ({projectId, tracks}) => {
                     const db = await new Promise((resolve, reject) => {
                         const req = indexedDB.open("mehran_music_studio_audio_v1", 1);
                         req.onsuccess = () => resolve(req.result);
                         req.onerror = () => reject(req.error);
                     });
-                    const assets = await Promise.all(tracks.map(track => new Promise((resolve, reject) => {
-                        const req = db.transaction("trackAudio").objectStore("trackAudio").get(projectId + ":" + track.id);
-                        req.onsuccess = () => resolve(!!req.result?.blob && req.result.blob.size > 44);
-                        req.onerror = () => reject(req.error);
-                    })));
+                    const audio = new AudioContext();
+                    const metrics = await Promise.all(tracks.map(async track => {
+                        const record = await new Promise((resolve, reject) => {
+                            const req = db.transaction("trackAudio").objectStore("trackAudio").get(projectId + ":" + track.id);
+                            req.onsuccess = () => resolve(req.result);
+                            req.onerror = () => reject(req.error);
+                        });
+                        if (!record?.blob || record.blob.size <= 44) return {name: track.name, size: 0, rms: 0, peak: 0};
+                        const decoded = await audio.decodeAudioData(await record.blob.arrayBuffer());
+                        let sum = 0, peak = 0, count = 0;
+                        for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
+                            const samples = decoded.getChannelData(channel);
+                            for (let i = 0; i < samples.length; i += 8) {
+                                const value = samples[i];
+                                sum += value * value;
+                                peak = Math.max(peak, Math.abs(value));
+                                count++;
+                            }
+                        }
+                        return {name: track.name, size: record.blob.size, rms: Math.sqrt(sum / Math.max(1, count)), peak};
+                    }));
+                    await audio.close();
                     db.close();
-                    return assets;
+                    return metrics;
                 }""", {"projectId": demo_project["id"], "tracks": demo_project["tracks"]})
-                assert all(demo_audio_assets), "One or more demo WAVs were not persisted in IndexedDB: " + str(demo_audio_assets)
+                for metric in demo_audio_metrics:
+                    assert metric["size"] > 44 and metric["rms"] > 0.001 and metric["peak"] > 0.005, "Silent or near-silent instrument WAV: " + str(metric)
                 page.locator("#playMix").click()
-                page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 3 track(s) together')", timeout=10000)
-                print("PASS: one-click 8-bar listening demo creates 3 local WAV tracks and plays them together")
+                page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing 4 track(s) together')", timeout=10000)
+                print("PASS: four separate local instrument WAVs (piano, steel guitar, violin, drums) contain measurable audio and play together")
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
