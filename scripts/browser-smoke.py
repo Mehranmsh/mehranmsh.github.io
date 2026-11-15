@@ -82,7 +82,9 @@ def main():
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 # Import a Standard MIDI file and verify the studio parses and displays its real note timeline.
                 page.locator("#mehranSingerMidiFile").set_input_files(str(midi_path))
-                page.wait_for_function("document.querySelector('#mehranSingerMidiStatus')?.textContent.includes('1 نت')", timeout=10000)
+                page.wait_for_function("document.querySelector('#mehranSingerMidiStatus')?.textContent.trim() !== 'No MIDI selected'", timeout=10000)
+                midi_status = page.locator("#mehranSingerMidiStatus").inner_text()
+                assert "1 نت" in midi_status, "MIDI import did not complete successfully: " + midi_status + " | Browser errors: " + " | ".join(errors)
                 midi_notes_text = page.locator("#mehranSingerAlignmentNotes").text_content() or ""
                 assert "C4" in midi_notes_text and "0.500s" in midi_notes_text, "Imported MIDI note timeline was not rendered: " + midi_notes_text
 
