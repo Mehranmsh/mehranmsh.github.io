@@ -1207,15 +1207,31 @@ def main():
                 print("PASS: cajon, world percussion and acoustic drums render from self-hosted recorded samples")
                 # The drum step sequencer must use recorded samples when a recorded kit is selected.
                 for kit in ["recorded", "cajon", "world_percussion"]:
-                    page.locator("#patternMode").select_option("drums")
-                    page.locator("#drumKit").select_option(kit)
-                    # Explicitly activate recorded drum hits instead of trusting inherited defaults.
-                    for lane, step in [("kick", 0), ("snare", 4), ("hat", 2), ("perc", 8)]:
-                        cell = page.locator(f'[data-pattern-lane="{lane}"][data-pattern-step="{step}"]')
-                        if cell.get_attribute("aria-pressed") != "true":
-                            cell.click()
-                        if cell.get_attribute("aria-pressed") != "true":
-                            raise AssertionError(f"Could not activate drum lane {lane} step {step} for kit {kit}")
+                    # Seed a deterministic first-bar groove instead of inheriting prior QA state.
+                    page.evaluate("""(kit) => {
+                        const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                        const project = drafts.find(item => item.name === "Automated Audio QA");
+                        if (!project) throw new Error("QA project disappeared before drum-grid test");
+                        project.patternStudio = {
+                            ...(project.patternStudio || {}),
+                            mode: "drums", drumKit: kit, tempo: 96, bars: 1,
+                            kick: [0, 8], snare: [4, 12], hat: [2, 6, 10, 14],
+                            openHat: [], clap: [], tom: [], perc: [8]
+                        };
+                        localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(drafts));
+                    }""", kit)
+                    page.reload(wait_until="networkidle")
+                    page.locator('[data-view="mix"]').click()
+                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    page.wait_for_function("""() => {
+                        const selectors = [
+                            '[data-pattern-lane="kick"][data-pattern-step="0"]',
+                            '[data-pattern-lane="snare"][data-pattern-step="4"]',
+                            '[data-pattern-lane="hat"][data-pattern-step="2"]',
+                            '[data-pattern-lane="perc"][data-pattern-step="8"]'
+                        ];
+                        return selectors.every(selector => document.querySelector(selector)?.getAttribute("aria-pressed") === "true");
+                    }""", timeout=10000)
                     page.locator("#patternTrackName").fill("Recorded drum grid QA " + kit)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
