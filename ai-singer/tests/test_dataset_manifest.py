@@ -93,7 +93,7 @@ class DatasetManifestTests(unittest.TestCase):
         record = self.record(
             alignment_status="reviewed",
             notes=[{"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.1}],
-                        phoneme_alignment=[
+            phoneme_alignment=[
                 {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.03},
                 {"phoneme": "æ", "start_seconds": 0.03, "end_seconds": 0.07},
                 {"phoneme": "l", "start_seconds": 0.07, "end_seconds": 0.1},
@@ -122,7 +122,7 @@ class DatasetManifestTests(unittest.TestCase):
         record = self.record(
             alignment_status="reviewed",
             notes=[{"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.1}],
-                        phoneme_alignment=[
+            phoneme_alignment=[
                 {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.05},
                 {"phoneme": "æ", "start_seconds": 0.05, "end_seconds": 0.1},
             ],
@@ -138,7 +138,7 @@ class DatasetManifestTests(unittest.TestCase):
         record = self.record(
             alignment_status="reviewed",
             notes=[{"midi_note": 60, "start_seconds": 0.0, "duration_seconds": 0.1}],
-                        phoneme_alignment=[
+            phoneme_alignment=[
                 {"phoneme": "s", "start_seconds": 0.0, "end_seconds": 0.05},
                 {"phoneme": "æ", "start_seconds": 0.05, "end_seconds": 0.1},
             ],
