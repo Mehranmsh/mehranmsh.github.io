@@ -3,7 +3,9 @@
 import json
 import re
 import subprocess
+import time
 import urllib.parse
+from urllib.error import HTTPError
 import urllib.request
 from pathlib import Path
 
@@ -15,9 +17,18 @@ VCSL_RAW = "https://raw.githubusercontent.com/sgossner/VCSL/master/"
 NOTE = {"C":0,"Cs":1,"C#":1,"D":2,"Ds":3,"D#":3,"E":4,"F":5,"Fs":6,"F#":6,"G":7,"Gs":8,"G#":8,"A":9,"As":10,"A#":10,"B":11}
 
 def get(url):
-    req = urllib.request.Request(url, headers={"User-Agent":"MEHRAN-MUSIC-Sample-Importer/1.0"})
-    with urllib.request.urlopen(req, timeout=60) as response:
-        return response.read()
+    req = urllib.request.Request(url, headers={"User-Agent":"MEHRAN-MUSIC/1.0 (https://mehranmsh.github.io; self-hosted sample import)"})
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response:
+                return response.read()
+        except HTTPError as error:
+            if error.code not in (429, 503) or attempt == 5:
+                raise
+            retry_after = error.headers.get("Retry-After")
+            delay = max(3, int(retry_after)) if retry_after and retry_after.isdigit() else min(45, 3 * (2 ** attempt))
+            print(f"Source rate limit ({error.code}); retrying in {delay}s: {url}")
+            time.sleep(delay)
 
 def midi(note):
     match = re.fullmatch(r"(Cs|Ds|Fs|Gs|As|C#|D#|F#|G#|A#|[CDEFGAB])(-?\d+)", note)
@@ -65,6 +76,7 @@ def import_setar_commons(manifest):
     target_dir = ROOT / "assets/instruments/samples/commons-setar"
     target_dir.mkdir(parents=True, exist_ok=True)
     entries = []
+    fret_to_midi = {0:60,1:61,2:62,3:63,4:63,5:64,6:65,7:66,8:66,9:67,10:68,11:68,12:69,13:70,14:70,15:71,16:72,17:73,18:74,19:75,20:75,21:76,22:77,23:78,24:79,25:80}
     for fret, item in sorted(by_fret.items()):
         filename = f"setar-fret-{fret:02d}.ogg"
         target = target_dir / filename
@@ -73,7 +85,8 @@ def import_setar_commons(manifest):
             if not audio.startswith(b"OggS"):
                 raise RuntimeError("Invalid Commons OGG file: " + item["title"])
             target.write_bytes(audio)
-        entries.append({"rootNote":60+fret,"velocityMin":0,"velocityMax":1,
+            time.sleep(1.5)
+        entries.append({"rootNote":fret_to_midi[fret],"velocityMin":0,"velocityMax":1,
             "url":f"./assets/instruments/samples/commons-setar/{filename}",
             "sourceFile":item["title"],"noteLabel":item["noteLabel"]})
     manifest["instruments"]["setar"] = {
