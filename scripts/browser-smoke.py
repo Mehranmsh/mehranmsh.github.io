@@ -187,7 +187,7 @@ def main():
                 second_report["summary"]["mean_phoneme_coverage_ratio"] = 0.8
                 second_report["summary"]["internal_gap_count"] = 1
                 second_report["summary"]["internal_gap_mean_seconds"] = 0.02
-                second_report["summary"]["syllables_invalid_or_incomplete"] = 1
+                second_report["summary"]["syllables_invalid_or_incomplete"] = 2
                 second_report["summary"]["mean_uncovered_duration_seconds"] = 0.04
                 second_report["summary"]["max_uncovered_duration_seconds"] = 0.08
                 second_path = Path(temp) / "mehran-second-take.json"
@@ -228,8 +228,8 @@ def main():
                 assert comparison_report["trend_summary"]["uncovered_duration"]["valid_reports"] == 2
                 assert comparison_report["trend_summary"]["uncovered_duration"]["mean_delta_milliseconds"] == 40.0
                 assert comparison_report["trend_summary"]["uncovered_duration"]["max_delta_milliseconds"] == 80.0
-                assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 1
-                assert comparison_report["rows"][0]["syllables_invalid_or_incomplete"] == 0
+                assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 2
+                assert comparison_report["rows"][0]["syllables_invalid_or_incomplete"] == 1
                 assert comparison_report["rows"][1]["syllables_invalid_or_incomplete"] == 1
                 # Reports from different projects must be rejected.
                 mismatched_report = dict(second_report)
