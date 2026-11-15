@@ -1223,8 +1223,17 @@ def main():
                     page.reload(wait_until="networkidle")
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
-                    # Re-select drum mode through the real UI to repaint the grid from the chosen project.
+                    # Re-select drum mode and kit through the real UI so the selected project's
+                    # state, visible controls and renderer all use the same recorded bank.
                     page.locator("#patternMode").select_option("drums")
+                    page.locator("#drumKit").select_option(kit)
+                    page.wait_for_function("""(kit) => {
+                        const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                        const project = drafts.find(item => item.name === "Automated Audio QA");
+                        return document.querySelector("#drumKit")?.value === kit &&
+                            project?.patternStudio?.mode === "drums" &&
+                            project?.patternStudio?.drumKit === kit;
+                    }""", arg=kit, timeout=10000)
                     drum_grid_selectors = [
                         '[data-pattern-lane="kick"][data-pattern-step="0"]',
                         '[data-pattern-lane="snare"][data-pattern-step="4"]',
