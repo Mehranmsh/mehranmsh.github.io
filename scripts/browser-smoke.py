@@ -1164,7 +1164,8 @@ def main():
                     "This pack is intended for technical and human listening review, not as proof of naturalness. "
                     "Some instruments have limited sample coverage and are not full chromatic libraries. "
                     "Persian Tar, Santur, Ney and Kamancheh phrase previews are real five-second recordings from PCMIR (CC BY 4.0), "
-                    "not note-level sampler banks. Vocal samples are sustained human vowels from VocalSet (CC BY 4.0); ensemble files layer "
+                    "not note-level sampler banks. PCMIR attribution: Mousavi, Prasath and Mousavi, Persian Classical Music Instrument Recognition Database, DOI 10.17632/bpyxwkv9wj.1. "
+                    "Vocal samples are sustained human vowels from VocalSet (CC BY 4.0); ensemble files layer "
                     "separate recorded singers and are not single live-choir recordings.\n",
                     encoding="utf-8")
                 audition_files = sorted(audition_dir.glob("*.wav"))
@@ -1340,7 +1341,7 @@ def main():
                 manifest_lines = ["file,bank,source"]
                 for audition_file in audition_files:
                     bank = audition_file.stem
-                    source = "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
+                    source = "PCMIR CC BY 4.0 recorded Persian phrase" if bank.startswith("phrase_") else "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 
