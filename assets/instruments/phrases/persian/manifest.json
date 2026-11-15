@@ -1,5 +1,6 @@
 {
   "schemaVersion": 1,
+  "libraryRevision": 2,
   "name": "MEHRAN Persian Recorded Phrases",
   "kind": "one-shot-phrase-library",
   "source": "PCMIR Persian Classical Music Instrument Recognition Database",
