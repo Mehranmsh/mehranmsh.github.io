@@ -1032,6 +1032,25 @@ def main():
                     assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
 
                 # Every newly imported melodic instrument must render from its own same-origin recorded samples.
+                vocal_assets = page.evaluate("""async () => {
+                    const response = await fetch("./assets/instruments/manifest.json", {cache: "no-store"});
+                    if (!response.ok) throw new Error("Vocal manifest HTTP " + response.status);
+                    const manifest = await response.json();
+                    const expected = {female_vocal: 45, male_vocal: 55, female_choir: 45, male_choir: 55, mixed_choir: 100};
+                    const counts = {};
+                    for (const [name, count] of Object.entries(expected)) {
+                        const bank = manifest.instruments?.[name];
+                        if (!bank || bank.samples?.length !== count) throw new Error("Wrong sample count for " + name);
+                        if (name.endsWith("_choir") && bank.layered !== true) throw new Error("Ensemble bank is not layered: " + name);
+                        const sample = bank.samples[0];
+                        const audio = await fetch(sample.url, {cache: "no-store"});
+                        if (!audio.ok || (await audio.arrayBuffer()).byteLength < 256) throw new Error("Vocal sample failed to load: " + sample.url);
+                        counts[name] = bank.samples.length;
+                    }
+                    return counts;
+                }""")
+                assert vocal_assets == {"female_vocal": 45, "male_vocal": 55, "female_choir": 45, "male_choir": 55, "mixed_choir": 100}, "Self-hosted human vocal assets are incomplete: " + str(vocal_assets)
+
                 live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
                 live_modes_missing = ["live_tar", "live_santur", "live_ney"]
                 page.locator("#patternBars").select_option("1")
