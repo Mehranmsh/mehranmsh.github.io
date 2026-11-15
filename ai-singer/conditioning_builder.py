@@ -31,13 +31,33 @@ def prepare_acoustic_conditioning(
             start = float(event["start_seconds"])
             end = float(event["end_seconds"])
             overlaps = []
+            overlap_intervals = []
             for index, note in enumerate(notes):
                 note_start = float(note["start_seconds"])
                 note_end = note_start + float(note["duration_seconds"])
-                if min(end, note_end) > max(start, note_start):
+                overlap_start = max(start, note_start)
+                overlap_end = min(end, note_end)
+                if overlap_end > overlap_start:
                     overlaps.append(index)
+                    overlap_intervals.append((overlap_start, overlap_end))
             if not overlaps:
                 raise ValueError("every phoneme must overlap at least one supplied note")
+            # Measure union coverage so simultaneous/polyphonic notes do not
+            # inflate the fraction of a phoneme covered by the melody.
+            covered_seconds = 0.0
+            merged_start = merged_end = None
+            for interval_start, interval_end in sorted(overlap_intervals):
+                if merged_start is None:
+                    merged_start, merged_end = interval_start, interval_end
+                elif interval_start <= merged_end:
+                    merged_end = max(merged_end, interval_end)
+                else:
+                    covered_seconds += merged_end - merged_start
+                    merged_start, merged_end = interval_start, interval_end
+            if merged_start is not None:
+                covered_seconds += merged_end - merged_start
+            phoneme_duration = end - start
+            coverage_ratio = min(1.0, covered_seconds / phoneme_duration)
             phoneme_spans.append({
                 "phoneme": event["phoneme"],
                 "start_seconds": start,
@@ -46,6 +66,9 @@ def prepare_acoustic_conditioning(
             mapping.append({
                 "phoneme_index": len(phoneme_spans) - 1,
                 "note_indices": overlaps,
+                "phoneme_duration_seconds": phoneme_duration,
+                "note_covered_seconds": covered_seconds,
+                "note_coverage_ratio": coverage_ratio,
                 "mapping_source": "temporal_overlap_of_human_supplied_intervals",
             })
         if not syllable_events:
