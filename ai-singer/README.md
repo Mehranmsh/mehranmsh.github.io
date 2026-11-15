@@ -502,3 +502,8 @@ Reviewed syllable annotations also receive a temporal consistency diagnostic: th
 ### Syllable boundary and internal-gap diagnostics
 
 For explicitly reviewed syllable annotations, the audit separately measures leading and trailing boundary slack (the time between a syllable boundary and its first/last assigned phoneme) and internal gaps between assigned phoneme spans. Aggregate output includes boundary-slack mean/p50/p90, the largest internal gap, mean total internal gap per syllable, and the number of syllables containing a gap. These measurements are descriptive only: a boundary margin or gap may reflect annotation convention, coarticulation, or a genuine pause, so no default warning or automatic correction is applied. Syllable labels and recording identifiers are not emitted.
+
+
+### Syllable phoneme composition diagnostics
+
+For reviewed syllable-to-phoneme partitions, the quality report now provides descriptive counts of vowel and consonant phonemes per syllable, including aggregate totals, means, and counts of syllables with zero or multiple vowel phoneme symbols. These are review cues only, not validation rules: dialect, transcription conventions, and diphthong representation can affect the counts, so the audit does not assume a universal one-vowel-symbol-per-syllable rule. Syllable labels and recording identifiers remain excluded.
