@@ -342,6 +342,12 @@ python dataset_audit.py /path/to/manifest.jsonl --audio-root /path/to/audio \
 These example thresholds are operator choices, not universal Persian singing standards. Choose them only after inspecting representative annotations. A `ready_for_staged_training: true` result means the manifest has passed structural and rights validation and the train/validation splits meet the current data-loader prerequisites. It does not mean a model has been trained or that singing quality has been established. The audit never uploads audio, starts training, or creates model weights.
 
 
+
+### Explicit syllable-to-phoneme annotations
+
+A manifest record may optionally include `syllable_alignment` when a qualified reviewer has confirmed the syllable boundaries. Each item contains a reviewed `text` label, `start_seconds`, `end_seconds`, and a half-open phoneme index range (`phoneme_start_index`, `phoneme_end_index`). The ranges must partition the complete `phoneme_alignment` in order, without omissions or overlap, and each syllable time span must cover its assigned phoneme spans. The validator never derives syllables from unvowelled Persian text. Records without this optional field remain valid and are not penalized.
+
+
 ## Held-out singing quality evaluation
 
 `quality_evaluation.py` compares aligned reference and generated arrays without loading or exporting recordings. It reports pitch error in cents on voiced-frame overlap, voicing precision/recall/F1, voiced-frame coverage, log-Mel and log-RMS MAE, waveform SNR, multi-resolution spectral convergence and log-magnitude error, peak level, and clipped-sample fraction. It emits aggregate metrics only and deliberately does not set quality approval: thresholds must be calibrated on a representative held-out speaker set, and human listening review remains mandatory. No metric from a synthetic unit test is evidence of real singing quality.
