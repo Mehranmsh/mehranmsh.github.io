@@ -211,7 +211,21 @@ def main():
     mapping = {
         "violin": ("violin", "Violin"),
         "cello": ("cello", "Cello"),
-        "acoustic_bass": ("contrabass", "Acoustic Double Bass")
+        "acoustic_bass": ("contrabass", "Acoustic Double Bass"),
+        "electric_bass": ("bass-electric", "Electric Bass"),
+        "bassoon": ("bassoon", "Bassoon"),
+        "clarinet": ("clarinet", "Clarinet"),
+        "flute": ("flute", "Concert Flute"),
+        "french_horn": ("french-horn", "French Horn"),
+        "electric_guitar": ("guitar-electric", "Electric Guitar"),
+        "harmonium": ("harmonium", "Harmonium"),
+        "harp": ("harp", "Concert Harp"),
+        "organ": ("organ", "Pipe Organ"),
+        "saxophone": ("saxophone", "Saxophone"),
+        "trombone": ("trombone", "Trombone"),
+        "trumpet": ("trumpet", "Trumpet"),
+        "tuba": ("tuba", "Tuba"),
+        "xylophone": ("xylophone", "Xylophone")
     }
     for instrument, (folder, label) in mapping.items():
         names = sorted(item["path"].split("/")[-1] for item in tone_tree
