@@ -156,7 +156,7 @@ def main():
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
                 # Compare two local JSON reports from the same project without uploading either file.
                 second_report = dict(quality_report)
-                second_report["generated_at"] = "2026-11-15T01:00:00Z"
+                second_report["generated_at"] = "2099-01-01T00:00:00Z"
                 second_report["summary"] = dict(quality_report["summary"])
                 second_report["summary"]["mean_phoneme_coverage_ratio"] = 0.8
                 second_report["summary"]["internal_gap_count"] = 1
