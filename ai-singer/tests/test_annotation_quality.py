@@ -182,6 +182,30 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertNotIn("سَ", str(summary))
         self.assertNotIn("text", str(summary))
 
+    def test_reports_syllable_boundary_slack_and_internal_phoneme_gaps(self):
+        item = record()
+        item["alignment_status"] = "reviewed"
+        item["syllable_alignment"] = [
+            {"text": "syllable-a", "start_seconds": 0.0, "end_seconds": 0.25,
+             "phoneme_start_index": 0, "phoneme_end_index": 2},
+            {"text": "syllable-b", "start_seconds": 0.75, "end_seconds": 1.0,
+             "phoneme_start_index": 2, "phoneme_end_index": 3},
+        ]
+        # Make a deliberate 0.1-second gap between the two phonemes in syllable A.
+        item["phoneme_alignment"][1]["start_seconds"] = 0.2
+        result = analyze_annotation(item)
+        self.assertEqual(result["syllable_leading_boundary_slack_seconds"], [0.0, 0.05])
+        self.assertEqual(result["syllable_trailing_boundary_slack_seconds"], [0.05, 0.0])
+        self.assertAlmostEqual(result["syllable_internal_gap_max_seconds"][0], 0.1)
+        self.assertEqual(result["syllable_internal_gap_max_seconds"][1], 0.0)
+        summary = summarize_annotation_quality([item])["syllable_alignment"]
+        self.assertEqual(summary["boundary_slack_seconds"]["leading_p90"], 0.05)
+        self.assertEqual(summary["boundary_slack_seconds"]["trailing_p90"], 0.05)
+        self.assertAlmostEqual(summary["internal_phoneme_gaps_seconds"]["maximum"], 0.1)
+        self.assertEqual(summary["internal_phoneme_gaps_seconds"]["syllables_with_gaps"], 1)
+        self.assertNotIn("syllable-a", str(summary))
+        self.assertNotIn("syllable-b", str(summary))
+
     def test_rejects_unreviewed_syllable_metrics(self):
         item = record()
         item["alignment_status"] = "unreviewed"
