@@ -15,8 +15,14 @@
   if(!match)return NaN;
   return (Number(match[2])+1)*12+NOTE_SEMITONES[match[1][0].toUpperCase()+match[1].slice(1)];
  }
+ async function fetchWithTimeout(url,options={},timeoutMs=15000){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{return await fetch(url,{...options,signal:controller.signal});}
+  catch(error){if(controller.signal.aborted)throw new Error("Audio asset request timed out after "+Math.round(timeoutMs/1000)+" seconds: "+url);throw error;}
+  finally{clearTimeout(timer);}
+ }
  async function loadManifest(){
-  if(!manifestPromise)manifestPromise=fetch(MANIFEST_URL,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("Instrument manifest unavailable ("+r.status+").");return r.json();}).then(m=>{
+  if(!manifestPromise)manifestPromise=fetchWithTimeout(MANIFEST_URL,{cache:"no-store"},12000).then(r=>{if(!r.ok)throw new Error("Instrument manifest unavailable ("+r.status+").");return r.json();}).then(m=>{
    if(!m||m.schemaVersion!==1||!m.instruments||typeof m.instruments!=="object")throw new Error("Invalid MEHRAN instrument manifest.");
    return m;
   }).catch(e=>{manifestPromise=null;throw e;});
@@ -29,7 +35,10 @@
  }
  async function decodeSample(ctx,sample){
   const url=sameOriginUrl(sample.url);
-  if(!decodedCache.has(url))decodedCache.set(url,fetch(url).then(r=>{if(!r.ok)throw new Error("Missing recorded sample: "+sample.url);return r.arrayBuffer();}).then(b=>ctx.decodeAudioData(b.slice(0))));
+  if(!decodedCache.has(url)){
+   const pending=fetchWithTimeout(url,{},18000).then(r=>{if(!r.ok)throw new Error("Missing recorded sample ("+r.status+"): "+sample.url);return r.arrayBuffer();}).then(b=>ctx.decodeAudioData(b.slice(0))).catch(error=>{decodedCache.delete(url);throw error;});
+   decodedCache.set(url,pending);
+  }
   return decodedCache.get(url);
  }
  async function create(){
