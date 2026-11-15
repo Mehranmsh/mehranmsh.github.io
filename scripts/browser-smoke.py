@@ -154,6 +154,23 @@ def main():
                 assert quality_report["syllables"][0]["phoneme_count"] == 2
                 assert quality_report["syllables"][0]["phoneme_coverage_ratio"] == 1
                 assert "vowel_consonant_composition" in quality_report["unavailable_metrics"]
+                # Compare two local JSON reports from the same project without uploading either file.
+                second_report = dict(quality_report)
+                second_report["generated_at"] = "2026-11-15T01:00:00Z"
+                second_report["summary"] = dict(quality_report["summary"])
+                second_report["summary"]["mean_phoneme_coverage_ratio"] = 0.8
+                second_report["summary"]["internal_gap_count"] = 1
+                second_report["summary"]["internal_gap_mean_seconds"] = 0.02
+                second_path = Path(temp) / "mehran-second-take.json"
+                second_path.write_text(__import__("json").dumps(second_report), encoding="utf-8")
+                page.locator("#mehranCompareQualityFiles").set_input_files([str(quality_path), str(second_path)])
+                assert page.locator("#compareMehranQualityReports").is_enabled()
+                page.locator("#compareMehranQualityReports").click()
+                page.wait_for_function("document.querySelector('#mehranQualityComparison')?.innerText.includes('80.0%')")
+                comparison_text = page.locator("#mehranQualityComparison").inner_text()
+                assert "مبنای مقایسه" in comparison_text
+                assert "+1.0 pp" in comparison_text
+                assert "1" in comparison_text
                 page.locator("#vocalRecordingFile").set_input_files(str(audio_path))
                 try:
                     page.wait_for_function("document.querySelector('#vocalImportStatus')?.textContent.includes('Vocal recording imported and saved on this device.')", timeout=10000)
