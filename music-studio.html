@@ -737,7 +737,7 @@
   const finite=(v)=>typeof v==="number"&&Number.isFinite(v);
   const percentile=(values,p)=>{if(!values.length)return null;const a=values.slice().sort((x,y)=>x-y),i=(a.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return a[lo]+(a[hi]-a[lo])*(i-lo);};
   const fmt=(v)=>finite(v)?(v*1000).toFixed(1)+" ms":unavailable;
-  const coverage=[],gaps=[],detailRows=[];let valid=0,invalid=0;
+  const coverage=[],gaps=[],uncoveredTimes=[],detailRows=[];let valid=0,invalid=0;
   for(const syl of syllables){
    const start=Number(syl?.start_seconds),end=Number(syl?.end_seconds),from=Number(syl?.phoneme_start_index),to=Number(syl?.phoneme_end_index);
    if(!finite(start)||!finite(end)||end<=start||!Number.isInteger(from)||!Number.isInteger(to)||from<0||to<=from||to>phonemes.length){invalid++;continue;}
@@ -751,17 +751,20 @@
     else cursorEnd=Math.max(cursorEnd,span.end);
    }
    if(cursorStart!==null)union+=cursorEnd-cursorStart;
-   const ratio=Math.min(1,union/(end-start)),uncovered=Math.max(0,(end-start)-union);coverage.push(ratio);valid++;detailRows.push({text:String(syl?.text||'هجا'),duration:end-start,phonemes:spans.length,coverage:ratio,gap:internalGap,uncovered});
+   const ratio=Math.min(1,union/(end-start)),uncovered=Math.max(0,(end-start)-union);coverage.push(ratio);uncoveredTimes.push(uncovered);valid++;detailRows.push({text:String(syl?.text||'هجا'),duration:end-start,phonemes:spans.length,coverage:ratio,gap:internalGap,uncovered});
   }
   const mean=coverage.length?coverage.reduce((a,b)=>a+b,0)/coverage.length:null;
   const meanGap=gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null;
   const maxGap=gaps.length?Math.max(...gaps):null;
+  const meanUncovered=uncoveredTimes.length?uncoveredTimes.reduce((a,b)=>a+b,0)/uncoveredTimes.length:null;
+  const maxUncovered=uncoveredTimes.length?Math.max(...uncoveredTimes):null;
   const card=(label,value,detail="")=>'<div class="project"><div class="project-copy"><b>'+label+'</b><small>'+value+(detail?' · '+detail:'')+'</small></div></div>';
   const coverageText=mean===null?unavailable:(mean*100).toFixed(1)+"%";
   root.innerHTML='<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px">'+
    card("هجاهای بررسی‌شده",String(valid),invalid?invalid+" مورد نامعتبر یا ناقص کنار گذاشته شد":"بر اساس بازه‌های ذخیره‌شده")+
    card("میانگین پوشش زمانی واج‌ها",coverageText,coverage.length?"میانه "+(percentile(coverage,.5)*100).toFixed(1)+"% · صدک ۹۰ "+(percentile(coverage,.9)*100).toFixed(1)+"%":"")+
    card("شکاف داخلی واج‌ها",gaps.length?gaps.length+" شکاف":"شکافی ثبت نشده",gaps.length?"میانگین "+fmt(meanGap)+" · بیشینه "+fmt(maxGap):"")+
+   card("زمان پوشش‌نیافتهٔ هجاها",fmt(meanUncovered),"میانگین · بیشینه "+fmt(maxUncovered)) +
    card("ترکیب واکه/همخوان",unavailable,"اطلاعات ویژگی واج در payload رابط موجود نیست")+
    card("فاصلهٔ مرزی ابتدا/انتها",unavailable,"مرز هجا در این payload از ابتدا/انتهای واج‌ها ساخته شده؛ سنجش مستقل ممکن نیست")+
    '</div><h4 style="margin:16px 0 8px;font-size:12px">جزئیات هر هجا</h4><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="color:var(--muted);text-align:right"><th style="padding:7px">هجا</th><th>مدت</th><th>تعداد واج</th><th>پوشش</th><th>زمان پوشش‌نیافته</th><th>شکاف داخلی</th></tr></thead><tbody>'+detailRows.map(row=>'<tr style="border-top:1px solid var(--line)"><td style="padding:8px">'+esc(row.text)+'</td><td>'+fmt(row.duration)+'</td><td>'+row.phonemes+'</td><td>'+(row.coverage*100).toFixed(1)+'%</td><td>'+fmt(row.uncovered)+'</td><td>'+fmt(row.gap)+'</td></tr>').join('')+'</tbody></table></div><p style="color:var(--muted);font-size:10px;margin:10px 0 0">این گزارش توصیفی است، نه تأیید کیفیت آکوستیکی یا پذیرش برای آموزش. محاسبات فقط از metadata ذخیره‌شده انجام می‌شوند؛ هیچ صدایی بارگذاری یا ارسال نمی‌شود.</p>';
@@ -769,7 +772,7 @@
  function exportMehranSyllableQualityReport(){
   const project=mehranSingerAlignmentProject(),saved=project?.singerAlignment,syllables=saved?.syllableAlignment,phonemes=saved?.acousticConditioning?.phonemes,status=$("mehranSingerAlignmentStatus");
   if(!Array.isArray(syllables)||!syllables.length||!Array.isArray(phonemes)||!phonemes.length){status.textContent="گزارش آماده نیست؛ ابتدا هم‌ترازی را آماده کن.";return;}
-  const coverage=[],gaps=[],rows=[];let invalid=0;
+  const coverage=[],gaps=[],uncoveredTimes=[],rows=[];let invalid=0;
   for(const syl of syllables){
    const start=Number(syl?.start_seconds),end=Number(syl?.end_seconds),from=Number(syl?.phoneme_start_index),to=Number(syl?.phoneme_end_index);
    if(!Number.isFinite(start)||!Number.isFinite(end)||end<=start||!Number.isInteger(from)||!Number.isInteger(to)||from<0||to<=from||to>phonemes.length){invalid++;continue;}
@@ -778,10 +781,10 @@
    spans.sort((a,b)=>a.start-b.start||a.end-b.end);let union=0,runStart=null,runEnd=null,gapTotal=0;
    for(const span of spans){if(runStart===null){runStart=span.start;runEnd=span.end;continue;}if(span.start>runEnd){const gap=span.start-runEnd;gapTotal+=gap;gaps.push(gap);union+=runEnd-runStart;runStart=span.start;runEnd=span.end;}else runEnd=Math.max(runEnd,span.end);}
    if(runStart!==null)union+=runEnd-runStart;
-   const ratio=Math.min(1,union/(end-start)),uncovered=Math.max(0,(end-start)-union);coverage.push(ratio);rows.push({syllable:String(syl?.text||"هجا"),start_seconds:start,end_seconds:end,duration_seconds:end-start,phoneme_count:spans.length,phoneme_coverage_ratio:ratio,uncovered_duration_seconds:uncovered,internal_gap_total_seconds:gapTotal});
+   const ratio=Math.min(1,union/(end-start)),uncovered=Math.max(0,(end-start)-union);coverage.push(ratio);uncoveredTimes.push(uncovered);rows.push({syllable:String(syl?.text||"هجا"),start_seconds:start,end_seconds:end,duration_seconds:end-start,phoneme_count:spans.length,phoneme_coverage_ratio:ratio,uncovered_duration_seconds:uncovered,internal_gap_total_seconds:gapTotal});
   }
   const mean=coverage.length?coverage.reduce((a,b)=>a+b,0)/coverage.length:null,sorted=coverage.slice().sort((a,b)=>a-b),pct=p=>{if(!sorted.length)return null;const i=(sorted.length-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return sorted[lo]+(sorted[hi]-sorted[lo])*(i-lo);};
-  const report={schema_version:"1.0",generated_at:new Date().toISOString(),project_id:project.id??null,source:"locally_saved_alignment_metadata",audio_included:false,summary:{syllables_reviewed:rows.length,syllables_invalid_or_incomplete:invalid,mean_phoneme_coverage_ratio:mean,median_phoneme_coverage_ratio:pct(.5),p90_phoneme_coverage_ratio:pct(.9),internal_gap_count:gaps.length,internal_gap_mean_seconds:gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null,internal_gap_max_seconds:gaps.length?Math.max(...gaps):null},unavailable_metrics:["vowel_consonant_composition","independent_syllable_boundary_slack"],syllables:rows,limitations:["Descriptive timing diagnostics only; not acoustic-quality approval or training acceptance.","No audio is included or uploaded."]};
+  const report={schema_version:"1.0",generated_at:new Date().toISOString(),project_id:project.id??null,source:"locally_saved_alignment_metadata",audio_included:false,summary:{syllables_reviewed:rows.length,syllables_invalid_or_incomplete:invalid,mean_phoneme_coverage_ratio:mean,median_phoneme_coverage_ratio:pct(.5),p90_phoneme_coverage_ratio:pct(.9),internal_gap_count:gaps.length,internal_gap_mean_seconds:gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null,internal_gap_max_seconds:gaps.length?Math.max(...gaps):null,mean_uncovered_duration_seconds:uncoveredTimes.length?uncoveredTimes.reduce((a,b)=>a+b,0)/uncoveredTimes.length:null,max_uncovered_duration_seconds:uncoveredTimes.length?Math.max(...uncoveredTimes):null},unavailable_metrics:["vowel_consonant_composition","independent_syllable_boundary_slack"],syllables:rows,limitations:["Descriptive timing diagnostics only; not acoustic-quality approval or training acceptance.","No audio is included or uploaded."]};
   const blob=new Blob([JSON.stringify(report,null,2)],{type:"application/json;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="mehran-syllable-timing-quality-report.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);status.textContent="گزارش JSON روی همین دستگاه آماده و ذخیره شد.";
  }
  function compareMehranQualityReports(){
