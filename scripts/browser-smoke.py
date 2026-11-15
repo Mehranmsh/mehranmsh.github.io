@@ -178,6 +178,7 @@ def main():
                 assert "1" in comparison_text
                 assert page.locator('#mehranQualityComparison [role="img"][aria-label="روند پوشش واجی"] svg').is_visible()
                 assert page.locator('#mehranQualityComparison [role="img"][aria-label="روند میانگین شکاف زمانی"] svg').is_visible()
+                assert page.locator('#mehranQualityComparison [role="img"][aria-label="روند هجاهای ناقص و نامعتبر"] svg').is_visible()
                 assert "تغییر پوشش واجی" in comparison_text
                 assert "تغییر میانگین شکاف زمانی" in comparison_text
                 assert "تغییر هجاهای ناقص / نامعتبر" in comparison_text
