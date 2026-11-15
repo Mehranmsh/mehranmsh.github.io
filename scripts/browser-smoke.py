@@ -1114,10 +1114,9 @@ def main():
                     # Keep the QA project below its 32-track product limit while testing every bank.
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").select_option(label="Automated Audio QA")
-                    if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
-                        project_for_audio = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
-                        vocal_track = next(track for track in project_for_audio["tracks"] if track.get("generated") and track["name"] == "Live QA " + mode)
-                        export_track_audio(page, project_for_audio["id"], vocal_track["id"], mode + ".wav")
+                    project_for_audio = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    audition_track = next(track for track in project_for_audio["tracks"] if track.get("generated") and track["name"] == "Live QA " + mode)
+                    export_track_audio(page, project_for_audio["id"], audition_track["id"], mode + ".wav")
                     latest_track_delete = page.locator("[data-track-delete]").last
                     latest_track_text = latest_track_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
                     if "Live QA " + mode not in latest_track_text:
@@ -1146,8 +1145,21 @@ def main():
                 harmony_track.click()
                 page.wait_for_timeout(150)
                 audition_dir = ROOT / "test-audio-output"
-                (audition_dir / "README.txt").write_text("MEHRAN MUSIC human-vocal audition pack\n\nThese short WAVs are browser-rendered from self-hosted VocalSet human singing recordings (CC BY 4.0). Samples are pitch-mapped and loop-prepared from sustained vowels. Female/male ensemble files layer separate recorded singers; they are not one live choir recording.\n", encoding="utf-8")
-                (audition_dir / "manifest.csv").write_text("file,voice bank,recorded singers\nlive_female_vocal.wav,Female solo voice,1 selected singer per note\nlive_male_vocal.wav,Male solo voice,1 selected singer per note\nlive_female_choir.wav,Female ensemble,9\nlive_male_choir.wav,Male ensemble,11\nlive_mixed_choir.wav,Mixed ensemble,20\nhuman-vocal-harmony.wav,Female solo with third and fifth harmonies,1 selected singer per note\n", encoding="utf-8")
+                (audition_dir / "README.txt").write_text(
+                    "MEHRAN MUSIC isolated audition pack\\n\\n"
+                    "WAV previews are rendered in Chromium from the studio's self-hosted recorded sample banks. "
+                    "This pack is intended for technical and human listening review, not as proof of naturalness. "
+                    "Some instruments have limited sample coverage and are not full chromatic libraries. "
+                    "Vocal samples are sustained human vowels from VocalSet (CC BY 4.0); ensemble files layer "
+                    "separate recorded singers and are not single live-choir recordings.\\n",
+                    encoding="utf-8")
+                audition_files = sorted(audition_dir.glob("*.wav"))
+                manifest_lines = ["file,bank,source"]
+                for audition_file in audition_files:
+                    bank = audition_file.stem
+                    source = "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
+                    manifest_lines.append(f"{audition_file.name},{bank},{source}")
+                (audition_dir / "manifest.csv").write_text("\\n".join(manifest_lines) + "\\n", encoding="utf-8")
                 print("PASS: 19 melodic instrument banks, 2 solo vocal banks and 3 layered human ensembles")
                 for mode in live_modes_missing:
                     page.locator("#patternMode").select_option(mode)
@@ -1170,6 +1182,15 @@ def main():
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in live_status, "Recorded percussion/drum instrument did not render: " + mode + "; " + live_status
+                    page.locator('[data-view="mix"]').click()
+                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    percussion_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    percussion_track = next(track for track in percussion_project["tracks"] if track.get("generated") and track["name"] == "Live QA " + mode)
+                    export_track_audio(page, percussion_project["id"], percussion_track["id"], mode + ".wav")
+                    percussion_delete = page.locator("[data-track-delete]").last
+                    assert "Live QA " + mode in percussion_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
+                    percussion_delete.click()
+                    page.wait_for_timeout(150)
                 print("PASS: cajon, world percussion and acoustic drums render from self-hosted recorded samples")
                 # The drum step sequencer must use recorded samples when a recorded kit is selected.
                 for kit in ["recorded", "cajon", "world_percussion"]:
@@ -1180,6 +1201,15 @@ def main():
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                     drum_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in drum_status, "Recorded drum grid failed: " + kit + "; " + drum_status
+                    page.locator('[data-view="mix"]').click()
+                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    drum_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
+                    drum_track = next(track for track in drum_project["tracks"] if track.get("generated") and track["name"] == "Recorded drum grid QA " + kit)
+                    export_track_audio(page, drum_project["id"], drum_track["id"], "drum_grid_" + kit + ".wav")
+                    drum_delete = page.locator("[data-track-delete]").last
+                    assert "Recorded drum grid QA " + kit in drum_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
+                    drum_delete.click()
+                    page.wait_for_timeout(150)
                 print("PASS: drum sequencer uses real recorded acoustic drums, cajon and world percussion")
                 
                 page.locator('[data-view="lyrics"]').click()
