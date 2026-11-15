@@ -161,6 +161,37 @@ class AnnotationQualityTests(unittest.TestCase):
         self.assertNotIn("سَ", str(summary))
         self.assertNotIn("text", str(summary))
 
+    def test_syllable_duration_distribution_pools_reviewed_records(self):
+        first = record()
+        first["alignment_status"] = "reviewed"
+        first["syllable_alignment"] = [
+            {"text": "first-a", "start_seconds": 0.0, "end_seconds": 0.8,
+             "phoneme_start_index": 0, "phoneme_end_index": 2},
+            {"text": "first-b", "start_seconds": 0.8, "end_seconds": 1.0,
+             "phoneme_start_index": 2, "phoneme_end_index": 3},
+        ]
+        second = record()
+        second["alignment_status"] = "reviewed"
+        second["syllable_alignment"] = [
+            {"text": "second-a", "start_seconds": 0.0, "end_seconds": 0.6,
+             "phoneme_start_index": 0, "phoneme_end_index": 2},
+            {"text": "second-b", "start_seconds": 0.6, "end_seconds": 1.0,
+             "phoneme_start_index": 2, "phoneme_end_index": 3},
+        ]
+
+        summary = summarize_annotation_quality([first, second])
+        durations = summary["syllable_alignment"]["duration_seconds"]
+        self.assertEqual(summary["syllable_alignment"]["recordings_with_syllables"], 2)
+        self.assertEqual(summary["syllable_alignment"]["total_syllables"], 4)
+        self.assertAlmostEqual(durations["minimum"], 0.2)
+        self.assertAlmostEqual(durations["maximum"], 0.8)
+        self.assertAlmostEqual(durations["range"], 0.6)
+        self.assertAlmostEqual(durations["mean"], 0.5)
+        self.assertAlmostEqual(durations["p50"], 0.4)
+        self.assertAlmostEqual(durations["p90"], 0.8)
+        self.assertNotIn("first-a", str(summary))
+        self.assertNotIn("second-a", str(summary))
+
     def test_reports_syllable_phoneme_time_coverage_and_optional_warning(self):
         item = record()
         item["alignment_status"] = "reviewed"
