@@ -1118,8 +1118,16 @@ def main():
                 if "track placements" not in page.locator("#arrangementExportStatus").inner_text():
                     raise AssertionError("Multi-instrument arrangement export did not report completed track placements.")
 
-                # Export each live instrument alone so a non-silent combined mix cannot
-                # hide a missing or disconnected instrument contribution.
+                # Export isolated live-instrument WAVs into a stable directory so they
+                # can be auditioned outside CI. The WAVs remain workflow artifacts,
+                # never committed to the repository.
+                import csv
+                import os
+                audition_dir = Path(os.environ.get("MEHRAN_AUDIO_AUDITION_DIR", ROOT / "test-audio-output"))
+                audition_dir.mkdir(parents=True, exist_ok=True)
+                for previous in audition_dir.glob("*.wav"):
+                    previous.unlink()
+                manifest_rows = []
                 solo_section = {"live_piano": 0, "live_tar": 0, "live_guitar": 1, "live_violin": 1}
                 instrument_signatures = {}
                 for mode, track_id in live_track_ids.items():
@@ -1131,7 +1139,7 @@ def main():
                     except Exception as export_error:
                         export_status = page.locator("#arrangementExportStatus").inner_text()
                         raise AssertionError("Solo instrument export failed for " + mode + ". Export status: " + export_status) from export_error
-                    solo_path = Path(temp) / ("mehran-solo-" + mode + ".wav")
+                    solo_path = audition_dir / ("mehran-" + mode.replace("live_", "") + ".wav")
                     solo_download.value.save_as(solo_path)
                     with wave.open(str(solo_path), "rb") as solo_wav:
                         solo_channels = solo_wav.getnchannels()
@@ -1149,17 +1157,37 @@ def main():
                         raise AssertionError("Solo instrument render is silent for " + mode + ": " + str((solo_peak, solo_rms)))
                     if solo_rail_hits:
                         raise AssertionError("Solo instrument render hit 16-bit PCM full scale for " + mode + ": " + str((solo_peak, solo_rail_hits)))
-                    # A compact spectral-shape proxy: normalized first-difference energy
-                    # rises with brighter/high-frequency content. It is not a timbre
-                    # naturalness test, but catches identical generic output profiles.
                     diff_energy = sum((solo_samples[index] - solo_samples[index - 1]) ** 2 for index in range(1, len(solo_samples)))
                     signal_energy = sum(sample * sample for sample in solo_samples)
-                    brightness_proxy = diff_energy / max(1, signal_energy)
+                    brightness_proxy = math.sqrt(diff_energy / max(1, signal_energy))
                     instrument_signatures[mode] = round(brightness_proxy, 4)
+                    manifest_rows.append({
+                        "instrument": mode.replace("live_", ""),
+                        "mode": mode,
+                        "file": solo_path.name,
+                        "sample_rate_hz": solo_rate,
+                        "channels": solo_channels,
+                        "pcm_bits": solo_width * 8,
+                        "duration_seconds": round(solo_frames / solo_rate, 3),
+                        "rms": round(solo_rms, 2),
+                        "peak": solo_peak,
+                        "brightness_proxy": round(brightness_proxy, 4),
+                    })
                     print("PASS: isolated live instrument render " + mode + " · RMS " + str(round(solo_rms, 2)) + " · peak " + str(solo_peak) + " · brightness proxy " + str(round(brightness_proxy, 4)))
                 if len(set(instrument_signatures.values())) < 3:
                     raise AssertionError("Live instruments are producing insufficiently distinct spectral-shape signatures: " + str(instrument_signatures))
-                print("PASS: live instrument spectral-shape signatures are differentiated " + str(instrument_signatures))
+                with (audition_dir / "manifest.csv").open("w", newline="", encoding="utf-8") as manifest_file:
+                    writer = csv.DictWriter(manifest_file, fieldnames=list(manifest_rows[0].keys()))
+                    writer.writeheader()
+                    writer.writerows(manifest_rows)
+                (audition_dir / "README.txt").write_text(
+                    "MEHRAN Music Studio isolated instrument audition pack\\n"
+                    "Four dry/local-synth instrument stems rendered by the studio's own engine.\\n"
+                    "These files validate technical WAV output only; they are not proof of acoustic realism.\\n"
+                    "Listen and compare with real instrument recordings before judging naturalness.\\n",
+                    encoding="utf-8",
+                )
+                print("PASS: audition pack written to " + str(audition_dir) + " · " + str(len(manifest_rows)) + " WAV files")
                 page.locator('[data-view="lyrics"]').click()
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
