@@ -57,7 +57,7 @@ jobs:
               for sample in samples:
                   file = Path("assets/instruments") / sample["url"].removeprefix("./assets/instruments/")
                   assert file.is_file() and file.stat().st_size > 128, str(file)
-          for key in ["violin", "cello", "acoustic_bass", "kalimba"]:
+          for key in ["violin", "cello", "acoustic_bass", "kalimba", "setar"]:
               samples = data["instruments"][key]["samples"]
               assert len(samples) >= 8, (key, len(samples))
               for sample in samples:
