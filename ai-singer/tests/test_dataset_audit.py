@@ -168,6 +168,23 @@ class DatasetAuditTests(unittest.TestCase):
         self.assertTrue(any("very_short_phoneme_span" in item
                             for item in report["training_readiness"]["warnings"]))
 
+    def test_audit_includes_phoneme_note_coverage_and_optional_threshold(self):
+        report = audit_dataset(
+            self.write(self.dataset()),
+            minimum_phoneme_note_coverage=0.8,
+        )
+        quality = report["splits"]["train"]["annotation_quality"]
+        self.assertEqual(quality["phoneme_note_time_coverage"]["phonemes_analyzed"], 2)
+        self.assertEqual(quality["phoneme_note_time_coverage"]["uncovered_phonemes"], 0)
+        self.assertTrue(any(
+            item["code"] == "low_phoneme_note_coverage"
+            for item in quality["warnings"]
+        ))
+        self.assertTrue(any(
+            "low_phoneme_note_coverage" in warning
+            for warning in report["training_readiness"]["warnings"]
+        ))
+
     def test_rejects_invalid_expected_sample_rate(self):
         with self.assertRaises(DatasetAuditError):
             audit_dataset(self.write(self.dataset()), expected_sample_rate=True)
