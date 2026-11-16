@@ -481,9 +481,9 @@ def main():
                 assert training_pair_json["accepted_for_inference"] is False
                 assert training_pair_json["audio_generated"] is False
                 assert training_pair_json["source_recording"]["converted_locally"] is True
-                page.locator('[data-view="lyrics"]').click()
-                page.wait_for_function("Array.from(document.querySelector('#lyricsProject').options).some(option => option.textContent.trim() === 'Automated Audio QA')", timeout=10000)
-                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.locator('[data-view="vocals"]').first.click()
+                page.wait_for_function("Array.from(document.querySelector('#vocalProject').options).some(option => option.textContent.trim() === 'Automated Audio QA')", timeout=10000)
+                page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#vocalGuideLine").select_option(index=0)
                 page.locator("#vocalGuideSyllables").fill("تو / رفتی / و / هنوز / دلم / به / یاد / توئه")
                 page.locator("#vocalGuideTempo").fill("96")
