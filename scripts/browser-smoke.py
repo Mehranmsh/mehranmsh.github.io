@@ -1532,6 +1532,30 @@ def main():
                     assert metric["duration"] > 5 and metric["bytes"] > 44100, "Rendered arrangement audio is unexpectedly short: " + str(metric)
                     assert metric["peak"] > 0.002 and metric["rms"] > 0.0005 and metric["activeRatio"] > 0.01, "Rendered arrangement contains silence or near-silence: " + str(metric)
 
+                # Verify professional per-note and per-bar chord editing rebuild real project WAVs.
+                page.locator('[data-experience-stage="compose"] [data-experience-choice="pro"]').click()
+                page.wait_for_function("document.querySelector('#compositionNoteEditor')?.offsetParent !== null && document.querySelector('#compositionChordEditor')?.offsetParent !== null", timeout=5000)
+                page.locator("#composeNoteIndex").select_option("0")
+                original_note = page.locator("#composeNotePitch").input_value()
+                replacement_note = "D4" if original_note != "D4" else "E4"
+                page.locator("#composeNotePitch").fill(replacement_note)
+                page.locator("#saveCompositionNote").click()
+                page.wait_for_function("document.querySelector('#compositionNoteStatus')?.textContent.includes('نت ذخیره شد') || document.querySelector('#compositionNoteStatus')?.textContent.includes('تغییر ذخیره نشد')", timeout=60000)
+                note_edit_status = page.locator("#compositionNoteStatus").inner_text()
+                assert "نت ذخیره شد" in note_edit_status, "Composition note editor failed to rebuild its WAV: " + note_edit_status
+                page.locator("#composeChordBar").select_option("0")
+                original_chord = page.locator("#composeChordSymbol").input_value()
+                replacement_chord = "Fm" if original_chord != "Fm" else "G"
+                page.locator("#composeChordSymbol").fill(replacement_chord)
+                page.locator("#saveCompositionChord").click()
+                page.wait_for_function("document.querySelector('#compositionChordStatus')?.textContent.includes('تغییر کرد') || document.querySelector('#compositionChordStatus')?.textContent.includes('ذخیره نشد')", timeout=60000)
+                chord_edit_status = page.locator("#compositionChordStatus").inner_text()
+                assert "تغییر کرد" in chord_edit_status, "Composition chord editor failed to rebuild its WAV: " + chord_edit_status
+                edited_composition = page.evaluate("""() => JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA")""")
+                assert edited_composition["melodyDraft"]["sourceNoteEvents"][0]["note"] == replacement_note, "Edited melody note was not persisted."
+                assert edited_composition["harmonyAnalysis"]["chords"][0] == replacement_chord, "Edited bar chord was not persisted."
+                print("PASS: professional composition note and chord editors rebuild and persist their WAV tracks")
+
                 # Beginner one-click composition must create melody and harmony without manual note/chord editing.
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=5000)
