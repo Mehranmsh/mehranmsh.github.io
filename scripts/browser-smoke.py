@@ -1783,6 +1783,32 @@ def main():
                 assert section_regression["bars"] == len(section_names) and len(section_regression["chords"]) == len(section_names), "Harmony progression does not cover every section bar: " + str(section_regression)
                 assert section_regression["key"] == "C minor", "Known C-minor melody was assigned the wrong key: " + str(section_regression)
                 assert all(chord in {"Cm", "Ddim", "Eb", "Fm", "G", "Ab", "Bb"} for chord in section_regression["chords"]), "C-minor harmony contains a chord outside its supported diatonic set (including the major dominant): " + str(section_regression["chords"])
+                melody_chord_support = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item => item.name === 'Automated Audio QA');
+                    const pitchClass = note => {
+                        const match = String(note || '').trim().match(/^([A-G])([#b]?)-?\\d+$/i);
+                        if (!match) return null;
+                        const root = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1].toUpperCase()];
+                        return (root + (match[2] === '#' ? 1 : match[2] === 'b' ? 11 : 0)) % 12;
+                    };
+                    const chordTones = symbol => {
+                        const match = String(symbol || '').match(/^([A-G])([#b]?)(.*)$/);
+                        if (!match) return [];
+                        const root = ({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1]] + (match[2] === '#' ? 1 : match[2] === 'b' ? 11 : 0)) % 12;
+                        const intervals = match[3] === 'dim' ? [0,3,6] : match[3].startsWith('m') ? [0,3,7] : [0,4,7];
+                        return intervals.map(interval => (root + interval) % 12);
+                    };
+                    const events = project?.melodyDraft?.sourceNoteEvents || [];
+                    const sections = project?.melodyDraft?.sections || [];
+                    const chords = project?.harmonyAnalysis?.chords || [];
+                    return events.map(event => {
+                        const bar = sections.indexOf(event.section);
+                        const chord = bar >= 0 ? chords[bar] : null;
+                        const pc = pitchClass(event.note);
+                        return {section:event.section,note:event.note,chord,supported:pc !== null && chordTones(chord).includes(pc)};
+                    });
+                }""")
+                assert len(melody_chord_support) == len(section_names) and all(item["supported"] for item in melody_chord_support), "Sustained melody notes must be chord tones in their mapped section bars: " + str(melody_chord_support)
                 assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
 
