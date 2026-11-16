@@ -1566,7 +1566,12 @@ def main():
                     return names[best.root] + " " + best.mode;
                 }""")
                 assert page.locator("#composeResultKey").inner_text() == expected_harmony_key, "Composition summary key does not match the analyzed melody key."
-                assert "C" in page.locator("#composeResultChords").inner_text(), "Chord progression summary is missing."
+                displayed_chords = page.locator("#composeResultChords").inner_text().strip()
+                expected_chords = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    return project?.harmonyAnalysis?.chords || [];
+                }""")
+                assert expected_chords and displayed_chords == "  ·  ".join(expected_chords), "Chord progression summary is missing or differs from the saved harmony."
                 assert "احساسی" in page.locator("#composeResultTracks").inner_text(), "Selected harmony style was not reflected in the result.";
                 page.locator("#previewComposeMix").click()
                 page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing')", timeout=15000)
