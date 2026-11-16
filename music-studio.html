@@ -1738,7 +1738,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   if(!harmony?.chords?.length||!draft?.applied){status.textContent="ابتدا در Composition ملودی را تأیید و آکوردهای همراهی را بساز.";return;}
   const bars=Math.max(1,Math.min(68,Number(harmony.bars)||4)),tempo=Math.max(40,Math.min(220,Number(draft.tempo)||Number(p.tempo)||82)),chords=harmony.chords.slice(0,bars);
   if((p.tracks||[]).length>28){status.textContent="برای ساخت تنظیم هوشمند دست‌کم سه جای خالی در پروژه لازم است.";return;}
-  const previousPattern=JSON.parse(JSON.stringify(p.patternStudio||PATTERN_DEFAULT)),previousTracks=(p.tracks||[]).slice(),created=[];
+  const previousPattern=JSON.parse(JSON.stringify(p.patternStudio||PATTERN_DEFAULT)),previousTracks=(p.tracks||[]).slice(),previousArrangement=Array.isArray(p.arrangement)?JSON.parse(JSON.stringify(p.arrangement)):null,created=[];
   const keyMatch=String(harmony.key||"").match(/^([A-G](?:#|b)?)/),root=keyMatch?keyMatch[1]:"C";
   const rootMidi=(()=>{const names={C:0,"C#":1,Db:1,D:2,"D#":3,Eb:3,E:4,F:5,"F#":6,Gb:6,G:7,"G#":8,Ab:8,A:9,"A#":10,Bb:10,B:11};return 36+(names[root]??0);})();
   const drumPattern={...JSON.parse(JSON.stringify(PATTERN_DEFAULT)),tempo,mode:"drums",bars,drumKit:"electronic",kick:Array.from({length:bars*16},(_,i)=>i).filter(i=>i%16===0||i%16===8),snare:Array.from({length:bars*16},(_,i)=>i).filter(i=>i%16===4||i%16===12),hat:Array.from({length:bars*16},(_,i)=>i).filter(i=>i%2===0),openHat:Array.from({length:bars*16},(_,i)=>i).filter(i=>i%16===6||i%16===14),clap:[],tom:[],perc:[]};
@@ -1771,12 +1771,12 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
    renderArrangementTimeline();renderPatternGrid();
    status.textContent="تنظیم هوشمند ساخته شد: ریتم، بیس و فضای همراهی به پروژه اضافه شدند. ترک ملودی و آکوردهای قبلی حفظ شدند؛ حالا می‌توانی نتیجه را در میکسر بشنوی و در حالت حرفه‌ای ویرایش کنی.";
   }catch(error){
-   const createdIds=new Set(created.map(track=>track.id));
-   p.tracks=(p.tracks||[]).filter(track=>!createdIds.has(track.id));
+   const previousTrackIds=new Set(previousTracks.map(track=>track.id)),addedTracks=(p.tracks||[]).filter(track=>!previousTrackIds.has(track.id));
+   p.tracks=previousTracks;
    p.patternStudio=previousPattern;
-   if(Array.isArray(p.arrangement))p.arrangement.forEach(section=>{section.trackIds=(section.trackIds||[]).filter(id=>!createdIds.has(id));});
+   if(previousArrangement===null)delete p.arrangement;else p.arrangement=previousArrangement;
    save();
-   await Promise.all(created.map(track=>removeTrackAudioAsset(audioKey(p.id,track.id)).catch(()=>null)));
+   await Promise.all(addedTracks.map(track=>removeTrackAudioAsset(audioKey(p.id,track.id)).catch(()=>null)));
    renderArrangementTimeline();renderPatternGrid();
    status.textContent="تنظیم کامل نشد و لایه‌های نیمه‌ساخته حذف شدند؛ پروژه قبلی حفظ شد. جزئیات: "+String(error.message||error);
   }finally{button.disabled=false;}
