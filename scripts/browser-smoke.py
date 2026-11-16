@@ -1509,7 +1509,7 @@ def main():
                 print("PERSIAN SYLLABLE OVERRIDE REGRESSION:", lyric_syllable_probe, flush=True)
                 print("PASS: explicit Persian syllable splits override estimates while ordinary text remains supported", flush=True)
                 lyric_stress_probe = page.evaluate("""() => window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپن/ج/ره آرام").noteEvents""")
-                assert len(lyric_stress_probe) == 5 and lyric_stress_probe[2]["velocity"] > lyric_stress_probe[1]["velocity"], "Persian word-final syllable emphasis was not applied: " + str(lyric_stress_probe)
+                assert len(lyric_stress_probe) == 5 and lyric_stress_probe[2]["velocity"] == 87 and lyric_stress_probe[4]["velocity"] == 84, "Persian word-final accent must add exactly five velocity units without overriding the line cadence: " + str(lyric_stress_probe)
                 print("PERSIAN WORD STRESS REGRESSION:", [(event["id"], event["velocity"]) for event in lyric_stress_probe], flush=True)
                 print("PASS: word-final syllables receive a modest expressive accent", flush=True)
                 original_lyrics_for_regression = page.locator("#lyricsEditor").input_value()
