@@ -1525,12 +1525,20 @@ def main():
                     const lineNotes = index => events.filter(event => event.id.startsWith("lyric-" + index + "-")).sort((a,b) => a.startStep-b.startStep).map(event => event.note);
                     const midi = note => { const match = String(note || "").match(/^([A-G])([#b]?)(-?\\d)$/); if (!match) return null; return (Number(match[3])+1)*12+({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1]])+(match[2]==="#"?1:match[2]==="b"?-1:0); };
                     const finalMidi = index => midi(lineNotes(index).slice(-1)[0]);
-                    return {verse:lineNotes(0),chorusFirst:lineNotes(1),chorusRepeat:lineNotes(2),verseCadence:finalMidi(0),chorusCadence:finalMidi(1),preChorusCadence:finalMidi(3),bridgeCadence:finalMidi(4),outroCadence:finalMidi(5)};
+                    const rhythmChecks = Array.from({length:6},(_,index) => {
+                        const start=index*16, lineEvents=events.filter(event=>event.id.startsWith("lyric-"+index+"-")).sort((a,b)=>a.startStep-b.startStep);
+                        return lineEvents.length>0 && lineEvents[0].startStep===start && lineEvents.every((event,j)=>{
+                            const localStart=event.startStep-start, next=lineEvents[j+1], localEnd=localStart+Number(event.lengthSteps||0);
+                            return localStart>=0 && localStart<16 && Number(event.lengthSteps)>0 && localEnd<=16 && (!next || event.startStep+Number(event.lengthSteps)<=next.startStep);
+                        });
+                    });
+                    return {verse:lineNotes(0),chorusFirst:lineNotes(1),chorusRepeat:lineNotes(2),verseCadence:finalMidi(0),chorusCadence:finalMidi(1),preChorusCadence:finalMidi(3),bridgeCadence:finalMidi(4),outroCadence:finalMidi(5),rhythmChecks};
                 }""")
                 assert melody_section_regression["chorusFirst"] == melody_section_regression["chorusRepeat"], "Repeated chorus lyrics did not preserve the same melodic motif: " + str(melody_section_regression)
                 assert melody_section_regression["verse"] != melody_section_regression["chorusFirst"], "Identical words in verse and chorus incorrectly reused the same melodic motif: " + str(melody_section_regression)
                 assert melody_section_regression["chorusCadence"] % 12 == 9 and melody_section_regression["outroCadence"] % 12 == 9, "Chorus and Outro should resolve to the A-minor tonic pitch class: " + str(melody_section_regression)
                 assert melody_section_regression["preChorusCadence"] % 12 == 4 and melody_section_regression["bridgeCadence"] % 12 == 4, "Pre-Chorus and Bridge should approach their section changes on the E-dominant pitch class: " + str(melody_section_regression)
+                assert all(melody_section_regression["rhythmChecks"]), "Generated lyric notes must start at each bar boundary, remain inside the 16-step bar and never overlap: " + str(melody_section_regression)
                 print("COMPOSITION MELODY SECTION REGRESSION:", melody_section_regression, flush=True)
                 print("PASS: section-specific melodic cadences and repeated chorus identity", flush=True)
                 page.locator('[data-view="lyrics"]').click()
