@@ -1262,6 +1262,8 @@ def main():
                 page.locator('[data-view="arrangement"]').click()
                 page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 for mode in live_modes_missing:
+                    page.locator('[data-view="arrangement"]').click()
+                    page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
@@ -1280,6 +1282,8 @@ def main():
                     ("phrase_ney", "Ney"),
                     ("phrase_kamancheh", "Kamancheh")
                 ]:
+                    page.locator('[data-view="arrangement"]').click()
+                    page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternBars").select_option("1")
                     page.locator("#patternTrackName").fill("Persian Phrase QA " + label)
