@@ -926,7 +926,8 @@ def main():
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
 
                 # Render a single selected instrument through the dedicated recorded-sample path.
-                page.locator('[data-view="mix"]').click()
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternMode").select_option("live_violin")
                 page.locator("#buildListeningDemo").click()
                 page.wait_for_function("""() => {
