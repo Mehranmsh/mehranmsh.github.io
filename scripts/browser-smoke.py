@@ -1501,6 +1501,28 @@ def main():
                 }""")
                 assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
+                melody_section_regression = page.evaluate("""() => {
+                    const lyrics = "[Verse 1]\\nیک مصرع تکراری\\n[Chorus]\\nیک مصرع تکراری\\n[Chorus]\\nیک مصرع تکراری\\n[Pre-Chorus]\\nراهی به اوج\\n[Bridge]\\nپل ملودی\\n[Outro]\\nپایان آرام";
+                    const result = makeLyricMelody("A", lyrics);
+                    const lineNotes = index => result.noteEvents.filter(event => event.id.startsWith("lyric-" + index + "-")).sort((a,b) => a.startStep-b.startStep).map(event => event.note);
+                    const finalMidi = index => midiPitchFromName(lineNotes(index).slice(-1)[0]);
+                    return {
+                        verse: lineNotes(0),
+                        chorusFirst: lineNotes(1),
+                        chorusRepeat: lineNotes(2),
+                        verseCadence: finalMidi(0),
+                        chorusCadence: finalMidi(1),
+                        preChorusCadence: finalMidi(3),
+                        bridgeCadence: finalMidi(4),
+                        outroCadence: finalMidi(5)
+                    };
+                }""")
+                assert melody_section_regression["chorusFirst"] == melody_section_regression["chorusRepeat"], "Repeated chorus lyrics did not preserve the same melodic motif: " + str(melody_section_regression)
+                assert melody_section_regression["verse"] != melody_section_regression["chorusFirst"], "Identical words in verse and chorus incorrectly reused the same melodic motif: " + str(melody_section_regression)
+                assert melody_section_regression["chorusCadence"] == 57 and melody_section_regression["outroCadence"] == 57, "Chorus and Outro should resolve to the A-minor tonic: " + str(melody_section_regression)
+                assert melody_section_regression["preChorusCadence"] == 64 and melody_section_regression["bridgeCadence"] == 64, "Pre-Chorus and Bridge should approach their section changes on the dominant: " + str(melody_section_regression)
+                print("COMPOSITION MELODY SECTION REGRESSION:", melody_section_regression, flush=True)
+                print("PASS: section-specific melodic cadences and repeated chorus identity", flush=True)
                 key_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
                 vocal_shift = int((lyric_draft.get("vocalRangeFit") or {}).get("semitoneShift", 0))
                 expected_key = key_names[vocal_shift % 12] + " minor"
