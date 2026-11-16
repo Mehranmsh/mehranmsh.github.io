@@ -1541,10 +1541,23 @@ def main():
                 assert melody_section_regression["preChorusCadence"] % 12 == 4 and melody_section_regression["bridgeCadence"] % 12 == 4, "Pre-Chorus and Bridge should approach their section changes on the E-dominant pitch class: " + str(melody_section_regression)
                 assert all(melody_section_regression["rhythmChecks"]), "Generated lyric notes must start at each bar boundary, remain inside the 16-step bar and never overlap: " + str(melody_section_regression)
                 assert melody_section_regression["commaRest"] >= 2 and melody_section_regression["terminalRest"] >= 4, "Punctuation should create a short comma breath and a longer sentence-ending rest: " + str(melody_section_regression)
+                punctuation_probe_lyrics = "[Verse 1]\\nیک مصرع تکراری،\\nیک مصرع تکراری؟"
+                page.locator('[data-view="lyrics"]').click()
+                page.wait_for_function("!document.querySelector('#view-lyrics')?.classList.contains('hidden')", timeout=10000)
+                page.locator("#lyricsEditor").fill(punctuation_probe_lyrics)
+                page.locator('[data-view="compose"]').click()
+                page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
+                page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent = ''; }")
+                page.locator('[data-melody-choice="A"]').click()
+                page.wait_for_function("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    return project?.melodyDraft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\nیک مصرع تکراری؟";
+                }""", timeout=30000)
                 punctuation_cache_regression = page.evaluate("""() => {
-                    const probe = makeLyricMelody("A", "[Verse 1]\\nیک مصرع تکراری،\\n[Verse 1]\\nیک مصرع تکراری؟");
-                    const rest = index => { const line=probe.noteEvents.filter(event=>event.id.startsWith("lyric-"+index+"-")); const last=line.reduce((best,event)=>!best||event.startStep>best.startStep?event:best,null); return last?16-((last.startStep%16)+Number(last.lengthSteps||0)):0; };
-                    return {commaRest:rest(0),terminalRest:rest(1),first:probe.noteEvents.filter(event=>event.id.startsWith("lyric-0-")).map(event=>event.startStep%16),second:probe.noteEvents.filter(event=>event.id.startsWith("lyric-1-")).map(event=>event.startStep%16)};
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const events = project?.melodyDraft?.sourceNoteEvents || [];
+                    const rest = index => { const line=events.filter(event=>event.id.startsWith("lyric-"+index+"-")); const last=line.reduce((best,event)=>!best||event.startStep>best.startStep?event:best,null); return last?16-((last.startStep%16)+Number(last.lengthSteps||0)):0; };
+                    return {commaRest:rest(0),terminalRest:rest(1)};
                 }""")
                 assert punctuation_cache_regression["commaRest"] >= 2 and punctuation_cache_regression["terminalRest"] >= 4, "Same-lyric punctuation variants must retain distinct phrase rests: " + str(punctuation_cache_regression)
                 print("COMPOSITION PUNCTUATION CACHE REGRESSION:", punctuation_cache_regression, flush=True)
