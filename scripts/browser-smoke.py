@@ -1817,7 +1817,52 @@ def main():
                     const sourceEvents = project?.melodyDraft?.sourceNoteEvents || [];
                     const sections = project?.melodyDraft?.sections || [];
                     const arrangement = project?.arrangement || [];
-                    const events = fitLyricMelodyToArrangement(sourceEvents, sections, arrangement).events;
+                    const normalize = value => {
+                        let name = String(value || "Verse").trim().toLowerCase().replace(/[ _]+/g, "-").replace(/-+/g, "-");
+                        if (name === "verse") name = "verse-1";
+                        if (name === "prechorus") name = "pre-chorus";
+                        return name;
+                    };
+                    const placements = new Map();
+                    let arrangementCursor = 0, lineCursor = 0;
+                    while (lineCursor < sections.length) {
+                        const sectionName = String(sections[lineCursor] || "Verse");
+                        const wantedName = normalize(sectionName);
+                        let lineEnd = lineCursor + 1;
+                        while (lineEnd < sections.length && String(sections[lineEnd] || "Verse") === sectionName) lineEnd++;
+                        let matchIndex = -1;
+                        for (let j = arrangementCursor; j < arrangement.length; j++) {
+                            if (normalize(arrangement[j].name || "Verse 1") === wantedName) { matchIndex = j; break; }
+                        }
+                        if (matchIndex < 0) {
+                            for (let j = 0; j < arrangement.length; j++) {
+                                if (normalize(arrangement[j].name || "Verse 1") === wantedName) { matchIndex = j; break; }
+                            }
+                        }
+                        if (matchIndex >= 0) {
+                            const section = arrangement[matchIndex];
+                            const startBar = Math.max(0, (Number(section.startBar) || 1) - 1);
+                            const capacity = Math.max(1, Number(section.bars) || 1);
+                            const lineCount = lineEnd - lineCursor;
+                            const stepsPerLine = capacity * 16 / lineCount;
+                            for (let line = lineCursor; line < lineEnd; line++) {
+                                const local = line - lineCursor;
+                                placements.set(line, {startStep: startBar * 16 + Math.floor(local * stepsPerLine), scale: stepsPerLine / 16, spanSteps: stepsPerLine});
+                            }
+                            arrangementCursor = matchIndex + 1;
+                        }
+                        lineCursor = lineEnd;
+                    }
+                    const events = sourceEvents.map(event => {
+                        const match = String(event.id || "").match(/^lyric-(\\d+)-/);
+                        const line = match ? Number(match[1]) : null;
+                        const placement = line !== null ? (placements.get(line) || null) : null;
+                        if (!placement) return {...event};
+                        const localStep = ((Number(event.startStep) || 0) % 16 + 16) % 16;
+                        const relativeStart = Math.min(Math.max(0, Math.round(localStep * placement.scale)), Math.max(0, Math.ceil(placement.spanSteps) - 1));
+                        const remaining = Math.max(1, Math.ceil(placement.spanSteps - relativeStart));
+                        return {...event, startStep: Math.min(arrangement.length * 64 - 1, placement.startStep + relativeStart), lengthSteps: Math.max(1, Math.min(remaining, Math.round((Number(event.lengthSteps) || 2) * placement.scale)))};
+                    });
                     const chords = project?.harmonyAnalysis?.chords || [];
                     return events.map(event => {
                         const bar = Math.floor(Math.max(0, Number(event.startStep) || 0) / 16);
