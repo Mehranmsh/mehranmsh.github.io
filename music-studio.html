@@ -2203,6 +2203,32 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   });
   return{notes,noteEvents,syllables,totalSyllables:syllables.reduce((a,b)=>a+b,0),lineCount:lines.length,bars:Math.max(1,lines.length),sections:lines.map(x=>x.section)};
 }
+ function fitLyricMelodyToArrangement(events,draftSections,arrangement){
+  const sectionMap=Array.isArray(arrangement)&&arrangement.length?arrangement.flatMap(section=>Array.from({length:Math.max(1,Math.min(256,Math.floor(Number(section.bars)||1)))},()=>String(section.name||"Verse"))):[];
+  if(!sectionMap.length||!Array.isArray(draftSections)||!draftSections.length)return{events:events.map(event=>({...event})),sectionMap,bars:0,mapped:false};
+  if(sectionMap.length>68)throw new Error("این تنظیم بیش از ۶۸ میزان دارد؛ ابتدا ساختار آهنگ را کوتاه‌تر کن.");
+  const placements=new Map();let arrangementCursor=0,lineCursor=0;
+  while(lineCursor<draftSections.length){
+   const sectionName=String(draftSections[lineCursor]||"Verse"),wantedName=sectionName==="Verse"?"Verse 1":sectionName;
+   let lineEnd=lineCursor+1;while(lineEnd<draftSections.length&&String(draftSections[lineEnd]||"Verse")===sectionName)lineEnd++;
+   let matchIndex=-1;
+   for(let j=arrangementCursor;j<arrangement.length;j++){if(String(arrangement[j].name||"Verse 1")===wantedName){matchIndex=j;break;}}
+   if(matchIndex<0)for(let j=0;j<arrangement.length;j++){if(String(arrangement[j].name||"Verse 1")===wantedName){matchIndex=j;break;}}
+   if(matchIndex>=0){
+    const section=arrangement[matchIndex],startBar=Math.max(0,(Number(section.startBar)||1)-1),capacity=Math.max(1,Number(section.bars)||1),lineCount=lineEnd-lineCursor,stepsPerLine=capacity*16/lineCount;
+    for(let line=lineCursor;line<lineEnd;line++){const local=line-lineCursor;placements.set(line,{startStep:startBar*16+Math.floor(local*stepsPerLine),scale:stepsPerLine/16,spanSteps:stepsPerLine});}
+    arrangementCursor=matchIndex+1;
+   }
+   lineCursor=lineEnd;
+  }
+  const mapped=events.map(event=>{
+   const match=String(event.id||"").match(/^lyric-(\d+)-/),line=match?Number(match[1]):null,placement=line!==null?placements.get(line):null;
+   if(!placement)return{...event};
+   const localStep=((Number(event.startStep)||0)%16+16)%16,relativeStart=Math.min(Math.max(0,Math.round(localStep*placement.scale)),Math.max(0,Math.ceil(placement.spanSteps)-1)),remaining=Math.max(1,Math.ceil(placement.spanSteps-relativeStart));
+   return{...event,startStep:placement.startStep+relativeStart,lengthSteps:Math.max(1,Math.min(remaining,Math.round((Number(event.lengthSteps)||2)*placement.scale)))};
+  });
+  return{events:mapped,sectionMap,bars:sectionMap.length,mapped:placements.size>0};
+ }
  async function chooseLyricsMelody(kind){
   const p=projects.find(x=>x.id===$("lyricsProject").value),status=$("lyricsMelodyStatus"),preview=$("lyricsMelodyPreview");
   if(!p){status.textContent="ابتدا پروژه را در Lyrics Lab انتخاب کن.";return;}
@@ -2211,11 +2237,11 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   const generated=makeLyricMelody(kind,lyrics),sourceRoots={A:9,B:4,C:2},sourceBase={A:57,B:64,C:62},minorSteps=[0,2,3,5,7,8,10],majorSteps=[0,2,4,5,7,9,11],rootSetting=$("composeKey").value,root=rootSetting==="auto"?sourceRoots[kind]:Math.max(0,Math.min(11,Number(rootSetting)||0)),mode=$("composeScale").value==="major"?"major":"minor",targetSteps=mode==="major"?majorSteps:minorSteps,base=sourceBase[kind],rootNames=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"],transposeNote=note=>{const midi=midiPitchFromName(String(note||""));if(!Number.isFinite(midi))return note;const relative=midi-base,octave=Math.floor(relative/12),pitchClass=((relative%12)+12)%12;let degree=minorSteps.indexOf(pitchClass);if(degree<0)degree=minorSteps.reduce((best,value,index)=>Math.abs(value-pitchClass)<Math.abs(minorSteps[best]-pitchClass)?index:best,0);return midiNameFromPitch(60+root+targetSteps[degree]+octave*12);};
   generated.noteEvents=generated.noteEvents.map(event=>({...event,note:transposeNote(event.note)}));generated.notes=generated.notes.map(transposeNote);generated.key=rootNames[root]+" "+mode;
   if(p.vocalRange&&Number.isFinite(p.vocalRange.minMidi)&&Number.isFinite(p.vocalRange.maxMidi)&&generated.noteEvents.length){const voiceLow=p.vocalRange.minMidi,voiceHigh=p.vocalRange.maxMidi,voiceCenter=(voiceLow+voiceHigh)/2,baseMidis=generated.noteEvents.map(event=>midiPitchFromName(event.note)).filter(Number.isFinite);let bestShift=0,bestScore=Infinity;for(let shift=-12;shift<=12;shift++){const shifted=baseMidis.map(value=>value+shift),outside=shifted.reduce((sum,value)=>sum+(value<voiceLow?Math.pow(voiceLow-value,2):value>voiceHigh?Math.pow(value-voiceHigh,2):0),0),center=shifted.length?Math.abs(shifted.reduce((a,b)=>a+b,0)/shifted.length-voiceCenter):0,score=outside*5+center*0.12+Math.abs(shift)*0.025;if(score<bestScore){bestScore=score;bestShift=shift;}}if(bestShift){generated.noteEvents=generated.noteEvents.map(event=>{const midi=midiPitchFromName(event.note);return midi===null?event:{...event,note:midiNameFromPitch(midi+bestShift)};});generated.notes=generated.notes.map(note=>{const midi=midiPitchFromName(note);return midi===null?note:midiNameFromPitch(midi+bestShift);});}const shiftedRoot=((root+bestShift)%12+12)%12;generated.key=rootNames[shiftedRoot]+" "+mode;generated.vocalRangeFit={minMidi:voiceLow,maxMidi:voiceHigh,observedMinMidi:p.vocalRange.observedMinMidi??voiceLow,observedMaxMidi:p.vocalRange.observedMaxMidi??voiceHigh,semitoneShift:bestShift,source:"recorded-vocal-performance"};}
-  const notes=generated.notes,tempo=Math.max(40,Math.min(220,Number($("composeTempo").value)||82)),pat={...JSON.parse(JSON.stringify(PATTERN_DEFAULT)),tempo,mode:"lead",bars:generated.bars,notes,noteEvents:generated.noteEvents.slice(),drumKit:"electronic"};
+  const sourceNoteEvents=generated.noteEvents.map(event=>({...event}));let arrangementFit;try{arrangementFit=fitLyricMelodyToArrangement(sourceNoteEvents,generated.sections,p.arrangement);}catch(error){status.textContent=String(error.message||error);return;}if(arrangementFit.mapped){generated.noteEvents=arrangementFit.events;generated.bars=arrangementFit.bars;}const notes=generated.notes,tempo=Math.max(40,Math.min(220,Number($("composeTempo").value)||82)),pat={...JSON.parse(JSON.stringify(PATTERN_DEFAULT)),tempo,mode:"lead",bars:generated.bars,notes,noteEvents:generated.noteEvents.slice(),sectionMap:arrangementFit.sectionMap,drumKit:"electronic"};
   status.textContent="در حال ساخت ملودی چندبخشی "+kind+" بر اساس "+generated.totalSyllables+" هجای تخمینی…";
   try{const rendered=await renderPatternAudio(pat),wav=rendered instanceof Blob?rendered:patternWav(rendered),url=URL.createObjectURL(wav);if(preview.dataset.objectUrl)URL.revokeObjectURL(preview.dataset.objectUrl);preview.dataset.objectUrl=url;preview.src=url;preview.style.display="block";await preview.play().catch(()=>{});}
   catch(error){status.textContent="ساخت پیش‌شنو ناموفق بود: "+(error?.message||"خطای ناشناخته");return;}
-  p.melodyDraft={variant:kind,notes:notes.slice(),noteEvents:generated.noteEvents.map(x=>({...x})),bars:generated.bars,tempo,sourceLyrics:lyrics,syllableEstimate:generated.syllables.slice(),sections:Array.isArray(generated.sections)?generated.sections.slice():[],lineCount:generated.lineCount,totalSyllables:generated.totalSyllables,key:generated.key,scale:mode,vocalRangeFit:generated.vocalRangeFit||null,applied:false,updated:Date.now()};
+  p.melodyDraft={variant:kind,notes:notes.slice(),noteEvents:generated.noteEvents.map(x=>({...x})),sourceNoteEvents:sourceNoteEvents.map(x=>({...x})),arrangementMapped:arrangementFit.mapped,arrangementSectionMap:arrangementFit.sectionMap.slice(),bars:generated.bars,tempo,sourceLyrics:lyrics,syllableEstimate:generated.syllables.slice(),sections:Array.isArray(generated.sections)?generated.sections.slice():[],lineCount:generated.lineCount,totalSyllables:generated.totalSyllables,key:generated.key,scale:mode,vocalRangeFit:generated.vocalRangeFit||null,applied:false,updated:Date.now()};
   p.updated=Date.now();if(!save()){status.textContent="ملودی ساخته شد، اما ذخیره پروژه انجام نشد.";return;}
   if(preview.dataset.selected===kind){
    $("addLyricsMelody").disabled=true;
