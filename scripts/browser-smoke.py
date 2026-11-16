@@ -1905,7 +1905,7 @@ def main():
                 page.evaluate("""() => { const source=document.querySelector("#composeProject"); const target=document.querySelector("#lyricsProject"); target.value=source.value; target.dispatchEvent(new Event("change",{bubbles:true})); }""")
                 style_progressions = {}
                 for harmony_style in ("auto", "pop", "emotional", "cinematic", "folk"):
-                    page.locator("#composeHarmonyStyle").select_option(harmony_style)
+                    page.evaluate("(value) => { const select=document.querySelector('#composeHarmonyStyle'); select.value=value; select.dispatchEvent(new Event('change',{bubbles:true})); }", harmony_style)
                     page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent=''; }")
                     page.locator("#buildMelodyBacking").click()
                     page.wait_for_function("""() => {
@@ -1940,7 +1940,7 @@ def main():
                     project.melodyDraft.notes=phrase.slice(0,8);
                     localStorage.setItem('mehran_music_studio_drafts_v1',JSON.stringify(drafts));
                 }""")
-                page.locator("#composeHarmonyStyle").select_option("auto")
+                page.evaluate("() => { const select=document.querySelector('#composeHarmonyStyle'); select.value='auto'; select.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent=''; }")
                 page.locator("#buildMelodyBacking").click()
                 page.wait_for_function("""() => {
