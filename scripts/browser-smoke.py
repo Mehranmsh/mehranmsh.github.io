@@ -1769,7 +1769,8 @@ def main():
                     const arrangementNames = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
                     project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 1, startBar: index + 1, trackIds: []}));
                     const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
-                    const events = names.map((name, index) => ({id: 'lyric-' + index + '-0', note: notes[index], startStep: 0, lengthSteps: 2, section: name}));
+                    const harmonyPairs = [['C4','Eb4'],['D4','F4'],['Eb4','G4'],['F4','Ab4'],['G4','Bb4'],['Ab4','C5'],['Bb4','D5'],['C5','Eb5']];
+                    const events = names.flatMap((name, index) => harmonyPairs[index].map((note, noteIndex) => ({id: 'lyric-' + index + '-' + noteIndex, note, startStep: noteIndex * 8, lengthSteps: 2, section: name})));
                     project.melodyDraft.sections = names.slice();
                     project.melodyDraft.sourceNoteEvents = events;
                     project.melodyDraft.noteEvents = events;
@@ -1822,7 +1823,7 @@ def main():
                         return {section:event.section,note:event.note,chord,supported:pc !== null && chordTones(chord).includes(pc)};
                     });
                 }""")
-                assert len(melody_chord_support) == len(section_names) and all(item["supported"] for item in melody_chord_support), "Sustained melody notes must be chord tones in their mapped section bars: " + str(melody_chord_support)
+                assert len(melody_chord_support) == len(section_names) * 2 and all(item["supported"] for item in melody_chord_support), "Both melody notes in every mapped section bar must be supported by that bar chord: " + str(melody_chord_support)
                 assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
                 print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
