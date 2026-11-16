@@ -836,6 +836,29 @@ def main():
                     assert abs(actual_mix_duration - expected_mix_duration) < 0.02, "Mix duration was "+str(round(actual_mix_duration,3))+"s; expected "+str(round(expected_mix_duration,3))+"s from trim, offset, and calculated effect tail."
                     mix_pcm = rendered_mix.readframes(rendered_mix.getnframes())
                     assert any(mix_pcm), "Rendered mix is silent."
+                    # Verify the exported master is not merely a valid WAV: inspect
+                    # every signed 24-bit sample and the renderer's loudness/true-peak report.
+                    mix_samples = [int.from_bytes(mix_pcm[i:i+3], "little", signed=True)
+                                   for i in range(0, len(mix_pcm) - 2, 3)]
+                    mix_pcm_peak = max(map(abs, mix_samples), default=0) / 8388608
+                    mix_pcm_peak_db = 20 * math.log10(mix_pcm_peak) if mix_pcm_peak > 0 else -math.inf
+                    assert mix_pcm_peak_db <= -1.0, (
+                        "Master export exceeded the expected -1.2 dBFS true-peak safety margin: "
+                        + str(round(mix_pcm_peak_db, 2)) + " dBFS"
+                    )
+                    mix_export_status = page.locator("#renderWavStatus").inner_text()
+                    assert "8x 48-tap sinc inter-sample peak estimate" in mix_export_status
+                    assert "integrated loudness " in mix_export_status and " LUFS est." in mix_export_status
+                    mix_lufs_text = mix_export_status.split("integrated loudness ", 1)[1].split(" LUFS est.", 1)[0]
+                    mix_integrated_lufs = float(mix_lufs_text)
+                    assert math.isfinite(mix_integrated_lufs) and -70 <= mix_integrated_lufs <= 0, (
+                        "Integrated loudness estimate is missing or outside a plausible digital-audio range: "
+                        + mix_lufs_text
+                    )
+                    assert "PCM rail hits 0" in mix_export_status, (
+                        "24-bit quantization reached a PCM rail despite the master safety stage: "
+                        + mix_export_status
+                    )
                     # The renderer exports 24-bit PCM. Decode each signed 3-byte
                     # sample explicitly instead of misreading the byte stream as int16.
                     early_mix_bytes = mix_pcm[:int(1.22 * mix_sample_rate) * 2 * 3]
