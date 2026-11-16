@@ -1707,6 +1707,18 @@ def main():
                 # Beginner one-click composition must create melody and harmony without manual note/chord editing.
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=5000)
+                # Smart and professional composition modes must expose the right controls and persist independently.
+                composition_mode = page.locator('[data-experience-stage="compose"]')
+                composition_mode.locator('[data-experience-choice="smart"]').click()
+                assert not page.locator("#compositionNoteEditor").is_visible(), "Smart composition mode must keep advanced note editing out of the beginner workflow."
+                assert not page.locator("#compositionChordEditor").is_visible(), "Smart composition mode must keep advanced chord editing out of the beginner workflow."
+                composition_mode.locator('[data-experience-choice="pro"]').click()
+                assert page.locator("#compositionNoteEditor").is_visible(), "Professional composition mode must expose the note editor."
+                assert page.locator("#compositionChordEditor").is_visible(), "Professional composition mode must expose the chord editor."
+                assert page.evaluate("JSON.parse(localStorage.getItem('mehranMusicExperienceModesV1') || '{}').compose") == "pro", "Professional composition mode was not persisted."
+                composition_mode.locator('[data-experience-choice="smart"]').click()
+                assert page.evaluate("JSON.parse(localStorage.getItem('mehranMusicExperienceModesV1') || '{}').compose") == "smart", "Smart composition mode was not persisted."
+                print("PASS: beginner/professional composition modes reveal the correct controls and persist independently", flush=True)
                 page.locator("#composeProject").select_option(label="Automated Audio QA")
                 page.locator("#autoComposeSong").click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('آهنگسازی پایه آماده شد')", timeout=90000)
