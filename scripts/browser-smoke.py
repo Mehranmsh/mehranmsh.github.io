@@ -88,6 +88,8 @@ def export_track_audio(page, project_id: str, track_id: str, filename: str):
     peak = max((abs(sample) for sample in pcm), default=0) / 32768
     if rms < 0.001 or peak < 0.005:
         raise AssertionError(f"Audition WAV is silent or near-silent: {path.name}; RMS={rms:.6f}; peak={peak:.6f}")
+    if peak >= 0.99:
+        raise AssertionError(f"Audition WAV reaches digital full scale: {path.name}; RMS={rms:.6f}; peak={peak:.6f}")
     print("AUDITION WAV SAVED:", path.name, path.stat().st_size, f"bytes RMS={rms:.4f} peak={peak:.4f}", flush=True)
     return path
 
