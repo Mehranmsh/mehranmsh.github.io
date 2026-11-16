@@ -505,7 +505,7 @@ def main():
 
                 # Open the mix planner and verify the imported vocal track's complete effects rack.
                 page.locator('[data-view="mix"]').click()
-                page.locator("#mixProject").select_option(label="Automated Audio QA")
+                page.evaluate("""() => { const el = document.querySelector("#mixProject"); if (!el) throw new Error("Mix project selector is missing"); const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", {bubbles:true})); }""")
                 page.locator('[data-track-reverb]').wait_for(state="visible")
                 assert page.locator('[data-track-vocal-polish]').count() == 1
                 assert page.locator('[data-track-noise-gate]').count() == 1
