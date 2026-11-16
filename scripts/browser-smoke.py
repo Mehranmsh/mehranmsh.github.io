@@ -413,7 +413,7 @@ def main():
                 page.locator("#songwriterArc").select_option("cinematic")
                 page.locator("#songwriterDetails").fill("یک چراغ روشن پشت پنجره")
                 page.locator("#generateSongLyrics").click()
-                page.wait_for_function("document.querySelector('#songwriterStatus')?.textContent.includes('Draft generated with Cloudflare AI')", timeout=10000)
+                page.wait_for_function("document.querySelector('#songwriterStatus')?.textContent.includes('پیش‌نویس ساخته شد')", timeout=10000)
                 assert page.locator("#songwriterResult").input_value() == songwriter_fixture
                 assert len(songwriter_requests) == 1, "AI songwriter must make exactly one generation request."
                 songwriter_payload = songwriter_requests[0]
