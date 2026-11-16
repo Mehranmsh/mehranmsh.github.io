@@ -1769,7 +1769,7 @@ def main():
                     const arrangementNames = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
                     project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 4, startBar: index * 4 + 1, trackIds: []}));
                     const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
-                    const harmonyPhrases = [['C4','Eb4','G4','C5'],['D4','F4','A4','D5'],['Eb4','G4','Bb4','Eb5'],['F4','Ab4','C5','F5'],['G4','D5','Bb4','G5'],['Ab4','C5','Eb5','Ab5'],['Bb4','D5','F5','Bb5'],['C5','Eb5','G5','C6']];
+                    const harmonyPhrases = [['C4','Eb4','G4','C5'],['D4','F4','Ab4','D5'],['Eb4','G4','Bb4','Eb5'],['F4','Ab4','C5','F5'],['G4','D5','Bb4','G5'],['Ab4','C5','Eb5','Ab5'],['Bb4','D5','F5','Bb5'],['C5','Eb5','G5','C6']];
                     const events = names.flatMap((name, index) => harmonyPhrases[index].map((note, noteIndex) => ({id: 'lyric-' + index + '-' + noteIndex, note, startStep: noteIndex * 4, lengthSteps: 1, section: name})));
                     project.melodyDraft.sections = names.slice();
                     project.melodyDraft.sourceNoteEvents = events;
