@@ -2207,8 +2207,9 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   const phrases={A:[[0,2,4,3,2,1,2,0],[0,1,3,4,3,2,4,2],[2,3,4,5,4,2,1,0],[0,2,3,2,4,3,1,0]],B:[[0,2,3,4,5,4,6,5],[1,2,4,5,6,5,4,2],[2,3,4,6,5,4,3,1],[0,2,4,5,6,4,2,0]],C:[[0,2,4,2,0,4,3,1],[0,3,2,4,1,3,2,0],[2,4,3,5,2,4,1,0],[0,1,3,2,4,2,1,0]]};
   lines.forEach((item,lineIndex)=>{
     const line=item.text,section=item.section,count=Math.max(1,Math.min(12,syllables[lineIndex]||1)),barStart=lineIndex*16,signature=line.toLocaleLowerCase().replace(/[\s\u200c،؛.!؟?,؛:]+/g,"");
-    if(signature&&refrainCache.has(signature)){
-      refrainCache.get(signature).forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
+    const refrainKey=section+"|"+signature;
+    if(signature&&refrainCache.has(refrainKey)){
+      refrainCache.get(refrainKey).forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
       return;
     }
     const contour=(phrases[kind]||phrases.A)[lineIndex%4],rhythm=count===1?[0]:Array.from({length:count},(_,j)=>Math.round(j*12/(count-1))),motif=[];
@@ -2221,12 +2222,12 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
       if(section==="Pre-Chorus"&&j<count-1)degree=Math.min(6,degree+(j>=Math.floor(count/2)?1:0));
       if(section==="Bridge"&&j>0&&j<count-1&&j%2===1)degree=Math.max(0,degree-1);
       if(section==="Outro"&&j<count-1)degree=Math.max(0,degree-1);
-      if(j===count-1)degree=[0,2,4,0][lineIndex%4];
+      if(j===count-1){const cadenceDegrees={Intro:0,"Verse 1":[0,2,0,2],Verse:[0,2,0,2],"Pre-Chorus":4,Chorus:0,"Verse 2":[0,2,0,2],Bridge:4,Instrumental:4,Outro:0},cadence=cadenceDegrees[section]??[0,2,4,0][lineIndex%4];degree=Array.isArray(cadence)?cadence[lineIndex%cadence.length]:cadence;}
       const note=midiNameFromPitch(scale[Math.min(scale.length-1,degree)]),slot=rhythm[j],next=j+1<count?rhythm[j+1]:16,isCadence=j===count-1,lengthSteps=isCadence?Math.max(4,Math.min(7,16-slot)):Math.max(1,Math.min(5,next-slot-1)),event={id:"lyric-"+lineIndex+"-"+j,note,startStep:slot,lengthSteps,velocity:isCadence?Math.min(98,84+(section==="Chorus"?7:lineIndex%4)*3):section==="Chorus"?84:section==="Bridge"?78:lineIndex%4===2?88:72+(j%4)*5,gate:isCadence?94:88,section};
       motif.push(event);noteEvents.push({...event,startStep:barStart+slot});
       if(lineIndex===0)notes[slot]=note;
     }
-    if(signature)refrainCache.set(signature,motif.map(event=>({...event})));
+    if(signature)refrainCache.set(refrainKey,motif.map(event=>({...event})));
   });
   return{notes,noteEvents,syllables,totalSyllables:syllables.reduce((a,b)=>a+b,0),lineCount:lines.length,bars:Math.max(1,lines.length),sections:lines.map(x=>x.section)};
 }
