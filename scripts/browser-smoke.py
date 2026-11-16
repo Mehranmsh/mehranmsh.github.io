@@ -1554,7 +1554,8 @@ def main():
                 page.wait_for_function("""() => {
                     const projectId = document.querySelector("#lyricsProject")?.value;
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
-                    return project?.melodyDraft?.sourceLyrics === "[Verse 1]\nیک مصرع تکراری،\nیک مصرع تکراری؟" && Array.isArray(project.melodyDraft.sourceNoteEvents) && project.melodyDraft.sourceNoteEvents.length >= 2;
+                    const events = project?.melodyDraft?.sourceNoteEvents || [];
+                    return events.some(event => event.id.startsWith("lyric-0-")) && events.some(event => event.id.startsWith("lyric-1-"));
                 }""", timeout=10000)
                 punctuation_cache_regression = page.evaluate("""() => {
                     const projectId = document.querySelector("#lyricsProject")?.value;
