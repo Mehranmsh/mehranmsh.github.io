@@ -1177,6 +1177,11 @@ def main():
                 live_modes_missing = ["live_tar", "live_santur", "live_ney", "live_kamancheh"]
                 page.locator("#patternBars").select_option("1")
                 for mode in live_modes_available:
+                    # The previous iteration switches to the mixer to inspect the saved track.
+                    # Return to Arrangement before asserting visibility of its vocal controls.
+                    if not page.locator("#view-arrangement").is_visible():
+                        page.locator('[data-view="arrangement"]').click()
+                        page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternNotes").evaluate("""el => { el.value = "C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
