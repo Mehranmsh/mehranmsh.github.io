@@ -1593,6 +1593,8 @@ def main():
                 page.locator('[data-view="lyrics"]').click()
                 page.wait_for_function("!document.querySelector('#view-lyrics')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#lyricsEditor").fill(original_lyrics_for_regression)
+                page.locator("#saveLyrics").click()
+                page.wait_for_function('document.querySelector("#lyricsSaveState")?.textContent.includes("Saved locally")', timeout=10000)
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#composeKey").select_option("0")
