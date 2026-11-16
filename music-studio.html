@@ -2184,7 +2184,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
       refrainCache.get(signature).forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
       return;
     }
-    const contour=(phrases[kind]||phrases.A)[lineIndex%4],rhythm=count===1?[0]:Array.from({length:count},(_,j)=>Math.round(j*14/(count-1))),motif=[];
+    const contour=(phrases[kind]||phrases.A)[lineIndex%4],rhythm=count===1?[0]:Array.from({length:count},(_,j)=>Math.round(j*12/(count-1))),motif=[];
     for(let j=0;j<count;j++){
       let degree=contour[Math.min(contour.length-1,Math.floor(j*contour.length/count))];
       if(lineIndex%4===1&&j>0)degree=Math.max(0,Math.min(6,degree+(j%2?1:-1)));
