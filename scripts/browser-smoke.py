@@ -1769,7 +1769,7 @@ def main():
                     const arrangementNames = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
                     project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 1, startBar: index + 1, trackIds: []}));
                     const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
-                    const harmonyPairs = [['C4','Eb4'],['D4','F4'],['Eb4','G4'],['F4','Ab4'],['G4','Bb4'],['Ab4','C5'],['Bb4','D5'],['C5','Eb5']];
+                    const harmonyPairs = [['C4','Eb4'],['D4','F4'],['Eb4','G4'],['F4','Ab4'],['G4','D5'],['Ab4','C5'],['Bb4','D5'],['C5','Eb5']];
                     const events = names.flatMap((name, index) => harmonyPairs[index].map((note, noteIndex) => ({id: 'lyric-' + index + '-' + noteIndex, note, startStep: noteIndex * 8, lengthSteps: 2, section: name})));
                     project.melodyDraft.sections = names.slice();
                     project.melodyDraft.sourceNoteEvents = events;
