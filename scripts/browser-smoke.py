@@ -1789,6 +1789,7 @@ def main():
                 for metric in harmony_audio_metrics:
                     assert metric["duration"] > 5 and metric["bytes"] > 44100, "Rendered arrangement audio is unexpectedly short: " + str(metric)
                     assert metric["peak"] > 0.002 and metric["rms"] > 0.0005 and metric["activeRatio"] > 0.01, "Rendered arrangement contains silence or near-silence: " + str(metric)
+                    assert metric["peak"] < 0.99, "Rendered arrangement is too close to digital full scale: " + str(metric)
 
                 # Preview opens the mixer view. Return to Composition before checking its professional editors.
                 page.locator('[data-view="compose"]').click()
