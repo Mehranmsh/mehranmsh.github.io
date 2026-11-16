@@ -1180,11 +1180,11 @@ def main():
                     print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternNotes").evaluate("""el => { el.value = "C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
-                    page.locator("#patternTrackName").click()
+                    page.locator("#patternTrackName").evaluate("(el) => el.dispatchEvent(new Event('input', { bubbles: true }))")
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
                         page.locator("#vocalVowel").select_option("o")
-                    page.locator("#patternTrackName").fill("Live QA " + mode)
+                    page.locator("#patternTrackName").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }", "Live QA " + mode)
                     page.locator("#renderPattern").click()
                     try:
                         page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
