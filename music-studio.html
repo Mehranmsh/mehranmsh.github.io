@@ -119,11 +119,9 @@
    </div>
    <div class="field"><label for="songwriterArc">STORY DEVELOPMENT</label><select id="songwriterArc"><option value="progression">روایت با پیشرفت داستان</option><option value="confession">اعتراف و بیان احساس</option><option value="cinematic">تصویری و سینمایی</option><option value="reflective">درون‌نگر و تأملی</option></select></div>
    <div class="field"><label for="songwriterDetails">DETAILS YOU WANT INCLUDED (OPTIONAL)</label><textarea id="songwriterDetails" rows="2" maxlength="1200" placeholder="A memory, a place, a special image, a message or a feeling..."></textarea></div>
-   <div class="two">
-    <div class="field"><label for="songwriterStructure">LYRIC LENGTH</label><select id="songwriterStructure"><option value="full" selected>Full song</option><option value="short">Short draft</option></select></div>
-    <div class="field" style="justify-content:end"><button class="btn" id="generateSongLyrics" type="button">✦ Generate lyrics</button><small style="color:var(--muted)">No paid API or external AI key is used. Music has its own daily reservation; a global safety cap still protects all AI features.</small></div>
-   </div>
+   <div class="field"><label for="songwriterStructure">LYRIC LENGTH</label><select id="songwriterStructure"><option value="full" selected>Full song</option><option value="short">Short draft</option></select></div>
    </details>
+   <div class="field" style="margin-top:14px"><button class="btn" id="generateSongLyrics" type="button" style="width:100%;padding:13px">✦ تولید شعر</button><small style="color:var(--muted)">No paid API or external AI key is used. Music has its own daily reservation; a global safety cap still protects all AI features.</small></div>
    <div class="field"><label for="songwriterResult">GENERATED DRAFT</label><textarea id="songwriterResult" rows="12" readonly placeholder="Your generated song lyric will appear here..."></textarea></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="useSongwriterDraft" type="button" disabled>Replace Lyrics Lab text</button><button class="btn secondary" id="appendSongwriterDraft" type="button" disabled>Append to Lyrics Lab</button></div>
    <p id="songwriterStatus" role="status" aria-live="polite" style="color:var(--muted);font-size:11px;margin:10px 0 0">Free mode · separate MUSIC daily budget, protected by a shared global safety cap. No automatic paid fallback.</p>
