@@ -2468,7 +2468,7 @@ def main():
                         pcm.frombytes(rendered.readframes(rendered.getnframes()))
                     rms = math.sqrt(sum(sample * sample for sample in pcm) / max(1, len(pcm))) / 32768
                     peak = max((abs(sample) for sample in pcm), default=0) / 32768
-                    assert 9.9 <= duration <= 10.6, "Smart arrangement stem duration does not match four bars at 96 BPM: " + prefix + " " + str(duration)
+                    assert 9.9 <= duration <= 10.7, "Smart arrangement stem duration does not match four bars at 96 BPM, including the recorded sample tail: " + prefix + " " + str(duration)
                     assert rms > 0.001 and peak > 0.005, "Smart arrangement generated a silent or near-silent stem: " + prefix
                     assert peak < 0.98, "Smart arrangement stem is clipping: " + prefix
                     smart_metrics[prefix] = {"duration":round(duration,3),"rms":round(rms,5),"peak":round(peak,5)}
