@@ -1413,6 +1413,9 @@ def main():
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 
+                page.locator("#patternMode").select_option("lead")
+                page.locator("#patternNotes").fill("D4, -, -, -, -, -, -, -")
+                page.locator("#patternNotes").dispatch_event("change")
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
