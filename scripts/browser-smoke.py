@@ -1503,7 +1503,11 @@ def main():
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
                 original_lyrics_for_regression = page.locator("#lyricsEditor").input_value()
                 section_test_lyrics = "[Verse 1]\\nیک مصرع تکراری\\n[Chorus]\\nیک مصرع تکراری\\n[Chorus]\\nیک مصرع تکراری\\n[Pre-Chorus]\\nراهی به اوج\\n[Bridge]\\nپل ملودی\\n[Outro]\\nپایان آرام"
+                page.locator('[data-view="lyrics"]').click()
+                page.wait_for_function("!document.querySelector('#view-lyrics')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#lyricsEditor").fill(section_test_lyrics)
+                page.locator('[data-view="compose"]').click()
+                page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
                 melody_section_regression = page.evaluate("""() => {
@@ -1520,7 +1524,11 @@ def main():
                 assert melody_section_regression["preChorusCadence"] == 64 and melody_section_regression["bridgeCadence"] == 64, "Pre-Chorus and Bridge should approach their section changes on the dominant: " + str(melody_section_regression)
                 print("COMPOSITION MELODY SECTION REGRESSION:", melody_section_regression, flush=True)
                 print("PASS: section-specific melodic cadences and repeated chorus identity", flush=True)
+                page.locator('[data-view="lyrics"]').click()
+                page.wait_for_function("!document.querySelector('#view-lyrics')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#lyricsEditor").fill(original_lyrics_for_regression)
+                page.locator('[data-view="compose"]').click()
+                page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
                 lyric_draft = page.evaluate("""() => {
