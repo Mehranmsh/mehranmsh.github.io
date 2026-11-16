@@ -1440,7 +1440,7 @@ def main():
                 page.locator('[data-view="compose"]').click()
                 page.locator("#composeProject").select_option(label="Automated Audio QA")
                 page.locator('[data-melody-choice="A"]').click()
-                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A ساخته شد')", timeout=30000)
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
                 lyric_draft = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     const project = projects.find(item => item.name === "Automated Audio QA");
