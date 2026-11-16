@@ -4578,9 +4578,29 @@ async function musicGenerateLyrics(request, env) {
       return error("مدل هوش مصنوعی متن قابل استفاده‌ای برنگرداند. دوباره تلاش کن.", 502);
     }
     const finalLyrics = lyrics.trim().replace(/^```(?:\w+)?\s*/i, "").replace(/\s*```$/, "").trim();
-    const lyricBody = finalLyrics.split(/\r?\n/).filter(line => !/^\s*\[[^\]]+\]\s*$/.test(line)).join("\n");
-    const hasLatinArtifacts = /[A-Za-z]{2,}/.test(lyricBody);
-    const qualityWarnings = hasLatinArtifacts ? ["در متن، واژه یا تکه‌ای با حروف لاتین پیدا شد؛ اگر عمدی نیست، پیش از استفاده آن سطر را اصلاح کن."] : [];
+    const lyricLines = finalLyrics.split(/\r?\n/);
+    const lyricBody = lyricLines.filter(line => !/^\s*\[[^\]]+\]\s*$/.test(line)).join("\n");
+    const qualityWarnings = [];
+    if (/[A-Za-z]{2,}/.test(lyricBody)) {
+      qualityWarnings.push("در متن، واژه یا تکه‌ای با حروف لاتین پیدا شد؛ اگر عمدی نیست، پیش از استفاده آن سطر را اصلاح کن.");
+    }
+    const sectionIndexes = lyricLines.map((line, index) => /^\s*\[[^\]]+\]\s*$/.test(line) ? index : -1).filter(index => index >= 0);
+    if (!sectionIndexes.length) {
+      qualityWarnings.push("بخش‌بندی استاندارد آهنگ پیدا نشد؛ مشخص کن کدام قسمت Verse، Chorus یا Bridge است.");
+    } else {
+      const sectionNames = sectionIndexes.map(index => lyricLines[index].replace(/[\[\]]/g, "").trim().toLowerCase());
+      const hasVerse = sectionNames.some(name => /verse|بند/.test(name));
+      const hasChorus = sectionNames.some(name => /chorus|کورس|ترجیع/.test(name));
+      if (!hasVerse) qualityWarnings.push("بخش Verse یا بند در متن مشخص نشده؛ بررسی کن روایت آهنگ بخش داستانی کافی داشته باشد.");
+      if (!hasChorus) qualityWarnings.push("بخش Chorus یا ترجیع‌بند مشخص نشده؛ اگر آهنگ به هوک نیاز دارد، آن را اضافه کن.");
+      const emptySections = sectionIndexes.filter((start, index) => {
+        const end = sectionIndexes[index + 1] ?? lyricLines.length;
+        return !lyricLines.slice(start + 1, end).some(line => line.trim());
+      });
+      if (emptySections.length) {
+        qualityWarnings.push("حداقل یک بخش عنوان‌گذاری شده اما بدون متن است؛ بخش‌های خالی را کامل یا حذف کن.");
+      }
+    }
     return json({ success: true, lyrics: finalLyrics, qualityWarnings, provider: "cloudflare", model, free: true });
   } catch (e) {
     const message = String(e?.message || e || "");
