@@ -546,7 +546,7 @@ def main():
                 page.locator('[data-track-chorus-rate]').evaluate("(el) => { el.value='2.4'; el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.reload(wait_until="networkidle")
                 page.locator('[data-view="mix"]').click()
-                page.locator("#mixProject").select_option(label="Automated Audio QA")
+                page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 assert page.locator('[data-track-delay]').input_value() == "20"
                 assert page.locator('[data-track-reverb]').input_value() == "24"
                 assert page.locator('[data-track-delay-time]').input_value() == "350"
@@ -966,7 +966,7 @@ def main():
                 assert all(level > 0.00035 for level in audio_audit["rms"]), "Audition contains silent seconds: " + str(audio_audit)
                 print("PASS: selected violin uses only self-hosted recorded samples; 21-second WAV has active audio in every one-second window")
                 page.locator('[data-view="arrangement"]').first.click()
-                page.locator("#mixProject").select_option(label="Automated Audio QA")
+                page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
@@ -1200,7 +1200,7 @@ def main():
                         assert str(expected_ensemble_layers[mode]) + " recorded human singers layered" in live_status, "Layer count was not shown in the mixer status: " + live_status
                     # Keep the QA project below its 32-track product limit while testing every bank.
                     page.locator('[data-view="mix"]').click()
-                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     project_for_audio = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     audition_track = next(track for track in project_for_audio["tracks"] if track.get("generated") and track["name"] == "Live QA " + mode)
                     export_track_audio(page, project_for_audio["id"], audition_track["id"], mode + ".wav")
@@ -1226,7 +1226,7 @@ def main():
                 harmony_track_record = next(track for track in harmony_project["tracks"] if track.get("generated") and track["name"] == "Live QA human vocal harmony")
                 export_track_audio(page, harmony_project["id"], harmony_track_record["id"], "human-vocal-harmony.wav")
                 page.locator('[data-view="mix"]').click()
-                page.locator("#mixProject").select_option(label="Automated Audio QA")
+                page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 harmony_track = page.locator("[data-track-delete]").last
                 assert "Live QA human vocal harmony" in harmony_track.evaluate("(el) => el.closest('article')?.innerText || ''")
                 harmony_track.click()
@@ -1283,7 +1283,7 @@ def main():
                     assert phrase_track["type"] == "Persian Recorded Phrase", "Phrase track was mislabeled: " + phrase_track["type"]
                     export_track_audio(page, phrase_project["id"], phrase_track["id"], mode + ".wav")
                     page.locator('[data-view="mix"]').click()
-                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     phrase_delete = page.locator("[data-track-delete]").last
                     assert "Persian Phrase QA " + label in phrase_delete.evaluate("(el) => el.closest('article')?.innerText || ''")
                     phrase_delete.click()
@@ -1305,7 +1305,7 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     assert "Generated WAV added to the mixer" in live_status, "Recorded percussion/drum instrument did not render: " + mode + "; " + live_status
                     page.locator('[data-view="mix"]').click()
-                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     percussion_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                     percussion_track = next(track for track in percussion_project["tracks"] if track.get("generated") and track["name"] == "Live QA " + mode)
                     export_track_audio(page, percussion_project["id"], percussion_track["id"], mode + ".wav")
@@ -1331,7 +1331,7 @@ def main():
                     }""", kit)
                     page.reload(wait_until="networkidle")
                     page.locator('[data-view="mix"]').click()
-                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     # Re-select drum mode and kit through the real UI so the selected project's
                     # state, visible controls and renderer all use the same recorded bank.
                     page.locator("#patternMode").select_option("drums")
@@ -1399,7 +1399,7 @@ def main():
                     if playback_audit["engineCreates"] < 1 or not playback_audit["playCalls"]:
                         raise AssertionError("Recorded drum renderer did not schedule any sample voices: " + kit + "; " + str(playback_audit))
                     page.locator('[data-view="mix"]').click()
-                    page.locator("#mixProject").select_option(label="Automated Audio QA")
+                    page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     drum_project = page.evaluate("""() => {
                         const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                         const selectedId = document.querySelector("#mixProject")?.value;
