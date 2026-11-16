@@ -1474,6 +1474,9 @@ def main():
                 assert "تایم‌لاین ساخته شد" in arrangement_status, "Lyrics-to-arrangement parser failed: " + arrangement_status
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
+                # Advanced composition controls are intentionally collapsed in Smart mode.
+                # Switch to Pro mode before exercising explicit key/tempo controls.
+                page.locator('#view-compose [data-experience-choice="pro"]').click()
                 page.locator("#composeProject").select_option(label="Automated Audio QA")
                 page.locator("#composeKey").select_option("0")
                 page.locator("#composeTempo").fill("90")
