@@ -1926,6 +1926,7 @@ def main():
                 print("COMPOSITION STYLE REGRESSION:", style_progressions, flush=True)
                 print("PASS: all five harmony styles render distinct minor-key progressions and preserve the supported diatonic chord set", flush=True)
 
+                page.evaluate("() => { document.querySelector('#composeKey').value='0'; document.querySelector('#composeScale').value='major'; document.querySelector('#composeKey').dispatchEvent(new Event('change',{bubbles:true})); document.querySelector('#composeScale').dispatchEvent(new Event('change',{bubbles:true})); }")
                 page.evaluate("""() => {
                     const drafts=JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]');
                     const project=drafts.find(item=>item.name==='Automated Audio QA');
