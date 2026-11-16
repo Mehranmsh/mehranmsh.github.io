@@ -1630,6 +1630,19 @@ def main():
                 assert max(item["movement"] for item in extended_bass_regression[1:]) <= 7, "Extended progression contains a bass leap larger than a fifth: " + str(extended_bass_regression)
                 print("COMPOSITION EXTENDED BASS REGRESSION:", extended_bass_regression, flush=True)
                 print("PASS: bass voice leading preserves minor, major-seventh, dominant-seventh and diminished chord tones", flush=True)
+                bass_sample_coverage = page.evaluate("""async () => {
+                    const manifest = await (await fetch("./assets/instruments/manifest.json", {cache:"no-store"})).json();
+                    const bank = manifest.instruments.acoustic_bass;
+                    if (!bank || !Array.isArray(bank.samples)) throw new Error("Recorded acoustic bass bank is missing.");
+                    const roots = bank.samples.map(sample => sample.rootNote).filter(Number.isInteger).sort((a,b)=>a-b);
+                    const targetNotes = [33,33,33,32,31,32,32,34];
+                    const coverage = targetNotes.map(note => ({note,nearest:Math.min(...roots.map(root=>Math.abs(root-note)))}));
+                    return {count:roots.length,min:Math.min(...roots),max:Math.max(...roots),roots,coverage};
+                }""")
+                assert bass_sample_coverage["count"] == 13 and bass_sample_coverage["min"] == 30 and bass_sample_coverage["max"] == 59, "Recorded acoustic bass sample inventory changed: " + str(bass_sample_coverage)
+                assert all(item["nearest"] <= 1 for item in bass_sample_coverage["coverage"]), "Generated bass notes are not covered by a nearby recorded sample: " + str(bass_sample_coverage)
+                print("RECORDED ACOUSTIC BASS SAMPLE COVERAGE:", bass_sample_coverage, flush=True)
+                print("PASS: every generated low bass note has a recorded acoustic-bass sample within one semitone", flush=True)
                 bass_approach_regression = page.evaluate("""() => {
                     const cases = [{current:30,next:"Am"},{current:50,next:"Fmaj7"},{current:36,next:"G"}];
                     return cases.map(item => {
