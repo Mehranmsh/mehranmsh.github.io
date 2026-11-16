@@ -2059,21 +2059,27 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  const LYRIC_MELODY_SCALES={A:[57,59,60,62,64,65,67],B:[64,66,67,69,71,72,74],C:[62,64,65,67,69,70,72]};
  function estimateLyricSyllables(line){return line.trim().split(/\s+/).filter(Boolean).reduce((sum,word)=>{const clean=word.replace(/[^\p{L}]/gu,"");if(!clean)return sum;const marked=(clean.match(/[اآویَُِٰ]/gu)||[]).length;const latin=(clean.match(/[aeiouy]/gi)||[]).length;const estimate=marked||latin||Math.ceil(Array.from(clean).length/3);return sum+Math.max(1,Math.min(5,estimate));},0);}
  function makeLyricMelody(kind,lyrics){
-  const lines=lyrics.split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!/^\[[^\]]+\]$/.test(x)).slice(0,16),syllables=lines.map(estimateLyricSyllables),scale=LYRIC_MELODY_SCALES[kind]||LYRIC_MELODY_SCALES.A,notes=Array(16).fill("-"),noteEvents=[];
+  const lines=lyrics.split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!/^\[[^\]]+\]$/.test(x)).slice(0,16),syllables=lines.map(estimateLyricSyllables),scale=LYRIC_MELODY_SCALES[kind]||LYRIC_MELODY_SCALES.A,notes=Array(16).fill("-"),noteEvents=[],refrainCache=new Map();
   const phrases={A:[[0,2,4,3,2,1,2,0],[0,1,3,4,3,2,4,2],[2,3,4,5,4,2,1,0],[0,2,3,2,4,3,1,0]],B:[[0,2,3,4,5,4,6,5],[1,2,4,5,6,5,4,2],[2,3,4,6,5,4,3,1],[0,2,4,5,6,4,2,0]],C:[[0,2,4,2,0,4,3,1],[0,3,2,4,1,3,2,0],[2,4,3,5,2,4,1,0],[0,1,3,2,4,2,1,0]]};
   lines.forEach((line,lineIndex)=>{
-    const count=Math.max(1,Math.min(12,syllables[lineIndex]||1)),contour=(phrases[kind]||phrases.A)[lineIndex%4],barStart=lineIndex*16;
-    const baseRhythm=count<=4?[0,4,8,12]:count<=7?[0,2,5,7,10,12,14]:[0,1,3,5,6,8,10,11,13,14,15,7];
-    const rhythm=baseRhythm.slice(0,count).sort((x,y)=>x-y);
+    const count=Math.max(1,Math.min(12,syllables[lineIndex]||1)),barStart=lineIndex*16,signature=line.toLocaleLowerCase().replace(/[\s\u200c،؛.!؟?,؛:]+/g,"");
+    if(signature&&refrainCache.has(signature)){
+      const motif=refrainCache.get(signature);
+      motif.forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
+      return;
+    }
+    const contour=(phrases[kind]||phrases.A)[lineIndex%4],baseRhythm=count<=4?[0,4,8,12]:count<=7?[0,2,5,7,10,12,14]:[0,1,3,5,6,8,10,11,13,14,15,7],rhythm=baseRhythm.slice(0,count).sort((x,y)=>x-y),motif=[];
     for(let j=0;j<count;j++){
       let degree=contour[Math.min(contour.length-1,Math.floor(j*contour.length/count))];
       if(lineIndex%4===1&&j>0)degree=Math.max(0,Math.min(6,degree+(j%2?1:-1)));
       if(lineIndex%4===2&&j%3===1)degree=Math.max(0,degree-1);
+      if(lineIndex%4===3&&j>0&&j<count-1&&j%2===0)degree=Math.min(6,degree+1);
       if(j===count-1)degree=[0,2,4,0][lineIndex%4];
-      const note=midiNameFromPitch(scale[Math.min(scale.length-1,degree)]),slot=rhythm[j],next=j+1<count?rhythm[j+1]:16,isCadence=j===count-1,lengthSteps=isCadence?Math.max(4,Math.min(7,16-slot)):Math.max(1,Math.min(5,next-slot-1)),startStep=barStart+slot;
+      const note=midiNameFromPitch(scale[Math.min(scale.length-1,degree)]),slot=rhythm[j],next=j+1<count?rhythm[j+1]:16,isCadence=j===count-1,lengthSteps=isCadence?Math.max(4,Math.min(7,16-slot)):Math.max(1,Math.min(5,next-slot-1)),event={id:"lyric-"+lineIndex+"-"+j,note,startStep:slot,lengthSteps,velocity:isCadence?Math.min(98,84+(lineIndex%4)*3):lineIndex%4===2?88:72+(j%4)*5,gate:isCadence?94:88};
+      motif.push(event);noteEvents.push({...event,startStep:barStart+slot});
       if(lineIndex===0)notes[slot]=note;
-      noteEvents.push({id:"lyric-"+lineIndex+"-"+j,note,startStep,lengthSteps,velocity:isCadence?Math.min(98,84+(lineIndex%4)*3):lineIndex%4===2?88:72+(j%4)*5,gate:isCadence?94:88});
     }
+    if(signature)refrainCache.set(signature,motif.map(event=>({...event})));
   });
   return{notes,noteEvents,syllables,totalSyllables:syllables.reduce((a,b)=>a+b,0),lineCount:lines.length,bars:Math.max(1,lines.length)};
 }
