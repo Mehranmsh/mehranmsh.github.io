@@ -1305,6 +1305,8 @@ def main():
                     page.wait_for_timeout(150)
                 print("PASS: four Persian recorded phrases render from self-hosted CC BY 4.0 audio without pitch-shifting")
                 page.locator('[data-view="mix"]').click()
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternMode").select_option("live_cajon")
                 # Recorded percussion and acoustic drum-kit samples must render from local assets.
                 for mode, notes in [
@@ -1312,6 +1314,8 @@ def main():
                     ("live_world_percussion", "C3, C#3, D3, D#3, E3, F3, F#3, G3, -, -, -, -, -, -, -, -"),
                     ("live_acoustic_drums", "C2, D2, C#2, F#2, A#2, D3, G2, D#3, -, -, -, -, -, -, -, -")
                 ]:
+                    page.locator('[data-view="arrangement"]').click()
+                    page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     page.locator("#patternNotes").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }", notes)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
@@ -1347,6 +1351,8 @@ def main():
                     page.reload(wait_until="networkidle")
                     page.locator('[data-view="mix"]').click()
                     page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
+                    page.locator('[data-view="arrangement"]').click()
+                    page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     # Re-select drum mode and kit through the real UI so the selected project's
                     # state, visible controls and renderer all use the same recorded bank.
                     page.locator("#patternMode").select_option("drums")
