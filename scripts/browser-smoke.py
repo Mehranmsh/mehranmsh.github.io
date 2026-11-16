@@ -884,63 +884,6 @@ def main():
                     assert early_peak < 100 * 256, "Pre-entry mix peak was "+str(early_peak)+" PCM units; first audible sample "+str(early_first_sample)+"; selected tracks "+str(mix_tracks_debug)+". Expected silence before track start."
                     assert any(mix_pcm[int(1.30 * mix_sample_rate) * 6:int(1.45 * mix_sample_rate) * 6]), "The trimmed vocal segment was not rendered at its scheduled position."
 
-                # Add a second independently stored audio track and render a real
-                # two-track stereo mix, checking gain, pan, and non-identical channels.
-                page.locator("#trackName").fill("Backing Instrument QA")
-                page.locator("#trackType").select_option(label="Keys / Piano")
-                page.locator("#trackRole").select_option(label="Harmony")
-                page.locator("#addTrack").click()
-                page.locator("[data-track-audio]").nth(1).click()
-                page.locator("#trackAudioFile").set_input_files(str(audio_path))
-                page.get_by_text("Audio saved on this device. Preview playback is ready.").wait_for(timeout=10000)
-                assert page.locator("[data-track-audio]").count() == 2, "Second audio track was not added."
-                second_gain = page.locator("[data-track-gain]").nth(1)
-                second_gain.fill("-6")
-                second_gain.dispatch_event("input")
-                second_gain.dispatch_event("change")
-                second_pan = page.locator("[data-track-pan]").nth(1)
-                second_pan.fill("65")
-                second_pan.dispatch_event("input")
-                second_pan.dispatch_event("change")
-                two_track_state = page.evaluate("""() => {
-                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")
-                        .find(item => item.name === "Automated Audio QA");
-                    return (project?.tracks || []).filter(track => track.audioName)
-                        .map(track => ({name: track.name, gain: track.gain, pan: track.pan}));
-                }""")
-                assert len(two_track_state) == 2 and two_track_state[1]["gain"] == -6 and two_track_state[1]["pan"] == 65, (
-                    "Second track gain/pan did not persist: " + str(two_track_state)
-                )
-                try:
-                    with page.expect_download(timeout=30000) as two_track_download:
-                        page.locator("#renderWav").click()
-                except Exception as error:
-                    raise AssertionError(
-                        "Two-track mix export failed. Status: " + page.locator("#renderWavStatus").inner_text()
-                    ) from error
-                two_track_file = Path(temp) / "two-track-mix.wav"
-                two_track_download.value.save_as(str(two_track_file))
-                with wave.open(str(two_track_file), "rb") as two_track_wav:
-                    assert two_track_wav.getnchannels() == 2 and two_track_wav.getsampwidth() == 3
-                    assert two_track_wav.getframerate() == 44100 and two_track_wav.getnframes() > 0
-                    two_track_pcm = two_track_wav.readframes(two_track_wav.getnframes())
-                left_samples = [int.from_bytes(two_track_pcm[i:i+3], "little", signed=True)
-                                for i in range(0, len(two_track_pcm)-5, 6)]
-                right_samples = [int.from_bytes(two_track_pcm[i+3:i+6], "little", signed=True)
-                                 for i in range(0, len(two_track_pcm)-5, 6)]
-                left_peak = max(map(abs, left_samples), default=0)
-                right_peak = max(map(abs, right_samples), default=0)
-                stereo_difference = max((abs(left-right) for left, right in zip(left_samples, right_samples)), default=0)
-                assert left_peak > 0 and right_peak > 0, "Two-track mix has an empty stereo channel."
-                assert stereo_difference > 1000, "Second track pan did not produce a distinct stereo image."
-                assert max(left_peak, right_peak) < 8388608, "Two-track mix clipped at the 24-bit PCM rail."
-                two_track_status = page.locator("#renderWavStatus").inner_text()
-                two_track_true_peak = float(two_track_status.split("8x 48-tap sinc inter-sample peak estimate ", 1)[1].split(" dBTP", 1)[0])
-                assert math.isfinite(two_track_true_peak) and two_track_true_peak <= -1.0, (
-                    "Two-track master exceeded its true-peak safety ceiling: " + str(two_track_true_peak) + " dBTP"
-                )
-                print("PASS: two independently stored audio tracks render together with persisted gain/pan, distinct stereo channels and safe master peak")
-
                 page.locator("#stemTrack").select_option(index=1)
                 with page.expect_download(timeout=30000) as stem_download:
                     page.locator("#exportStem").click()
@@ -2451,6 +2394,71 @@ def main():
                 assert major_result["chords"][-1] == "C", "The final C-major Outro bar must resolve to the tonic chord in the major-key fixture: " + str(major_result["chords"])
                 print("COMPOSITION MAJOR REGRESSION:", major_result, flush=True)
                 print("PASS: known C-major melody receives an eight-bar diatonic progression and tonic resolution", flush=True)
+
+                # Add a second independently stored audio track at the end of the suite,
+                # so the existing single-track waveform and stem fixtures remain isolated.
+                page.locator('[data-view="mix"]').click()
+                page.locator("#mixProject").evaluate("""el => {
+                    const option = [...el.options].find(item => item.label === "Automated Audio QA");
+                    if (!option) throw new Error("Automated Audio QA project option is missing");
+                    el.value = option.value;
+                    el.dispatchEvent(new Event("change", {bubbles:true}));
+                }""")
+                # two-track stereo mix, checking gain, pan, and non-identical channels.
+                page.locator("#trackName").fill("Backing Instrument QA")
+                page.locator("#trackType").select_option(label="Keys / Piano")
+                page.locator("#trackRole").select_option(label="Harmony")
+                page.locator("#addTrack").click()
+                page.locator("[data-track-audio]").nth(1).click()
+                page.locator("#trackAudioFile").set_input_files(str(audio_path))
+                page.get_by_text("Audio saved on this device. Preview playback is ready.").wait_for(timeout=10000)
+                assert page.locator("[data-track-audio]").count() == 2, "Second audio track was not added."
+                second_gain = page.locator("[data-track-gain]").nth(1)
+                second_gain.fill("-6")
+                second_gain.dispatch_event("input")
+                second_gain.dispatch_event("change")
+                second_pan = page.locator("[data-track-pan]").nth(1)
+                second_pan.fill("65")
+                second_pan.dispatch_event("input")
+                second_pan.dispatch_event("change")
+                two_track_state = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")
+                        .find(item => item.name === "Automated Audio QA");
+                    return (project?.tracks || []).filter(track => track.audioName)
+                        .map(track => ({name: track.name, gain: track.gain, pan: track.pan}));
+                }""")
+                assert len(two_track_state) == 2 and two_track_state[1]["gain"] == -6 and two_track_state[1]["pan"] == 65, (
+                    "Second track gain/pan did not persist: " + str(two_track_state)
+                )
+                try:
+                    with page.expect_download(timeout=30000) as two_track_download:
+                        page.locator("#renderWav").click()
+                except Exception as error:
+                    raise AssertionError(
+                        "Two-track mix export failed. Status: " + page.locator("#renderWavStatus").inner_text()
+                    ) from error
+                two_track_file = Path(temp) / "two-track-mix.wav"
+                two_track_download.value.save_as(str(two_track_file))
+                with wave.open(str(two_track_file), "rb") as two_track_wav:
+                    assert two_track_wav.getnchannels() == 2 and two_track_wav.getsampwidth() == 3
+                    assert two_track_wav.getframerate() == 44100 and two_track_wav.getnframes() > 0
+                    two_track_pcm = two_track_wav.readframes(two_track_wav.getnframes())
+                left_samples = [int.from_bytes(two_track_pcm[i:i+3], "little", signed=True)
+                                for i in range(0, len(two_track_pcm)-5, 6)]
+                right_samples = [int.from_bytes(two_track_pcm[i+3:i+6], "little", signed=True)
+                                 for i in range(0, len(two_track_pcm)-5, 6)]
+                left_peak = max(map(abs, left_samples), default=0)
+                right_peak = max(map(abs, right_samples), default=0)
+                stereo_difference = max((abs(left-right) for left, right in zip(left_samples, right_samples)), default=0)
+                assert left_peak > 0 and right_peak > 0, "Two-track mix has an empty stereo channel."
+                assert stereo_difference > 1000, "Second track pan did not produce a distinct stereo image."
+                assert max(left_peak, right_peak) < 8388608, "Two-track mix clipped at the 24-bit PCM rail."
+                two_track_status = page.locator("#renderWavStatus").inner_text()
+                two_track_true_peak = float(two_track_status.split("8x 48-tap sinc inter-sample peak estimate ", 1)[1].split(" dBTP", 1)[0])
+                assert math.isfinite(two_track_true_peak) and two_track_true_peak <= -1.0, (
+                    "Two-track master exceeded its true-peak safety ceiling: " + str(two_track_true_peak) + " dBTP"
+                )
+                print("PASS: two independently stored audio tracks render together with persisted gain/pan, distinct stereo channels and safe master peak")
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
