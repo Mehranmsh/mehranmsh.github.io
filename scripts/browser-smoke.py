@@ -1714,6 +1714,8 @@ def main():
                 assert auto_composition.get("melodyDraft", {}).get("applied") is True, "One-click composition did not apply its melody."
                 assert len(auto_composition.get("harmonyAnalysis", {}).get("chords", [])) >= 4, "One-click composition did not create chord harmony."
                 assert any("Harmony & Instruments" in track.get("name", "") for track in auto_composition.get("tracks", [])), "One-click composition did not create a harmony audio track."
+                assert page.locator("#autoComposeSong").is_enabled() and page.locator("#buildMelodyBacking").is_enabled(), "Composition actions remained disabled after one-click rendering."
+                print("PASS: composition render controls recover after one-click generation", flush=True)
 
 
 
