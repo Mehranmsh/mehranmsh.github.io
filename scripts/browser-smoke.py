@@ -1443,7 +1443,11 @@ def main():
                     source = "PCMIR CC BY 4.0 recorded Persian phrase" if bank.startswith("phrase_") else "VocalSet CC BY 4.0" if ("vocal" in bank or "choir" in bank or bank == "human-vocal-harmony") else "self-hosted recorded sample bank"
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
-                
+
+                # The percussion audit may finish from a hidden/mixer panel after project export.
+                # Re-enter Arrangement explicitly before editing the lead pattern.
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#patternMode").select_option("lead")
                 page.locator("#patternNotes").evaluate("""el => { el.value = "D4, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternNotes").dispatch_event("change")
