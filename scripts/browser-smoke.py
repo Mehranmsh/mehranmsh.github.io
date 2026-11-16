@@ -1599,6 +1599,7 @@ def main():
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#composeKey").select_option("0")
                 page.locator("#composeScale").select_option("minor")
+                page.evaluate("() => { const preview=document.querySelector('#lyricsMelodyPreview'); preview.dataset.feel='flow'; preview.dataset.kind='A'; document.querySelector('#lyricsMelodyStatus').textContent=''; }")
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی روان آماده است') || document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ناموفق')", timeout=90000)
                 melody_preview_status = page.locator("#lyricsMelodyStatus").inner_text()
