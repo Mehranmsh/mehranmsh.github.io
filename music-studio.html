@@ -2061,10 +2061,10 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  function makeLyricMelody(kind,lyrics){
   const sectionRules=[
     [/^\\[(?:intro|مقدمه)\\]$/i,"Intro"],
-    [/^\\[(?:verse\\s*1|verse(?!\\s*\\d)|بند\\s*اول|بند\\s*۱)\\]$/i,"Verse"],
+    [/^\\[(?:verse\\s*1|verse(?!\\s*\\d)|بند\\s*اول|بند\\s*۱)\\]$/i,"Verse 1"],
     [/^\\[(?:pre[- ]?chorus|پیش\\s*ترجیع)\\]$/i,"Pre-Chorus"],
     [/^\\[(?:chorus|ترجیع|کورس)\\]$/i,"Chorus"],
-    [/^\\[(?:verse\\s*2|بند\\s*دوم|بند\\s*۲)\\]$/i,"Verse"],
+    [/^\\[(?:verse\\s*2|بند\\s*دوم|بند\\s*۲)\\]$/i,"Verse 2"],
     [/^\\[(?:bridge|پل)\\]$/i,"Bridge"],
     [/^\\[(?:instrumental|سولو|میان\\s*نوازی)\\]$/i,"Instrumental"],
     [/^\\[(?:outro|پایان)\\]$/i,"Outro"]
