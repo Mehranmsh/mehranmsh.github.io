@@ -1583,6 +1583,10 @@ def main():
                 assert punctuation_cache_regression["commaRest"] >= 2 and punctuation_cache_regression["terminalRest"] >= 4, "Same-lyric punctuation variants must retain distinct phrase rests: " + str(punctuation_cache_regression)
                 print("COMPOSITION PUNCTUATION CACHE REGRESSION:", punctuation_cache_regression, flush=True)
                 print("PASS: identical lyric text with different punctuation retains distinct pause timing", flush=True)
+                breath_pause_probe = page.evaluate("""() => { const getEnd=text=>{const events=window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپن/ج/ره"+text).noteEvents;const last=events[events.length-1];return last.startStep+last.lengthSteps;};return {period:getEnd("."),ellipsis:getEnd("…"),threeDots:getEnd("..."),comma:getEnd("،"),colon:getEnd(":"),open:getEnd("")}; }""")
+                assert breath_pause_probe["period"] <= 12 and breath_pause_probe["ellipsis"] <= 12 and breath_pause_probe["threeDots"] <= 12 and breath_pause_probe["comma"] <= 14 and breath_pause_probe["colon"] <= 14 and breath_pause_probe["open"] == 16, "Punctuation-specific breath rests are incorrect: " + str(breath_pause_probe)
+                print("PUNCTUATION BREATH REST REGRESSION:", breath_pause_probe, flush=True)
+                print("PASS: ellipses, periods, commas and colons create appropriate lyric breath rests", flush=True)
                 voice_leading_regression = page.evaluate("""() => {
                     const chords = [[60,64,67],[55,59,62],[57,60,64],[53,57,60]];
                     let previous = null;
