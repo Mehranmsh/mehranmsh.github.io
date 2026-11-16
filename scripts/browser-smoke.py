@@ -2307,12 +2307,12 @@ def main():
                 }""")
                 assert smart_layer_plan == {
                     "intro": [2],
-                    "verse": [0, 1],
-                    "preChorus": [0, 1, 2],
-                    "chorus": [0, 1, 2],
-                    "bridge": [1, 2],
+                    "verse": [0, 1, 3],
+                    "preChorus": [0, 1, 2, 3],
+                    "chorus": [0, 1, 2, 3],
+                    "bridge": [1, 2, 3],
                     "outro": [2]
-                }, "Smart arrangement must thin the Intro/Outro, keep Verse controlled, and build the Chorus: " + str(smart_layer_plan)
+                }, "Smart arrangement must thin the Intro/Outro, keep Verse controlled, and build the Chorus with recorded guitar: " + str(smart_layer_plan)
                 print("SMART ARRANGEMENT SECTION LAYERS:", smart_layer_plan, flush=True)
                 print("PASS: smart arrangement assigns generated drums, bass and atmosphere according to song-section energy", flush=True)
 
