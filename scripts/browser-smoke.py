@@ -1472,6 +1472,15 @@ def main():
                 page.locator("#buildArrangementFromLyrics").click()
                 arrangement_status = page.locator("#lyricsArrangementStatus").inner_text()
                 assert "تایم‌لاین ساخته شد" in arrangement_status, "Lyrics-to-arrangement parser failed: " + arrangement_status
+                # Keep this focused composition test fast while retaining four distinct song sections.
+                # Full-length chunk rendering is covered by the dedicated long-audio tests.
+                page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    if (!project || !Array.isArray(project.arrangement)) throw new Error("Lyrics arrangement was not persisted.");
+                    let startBar = 1;
+                    project.arrangement.forEach(section => { section.bars = 2; section.startBar = startBar; startBar += 2; });
+                    localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").map(item => item.id === project.id ? project : item)));
+                }""")
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 # Advanced composition controls are intentionally collapsed in Smart mode.
