@@ -2060,28 +2060,28 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  function estimateLyricSyllables(line){return line.trim().split(/\s+/).filter(Boolean).reduce((sum,word)=>{const clean=word.replace(/[^\p{L}]/gu,"");if(!clean)return sum;const marked=(clean.match(/[اآویَُِٰ]/gu)||[]).length;const latin=(clean.match(/[aeiouy]/gi)||[]).length;const estimate=marked||latin||Math.ceil(Array.from(clean).length/3);return sum+Math.max(1,Math.min(5,estimate));},0);}
  function makeLyricMelody(kind,lyrics){
   const sectionRules=[
-    [/^\\[(?:intro|مقدمه)\\]$/i,"Intro"],
-    [/^\\[(?:verse\\s*1|verse(?!\\s*\\d)|بند\\s*اول|بند\\s*۱)\\]$/i,"Verse 1"],
-    [/^\\[(?:pre[- ]?chorus|پیش\\s*ترجیع)\\]$/i,"Pre-Chorus"],
-    [/^\\[(?:chorus|ترجیع|کورس)\\]$/i,"Chorus"],
-    [/^\\[(?:verse\\s*2|بند\\s*دوم|بند\\s*۲)\\]$/i,"Verse 2"],
-    [/^\\[(?:bridge|پل)\\]$/i,"Bridge"],
-    [/^\\[(?:instrumental|سولو|میان\\s*نوازی)\\]$/i,"Instrumental"],
-    [/^\\[(?:outro|پایان)\\]$/i,"Outro"]
+    [/^\[(?:intro|مقدمه)\]$/i,"Intro"],
+    [/^\[(?:verse\s*1|verse(?!\s*\d)|بند\s*اول|بند\s*۱)\]$/i,"Verse 1"],
+    [/^\[(?:pre[- ]?chorus|پیش\s*ترجیع)\]$/i,"Pre-Chorus"],
+    [/^\[(?:chorus|ترجیع|کورس)\]$/i,"Chorus"],
+    [/^\[(?:verse\s*2|بند\s*دوم|بند\s*۲)\]$/i,"Verse 2"],
+    [/^\[(?:bridge|پل)\]$/i,"Bridge"],
+    [/^\[(?:instrumental|سولو|میان\s*نوازی)\]$/i,"Instrumental"],
+    [/^\[(?:outro|پایان)\]$/i,"Outro"]
   ];
   let activeSection="Verse";
   const lines=[];
-  lyrics.split(/\\r?\\n/).forEach(raw=>{
+  lyrics.split(/\r?\n/).forEach(raw=>{
     const line=raw.trim();if(!line)return;
     const section=sectionRules.find(([re])=>re.test(line));
     if(section){activeSection=section[1];return;}
-    if(/^\\[[^\\]]+\\]$/.test(line))return;
+    if(/^\[[^\]]+\]$/.test(line))return;
     if(lines.length<16)lines.push({text:line,section:activeSection});
   });
   const syllables=lines.map(x=>estimateLyricSyllables(x.text)),scale=LYRIC_MELODY_SCALES[kind]||LYRIC_MELODY_SCALES.A,notes=Array(16).fill("-"),noteEvents=[],refrainCache=new Map();
   const phrases={A:[[0,2,4,3,2,1,2,0],[0,1,3,4,3,2,4,2],[2,3,4,5,4,2,1,0],[0,2,3,2,4,3,1,0]],B:[[0,2,3,4,5,4,6,5],[1,2,4,5,6,5,4,2],[2,3,4,6,5,4,3,1],[0,2,4,5,6,4,2,0]],C:[[0,2,4,2,0,4,3,1],[0,3,2,4,1,3,2,0],[2,4,3,5,2,4,1,0],[0,1,3,2,4,2,1,0]]};
   lines.forEach((item,lineIndex)=>{
-    const line=item.text,section=item.section,count=Math.max(1,Math.min(12,syllables[lineIndex]||1)),barStart=lineIndex*16,signature=line.toLocaleLowerCase().replace(/[\\s\\u200c،؛.!؟?,؛:]+/g,"");
+    const line=item.text,section=item.section,count=Math.max(1,Math.min(12,syllables[lineIndex]||1)),barStart=lineIndex*16,signature=line.toLocaleLowerCase().replace(/[\s\u200c،؛.!؟?,؛:]+/g,"");
     if(signature&&refrainCache.has(signature)){
       refrainCache.get(signature).forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
       return;
