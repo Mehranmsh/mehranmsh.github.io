@@ -1426,6 +1426,40 @@ def main():
                 page.locator("#vocalGuideTempo").fill("96")
                 assert page.locator("#playVocalGuide").is_enabled(), "Vocal guide transport should remain available after changing the phrase."
 
+                # Exercise Persian lyric parsing, section-aware melody timing, and automatic harmony/lead track creation.
+                lyric_fixture = "[Intro]\n\n[Verse 1]\nشب از پنجره آرام گذشت\nصدای تو در این خانه نشست\n\n[Chorus]\nبا تو دوباره بهار می‌رسد\nدل از غم روزگار می‌گذرد\n\n[Verse 2]\nراه دور است و چراغی روشن\nنام تو مانده به لب‌های من"
+                page.locator("#lyricsEditor").fill(lyric_fixture)
+                page.locator("#buildArrangementFromLyrics").click()
+                arrangement_status = page.locator("#lyricsArrangementStatus").inner_text()
+                assert "تایم‌لاین ساخته شد" in arrangement_status, "Lyrics-to-arrangement parser failed: " + arrangement_status
+                page.locator('[data-view="lyrics"]').click()
+                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.locator('[data-melody-choice="A"]').click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A ساخته شد')", timeout=30000)
+                lyric_draft = page.evaluate("""() => {
+                    const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    const project = projects.find(item => item.name === "Automated Audio QA");
+                    return project?.melodyDraft || null;
+                }""")
+                assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
+                assert lyric_draft["noteEvents"][0]["startStep"] >= 0
+                page.locator('[data-melody-choice="A"]').click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ترک WAV به پروژه اضافه شد')", timeout=30000)
+                page.locator("#buildMelodyBacking").click()
+                page.wait_for_function("""(() => {
+                    const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
+                    return status.includes('همراهی ساخته شد') || status.includes('ساخت همراهی کامل نشد') || status.includes('بیش از ۶۸ میزان');
+                })()""", timeout=90000)
+                harmony_status = page.locator("#lyricsMelodyStatus").inner_text()
+                assert "همراهی ساخته شد" in harmony_status, "Automatic harmony/lead generation failed: " + harmony_status + " | Pattern status: " + page.locator("#patternStatus").inner_text()
+                harmony_project = page.evaluate("""() => {
+                    const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    return projects.find(item => item.name === "Automated Audio QA") || null;
+                }""")
+                assert harmony_project and harmony_project.get("harmonyAnalysis", {}).get("melodyGuide") is True, "Harmony builder did not persist its lead guide result."
+                assert any(track.get("name", "").startswith("Harmony & Instruments") for track in harmony_project["tracks"]), "Harmony WAV track is missing."
+                assert any(track.get("name", "").startswith("Melody Guide") for track in harmony_project["tracks"]), "Melody guide WAV track is missing."
+
 
 
                 # Generate an original local drum loop and attach its WAV to the same project.
