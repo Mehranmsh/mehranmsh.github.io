@@ -1063,7 +1063,7 @@ def main():
                 generated_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
                 generated_track = next(track for track in generated_project["tracks"] if track.get("generated"))
                 assert generated_track["type"] == "Drums / Percussion" and generated_track["audioName"].endswith(".wav")
-                assert generated_project["patternStudio"]["drumKit"] == "lofi"
+                assert generated_project["patternStudio"]["drumKit"] == "recorded"
                 assert 7 in generated_project["patternStudio"]["openHat"] and 5 in generated_project["patternStudio"]["clap"] and 11 in generated_project["patternStudio"]["tom"] and 15 in generated_project["patternStudio"]["perc"]
                 with page.expect_download() as drum_midi_download:
                     page.locator("#exportPatternMidi").click()
