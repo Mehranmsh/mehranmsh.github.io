@@ -399,6 +399,7 @@ def main():
                         "Access-Control-Allow-Origin": base_url,
                     }, body=__import__("json").dumps({
                         "success": True, "lyrics": songwriter_fixture,
+                        "qualityWarnings": ["در متن آزمایشی یک هشدار ساختاری وجود دارد."],
                         "provider": "cloudflare", "model": "test-model", "free": True,
                     }))
                 songwriter_url = "https://mehran-msh-auth.mehran79mehran.workers.dev/music/lyrics/generate"
@@ -415,6 +416,7 @@ def main():
                 page.locator("#generateSongLyrics").click()
                 page.wait_for_function("document.querySelector('#songwriterStatus')?.textContent.includes('پیش‌نویس ساخته شد')", timeout=10000)
                 assert page.locator("#songwriterResult").input_value() == songwriter_fixture
+                assert "بازبینی لازم دارد" in page.locator("#songwriterStatus").inner_text() and "هشدار ساختاری" in page.locator("#songwriterStatus").inner_text(), "Quality warnings were not surfaced in the songwriter UI."
                 assert len(songwriter_requests) == 1, "AI songwriter must make exactly one generation request."
                 songwriter_payload = songwriter_requests[0]
                 assert songwriter_payload["topic"] == "انتظار برای بازگشت یک عزیز"
