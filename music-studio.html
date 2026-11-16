@@ -2277,6 +2277,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  const originalShow=show;
  show=function(view){originalShow(view);if(view==="lyrics"){refreshLyricsProjects();loadLyricsProject();refreshVocalGuideLines();}if(view==="vocals")syncVocalTools();};
 
+ syncVocalTools();
  render();
 })();
 </script>
