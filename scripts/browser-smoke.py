@@ -465,6 +465,10 @@ def main():
                 craft_report = page.locator("#lyricCraftAnalysis").inner_text()
                 assert "تازگی واژگانی بند دوم" in craft_report and "100٪" in craft_report, "Second-verse vocabulary novelty must be shown when both verses are labelled."
                 assert "تفاوت واژگانی Bridge با Chorus: 100٪" in craft_report, "Bridge-to-chorus vocabulary comparison must be shown when both sections are labelled."
+                assert "نقشهٔ ساختاری روایت" in craft_report, "Narrative structure checklist must be rendered."
+                assert "شروع روایت" in craft_report and "ایدهٔ مرکزی و نقطهٔ بازگشت" in craft_report and "ادامه یا تحول روایت" in craft_report, "Narrative section roles are incomplete."
+                assert craft_report.count("عنوان بخش پیدا شد") >= 4, "All labelled narrative sections should be detected."
+                assert "فقط وجود عنوان بخش‌ها را می‌سنجد" in craft_report, "Narrative checklist must disclose that it does not judge semantic coherence."
                 page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه\nI keep walking through the night\nI hold a little light")
                 page.locator("#saveLyrics").click()
                 # Exercise the actual studio-to-conditioning request with a mocked self-hosted API.
