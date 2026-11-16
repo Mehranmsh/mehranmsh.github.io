@@ -1624,7 +1624,9 @@ def main():
                     assert metric["duration"] > 5 and metric["bytes"] > 44100, "Rendered arrangement audio is unexpectedly short: " + str(metric)
                     assert metric["peak"] > 0.002 and metric["rms"] > 0.0005 and metric["activeRatio"] > 0.01, "Rendered arrangement contains silence or near-silence: " + str(metric)
 
-                # Verify professional per-note and per-bar chord editing rebuild real project WAVs.
+                # Preview opens the mixer view. Return to Composition before checking its professional editors.
+                page.locator('[data-view="compose"]').click()
+                page.wait_for_function("document.querySelector('#view-compose')?.classList.contains('hidden') === false", timeout=5000)
                 page.locator('[data-experience-stage="compose"] [data-experience-choice="pro"]').click()
                 page.wait_for_function("document.querySelector('#compositionNoteEditor')?.offsetParent !== null && document.querySelector('#compositionChordEditor')?.offsetParent !== null", timeout=5000)
                 page.locator("#composeNoteIndex").select_option("0")
