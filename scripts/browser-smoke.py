@@ -1526,6 +1526,16 @@ def main():
                     assert metric["duration"] > 5 and metric["bytes"] > 44100, "Rendered arrangement audio is unexpectedly short: " + str(metric)
                     assert metric["peak"] > 0.002 and metric["rms"] > 0.0005 and metric["activeRatio"] > 0.01, "Rendered arrangement contains silence or near-silence: " + str(metric)
 
+                # Beginner one-click composition must create melody and harmony without manual note/chord editing.
+                page.locator('[data-view="compose"]').click()
+                page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=5000)
+                page.locator("#composeProject").select_option(label="Automated Audio QA")
+                page.locator("#autoComposeSong").click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('آهنگسازی پایه آماده شد')", timeout=90000)
+                auto_composition = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1')).find(p => p.name === 'Automated Audio QA')")
+                assert auto_composition.get("melodyDraft", {}).get("applied") is True, "One-click composition did not apply its melody."
+                assert len(auto_composition.get("harmonyAnalysis", {}).get("chords", [])) >= 4, "One-click composition did not create chord harmony."
+                assert any("Harmony & Instruments" in track.get("name", "") for track in auto_composition.get("tracks", [])), "One-click composition did not create a harmony audio track."
 
 
 
