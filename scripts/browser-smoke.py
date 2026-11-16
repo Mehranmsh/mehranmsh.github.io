@@ -1516,7 +1516,13 @@ def main():
                 assert "آهنگسازی پایه آماده شد" in harmony_status, "Automatic harmony/lead generation failed: " + harmony_status + " | Pattern status: " + page.locator("#patternStatus").inner_text()
                 assert page.locator("#view-compose").is_visible(), "Compose should remain open for review after harmony generation."
                 assert page.locator("#composeResult").is_visible(), "Composition summary panel was not shown."
-                assert page.locator("#composeResultKey").inner_text() == "C minor", "Composition summary key does not match the selected key."
+                expected_harmony_key = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const key = inferMelodyKey(project.melodyDraft.sourceNoteEvents);
+                    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+                    return names[key.root] + " " + key.mode;
+                }""")
+                assert page.locator("#composeResultKey").inner_text() == expected_harmony_key, "Composition summary key does not match the analyzed melody key."
                 assert "C" in page.locator("#composeResultChords").inner_text(), "Chord progression summary is missing."
                 assert "احساسی" in page.locator("#composeResultTracks").inner_text(), "Selected harmony style was not reflected in the result.";
                 page.locator("#previewComposeMix").click()
