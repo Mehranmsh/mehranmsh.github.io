@@ -1508,6 +1508,10 @@ def main():
                 assert lyric_syllable_probe["manual"] == 3 and all(value >= 1 for value in lyric_syllable_probe["ordinary"]) and lyric_syllable_probe["explicit"] >= 1, "Persian syllable overrides or conservative fallback failed: " + str(lyric_syllable_probe)
                 print("PERSIAN SYLLABLE OVERRIDE REGRESSION:", lyric_syllable_probe, flush=True)
                 print("PASS: explicit Persian syllable splits override estimates while ordinary text remains supported", flush=True)
+                lyric_stress_probe = page.evaluate("""() => window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپن/ج/ره آرام").noteEvents""")
+                assert len(lyric_stress_probe) == 5 and lyric_stress_probe[2]["velocity"] > lyric_stress_probe[1]["velocity"], "Persian word-final syllable emphasis was not applied: " + str(lyric_stress_probe)
+                print("PERSIAN WORD STRESS REGRESSION:", [(event["id"], event["velocity"]) for event in lyric_stress_probe], flush=True)
+                print("PASS: word-final syllables receive a modest expressive accent", flush=True)
                 original_lyrics_for_regression = page.locator("#lyricsEditor").input_value()
                 section_test_lyrics = "[Verse 1]\nیک مصرع تکراری،\n[Chorus]\nیک مصرع تکراری؟\n[Chorus]\nیک مصرع تکراری؟\n[Pre-Chorus]\nراهی به اوج\n[Bridge]\nیک مصرع تکراری،\n[Outro]\nپایان آرام"
                 page.locator('[data-view="lyrics"]').click()
