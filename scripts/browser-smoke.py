@@ -1489,7 +1489,10 @@ def main():
                 }""")
                 assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
-                assert lyric_draft["key"] == "C minor" and lyric_draft["tempo"] == 90, "Compose key/tempo controls were not applied: " + str((lyric_draft.get("key"), lyric_draft.get("tempo")))
+                key_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+                vocal_shift = int((lyric_draft.get("vocalRangeFit") or {}).get("semitoneShift", 0))
+                expected_key = key_names[vocal_shift % 12] + " minor"
+                assert lyric_draft["key"] == expected_key and lyric_draft["tempo"] == 90, "Compose key/tempo controls or vocal-range adaptation were not applied: " + str((lyric_draft.get("key"), expected_key, lyric_draft.get("tempo"), vocal_shift))
                 assert lyric_draft["noteEvents"][0]["note"].startswith("C") or any(lyric_draft["noteEvents"][0]["note"].startswith(name) for name in ("D","D#","F","G","G#","A#")), "Selected C minor scale was not applied to melody notes."
                 page.locator("#addLyricsMelody").click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('به پروژه اضافه شد')", timeout=30000)
