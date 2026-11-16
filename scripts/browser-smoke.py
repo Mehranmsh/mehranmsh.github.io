@@ -848,6 +848,12 @@ def main():
                     )
                     mix_export_status = page.locator("#renderWavStatus").inner_text()
                     assert "8x 48-tap sinc inter-sample peak estimate" in mix_export_status
+                    mix_true_peak_text = mix_export_status.split("8x 48-tap sinc inter-sample peak estimate ", 1)[1].split(" dBTP", 1)[0]
+                    mix_true_peak_db = float(mix_true_peak_text)
+                    assert math.isfinite(mix_true_peak_db) and mix_true_peak_db <= -1.0, (
+                        "Estimated inter-sample peak exceeded the -1.2 dBTP export ceiling: "
+                        + mix_true_peak_text + " dBTP"
+                    )
                     assert "integrated loudness " in mix_export_status and " LUFS est." in mix_export_status
                     mix_lufs_text = mix_export_status.split("integrated loudness ", 1)[1].split(" LUFS est.", 1)[0]
                     mix_integrated_lufs = float(mix_lufs_text)
