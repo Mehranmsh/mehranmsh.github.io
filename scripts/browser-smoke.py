@@ -1775,14 +1775,16 @@ def main():
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('آهنگسازی پایه آماده شد') || document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ساخت همراهی کامل نشد')", timeout=90000)
                 section_regression = page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item => item.name === 'Automated Audio QA');
-                    return {sections: project?.patternStudio?.sectionMap || [], chords: project?.harmonyAnalysis?.chords || [], bars: project?.harmonyAnalysis?.bars || 0, status: document.querySelector('#lyricsMelodyStatus')?.textContent || ''};
+                    return {sections: project?.patternStudio?.sectionMap || [], key: project?.harmonyAnalysis?.key || '', chords: project?.harmonyAnalysis?.chords || [], bars: project?.harmonyAnalysis?.bars || 0, status: document.querySelector('#lyricsMelodyStatus')?.textContent || ''};
                 }""")
                 expected_section_map = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"]
                 assert "آهنگسازی پایه آماده شد" in section_regression["status"], "Section-aware harmony generation failed: " + str(section_regression)
                 assert section_regression["sections"] == expected_section_map, "Harmony section map lost, reordered or mislabelled a song section: " + str(section_regression["sections"])
                 assert section_regression["bars"] == len(section_names) and len(section_regression["chords"]) == len(section_names), "Harmony progression does not cover every section bar: " + str(section_regression)
+                assert section_regression["key"] == "C minor", "Known C-minor melody was assigned the wrong key: " + str(section_regression)
+                assert all(chord in {"Cm", "Ddim", "Eb", "Fm", "G", "Ab", "Bb"} for chord in section_regression["chords"]), "C-minor harmony contains a chord outside its supported diatonic set (including the major dominant): " + str(section_regression["chords"])
                 assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
-                print("PASS: all eight song sections map in order to valid, one-bar harmony progression entries", flush=True)
+                print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
