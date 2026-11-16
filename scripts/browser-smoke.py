@@ -1589,6 +1589,25 @@ def main():
                         assert max(voicing["movements"]) <= 7, "Voice leading contains an avoidable leap larger than a fifth: " + str(voice_leading_regression)
                 print("COMPOSITION VOICE LEADING REGRESSION:", voice_leading_regression, flush=True)
                 print("PASS: chord inversions preserve chord tones and keep adjacent voices within seven semitones", flush=True)
+                bass_voice_leading_regression = page.evaluate("""() => {
+                    const symbols = ["C", "G", "Am", "F"];
+                    let previous = null;
+                    return symbols.map(symbol => {
+                        const notes = window.__mehranTestBassVoiceLeading(symbol, previous === null ? null : [previous]);
+                        const result = {symbol, notes, root:notes[0], pitchClasses:notes.map(n=>((n%12)+12)%12), movement:previous === null ? 0 : Math.abs(notes[0]-previous)};
+                        previous = notes[0];
+                        return result;
+                    });
+                }""")
+                expected_bass_pitch_classes = [{"0","4","7"},{"7","11","2"},{"9","0","4"},{"5","9","0"}]
+                assert len(bass_voice_leading_regression) == 4, "Bass voice-leading did not cover all chords: " + str(bass_voice_leading_regression)
+                for index, bass in enumerate(bass_voice_leading_regression):
+                    assert set(str(pc) for pc in bass["pitchClasses"]) == expected_bass_pitch_classes[index], "Bass inversion lost a chord tone: " + str(bass_voice_leading_regression)
+                    assert 28 <= bass["root"] <= 55, "Bass inversion left the bass register: " + str(bass_voice_leading_regression)
+                    if index:
+                        assert bass["movement"] <= 7, "Bass voice leading contains a leap larger than a fifth: " + str(bass_voice_leading_regression)
+                print("COMPOSITION BASS VOICE LEADING REGRESSION:", bass_voice_leading_regression, flush=True)
+                print("PASS: bass selects smooth chord-tone inversions across adjacent chord changes", flush=True)
                 melody_feel_results = {}
                 for feel, label in [("calm", "آرام"), ("flow", "روان"), ("lively", "پرتحرک")]:
                     page.locator(f'[data-melody-feel="{feel}"]').click()
