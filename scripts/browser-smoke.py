@@ -971,7 +971,7 @@ def main():
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
                 page.locator("#patternMode").select_option("keys")
-                page.locator("#patternNotes").fill("C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -")
+                page.locator("#patternNotes").evaluate("""el => { el.value = "C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 assert page.locator("#pianoRollGrid [data-piano-note='C5']").count() == 16
                 assert page.locator("#pianoRollGrid [data-piano-note='C2']").count() == 16
                 assert page.locator("#pianoRollGrid [data-piano-step='1'][data-piano-note='D3']").count() == 1
