@@ -2250,7 +2250,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  function syncComposerControls(){}
  $("composeProject").addEventListener("change",()=>{const target=$("lyricsProject"),next=$("composeProject").value;if(target.value!==next){target.dataset.previous=target.value;target.value=next;changeLyricsProject();$("composeProject").value=target.value;}});
 
- $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();refreshVocalGuideLines();});
+ $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();refreshVocalGuideLines();const p=projects.find(item=>item.id===$("vocalProject").value),range=p?.vocalRange,status=$("vocalRangeFitStatus");if(status)status.textContent=range?"محدودهٔ ثبت‌شده برای این پروژه: "+range.lowNote+" تا "+range.highNote+" · این محدوده در آهنگسازی خودکار استفاده می‌شود.":"هنوز محدودهٔ صدای قابل استفاده برای این پروژه ثبت نشده است. بعد از تحلیل فایل آزمون، محدوده اینجا ذخیره می‌شود.";});
  $("analyzePitch").addEventListener("click",()=>{void analyzeVocalPitch();});
  $("analyzeRecordingQuality").addEventListener("click",()=>{void analyzeRecordingQuality();});
  $("vocalPolishAmount").addEventListener("input",()=>{$("vocalPolishAmountValue").textContent=$("vocalPolishAmount").value+"%";});["vocalGateThreshold","vocalGateReduction","vocalGateAttack","vocalGateRelease"].forEach(id=>$(id).addEventListener("input",()=>{const value=$(id).value;const suffix=id==="vocalGateAttack"||id==="vocalGateRelease"?" ms":" dB";$(id+"Value").textContent=(id==="vocalGateThreshold"||id==="vocalGateReduction"?"−":"")+Math.abs(Number(value))+suffix;}));
