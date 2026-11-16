@@ -965,6 +965,7 @@ def main():
                 assert audio_audit["duration"] >= 20.5, "Eight-bar audition should be about 21 seconds: " + str(audio_audit)
                 assert all(level > 0.00035 for level in audio_audit["rms"]), "Audition contains silent seconds: " + str(audio_audit)
                 print("PASS: selected violin uses only self-hosted recorded samples; 21-second WAV has active audio in every one-second window")
+                page.locator('[data-view="arrangement"]').first.click()
                 page.locator("#mixProject").select_option(label="Automated Audio QA")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
                 # Build a melodic synth layer and connect its notes to the lyric performance guide.
