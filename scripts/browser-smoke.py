@@ -380,6 +380,78 @@ def main():
                 page.locator('[data-experience-stage="lyrics"] [data-experience-choice="pro"]').click()
                 page.wait_for_function("Array.from(document.querySelector('#lyricsProject').options).some(option => option.textContent.trim() === 'Automated Audio QA')", timeout=10000)
                 page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+
+                # Exercise the complete AI songwriter-to-Lyrics-Lab path with a deterministic
+                # Cloudflare Worker response. This validates the browser contract without
+                # consuming the production free AI quota in CI.
+                songwriter_requests = []
+                songwriter_fixture = "[Verse 1]\nکوچه هنوز از قدم‌هایت نشان دارد\nچراغ خانه نامت را صدا دارد\n\n[Chorus]\nبرگرد که این خانه بی‌تو بی‌قرار است\nاین پنجره چشم‌انتظارِ یک بهار است\n\n[Verse 2]\nامروز از آن شب کمی دورتر شدم\nبا خاطرات روشن تو هم‌سفر شدم\n\n[Chorus]\nبرگرد که این خانه بی‌تو بی‌قرار است\nاین پنجره چشم‌انتظارِ یک بهار است\n\n[Bridge]\nشاید مسیر ما دوباره یکی شود\nشاید سکوت خانه پر از زندگی شود\n\n[Outro]\nچراغ خانه هنوز روشن است"
+                def mock_songwriter(route):
+                    if route.request.method == "OPTIONS":
+                        route.fulfill(status=204, headers={
+                            "Access-Control-Allow-Origin": base_url,
+                            "Access-Control-Allow-Methods": "POST, OPTIONS",
+                            "Access-Control-Allow-Headers": "content-type",
+                        })
+                        return
+                    songwriter_requests.append(route.request.post_data_json)
+                    route.fulfill(status=200, content_type="application/json", headers={
+                        "Access-Control-Allow-Origin": base_url,
+                    }, body=__import__("json").dumps({
+                        "success": True, "lyrics": songwriter_fixture,
+                        "provider": "cloudflare", "model": "test-model", "free": True,
+                    }))
+                songwriter_url = "https://mehran-msh-auth.mehran79mehran.workers.dev/music/lyrics/generate"
+                page.route(songwriter_url, mock_songwriter)
+                page.locator("#aiSongwriterPanel details summary").click()
+                page.locator("#songwriterTopic").fill("انتظار برای بازگشت یک عزیز")
+                page.locator("#songwriterMood").select_option(label="دلتنگ")
+                page.locator("#songwriterGenre").select_option(label="راک")
+                page.locator("#songwriterVoice").select_option(label="روایت داستانی")
+                page.locator("#songwriterRhyme").select_option("alternating")
+                page.locator("#songwriterHook").select_option("emotional")
+                page.locator("#songwriterArc").select_option("cinematic")
+                page.locator("#songwriterDetails").fill("یک چراغ روشن پشت پنجره")
+                page.locator("#generateSongLyrics").click()
+                page.wait_for_function("document.querySelector('#songwriterStatus')?.textContent.includes('Draft generated with Cloudflare AI')", timeout=10000)
+                assert page.locator("#songwriterResult").input_value() == songwriter_fixture
+                assert len(songwriter_requests) == 1, "AI songwriter must make exactly one generation request."
+                songwriter_payload = songwriter_requests[0]
+                assert songwriter_payload["topic"] == "انتظار برای بازگشت یک عزیز"
+                assert songwriter_payload["genre"] == "راک" and songwriter_payload["voice"] == "روایت داستانی"
+                assert songwriter_payload["rhyme"] == "alternating" and songwriter_payload["hook"] == "emotional"
+                assert songwriter_payload["arc"] == "cinematic" and songwriter_payload["details"] == "یک چراغ روشن پشت پنجره"
+                assert page.locator("#useSongwriterDraft").is_enabled() and page.locator("#appendSongwriterDraft").is_enabled()
+                page.locator("#useSongwriterDraft").click()
+                assert page.locator("#lyricsEditor").input_value() == songwriter_fixture, "Generated draft was not transferred into Lyrics Lab."
+                page.locator("#undoLyrics").click()
+                assert page.locator("#lyricsEditor").input_value() == "", "Undo did not restore the pre-generation lyric text."
+                page.locator("#redoLyrics").click()
+                assert page.locator("#lyricsEditor").input_value() == songwriter_fixture, "Redo did not restore the generated lyric draft."
+                page.locator("#lyricsEditor").fill("[Intro]\nچراغی پشت پنجره روشن است")
+                page.locator("#appendSongwriterDraft").click()
+                appended_lyrics = page.locator("#lyricsEditor").input_value()
+                assert appended_lyrics.startswith("[Intro]\nچراغی پشت پنجره روشن است\n\n[Verse 1]")
+                assert appended_lyrics.endswith("چراغ خانه هنوز روشن است"), "Append did not preserve the complete generated draft."
+                page.locator("#lyricsTitle").fill("آزمایش ترانه‌ساز")
+                page.locator("#saveLyrics").click()
+                page.wait_for_function("document.querySelector('#lyricsSaveState')?.textContent.includes('Saved locally')", timeout=10000)
+                saved_songwriter_lyrics = page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
+                    const project = drafts.find(item => item.name === "Automated Audio QA");
+                    return {title: project?.lyricsTitle, lyrics: project?.lyrics};
+                }""")
+                assert saved_songwriter_lyrics["title"] == "آزمایش ترانه‌ساز"
+                assert saved_songwriter_lyrics["lyrics"] == appended_lyrics, "Generated and appended lyrics were not saved to the selected project."
+                with page.expect_download() as lyrics_download:
+                    page.locator("#exportLyrics").click()
+                lyrics_path = Path(temp) / "mehran-songwriter-lyrics.txt"
+                lyrics_download.value.save_as(lyrics_path)
+                assert lyrics_path.read_text(encoding="utf-8") == appended_lyrics, "TXT export did not preserve the saved Persian lyric text."
+                page.unroute(songwriter_url, mock_songwriter)
+                print("AI SONGWRITER FLOW REGRESSION:", {"requests": len(songwriter_requests), "sections": ["Verse 1", "Chorus", "Verse 2", "Bridge", "Outro"], "saved_title": saved_songwriter_lyrics["title"], "export_bytes": lyrics_path.stat().st_size}, flush=True)
+                print("PASS: AI songwriter request, generated draft, replace, undo/redo, append, project save and Persian TXT export", flush=True)
+
                 page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه\nI keep walking through the night\nI hold a little light")
                 assert "تو رفتی و هنوز دلم به یاد توئه" in page.locator("#lyricsEditor").input_value()
                 assert page.locator("#lyricFlowPanel").is_visible()
