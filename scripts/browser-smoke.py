@@ -1494,7 +1494,7 @@ def main():
                 page.locator("#composeKey").select_option("0")
                 page.locator("#composeTempo").fill("90")
                 page.locator('[data-melody-choice="A"]').click()
-                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی روان آماده است')", timeout=30000)
                 lyric_draft = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     const project = projects.find(item => item.name === "Automated Audio QA");
@@ -1567,6 +1567,25 @@ def main():
                 assert punctuation_cache_regression["commaRest"] >= 2 and punctuation_cache_regression["terminalRest"] >= 4, "Same-lyric punctuation variants must retain distinct phrase rests: " + str(punctuation_cache_regression)
                 print("COMPOSITION PUNCTUATION CACHE REGRESSION:", punctuation_cache_regression, flush=True)
                 print("PASS: identical lyric text with different punctuation retains distinct pause timing", flush=True)
+                melody_feel_results = {}
+                for feel, label in [("calm", "آرام"), ("flow", "روان"), ("lively", "پرتحرک")]:
+                    page.locator(f'[data-melody-feel="{feel}"]').click()
+                    page.wait_for_function(f"document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی {label} آماده است')", timeout=30000)
+                    melody_feel_results[feel] = page.evaluate("""() => {
+                        const projectId = document.querySelector("#lyricsProject")?.value;
+                        const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
+                        const events = project?.melodyDraft?.sourceNoteEvents || [];
+                        const first = events.filter(event => event.id.startsWith("lyric-0-"));
+                        const last = events.filter(event => event.id.startsWith("lyric-1-")).reduce((best,event) => !best || event.startStep > best.startStep ? event : best, null);
+                        const commaLast = first.reduce((best,event) => !best || event.startStep > best.startStep ? event : best, null);
+                        return {feel:project?.melodyDraft?.feel, starts:first.map(event => event.startStep % 16), lengths:first.map(event => Number(event.lengthSteps)), commaRest:commaLast ? 16 - ((commaLast.startStep % 16) + Number(commaLast.lengthSteps || 0)) : -1, terminalRest:last ? 16 - ((last.startStep % 16) + Number(last.lengthSteps || 0)) : -1};
+                    }""")
+                assert all(melody_feel_results[feel]["feel"] == feel for feel in ("calm", "flow", "lively")), "Each melody phrasing choice must persist independently: " + str(melody_feel_results)
+                assert max(melody_feel_results["calm"]["lengths"]) >= max(melody_feel_results["flow"]["lengths"]) >= max(melody_feel_results["lively"]["lengths"]), "Calm, flowing and lively phrasing must have progressively shorter note gates: " + str(melody_feel_results)
+                assert all(result["commaRest"] >= 2 and result["terminalRest"] >= 4 for result in melody_feel_results.values()), "Phrasing choices must preserve punctuation rests: " + str(melody_feel_results)
+                assert len({tuple(result["starts"]) for result in melody_feel_results.values()}) > 1, "At least two phrasing modes must have distinct rhythmic placement: " + str(melody_feel_results)
+                print("COMPOSITION MELODY FEEL REGRESSION:", melody_feel_results, flush=True)
+                print("PASS: calm, flowing and lively phrasing alter note timing and sustain while preserving punctuation", flush=True)
                 print("COMPOSITION MELODY SECTION REGRESSION:", melody_section_regression, flush=True)
                 print("PASS: section-specific melodic cadences and repeated chorus identity", flush=True)
                 page.locator('[data-view="lyrics"]').click()
