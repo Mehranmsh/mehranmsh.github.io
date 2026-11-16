@@ -1179,6 +1179,8 @@ def main():
                 page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternBars").select_option("1")
                 for mode in live_modes_available:
+                    page.locator('[data-view="arrangement"]').click()
+                    page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternNotes").evaluate("""el => { el.value = "C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
@@ -1215,6 +1217,8 @@ def main():
                     latest_track_delete.click()
                     page.wait_for_timeout(150)
                 # Test human third/fifth harmony after ensemble banks so choir QA stays unison and efficient.
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternMode").evaluate("(el) => { el.value = \"live_female_vocal\"; el.dispatchEvent(new Event(\"input\", { bubbles: true })); el.dispatchEvent(new Event(\"change\", { bubbles: true })); }")
                 page.locator("#vocalVowel").select_option("o")
                 page.locator("#addVocalThird").click()
