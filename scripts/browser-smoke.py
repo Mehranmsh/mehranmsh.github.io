@@ -1517,7 +1517,7 @@ def main():
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
                     const draft = project?.melodyDraft;
                     const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
-                    return draft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\n[Chorus]\\nیک مصرع تکراری؟\\n[Chorus]\\nیک مصرع تکراری؟\\n[Pre-Chorus]\\nراهی به اوج\\n[Bridge]\\nپل ملودی\\n[Outro]\\nپایان آرام" && (draft?.sourceNoteEvents || []).some(event => event.id.startsWith('lyric-1-'));
+                    return draft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\n[Chorus]\\nیک مصرع تکراری؟\\n[Chorus]\\nیک مصرع تکراری؟\\n[Pre-Chorus]\\nراهی به اوج\\n[Bridge]\\nیک مصرع تکراری،\\n[Outro]\\nپایان آرام" && (draft?.sourceNoteEvents || []).some(event => event.id.startsWith('lyric-1-'));
                 }""", timeout=30000)
                 melody_section_regression = page.evaluate("""() => {
                     const projectId = document.querySelector("#lyricsProject")?.value;
