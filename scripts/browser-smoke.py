@@ -2223,6 +2223,30 @@ def main():
                 print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "bars": section_regression["bars"], "chordCount": len(section_regression["chords"]), "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
 
+                # Regression: smart arrangement must create a deliberate section-level energy arc.
+                smart_layer_plan = page.evaluate("""() => {
+                    const choose = window.__mehranTestSmartArrangementLayerIndexes;
+                    if (typeof choose !== 'function') throw new Error('Smart arrangement layer planner is unavailable.');
+                    return {
+                        intro: choose('Intro'),
+                        verse: choose('Verse 1'),
+                        preChorus: choose('Pre-Chorus'),
+                        chorus: choose('Chorus'),
+                        bridge: choose('Bridge'),
+                        outro: choose('Outro')
+                    };
+                }""")
+                assert smart_layer_plan == {
+                    "intro": [2],
+                    "verse": [0, 1],
+                    "preChorus": [0, 1, 2],
+                    "chorus": [0, 1, 2],
+                    "bridge": [1, 2],
+                    "outro": [2]
+                }, "Smart arrangement must thin the Intro/Outro, keep Verse controlled, and build the Chorus: " + str(smart_layer_plan)
+                print("SMART ARRANGEMENT SECTION LAYERS:", smart_layer_plan, flush=True)
+                print("PASS: smart arrangement assigns generated drums, bass and atmosphere according to song-section energy", flush=True)
+
                 # Regression: all five harmony styles must produce real, style-sensitive progressions in minor,
                 # and the same composition engine must correctly analyze and harmonize a major-key melody.
                 page.evaluate("""() => {
