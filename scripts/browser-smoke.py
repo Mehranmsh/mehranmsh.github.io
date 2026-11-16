@@ -1538,6 +1538,8 @@ def main():
                 page.locator("#lyricsEditor").fill(original_lyrics_for_regression)
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
+                page.locator("#composeKey").select_option("0")
+                page.locator("#composeScale").select_option("minor")
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
                 lyric_draft = page.evaluate("""() => {
