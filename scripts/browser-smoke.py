@@ -2396,7 +2396,7 @@ def main():
                 print("PASS: known C-major melody receives an eight-bar diatonic progression and tonic resolution", flush=True)
 
                 # Use a fresh project so this regression is isolated from all earlier fixtures.
-                page.locator('[data-go="create"]').first.click()
+                page.locator('[data-view="create"]').first.click()
                 page.locator("#projectName").fill("Automated Multi-track QA")
                 page.locator("#saveProject").click()
                 page.locator('[data-view="mix"]').click()
