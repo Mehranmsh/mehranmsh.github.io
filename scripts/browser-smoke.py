@@ -1481,6 +1481,7 @@ def main():
                     if (!project || !Array.isArray(project.arrangement)) throw new Error("Lyrics arrangement was not persisted.");
                     let startBar = 1;
                     project.arrangement.forEach(section => { section.bars = 2; section.startBar = startBar; startBar += 2; });
+                    project.vocalRange = null; // Isolate section-cadence checks from the earlier vocal-range fitting test.
                     localStorage.setItem(key, JSON.stringify(drafts));
                 }""")
                 page.reload(wait_until="domcontentloaded")
@@ -1508,7 +1509,7 @@ def main():
                 page.locator("#lyricsEditor").fill(section_test_lyrics)
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
-                page.locator("#composeKey").select_option("9")
+                page.locator("#composeKey").select_option("auto")
                 page.locator("#composeScale").select_option("minor")
                 page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent = ''; }")
                 page.locator('[data-melody-choice="A"]').click()
