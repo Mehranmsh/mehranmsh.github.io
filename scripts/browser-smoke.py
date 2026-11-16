@@ -1702,6 +1702,21 @@ def main():
                 assert bass_approach_regression[2]["target"] == 35 and bass_approach_regression[2]["approach"] is None, "A one-semitone bass move should not receive a redundant chromatic approach: " + str(bass_approach_regression)
                 print("COMPOSITION BASS APPROACH REGRESSION:", bass_approach_regression, flush=True)
                 print("PASS: chromatic bass pickups target the next voice-led inversion from the actual previous bass note", flush=True)
+                bass_rhythm_regression = page.evaluate("""() => {
+                    const duration = window.__mehranTestBassEventDuration;
+                    const hasLateHit = window.__mehranTestBassHasLateHit;
+                    const beat = 0.5;
+                    const durations = [0, 2, 3, 3.5].map(offset => ({offset,duration:duration(beat,offset)}));
+                    const finalChorusPattern = [[0,0,1],[1,2,.48],[2,1,.72],[3.5,0,.36]];
+                    const chorusPattern = [[0,0,1],[1,1,.35],[2,2,.68],[3.5,0,.42]];
+                    return {durations,finalChorusHasLateHit:hasLateHit(finalChorusPattern),chorusHasLateHit:hasLateHit(chorusPattern),ordinaryPatternHasLateHit:hasLateHit([[0,0,1],[2,2,.7]])};
+                }""")
+                assert len(bass_rhythm_regression["durations"]) == 4, "Bass duration regression did not cover all beat positions: " + str(bass_rhythm_regression)
+                assert all(item["duration"] > 0 and item["offset"]*0.5+item["duration"] < 2 for item in bass_rhythm_regression["durations"]), "Bass notes must end before the next four-beat chord boundary: " + str(bass_rhythm_regression)
+                assert bass_rhythm_regression["durations"][0]["duration"] == 0.5*1.28 and bass_rhythm_regression["durations"][-1]["duration"] < 0.5, "Bass sustain should remain expressive but shorten safely near the bar line: " + str(bass_rhythm_regression)
+                assert bass_rhythm_regression["finalChorusHasLateHit"] and bass_rhythm_regression["chorusHasLateHit"] and not bass_rhythm_regression["ordinaryPatternHasLateHit"], "Late bass-hit detection must prevent duplicate chorus pickups without changing ordinary patterns: " + str(bass_rhythm_regression)
+                print("COMPOSITION BASS RHYTHM REGRESSION:", bass_rhythm_regression, flush=True)
+                print("PASS: bass sustains stop before chord changes and late chorus pickups are not doubled", flush=True)
                 melody_feel_results = {}
                 for feel, label in [("calm", "آرام"), ("flow", "روان"), ("lively", "پرتحرک")]:
                     page.locator(f'[data-melody-feel="{feel}"]').click()
