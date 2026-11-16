@@ -2441,7 +2441,7 @@ def main():
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")
                         .find(item => item.name === "Automated Smart Arrangement QA");
                     return {
-                        tracks:(project?.tracks || []).filter(track => track.generated).map(track => ({id:track.id,name:track.name,type:track.type})),
+                        tracks:(project?.tracks || []).filter(track => track.generated).map(track => ({id:track.id,name:track.name,type:track.type,notes:track.notes || ""})),
                         sections:(project?.arrangement || []).map(section => ({name:section.name,trackIds:section.trackIds || []}))
                     };
                 }""")
