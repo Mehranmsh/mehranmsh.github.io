@@ -1539,9 +1539,31 @@ def main():
                 assert page.locator("#composeResult").is_visible(), "Composition summary panel was not shown."
                 expected_harmony_key = page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
-                    const key = inferMelodyKey(project.melodyDraft.sourceNoteEvents);
-                    const names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-                    return names[key.root] + " " + key.mode;
+                    const histogram = Array(12).fill(0);
+                    const pitchClass = note => {
+                        if (typeof note === "number" && Number.isFinite(note) && note >= 0 && note <= 127) return note % 12;
+                        const match = String(note || "").trim().match(/^([A-Ga-g])([#b]?)(-?\\d)$/);
+                        if (!match) return null;
+                        const base = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1].toUpperCase()];
+                        const midi = (Number(match[3]) + 1) * 12 + base + (match[2] === "#" ? 1 : match[2] === "b" ? -1 : 0);
+                        return ((midi % 12) + 12) % 12;
+                    };
+                    for (const event of project.melodyDraft.sourceNoteEvents || []) {
+                        const pc = pitchClass(event.note);
+                        if (pc !== null) histogram[pc] += Math.max(.25, Math.min(4, (Number(event.lengthSteps) || 2) / 2));
+                    }
+                    const major = [6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88];
+                    const minor = [6.33,2.68,3.52,5.38,2.6,3.53,2.54,4.75,3.98,2.69,3.34,3.17];
+                    let best = {score:-Infinity,root:0,mode:"major"};
+                    const mean = histogram.reduce((a,b)=>a+b,0)/12;
+                    for (let root=0;root<12;root++) for (const mode of ["major","minor"]) {
+                        const profile = mode === "major" ? major : minor;
+                        let score = 0;
+                        for (let pc=0;pc<12;pc++) score += (histogram[(pc+root)%12]-mean)*profile[pc];
+                        if (score > best.score) best = {score,root,mode};
+                    }
+                    const names = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+                    return names[best.root] + " " + best.mode;
                 }""")
                 assert page.locator("#composeResultKey").inner_text() == expected_harmony_key, "Composition summary key does not match the analyzed melody key."
                 assert "C" in page.locator("#composeResultChords").inner_text(), "Chord progression summary is missing."
