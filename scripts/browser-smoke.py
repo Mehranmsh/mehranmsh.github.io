@@ -1504,7 +1504,7 @@ def main():
                 }""")
                 assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
-                lyric_syllable_probe = page.evaluate("""() => ({manual:lyricWordSyllableCounts("پن/ج/ره")[0], ordinary:lyricWordSyllableCounts("شب از پنجره آرام گذشت"), explicit:lyricWordSyllableCounts("مُحَمَّد")[0]})""")
+                lyric_syllable_probe = page.evaluate("""() => ({manual:window.__mehranTestLyricSyllables("پن/ج/ره")[0], ordinary:window.__mehranTestLyricSyllables("شب از پنجره آرام گذشت"), explicit:window.__mehranTestLyricSyllables("مُحَمَّد")[0]})""")
                 assert lyric_syllable_probe["manual"] == 3 and all(value >= 1 for value in lyric_syllable_probe["ordinary"]) and lyric_syllable_probe["explicit"] >= 1, "Persian syllable overrides or conservative fallback failed: " + str(lyric_syllable_probe)
                 print("PERSIAN SYLLABLE OVERRIDE REGRESSION:", lyric_syllable_probe, flush=True)
                 print("PASS: explicit Persian syllable splits override estimates while ordinary text remains supported", flush=True)
