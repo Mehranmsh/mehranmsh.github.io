@@ -1179,7 +1179,7 @@ def main():
                 for mode in live_modes_available:
                     print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
-                    page.locator("#patternNotes").fill("C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -")
+                    page.locator("#patternNotes").evaluate("""el => { el.value = "C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     page.locator("#patternTrackName").click()
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
@@ -1298,7 +1298,7 @@ def main():
                     ("live_world_percussion", "C3, C#3, D3, D#3, E3, F3, F#3, G3, -, -, -, -, -, -, -, -"),
                     ("live_acoustic_drums", "C2, D2, C#2, F#2, A#2, D3, G2, D#3, -, -, -, -, -, -, -, -")
                 ]:
-                    page.locator("#patternNotes").fill(notes)
+                    page.locator("#patternNotes").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }", notes)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
@@ -1425,7 +1425,7 @@ def main():
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 
                 page.locator("#patternMode").select_option("lead")
-                page.locator("#patternNotes").fill("D4, -, -, -, -, -, -, -")
+                page.locator("#patternNotes").evaluate("""el => { el.value = "D4, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternNotes").dispatch_event("change")
                 page.locator('[data-view="vocals"]').first.click()
                 page.locator("#vocalProject").select_option(label="Automated Audio QA")
