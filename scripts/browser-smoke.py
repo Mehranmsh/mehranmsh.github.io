@@ -1575,7 +1575,9 @@ def main():
                 assert expected_chords and displayed_chords.replace(" · ", "·") == expected_chords_text.replace(" · ", "·"), f"Chord progression summary differs from saved harmony: displayed={displayed_chords!r}, saved={expected_chords_text!r}."
                 assert "احساسی" in page.locator("#composeResultTracks").inner_text(), "Selected harmony style was not reflected in the result.";
                 page.locator("#previewComposeMix").click()
-                page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing')", timeout=15000)
+                page.wait_for_function("Boolean(document.querySelector('#mixerStatus')?.textContent.trim())", timeout=15000)
+                mixer_preview_status = page.locator("#mixerStatus").inner_text()
+                assert mixer_preview_status.startswith("Playing "), "Composition preview did not start playback: " + mixer_preview_status
                 page.locator("#stopMix").click()
                 harmony_project = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
