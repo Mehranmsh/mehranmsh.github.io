@@ -2165,7 +2165,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   $("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=lyrics;$("lyricsProject").dataset.previous=p.id;
   refreshMixProjects(p.id);
   $("mixProject").value=p.id;renderArrangementTimeline();
-  status.textContent="Arrangement timeline created: "+sections.map(x=>x.name).join(" → ")+" · "+total+" bars. Assign instruments in Arrangement & Mix.";
+  status.textContent="تایم‌لاین ساخته شد: "+sections.map(x=>x.name).join(" → ")+" · "+total+" میزان. انتخاب سازها در بخش تنظیم و میکس انجام می‌شود.";
   show("mix");
  }
  function saveLyrics(){const p=projects.find(x=>x.id===$("lyricsProject").value);if(!p){alert("Choose a project first.");return;}const previous={lyricsTitle:p.lyricsTitle,lyrics:p.lyrics,updated:p.updated};p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);p.lyrics=$("lyricsEditor").value.slice(0,20000);p.updated=Date.now();if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}render();refreshLyricsProjects(p.id);$("lyricsProject").dataset.previous=p.id;$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;$("lyricsSaveState").textContent="Saved locally · "+new Date().toLocaleTimeString();}
