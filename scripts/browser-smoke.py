@@ -1648,7 +1648,33 @@ def main():
                 edited_composition = page.evaluate("""() => JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA")""")
                 assert edited_composition["melodyDraft"]["sourceNoteEvents"][0]["note"] == replacement_note, "Edited melody note was not persisted."
                 assert edited_composition["harmonyAnalysis"]["chords"][0] == replacement_chord, "Edited bar chord was not persisted."
-                print("PASS: professional composition note and chord editors rebuild and persist their WAV tracks")
+                edited_audio_metrics = page.evaluate("""async () => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const melody = project.tracks.filter(track => String(track.name || "").startsWith("Melody Guide ·"));
+                    const harmony = project.tracks.filter(track => String(track.name || "").startsWith("Harmony & Instruments ·"));
+                    if (melody.length !== 1 || harmony.length !== 1) throw new Error("Edited composition must retain exactly one current melody guide and one harmony track.");
+                    const db = await new Promise((resolve, reject) => { const req = indexedDB.open("mehran_music_studio_audio_v1", 1); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    const results = [];
+                    for (const track of [...melody, ...harmony]) {
+                        const record = await new Promise((resolve, reject) => { const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                        if (!record?.blob || record.blob.size <= 44100) throw new Error("Edited WAV is missing or unexpectedly small: " + track.name);
+                        const context = new (window.AudioContext || window.webkitAudioContext)();
+                        const decoded = await context.decodeAudioData(await record.blob.arrayBuffer());
+                        let sum = 0, peak = 0, count = 0;
+                        for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
+                            const data = decoded.getChannelData(channel);
+                            for (let i = 0; i < data.length; i++) { const value = Math.abs(data[i]); sum += value * value; peak = Math.max(peak, value); count++; }
+                        }
+                        const rms = Math.sqrt(sum / Math.max(1, count));
+                        if (decoded.duration <= 5 || peak <= 0.002 || rms <= 0.0005) throw new Error("Edited WAV is silent or too short: " + track.name);
+                        results.push({name: track.name, bytes: record.blob.size, duration: decoded.duration, rms, peak});
+                        await context.close();
+                    }
+                    db.close();
+                    return results;
+                }""")
+                assert len(edited_audio_metrics) == 2, "Both edited composition WAV tracks must decode and contain audio: " + str(edited_audio_metrics)
+                print("PASS: professional composition note and chord editors rebuild, persist and retain playable WAV tracks")
 
                 # Beginner one-click composition must create melody and harmony without manual note/chord editing.
                 page.locator('[data-view="compose"]').click()
