@@ -1459,6 +1459,37 @@ def main():
                 assert harmony_project and harmony_project.get("harmonyAnalysis", {}).get("melodyGuide") is True, "Harmony builder did not persist its lead guide result."
                 assert any(track.get("name", "").startswith("Harmony & Instruments") for track in harmony_project["tracks"]), "Harmony WAV track is missing."
                 assert any(track.get("name", "").startswith("Melody Guide") for track in harmony_project["tracks"]), "Melody guide WAV track is missing."
+                harmony_audio_metrics = page.evaluate("""async () => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const tracks = project.tracks.filter(track => track.name.startsWith("Harmony & Instruments") || track.name.startsWith("Melody Guide"));
+                    const db = await new Promise((resolve, reject) => { const req = indexedDB.open("mehran_music_studio_audio_v1", 1); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    const results = [];
+                    for (const track of tracks) {
+                        const record = await new Promise((resolve, reject) => { const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                        if (!record?.blob) throw new Error("Missing rendered audio blob for " + track.name);
+                        const context = new (window.AudioContext || window.webkitAudioContext)();
+                        const decoded = await context.decodeAudioData(await record.blob.arrayBuffer());
+                        let sum = 0, peak = 0, active = 0, total = 0;
+                        for (let channel = 0; channel < decoded.numberOfChannels; channel++) {
+                            const data = decoded.getChannelData(channel);
+                            for (let i = 0; i < data.length; i++) {
+                                const value = Math.abs(data[i]); sum += value * value;
+                                if (value > peak) peak = value;
+                                if (value > 0.0005) active++;
+                                total++;
+                            }
+                        }
+                        results.push({name: track.name, bytes: record.blob.size, duration: decoded.duration, rms: Math.sqrt(sum / Math.max(1, total)), peak, activeRatio: active / Math.max(1, total)});
+                        await context.close();
+                    }
+                    db.close();
+                    return results;
+                }""")
+                assert len(harmony_audio_metrics) == 2, "Both harmony and melody guide audio must be present: " + str(harmony_audio_metrics)
+                for metric in harmony_audio_metrics:
+                    assert metric["duration"] > 5 and metric["bytes"] > 44100, "Rendered arrangement audio is unexpectedly short: " + str(metric)
+                    assert metric["peak"] > 0.002 and metric["rms"] > 0.0005 and metric["activeRatio"] > 0.01, "Rendered arrangement contains silence or near-silence: " + str(metric)
+
 
 
 
