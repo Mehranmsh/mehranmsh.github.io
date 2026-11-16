@@ -461,9 +461,10 @@ def main():
                 assert "سطرهای دارای پایان نوشتاری مشترک" in craft_report, "Lyric craft report must label ending matches as written-text similarity."
                 assert "واژه‌های تصویری و حسی" in craft_report, "Lyric craft report must describe imagery as a limited term count, not an artistic score."
                 assert "تصویرسازی:" not in craft_report and "نشانگر قافیهٔ نوشتاری:" not in craft_report, "Deprecated heuristic scores must not appear in the lyric report."
-                page.locator("#lyricsEditor").fill("[Verse 1]\nباران روی شیشه می‌رقصد\nکوچه در خواب فرو رفته\n[Verse 2]\nصبح از پنجره وارد می‌شود\nدریا صدای تازه‌ای دارد")
+                page.locator("#lyricsEditor").fill("[Verse 1]\nباران روی شیشه می‌رقصد\nکوچه در خواب فرو رفته\n[Chorus]\nعشق تو در قلب من می‌ماند\n[Verse 2]\nصبح از پنجره وارد می‌شود\nدریا صدای تازه‌ای دارد\n[Bridge]\nقطار از کوهستان عبور کرد\nابرهای بنفش آسمان را پوشاندند")
                 craft_report = page.locator("#lyricCraftAnalysis").inner_text()
                 assert "تازگی واژگانی بند دوم" in craft_report and "100٪" in craft_report, "Second-verse vocabulary novelty must be shown when both verses are labelled."
+                assert "تفاوت واژگانی Bridge با Chorus: 100٪" in craft_report, "Bridge-to-chorus vocabulary comparison must be shown when both sections are labelled."
                 page.locator("#saveLyrics").click()
                 # Exercise the actual studio-to-conditioning request with a mocked self-hosted API.
                 conditioning_requests = []
