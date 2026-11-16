@@ -1569,6 +1569,26 @@ def main():
                 assert punctuation_cache_regression["commaRest"] >= 2 and punctuation_cache_regression["terminalRest"] >= 4, "Same-lyric punctuation variants must retain distinct phrase rests: " + str(punctuation_cache_regression)
                 print("COMPOSITION PUNCTUATION CACHE REGRESSION:", punctuation_cache_regression, flush=True)
                 print("PASS: identical lyric text with different punctuation retains distinct pause timing", flush=True)
+                voice_leading_regression = page.evaluate("""() => {
+                    const chords = [[60,64,67],[55,59,62],[57,60,64],[53,57,60]];
+                    let previous = null;
+                    const voicings = chords.map(chord => {
+                        const notes = patternChordVoiceLeading(chord, previous);
+                        const result = {notes, pitchClasses:notes.map(n=>((n%12)+12)%12), movements:previous?notes.map((n,i)=>Math.abs(n-previous[i])):[]};
+                        previous = notes;
+                        return result;
+                    });
+                    return voicings;
+                }""")
+                expected_pitch_classes = [{0,4,7},{7,11,2},{9,0,4},{5,9,0}]
+                assert len(voice_leading_regression) == 4, "Voice-leading regression did not produce all four voicings: " + str(voice_leading_regression)
+                for index, voicing in enumerate(voice_leading_regression):
+                    assert set(voicing["pitchClasses"]) == expected_pitch_classes[index], "Chord voicing changed chord identity: " + str(voice_leading_regression)
+                    assert voicing["notes"] == sorted(voicing["notes"]) and all(45 <= note <= 79 for note in voicing["notes"]), "Chord voicing is outside its register or not ordered: " + str(voice_leading_regression)
+                    if index:
+                        assert max(voicing["movements"]) <= 7, "Voice leading contains an avoidable leap larger than a fifth: " + str(voice_leading_regression)
+                print("COMPOSITION VOICE LEADING REGRESSION:", voice_leading_regression, flush=True)
+                print("PASS: chord inversions preserve chord tones and keep adjacent voices within seven semitones", flush=True)
                 melody_feel_results = {}
                 for feel, label in [("calm", "آرام"), ("flow", "روان"), ("lively", "پرتحرک")]:
                     page.locator(f'[data-melody-feel="{feel}"]').click()
