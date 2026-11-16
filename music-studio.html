@@ -2211,11 +2211,13 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   });
   const syllables=lines.map(x=>estimateLyricSyllables(x.text)),scale=LYRIC_MELODY_SCALES[kind]||LYRIC_MELODY_SCALES.A,notes=Array(16).fill("-"),noteEvents=[],refrainCache=new Map();
   const phrases={A:[[0,2,4,3,2,1,2,0],[0,1,3,4,3,2,4,2],[2,3,4,5,4,2,1,0],[0,2,3,2,4,3,1,0]],B:[[0,2,3,4,5,4,6,5],[1,2,4,5,6,5,4,2],[2,3,4,6,5,4,3,1],[0,2,4,5,6,4,2,0]],C:[[0,2,4,2,0,4,3,1],[0,3,2,4,1,3,2,0],[2,4,3,5,2,4,1,0],[0,1,3,2,4,2,1,0]]};
+  let previousPhraseDegree=null;
   lines.forEach((item,lineIndex)=>{
     const line=item.text,section=item.section,count=Math.max(1,Math.min(12,syllables[lineIndex]||1)),barStart=lineIndex*16,signature=line.toLocaleLowerCase().replace(/[\s\u200c،؛.!؟?,؛:]+/g,"");
      const pauseSignature=/[.!؟?]\s*$/.test(line)?"terminal":/[,،;؛]\s*$/.test(line)?"comma":"open",refrainKey=section+"|"+signature+"|"+pauseSignature+"|"+feel;
     if(signature&&refrainCache.has(refrainKey)){
-      refrainCache.get(refrainKey).forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
+      const cachedMotif=refrainCache.get(refrainKey);cachedMotif.forEach((event,j)=>noteEvents.push({...event,id:"lyric-"+lineIndex+"-"+j,startStep:barStart+event.startStep}));
+      const cachedLast=cachedMotif[cachedMotif.length-1],cachedMidi=cachedLast?midiPitchFromName(cachedLast.note):NaN,cachedDegree=scale.findIndex(value=>((Number(value)%12)+12)%12===((cachedMidi%12)+12)%12);if(cachedDegree>=0)previousPhraseDegree=cachedDegree;
       return;
     }
      const contour=(phrases[kind]||phrases.A)[lineIndex%4],wordCounts=lyricWordSyllableCounts(line),wordBoundaries=[],wordEndSyllables=new Set();let syllableCursor=0;wordCounts.forEach((value,index)=>{syllableCursor+=value;if(syllableCursor>0&&syllableCursor<=count)wordEndSyllables.add(syllableCursor-1);if(index<wordCounts.length-1&&syllableCursor>0&&syllableCursor<count)wordBoundaries.push(syllableCursor);});const terminalPause=/[.!؟?]\s*$/.test(line),commaPause=/[,،;؛]\s*$/.test(line),desiredSpan=terminalPause?9:commaPause?11:12,pauseSlots=Math.min(wordBoundaries.length,Math.max(0,Math.min(Math.floor(desiredSpan/5),desiredSpan-(count-1)))),selectedWordBoundaries=wordBoundaries.length<=pauseSlots?wordBoundaries:pauseSlots?Array.from({length:pauseSlots},(_,index)=>wordBoundaries[Math.round(index*(wordBoundaries.length-1)/Math.max(1,pauseSlots-1))]):[],baseSpan=Math.max(count-1,desiredSpan-selectedWordBoundaries.length),rhythm=count===1?[0]:Array.from({length:count},(_,j)=>Math.round(j*baseSpan/(count-1))+selectedWordBoundaries.filter(boundary=>boundary<=j).length),motif=[];
@@ -2223,6 +2225,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
      for(let j=1;j<count-1;j++){const feelShift=feel==="calm"?(j%2?1:0):feel==="lively"?(j%2?-1:0):0,sectionShift=sectionRhythm[(j-1)%sectionRhythm.length],shift=feelShift+sectionShift,min=rhythm[j-1]+1,max=desiredSpan-(count-1-j);rhythm[j]=Math.max(min,Math.min(max,rhythm[j]+shift));}
     for(let j=0;j<count;j++){
       let degree=contour[Math.min(contour.length-1,Math.floor(j*contour.length/count))];
+      if(j===0&&previousPhraseDegree!==null&&Math.abs(degree-previousPhraseDegree)>3)degree=Math.max(0,Math.min(6,previousPhraseDegree+Math.sign(degree-previousPhraseDegree)*3));
       if(lineIndex%4===1&&j>0)degree=Math.max(0,Math.min(6,degree+(j%2?1:-1)));
       if(lineIndex%4===2&&j%3===1)degree=Math.max(0,degree-1);
       if(lineIndex%4===3&&j>0&&j<count-1&&j%2===0)degree=Math.min(6,degree+1);
@@ -2233,6 +2236,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
       if(j===count-1){const cadenceDegrees={Intro:0,"Verse 1":[0,2,0,2],Verse:[0,2,0,2],"Pre-Chorus":4,Chorus:0,"Verse 2":[0,2,0,2],Bridge:4,Instrumental:4,Outro:0},cadence=cadenceDegrees[section]??[0,2,4,0][lineIndex%4];degree=Array.isArray(cadence)?cadence[lineIndex%cadence.length]:cadence;}
        const note=midiNameFromPitch(scale[Math.min(scale.length-1,degree)]),slot=rhythm[j],next=j+1<count?rhythm[j+1]:16,isCadence=j===count-1,phraseRest=isCadence?(terminalPause?4:commaPause?2:0):0,defaultLength=isCadence?Math.max(4,Math.min(7,16-slot)):Math.max(1,Math.min(feel==="calm"?7:feel==="lively"?3:5,next-slot-1)),lengthSteps=isCadence&&phraseRest?Math.max(2,Math.min(defaultLength,16-slot-phraseRest)):defaultLength,event={id:"lyric-"+lineIndex+"-"+j,note,startStep:slot,lengthSteps,velocity:isCadence?Math.min(98,84+(section==="Chorus"?7:lineIndex%4)*3):Math.min(98,(feel==="calm"?66+(j%3)*3:feel==="lively"?86+(j%3)*3:section==="Chorus"?84:section==="Bridge"?78:lineIndex%4===2?88:72+(j%4)*5)+(wordEndSyllables.has(j)?5:0)),gate:isCadence?94:feel==="calm"?96:feel==="lively"?76:88,section};
       motif.push(event);noteEvents.push({...event,startStep:barStart+slot});
+      if(j===count-1)previousPhraseDegree=degree;
       if(lineIndex===0)notes[slot]=note;
     }
     if(signature)refrainCache.set(refrainKey,motif.map(event=>({...event})));
