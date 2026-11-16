@@ -1512,6 +1512,11 @@ def main():
                 assert len(lyric_stress_probe) == 5 and lyric_stress_probe[2]["velocity"] == 87 and lyric_stress_probe[4]["velocity"] == 84, "Persian word-final accent must add exactly five velocity units without overriding the line cadence: " + str(lyric_stress_probe)
                 print("PERSIAN WORD STRESS REGRESSION:", [(event["id"], event["velocity"]) for event in lyric_stress_probe], flush=True)
                 print("PASS: word-final syllables receive a modest expressive accent", flush=True)
+                lyric_alignment_probe = page.evaluate("""() => window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپن/ج/ره آرام").noteEvents.map(event => ({word:event.lyricWordIndex, syllable:event.lyricWordSyllableIndex, count:event.lyricSyllablesInWord, line:event.lyricSyllableIndex}))""")
+                expected_lyric_alignment = [{"word":0,"syllable":0,"count":3,"line":0},{"word":0,"syllable":1,"count":3,"line":1},{"word":0,"syllable":2,"count":3,"line":2},{"word":1,"syllable":0,"count":2,"line":3},{"word":1,"syllable":1,"count":2,"line":4}]
+                assert lyric_alignment_probe == expected_lyric_alignment, "Every generated note must retain its exact lyric word and syllable position: " + str(lyric_alignment_probe)
+                print("LYRIC SYLLABLE ALIGNMENT REGRESSION:", lyric_alignment_probe, flush=True)
+                print("PASS: generated melody notes retain exact word and syllable alignment metadata", flush=True)
                 phrase_link_probe = page.evaluate("""() => { const events=window.__mehranTestMakeLyricMelody("A", "[Bridge]\\nپن/ج/ره آرام\\n[Verse 2]\\nشب/های آرام").noteEvents; const midi=n=>{const m=String(n).match(/^([A-G])(#?)(-?\\d+)$/);if(!m)return NaN;const pc={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]]+(m[2]?1:0);return (Number(m[3])+1)*12+pc;};const end=events.find(e=>e.id==="lyric-0-4"),start=events.find(e=>e.id==="lyric-1-0");return {end:end&&end.note,start:start&&start.note,interval:end&&start?midi(start.note)-midi(end.note):null}; }""")
                 assert phrase_link_probe["interval"] is not None and abs(phrase_link_probe["interval"]) <= 5, "Large phrase-to-phrase melodic leaps should be limited to three scale degrees: " + str(phrase_link_probe)
                 print("MELODIC PHRASE LINK REGRESSION:", phrase_link_probe, flush=True)
