@@ -1513,7 +1513,7 @@ def main():
                 print("PERSIAN WORD STRESS REGRESSION:", [(event["id"], event["velocity"]) for event in lyric_stress_probe], flush=True)
                 print("PASS: word-final syllables receive a modest expressive accent", flush=True)
                 lyric_alignment_probe = page.evaluate("""() => window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپن/ج/ره آرام").noteEvents.map(event => ({word:event.lyricWordIndex, syllable:event.lyricWordSyllableIndex, count:event.lyricSyllablesInWord, line:event.lyricSyllableIndex, wordEnd:event.lyricWordEnd}))""")
-                expected_lyric_alignment = [{"word":0,"syllable":0,"count":3,"line":0,"wordEnd":false},{"word":0,"syllable":1,"count":3,"line":1,"wordEnd":false},{"word":0,"syllable":2,"count":3,"line":2,"wordEnd":true},{"word":1,"syllable":0,"count":2,"line":3,"wordEnd":false},{"word":1,"syllable":1,"count":2,"line":4,"wordEnd":true}]
+                expected_lyric_alignment = [{"word":0,"syllable":0,"count":3,"line":0,"wordEnd":False},{"word":0,"syllable":1,"count":3,"line":1,"wordEnd":False},{"word":0,"syllable":2,"count":3,"line":2,"wordEnd":True},{"word":1,"syllable":0,"count":2,"line":3,"wordEnd":False},{"word":1,"syllable":1,"count":2,"line":4,"wordEnd":True}]
                 assert lyric_alignment_probe == expected_lyric_alignment, "Every generated note must retain its exact lyric word and syllable position: " + str(lyric_alignment_probe)
                 print("LYRIC SYLLABLE ALIGNMENT REGRESSION:", lyric_alignment_probe, flush=True)
                 print("PASS: generated melody notes retain exact word, syllable and word-final sustain metadata", flush=True)
