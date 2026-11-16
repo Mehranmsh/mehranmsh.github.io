@@ -1155,3 +1155,14 @@ test("SOCIAL permits only one active call per conversation, including concurrent
   assert.ok(handler.includes("alreadyActive:true"));
   assert.ok(handler.includes("throw creationError"));
 });
+
+
+test("generated lyrics return transparent language and section-structure review warnings", () => {
+  assert.match(workerSource, /const qualityWarnings = \[\]/);
+  assert.match(workerSource, /\[A-Za-z\]\{2,\}/);
+  assert.match(workerSource, /بخش‌بندی استاندارد آهنگ پیدا نشد/);
+  assert.match(workerSource, /بخش Verse یا بند در متن مشخص نشده/);
+  assert.match(workerSource, /بخش Chorus یا ترجیع‌بند مشخص نشده/);
+  assert.match(workerSource, /بخش عنوان‌گذاری شده اما بدون متن است/);
+  assert.match(workerSource, /qualityWarnings, provider: "cloudflare"/);
+});
