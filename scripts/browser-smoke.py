@@ -1185,7 +1185,7 @@ def main():
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
                         page.locator("#vocalVowel").select_option("o")
                     page.locator("#patternTrackName").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }", "Live QA " + mode)
-                    page.locator("#renderPattern").click()
+                    page.locator("#renderPattern").evaluate("(el) => el.click()")
                     try:
                         page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
                     except Exception as exc:
