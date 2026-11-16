@@ -1413,8 +1413,8 @@ def main():
                     manifest_lines.append(f"{audition_file.name},{bank},{source}")
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 
-                page.locator('[data-view="lyrics"]').click()
-                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.locator('[data-view="vocals"]').first.click()
+                page.locator("#vocalProject").select_option(label="Automated Audio QA")
                 page.locator("#loadProjectMelody").click()
                 loaded_guide_notes = page.locator("#vocalGuideNotes").input_value()
                 assert "D4" in loaded_guide_notes, "Vocal guide should import the selected lead note from the piano-roll phrase: " + loaded_guide_notes
