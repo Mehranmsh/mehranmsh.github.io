@@ -1750,6 +1750,15 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
    {pattern:bassPattern,name:"Smart Bass · "+p.name},
    {pattern:padPattern,name:"Smart Atmosphere · "+p.name}
   ];
+  function smartArrangementLayerIndexes(sectionName){
+   const name=String(sectionName||"").toLowerCase();
+   if(/intro|مقدمه|outro|پایان/.test(name))return [2];
+   if(/bridge|پل/.test(name))return [1,2];
+   if(/pre[- ]?chorus|پیش\s*ترجیع/.test(name))return [0,1,2];
+   if(/chorus|ترجیع|کورس|instrumental|میان\s*نوازی|سولو/.test(name))return [0,1,2];
+   if(/verse|بند/.test(name))return [0,1];
+   return [0,1,2];
+  }
   button.disabled=true;
   try{
    for(let index=0;index<layers.length;index++){
@@ -1762,8 +1771,12 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
     status.textContent="در حال ساخت "+(index===0?"ریتم":index===1?"بیس":"فضای همراهی")+" ("+(index+1)+" از 3)…";
     if(!await generatePatternTrack())throw new Error($("patternStatus").textContent||"رندر یکی از لایه‌ها ناموفق بود.");
     created.push(p.tracks[p.tracks.length-1]);
-    if(Array.isArray(p.arrangement))p.arrangement.forEach(section=>{section.trackIds=Array.from(new Set([...(section.trackIds||[]),created[created.length-1].id]));});
    }
+   if(Array.isArray(p.arrangement))p.arrangement.forEach(section=>{
+    const selectedLayers=smartArrangementLayerIndexes(section.name);
+    const generatedIds=selectedLayers.map(index=>created[index]?.id).filter(Boolean);
+    section.trackIds=Array.from(new Set([...(section.trackIds||[]),...generatedIds]));
+   });
    p.patternStudio=previousPattern;p.updated=Date.now();
    if(!save())throw new Error("ذخیره پروژه ناموفق بود.");
    renderArrangementTimeline();renderPatternGrid();
@@ -2187,7 +2200,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  }
 
  const LYRIC_MELODY_SCALES={A:[57,59,60,62,64,65,67],B:[64,66,67,69,71,72,74],C:[62,64,65,67,69,70,72]};
-  window.__mehranTestLyricSyllables=lyricWordSyllableCounts;window.__mehranTestMakeLyricMelody=makeLyricMelody;
+  window.__mehranTestLyricSyllables=lyricWordSyllableCounts;window.__mehranTestMakeLyricMelody=makeLyricMelody;window.__mehranTestSmartArrangementLayerIndexes=smartArrangementLayerIndexes;
   function lyricWordSyllableCounts(line){return line.trim().split(/\s+/).filter(Boolean).map(word=>{const manual=word.split("/").map(part=>part.trim()).filter(Boolean);if(manual.length>1)return Math.min(5,manual.length);const explicit=(word.match(/[ًٌٍَُِ]/gu)||[]).length;const clean=word.replace(/[^\p{L}]/gu,"");if(!clean)return 0;if(explicit)return Math.max(1,Math.min(5,explicit));const latin=(clean.match(/[aeiouy]/gi)||[]).length;if(latin)return Math.max(1,Math.min(5,latin));const letters=Array.from(clean),longVowels=letters.reduce((count,char,index)=>{if(/[اآ]/u.test(char))return count+1;if(char==="و")return count+(/[اآی]/u.test(letters[index+1]||"")?0:1);if(char==="ی")return count+(/[اآو]/u.test(letters[index+1]||"")?0:1);return count;},0);const estimate=longVowels||Math.ceil(letters.length/3);return Math.max(1,Math.min(5,estimate));}).filter(Boolean);}
   function estimateLyricSyllables(line){return lyricWordSyllableCounts(line).reduce((sum,count)=>sum+count,0);}
  function makeLyricMelody(kind,lyrics,feel="flow"){
