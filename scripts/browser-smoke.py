@@ -1565,7 +1565,8 @@ def main():
                     const finalMidi = index => midi(lineNotes(index).slice(-1)[0]);
                     const phraseRest = index => { const lineEvents=events.filter(event=>event.id.startsWith("lyric-"+index+"-")); const last=lineEvents.reduce((best,event)=>!best||event.startStep>best.startStep?event:best,null); return last?16-((last.startStep%16)+Number(last.lengthSteps||0)):0; };
                     const rhythmStarts = index => events.filter(event=>event.id.startsWith("lyric-"+index+"-")).sort((a,b)=>a.startStep-b.startStep).map(event=>event.startStep%16);
-                    const bridgeNotes = lineNotes(4).map(midi);\n                    const preChorusNotes = lineNotes(3).map(midi);
+                    const bridgeNotes = lineNotes(4).map(midi);
+                    const preChorusNotes = lineNotes(3).map(midi);
                     const rhythmChecks = Array.from({length:6},(_,index) => {
                         const start=index*16, lineEvents=events.filter(event=>event.id.startsWith("lyric-"+index+"-")).sort((a,b)=>a.startStep-b.startStep);
                         return lineEvents.length>0 && lineEvents[0].startStep===start && lineEvents.every((event,j)=>{
@@ -1580,7 +1581,9 @@ def main():
                 assert melody_section_regression["verseRhythm"] != melody_section_regression["bridgeRhythm"], "Identical words and punctuation should receive section-specific rhythmic phrasing: " + str(melody_section_regression)
                 bridge_interior = melody_section_regression["bridgeNotes"][1:-1]
                 assert len(bridge_interior) >= 3 and min(bridge_interior) < min(melody_section_regression["bridgeNotes"][0], melody_section_regression["bridgeNotes"][-1]) and max(bridge_interior[-2:]) > min(bridge_interior), "Bridge melody should dip below its opening and then rise before resolving: " + str(melody_section_regression)
-                pre_chorus_interior = melody_section_regression["preChorusNotes"][1:-1]\n                assert len(pre_chorus_interior) >= 2 and pre_chorus_interior[-1] > pre_chorus_interior[0] and pre_chorus_interior[-1] > melody_section_regression["preChorusNotes"][0], "Pre-Chorus melody should build upward toward the Chorus: " + str(melody_section_regression)\n                assert melody_section_regression["chorusCadence"] % 12 == 9 and melody_section_regression["outroCadence"] % 12 == 9, "Chorus and Outro should resolve to the A-minor tonic pitch class: " + str(melody_section_regression)
+                pre_chorus_interior = melody_section_regression["preChorusNotes"][1:-1]
+                assert len(pre_chorus_interior) >= 2 and pre_chorus_interior[-1] > pre_chorus_interior[0] and pre_chorus_interior[-1] > melody_section_regression["preChorusNotes"][0], "Pre-Chorus melody should build upward toward the Chorus: " + str(melody_section_regression)
+                assert melody_section_regression["chorusCadence"] % 12 == 9 and melody_section_regression["outroCadence"] % 12 == 9, "Chorus and Outro should resolve to the A-minor tonic pitch class: " + str(melody_section_regression)
                 assert melody_section_regression["preChorusCadence"] % 12 == 4 and melody_section_regression["bridgeCadence"] % 12 == 4, "Pre-Chorus and Bridge should approach their section changes on the E-dominant pitch class: " + str(melody_section_regression)
                 assert all(melody_section_regression["rhythmChecks"]), "Generated lyric notes must start at each bar boundary, remain inside the 16-step bar and never overlap: " + str(melody_section_regression)
                 assert melody_section_regression["commaRest"] >= 2 and melody_section_regression["terminalRest"] >= 4, "Punctuation should create a short comma breath and a longer sentence-ending rest: " + str(melody_section_regression)
