@@ -465,6 +465,7 @@ def main():
                 craft_report = page.locator("#lyricCraftAnalysis").inner_text()
                 assert "تازگی واژگانی بند دوم" in craft_report and "100٪" in craft_report, "Second-verse vocabulary novelty must be shown when both verses are labelled."
                 assert "تفاوت واژگانی Bridge با Chorus: 100٪" in craft_report, "Bridge-to-chorus vocabulary comparison must be shown when both sections are labelled."
+                page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه\nI keep walking through the night\nI hold a little light")
                 page.locator("#saveLyrics").click()
                 # Exercise the actual studio-to-conditioning request with a mocked self-hosted API.
                 conditioning_requests = []
