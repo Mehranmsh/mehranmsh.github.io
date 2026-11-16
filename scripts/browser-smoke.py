@@ -1454,6 +1454,16 @@ def main():
                 assert lyric_draft["noteEvents"][0]["note"].startswith("C") or any(lyric_draft["noteEvents"][0]["note"].startswith(name) for name in ("D","D#","F","G","G#","A#")), "Selected C minor scale was not applied to melody notes."
                 page.locator("#addLyricsMelody").click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('به پروژه اضافه شد')", timeout=30000)
+                melody_track_count = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    return project.tracks.filter(track => track.name.startsWith("Melody A")).length;
+                }""")
+                page.locator('[data-melody-choice="A"]').click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
+                assert page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    return project.tracks.filter(track => track.name.startsWith("Melody A")).length;
+                }""") == melody_track_count, "Re-previewing the same melody duplicated a project track."
                 page.locator("#composeHarmonyStyle").select_option("emotional")
                 page.locator("#buildMelodyBacking").click()
                 page.wait_for_function("""(() => {
