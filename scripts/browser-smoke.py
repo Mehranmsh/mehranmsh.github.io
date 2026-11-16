@@ -1754,7 +1754,7 @@ def main():
                     if (!project) throw new Error('Composition regression fixture project is missing.');
                     const lead = project.tracks.find(track => String(track.name || '').startsWith('Melody Guide ·'));
                     if (!lead) throw new Error('Composition regression fixture needs its existing melody guide track.');
-                    const arrangementNames = ["intro", "verse 1", "Pre Chorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
+                    const arrangementNames = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
                     project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 1, startBar: index + 1, trackIds: []}));
                     const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
                     const events = names.map((name, index) => ({id: 'lyric-' + index + '-0', note: notes[index], startStep: 0, lengthSteps: 2, section: name}));
@@ -1777,7 +1777,7 @@ def main():
                     const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item => item.name === 'Automated Audio QA');
                     return {sections: project?.patternStudio?.sectionMap || [], chords: project?.harmonyAnalysis?.chords || [], bars: project?.harmonyAnalysis?.bars || 0, status: document.querySelector('#lyricsMelodyStatus')?.textContent || ''};
                 }""")
-                expected_section_map = ["intro", "verse 1", "Pre Chorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"]
+                expected_section_map = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"]
                 assert "آهنگسازی پایه آماده شد" in section_regression["status"], "Section-aware harmony generation failed: " + str(section_regression)
                 assert section_regression["sections"] == expected_section_map, "Harmony section map lost, reordered or mislabelled a song section: " + str(section_regression["sections"])
                 assert section_regression["bars"] == len(section_names) and len(section_regression["chords"]) == len(section_names), "Harmony progression does not cover every section bar: " + str(section_regression)
