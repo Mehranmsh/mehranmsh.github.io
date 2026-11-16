@@ -1542,7 +1542,7 @@ def main():
                 assert melody_section_regression["preChorusCadence"] % 12 == 4 and melody_section_regression["bridgeCadence"] % 12 == 4, "Pre-Chorus and Bridge should approach their section changes on the E-dominant pitch class: " + str(melody_section_regression)
                 assert all(melody_section_regression["rhythmChecks"]), "Generated lyric notes must start at each bar boundary, remain inside the 16-step bar and never overlap: " + str(melody_section_regression)
                 assert melody_section_regression["commaRest"] >= 2 and melody_section_regression["terminalRest"] >= 4, "Punctuation should create a short comma breath and a longer sentence-ending rest: " + str(melody_section_regression)
-                punctuation_probe_lyrics = "[Verse 1]\\nیک مصرع تکراری،\\nیک مصرع تکراری؟"
+                punctuation_probe_lyrics = "[Verse 1]\nیک مصرع تکراری،\nیک مصرع تکراری؟"
                 page.locator('[data-view="lyrics"]').click()
                 page.wait_for_function("!document.querySelector('#view-lyrics')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#lyricsEditor").fill(punctuation_probe_lyrics)
@@ -1554,10 +1554,11 @@ def main():
                 page.wait_for_function("""() => {
                     const projectId = document.querySelector("#lyricsProject")?.value;
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
-                    return project?.melodyDraft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\nیک مصرع تکراری؟" && Array.isArray(project.melodyDraft.sourceNoteEvents) && project.melodyDraft.sourceNoteEvents.length >= 2;
+                    return project?.melodyDraft?.sourceLyrics === "[Verse 1]\nیک مصرع تکراری،\nیک مصرع تکراری؟" && Array.isArray(project.melodyDraft.sourceNoteEvents) && project.melodyDraft.sourceNoteEvents.length >= 2;
                 }""", timeout=10000)
                 punctuation_cache_regression = page.evaluate("""() => {
-                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const projectId = document.querySelector("#lyricsProject")?.value;
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
                     const events = project?.melodyDraft?.sourceNoteEvents || [];
                     const rest = index => { const line=events.filter(event=>event.id.startsWith("lyric-"+index+"-")); const last=line.reduce((best,event)=>!best||event.startStep>best.startStep?event:best,null); return last?16-((last.startStep%16)+Number(last.lengthSteps||0)):0; };
                     return {commaRest:rest(0),terminalRest:rest(1)};
