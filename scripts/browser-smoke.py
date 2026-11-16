@@ -2448,15 +2448,18 @@ def main():
                         drumAudit:window.__mehranDrumRenderState || null
                     };
                 }""")
-                assert len(smart_state["tracks"]) == 3, "Smart arrangement must create exactly three generated stems: " + str(smart_state)
-                assert [track["type"] for track in smart_state["tracks"]] == ["Drums / Percussion","Bass","Keys / Piano"], "Generated stem types do not match the expected recorded drum, electric bass and acoustic piano layers: " + str(smart_state["tracks"])
+                assert len(smart_state["tracks"]) == 4, "Smart arrangement must create exactly four generated recorded-instrument stems: " + str(smart_state)
+                assert [track["type"] for track in smart_state["tracks"]] == ["Drums / Percussion","Bass","Keys / Piano","Guitar / Acoustic"], "Generated stem types do not match the expected recorded drum, electric bass, acoustic piano and acoustic guitar layers: " + str(smart_state["tracks"])
                 assert all("recorded samples only" in track["notes"] for track in smart_state["tracks"]), "Smart arrangement must render from real recorded sample banks, never synth fallback: " + str(smart_state["tracks"])
                 assert smart_state["drumAudit"] and smart_state["drumAudit"].get("dedicatedScheduled") is True and smart_state["drumAudit"].get("dedicatedScheduledCalls", 0) > 0, "Recorded drum samples were not scheduled by the dedicated sample engine: " + str(smart_state["drumAudit"])
+                guitar_audit = page.evaluate("window.__mehranInstrumentRenderAudit || null")
+                assert guitar_audit and guitar_audit.get("mode") == "live_guitar" and guitar_audit.get("bank") == "acoustic_guitar_steel" and guitar_audit.get("loadedSampleCount", 0) > 0, "Smart guitar did not load the self-hosted steel-string acoustic guitar samples: " + str(guitar_audit)
+                assert all(40 <= note <= 84 for note in guitar_audit["loadedRootNotes"]), "Smart guitar selected samples outside the instrument's playable source range: " + str(guitar_audit)
                 track_ids = {track["name"].split(" · ")[0]:track["id"] for track in smart_state["tracks"]}
                 expected_sections = {
                     "Intro":["Smart Atmosphere"],
-                    "Verse 1":["Smart Drums","Smart Bass"],
-                    "Chorus":["Smart Drums","Smart Bass","Smart Atmosphere"],
+                    "Verse 1":["Smart Drums","Smart Bass","Smart Acoustic Guitar"],
+                    "Chorus":["Smart Drums","Smart Bass","Smart Atmosphere","Smart Acoustic Guitar"],
                     "Outro":["Smart Atmosphere"]
                 }
                 for section in smart_state["sections"]:
@@ -2476,9 +2479,9 @@ def main():
                     assert rms > 0.001 and peak > 0.005, "Smart arrangement generated a silent or near-silent stem: " + prefix
                     assert peak < 0.98, "Smart arrangement stem is clipping: " + prefix
                     smart_metrics[prefix] = {"duration":round(duration,3),"rms":round(rms,5),"peak":round(peak,5)}
-                assert len({(metric["rms"],metric["peak"]) for metric in smart_metrics.values()}) == 3, "Drum, bass and pad stems unexpectedly have identical level signatures: " + str(smart_metrics)
+                assert len({(metric["rms"],metric["peak"]) for metric in smart_metrics.values()}) == 4, "Drum, bass, piano and guitar stems unexpectedly have identical level signatures: " + str(smart_metrics)
                 print("SMART ARRANGEMENT AUDIO METRICS:", smart_metrics, flush=True)
-                print("PASS: smart arrangement creates three non-silent, distinct, unclipped WAV stems and assigns layers by song section", flush=True)
+                print("PASS: smart arrangement creates four non-silent, distinct, unclipped recorded-instrument WAV stems and assigns layers by song section", flush=True)
 
                 # Use a fresh project so this regression is isolated from all earlier fixtures.
                 page.locator('[data-view="create"]').first.click()
