@@ -1127,8 +1127,8 @@ def main():
                 page.locator('[data-view="arrangement"]').first.click()
                 page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
-                # Build a melodic synth layer and connect its notes to the lyric performance guide.
-                page.locator("#patternMode").select_option("keys")
+                # Build a recorded acoustic-piano layer and connect its notes to the lyric performance guide.
+                page.locator("#patternMode").select_option("live_piano")
                 page.locator("#patternNotes").evaluate("""el => { el.value = "C3, -, E3, -, G3, -, E3, -, C3, -, E3, -, G3, -, B3, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 assert page.locator("#pianoRollGrid [data-piano-note='C5']").count() == 16
                 assert page.locator("#pianoRollGrid [data-piano-note='C2']").count() == 16
@@ -1261,25 +1261,24 @@ def main():
                 page.locator("#renderPattern").click()
                 assert "valid chords" in page.locator("#patternStatus").inner_text()
                 page.locator("#patternChords").fill("Am, F, C, G")
-                # Exercise dedicated sub-bass and cinematic sound-layer render paths.
-                for mode, expected_type in [("sub", "Bass"), ("riser", "Sound Effects"), ("impact", "Sound Effects"), ("texture", "Sound Effects")]:
-                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
-                    page.locator("#patternTrackName").fill("Generated " + mode)
-                    page.locator("#renderPattern").click()
-                    page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
-                    project_after_layer = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
-                    layer = next(track for track in project_after_layer["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
-                    assert layer["type"] == expected_type and layer["audioSize"] > 44
-                # Exercise the expanded virtual instrument palette through actual WAV rendering.
-                for mode, expected_type in [("epiano", "Keys / Piano"), ("organ", "Organ"), ("lead", "Synth Lead"), ("strings", "Strings"), ("bell", "Bell / Mallet")]:
-                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
-                    page.locator("#patternTrackName").fill("Generated " + mode)
+                # Synthesizer modes and synthetic drum kits must not be offered in the user interface.
+                synth_modes = ["keys", "epiano", "organ", "lead", "strings", "bell", "bass", "pad", "pluck", "sub", "riser", "impact", "texture", "choir"]
+                for mode in synth_modes:
+                    assert page.locator('#patternMode option[value="' + mode + '"]').count() == 0, "Synthesizer mode is still selectable: " + mode
+                assert page.locator('#drumKit option[value="electronic"]').count() == 0
+                assert page.locator('#drumKit option[value="lofi"]').count() == 0
+                assert page.locator('#drumKit option[value="recorded"]').count() == 1
+
+                # Every melodic instrument rendered by the instrument palette must use a recorded bank.
+                for mode in ["live_piano", "live_organ", "live_violin", "live_kalimba", "live_electric_bass", "live_guitar"]:
+                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternNotes").evaluate("""el => { el.value = "C4, -, E4, -, G4, -, E4, -, C4, -, E4, -, G4, -, B4, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
+                    page.locator("#patternTrackName").fill("Recorded " + mode)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
                     instrument_project = page.evaluate("JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0]")
-                    instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Generated " + mode)
-                    assert instrument_track["type"] == expected_type and instrument_track["audioSize"] > 44
-
+                    instrument_track = next(track for track in instrument_project["tracks"] if track.get("generated") and track["name"] == "Recorded " + mode)
+                    assert instrument_track["type"] == "MEHRAN Live Instrument" and instrument_track["audioSize"] > 44
                 # Every newly imported melodic instrument must render from its own same-origin recorded samples.
                 vocal_assets = page.evaluate("""async () => {
                     const response = await fetch("./assets/instruments/manifest.json", {cache: "no-store"});
@@ -1606,7 +1605,7 @@ def main():
                 # Re-enter Arrangement explicitly before editing the lead pattern.
                 page.locator('[data-view="arrangement"]').click()
                 page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=10000)
-                page.locator("#patternMode").select_option("lead")
+                page.locator("#patternMode").select_option("live_piano")
                 page.locator("#patternNotes").evaluate("""el => { el.value = "D4, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternNotes").dispatch_event("change")
                 page.locator('[data-view="vocals"]').first.click()
