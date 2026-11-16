@@ -1880,6 +1880,82 @@ def main():
                 print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "bars": section_regression["bars"], "chordCount": len(section_regression["chords"]), "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
 
+                # Regression: all five harmony styles must produce real, style-sensitive progressions in minor,
+                # and the same composition engine must correctly analyze and harmonize a major-key melody.
+                page.evaluate("""() => {
+                    const drafts = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]');
+                    const project = drafts.find(item => item.name === 'Automated Audio QA');
+                    if (!project) throw new Error('Style regression fixture project is missing.');
+                    const sectionNames = ['Intro', 'Verse 1', 'Chorus', 'Bridge'];
+                    project.arrangement = sectionNames.map((name, index) => ({id:'style-regression-'+index,name,bars:2,startBar:index*2+1,trackIds:[]}));
+                    const phrase = ['C4','D4','Eb4','F4','G4','Ab4','Bb4','C5'];
+                    const events = sectionNames.flatMap((section,index) => phrase.map((note,noteIndex) => ({id:'lyric-'+index+'-'+noteIndex,note,startStep:noteIndex*2,lengthSteps:1,section})));
+                    project.melodyDraft.sections = sectionNames.slice();
+                    project.melodyDraft.sourceNoteEvents = events;
+                    project.melodyDraft.noteEvents = events;
+                    project.melodyDraft.notes = phrase.slice(0,8);
+                    project.melodyDraft.applied = true;
+                    project.melodyDraft.tempo = 90;
+                    localStorage.setItem('mehran_music_studio_drafts_v1', JSON.stringify(drafts));
+                }""")
+                page.reload(wait_until="networkidle")
+                page.locator('[data-view="compose"]').click()
+                page.locator("#composeProject").select_option(label="Automated Audio QA")
+                page.evaluate("""() => { const source=document.querySelector("#composeProject"); const target=document.querySelector("#lyricsProject"); target.value=source.value; target.dispatchEvent(new Event("change",{bubbles:true})); }""")
+                style_progressions = {}
+                for harmony_style in ("auto", "pop", "emotional", "cinematic", "folk"):
+                    page.locator("#composeHarmonyStyle").select_option(harmony_style)
+                    page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent=''; }")
+                    page.locator("#buildMelodyBacking").click()
+                    page.wait_for_function("""() => {
+                        const status=document.querySelector('#lyricsMelodyStatus')?.textContent || '';
+                        return status.includes('آهنگسازی پایه آماده شد') || status.includes('ساخت همراهی کامل نشد');
+                    }""", timeout=90000)
+                    style_result = page.evaluate("""() => {
+                        const project=JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item=>item.name==='Automated Audio QA');
+                        return {status:document.querySelector('#lyricsMelodyStatus')?.textContent || '',key:project?.harmonyAnalysis?.key || '',chords:project?.harmonyAnalysis?.chords || [],bars:project?.harmonyAnalysis?.bars || 0,resultLabel:document.querySelector('#composeResultTracks')?.textContent || ''};
+                    }""")
+                    assert "آهنگسازی پایه آماده شد" in style_result["status"], "Harmony style render failed for " + harmony_style + ": " + str(style_result)
+                    assert style_result["key"] == "C minor" and style_result["bars"] == 8 and len(style_result["chords"]) == 8, "Minor-key style fixture was not analyzed or rendered correctly for " + harmony_style + ": " + str(style_result)
+                    assert all(chord in {"Cm","Ddim","Eb","Fm","G","Ab","Bb"} for chord in style_result["chords"]), "Minor style generated a chord outside the diatonic harmony set: " + harmony_style + " " + str(style_result["chords"])
+                    expected_style_labels = {"auto":"خودکار","pop":"پاپ و روان","emotional":"احساسی","cinematic":"سینمایی","folk":"فولک و ساده"}
+                    assert expected_style_labels[harmony_style] in style_result["resultLabel"], "Selected harmony style was not reflected in the result summary: " + harmony_style
+                    style_progressions[harmony_style] = style_result["chords"]
+                assert len({tuple(chords) for chords in style_progressions.values()}) >= 3, "Harmony style choices collapsed to fewer than three distinct progressions: " + str(style_progressions)
+                print("COMPOSITION STYLE REGRESSION:", style_progressions, flush=True)
+                print("PASS: all five harmony styles render distinct minor-key progressions and preserve the supported diatonic chord set", flush=True)
+
+                page.evaluate("""() => {
+                    const drafts=JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]');
+                    const project=drafts.find(item=>item.name==='Automated Audio QA');
+                    const sectionNames=['Intro','Verse 1','Chorus','Bridge'];
+                    const phrase=['C4','D4','E4','F4','G4','A4','B4','C5'];
+                    const events=sectionNames.flatMap((section,index)=>phrase.map((note,noteIndex)=>({id:'lyric-'+index+'-'+noteIndex,note,startStep:noteIndex*2,lengthSteps:1,section})));
+                    project.arrangement=sectionNames.map((name,index)=>({id:'major-regression-'+index,name,bars:2,startBar:index*2+1,trackIds:[]}));
+                    project.melodyDraft.sections=sectionNames.slice();
+                    project.melodyDraft.sourceNoteEvents=events;
+                    project.melodyDraft.noteEvents=events;
+                    project.melodyDraft.notes=phrase.slice(0,8);
+                    localStorage.setItem('mehran_music_studio_drafts_v1',JSON.stringify(drafts));
+                }""")
+                page.locator("#composeHarmonyStyle").select_option("auto")
+                page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent=''; }")
+                page.locator("#buildMelodyBacking").click()
+                page.wait_for_function("""() => {
+                    const status=document.querySelector('#lyricsMelodyStatus')?.textContent || '';
+                    return status.includes('آهنگسازی پایه آماده شد') || status.includes('ساخت همراهی کامل نشد');
+                }""", timeout=90000)
+                major_result = page.evaluate("""() => {
+                    const project=JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item=>item.name==='Automated Audio QA');
+                    return {status:document.querySelector('#lyricsMelodyStatus')?.textContent || '',key:project?.harmonyAnalysis?.key || '',chords:project?.harmonyAnalysis?.chords || [],bars:project?.harmonyAnalysis?.bars || 0};
+                }""")
+                assert "آهنگسازی پایه آماده شد" in major_result["status"], "Major-key harmony generation failed: " + str(major_result)
+                assert major_result["key"] == "C major" and major_result["bars"] == 8 and len(major_result["chords"]) == 8, "Known C-major melody was assigned the wrong key or bar count: " + str(major_result)
+                assert all(chord in {"C","Dm","Em","F","G","Am","Bdim"} for chord in major_result["chords"]), "C-major harmony contains a chord outside its supported diatonic set: " + str(major_result["chords"])
+                assert major_result["chords"][-1] == "C", "The final C-major Bridge bar must resolve to the tonic chord in the major-key fixture: " + str(major_result["chords"])
+                print("COMPOSITION MAJOR REGRESSION:", major_result, flush=True)
+                print("PASS: known C-major melody receives an eight-bar diatonic progression and tonic resolution", flush=True)
+
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
