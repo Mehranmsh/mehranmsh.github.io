@@ -1477,6 +1477,9 @@ def main():
                 assert page.locator("#composeResultKey").inner_text() == "C minor", "Composition summary key does not match the selected key."
                 assert "C" in page.locator("#composeResultChords").inner_text(), "Chord progression summary is missing."
                 assert "احساسی" in page.locator("#composeResultTracks").inner_text(), "Selected harmony style was not reflected in the result.";
+                page.locator("#previewComposeMix").click()
+                page.wait_for_function("document.querySelector('#mixerStatus')?.textContent.includes('Playing')", timeout=15000)
+                page.locator("#stopMix").click()
                 harmony_project = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     return projects.find(item => item.name === "Automated Audio QA") || null;
