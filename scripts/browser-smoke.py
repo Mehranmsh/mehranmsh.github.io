@@ -403,7 +403,7 @@ def main():
                     }))
                 songwriter_url = "https://mehran-msh-auth.mehran79mehran.workers.dev/music/lyrics/generate"
                 page.route(songwriter_url, mock_songwriter)
-                page.locator("#aiSongwriterPanel details summary").click()
+                page.locator("#aiSongwriterPanel details").evaluate("(el) => { el.open = true; }")
                 page.locator("#songwriterTopic").fill("انتظار برای بازگشت یک عزیز")
                 page.locator("#songwriterMood").select_option(label="دلتنگ")
                 page.locator("#songwriterGenre").select_option(label="راک")
