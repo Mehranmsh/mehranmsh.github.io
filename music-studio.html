@@ -1525,7 +1525,7 @@
  let peak=0;for(let i=dataOffset;i<dataOffset+dataLength;i+=2)peak=Math.max(peak,Math.abs(view.getInt16(i,true))/32768);
  if(!Number.isFinite(peak)||peak<1e-7)return blob;
  const target=Math.pow(10,targetDb/20),gain=Math.min(maxGain,target/peak);
- if(gain>1.0005){for(let i=dataOffset;i<dataOffset+dataLength;i+=2){const value=view.getInt16(i,true),scaled=Math.max(-32768,Math.min(32767,Math.round(value*gain)));view.setInt16(i,scaled,true);}}
+ if(Math.abs(gain-1)>0.0005){for(let i=dataOffset;i<dataOffset+dataLength;i+=2){const value=view.getInt16(i,true),scaled=Math.max(-32768,Math.min(32767,Math.round(value*gain)));view.setInt16(i,scaled,true);}}
  let finalPeak=0;for(let i=dataOffset;i<dataOffset+dataLength;i+=2)finalPeak=Math.max(finalPeak,Math.abs(view.getInt16(i,true))/32768);
  const normalized=new Blob([bytes],{type:blob.type||"audio/wav"});
  normalized.quantizedSamplePeakDb=finalPeak>0?20*Math.log10(finalPeak):-Infinity;
