@@ -882,6 +882,8 @@ def main():
                 assert "three independently editable clips" in page.locator("#mixStatus").inner_text(), "Split completion feedback is missing."
 
                 # Generate an original local drum loop and attach its WAV to the same project.
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternTempo").fill("96")
                 page.locator("#patternMode").select_option("drums")
                 page.locator("#patternBars").select_option("1")
@@ -1528,6 +1530,8 @@ def main():
 
 
                 # Generate an original local drum loop and attach its WAV to the same project.
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternTempo").fill("96")
                 page.locator("#patternMode").select_option("drums")
                 page.locator("#patternBars").select_option("2")
