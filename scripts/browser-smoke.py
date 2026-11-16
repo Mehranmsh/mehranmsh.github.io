@@ -1502,7 +1502,7 @@ def main():
                 assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
                 original_lyrics_for_regression = page.locator("#lyricsEditor").input_value()
-                section_test_lyrics = "[Verse 1]\\nیک مصرع تکراری\\n[Chorus]\\nیک مصرع تکراری\\n[Chorus]\\nیک مصرع تکراری\\n[Pre-Chorus]\\nراهی به اوج\\n[Bridge]\\nپل ملودی\\n[Outro]\\nپایان آرام"
+                section_test_lyrics = "[Verse 1]\nیک مصرع تکراری\n[Chorus]\nیک مصرع تکراری\n[Chorus]\nیک مصرع تکراری\n[Pre-Chorus]\nراهی به اوج\n[Bridge]\nپل ملودی\n[Outro]\nپایان آرام"
                 page.locator('[data-view="lyrics"]').click()
                 page.wait_for_function("!document.querySelector('#view-lyrics')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#lyricsEditor").fill(section_test_lyrics)
