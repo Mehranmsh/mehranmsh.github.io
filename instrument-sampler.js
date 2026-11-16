@@ -65,6 +65,7 @@
     const valid=spec.samples.filter(s=>Number.isInteger(s.rootNote)&&s.rootNote>=0&&s.rootNote<=127&&typeof s.url==="string");
     if(valid.length!==spec.samples.length)throw new Error("Invalid sample entry for "+name);
     const requestedVowel=String(options&&options.vowel||"").toLowerCase();
+    const maxSamplesPerNote=clamp(Math.floor(Number(options&&options.maxSamplesPerNote)||3),1,6);
     const bankSamples=requestedVowel?valid.filter(s=>String(s.vowel||"").toLowerCase()===requestedVowel):valid;
     if(!bankSamples.length)throw new Error("No recorded "+requestedVowel+" vowel samples are installed for "+name+".");
     const requested=Array.isArray(options&&options.noteEvents)?options.noteEvents:[];
@@ -87,7 +88,7 @@
        }
        for(const item of perSinger.values())selected.set(item.sample.url,item.sample);
       }else if(spec.roundRobin===true){for(const sample of pool.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
-      else{const ranked=pool.slice().sort((a,b)=>Math.abs(a.rootNote-note)-Math.abs(b.rootNote-note)||Number(a.stringRank??99)-Number(b.stringRank??99));for(const candidate of ranked.slice(0,3))selected.set(candidate.url,candidate);}
+      else{const ranked=pool.slice().sort((a,b)=>Math.abs(a.rootNote-note)-Math.abs(b.rootNote-note)||Number(a.stringRank??99)-Number(b.stringRank??99));for(const candidate of ranked.slice(0,maxSamplesPerNote))selected.set(candidate.url,candidate);}
      }
     }else{
      for(const sample of bankSamples)selected.set(sample.url,sample);
