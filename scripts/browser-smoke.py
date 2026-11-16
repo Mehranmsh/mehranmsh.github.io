@@ -1595,9 +1595,10 @@ def main():
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.locator("#composeKey").select_option("0")
                 page.locator("#composeScale").select_option("minor")
-                page.locator('[data-melody-feel="flow"]').click()
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی روان آماده است') || document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ناموفق')", timeout=90000)
+                melody_preview_status = page.locator("#lyricsMelodyStatus").inner_text()
+                assert "ناموفق" not in melody_preview_status, "Melody preview failed after returning to Composition: " + melody_preview_status
                 lyric_draft = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     return projects.find(item => item.name === "Automated Audio QA")?.melodyDraft || null;
