@@ -1767,7 +1767,7 @@ def main():
                     const lead = project.tracks.find(track => String(track.name || '').startsWith('Melody Guide ·'));
                     if (!lead) throw new Error('Composition regression fixture needs its existing melody guide track.');
                     const arrangementNames = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
-                    project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 1, startBar: index + 1, trackIds: []}));
+                    project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 4, startBar: index * 4 + 1, trackIds: []}));
                     const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
                     const harmonyPairs = [['C4','Eb4'],['D4','F4'],['Eb4','G4'],['F4','Ab4'],['G4','D5'],['Ab4','C5'],['Bb4','D5'],['C5','Eb5']];
                     const events = names.flatMap((name, index) => harmonyPairs[index].map((note, noteIndex) => ({id: 'lyric-' + index + '-' + noteIndex, note, startStep: noteIndex * 8, lengthSteps: 2, section: name})));
@@ -1792,8 +1792,9 @@ def main():
                 }""")
                 expected_section_map = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"]
                 assert "آهنگسازی پایه آماده شد" in section_regression["status"], "Section-aware harmony generation failed: " + str(section_regression)
+                expected_section_map = [name for name in expected_section_map for _ in range(4)]
                 assert section_regression["sections"] == expected_section_map, "Harmony section map lost, reordered or mislabelled a song section: " + str(section_regression["sections"])
-                assert section_regression["bars"] == len(section_names) and len(section_regression["chords"]) == len(section_names), "Harmony progression does not cover every section bar: " + str(section_regression)
+                assert section_regression["bars"] == len(section_names) * 4 and len(section_regression["chords"]) == len(section_names) * 4, "Harmony progression does not cover all four bars of every song section: " + str(section_regression)
                 assert section_regression["key"] == "C minor", "Known C-minor melody was assigned the wrong key: " + str(section_regression)
                 assert all(chord in {"Cm", "Ddim", "Eb", "Fm", "G", "Ab", "Bb"} for chord in section_regression["chords"]), "C-minor harmony contains a chord outside its supported diatonic set (including the major dominant): " + str(section_regression["chords"])
                 assert len(set(section_regression["chords"])) >= 5, "Harmony progression collapsed into too few repeated chords instead of following the melody and section changes: " + str(section_regression["chords"])
@@ -1817,7 +1818,7 @@ def main():
                     const sections = project?.melodyDraft?.sections || [];
                     const chords = project?.harmonyAnalysis?.chords || [];
                     return events.map(event => {
-                        const bar = sections.indexOf(event.section);
+                        const bar = sections.indexOf(event.section) * 4 + Math.floor((Number(event.startStep) || 0) / 4);
                         const chord = bar >= 0 ? chords[bar] : null;
                         const pc = pitchClass(event.note);
                         return {section:event.section,note:event.note,chord,supported:pc !== null && chordTones(chord).includes(pc)};
