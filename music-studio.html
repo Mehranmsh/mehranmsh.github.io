@@ -134,9 +134,6 @@
     <div class="two"><span id="lyricsCount" style="color:var(--muted);font-size:11px">0 words · 0 characters</span><span id="lyricsSaveState" style="color:var(--muted);font-size:11px;text-align:right">Not saved</span></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn" id="saveLyrics">Save lyrics to project</button><button class="btn secondary" id="undoLyrics" type="button" disabled title="Undo last lyric edit">↶ Undo</button><button class="btn secondary" id="redoLyrics" type="button" disabled title="Redo lyric edit">↷ Redo</button><button class="btn secondary" id="exportLyrics">Export .txt</button></div>
     <div class="notice" style="margin-top:12px"><b>Lyrics → Arrangement:</b> ساختار شعر را مستقیم به تایم‌لاین آهنگ تبدیل کن؛ حتی اگر اول موسیقی را ساخته باشی، می‌توانی بعداً شعر را به آن وصل کنی.</div><button class="btn secondary" id="buildArrangementFromLyrics" type="button">♫ ساخت تایم‌لاین از روی شعر</button><p id="lyricsArrangementStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا شعر را ذخیره کن، سپس ساختار Intro، Verse، Chorus و Bridge را به تنظیم منتقل کن.</p>
-   <div class="notice" style="margin-top:12px"><b>Melody Lab · A / B / C</b><br>سه مسیر ملودیک اولیه را با صدای سینت بشنو؛ یکی را انتخاب کن تا به پروژه منتقل و به ترک WAV تبدیل شود.</div>
-   <div id="lyricsMelodyChoices" class="projects" style="margin-top:8px"><button class="btn secondary" type="button" data-melody-choice="A">♫ ملودی A · آرام و احساسی</button><button class="btn secondary" type="button" data-melody-choice="B">♫ ملودی B · اوج‌گیر</button><button class="btn secondary" type="button" data-melody-choice="C">♫ ملودی C · مینیمال</button></div>
-   <audio id="lyricsMelodyPreview" controls preload="none" style="width:100%;margin-top:10px;display:none"></audio><button class="btn secondary" id="buildMelodyBacking" type="button" style="margin-top:10px">♫ ساخت آکورد و همراهی سازها از روی ملودی</button><p id="lyricsMelodyStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا یکی از سه طرح را برای شنیدن انتخاب کن.</p>
    </div>
    <div class="panel"><h3>Song structure</h3><p style="color:var(--muted);font-size:11px">Insert a section marker at the cursor. Build the arrangement in your own order.</p>
     <div class="projects" id="lyricSections">
@@ -300,10 +297,11 @@
    <div class="field"><label for="composeProject">پروژهٔ موسیقی</label><select id="composeProject"><option value="">انتخاب پروژه…</option></select></div>
    <div class="notice">ابتدا شعر را در Lyrics Lab بنویس و ذخیره کن. سپس اینجا طرح ملودی را انتخاب و آکورد و همراهی را بساز. لازم نیست وارد Arrangement & Mix شوی.</div>
    <h3 style="margin-top:18px">۲. انتخاب طرح ملودی</h3>
-   <div id="composeMelodyChoices" class="projects"></div>
-   <audio id="composeMelodyPreview" controls preload="none" style="width:100%;margin-top:10px;display:none"></audio>
-   <button class="btn secondary" id="composeBuildBacking" type="button" style="margin-top:10px">♫ ساخت آکورد و همراهی سازها از روی ملودی</button>
-   <p id="composeMelodyStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا پروژه‌ای را انتخاب کن که شعر آن ذخیره شده باشد.</p>
+   <div class="notice">سه طرح ملودی اولیه را با صدای سینت پیش‌شنوی کن. با انتخاب دوبارهٔ همان طرح، آن را به پروژه اضافه می‌کنی.</div>
+   <div id="lyricsMelodyChoices" class="projects" style="margin-top:8px"><button class="btn secondary" type="button" data-melody-choice="A">♫ ملودی A · آرام و احساسی</button><button class="btn secondary" type="button" data-melody-choice="B">♫ ملودی B · اوج‌گیر</button><button class="btn secondary" type="button" data-melody-choice="C">♫ ملودی C · مینیمال</button></div>
+   <audio id="lyricsMelodyPreview" controls preload="none" style="width:100%;margin-top:10px;display:none"></audio>
+   <button class="btn secondary" id="buildMelodyBacking" type="button" style="margin-top:10px">♫ ساخت آکورد و همراهی سازها از روی ملودی</button>
+   <p id="lyricsMelodyStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا یکی از سه طرح را برای شنیدن انتخاب کن.</p>
    <div class="notice" style="margin-top:14px">این بخش مخصوص ساخت ملودی و پایهٔ هارمونیک است. انتخاب سازها و چیدمان بخش‌های آهنگ در تنظیم انجام می‌شود؛ میکس وکال و سازها هم در بخش میکس قرار دارد.</div>
   </div>
  </section>
@@ -2183,7 +2181,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  $("saveProject").addEventListener("click",()=>{if($("saveProject").dataset.edit)update();else create();});
  $("lyricsProject").addEventListener("change",changeLyricsProject);
  function syncVocalTools(){const target=$("view-vocals");const guide=$("vocalPerformanceGuide");if(guide&&guide.parentElement!==target)target.appendChild(guide);}
- function syncComposerControls(){const source=$("lyricsMelodyChoices"),target=$("composeMelodyChoices");if(source&&target&&source.parentElement!==target){target.innerHTML="";while(source.firstChild)target.appendChild(source.firstChild);}const audio=$("lyricsMelodyPreview");if(audio&&audio.parentElement!==$("view-compose"))$("view-compose").querySelector(".panel").insertBefore(audio,$("composeBuildBacking"));const button=$("buildMelodyBacking");if(button&&button.parentElement!==$("view-compose").querySelector(".panel"))$("view-compose").querySelector(".panel").appendChild(button);const status=$("lyricsMelodyStatus");if(status&&status.parentElement!==$("view-compose").querySelector(".panel"))$("view-compose").querySelector(".panel").appendChild(status);if(target&&!target.dataset.bound){target.dataset.bound="1";target.addEventListener("click",event=>{const choice=event.target.closest("[data-melody-choice]");if(choice)chooseLyricsMelody(choice.dataset.melodyChoice);});}}
+ function syncComposerControls(){}
  $("composeProject").addEventListener("change",()=>{const target=$("lyricsProject"),next=$("composeProject").value;if(target.value!==next){target.dataset.previous=target.value;target.value=next;changeLyricsProject();$("composeProject").value=target.value;}});
 
  $("vocalProject").addEventListener("change",()=>{cancelSingerEdit();renderVocalCast();refreshVocalGuideLines();});
