@@ -2222,12 +2222,12 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
    lineCursor=lineEnd;
   }
   const mapped=events.map(event=>{
-   const match=String(event.id||"").match(/^lyric-(\d+)-/),line=match?Number(match[1]):null,placement=line!==null?placements.get(line):null;
-   if(!placement)return{...event};
+   const match=String(event.id||"").match(/^lyric-(\\d+)-/),line=match?Number(match[1]):null,stepsPerFallbackLine=sectionMap.length*16/Math.max(1,draftSections.length),placement=line!==null?(placements.get(line)||{startStep:Math.floor(line*stepsPerFallbackLine),scale:stepsPerFallbackLine/16,spanSteps:stepsPerFallbackLine}):null;
+   if(!placement)return{...event,startStep:Math.min(sectionMap.length*16-1,Math.max(0,Number(event.startStep)||0))};
    const localStep=((Number(event.startStep)||0)%16+16)%16,relativeStart=Math.min(Math.max(0,Math.round(localStep*placement.scale)),Math.max(0,Math.ceil(placement.spanSteps)-1)),remaining=Math.max(1,Math.ceil(placement.spanSteps-relativeStart));
-   return{...event,startStep:placement.startStep+relativeStart,lengthSteps:Math.max(1,Math.min(remaining,Math.round((Number(event.lengthSteps)||2)*placement.scale)))};
+   return{...event,startStep:Math.min(sectionMap.length*16-1,placement.startStep+relativeStart),lengthSteps:Math.max(1,Math.min(remaining,Math.round((Number(event.lengthSteps)||2)*placement.scale)))};
   });
-  return{events:mapped,sectionMap,bars:sectionMap.length,mapped:placements.size>0};
+  return{events:mapped,sectionMap,bars:sectionMap.length,mapped:true};
  }
  async function chooseLyricsMelody(kind){
   const p=projects.find(x=>x.id===$("lyricsProject").value),status=$("lyricsMelodyStatus"),preview=$("lyricsMelodyPreview");
