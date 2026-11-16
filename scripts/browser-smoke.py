@@ -455,6 +455,10 @@ def main():
                 page.locator("#lyricsEditor").fill("[Verse 1]\nتو رفتی و هنوز دلم به یاد توئه\nI keep walking through the night\nI hold a little light")
                 assert "تو رفتی و هنوز دلم به یاد توئه" in page.locator("#lyricsEditor").input_value()
                 assert page.locator("#lyricFlowPanel").is_visible()
+                craft_report = page.locator("#lyricCraftAnalysis").inner_text()
+                assert "سطرهای دارای پایان نوشتاری مشترک" in craft_report, "Lyric craft report must label ending matches as written-text similarity."
+                assert "واژه‌های تصویری و حسی" in craft_report, "Lyric craft report must describe imagery as a limited term count, not an artistic score."
+                assert "تصویرسازی:" not in craft_report and "نشانگر قافیهٔ نوشتاری:" not in craft_report, "Deprecated heuristic scores must not appear in the lyric report."
                 page.locator("#saveLyrics").click()
                 # Exercise the actual studio-to-conditioning request with a mocked self-hosted API.
                 conditioning_requests = []
