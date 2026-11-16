@@ -1067,9 +1067,9 @@ def main():
                 assert page.locator("#stopArrangementPreview").is_enabled(), "Arrangement preview did not expose an active stop control."
                 page.locator("#stopArrangementPreview").click()
                 assert "preview stopped" in page.locator("#arrangementExportStatus").inner_text().lower()
-                # Return to the dedicated Mixing & Mastering workspace for instrument rendering.
-                page.locator('[data-view="mix"]').click()
-                page.wait_for_function("!document.querySelector('#view-mix')?.classList.contains('hidden')", timeout=5000)
+                # Instrument and beat creation belongs to the dedicated Arrangement workspace.
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 # Render a four-chord harmonic backing layer and verify the project record.
                 page.locator("#patternMode").select_option("chords")
                 page.locator("#patternChords").fill("Am, F, C, G")
