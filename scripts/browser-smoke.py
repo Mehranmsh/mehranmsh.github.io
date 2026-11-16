@@ -2395,16 +2395,23 @@ def main():
                 print("COMPOSITION MAJOR REGRESSION:", major_result, flush=True)
                 print("PASS: known C-major melody receives an eight-bar diatonic progression and tonic resolution", flush=True)
 
-                # Add a second independently stored audio track at the end of the suite,
-                # so the existing single-track waveform and stem fixtures remain isolated.
+                # Use a fresh project so this regression is isolated from all earlier fixtures.
+                page.locator('[data-go="create"]').first.click()
+                page.locator("#projectName").fill("Automated Multi-track QA")
+                page.locator("#saveProject").click()
                 page.locator('[data-view="mix"]').click()
                 page.locator("#mixProject").evaluate("""el => {
-                    const option = [...el.options].find(item => item.label === "Automated Audio QA");
-                    if (!option) throw new Error("Automated Audio QA project option is missing");
+                    const option = [...el.options].find(item => item.label === "Automated Multi-track QA");
+                    if (!option) throw new Error("Automated Multi-track QA project option is missing");
                     el.value = option.value;
                     el.dispatchEvent(new Event("change", {bubbles:true}));
                 }""")
-                # two-track stereo mix, checking gain, pan, and non-identical channels.
+                page.locator("#trackName").fill("Lead QA")
+                page.locator("#trackType").select_option(label="Lead Vocal")
+                page.locator("#addTrack").click()
+                page.locator("[data-track-audio]").nth(0).click()
+                page.locator("#trackAudioFile").set_input_files(str(audio_path))
+                page.get_by_text("Audio saved on this device. Preview playback is ready.").wait_for(timeout=10000)
                 page.locator("#trackName").fill("Backing Instrument QA")
                 page.locator("#trackType").select_option(label="Keys / Piano")
                 page.locator("#trackRole").select_option(label="Harmony")
@@ -2412,7 +2419,7 @@ def main():
                 page.locator("[data-track-audio]").nth(1).click()
                 page.locator("#trackAudioFile").set_input_files(str(audio_path))
                 page.get_by_text("Audio saved on this device. Preview playback is ready.").wait_for(timeout=10000)
-                assert page.locator("[data-track-audio]").count() == 2, "Second audio track was not added."
+                assert page.locator("[data-track-audio]").count() == 2, "Two audio tracks were not attached to the isolated mix project."
                 second_gain = page.locator("[data-track-gain]").nth(1)
                 second_gain.fill("-6")
                 second_gain.dispatch_event("input")
@@ -2423,7 +2430,7 @@ def main():
                 second_pan.dispatch_event("change")
                 two_track_state = page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")
-                        .find(item => item.name === "Automated Audio QA");
+                        .find(item => item.name === "Automated Multi-track QA");
                     return (project?.tracks || []).filter(track => track.audioName)
                         .map(track => ({name: track.name, gain: track.gain, pan: track.pan}));
                 }""")
@@ -2458,7 +2465,6 @@ def main():
                 assert math.isfinite(two_track_true_peak) and two_track_true_peak <= -1.0, (
                     "Two-track master exceeded its true-peak safety ceiling: " + str(two_track_true_peak) + " dBTP"
                 )
-                print("PASS: two independently stored audio tracks render together with persisted gain/pan, distinct stereo channels and safe master peak")
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
