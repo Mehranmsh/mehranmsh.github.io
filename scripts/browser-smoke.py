@@ -1454,6 +1454,7 @@ def main():
                 assert lyric_draft["noteEvents"][0]["note"].startswith("C") or any(lyric_draft["noteEvents"][0]["note"].startswith(name) for name in ("D","D#","F","G","G#","A#")), "Selected C minor scale was not applied to melody notes."
                 page.locator("#addLyricsMelody").click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('به پروژه اضافه شد')", timeout=30000)
+                page.locator("#composeHarmonyStyle").select_option("emotional")
                 page.locator("#buildMelodyBacking").click()
                 page.wait_for_function("""(() => {
                     const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
@@ -1465,6 +1466,7 @@ def main():
                 assert page.locator("#composeResult").is_visible(), "Composition summary panel was not shown."
                 assert page.locator("#composeResultKey").inner_text() == "C minor", "Composition summary key does not match the selected key."
                 assert "C" in page.locator("#composeResultChords").inner_text(), "Chord progression summary is missing."
+                assert "احساسی" in page.locator("#composeResultTracks").inner_text(), "Selected harmony style was not reflected in the result.";
                 harmony_project = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     return projects.find(item => item.name === "Automated Audio QA") || null;
