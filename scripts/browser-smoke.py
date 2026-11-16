@@ -1457,7 +1457,7 @@ def main():
                 page.locator("#buildMelodyBacking").click()
                 page.wait_for_function("""(() => {
                     const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
-                    return status.includes('همراهی ساخته شد') || status.includes('ساخت همراهی کامل نشد') || status.includes('بیش از ۶۸ میزان');
+                    return status.includes('آهنگسازی پایه آماده شد') || status.includes('ساخت همراهی کامل نشد') || status.includes('بیش از ۶۸ میزان');
                 })()""", timeout=90000)
                 harmony_status = page.locator("#lyricsMelodyStatus").inner_text()
                 assert "آهنگسازی پایه آماده شد" in harmony_status, "Automatic harmony/lead generation failed: " + harmony_status + " | Pattern status: " + page.locator("#patternStatus").inner_text()
