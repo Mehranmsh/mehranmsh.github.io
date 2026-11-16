@@ -1535,6 +1535,10 @@ def main():
                     raise AssertionError("Composition render stalled: " + str(diagnostic)) from error
                 harmony_status = page.locator("#lyricsMelodyStatus").inner_text()
                 assert "آهنگسازی پایه آماده شد" in harmony_status, "Automatic harmony/lead generation failed: " + harmony_status + " | Pattern status: " + page.locator("#patternStatus").inner_text()
+                harmony_render_status = page.locator("#patternStatus").inner_text()
+                assert "Quantized peak " in harmony_render_status, "Harmony WAV peak diagnostics are missing: " + harmony_render_status
+                harmony_peak_db = float(harmony_render_status.split("Quantized peak ", 1)[1].split(" dBFS", 1)[0])
+                assert -9.5 <= harmony_peak_db <= -7.5, "Harmony WAV normalization missed its -8 dBFS target: " + harmony_render_status
                 assert page.locator("#view-compose").is_visible(), "Compose should remain open for review after harmony generation."
                 assert page.locator("#composeResult").is_visible(), "Composition summary panel was not shown."
                 expected_harmony_key = page.evaluate("""() => {
