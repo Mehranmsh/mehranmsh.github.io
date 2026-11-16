@@ -2247,7 +2247,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
    $("addLyricsMelody").disabled=true;
    const mix=$("mixProject");mix.value=p.id;refreshMixProjects(p.id);
    const previousTracks=(p.tracks||[]).slice(),previousArrangement=JSON.parse(JSON.stringify(p.arrangement||[])),previousPattern=JSON.parse(JSON.stringify(p.patternStudio||PATTERN_DEFAULT));
-   const live=getPattern();live.mode="lead";live.tempo=tempo;live.bars=generated.bars;live.notes=notes.slice();live.noteEvents=generated.noteEvents.map(x=>({...x}));live.drumKit="electronic";p.patternStudio=live;
+   const live=getPattern();live.mode="lead";live.tempo=tempo;live.bars=generated.bars;live.notes=notes.slice();live.noteEvents=generated.noteEvents.map(x=>({...x}));live.sectionMap=arrangementFit.sectionMap.slice();live.drumKit="electronic";p.patternStudio=live;
    $("patternMode").value="lead";$("patternTempo").value=String(tempo);$("patternBars").value=String(generated.bars);$("patternNotes").value=notes.join(", ");$("patternTrackName").value="Melody Guide · "+p.name;renderPatternGrid();
    if(!await generatePatternTrack()){
     const added=(p.tracks||[]).filter(track=>!previousTracks.some(old=>old.id===track.id));p.tracks=previousTracks;p.arrangement=previousArrangement;p.patternStudio=previousPattern;p.melodyDraft.applied=false;save();await Promise.all(added.map(track=>removeTrackAudioAsset(audioKey(p.id,track.id)).catch(()=>null)));renderPatternGrid();$("addLyricsMelody").disabled=false;status.textContent="افزودن ملودی ناموفق بود؛ پروژه به وضعیت قبلی برگشت. پیام Pattern Studio را بررسی کن.";return;
