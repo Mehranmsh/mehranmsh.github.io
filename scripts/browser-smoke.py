@@ -372,6 +372,45 @@ def main():
                 assert page.locator("#pitchContour").count() == 1, "Pitch contour visualization was not rendered"
                 assert int(page.locator("#pitchContour").get_attribute("data-pitch-points")) >= 1, "Pitch contour has no voiced frames"
 
+                # Exercise the actual offline Vocal Polish renderer, including scale correction,
+                # and verify that it exports a playable WAV without mutating the source recording.
+                page.locator("#vocalPolishFile").set_input_files(str(audio_path))
+                page.locator("#vocalPolishPitchCorrection").check()
+                page.locator("#vocalPolishPitchStrength").fill("50")
+                page.locator("#pitchKey").select_option("0")
+                page.locator("#pitchScale").select_option("minor")
+                page.locator("#runVocalPolish").click()
+                page.wait_for_function("document.querySelector('#vocalPolishStatus')?.textContent.includes('پردازش تمام شد')", timeout=30000)
+                assert page.locator("#vocalPolishResult").is_visible(), "Vocal Polish did not reveal its rendered result."
+                with page.expect_download(timeout=15000) as vocal_download:
+                    page.locator("#downloadVocalPolish").click()
+                vocal_polish_path = Path(temp) / "vocal-polish-regression.wav"
+                vocal_download.value.save_as(vocal_polish_path)
+                with wave.open(str(vocal_polish_path), "rb") as polished:
+                    assert polished.getnchannels() in (1, 2), "Vocal Polish export must be mono or stereo."
+                    assert polished.getsampwidth() == 3, "Vocal Polish export must be 24-bit PCM."
+                    assert abs(polished.getnframes() / polished.getframerate() - 0.5) < 0.03, "Vocal Polish changed the source duration."
+                source_hash_after_polish = page.evaluate("""async () => {
+                    const db = await new Promise((resolve, reject) => {
+                        const request = indexedDB.open('mehran_music_studio_audio_v1', 1);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1'))[0];
+                    const track = project.tracks[0];
+                    const record = await new Promise((resolve, reject) => {
+                        const request = db.transaction('trackAudio').objectStore('trackAudio').get(project.id + ':' + track.id);
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = () => reject(request.error);
+                    });
+                    if (!record?.blob) throw new Error('Original audio blob missing after Vocal Polish');
+                    const digest = await crypto.subtle.digest('SHA-256', await record.blob.arrayBuffer());
+                    db.close();
+                    return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+                }""")
+                assert source_hash_after_polish == source_audio_hash, "Vocal Polish must never overwrite the original local recording."
+                print("PASS: offline Vocal Polish pitch correction, 24-bit WAV export, duration preservation, and source immutability", flush=True)
+
                 assert "fade=Math.max(32,Math.floor(rate*0.035))" in page.content(), "Pitch correction must use a longer 35 ms transition fade."
                 assert "mix=0.5-0.5*Math.cos(Math.PI*edge)" in page.content(), "Pitch correction must use smooth cosine edge blending."
 
