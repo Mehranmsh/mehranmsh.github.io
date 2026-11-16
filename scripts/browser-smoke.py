@@ -1550,7 +1550,7 @@ def main():
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent = ''; }")
                 page.locator('[data-melody-choice="A"]').click()
-                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی روان آماده است')", timeout=30000)
                 page.wait_for_function("""() => {
                     const projectId = document.querySelector("#lyricsProject")?.value;
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
