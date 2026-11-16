@@ -1520,10 +1520,19 @@ def main():
                 }""") == melody_track_count, "Re-previewing the same melody duplicated a project track."
                 page.locator("#composeHarmonyStyle").select_option("emotional")
                 page.locator("#buildMelodyBacking").click()
-                page.wait_for_function("""(() => {
-                    const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
-                    return status.includes('آهنگسازی پایه آماده شد') || status.includes('ساخت همراهی کامل نشد') || status.includes('بیش از ۶۸ میزان');
-                })()""", timeout=90000)
+                try:
+                    page.wait_for_function("""(() => {
+                        const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
+                        return status.includes('آهنگسازی پایه آماده شد') || status.includes('ساخت همراهی کامل نشد') || status.includes('بیش از ۶۸ میزان');
+                    })()""", timeout=90000)
+                except Exception as error:
+                    diagnostic = page.evaluate("""() => ({
+                        lyricsStatus: document.querySelector('#lyricsMelodyStatus')?.textContent || '',
+                        patternStatus: document.querySelector('#patternStatus')?.textContent || '',
+                        renderLogs: (window.__mehranPatternDebugLogs || []).slice(-35),
+                        project: (() => { const p = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(x => x.name === 'Automated Audio QA'); return p ? {tracks: p.tracks?.length, bars: p.arrangement?.reduce((n, s) => n + (Number(s.bars) || 0), 0), melodyApplied: p.melodyDraft?.applied, noteEvents: p.melodyDraft?.sourceNoteEvents?.length} : null; })()
+                    })""")
+                    raise AssertionError("Composition render stalled: " + str(diagnostic)) from error
                 harmony_status = page.locator("#lyricsMelodyStatus").inner_text()
                 assert "آهنگسازی پایه آماده شد" in harmony_status, "Automatic harmony/lead generation failed: " + harmony_status + " | Pattern status: " + page.locator("#patternStatus").inner_text()
                 assert page.locator("#view-compose").is_visible(), "Compose should remain open for review after harmony generation."
