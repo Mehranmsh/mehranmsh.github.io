@@ -2424,7 +2424,7 @@ def main():
                     return project.id;
                 }""")
                 page.reload(wait_until="domcontentloaded")
-                page.locator('[data-view="mix"]').click()
+                page.locator('[data-view="mix"]:visible').first.click()
                 page.locator("#mixProject").evaluate("""el => {
                     const option = [...el.options].find(item => item.label === "Automated Smart Arrangement QA");
                     el.value = option.value;
@@ -2446,7 +2446,8 @@ def main():
                     };
                 }""")
                 assert len(smart_state["tracks"]) == 3, "Smart arrangement must create exactly three generated stems: " + str(smart_state)
-                assert [track["type"] for track in smart_state["tracks"]] == ["Drums / Percussion","Bass","Synth / Pads"], "Generated stem types do not match the expected drum, bass and pad layers: " + str(smart_state["tracks"])
+                assert [track["type"] for track in smart_state["tracks"]] == ["Drums / Percussion","Bass","Keys / Piano"], "Generated stem types do not match the expected recorded drum, electric bass and acoustic piano layers: " + str(smart_state["tracks"])
+                assert all("recorded samples only" in track["notes"] for track in smart_state["tracks"]), "Smart arrangement must render from real recorded sample banks, never synth fallback: " + str(smart_state["tracks"])
                 track_ids = {track["name"].split(" · ")[0]:track["id"] for track in smart_state["tracks"]}
                 expected_sections = {
                     "Intro":["Smart Atmosphere"],
