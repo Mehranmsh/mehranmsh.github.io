@@ -1674,6 +1674,33 @@ def main():
                     return results;
                 }""")
                 assert len(edited_audio_metrics) == 2, "Both edited composition WAV tracks must decode and contain audio: " + str(edited_audio_metrics)
+
+                # Reload the browser and verify both composition metadata and WAV blobs survive a fresh page lifecycle.
+                page.reload(wait_until="networkidle")
+                page.wait_for_function("document.querySelector('#view-compose') && document.querySelector('#view-compose').classList.contains('hidden')", timeout=10000)
+                reloaded_composition = page.evaluate("""() => JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA")""")
+                assert reloaded_composition["melodyDraft"]["sourceNoteEvents"][0]["note"] == replacement_note, "Edited melody note did not survive a full page reload."
+                assert reloaded_composition["harmonyAnalysis"]["chords"][0] == replacement_chord, "Edited chord did not survive a full page reload."
+                reloaded_audio = page.evaluate("""async () => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const tracks = project.tracks.filter(track => String(track.name || "").startsWith("Melody Guide ·") || String(track.name || "").startsWith("Harmony & Instruments ·"));
+                    if (tracks.length !== 2) throw new Error("Reloaded composition must contain exactly two current rendered tracks.");
+                    const db = await new Promise((resolve, reject) => { const req = indexedDB.open("mehran_music_studio_audio_v1", 1); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                    const results = [];
+                    for (const track of tracks) {
+                        const record = await new Promise((resolve, reject) => { const req = db.transaction("trackAudio").objectStore("trackAudio").get(project.id + ":" + track.id); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+                        if (!record?.blob || record.blob.size <= 44100) throw new Error("Reloaded WAV missing: " + track.name);
+                        const context = new (window.AudioContext || window.webkitAudioContext)();
+                        const decoded = await context.decodeAudioData(await record.blob.arrayBuffer());
+                        if (decoded.duration <= 5) throw new Error("Reloaded WAV is unexpectedly short: " + track.name);
+                        results.push({name: track.name, bytes: record.blob.size, duration: decoded.duration});
+                        await context.close();
+                    }
+                    db.close();
+                    return results;
+                }""")
+                assert len(reloaded_audio) == 2, "Both edited composition WAVs must remain decodable after reload: " + str(reloaded_audio)
+                print("PASS: composition note/chord edits and both playable WAV tracks survive a full browser reload")
                 print("PASS: professional composition note and chord editors rebuild, persist and retain playable WAV tracks")
 
                 # Beginner one-click composition must create melody and harmony without manual note/chord editing.
