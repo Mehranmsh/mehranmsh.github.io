@@ -2444,12 +2444,14 @@ def main():
                         .find(item => item.name === "Automated Smart Arrangement QA");
                     return {
                         tracks:(project?.tracks || []).filter(track => track.generated).map(track => ({id:track.id,name:track.name,type:track.type,notes:track.notes || ""})),
-                        sections:(project?.arrangement || []).map(section => ({name:section.name,trackIds:section.trackIds || []}))
+                        sections:(project?.arrangement || []).map(section => ({name:section.name,trackIds:section.trackIds || []})),
+                        drumAudit:window.__mehranDrumRenderState || null
                     };
                 }""")
                 assert len(smart_state["tracks"]) == 3, "Smart arrangement must create exactly three generated stems: " + str(smart_state)
                 assert [track["type"] for track in smart_state["tracks"]] == ["Drums / Percussion","Bass","Keys / Piano"], "Generated stem types do not match the expected recorded drum, electric bass and acoustic piano layers: " + str(smart_state["tracks"])
                 assert all("recorded samples only" in track["notes"] for track in smart_state["tracks"]), "Smart arrangement must render from real recorded sample banks, never synth fallback: " + str(smart_state["tracks"])
+                assert smart_state["drumAudit"] and smart_state["drumAudit"].get("dedicatedScheduled") is True and smart_state["drumAudit"].get("dedicatedScheduledCalls", 0) > 0, "Recorded drum samples were not scheduled by the dedicated sample engine: " + str(smart_state["drumAudit"])
                 track_ids = {track["name"].split(" · ")[0]:track["id"] for track in smart_state["tracks"]}
                 expected_sections = {
                     "Intro":["Smart Atmosphere"],
