@@ -1889,8 +1889,9 @@ def main():
                     const sectionNames = ['Intro', 'Verse 1', 'Chorus', 'Bridge'];
                     project.arrangement = sectionNames.map((name, index) => ({id:'style-regression-'+index,name,bars:2,startBar:index*2+1,trackIds:[]}));
                     const phrase = ['C4','D4','Eb4','F4','G4','Ab4','Bb4','C5'];
-                    const events = sectionNames.flatMap((section,index) => phrase.map((note,noteIndex) => ({id:'lyric-'+index+'-'+noteIndex,note,startStep:noteIndex*2,lengthSteps:1,section})));
-                    project.melodyDraft.sections = sectionNames.slice();
+                    const draftSections = sectionNames.flatMap(section => [section,section]);
+                    const events = phrase.map((note,index) => ({id:'lyric-'+index+'-0',note,startStep:2,lengthSteps:1,section:sectionNames[Math.floor(index/2)]}));
+                    project.melodyDraft.sections = draftSections;
                     project.melodyDraft.sourceNoteEvents = events;
                     project.melodyDraft.noteEvents = events;
                     project.melodyDraft.notes = phrase.slice(0,8);
@@ -1930,9 +1931,10 @@ def main():
                     const project=drafts.find(item=>item.name==='Automated Audio QA');
                     const sectionNames=['Intro','Verse 1','Chorus','Outro'];
                     const phrase=['C4','D4','E4','F4','G4','A4','B4','C5'];
-                    const events=sectionNames.flatMap((section,index)=>phrase.map((note,noteIndex)=>({id:'lyric-'+index+'-'+noteIndex,note,startStep:noteIndex*2,lengthSteps:1,section})));
+                    const draftSections=sectionNames.flatMap(section=>[section,section]);
+                    const events=phrase.map((note,index)=>({id:'lyric-'+index+'-0',note,startStep:2,lengthSteps:1,section:sectionNames[Math.floor(index/2)]}));
                     project.arrangement=sectionNames.map((name,index)=>({id:'major-regression-'+index,name,bars:2,startBar:index*2+1,trackIds:[]}));
-                    project.melodyDraft.sections=sectionNames.slice();
+                    project.melodyDraft.sections=draftSections;
                     project.melodyDraft.sourceNoteEvents=events;
                     project.melodyDraft.noteEvents=events;
                     project.melodyDraft.notes=phrase.slice(0,8);
