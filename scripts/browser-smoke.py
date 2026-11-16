@@ -1636,7 +1636,7 @@ def main():
                         return {current:item.current,next:item.next,target,approach:window.__mehranTestBassApproach(item.current,item.next)};
                     });
                 }""")
-                assert bass_approach_regression[0]["target"] == 33 and bass_approach_regression[0]["approach"] == 34, "Ascending bass approach should lead one semitone below the next A bass: " + str(bass_approach_regression)
+                assert bass_approach_regression[0]["target"] == 33 and bass_approach_regression[0]["approach"] == 32, "Ascending bass approach should lead one semitone below the next A bass: " + str(bass_approach_regression)
                 assert bass_approach_regression[1]["target"] == 53 and bass_approach_regression[1]["approach"] == 52, "Descending bass approach should lead one semitone above the next F inversion: " + str(bass_approach_regression)
                 assert bass_approach_regression[2]["target"] == 35 and bass_approach_regression[2]["approach"] is None, "A one-semitone bass move should not receive a redundant chromatic approach: " + str(bass_approach_regression)
                 print("COMPOSITION BASS APPROACH REGRESSION:", bass_approach_regression, flush=True)
