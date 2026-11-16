@@ -1437,8 +1437,8 @@ def main():
                 page.locator("#buildArrangementFromLyrics").click()
                 arrangement_status = page.locator("#lyricsArrangementStatus").inner_text()
                 assert "تایم‌لاین ساخته شد" in arrangement_status, "Lyrics-to-arrangement parser failed: " + arrangement_status
-                page.locator('[data-view="lyrics"]').click()
-                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.locator('[data-view="compose"]').click()
+                page.locator("#composeProject").select_option(label="Automated Audio QA")
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A ساخته شد')", timeout=30000)
                 lyric_draft = page.evaluate("""() => {
