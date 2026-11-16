@@ -1504,10 +1504,10 @@ def main():
                 }""")
                 assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
-                lyric_syllable_probe = page.evaluate("""() => ({manual:window.__mehranTestLyricSyllables("پن/ج/ره")[0], ordinary:window.__mehranTestLyricSyllables("شب از پنجره آرام گذشت"), explicit:window.__mehranTestLyricSyllables("مُحَمَّد")[0]})""")
-                assert lyric_syllable_probe["manual"] == 3 and all(value >= 1 for value in lyric_syllable_probe["ordinary"]) and lyric_syllable_probe["explicit"] >= 1, "Persian syllable overrides or conservative fallback failed: " + str(lyric_syllable_probe)
+                lyric_syllable_probe = page.evaluate("""() => ({manual:window.__mehranTestLyricSyllables("پن/ج/ره")[0], ordinary:window.__mehranTestLyricSyllables("شب از پنجره آرام گذشت"), explicit:window.__mehranTestLyricSyllables("مُحَمَّد")[0],tanwin:window.__mehranTestLyricSyllables("کتاباً")[0]})""")
+                assert lyric_syllable_probe["manual"] == 3 and all(value >= 1 for value in lyric_syllable_probe["ordinary"]) and lyric_syllable_probe["explicit"] >= 1 and lyric_syllable_probe["tanwin"] == 1, "Persian syllable overrides or conservative fallback failed: " + str(lyric_syllable_probe)
                 print("PERSIAN SYLLABLE OVERRIDE REGRESSION:", lyric_syllable_probe, flush=True)
-                print("PASS: explicit Persian syllable splits override estimates while ordinary text remains supported", flush=True)
+                print("PASS: explicit Persian splits, ordinary estimates and tanwin vowel marks are supported", flush=True)
                 lyric_stress_probe = page.evaluate("""() => window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپن/ج/ره آرام").noteEvents""")
                 assert len(lyric_stress_probe) == 5 and lyric_stress_probe[2]["velocity"] == 87 and lyric_stress_probe[4]["velocity"] == 84, "Persian word-final accent must add exactly five velocity units without overriding the line cadence: " + str(lyric_stress_probe)
                 print("PERSIAN WORD STRESS REGRESSION:", [(event["id"], event["velocity"]) for event in lyric_stress_probe], flush=True)
