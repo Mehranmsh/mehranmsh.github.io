@@ -1520,7 +1520,8 @@ def main():
                     return draft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\n[Chorus]\\nیک مصرع تکراری؟\\n[Chorus]\\nیک مصرع تکراری؟\\n[Pre-Chorus]\\nراهی به اوج\\n[Bridge]\\nپل ملودی\\n[Outro]\\nپایان آرام" && (draft?.sourceNoteEvents || []).some(event => event.id.startsWith('lyric-1-'));
                 }""", timeout=30000)
                 melody_section_regression = page.evaluate("""() => {
-                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const projectId = document.querySelector("#lyricsProject")?.value;
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
                     const events = project?.melodyDraft?.sourceNoteEvents || [];
                     const lineNotes = index => events.filter(event => event.id.startsWith("lyric-" + index + "-")).sort((a,b) => a.startStep-b.startStep).map(event => event.note);
                     const midi = note => { const match = String(note || "").match(/^([A-G])([#b]?)(-?\\d)$/); if (!match) return null; return (Number(match[3])+1)*12+({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1]])+(match[2]==="#"?1:match[2]==="b"?-1:0); };
@@ -1551,8 +1552,9 @@ def main():
                 page.locator('[data-melody-choice="A"]').click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
                 page.wait_for_function("""() => {
-                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
-                    return Array.isArray(project?.melodyDraft?.sourceNoteEvents) && project.melodyDraft.sourceNoteEvents.some(event => event.id.startsWith("lyric-1-"));
+                    const projectId = document.querySelector("#lyricsProject")?.value;
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.id === projectId);
+                    return project?.melodyDraft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\nیک مصرع تکراری؟" && Array.isArray(project.melodyDraft.sourceNoteEvents) && project.melodyDraft.sourceNoteEvents.length >= 2;
                 }""", timeout=10000)
                 punctuation_cache_regression = page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
