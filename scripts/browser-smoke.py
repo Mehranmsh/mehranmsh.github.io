@@ -2457,10 +2457,10 @@ def main():
                 assert all(40 <= note <= 84 for note in guitar_audit["loadedRootNotes"]), "Smart guitar selected samples outside the instrument's playable source range: " + str(guitar_audit)
                 track_ids = {track["name"].split(" · ")[0]:track["id"] for track in smart_state["tracks"]}
                 expected_sections = {
-                    "Intro":["Smart Atmosphere"],
+                    "Intro":["Smart Piano Harmony"],
                     "Verse 1":["Smart Drums","Smart Bass","Smart Acoustic Guitar"],
-                    "Chorus":["Smart Drums","Smart Bass","Smart Atmosphere","Smart Acoustic Guitar"],
-                    "Outro":["Smart Atmosphere"]
+                    "Chorus":["Smart Drums","Smart Bass","Smart Piano Harmony","Smart Acoustic Guitar"],
+                    "Outro":["Smart Piano Harmony"]
                 }
                 for section in smart_state["sections"]:
                     selected_names = [track["name"].split(" · ")[0] for track in smart_state["tracks"] if track["id"] in section["trackIds"]]
