@@ -1744,6 +1744,43 @@ def main():
                 }""")
                 assert generated_blob_exists, "Generated WAV was not persisted in local IndexedDB."
 
+                # Regression: every supported song section must map to its own harmony bar.
+                section_names = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Instrumental", "Outro"]
+                page.evaluate("""(names) => {
+                    const drafts = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]');
+                    const project = drafts.find(item => item.name === 'Automated Audio QA');
+                    if (!project) throw new Error('Composition regression fixture project is missing.');
+                    const lead = project.tracks.find(track => String(track.name || '').startsWith('Melody Guide ·'));
+                    if (!lead) throw new Error('Composition regression fixture needs its existing melody guide track.');
+                    project.arrangement = names.map((name, index) => ({id: 'section-regression-' + index, name, bars: 1, startBar: index + 1, trackIds: []}));
+                    const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
+                    const events = names.map((name, index) => ({id: 'lyric-' + index + '-0', note: notes[index], startStep: 0, lengthSteps: 2, section: name}));
+                    project.melodyDraft.sections = names.slice();
+                    project.melodyDraft.sourceNoteEvents = events;
+                    project.melodyDraft.noteEvents = events;
+                    project.melodyDraft.notes = notes.slice();
+                    project.melodyDraft.applied = true;
+                    project.melodyDraft.appliedTrackId = lead.id;
+                    project.melodyDraft.tempo = 90;
+                    localStorage.setItem('mehran_music_studio_drafts_v1', JSON.stringify(drafts));
+                }""", section_names)
+                page.reload(wait_until="networkidle")
+                page.locator('[data-view="compose"]').click()
+                page.locator("#composeProject").select_option(label="Automated Audio QA")
+                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.locator("#buildMelodyBacking").click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('آهنگسازی پایه آماده شد') || document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ساخت همراهی کامل نشد')", timeout=90000)
+                section_regression = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item => item.name === 'Automated Audio QA');
+                    return {sections: project?.patternStudio?.sectionMap || [], chords: project?.harmonyAnalysis?.chords || [], bars: project?.harmonyAnalysis?.bars || 0, status: document.querySelector('#lyricsMelodyStatus')?.textContent || ''};
+                }""")
+                expected_section_map = [name for name in section_names]
+                assert "آهنگسازی پایه آماده شد" in section_regression["status"], "Section-aware harmony generation failed: " + str(section_regression)
+                assert section_regression["sections"] == expected_section_map, "Harmony section map lost, reordered or mislabelled a song section: " + str(section_regression["sections"])
+                assert section_regression["bars"] == len(section_names) and len(section_regression["chords"]) == len(section_names), "Harmony progression does not cover every section bar: " + str(section_regression)
+                assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
+                print("PASS: all eight song sections map in order to valid, one-bar harmony progression entries", flush=True)
+
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
