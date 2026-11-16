@@ -2395,6 +2395,86 @@ def main():
                 print("COMPOSITION MAJOR REGRESSION:", major_result, flush=True)
                 print("PASS: known C-major melody receives an eight-bar diatonic progression and tonic resolution", flush=True)
 
+                # Exercise the real smart-arrangement generator and inspect all three rendered WAV stems.
+                page.locator('[data-view="create"]').first.click()
+                page.locator("#projectName").fill("Automated Smart Arrangement QA")
+                page.locator("#saveProject").click()
+                page.locator('[data-view="mix"]').click()
+                page.locator("#mixProject").evaluate("""el => {
+                    const option = [...el.options].find(item => item.label === "Automated Smart Arrangement QA");
+                    if (!option) throw new Error("Automated Smart Arrangement QA project option is missing");
+                    el.value = option.value;
+                    el.dispatchEvent(new Event("change", {bubbles:true}));
+                }""")
+                smart_project_id = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")
+                        .find(item => item.name === "Automated Smart Arrangement QA");
+                    if (!project) throw new Error("Smart arrangement QA project was not saved");
+                    project.harmonyAnalysis = {key:"C minor", chords:["Cm","Ab","Eb","Bb"], bars:4};
+                    project.melodyDraft = {applied:true, tempo:96};
+                    project.arrangement = [
+                        {id:"smart-intro",name:"Intro",bars:1,startBar:1,trackIds:[]},
+                        {id:"smart-verse",name:"Verse 1",bars:1,startBar:2,trackIds:[]},
+                        {id:"smart-chorus",name:"Chorus",bars:1,startBar:3,trackIds:[]},
+                        {id:"smart-outro",name:"Outro",bars:1,startBar:4,trackIds:[]}
+                    ];
+                    localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(
+                        JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").map(item => item.id === project.id ? project : item)
+                    ));
+                    return project.id;
+                }""")
+                page.reload(wait_until="domcontentloaded")
+                page.locator('[data-view="mix"]').click()
+                page.locator("#mixProject").evaluate("""el => {
+                    const option = [...el.options].find(item => item.label === "Automated Smart Arrangement QA");
+                    el.value = option.value;
+                    el.dispatchEvent(new Event("change", {bubbles:true}));
+                }""")
+                page.locator("#autoBuildArrangement").click()
+                page.wait_for_function("""() => {
+                    const status = document.querySelector("#smartArrangementStatus")?.textContent || "";
+                    return status.includes("تنظیم هوشمند ساخته شد") || status.includes("تنظیم کامل نشد");
+                }""", timeout=180000)
+                smart_status = page.locator("#smartArrangementStatus").inner_text()
+                assert "تنظیم هوشمند ساخته شد" in smart_status, "Smart arrangement generation failed: " + smart_status
+                smart_state = page.evaluate("""() => {
+                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]")
+                        .find(item => item.name === "Automated Smart Arrangement QA");
+                    return {
+                        tracks:(project?.tracks || []).filter(track => track.generated).map(track => ({id:track.id,name:track.name,type:track.type})),
+                        sections:(project?.arrangement || []).map(section => ({name:section.name,trackIds:section.trackIds || []}))
+                    };
+                }""")
+                assert len(smart_state["tracks"]) == 3, "Smart arrangement must create exactly three generated stems: " + str(smart_state)
+                assert [track["type"] for track in smart_state["tracks"]] == ["Drums / Percussion","Bass","Synth / Pads"], "Generated stem types do not match the expected drum, bass and pad layers: " + str(smart_state["tracks"])
+                track_ids = {track["name"].split(" · ")[0]:track["id"] for track in smart_state["tracks"]}
+                expected_sections = {
+                    "Intro":["Smart Atmosphere"],
+                    "Verse 1":["Smart Drums","Smart Bass"],
+                    "Chorus":["Smart Drums","Smart Bass","Smart Atmosphere"],
+                    "Outro":["Smart Atmosphere"]
+                }
+                for section in smart_state["sections"]:
+                    selected_names = [track["name"].split(" · ")[0] for track in smart_state["tracks"] if track["id"] in section["trackIds"]]
+                    assert selected_names == expected_sections[section["name"]], "Smart section layering is incorrect for " + section["name"] + ": " + str(selected_names)
+                smart_metrics = {}
+                for prefix, track_id in track_ids.items():
+                    stem_path = export_track_audio(page, smart_project_id, track_id, "smart-" + prefix.lower().replace(" ", "-") + ".wav")
+                    with wave.open(str(stem_path), "rb") as rendered:
+                        assert rendered.getnchannels() == 2 and rendered.getsampwidth() == 2 and rendered.getframerate() == 44100, "Smart arrangement stem must be stereo 16-bit 44.1 kHz: " + prefix
+                        duration = rendered.getnframes() / rendered.getframerate()
+                        pcm = array.array("h")
+                        pcm.frombytes(rendered.readframes(rendered.getnframes()))
+                    rms = math.sqrt(sum(sample * sample for sample in pcm) / max(1, len(pcm))) / 32768
+                    peak = max((abs(sample) for sample in pcm), default=0) / 32768
+                    assert 9.9 <= duration <= 10.6, "Smart arrangement stem duration does not match four bars at 96 BPM: " + prefix + " " + str(duration)
+                    assert rms > 0.001 and peak > 0.005, "Smart arrangement generated a silent or near-silent stem: " + prefix
+                    assert peak < 0.98, "Smart arrangement stem is clipping: " + prefix
+                    smart_metrics[prefix] = {"duration":round(duration,3),"rms":round(rms,5),"peak":round(peak,5)}
+                assert len({(metric["rms"],metric["peak"]) for metric in smart_metrics.values()}) == 3, "Drum, bass and pad stems unexpectedly have identical level signatures: " + str(smart_metrics)
+                print("SMART ARRANGEMENT AUDIO METRICS:", smart_metrics, flush=True)
+                print("PASS: smart arrangement creates three non-silent, distinct, unclipped WAV stems and assigns layers by song section", flush=True)
+
                 # Use a fresh project so this regression is isolated from all earlier fixtures.
                 page.locator('[data-view="create"]').first.click()
                 page.locator("#projectName").fill("Automated Multi-track QA")
