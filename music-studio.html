@@ -2154,7 +2154,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   }
   if(sections.length>24){status.textContent="تعداد بخش‌ها از سقف ۲۴ بخش بیشتر است.";return;}
   const total=sections.reduce((n,x)=>n+x.bars,0);
-  if(total>68){status.textContent="موتور رندر فعلی حداکثر ۶۸ میزان را در هر پروژهٔ آهنگسازی پشتیبانی می‌کند؛ تعداد میزان‌های بخش‌ها را کمتر کن.";return;}
+  if(total>68){status.textContent="موتور رندر فعلی حداکثر ۶۸ میزان را در هر پروژه پشتیبانی می‌کند؛ تعداد میزان‌های بخش‌ها را کمتر کن.";return;}
   if(Array.isArray(p.arrangement)&&p.arrangement.length&&!confirm("تایم‌لاین فعلی این پروژه با ساختار تازهٔ شعر جایگزین شود؟"))return;
   const previous=p.arrangement;
   let startBar=1;
