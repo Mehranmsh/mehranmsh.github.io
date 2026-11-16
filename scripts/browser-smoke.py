@@ -1508,7 +1508,7 @@ def main():
                 page.locator("#lyricsEditor").fill(section_test_lyrics)
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
-                page.locator("#composeKey").select_option("auto")
+                page.locator("#composeKey").select_option("9")
                 page.locator("#composeScale").select_option("minor")
                 page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent = ''; }")
                 page.locator('[data-melody-choice="A"]').click()
