@@ -1928,7 +1928,7 @@ def main():
                 page.evaluate("""() => {
                     const drafts=JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]');
                     const project=drafts.find(item=>item.name==='Automated Audio QA');
-                    const sectionNames=['Intro','Verse 1','Chorus','Bridge'];
+                    const sectionNames=['Intro','Verse 1','Chorus','Outro'];
                     const phrase=['C4','D4','E4','F4','G4','A4','B4','C5'];
                     const events=sectionNames.flatMap((section,index)=>phrase.map((note,noteIndex)=>({id:'lyric-'+index+'-'+noteIndex,note,startStep:noteIndex*2,lengthSteps:1,section})));
                     project.arrangement=sectionNames.map((name,index)=>({id:'major-regression-'+index,name,bars:2,startBar:index*2+1,trackIds:[]}));
@@ -1952,7 +1952,7 @@ def main():
                 assert "آهنگسازی پایه آماده شد" in major_result["status"], "Major-key harmony generation failed: " + str(major_result)
                 assert major_result["key"] == "C major" and major_result["bars"] == 8 and len(major_result["chords"]) == 8, "Known C-major melody was assigned the wrong key or bar count: " + str(major_result)
                 assert all(chord in {"C","Dm","Em","F","G","Am","Bdim"} for chord in major_result["chords"]), "C-major harmony contains a chord outside its supported diatonic set: " + str(major_result["chords"])
-                assert major_result["chords"][-1] == "C", "The final C-major Bridge bar must resolve to the tonic chord in the major-key fixture: " + str(major_result["chords"])
+                assert major_result["chords"][-1] == "C", "The final C-major Outro bar must resolve to the tonic chord in the major-key fixture: " + str(major_result["chords"])
                 print("COMPOSITION MAJOR REGRESSION:", major_result, flush=True)
                 print("PASS: known C-major melody receives an eight-bar diatonic progression and tonic resolution", flush=True)
 
