@@ -1814,8 +1814,10 @@ def main():
                         const intervals = match[3] === 'dim' ? [0,3,6] : match[3].startsWith('m') ? [0,3,7] : [0,4,7];
                         return intervals.map(interval => (root + interval) % 12);
                     };
-                    const events = project?.melodyDraft?.noteEvents || [];
+                    const sourceEvents = project?.melodyDraft?.sourceNoteEvents || [];
                     const sections = project?.melodyDraft?.sections || [];
+                    const arrangement = project?.arrangement || [];
+                    const events = fitLyricMelodyToArrangement(sourceEvents, sections, arrangement).events;
                     const chords = project?.harmonyAnalysis?.chords || [];
                     return events.map(event => {
                         const bar = Math.floor(Math.max(0, Number(event.startStep) || 0) / 16);
