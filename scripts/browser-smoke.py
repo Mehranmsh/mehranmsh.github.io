@@ -1784,6 +1784,7 @@ def main():
                 assert section_regression["key"] == "C minor", "Known C-minor melody was assigned the wrong key: " + str(section_regression)
                 assert all(chord in {"Cm", "Ddim", "Eb", "Fm", "G", "Ab", "Bb"} for chord in section_regression["chords"]), "C-minor harmony contains a chord outside its supported diatonic set (including the major dominant): " + str(section_regression["chords"])
                 assert len(set(section_regression["chords"])) >= 5, "Harmony progression collapsed into too few repeated chords instead of following the melody and section changes: " + str(section_regression["chords"])
+                assert section_regression["chords"][-1] == "Cm", "The final C-minor Outro bar must resolve to the tonic chord: " + str(section_regression["chords"])
                 melody_chord_support = page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem('mehran_music_studio_drafts_v1') || '[]').find(item => item.name === 'Automated Audio QA');
                     const pitchClass = note => {
