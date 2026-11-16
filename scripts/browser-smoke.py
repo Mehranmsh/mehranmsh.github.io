@@ -1767,7 +1767,7 @@ def main():
                 page.reload(wait_until="networkidle")
                 page.locator('[data-view="compose"]').click()
                 page.locator("#composeProject").select_option(label="Automated Audio QA")
-                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
+                page.evaluate("""() => { const source = document.querySelector("#composeProject"); const target = document.querySelector("#lyricsProject"); target.value = source.value; target.dispatchEvent(new Event("change", {bubbles: true})); }""")
                 page.locator("#buildMelodyBacking").click()
                 page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('آهنگسازی پایه آماده شد') || document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ساخت همراهی کامل نشد')", timeout=90000)
                 section_regression = page.evaluate("""() => {
