@@ -1623,6 +1623,7 @@ def main():
                     "Cm": {0,3,7}, "Ddim": {2,5,8}, "Ab": {8,0,3}, "Bb": {10,2,5}
                 }
                 assert len(extended_bass_regression) == 8, "Extended bass progression is incomplete: " + str(extended_bass_regression)
+                assert extended_bass_regression[0]["bass"] <= 43, "Initial bass note should start in the lower register: " + str(extended_bass_regression)
                 for bass in extended_bass_regression:
                     assert set(bass["pitchClasses"]) == expected_extended_bass[bass["symbol"]], "Bass inversion changed chord identity: " + str(extended_bass_regression)
                     assert 28 <= bass["bass"] <= 55, "Bass note is outside its supported register: " + str(extended_bass_regression)
