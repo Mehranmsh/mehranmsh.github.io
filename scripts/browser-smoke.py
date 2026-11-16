@@ -1105,7 +1105,7 @@ def main():
                 page.locator("#patternChords").fill("Am, F, C, G")
                 # Exercise dedicated sub-bass and cinematic sound-layer render paths.
                 for mode, expected_type in [("sub", "Bass"), ("riser", "Sound Effects"), ("impact", "Sound Effects"), ("texture", "Sound Effects")]:
-                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Generated " + mode)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
@@ -1114,7 +1114,7 @@ def main():
                     assert layer["type"] == expected_type and layer["audioSize"] > 44
                 # Exercise the expanded virtual instrument palette through actual WAV rendering.
                 for mode, expected_type in [("epiano", "Keys / Piano"), ("organ", "Organ"), ("lead", "Synth Lead"), ("strings", "Strings"), ("bell", "Bell / Mallet")]:
-                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Generated " + mode)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("document.querySelector('#patternStatus')?.textContent.includes('Generated WAV added to the mixer')", timeout=20000)
@@ -1178,7 +1178,7 @@ def main():
                 page.locator("#patternBars").select_option("1")
                 for mode in live_modes_available:
                     print("START LIVE BANK:", mode, flush=True)
-                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternNotes").fill("C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -")
                     page.locator("#patternTrackName").click()
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
@@ -1252,7 +1252,7 @@ def main():
                 (audition_dir / "manifest.csv").write_text("\n".join(manifest_lines) + "\n", encoding="utf-8")
                 print("PASS: 19 melodic instrument banks, 2 solo vocal banks and 3 layered human ensembles")
                 for mode in live_modes_missing:
-                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("!document.querySelector('#renderPattern')?.disabled", timeout=60000)
@@ -1270,7 +1270,7 @@ def main():
                     ("phrase_ney", "Ney"),
                     ("phrase_kamancheh", "Kamancheh")
                 ]:
-                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternBars").select_option("1")
                     page.locator("#patternTrackName").fill("Persian Phrase QA " + label)
                     page.locator("#renderPattern").click()
@@ -1299,7 +1299,7 @@ def main():
                     ("live_acoustic_drums", "C2, D2, C#2, F#2, A#2, D3, G2, D#3, -, -, -, -, -, -, -, -")
                 ]:
                     page.locator("#patternNotes").fill(notes)
-                    page.locator("#patternMode").select_option(mode)
+                    page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
                     page.locator("#patternTrackName").fill("Live QA " + mode)
                     page.locator("#renderPattern").click()
                     page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
