@@ -1625,6 +1625,16 @@ def main():
                 assert punctuation_cadence_probe["commaPc"] == 4 and punctuation_cadence_probe["terminalPc"] == 9, "Verse commas should hold a dominant open cadence while sentence endings resolve to tonic: " + str(punctuation_cadence_probe)
                 print("PERSIAN PUNCTUATION CADENCE REGRESSION:", punctuation_cadence_probe, flush=True)
                 print("PASS: comma-ended verse phrases remain open and terminal phrases resolve to tonic", flush=True)
+                chorus_lift_probe = page.evaluate("""() => {
+                    const midi = note => { const match=String(note||"").match(/^([A-G])(#?)(-?\\d+)$/); if(!match)return NaN; return (Number(match[3])+1)*12+({C:0,D:2,E:4,F:5,G:7,A:9,B:11}[match[1]])+(match[2]?1:0); };
+                    const verse=window.__mehranTestMakeLyricMelody("A", "[Verse 1]\\nپنجره باز است.").noteEvents.map(event=>midi(event.note));
+                    const chorus=window.__mehranTestMakeLyricMelody("A", "[Chorus]\\nپنجره باز است.").noteEvents.map(event=>midi(event.note));
+                    const median = values => { const sorted=values.slice(0,-1).sort((a,b)=>a-b); return sorted[Math.floor(sorted.length/2)]; };
+                    return {verse,chorus,verseMedian:median(verse),chorusMedian:median(chorus)};
+                }""")
+                assert chorus_lift_probe["chorusMedian"] > chorus_lift_probe["verseMedian"], "The chorus contour should sit measurably above the same verse phrase: " + str(chorus_lift_probe)
+                print("CHORUS LIFT REGRESSION:", chorus_lift_probe, flush=True)
+                print("PASS: chorus phrases receive a higher melodic register than matching verse phrases", flush=True)
                 phrase_link_probe = page.evaluate("""() => { const events=window.__mehranTestMakeLyricMelody("A", "[Bridge]\\nپن/ج/ره آرام\\n[Verse 2]\\nشب/های آرام").noteEvents; const midi=n=>{const m=String(n).match(/^([A-G])(#?)(-?\\d+)$/);if(!m)return NaN;const pc={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]]+(m[2]?1:0);return (Number(m[3])+1)*12+pc;};const end=events.find(e=>e.id==="lyric-0-4"),start=events.find(e=>e.id==="lyric-1-0");return {end:end&&end.note,start:start&&start.note,interval:end&&start?midi(start.note)-midi(end.note):null}; }""")
                 assert phrase_link_probe["interval"] is not None and abs(phrase_link_probe["interval"]) <= 5, "Large phrase-to-phrase melodic leaps should be limited to three scale degrees: " + str(phrase_link_probe)
                 print("MELODIC PHRASE LINK REGRESSION:", phrase_link_probe, flush=True)
