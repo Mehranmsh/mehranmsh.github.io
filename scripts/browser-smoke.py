@@ -1811,6 +1811,7 @@ def main():
                 }""")
                 assert len(melody_chord_support) == len(section_names) and all(item["supported"] for item in melody_chord_support), "Sustained melody notes must be chord tones in their mapped section bars: " + str(melody_chord_support)
                 assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
+                print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
