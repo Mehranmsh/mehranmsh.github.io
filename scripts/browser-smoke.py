@@ -1818,15 +1818,15 @@ def main():
                     const sections = project?.melodyDraft?.sections || [];
                     const chords = project?.harmonyAnalysis?.chords || [];
                     return events.map(event => {
-                        const bar = sections.indexOf(event.section) * 4 + Math.floor((Number(event.startStep) || 0) / 4);
-                        const chord = bar >= 0 ? chords[bar] : null;
+                        const bar = Math.floor(Math.max(0, Number(event.startStep) || 0) / 16);
+                        const chord = bar >= 0 && bar < chords.length ? chords[bar] : null;
                         const pc = pitchClass(event.note);
                         return {section:event.section,note:event.note,chord,supported:pc !== null && chordTones(chord).includes(pc)};
                     });
                 }""")
                 assert len(melody_chord_support) == len(section_names) * 2 and all(item["supported"] for item in melody_chord_support), "Both melody notes in every mapped section bar must be supported by that bar chord: " + str(melody_chord_support)
                 assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
-                print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
+                print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "bars": section_regression["bars"], "chordCount": len(section_regression["chords"]), "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
 
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
