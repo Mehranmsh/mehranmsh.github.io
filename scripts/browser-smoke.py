@@ -1596,7 +1596,7 @@ def main():
                 page.locator("#composeKey").select_option("0")
                 page.locator("#composeScale").select_option("minor")
                 page.locator('[data-melody-choice="A"]').click()
-                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی روان آماده است')", timeout=30000)
                 lyric_draft = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     return projects.find(item => item.name === "Automated Audio QA")?.melodyDraft || null;
@@ -1613,7 +1613,7 @@ def main():
                     return project.tracks.filter(track => track.name.startsWith("Melody A")).length;
                 }""")
                 page.locator('[data-melody-choice="A"]').click()
-                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A با جمله‌بندی روان آماده است')", timeout=30000)
                 assert page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
                     return project.tracks.filter(track => track.name.startsWith("Melody A")).length;
