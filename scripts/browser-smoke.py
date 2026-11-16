@@ -2466,6 +2466,7 @@ def main():
                     "Two-track master exceeded its true-peak safety ceiling: " + str(two_track_true_peak) + " dBTP"
                 )
 
+                print("PASS: isolated two-track stereo mix renders with independent gain/pan and safe master peak", flush=True)
                 assert not errors, "Browser JavaScript errors: " + " | ".join(errors)
                 print("PASS: project creation and persistence")
                 print("PASS: phone vocal recording import, local persistence and Lead Vocal track creation")
