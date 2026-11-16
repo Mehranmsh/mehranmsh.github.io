@@ -1182,7 +1182,8 @@ def main():
                     page.locator("#patternNotes").evaluate("""el => { el.value = "C4, D4, E4, F4, G4, E4, D4, C4, -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                     page.locator("#patternTrackName").evaluate("(el) => el.dispatchEvent(new Event('input', { bubbles: true }))")
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
-                        assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode
+                        page.wait_for_function("""() => { const panel=document.querySelector("#vocalVowelPanel"); return !!panel && !panel.classList.contains("hidden") && getComputedStyle(panel).display !== "none"; }""", timeout=5000)
+                        assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode + "; selected=" + page.locator("#patternMode").input_value() + "; classes=" + page.locator("#vocalVowelPanel").get_attribute("class")
                         page.locator("#vocalVowel").select_option("o")
                     page.locator("#patternTrackName").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }", "Live QA " + mode)
                     page.locator("#renderPattern").evaluate("(el) => el.click()")
