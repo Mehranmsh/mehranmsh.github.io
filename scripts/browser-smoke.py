@@ -1541,6 +1541,14 @@ def main():
                 assert melody_section_regression["preChorusCadence"] % 12 == 4 and melody_section_regression["bridgeCadence"] % 12 == 4, "Pre-Chorus and Bridge should approach their section changes on the E-dominant pitch class: " + str(melody_section_regression)
                 assert all(melody_section_regression["rhythmChecks"]), "Generated lyric notes must start at each bar boundary, remain inside the 16-step bar and never overlap: " + str(melody_section_regression)
                 assert melody_section_regression["commaRest"] >= 2 and melody_section_regression["terminalRest"] >= 4, "Punctuation should create a short comma breath and a longer sentence-ending rest: " + str(melody_section_regression)
+                punctuation_cache_regression = page.evaluate("""() => {
+                    const probe = makeLyricMelody("A", "[Verse 1]\\nیک مصرع تکراری،\\n[Verse 1]\\nیک مصرع تکراری؟");
+                    const rest = index => { const line=probe.noteEvents.filter(event=>event.id.startsWith("lyric-"+index+"-")); const last=line.reduce((best,event)=>!best||event.startStep>best.startStep?event:best,null); return last?16-((last.startStep%16)+Number(last.lengthSteps||0)):0; };
+                    return {commaRest:rest(0),terminalRest:rest(1),first:probe.noteEvents.filter(event=>event.id.startsWith("lyric-0-")).map(event=>event.startStep%16),second:probe.noteEvents.filter(event=>event.id.startsWith("lyric-1-")).map(event=>event.startStep%16)};
+                }""")
+                assert punctuation_cache_regression["commaRest"] >= 2 and punctuation_cache_regression["terminalRest"] >= 4, "Same-lyric punctuation variants must retain distinct phrase rests: " + str(punctuation_cache_regression)
+                print("COMPOSITION PUNCTUATION CACHE REGRESSION:", punctuation_cache_regression, flush=True)
+                print("PASS: identical lyric text with different punctuation retains distinct pause timing", flush=True)
                 print("COMPOSITION MELODY SECTION REGRESSION:", melody_section_regression, flush=True)
                 print("PASS: section-specific melodic cadences and repeated chorus identity", flush=True)
                 page.locator('[data-view="lyrics"]').click()
