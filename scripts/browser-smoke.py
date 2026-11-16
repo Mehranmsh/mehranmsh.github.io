@@ -1512,6 +1512,10 @@ def main():
                 assert len(lyric_stress_probe) == 5 and lyric_stress_probe[2]["velocity"] == 87 and lyric_stress_probe[4]["velocity"] == 84, "Persian word-final accent must add exactly five velocity units without overriding the line cadence: " + str(lyric_stress_probe)
                 print("PERSIAN WORD STRESS REGRESSION:", [(event["id"], event["velocity"]) for event in lyric_stress_probe], flush=True)
                 print("PASS: word-final syllables receive a modest expressive accent", flush=True)
+                phrase_link_probe = page.evaluate("""() => { const events=window.__mehranTestMakeLyricMelody("A", "[Bridge]\\nپن/ج/ره آرام\\n[Verse 2]\\nشب/های آرام").noteEvents; const midi=n=>{const m=String(n).match(/^([A-G])(#?)(-?\\d+)$/);if(!m)return NaN;const pc={C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1]]+(m[2]?1:0);return (Number(m[3])+1)*12+pc;};const end=events.find(e=>e.id==="lyric-0-4"),start=events.find(e=>e.id==="lyric-1-0");return {end:end&&end.note,start:start&&start.note,interval:end&&start?midi(start.note)-midi(end.note):null}; }""")
+                assert phrase_link_probe["interval"] is not None and abs(phrase_link_probe["interval"]) <= 5, "Large phrase-to-phrase melodic leaps should be limited to three scale degrees: " + str(phrase_link_probe)
+                print("MELODIC PHRASE LINK REGRESSION:", phrase_link_probe, flush=True)
+                print("PASS: consecutive lyric phrases avoid abrupt melodic leaps", flush=True)
                 original_lyrics_for_regression = page.locator("#lyricsEditor").input_value()
                 section_test_lyrics = "[Verse 1]\nیک مصرع تکراری،\n[Chorus]\nیک مصرع تکراری؟\n[Chorus]\nیک مصرع تکراری؟\n[Pre-Chorus]\nراهی به اوج\n[Bridge]\nیک مصرع تکراری،\n[Outro]\nپایان آرام"
                 page.locator('[data-view="lyrics"]').click()
