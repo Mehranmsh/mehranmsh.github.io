@@ -1608,6 +1608,27 @@ def main():
                         assert bass["movement"] <= 7, "Bass voice leading contains a leap larger than a fifth: " + str(bass_voice_leading_regression)
                 print("COMPOSITION BASS VOICE LEADING REGRESSION:", bass_voice_leading_regression, flush=True)
                 print("PASS: bass selects smooth chord-tone inversions across adjacent chord changes", flush=True)
+                extended_bass_regression = page.evaluate("""() => {
+                    const symbols = ["Am", "Fmaj7", "Dm", "E7", "Cm", "Ddim", "Ab", "Bb"];
+                    let previous = null;
+                    return symbols.map(symbol => {
+                        const notes = window.__mehranTestBassVoiceLeading(symbol, previous === null ? null : [previous]);
+                        const result = {symbol, bass:notes[0], pitchClasses:notes.map(n=>((n%12)+12)%12), movement:previous === null ? 0 : Math.abs(notes[0]-previous)};
+                        previous = notes[0];
+                        return result;
+                    });
+                }""")
+                expected_extended_bass = {
+                    "Am": {9,0,4}, "Fmaj7": {5,9,0}, "Dm": {2,5,9}, "E7": {4,8,11},
+                    "Cm": {0,3,7}, "Ddim": {2,5,8}, "Ab": {8,0,3}, "Bb": {10,2,5}
+                }
+                assert len(extended_bass_regression) == 8, "Extended bass progression is incomplete: " + str(extended_bass_regression)
+                for bass in extended_bass_regression:
+                    assert set(bass["pitchClasses"]) == expected_extended_bass[bass["symbol"]], "Bass inversion changed chord identity: " + str(extended_bass_regression)
+                    assert 28 <= bass["bass"] <= 55, "Bass note is outside its supported register: " + str(extended_bass_regression)
+                assert max(item["movement"] for item in extended_bass_regression[1:]) <= 7, "Extended progression contains a bass leap larger than a fifth: " + str(extended_bass_regression)
+                print("COMPOSITION EXTENDED BASS REGRESSION:", extended_bass_regression, flush=True)
+                print("PASS: bass voice leading preserves minor, major-seventh, dominant-seventh and diminished chord tones", flush=True)
                 melody_feel_results = {}
                 for feel, label in [("calm", "آرام"), ("flow", "روان"), ("lively", "پرتحرک")]:
                     page.locator(f'[data-melody-feel="{feel}"]').click()
