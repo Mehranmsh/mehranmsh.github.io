@@ -312,12 +312,15 @@
   <div class="panel">
    <h3>۱. انتخاب پروژه</h3>
    <div class="field"><label for="composeProject">پروژهٔ موسیقی</label><select id="composeProject"><option value="">انتخاب پروژه…</option></select></div>
-   <div class="notice">ابتدا شعر را در Lyrics Lab بنویس و ذخیره کن. سپس اینجا طرح ملودی را انتخاب و آکورد و همراهی را بساز. لازم نیست وارد Arrangement & Mix شوی.</div>
-   <h3 style="margin-top:18px">۲. تنظیم پایهٔ آهنگ</h3>
+   <div class="notice">اگر شعر را در Lyrics Lab نوشته و ذخیره کرده‌ای، فقط دکمهٔ ساخت خودکار را بزن. استودیو ملودی، نت‌ها، آکوردها و همراهی پایه را خودش می‌سازد. نیازی به دانش موسیقی نیست.</div>
+   <button class="btn" id="autoComposeSong" type="button" style="margin-top:12px">✨ ساخت خودکار ملودی، نت‌ها و آکوردهای آهنگ</button>
+   <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">تنظیمات پیشرفتهٔ آهنگسازی (اختیاری)</summary>
+   <h3 style="margin-top:18px">تنظیم پایهٔ آهنگ</h3>
    <div class="two"><div class="field"><label for="composeKey">گام موسیقی</label><select id="composeKey"><option value="auto">انتخاب خودکار بر اساس طرح</option><option value="0">C / دو</option><option value="1">C♯ / دو دیز</option><option value="2">D / ر</option><option value="3">D♯ / ر دیز</option><option value="4">E / می</option><option value="5">F / فا</option><option value="6">F♯ / فا دیز</option><option value="7">G / سل</option><option value="8">G♯ / سل دیز</option><option value="9">A / لا</option><option value="10">A♯ / لا دیز</option><option value="11">B / سی</option></select></div><div class="field"><label for="composeScale">فضای گام</label><select id="composeScale"><option value="minor" selected>مینور</option><option value="major">ماژور</option></select></div></div>
    <div class="two"><div class="field"><label for="composeTempo">سرعت آهنگ · BPM</label><input id="composeTempo" type="number" min="40" max="220" step="1" value="82"></div><div class="field"><label for="composeHarmonyStyle">حال‌وهوای آکوردها</label><select id="composeHarmonyStyle"><option value="auto">انتخاب خودکار</option><option value="pop">پاپ و روان</option><option value="emotional">احساسی</option><option value="cinematic">سینمایی</option><option value="folk">فولک و ساده</option></select></div></div>
-   <h3 style="margin-top:18px">۳. انتخاب طرح ملودی</h3>
-   <div class="notice">یکی از طرح‌ها را برای شنیدن انتخاب کن؛ اگر پسندیدی، دکمهٔ «افزودن ملودی به پروژه» را بزن.</div>
+   </details>
+   <h3 style="margin-top:18px">طرح‌های ملودی جایگزین</h3>
+   <div class="notice">استودیو به‌صورت خودکار طرح اول را می‌سازد. اگر خواستی، می‌توانی طرح‌های دیگر را هم بشنوی و مقایسه کنی.</div>
    <div id="lyricsMelodyChoices" class="projects" style="margin-top:8px"><button class="btn secondary" type="button" data-melody-choice="A">♫ ملودی A · آرام و احساسی</button><button class="btn secondary" type="button" data-melody-choice="B">♫ ملودی B · اوج‌گیر</button><button class="btn secondary" type="button" data-melody-choice="C">♫ ملودی C · مینیمال</button></div>
    <audio id="lyricsMelodyPreview" controls preload="none" style="width:100%;margin-top:10px;display:none"></audio>
    <button class="btn" id="addLyricsMelody" type="button" disabled style="margin-top:10px">＋ افزودن ملودی به پروژه</button>
@@ -2220,8 +2223,8 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   $("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=lyrics;$("lyricsProject").dataset.previous=p.id;
   refreshMixProjects(p.id);
   $("mixProject").value=p.id;renderArrangementTimeline();
-  status.textContent="تایم‌لاین ساخته شد: "+sections.map(x=>x.name).join(" → ")+" · "+total+" میزان. انتخاب سازها در بخش تنظیم و میکس انجام می‌شود.";
-  show("mix");
+  status.textContent="تایم‌لاین ساخته شد: "+sections.map(x=>x.name).join(" → ")+" · "+total+" میزان. حالا سازها و چیدمان را در بخش Arrangement کامل کن.";
+  show("arrangement");
  }
  function saveLyrics(){const p=projects.find(x=>x.id===$("lyricsProject").value);if(!p){alert("Choose a project first.");return;}const previous={lyricsTitle:p.lyricsTitle,lyrics:p.lyrics,updated:p.updated};p.lyricsTitle=$("lyricsTitle").value.trim().slice(0,100);p.lyrics=$("lyricsEditor").value.slice(0,20000);p.updated=Date.now();if(!save()){Object.assign(p,previous);$("lyricsSaveState").textContent="Save failed";return;}render();refreshLyricsProjects(p.id);$("lyricsProject").dataset.previous=p.id;$("lyricsTitle").dataset.saved=$("lyricsTitle").value;$("lyricsEditor").dataset.saved=$("lyricsEditor").value;$("lyricsSaveState").textContent="Saved locally · "+new Date().toLocaleTimeString();}
  function exportLyrics(){const title=$("lyricsTitle").value.trim()||"lyrics";const safe=title.replace(/[^a-z0-9\-_ ]/gi,"").trim().replace(/\s+/g,"-").slice(0,60)||"lyrics";const blob=new Blob([$("lyricsEditor").value],{type:"text/plain;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=safe+".txt";document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);}
@@ -2329,6 +2332,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  $("composeHarmonyStyle").addEventListener("change",()=>{$("composeResult").classList.add("hidden");$("lyricsMelodyStatus").textContent="سبک آکورد تغییر کرد؛ برای ساخت همراهی جدید، دکمهٔ ساخت آکورد و همراهی را دوباره بزن."});
  $("composeProject").addEventListener("change",()=>{$("lyricsMelodyPreview").dataset.selected="";$("addLyricsMelody").disabled=true;});
  $("buildMelodyBacking").addEventListener("click",()=>{void buildMelodyBacking();});
+ $("autoComposeSong").addEventListener("click",async()=>{const button=$("autoComposeSong"),status=$("lyricsMelodyStatus"),projectId=$("composeProject").value;if(!projectId){status.textContent="ابتدا پروژه را انتخاب کن.";return;}const lyricProject=$("lyricsProject");if(lyricProject.value!==projectId){lyricProject.value=projectId;loadLyricsProject();}if(!$("lyricsEditor").value.trim()){status.textContent="ابتدا شعر را در Lyrics Lab وارد و ذخیره کن.";return;}if(lyricsAreDirty())saveLyrics();button.disabled=true;button.textContent="در حال ساخت ملودی و آکوردها…";try{$("lyricsMelodyPreview").dataset.selected="A";await chooseLyricsMelody("A");const project=projects.find(item=>item.id===projectId);if(!project?.melodyDraft?.applied)throw new Error(status.textContent||"ساخت ملودی کامل نشد.");await buildMelodyBacking();if(project.harmonyAnalysis?.melodyGuide)status.textContent+=" حالا برای انتخاب سازها و چیدمان وارد Arrangement شو.";}catch(error){status.textContent="ساخت خودکار کامل نشد: "+String(error.message||error);}finally{button.disabled=false;button.textContent="✨ ساخت خودکار ملودی، نت‌ها و آکوردهای آهنگ";}});
  $("goToArrangement").addEventListener("click",()=>show("mix"));
  $("previewComposeMix").addEventListener("click",()=>{const p=projects.find(item=>item.id===$("composeProject").value);if(!p){$("lyricsMelodyStatus").textContent="ابتدا پروژه را انتخاب کن.";return;}$("mixProject").value=p.id;refreshMixProjects(p.id);show("mix");void playMix();});
  $("exportLyrics").addEventListener("click",exportLyrics);
