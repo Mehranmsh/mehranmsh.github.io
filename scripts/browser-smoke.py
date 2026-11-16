@@ -1769,8 +1769,8 @@ def main():
                     const arrangementNames = ["intro", "verse 1", "PreChorus", "chorus", "VERSE 2", "bridge", "instrumental", "outro"];
                     project.arrangement = arrangementNames.map((name, index) => ({id: 'section-regression-' + index, name, bars: 4, startBar: index * 4 + 1, trackIds: []}));
                     const notes = ['C4', 'D4', 'Eb4', 'F4', 'G4', 'Ab4', 'Bb4', 'C5'];
-                    const harmonyPairs = [['C4','Eb4'],['D4','F4'],['Eb4','G4'],['F4','Ab4'],['G4','D5'],['Ab4','C5'],['Bb4','D5'],['C5','Eb5']];
-                    const events = names.flatMap((name, index) => harmonyPairs[index].map((note, noteIndex) => ({id: 'lyric-' + index + '-' + noteIndex, note, startStep: noteIndex * 8, lengthSteps: 2, section: name})));
+                    const harmonyPhrases = [['C4','Eb4','G4','C5'],['D4','F4','A4','D5'],['Eb4','G4','Bb4','Eb5'],['F4','Ab4','C5','F5'],['G4','D5','Bb4','G5'],['Ab4','C5','Eb5','Ab5'],['Bb4','D5','F5','Bb5'],['C5','Eb5','G5','C6']];
+                    const events = names.flatMap((name, index) => harmonyPhrases[index].map((note, noteIndex) => ({id: 'lyric-' + index + '-' + noteIndex, note, startStep: noteIndex * 4, lengthSteps: 1, section: name})));
                     project.melodyDraft.sections = names.slice();
                     project.melodyDraft.sourceNoteEvents = events;
                     project.melodyDraft.noteEvents = events;
@@ -1814,7 +1814,7 @@ def main():
                         const intervals = match[3] === 'dim' ? [0,3,6] : match[3].startsWith('m') ? [0,3,7] : [0,4,7];
                         return intervals.map(interval => (root + interval) % 12);
                     };
-                    const events = project?.melodyDraft?.sourceNoteEvents || [];
+                    const events = project?.melodyDraft?.noteEvents || [];
                     const sections = project?.melodyDraft?.sections || [];
                     const chords = project?.harmonyAnalysis?.chords || [];
                     return events.map(event => {
@@ -1824,7 +1824,8 @@ def main():
                         return {section:event.section,note:event.note,chord,supported:pc !== null && chordTones(chord).includes(pc)};
                     });
                 }""")
-                assert len(melody_chord_support) == len(section_names) * 2 and all(item["supported"] for item in melody_chord_support), "Both melody notes in every mapped section bar must be supported by that bar chord: " + str(melody_chord_support)
+                assert len(melody_chord_support) == len(section_names) * 4 and all(item["supported"] for item in melody_chord_support), "All four melody notes in every four-bar section must be supported by their exact mapped bar chords: " + str(melody_chord_support)
+                assert len({item["section"] for item in melody_chord_support}) == len(section_names), "Harmony support regression did not cover all eight song sections: " + str(melody_chord_support)
                 assert all(__import__("re").fullmatch(r"[A-G](?:#|b)?(?:m|dim|aug|sus2|sus4|7|m7|maj7)?", chord) for chord in section_regression["chords"]), "Section-aware harmony produced an invalid chord symbol: " + str(section_regression["chords"])
                 print("COMPOSITION HARMONY REGRESSION:", {"key": section_regression["key"], "bars": section_regression["bars"], "chordCount": len(section_regression["chords"]), "chords": section_regression["chords"], "melodySupport": melody_chord_support}, flush=True)
                 print("PASS: eight song sections map in order and the known C-minor melody retains a compatible diatonic harmony set", flush=True)
