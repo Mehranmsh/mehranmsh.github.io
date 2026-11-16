@@ -1549,10 +1549,11 @@ def main():
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
                 page.evaluate("() => { document.querySelector('#lyricsMelodyStatus').textContent = ''; }")
                 page.locator('[data-melody-choice="A"]').click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('پیش‌شنوی A آماده است')", timeout=30000)
                 page.wait_for_function("""() => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
-                    return project?.melodyDraft?.sourceLyrics === "[Verse 1]\\nیک مصرع تکراری،\\nیک مصرع تکراری؟";
-                }""", timeout=30000)
+                    return Array.isArray(project?.melodyDraft?.sourceNoteEvents) && project.melodyDraft.sourceNoteEvents.some(event => event.id.startsWith("lyric-1-"));
+                }""", timeout=10000)
                 punctuation_cache_regression = page.evaluate("""() => {
                     const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
                     const events = project?.melodyDraft?.sourceNoteEvents || [];
