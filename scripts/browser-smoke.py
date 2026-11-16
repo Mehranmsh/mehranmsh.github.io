@@ -1475,11 +1475,12 @@ def main():
                 # Keep this focused composition test fast while retaining four distinct song sections.
                 # Full-length chunk rendering is covered by the dedicated long-audio tests.
                 page.evaluate("""() => {
-                    const project = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").find(item => item.name === "Automated Audio QA");
+                    const project = projects.find(item => item.name === "Automated Audio QA");
                     if (!project || !Array.isArray(project.arrangement)) throw new Error("Lyrics arrangement was not persisted.");
                     let startBar = 1;
                     project.arrangement.forEach(section => { section.bars = 2; section.startBar = startBar; startBar += 2; });
-                    localStorage.setItem("mehran_music_studio_drafts_v1", JSON.stringify(JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]").map(item => item.id === project.id ? project : item)));
+                    if (!save()) throw new Error("Could not save the shortened QA arrangement.");
+                    renderArrangementTimeline();
                 }""")
                 page.locator('[data-view="compose"]').click()
                 page.wait_for_function("!document.querySelector('#view-compose')?.classList.contains('hidden')", timeout=10000)
