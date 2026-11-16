@@ -1619,6 +1619,7 @@ def main():
                     db.close();
                     return results;
                 }""")
+                print("COMPOSITION AUDIO METRICS:", harmony_audio_metrics, flush=True)
                 assert len(harmony_audio_metrics) == 2, "Both harmony and melody guide audio must be present: " + str(harmony_audio_metrics)
                 for metric in harmony_audio_metrics:
                     assert metric["duration"] > 5 and metric["bytes"] > 44100, "Rendered arrangement audio is unexpectedly short: " + str(metric)
