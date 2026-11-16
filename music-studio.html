@@ -2056,7 +2056,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
   editor.focus();
  }
 
- const LYRIC_MELODY_SCALES={A:[57,60,62,64,67,69,72],B:[64,67,69,72,74,76,79],C:[57,60,64,67,69,72,76]};
+ const LYRIC_MELODY_SCALES={A:[57,59,60,62,64,65,67],B:[64,66,67,69,71,72,74],C:[62,64,65,67,69,70,72]};
  function estimateLyricSyllables(line){return line.trim().split(/\s+/).filter(Boolean).reduce((sum,word)=>{const clean=word.replace(/[^\p{L}]/gu,"");if(!clean)return sum;const marked=(clean.match(/[اآویَُِٰ]/gu)||[]).length;const latin=(clean.match(/[aeiouy]/gi)||[]).length;const estimate=marked||latin||Math.ceil(Array.from(clean).length/3);return sum+Math.max(1,Math.min(5,estimate));},0);}
  function makeLyricMelody(kind,lyrics){
   const lines=lyrics.split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!/^\[[^\]]+\]$/.test(x)).slice(0,16),syllables=lines.map(estimateLyricSyllables),scale=LYRIC_MELODY_SCALES[kind]||LYRIC_MELODY_SCALES.A,notes=Array(16).fill("-"),noteEvents=[];
@@ -2070,9 +2070,9 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
       if(lineIndex%4===1&&j>0)degree=Math.max(0,Math.min(6,degree+(j%2?1:-1)));
       if(lineIndex%4===2&&j%3===1)degree=Math.max(0,degree-1);
       if(j===count-1)degree=[0,2,4,0][lineIndex%4];
-      const note=midiNameFromPitch(scale[Math.min(scale.length-1,degree)]),slot=rhythm[j],next= j+1<count?rhythm[j+1]:16,lengthSteps=Math.max(1,Math.min(5,next-slot-1)),startStep=barStart+slot;
+      const note=midiNameFromPitch(scale[Math.min(scale.length-1,degree)]),slot=rhythm[j],next=j+1<count?rhythm[j+1]:16,isCadence=j===count-1,lengthSteps=isCadence?Math.max(4,Math.min(7,16-slot)):Math.max(1,Math.min(5,next-slot-1)),startStep=barStart+slot;
       if(lineIndex===0)notes[slot]=note;
-      noteEvents.push({id:"lyric-"+lineIndex+"-"+j,note,startStep,lengthSteps,velocity:lineIndex%4===2?90:74+(j%4)*5,gate:88});
+      noteEvents.push({id:"lyric-"+lineIndex+"-"+j,note,startStep,lengthSteps,velocity:isCadence?Math.min(98,84+(lineIndex%4)*3):lineIndex%4===2?88:72+(j%4)*5,gate:isCadence?94:88});
     }
   });
   return{notes,noteEvents,syllables,totalSyllables:syllables.reduce((a,b)=>a+b,0),lineCount:lines.length,bars:Math.max(1,lines.length)};
