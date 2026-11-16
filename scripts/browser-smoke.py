@@ -1429,6 +1429,7 @@ def main():
                 page.locator("#vocalGuideTempo").fill("96")
                 assert page.locator("#playVocalGuide").is_enabled(), "Vocal guide transport should remain available after changing the phrase."
                 page.locator('[data-view="lyrics"]').click()
+                page.locator("#lyricsProject").select_option(label="Automated Audio QA")
 
                 # Exercise Persian lyric parsing, section-aware melody timing, and automatic harmony/lead track creation.
                 lyric_fixture = "[Intro]\n\n[Verse 1]\nشب از پنجره آرام گذشت\nصدای تو در این خانه نشست\n\n[Chorus]\nبا تو دوباره بهار می‌رسد\nدل از غم روزگار می‌گذرد\n\n[Verse 2]\nراه دور است و چراغی روشن\nنام تو مانده به لب‌های من"
