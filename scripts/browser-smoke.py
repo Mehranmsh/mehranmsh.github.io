@@ -2427,9 +2427,11 @@ def main():
                 page.locator('[data-view="mix"]:visible').first.click()
                 page.locator("#mixProject").evaluate("""el => {
                     const option = [...el.options].find(item => item.label === "Automated Smart Arrangement QA");
+                    if (!option) throw new Error("Automated Smart Arrangement QA project option is missing after reload");
                     el.value = option.value;
                     el.dispatchEvent(new Event("change", {bubbles:true}));
                 }""")
+                page.locator('[data-view="arrangement"]:visible').click()
                 page.locator("#autoBuildArrangement").click()
                 page.wait_for_function("""() => {
                     const status = document.querySelector("#smartArrangementStatus")?.textContent || "";
