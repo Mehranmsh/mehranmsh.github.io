@@ -1212,7 +1212,7 @@ def main():
                     latest_track_delete.click()
                     page.wait_for_timeout(150)
                 # Test human third/fifth harmony after ensemble banks so choir QA stays unison and efficient.
-                page.locator("#patternMode").select_option("live_female_vocal")
+                page.locator("#patternMode").evaluate("(el) => { el.value = \"live_female_vocal\"; el.dispatchEvent(new Event(\"input\", { bubbles: true })); el.dispatchEvent(new Event(\"change\", { bubbles: true })); }")
                 page.locator("#vocalVowel").select_option("o")
                 page.locator("#addVocalThird").click()
                 assert "major-third" in page.locator("#patternStatus").inner_text(), "Third harmony was not added"
