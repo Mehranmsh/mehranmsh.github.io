@@ -1717,6 +1717,21 @@ def main():
                 assert bass_rhythm_regression["finalChorusHasLateHit"] and bass_rhythm_regression["chorusHasLateHit"] and not bass_rhythm_regression["ordinaryPatternHasLateHit"], "Late bass-hit detection must prevent duplicate chorus pickups without changing ordinary patterns: " + str(bass_rhythm_regression)
                 print("COMPOSITION BASS RHYTHM REGRESSION:", bass_rhythm_regression, flush=True)
                 print("PASS: bass sustains stop before chord changes and late chorus pickups are not doubled", flush=True)
+                bass_percussion_regression = page.evaluate("""() => {
+                    const duck = window.__mehranTestBassPercussionGain;
+                    const slap = duck(1, [{beatOffset:1,isSlap:true,velocity:.8}]);
+                    const softAccent = duck(1, [{beatOffset:1,isSlap:false,velocity:.8}]);
+                    const partialSlap = duck(1, [{beatOffset:1,isSlap:true,velocity:.4}]);
+                    const betweenHits = duck(1.2, [{beatOffset:1,isSlap:true,velocity:.8}]);
+                    const noPercussion = duck(1, []);
+                    return {slap,softAccent,partialSlap,betweenHits,noPercussion};
+                }""")
+                assert abs(bass_percussion_regression["slap"] - .74) < 1e-9, "Bass should duck more under a strong cajon slap: " + str(bass_percussion_regression)
+                assert abs(bass_percussion_regression["softAccent"] - .86) < 1e-9, "Bass should duck gently under a regular cajon accent: " + str(bass_percussion_regression)
+                assert abs(bass_percussion_regression["partialSlap"] - .87) < 1e-9, "Bass ducking should scale with percussion velocity: " + str(bass_percussion_regression)
+                assert bass_percussion_regression["betweenHits"] == 1 and bass_percussion_regression["noPercussion"] == 1, "Bass level should remain full between accents and without percussion: " + str(bass_percussion_regression)
+                print("COMPOSITION BASS-PERCUSSION SYNC REGRESSION:", bass_percussion_regression, flush=True)
+                print("PASS: bass ducking follows cajon accent strength and preserves full level between hits", flush=True)
                 melody_feel_results = {}
                 for feel, label in [("calm", "آرام"), ("flow", "روان"), ("lively", "پرتحرک")]:
                     page.locator(f'[data-melody-feel="{feel}"]').click()
