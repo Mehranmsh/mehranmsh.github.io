@@ -780,7 +780,7 @@ test("MEHRAN MUSIC STUDIO keeps drafts local and separates free lyric AI from di
 test("MEHRAN MUSIC STUDIO supports new projects without overwriting the previously edited draft", () => {
   assert.match(musicStudioSource, /function newProject\(\)/);
   assert.match(musicStudioSource, /delete \$\("saveProject"\)\.dataset\.edit/);
-  assert.match(musicStudioSource, /if\(nav\.dataset\.view==="create"\)newProject\(\)/);
+  assert.match(musicStudioSource, /document\.querySelectorAll\("\.nav \\[data-view\\]"\)\.forEach\(button=>button\.addEventListener\("click"/);\n  assert.match(musicStudioSource, /if\(view==="create"\)\{newProject\(\);return;\}/);
   assert.match(musicStudioSource, /if\(go\.dataset\.go==="create"\)newProject\(\)/);
 });
 
