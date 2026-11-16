@@ -1051,7 +1051,7 @@ def main():
                 page.locator("#clapSteps [data-pattern-step='5']").click()
                 page.locator("#tomSteps [data-pattern-step='11']").click()
                 page.locator("#percSteps [data-pattern-step='15']").click()
-                page.locator("#drumKit").select_option("lofi")
+                page.locator("#drumKit").select_option("recorded")
                 page.locator("#renderPattern").click()
                 try:
                     page.wait_for_function("""(() => { const status = document.querySelector('#patternStatus')?.textContent || ''; return status.includes('Generated WAV added to the mixer') || status.includes('Pattern render failed:'); })()""", timeout=20000)
