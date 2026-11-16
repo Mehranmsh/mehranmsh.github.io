@@ -2272,7 +2272,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  $("useSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(false));
  $("appendSongwriterDraft").addEventListener("click",()=>applySongwriterDraft(true));
  $("saveLyrics").addEventListener("click",saveLyrics);$("buildArrangementFromLyrics").addEventListener("click",buildArrangementFromLyrics);
- $("lyricsMelodyChoices").addEventListener("click",event=>{const button=event.target.closest("[data-melody-choice]");if(button){$("addLyricsMelody").disabled=true;chooseLyricsMelody(button.dataset.melodyChoice);}});
+ $("lyricsMelodyChoices").addEventListener("click",event=>{const button=event.target.closest("[data-melody-choice]");if(button){$("lyricsMelodyPreview").dataset.selected="";$("addLyricsMelody").disabled=true;$("composeResult").classList.add("hidden");chooseLyricsMelody(button.dataset.melodyChoice);}});
  $("addLyricsMelody").addEventListener("click",()=>{const selected=$("lyricsMelodyPreview").dataset.selected;if(selected)void chooseLyricsMelody(selected);});
  ["composeKey","composeScale","composeTempo"].forEach(id=>$(id).addEventListener("change",()=>{$("lyricsMelodyPreview").dataset.selected="";$("addLyricsMelody").disabled=true;$("composeResult").classList.add("hidden");$("lyricsMelodyStatus").textContent="تنظیمات آهنگسازی تغییر کرد؛ برای شنیدن نسخهٔ جدید، یکی از طرح‌ها را دوباره انتخاب کن.";}));
  $("composeHarmonyStyle").addEventListener("change",()=>{$("composeResult").classList.add("hidden");$("lyricsMelodyStatus").textContent="سبک آکورد تغییر کرد؛ برای ساخت همراهی جدید، دکمهٔ ساخت آکورد و همراهی را دوباره بزن."});
