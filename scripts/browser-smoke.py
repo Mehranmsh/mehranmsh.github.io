@@ -1461,6 +1461,10 @@ def main():
                 })()""", timeout=90000)
                 harmony_status = page.locator("#lyricsMelodyStatus").inner_text()
                 assert "همراهی ساخته شد" in harmony_status, "Automatic harmony/lead generation failed: " + harmony_status + " | Pattern status: " + page.locator("#patternStatus").inner_text()
+                assert page.locator("#view-compose").is_visible(), "Compose should remain open for review after harmony generation."
+                assert page.locator("#composeResult").is_visible(), "Composition summary panel was not shown."
+                assert page.locator("#composeResultKey").inner_text() == "C minor", "Composition summary key does not match the selected key."
+                assert "C" in page.locator("#composeResultChords").inner_text(), "Chord progression summary is missing."
                 harmony_project = page.evaluate("""() => {
                     const projects = JSON.parse(localStorage.getItem("mehran_music_studio_drafts_v1") || "[]");
                     return projects.find(item => item.name === "Automated Audio QA") || null;
