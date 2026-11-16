@@ -2164,7 +2164,8 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
    if(!response.ok||!data.success)throw new Error(data.error||("Generation failed ("+response.status+")."));
    $("songwriterResult").value=data.lyrics||"";
    $("useSongwriterDraft").disabled=!data.lyrics;$("appendSongwriterDraft").disabled=!data.lyrics;
-   status.textContent="Draft generated with Cloudflare AI · free allowance · "+(data.model||"");
+   const warnings=Array.isArray(data.qualityWarnings)?data.qualityWarnings.filter(Boolean):[];
+   status.textContent=warnings.length?"پیش‌نویس ساخته شد، اما بازبینی لازم دارد: "+warnings.join(" "):"پیش‌نویس ساخته شد؛ خروجی را از نظر طبیعی‌بودن زبان و معنا یک بار بخوان. · "+(data.model||"");
   }catch(error){
    status.textContent="Could not generate lyrics: "+String(error.message||error).slice(0,220);
   }finally{button.disabled=false;button.textContent="✦ Generate lyrics";}
