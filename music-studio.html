@@ -2076,7 +2076,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
     const section=sectionRules.find(([re])=>re.test(line));
     if(section){activeSection=section[1];return;}
     if(/^\[[^\]]+\]$/.test(line))return;
-    if(lines.length<16)lines.push({text:line,section:activeSection});
+    if(lines.length<20)lines.push({text:line,section:activeSection});
   });
   const syllables=lines.map(x=>estimateLyricSyllables(x.text)),scale=LYRIC_MELODY_SCALES[kind]||LYRIC_MELODY_SCALES.A,notes=Array(16).fill("-"),noteEvents=[],refrainCache=new Map();
   const phrases={A:[[0,2,4,3,2,1,2,0],[0,1,3,4,3,2,4,2],[2,3,4,5,4,2,1,0],[0,2,3,2,4,3,1,0]],B:[[0,2,3,4,5,4,6,5],[1,2,4,5,6,5,4,2],[2,3,4,6,5,4,3,1],[0,2,4,5,6,4,2,0]],C:[[0,2,4,2,0,4,3,1],[0,3,2,4,1,3,2,0],[2,4,3,5,2,4,1,0],[0,1,3,2,4,2,1,0]]};
