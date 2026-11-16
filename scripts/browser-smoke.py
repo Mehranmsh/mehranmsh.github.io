@@ -1175,6 +1175,8 @@ def main():
 
                 live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
                 live_modes_missing = ["live_tar", "live_santur", "live_ney", "live_kamancheh"]
+                page.locator('[data-view="arrangement"]').click()
+                page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                 page.locator("#patternBars").select_option("1")
                 for mode in live_modes_available:
                     print("START LIVE BANK:", mode, flush=True)
