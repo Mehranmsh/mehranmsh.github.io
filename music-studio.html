@@ -305,7 +305,7 @@
    <audio id="lyricsMelodyPreview" controls preload="none" style="width:100%;margin-top:10px;display:none"></audio>
    <button class="btn" id="addLyricsMelody" type="button" disabled style="margin-top:10px">＋ افزودن ملودی به پروژه</button>
    <button class="btn secondary" id="buildMelodyBacking" type="button" style="margin-top:10px">♫ ساخت آکورد و همراهی سازها از روی ملودی</button>
-   <div id="composeResult" class="panel hidden" style="margin-top:12px;padding:14px"><h3>نتیجهٔ آهنگسازی</h3><div class="two"><div><small>گام</small><b id="composeResultKey">-</b></div><div><small>سرعت</small><b id="composeResultTempo">-</b></div><div><small>تعداد میزان</small><b id="composeResultBars">-</b></div></div><p style="margin:10px 0 4px">توالی آکوردها</p><p id="composeResultChords" style="font-weight:600;line-height:1.9;overflow-wrap:anywhere">-</p><p id="composeResultTracks" style="color:var(--muted);font-size:11px">ترک ملودی و همراهی در پروژه ذخیره شده‌اند.</p><button class="btn" id="goToArrangement" type="button">رفتن به تنظیم و میکس</button></div>
+   <div id="composeResult" class="panel hidden" style="margin-top:12px;padding:14px"><h3>نتیجهٔ آهنگسازی</h3><div class="two"><div><small>گام</small><b id="composeResultKey">-</b></div><div><small>سرعت</small><b id="composeResultTempo">-</b></div><div><small>تعداد میزان</small><b id="composeResultBars">-</b></div></div><p style="margin:10px 0 4px">توالی آکوردها</p><p id="composeResultChords" style="font-weight:600;line-height:1.9;overflow-wrap:anywhere">-</p><p id="composeResultTracks" style="color:var(--muted);font-size:11px">ترک ملودی و همراهی در پروژه ذخیره شده‌اند.</p><div class="two" style="margin-top:10px"><button class="btn secondary" id="previewComposeMix" type="button">▶ شنیدن ملودی و آکوردها با هم</button><button class="btn" id="goToArrangement" type="button">رفتن به تنظیم و میکس</button></div></div>
    <p id="lyricsMelodyStatus" role="status" style="color:var(--muted);font-size:11px;margin-top:8px">ابتدا یکی از سه طرح را برای شنیدن انتخاب کن.</p>
    <div class="notice" style="margin-top:14px">این بخش مخصوص ساخت ملودی و پایهٔ هارمونیک است. انتخاب سازها و چیدمان بخش‌های آهنگ در تنظیم انجام می‌شود؛ میکس وکال و سازها هم در بخش میکس قرار دارد.</div>
   </div>
@@ -2279,6 +2279,7 @@ async function generatePatternTrack(){const p=patternProject();if(!p){$("pattern
  $("composeProject").addEventListener("change",()=>{$("lyricsMelodyPreview").dataset.selected="";$("addLyricsMelody").disabled=true;});
  $("buildMelodyBacking").addEventListener("click",()=>{void buildMelodyBacking();});
  $("goToArrangement").addEventListener("click",()=>show("mix"));
+ $("previewComposeMix").addEventListener("click",()=>{const p=projects.find(item=>item.id===$("composeProject").value);if(!p){$("lyricsMelodyStatus").textContent="ابتدا پروژه را انتخاب کن.";return;}$("mixProject").value=p.id;refreshMixProjects(p.id);show("mix");void playMix();});
  $("exportLyrics").addEventListener("click",exportLyrics);
  document.querySelectorAll("[data-lyric-section]").forEach(b=>b.addEventListener("click",()=>insertLyricSection(b.dataset.lyricSection)));
  const originalShow=show;
