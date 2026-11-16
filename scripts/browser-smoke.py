@@ -1573,7 +1573,7 @@ def main():
                     const chords = [[60,64,67],[55,59,62],[57,60,64],[53,57,60]];
                     let previous = null;
                     const voicings = chords.map(chord => {
-                        const notes = patternChordVoiceLeading(chord, previous);
+                        const notes = window.__mehranTestVoiceLeading(chord, previous);
                         const result = {notes, pitchClasses:notes.map(n=>((n%12)+12)%12), movements:previous?notes.map((n,i)=>Math.abs(n-previous[i])):[]};
                         previous = notes;
                         return result;
