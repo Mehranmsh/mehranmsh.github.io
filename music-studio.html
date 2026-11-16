@@ -19,15 +19,14 @@
 <aside>
  <div class="brand"><div class="brand-mark">♫</div><div><strong>MEHRAN MUSIC</strong><small>STUDIO</small></div></div>
  <nav class="nav" aria-label="Studio navigation">
-  <div class="nav-label">WORKSPACE</div>
   <button class="active" data-view="overview"><span>⌂</span>Overview</button>
   <button data-view="create"><span>＋</span>New Project</button>
   <button data-view="library"><span>▤</span>My Projects</button>
-  <div class="nav-label">PRODUCTION</div>
   <button data-view="lyrics"><span>✎</span>Lyrics Lab</button>
-  <button data-view="compose"><span>♫</span>Compose</button>
+  <button data-view="compose"><span>♫</span>Composition</button>
+  <button data-view="arrangement"><span>▥</span>Arrangement</button>
   <button data-view="vocals"><span>◉</span>Vocal Lab</button>
-  <button data-view="mix"><span>♫</span>Arrangement & Mix</button>
+  <button data-view="mix"><span>♫</span>Mixing &amp; Mastering</button>
  </nav>
  <div class="side-note"><b>MEHRAN · MUSIC DIVISION</b>Independent creative workspace<br>Part of the MEHRAN product family</div>
 </aside>
@@ -191,6 +190,11 @@
 
 
  </section>
+ <section id="view-arrangement" class="hidden">
+  <div class="section-head"><div><h2>Arrangement</h2><p>Build the song structure, place sections on the timeline and prepare instrument entries.</p></div></div>
+  <div class="notice">ترتیب پیشنهادی: Lyrics Lab → Composition → Arrangement → Vocal Lab → Mixing &amp; Mastering</div>
+  <div class="panel" id="arrangementStudio" style="margin-top:16px"><div class="section-head"><div><h3>Song Arrangement Timeline</h3><p>Lay out the song form and assign a bar length to every section.</p></div><span class="tag">PROJECT STRUCTURE</span></div><div class="two"><div class="field"><label for="arrangementSection">ADD SECTION</label><select id="arrangementSection"><option value="Intro">Intro</option><option value="Verse">Verse</option><option value="Pre-Chorus">Pre-Chorus</option><option value="Chorus">Chorus</option><option value="Bridge">Bridge</option><option value="Instrumental">Instrumental</option><option value="Outro">Outro</option></select></div><div class="field"><label for="arrangementBars">SECTION LENGTH · BARS</label><select id="arrangementBars"><option>2</option><option selected>4</option><option>8</option><option>16</option></select></div></div><button class="btn secondary" id="addArrangementSection" type="button">＋ Add to song timeline</button> <button class="btn" id="exportArrangement" type="button">Export arranged song WAV</button> <button class="btn secondary" id="previewArrangement" type="button">▶ Preview arrangement</button> <button class="btn secondary" id="stopArrangementPreview" type="button" disabled>■ Stop preview</button><p id="arrangementExportStatus" role="status" style="color:var(--muted);font-size:11px">Render the song in section order using each section’s active-track selection.</p><div id="arrangementTimeline" class="projects" style="margin-top:12px"><div class="empty">Add Intro, Verse, Chorus and other sections to map the full song.</div></div><p id="arrangementStatus" role="status" style="color:var(--muted);font-size:11px">Arrangement is saved with the selected project.</p></div>
+ </section>
  <section id="view-vocals" class="hidden">
   <div class="section-head"><div><h2>Vocal Lab</h2><p>Build a cast of singers and plan each vocal part inside a project.</p></div></div>
   <div class="notice" style="margin-top:14px">تمرین آواز و کنترل ملودی</div>
@@ -291,7 +295,7 @@
   <div class="notice">Imported voice recordings are stored locally in this browser and can be removed with their track. No voice model is created. Any future voice training or cloning will require explicit permission, secure private storage and a deletion control.</div>
  </section>
  <section id="view-compose" class="hidden">
-  <div class="section-head"><div><h2>Compose</h2><p>ساخت ملودی، شنیدن طرح‌ها و ایجاد آکورد و همراهی هماهنگ با ترانه، بدون ورود به بخش تنظیم و میکس.</p></div><span class="tag">COMPOSITION</span></div>
+  <div class="section-head"><div><h2>Composition</h2><p>ساخت ملودی، شنیدن طرح‌ها و ایجاد آکورد و همراهی هماهنگ با ترانه، بدون ورود به بخش تنظیم و میکس.</p></div><span class="tag">COMPOSITION</span></div>
   <div class="panel">
    <h3>۱. انتخاب پروژه</h3>
    <div class="field"><label for="composeProject">پروژهٔ موسیقی</label><select id="composeProject"><option value="">انتخاب پروژه…</option></select></div>
@@ -311,7 +315,7 @@
   </div>
  </section>
  <section id="view-mix" class="hidden">
-  <div class="section-head"><div><h2>تنظیم و میکس</h2><p>تنظیم: چیدمان سازها و بخش‌های آهنگ. میکس: تعادل و پردازش وکال و ترک‌های موسیقی.</p></div><button class="btn secondary" id="exportMixPlan">Export track plan</button></div>
+  <div class="section-head"><div><h2>Mixing &amp; Mastering</h2><p>Balance, process and finalize the vocal and instrument tracks.</p></div><button class="btn secondary" id="exportMixPlan">Export track plan</button></div>
   <div class="workspace">
    <div class="panel">
     <h3>Track setup</h3>
@@ -340,7 +344,7 @@
    
 
  </div>
-     <div class="panel" id="arrangementStudio" style="margin-top:16px"><div class="section-head"><div><h3>Song Arrangement Timeline</h3><p>Lay out the song form and assign a bar length to every section.</p></div><span class="tag">PROJECT STRUCTURE</span></div><div class="two"><div class="field"><label for="arrangementSection">ADD SECTION</label><select id="arrangementSection"><option value="Intro">Intro</option><option value="Verse">Verse</option><option value="Pre-Chorus">Pre-Chorus</option><option value="Chorus">Chorus</option><option value="Bridge">Bridge</option><option value="Instrumental">Instrumental</option><option value="Outro">Outro</option></select></div><div class="field"><label for="arrangementBars">SECTION LENGTH · BARS</label><select id="arrangementBars"><option>2</option><option selected>4</option><option>8</option><option>16</option></select></div></div><button class="btn secondary" id="addArrangementSection" type="button">＋ Add to song timeline</button> <button class="btn" id="exportArrangement" type="button">Export arranged song WAV</button> <button class="btn secondary" id="previewArrangement" type="button">▶ Preview arrangement</button> <button class="btn secondary" id="stopArrangementPreview" type="button" disabled>■ Stop preview</button><p id="arrangementExportStatus" role="status" style="color:var(--muted);font-size:11px">Render the song in section order using each section’s active-track selection.</p><div id="arrangementTimeline" class="projects" style="margin-top:12px"><div class="empty">Add Intro, Verse, Chorus and other sections to map the full song.</div></div><p id="arrangementStatus" role="status" style="color:var(--muted);font-size:11px">Arrangement is saved with the selected project.</p></div>
+     
 
  </section>
  <div class="footer"><span>MEHRAN MUSIC STUDIO · EARLY WORKSPACE BUILD</span><span>Drafts and audio stay in this browser · Local playback</span></div>
@@ -470,7 +474,7 @@
    root.innerHTML=projects.length?projects.slice().sort((a,b)=>b.updated-a.updated).map(p=>'<article class="project"><div class="project-icon">♫</div><div class="project-copy"><b>'+esc(p.name)+'</b><small>'+esc(label(p.type))+' · '+esc(p.genre)+' · '+new Date(p.updated).toLocaleDateString()+'</small></div><div class="project-actions"><button data-open="'+esc(p.id)+'">Open</button><button data-delete="'+esc(p.id)+'">Delete</button></div></article>').join(""):'<div class="empty">No drafts yet. Create your first music project.</div>';
   }
  }
- function show(view){const current=document.querySelector("main>section[id^=view-]:not(.hidden)");if(current&&current.id==="view-lyrics"&&view!=="lyrics"&&typeof lyricsAreDirty==="function"&&lyricsAreDirty()&&!confirm("You have unsaved lyric changes. Leave without saving?"))return;document.querySelectorAll("main>section[id^=view-]").forEach(x=>x.classList.add("hidden"));$("view-"+view)?.classList.remove("hidden");document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("crumb").textContent=view.toUpperCase();if(view==="overview"||view==="library")render();if(view==="vocals"){refreshVocalProjects();syncVocalTools();refreshVocalGuideLines();}if(view==="compose"){refreshLyricsProjects($("composeProject")?.value||$("lyricsProject").value);const cp=$("composeProject");cp.innerHTML=$("lyricsProject").innerHTML;cp.value=$("lyricsProject").value;syncComposerControls();}if(view==="mix"){refreshMixProjects();renderPatternGrid();}}
+ function show(view){const current=document.querySelector("main>section[id^=view-]:not(.hidden)");if(current&&current.id==="view-lyrics"&&view!=="lyrics"&&typeof lyricsAreDirty==="function"&&lyricsAreDirty()&&!confirm("You have unsaved lyric changes. Leave without saving?"))return;document.querySelectorAll("main>section[id^=view-]").forEach(x=>x.classList.add("hidden"));$("view-"+view)?.classList.remove("hidden");document.querySelectorAll("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));$("crumb").textContent=view.toUpperCase();if(view==="overview"||view==="library")render();if(view==="vocals"){refreshVocalProjects();syncVocalTools();refreshVocalGuideLines();}if(view==="compose"){refreshLyricsProjects($("composeProject")?.value||$("lyricsProject").value);const cp=$("composeProject");cp.innerHTML=$("lyricsProject").innerHTML;cp.value=$("lyricsProject").value;syncComposerControls();}if(view==="mix"){refreshMixProjects();renderPatternGrid();}if(view==="arrangement"){refreshMixProjects();renderArrangementTimeline();}}
  async function blobToBackupBase64(blob){const bytes=new Uint8Array(await blob.arrayBuffer());let binary="";const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(bytes.length,i+chunk)));return btoa(binary);}
  function backupBase64ToBlob(base64,type){const binary=atob(base64),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return new Blob([bytes],{type:type||"application/octet-stream"});}
  async function exportBackup(){const button=$("exportBackup");button.disabled=true;try{const backupProjects=JSON.parse(JSON.stringify(projects));let totalAudioBytes=0;for(let pi=0;pi<backupProjects.length;pi++){const project=backupProjects[pi];for(let ti=0;ti<(project.tracks||[]).length;ti++){const track=project.tracks[ti];if(!track.audioName)continue;const record=await readTrackAudio(audioKey(projects[pi].id,projects[pi].tracks[ti].id));if(!record?.blob)throw new Error("Missing audio file for track: "+track.name+". The backup was not created, so no track is silently omitted.");totalAudioBytes+=record.blob.size;if(totalAudioBytes>500*1024*1024)throw new Error("This backup exceeds the 500 MB safety limit. Export smaller groups of projects.");track.audioData=await blobToBackupBase64(record.blob);track.audioMime=record.type||track.audioMime||"application/octet-stream";track.audioSize=record.size||record.blob.size;}}const payload={format:"mehran-music-studio-backup",version:2,exportedAt:new Date().toISOString(),audioIncluded:true,totalAudioBytes,projects:backupProjects};const blob=new Blob([JSON.stringify(payload)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="mehran-music-studio-complete-backup.json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);$("projectsTransferStatus").textContent="Complete backup created: "+projects.length+" project(s), "+(totalAudioBytes/1048576).toFixed(1)+" MB of audio included."; }catch(error){$("projectsTransferStatus").textContent="Backup failed: "+String(error.message||error).slice(0,260);alert("Complete backup could not be created: "+error.message);}finally{button.disabled=false;}}
