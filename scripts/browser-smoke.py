@@ -1448,8 +1448,8 @@ def main():
                 }""")
                 assert lyric_draft and lyric_draft["sections"][:6] == ["Verse 1", "Verse 1", "Chorus", "Chorus", "Verse 2", "Verse 2"], "Persian lyric section headers were not parsed correctly: " + str(lyric_draft and lyric_draft.get("sections"))
                 assert lyric_draft["noteEvents"][0]["startStep"] >= 0
-                page.locator('[data-melody-choice="A"]').click()
-                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('ترک WAV به پروژه اضافه شد')", timeout=30000)
+                page.locator("#addLyricsMelody").click()
+                page.wait_for_function("document.querySelector('#lyricsMelodyStatus')?.textContent.includes('به پروژه اضافه شد')", timeout=30000)
                 page.locator("#buildMelodyBacking").click()
                 page.wait_for_function("""(() => {
                     const status = document.querySelector('#lyricsMelodyStatus')?.textContent || '';
