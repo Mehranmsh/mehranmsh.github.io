@@ -14,3 +14,7 @@ Mousavi, Seyed Muhammad Hossein; Prasath, V. B. Surya; Mousavi, Seyed Muhammad H
 Persian Classical Music Instrument Recognition (PCMIR) Database, 2020.
 
 Changes: four selected real-performance excerpts per instrument transcoded from MP3 to OGG Vorbis for local same-origin playback.
+
+
+Instrument coverage note:
+The upstream PCMIR dataset contains seven classes: Ney, Tar, Santur, Kamancheh, Tonbak, Ud and Setar. This MEHRAN phrase package currently includes four classes only: Tar, Santur, Ney and Kamancheh (four excerpts each). Setar is provided separately as a limited 21-root recorded note bank. Ud and Tonbak are not yet packaged in this project. Do not represent the short PCMIR excerpts as complete playable multisample banks.
