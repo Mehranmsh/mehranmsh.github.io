@@ -190,7 +190,7 @@ jobs:
           assert len(data["instruments"]["world_percussion"]["samples"]) >= 150
           assert len(data["instruments"]["acoustic_drums"]["samples"]) == 128
           violin = data["instruments"]["violin"]
-          assert len(violin["samples"]) == 30, ("violin", len(violin["samples"]))
+          assert len(violin["samples"]) == 45, ("violin", len(violin["samples"]))
           assert violin.get("license") == "CC0-1.0"
           assert {s["rootNote"] for s in violin["samples"]} == {55,57,60,64,67,69,72,76,79,81,84,88,91,93,96}
           assert {round(s["velocityMin"]*127) for s in violin["samples"]} == {0,64}
