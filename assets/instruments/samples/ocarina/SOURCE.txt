@@ -1,0 +1,7 @@
+MEHRAN MUSIC STUDIO sample source
+Instrument: Ocarina
+Source: FreePats Ocarina 1 (recorded sample bank)
+Source page: https://freepats.zenvoid.org/Wind/ocarina.html
+License: CC0 1.0 Universal (see upstream LICENSE.txt)
+Mapping: Ocarina 20241002.sfz, including key ranges, pitch centers, and loop frame positions.
+Audio files are kept in their original FLAC format.

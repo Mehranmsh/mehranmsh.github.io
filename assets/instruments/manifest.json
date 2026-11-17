@@ -18183,6 +18183,177 @@
           "loopEnd": 1.318
         }
       ]
+    },
+    "ocarina": {
+      "displayName": "Ocarina",
+      "attackSeconds": 0.006,
+      "releaseSeconds": 0.4,
+      "filterHz": 18000,
+      "source": "FreePats Ocarina 1",
+      "sourceUrl": "https://freepats.zenvoid.org/Wind/ocarina.html",
+      "license": "CC0-1.0",
+      "expectedKeyRange": [
+        60,
+        92
+      ],
+      "samples": [
+        {
+          "rootNote": 66,
+          "keyLow": 60,
+          "keyHigh": 70,
+          "pitchKeyCenter": 66,
+          "tuneCents": 0,
+          "loopStartFrame": 14805,
+          "loopEndFrame": 45027,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/F#4.flac",
+          "sourceFile": "F#4.flac"
+        },
+        {
+          "rootNote": 73,
+          "keyLow": 71,
+          "keyHigh": 73,
+          "pitchKeyCenter": 73,
+          "tuneCents": 0,
+          "loopStartFrame": 39558,
+          "loopEndFrame": 150554,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/C#5_01.flac",
+          "sourceFile": "C#5_01.flac"
+        },
+        {
+          "rootNote": 74,
+          "keyLow": 74,
+          "keyHigh": 75,
+          "pitchKeyCenter": 74,
+          "tuneCents": 0,
+          "loopStartFrame": 23402,
+          "loopEndFrame": 75313,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/D5_01.flac",
+          "sourceFile": "D5_01.flac"
+        },
+        {
+          "rootNote": 76,
+          "keyLow": 76,
+          "keyHigh": 76,
+          "pitchKeyCenter": 76,
+          "tuneCents": 0,
+          "loopStartFrame": 16668,
+          "loopEndFrame": 63256,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/E5_01.flac",
+          "sourceFile": "E5_01.flac"
+        },
+        {
+          "rootNote": 77,
+          "keyLow": 77,
+          "keyHigh": 77,
+          "pitchKeyCenter": 77,
+          "tuneCents": 0,
+          "loopStartFrame": 82197,
+          "loopEndFrame": 206245,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/F5_01.flac",
+          "sourceFile": "F5_01.flac"
+        },
+        {
+          "rootNote": 78,
+          "keyLow": 78,
+          "keyHigh": 78,
+          "pitchKeyCenter": 78,
+          "tuneCents": 0,
+          "loopStartFrame": 64197,
+          "loopEndFrame": 168032,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/F#5_01.flac",
+          "sourceFile": "F#5_01.flac"
+        },
+        {
+          "rootNote": 79,
+          "keyLow": 79,
+          "keyHigh": 79,
+          "pitchKeyCenter": 79,
+          "tuneCents": 0,
+          "loopStartFrame": 36058,
+          "loopEndFrame": 163114,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/G5_01.flac",
+          "sourceFile": "G5_01.flac"
+        },
+        {
+          "rootNote": 80,
+          "keyLow": 80,
+          "keyHigh": 80,
+          "pitchKeyCenter": 80,
+          "tuneCents": 0,
+          "loopStartFrame": 52531,
+          "loopEndFrame": 184023,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/G#5_01.flac",
+          "sourceFile": "G#5_01.flac"
+        },
+        {
+          "rootNote": 81,
+          "keyLow": 81,
+          "keyHigh": 81,
+          "pitchKeyCenter": 81,
+          "tuneCents": 0,
+          "loopStartFrame": 70297,
+          "loopEndFrame": 218776,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/A5_01.flac",
+          "sourceFile": "A5_01.flac"
+        },
+        {
+          "rootNote": 82,
+          "keyLow": 82,
+          "keyHigh": 82,
+          "pitchKeyCenter": 82,
+          "tuneCents": 0,
+          "loopStartFrame": 87003,
+          "loopEndFrame": 193433,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/A#5_01.flac",
+          "sourceFile": "A#5_01.flac"
+        },
+        {
+          "rootNote": 83,
+          "keyLow": 83,
+          "keyHigh": 85,
+          "pitchKeyCenter": 83,
+          "tuneCents": 0,
+          "loopStartFrame": 13758,
+          "loopEndFrame": 81514,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/B5_01.flac",
+          "sourceFile": "B5_01.flac"
+        },
+        {
+          "rootNote": 88,
+          "keyLow": 86,
+          "keyHigh": 92,
+          "pitchKeyCenter": 88,
+          "tuneCents": 0,
+          "loopStartFrame": 3797,
+          "loopEndFrame": 62613,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/ocarina/E6.flac",
+          "sourceFile": "E6.flac"
+        }
+      ]
     }
   },
   "sourcePolicy": "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider.",
