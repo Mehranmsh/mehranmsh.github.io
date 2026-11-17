@@ -518,7 +518,31 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 #social-prompt-creator .prompt-template{overflow:hidden;display:flex;flex-direction:column;gap:10px;padding:0 0 14px}#social-prompt-creator .prompt-template>strong,#social-prompt-creator .prompt-template>p,#social-prompt-creator .prompt-template>button{margin-left:14px;margin-right:14px}#social-prompt-creator .prompt-template-media{height:142px;position:relative;overflow:hidden;background:linear-gradient(135deg,#142c48,#263d68)}#social-prompt-creator .prompt-template-media img{width:100%;height:100%;display:block;object-fit:cover}#social-prompt-creator .prompt-media-tag{position:absolute;right:10px;top:10px;padding:5px 9px;border-radius:20px;background:#07111ddd;color:#dff8ff;font-size:9px;font-weight:900;letter-spacing:1px;border:1px solid #6bdcff55}#social-prompt-creator .prompt-audio-preview{height:142px;display:flex;align-items:center;gap:13px;padding:18px;background:radial-gradient(circle at 15% 15%,#1b5770,#101d36 65%,#11172b);position:relative}#social-prompt-creator .audio-cover{width:76px;height:76px;border-radius:15px;display:grid;place-items:center;background:linear-gradient(145deg,#29d9ff,#4b55d9);color:#07111d;font-size:40px;box-shadow:0 8px 24px #0005}#social-prompt-creator .audio-preview-copy{display:flex;flex-direction:column;gap:7px;min-width:0}#social-prompt-creator .audio-preview-copy strong{font-size:13px}#social-prompt-creator .audio-preview-copy span{font-size:10px;color:#a8c1d9}.audio-wave{height:27px;display:flex;align-items:center;gap:3px}.audio-wave i{width:3px;border-radius:5px;background:#53dfff;height:12px}.audio-wave i:nth-child(3n){height:23px}.audio-wave i:nth-child(3n + 1){height:9px}.audio-wave i:nth-child(4n){height:17px}
 #social-prompt-creator .prompt-template button{margin-top:5px}
 #social-feed .panel button{flex-shrink:0}
-</style><style id="prompt-creator-styles">#social-prompt-creator .prompt-hero{background:radial-gradient(ellipse at 10% 0%,rgba(40,217,255,.16),transparent 48%),linear-gradient(135deg,#10223a,#0c1728);border-color:rgba(40,217,255,.25)}#social-prompt-creator .prompt-kicker{font-size:10px;letter-spacing:2px;font-weight:800;color:var(--cyan);margin-bottom:10px}#social-prompt-creator .prompt-hero h3{font-size:clamp(21px,4vw,29px);margin:0 0 8px}#social-prompt-creator .prompt-hero p{max-width:720px;line-height:1.65}#social-prompt-creator #pcOutput{width:100%;min-height:230px;resize:vertical;line-height:1.6;background:#07111f;border:1px solid var(--line);border-radius:13px;color:var(--text);padding:14px}#social-prompt-creator .prompt-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}#social-prompt-creator .prompt-actions button:disabled{opacity:.45;cursor:not-allowed}</style></head>
+</style><style id="prompt-creator-styles">#social-prompt-creator .prompt-hero{background:radial-gradient(ellipse at 10% 0%,rgba(40,217,255,.16),transparent 48%),linear-gradient(135deg,#10223a,#0c1728);border-color:rgba(40,217,255,.25)}#social-prompt-creator .prompt-kicker{font-size:10px;letter-spacing:2px;font-weight:800;color:var(--cyan);margin-bottom:10px}#social-prompt-creator .prompt-hero h3{font-size:clamp(21px,4vw,29px);margin:0 0 8px}#social-prompt-creator .prompt-hero p{max-width:720px;line-height:1.65}#social-prompt-creator #pcOutput{width:100%;min-height:230px;resize:vertical;line-height:1.6;background:#07111f;border:1px solid var(--line);border-radius:13px;color:var(--text);padding:14px}#social-prompt-creator .prompt-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}#social-prompt-creator .prompt-actions button:disabled{opacity:.45;cursor:not-allowed}</style><style id="home-identity-styles">
+.main:has(#page-dashboard.active)>.topbar{display:none}
+#page-dashboard.active{min-height:calc(100vh - 85px);display:flex;align-items:center;justify-content:center}
+.home-identity{width:min(100%,850px);margin:0 auto;padding:clamp(12px,3vh,30px) 12px 34px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.home-brand{font-size:13px;font-weight:900;letter-spacing:4px;color:#9cb5d1;margin-bottom:22px}
+.home-portrait{display:block;width:clamp(220px,32vw,330px);height:clamp(220px,32vw,330px);object-fit:cover;object-position:center 42%;border-radius:28px;border:1px solid rgba(73,204,255,.48);box-shadow:0 18px 65px rgba(0,0,0,.42),0 0 38px rgba(40,217,255,.12)}
+.home-name{font-size:clamp(22px,3.4vw,31px);font-weight:900;letter-spacing:2.2px;margin:22px 0 15px;color:#f1f7ff}
+.home-slogan{display:flex;flex-direction:column;align-items:center;gap:7px;margin:0 auto 23px;color:#e9f8ff;font-size:clamp(19px,3.5vw,31px);font-weight:900;letter-spacing:1.1px;line-height:1.25}
+.home-slogan span:first-child{color:#54dfff}
+.home-slogan span:nth-child(2){color:#c5e9ff}
+.home-slogan span:nth-child(3){color:#7daeff}
+.home-hub-title{font-size:clamp(17px,2.3vw,21px);margin:0 0 9px;color:#fff;font-weight:750}
+.home-description{max-width:610px;margin:0;color:#9fb2ca;font-size:13px;line-height:1.8}
+.home-enter{margin-top:23px;min-width:174px;min-height:44px}
+@media(max-width:700px){
+ #page-dashboard.active{min-height:calc(100svh - 100px);padding:0}
+ .home-identity{padding:8px 6px 24px}
+ .home-brand{margin-bottom:16px;font-size:11px}
+ .home-portrait{width:min(64vw,250px);height:min(64vw,250px);border-radius:23px}
+ .home-name{font-size:22px;margin:17px 0 13px;letter-spacing:1.5px}
+ .home-slogan{font-size:clamp(17px,5vw,23px);gap:6px;margin-bottom:19px;letter-spacing:.5px}
+ .home-description{font-size:12px;max-width:340px}
+ .home-enter{margin-top:19px}
+}
+</style></head>
 <body>
 <div class="app">
 <aside class="sidebar">
@@ -535,14 +559,18 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <header class="topbar"><div class="breadcrumb">MEHRAN MSH <span style="color:#405875">/</span> <span id="crumb">Dashboard</span></div><div class="top-actions"><span class="pill" id="connectionStatus">● Checking connection</span><button class="btn secondary small" id="languageBtn">EN / FA</button></div></header>
 
 <section class="page active" id="page-dashboard">
-<div class="page-heading"><h1 id="heroTitle">MEHRAN MSH</h1><p id="heroText">Your ecosystem, organized in one place.</p></div>
-<div class="hero dashboard-hero"><div class="eyebrow">YOUR WORKSPACE</div><h1>Everything in its place.</h1><p>Open the part of MEHRAN you want to work on. Each area has its own tools and responsibilities.</p><div class="hero-actions"><button class="btn" onclick="showPage('projects')">Open Projects</button><button class="btn secondary" onclick="showPage('social')">Open SOCIAL</button></div></div>
-<div class="section-title"><h2>Workspace</h2></div>
-<div class="workspace-links">
-<button class="workspace-link" onclick="showPage('projects')"><span class="workspace-link-icon">▦</span><span><strong>Projects</strong><small>Build and manage company projects</small></span><span class="workspace-arrow">›</span></button>
-<button class="workspace-link" onclick="showPage('services')"><span class="workspace-link-icon">◇</span><span><strong>Services</strong><small>Explore MEHRAN products and divisions</small></span><span class="workspace-arrow">›</span></button>
-<button class="workspace-link" onclick="showPage('intelligence')"><span class="workspace-link-icon">✧</span><span><strong>Intelligence</strong><small>Company analysis and AI assistant</small></span><span class="workspace-arrow">›</span></button>
-<button class="workspace-link" onclick="showPage('user')"><span class="workspace-link-icon">◉</span><span><strong>User Center</strong><small>Account and Pi connection</small></span><span class="workspace-arrow">›</span></button>
+<div class="home-identity">
+  <div class="home-brand">MEHRAN MSH</div>
+  <img class="home-portrait" src="/assets/mehran-portrait.jpg" alt="Mehran Sherafat">
+  <h1 class="home-name">MEHRAN SHERAFAT</h1>
+  <div class="home-slogan" aria-label="Built on Pi. Connected by Mehran. Independent in purpose.">
+    <span>BUILT ON PI</span>
+    <span>CONNECTED BY MEHRAN</span>
+    <span>INDEPENDENT IN PURPOSE</span>
+  </div>
+  <h2 class="home-hub-title" id="heroTitle">Central Ecosystem Hub</h2>
+  <p class="home-description" id="heroText">Central hub for digital projects, technology, music, AI and robotics in the Pi Network ecosystem.</p>
+  <button class="btn home-enter" onclick="showPage('projects')">Enter Ecosystem</button>
 </div>
 <div class="sr-only" aria-hidden="true"><span id="dashIdentity">Guest</span><span id="dashPosts">0</span><span id="dashProjects">0</span></div>
 </section>
@@ -2020,13 +2048,13 @@ $("languageBtn").addEventListener("click",()=>{
 currentLanguage=currentLanguage==="en"?"fa":"en";
 if(currentLanguage==="fa"){
 document.documentElement.lang="fa";document.documentElement.dir="rtl";
-$("heroTitle").textContent="یک مرکز، امکانات بی‌نهایت";
-$("heroText").textContent="MEHRAN MSH مرکز یکپارچه هویت دیجیتال، پروژه‌ها، ارتباطات اجتماعی و خدمات هوشمند شماست.";
+$("heroTitle").textContent="Central Ecosystem Hub";
+$("heroText").textContent="Central hub for digital projects, technology, music, AI and robotics in the Pi Network ecosystem.";
 $("languageBtn").textContent="FA / EN";
 }else{
 document.documentElement.lang="en";document.documentElement.dir="ltr";
-$("heroTitle").textContent="One Hub. Many Possibilities.";
-$("heroText").textContent="MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.";
+$("heroTitle").textContent="Central Ecosystem Hub";
+$("heroText").textContent="Central hub for digital projects, technology, music, AI and robotics in the Pi Network ecosystem.";
 $("languageBtn").textContent="EN / FA";
 }
 });
