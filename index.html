@@ -976,9 +976,24 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="card"><div class="eyebrow">OPEN REPORTS</div><div class="stat" id="intelOpenReports">—</div><div class="stat-label">Need review</div></div>
 </div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account to load company data.</div>
 </div>
+<div class="panel intelligence-tasks">
+<div class="section-title"><div><h2>Collaboration Task Hub</h2><div class="small-text">A shared work queue for ChatGPT and MEHRAN INTELLIGENCE.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
+<div id="intelTasksStatus" class="notice">Tasks are stored securely in MEHRAN MSH. Creating a task records and assigns it, it does not execute external actions.</div>
+<form id="intelTaskForm" class="card" autocomplete="off">
+<div class="field"><label for="intelTaskTitle">Task title</label><input id="intelTaskTitle" maxlength="120" required placeholder="مثلاً بررسی و تکمیل ماژول SOCIAL"></div>
+<div class="field"><label for="intelTaskDescription">Task details</label><textarea id="intelTaskDescription" rows="3" maxlength="3000" required placeholder="هدف، محدوده و نتیجهٔ مورد انتظار را بنویس..."></textarea></div>
+<div class="grid">
+<div class="field"><label for="intelTaskAssignee">Assign to</label><select id="intelTaskAssignee"><option value="mehran_intelligence">MEHRAN INTELLIGENCE</option><option value="chatgpt">ChatGPT</option><option value="shared">Shared collaboration</option></select></div>
+<div class="field"><label for="intelTaskPriority">Priority</label><select id="intelTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
+</div>
+<label class="check-row"><input id="intelTaskApproval" type="checkbox"> Requires owner approval before execution</label>
+<div class="hero-actions" style="margin-top:12px"><button class="btn" id="intelTaskCreateBtn" type="submit">Add to shared queue</button></div>
+</form>
+<div id="intelTasksList" class="grid" aria-live="polite"><div class="empty">Loading collaboration tasks...</div></div>
+</div>
 <div class="panel intelligence-assistant">
 <div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
-<div id="intelChatStatus" class="notice">The assistant can analyze available company data and recommend actions. It cannot change company data.</div>
+<div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
 <div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً مهم‌ترین قدم بعدی شرکت چیه؟"></textarea></div>
 <div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 10/day</span></div>
 <div id="intelReply" class="card intelligence-reply" aria-live="polite"></div>
@@ -986,7 +1001,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <details class="panel intelligence-advanced"><summary>Technical connections and project data</summary>
 <div class="grid">
 <div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI · Llama 3.3</h3><p>Private assistant model connection.</p></div>
-<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Company tools</h3><p>Read-only access to approved company information.</p><div class="notice" id="mcpStatus">Connection test has not been run.</div><button class="btn secondary small" id="testMcpBtn" type="button">Test MCP connection</button></div>
+<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Company tools</h3><p>Authenticated company data and shared collaboration task tools.</p><div class="notice" id="mcpStatus">Connection test has not been run.</div><button class="btn secondary small" id="testMcpBtn" type="button">Test MCP connection</button></div>
 <div class="card"><div class="eyebrow">SECURITY</div><h3>Administrator access</h3><p>Company information is protected by the MEHRAN administrator session.</p></div>
 </div>
 <div class="section-title"><h2>Project data</h2><span class="small-text">Read-only technical view</span></div>
@@ -2149,7 +2164,7 @@ message.textContent="Company data could not be loaded: "+error.message+". Sign i
 message.className="notice warn";
 $("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false}
+}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks()}
 }
 async function testMcpConnection(){
 const button=$("testMcpBtn"),status=$("mcpStatus");
@@ -2189,6 +2204,64 @@ finally{button.disabled=false}
 $("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
 $("intelQuestion")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendIntelligenceMessage()}});
 $("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
+
+async function loadIntelligenceTasks(){
+const status=$("intelTasksStatus"),list=$("intelTasksList");
+if(!status||!list)return;
+status.textContent="Loading the shared task queue...";
+status.className="notice";
+try{
+const data=await api("/intelligence/tasks");
+renderIntelligenceTasks(data.tasks||[]);
+status.textContent=(data.tasks||[]).length+" recent collaboration tasks loaded. Tasks are records, not automatic executions.";
+status.className="notice success";
+}catch(error){
+status.textContent="Could not load tasks: "+error.message;
+status.className="notice warn";
+list.innerHTML='<div class="empty">The task queue is unavailable until the administrator session is restored.</div>';
+}
+}
+function renderIntelligenceTasks(tasks){
+const list=$("intelTasksList");if(!list)return;
+if(!tasks.length){list.innerHTML='<div class="empty">No collaboration tasks yet. Add the first task above.</div>';return}
+const labels={queued:"Queued",accepted:"Accepted",in_progress:"In progress",blocked:"Blocked",awaiting_approval:"Awaiting approval",completed:"Completed",cancelled:"Cancelled"};
+list.innerHTML=tasks.map(task=>{
+const status=labels[task.status]||task.status;
+const next=task.status==="queued"?"in_progress":task.status==="in_progress"?"completed":null;
+const action=next?'<button class="btn secondary small" type="button" data-intel-task-status="'+escapeHTML(task.id)+'" data-next-status="'+next+'">'+(next==="completed"?"Mark complete":"Start task")+'</button>':"";
+return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'<div class="hero-actions" style="margin-top:10px">'+action+'</div></article>';
+}).join("");
+}
+async function createIntelligenceTask(event){
+event.preventDefault();
+const form=$("intelTaskForm"),button=$("intelTaskCreateBtn"),status=$("intelTasksStatus");
+const title=$("intelTaskTitle").value.trim(),description=$("intelTaskDescription").value.trim();
+if(!title||!description){status.textContent="Enter a title and task details.";status.className="notice warn";return}
+button.disabled=true;status.textContent="Saving task to the shared queue...";status.className="notice";
+try{
+await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,assignedTo:$("intelTaskAssignee").value,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked})});
+form.reset();
+status.textContent="Task added to the shared queue. No external action was executed.";
+status.className="notice success";
+await loadIntelligenceTasks();
+}catch(error){status.textContent="Task could not be saved: "+error.message;status.className="notice warn"}
+finally{button.disabled=false}
+}
+async function updateIntelligenceTask(id,nextStatus){
+const status=$("intelTasksStatus");
+status.textContent="Updating task status...";status.className="notice";
+try{
+await api("/intelligence/tasks/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({status:nextStatus})});
+status.textContent="Task status updated.";status.className="notice success";
+await loadIntelligenceTasks();
+}catch(error){status.textContent="Task update failed: "+error.message;status.className="notice warn"}
+}
+$("intelTaskForm")?.addEventListener("submit",createIntelligenceTask);
+$("refreshIntelTasksBtn")?.addEventListener("click",loadIntelligenceTasks);
+$("intelTasksList")?.addEventListener("click",event=>{
+const button=event.target.closest("[data-intel-task-status]");
+if(button)updateIntelligenceTask(button.dataset.intelTaskStatus,button.dataset.nextStatus);
+});
 
 async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";
