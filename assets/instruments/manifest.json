@@ -5613,7 +5613,8 @@
           "url": "./assets/instruments/samples/violin/G6.ogg",
           "sourceFile": "G6.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "cello": {
       "displayName": "Cello",
@@ -5861,7 +5862,8 @@
           "url": "./assets/instruments/samples/cello/Gs4.ogg",
           "sourceFile": "Gs4.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "tar": {
       "displayName": "Tar",
@@ -6203,7 +6205,8 @@
           "url": "./assets/instruments/samples/contrabass/Gs3.ogg",
           "sourceFile": "Gs3.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "kalimba": {
       "displayName": "Kalimba",
@@ -9665,7 +9668,8 @@
           "url": "./assets/instruments/samples/bass-electric/G4.ogg",
           "sourceFile": "G4.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "bassoon": {
       "displayName": "Bassoon",
@@ -9745,7 +9749,8 @@
           "url": "./assets/instruments/samples/bassoon/G4.ogg",
           "sourceFile": "G4.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "clarinet": {
       "displayName": "Clarinet",
@@ -9832,7 +9837,8 @@
           "url": "./assets/instruments/samples/clarinet/Fs6.ogg",
           "sourceFile": "Fs6.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "flute": {
       "displayName": "Concert Flute",
@@ -9912,7 +9918,8 @@
           "url": "./assets/instruments/samples/flute/E6.ogg",
           "sourceFile": "E6.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "french_horn": {
       "displayName": "French Horn",
@@ -9992,7 +9999,8 @@
           "url": "./assets/instruments/samples/french-horn/G2.ogg",
           "sourceFile": "G2.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "electric_guitar": {
       "displayName": "Electric Guitar",
@@ -10121,7 +10129,8 @@
           "url": "./assets/instruments/samples/guitar-electric/Fs5.ogg",
           "sourceFile": "Fs5.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "harmonium": {
       "displayName": "Harmonium",
@@ -10401,7 +10410,8 @@
       "expectedRootRange": [
         36,
         74
-      ]
+      ],
+      "maxPitchShiftSemitones": 1
     },
     "harp": {
       "displayName": "Concert Harp",
@@ -10572,7 +10582,8 @@
           "url": "./assets/instruments/samples/harp/G5.ogg",
           "sourceFile": "G5.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "organ": {
       "displayName": "Pipe Organ",
@@ -10729,7 +10740,8 @@
           "url": "./assets/instruments/samples/organ/Fs5.ogg",
           "sourceFile": "Fs5.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "saxophone": {
       "displayName": "Saxophone",
@@ -10967,7 +10979,8 @@
       "expectedRootRange": [
         49,
         81
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "trombone": {
       "displayName": "Trombone",
@@ -11096,7 +11109,8 @@
           "url": "./assets/instruments/samples/trombone/Gs3.ogg",
           "sourceFile": "Gs3.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "trumpet": {
       "displayName": "Trumpet",
@@ -11183,7 +11197,8 @@
           "url": "./assets/instruments/samples/trumpet/G4.ogg",
           "sourceFile": "G4.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "tuba": {
       "displayName": "Tuba",
@@ -11256,7 +11271,8 @@
           "url": "./assets/instruments/samples/tuba/F3.ogg",
           "sourceFile": "F3.ogg"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "xylophone": {
       "displayName": "Xylophone",
@@ -18353,7 +18369,8 @@
           "url": "./assets/instruments/samples/ocarina/E6.flac",
           "sourceFile": "E6.flac"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     },
     "button_accordion": {
       "displayName": "Button Accordion",
@@ -18779,7 +18796,8 @@
           "url": "./assets/instruments/samples/button-accordion/release/G6_rel.flac",
           "sourceFile": "Button Accordion HN G6_rel.flac"
         }
-      ]
+      ],
+      "maxPitchShiftSemitones": 2
     }
   },
   "sourcePolicy": "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider.",
