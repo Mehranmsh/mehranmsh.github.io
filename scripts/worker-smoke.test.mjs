@@ -118,11 +118,11 @@ test("password hashing parameters remain explicit and compatible with the deploy
 });
 
 test("MEHRAN INTELLIGENCE exposes only authenticated read-only MCP tools", () => {
-  assert.match(indexSource, /path==="\\/mcp"/);
-  assert.match(indexSource, /id="testMcpBtn"/);
-  assert.match(indexSource, /async function testMcpConnection\\(\\)/);
-  assert.match(indexSource, /method:"initialize"/);
-  assert.match(indexSource, /method:"tools\\/list"/);
+  assert.ok(indexSource.includes('path==="/mcp"'));
+  assert.ok(indexSource.includes('id="testMcpBtn"'));
+  assert.ok(indexSource.includes("async function testMcpConnection()"));
+  assert.ok(indexSource.includes('method:"initialize"'));
+  assert.ok(indexSource.includes('method:"tools/list"'));
   const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
   assert.ok(start >= 0 && end > start, "MCP route must exist before the AI chat route");
