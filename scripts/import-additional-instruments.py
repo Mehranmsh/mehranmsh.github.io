@@ -300,12 +300,16 @@ def main():
                 total_bytes += len(data)
             entries.append({"rootNote":midi(note),"velocityMin":0,"velocityMax":1,
                 "url":f"./assets/instruments/samples/{folder}/{name}","sourceFile":name})
-        manifest["instruments"][instrument] = {
+        previous_spec = manifest["instruments"].get(instrument, {})
+        updated_spec = {
             "displayName":label,"attackSeconds":0.008,
             "releaseSeconds":0.35 if instrument != "acoustic_bass" else 0.22,
             "filterHz":14500,"source":"nbrosowsky/tonejs-instruments",
             "license":"CC-BY-3.0","samples":entries
         }
+        if "maxPitchShiftSemitones" in previous_spec:
+            updated_spec["maxPitchShiftSemitones"] = previous_spec["maxPitchShiftSemitones"]
+        manifest["instruments"][instrument] = updated_spec
         print(f"{instrument}: {len(entries)} recorded notes")
 
     source_info = get(f"{BASE}/sample-source-info.txt").decode("utf-8")
@@ -345,11 +349,15 @@ def main():
         entries.append({"rootNote":midi(pitch),"velocityMin":0,"velocityMax":1,
             "url":f"./assets/instruments/samples/vcsl-kalimba/{ogg_path.name}","sourceFile":filename})
         wav_path.unlink(missing_ok=True)
-    manifest["instruments"]["kalimba"] = {
+    previous_kalimba = manifest["instruments"].get("kalimba", {})
+    kalimba_spec = {
         "displayName":"Kalimba","attackSeconds":0.003,"releaseSeconds":0.7,
         "filterHz":15000,"source":"Versilian Community Sample Library (VCSL), Kalimba Tanzania",
         "license":"CC0-1.0","samples":entries
     }
+    if "maxPitchShiftSemitones" in previous_kalimba:
+        kalimba_spec["maxPitchShiftSemitones"] = previous_kalimba["maxPitchShiftSemitones"]
+    manifest["instruments"]["kalimba"] = kalimba_spec
     license_text = get("https://raw.githubusercontent.com/sgossner/VCSL/master/LICENSE").decode("utf-8")
     (ROOT / "assets/instruments/samples/VCSL-CC0-LICENSE.txt").write_text(license_text, encoding="utf-8")
     existing_setar = manifest.get("instruments", {}).get("setar", {}).get("samples", [])
