@@ -10397,6 +10397,10 @@
           "url": "./assets/instruments/samples/harmonium/Gs4.ogg",
           "sourceFile": "Gs4.ogg"
         }
+      ],
+      "expectedRootRange": [
+        36,
+        74
       ]
     },
     "harp": {
