@@ -192,6 +192,7 @@ jobs:
           violin = data["instruments"]["violin"]
           assert len(violin["samples"]) == 45, ("violin", len(violin["samples"]))
           assert "CC0-1.0" in violin.get("license", "")
+          assert violin.get("expectedKeyRange") == [55, 98]
           assert len([s for s in violin["samples"] if s.get("sourceSha256")]) == 30
           assert len([s for s in violin["samples"] if s.get("sourceBank") == "ToneJS legacy"]) == 15
           assert {s["rootNote"] for s in violin["samples"]} == {55,57,60,64,67,69,72,76,79,81,84,88,91,93,96}
