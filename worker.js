@@ -789,7 +789,7 @@ async function getSocialUser(request, env) {
       s.id AS session_id,s.expires_at
     FROM social_sessions s
     JOIN social_users u ON u.id=s.user_id
-    WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1 AND u.email_verified=1
+    WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1 AND (u.email_verified=1 OR (u.pi_uid IS NOT NULL AND u.pi_verified=1))
     LIMIT 1
   `).bind(tokenHash, new Date().toISOString()).first();
 
@@ -1126,22 +1126,80 @@ async function socialPiSession(request, env) {
     return error("Too many Pi sign-in attempts. Try again later.", 429);
   }
 
-  const user = await env.DB.prepare(`
+  let user = await env.DB.prepare(`
     SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
-      email_verified,created_at,account_type,business_category,business_website,is_active
+      email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
     FROM social_users
     WHERE pi_uid=? LIMIT 1
   `).bind(piUser.uid).first();
 
+  // Migrate a previously Pi-verified SOCIAL account to immutable Pi UID identity.
+  // A Pi username is used only when the existing row already carries a server-side
+  // Pi verification flag; an unverified username is never sufficient for account takeover.
   if (!user) {
-    return json({
-      success: false,
-      error: "Connect your existing SOCIAL account to Pi once to enable unified sign-in.",
-      code: "PI_ACCOUNT_NOT_LINKED"
-    }, 409);
+    user = await env.DB.prepare(`
+      SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
+        email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
+      FROM social_users
+      WHERE pi_verified=1 AND lower(pi_username)=lower(?) LIMIT 1
+    `).bind(piUser.username).first();
+    if (user) {
+      const conflict = await env.DB.prepare(
+        "SELECT id FROM social_users WHERE pi_uid=? AND id<>? LIMIT 1"
+      ).bind(piUser.uid,user.id).first();
+      if (conflict) return error("This Pi identity is already connected to another SOCIAL account.",409);
+      await env.DB.prepare(
+        "UPDATE social_users SET pi_uid=?,pi_username=?,pi_verified=1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND (pi_uid IS NULL OR pi_uid=?)"
+      ).bind(piUser.uid,piUser.username,user.id,piUser.uid).run();
+      user.pi_uid=piUser.uid;
+      user.pi_username=piUser.username;
+    }
   }
-  if (!user.is_active) return error("This SOCIAL account is disabled.", 403);
-  if (!user.email_verified) return error("This SOCIAL account is not verified.", 403);
+
+  // Pi-authenticated Pioneers can use SOCIAL without an email address.
+  // Legacy NOT NULL email/password columns receive private, non-deliverable placeholders;
+  // these are never presented as contact details or accepted as an email login.
+  if (!user) {
+    const base = cleanUsername(piUser.username);
+    let username = validUsername(base) ? base : "pi_"+String(piUser.uid).replace(/[^a-z0-9]/gi,"").slice(-12).toLowerCase();
+    if (!validUsername(username)) username = "pi_"+crypto.randomUUID().replace(/-/g,"").slice(0,12);
+    const usernameTaken = await env.DB.prepare("SELECT id FROM social_users WHERE username=? LIMIT 1").bind(username).first();
+    if (usernameTaken) {
+      const suffix = String(piUser.uid).replace(/[^a-z0-9]/gi,"").slice(-6).toLowerCase() || crypto.randomUUID().slice(0,6);
+      username = (username.slice(0,17)+"_"+suffix).slice(0,24);
+    }
+    const id=crypto.randomUUID();
+    const internalEmail="pi_"+String(piUser.uid).replace(/[^a-z0-9]/gi,"").toLowerCase().slice(0,80)+"@pi.mehran.internal";
+    const randomPassword=toBase64Url(crypto.getRandomValues(new Uint8Array(48)));
+    const passwordHash=await hashPassword(randomPassword);
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`
+          INSERT INTO social_users(id,username,email,password_hash,display_name,pi_username,pi_uid,pi_verified,email_verified,email_verified_at)
+          VALUES(?,?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
+        `).bind(id,username,internalEmail,passwordHash,piUser.username,piUser.username,piUser.uid,1),
+        env.DB.prepare("INSERT INTO social_user_settings(user_id) VALUES(?)").bind(id)
+      ]);
+    } catch (err) {
+      console.error("SOCIAL_PI_ACCOUNT_CREATE_FAILURE",String(err?.message||err).slice(0,250));
+      // Another concurrent request may have created the UID account.
+      user=await env.DB.prepare(`
+        SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
+          email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
+        FROM social_users WHERE pi_uid=? LIMIT 1
+      `).bind(piUser.uid).first();
+      if (!user) return error("A SOCIAL account could not be created from your verified Pi identity. Please retry.",500);
+    }
+    if (!user) user=await env.DB.prepare(`
+      SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
+        email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
+      FROM social_users WHERE pi_uid=? LIMIT 1
+    `).bind(piUser.uid).first();
+  }
+
+  if (!user) return error("SOCIAL account could not be loaded after Pi authentication.",500);
+  if (!user.is_active) return error("This SOCIAL account is disabled.",403);
+  if (user.pi_uid!==piUser.uid) return error("Pi identity could not be securely attached to this SOCIAL account.",409);
 
   const session = await createSocialSession(env, user.id);
   return json({
@@ -5371,7 +5429,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "5.2",
+          version: "5.3",
           database
         });
       }
