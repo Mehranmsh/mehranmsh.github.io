@@ -186,6 +186,11 @@ jobs:
           assert len(data["instruments"]["cajon"]["samples"]) >= 20
           assert len(data["instruments"]["world_percussion"]["samples"]) >= 150
           assert len(data["instruments"]["acoustic_drums"]["samples"]) == 128
+          handpan = data["instruments"]["handpan"]
+          assert len(handpan["samples"]) == 51
+          assert {s["rootNote"] for s in handpan["samples"]} == {57,62,64,65,67,69,70,72,74}
+          assert handpan.get("roundRobin") is True
+          assert all((Path("assets/instruments") / s["url"].removeprefix("./assets/instruments/")).is_file() for s in handpan["samples"])
           for key, expected in {"female_vocal":45,"male_vocal":55,"female_choir":45,"male_choir":55,"mixed_choir":100}.items():
               samples = data["instruments"][key]["samples"]
               assert len(samples) == expected, (key, len(samples), expected)
