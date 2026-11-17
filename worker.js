@@ -6404,11 +6404,14 @@ export default {
         const body=await readBody(request);if(!body)return error("Invalid request body");
         const title=cleanText(body.title,120),description=cleanText(body.description,3000);
         const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
+        const actionType=body.actionType||"";
+        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report"];
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
-        if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean"))return error("Invalid task assignment, priority or approval flag.");
+        if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
+        const requiresApproval=Boolean(body.requiresApproval||actionType);
         const id=crypto.randomUUID();
-        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,body.requiresApproval?'awaiting_approval':'queued',body.requiresApproval?1:0,admin.username).run();
-        await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
+        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType).run();
+        await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
       }
