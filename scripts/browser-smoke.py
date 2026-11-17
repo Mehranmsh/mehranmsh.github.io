@@ -1369,6 +1369,19 @@ def main():
                         assert page.locator("#vocalVowelPanel").is_visible(), "Human vocal vowel selector did not appear: " + mode + "; selected=" + page.locator("#patternMode").input_value() + "; classes=" + page.locator("#vocalVowelPanel").get_attribute("class")
                         page.locator("#vocalVowel").select_option("o")
                     page.locator("#patternTrackName").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }", "Live QA " + mode)
+                    if mode == "live_accordion":
+                        page.evaluate("""() => {
+                            const prototype = AudioBufferSourceNode.prototype;
+                            if (!prototype.__mehranReleaseAuditWrapped) {
+                                const originalStart = prototype.start;
+                                prototype.start = function(...args) {
+                                    if (this.__mehranReleaseTrigger) window.__mehranAccordionReleaseStarts = (window.__mehranAccordionReleaseStarts || 0) + 1;
+                                    return originalStart.apply(this, args);
+                                };
+                                prototype.__mehranReleaseAuditWrapped = true;
+                            }
+                            window.__mehranAccordionReleaseStarts = 0;
+                        }""")
                     page.locator("#renderPattern").evaluate("(el) => el.click()")
                     try:
                         page.wait_for_function("(() => { const t=document.querySelector('#patternStatus')?.textContent||''; return t.includes('Generated WAV added to the mixer') || t.includes('Pattern render failed:'); })()", timeout=60000)
@@ -1378,6 +1391,10 @@ def main():
                     live_status = page.locator("#patternStatus").inner_text()
                     print("LIVE BANK RESULT:", mode, live_status, flush=True)
                     assert "Generated WAV added to the mixer" in live_status, "Imported live instrument did not render from recorded samples: " + mode + "; " + live_status
+                    if mode == "live_accordion":
+                        release_starts = page.evaluate("window.__mehranAccordionReleaseStarts || 0")
+                        assert release_starts >= 1, "Accordion note-off did not schedule any dedicated recorded release samples: " + str(release_starts)
+                        print("PASS: accordion note endings trigger separate recorded key-release samples", flush=True)
                     expected_ensemble_layers = {"live_female_choir": 9, "live_male_choir": 11, "live_mixed_choir": 20}
                     if mode in expected_ensemble_layers:
                         actual_layers = page.evaluate("window.__mehranLastSampleVoices || 0")
