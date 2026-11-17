@@ -2476,7 +2476,13 @@
           "url": "./assets/instruments/samples/meta-piano/INSPiano_Vel04_C8_01.ogg",
           "sourceFile": "INSPiano_Vel04_C8_01.wav"
         }
-      ]
+      ],
+      "expectedRootRange": [
+        21,
+        108
+      ],
+      "coverageSource": "Meta Open Sound instrument specification",
+      "coverageSourceUrl": "https://github.com/facebookincubator/Meta-open-sound"
     },
     "acoustic_guitar_steel": {
       "displayName": "Steel-string Acoustic Guitar",
@@ -5486,7 +5492,13 @@
           "sourceFile": "INSGuitarSteel_StringLowE_Vel03_Gs3_01.wav",
           "stringRank": 0
         }
-      ]
+      ],
+      "expectedRootRange": [
+        40,
+        84
+      ],
+      "coverageSource": "Meta Open Sound instrument specification",
+      "coverageSourceUrl": "https://github.com/facebookincubator/Meta-open-sound"
     },
     "violin": {
       "displayName": "Violin",
@@ -9518,7 +9530,13 @@
           "stringRank": 5,
           "technique": "picked"
         }
-      ]
+      ],
+      "expectedRootRange": [
+        40,
+        83
+      ],
+      "coverageSource": "Meta Open Sound instrument specification",
+      "coverageSourceUrl": "https://github.com/facebookincubator/Meta-open-sound"
     },
     "electric_bass": {
       "displayName": "Electric Bass",
@@ -18159,5 +18177,6 @@
       ]
     }
   },
-  "sourcePolicy": "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
+  "sourcePolicy": "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider.",
+  "coveragePolicy": "A bank is production-complete only when every recorded chromatic root note in its explicitly documented expected range exists. Range-to-range interpolation, pitch-shifted substitutes, and synthetic fallback do not count."
 }
