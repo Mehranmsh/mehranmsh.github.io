@@ -591,8 +591,10 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 </section>
 
 <section class="page" id="page-user">
-<div class="page-heading"><h1>User Center</h1><p>Your account, digital identity and connection settings.</p></div>
-<div class="grid"><div class="card"><div class="eyebrow">ACCOUNT</div><div class="stat" id="userStatus">Guest</div><div class="stat-label">MEHRAN MSH account status</div></div><div class="card"><div class="eyebrow">PI NETWORK</div><div class="stat" id="piStatus">Not connected</div><div class="stat-label">Pi authentication status</div></div><div class="card"><div class="eyebrow">SOCIAL ACCOUNT</div><div class="stat" id="socialStatus">Not registered</div><div class="stat-label">SOCIAL membership</div></div></div>
+<div class="page-heading"><h1 id="accountPageTitle">User Center</h1><p id="accountPageSubtitle">Your account, digital identity and connection settings.</p></div>
+<div class="grid"><div class="card"><div class="eyebrow">ACCOUNT</div><div class="stat" id="userStatus">Guest</div><div class="stat-label">MEHRAN MSH account status</div></div><div class="card"><div class="eyebrow">PI NETWORK</div><div class="stat" id="piStatus">Not connected</div><div class="stat-label">Pi authentication status</div></div><div class="card" id="socialAccountStatusCard"><div class="eyebrow">SOCIAL ACCOUNT</div><div class="stat" id="socialStatus">Not registered</div><div class="stat-label">SOCIAL membership</div></div></div>
+<div class="panel hidden" id="adminAccountPanel"><div class="eyebrow">ADMINISTRATOR ACCOUNT</div><h3 style="margin:8px 0">Management identity</h3><p class="small-text">This account has administrator privileges in MEHRAN MSH.</p><div class="grid" style="margin-top:14px"><div class="card"><div class="eyebrow">PI IDENTITY</div><div class="stat" id="adminAccountUsername">—</div><div class="stat-label">Verified administrator</div></div><div class="card"><div class="eyebrow">SECURE SESSION</div><div class="stat" id="adminAccountSession">—</div><div class="stat-label">Persistent admin session</div></div></div><div class="hero-actions"><button class="btn" type="button" onclick="showPage('admin')">Open Admin Panel</button></div></div>
+<div class="panel" id="socialUserAccountPanel"><h3>SOCIAL Membership</h3><p class="small-text">Manage your SOCIAL profile, conversations and community activity from the SOCIAL section.</p><button class="btn secondary" type="button" onclick="showPage('social')">Open SOCIAL</button></div>
 <div class="panel"><h3>Pi Network Authentication</h3><p class="small-text">Connect using the official Pi authentication window. Never share your wallet passphrase or private keys.</p><button type="button" class="btn" id="piLoginBtn" onclick="var m=document.getElementById('piMessage');if(m){m.textContent='Pi button click detected. Starting sign-in...';m.className='notice';}if(typeof window.piLogin==='function'){window.piLogin();}else if(m){m.textContent='Pi sign-in code is not available on this page.';m.className='notice error';}">Sign in with Pi</button><div id="piMessage" class="notice" role="status" aria-live="polite" style="display:block!important;visibility:visible!important;opacity:1!important;margin-top:12px;min-height:38px">Checking saved Pi session...</div><button class="btn secondary hidden" id="piLogoutBtn">Disconnect session</button></div>
 <div class="panel"><h3>Account Information</h3><div class="form-grid"><div class="field"><label>Pi Username</label><input id="piUsername" readonly placeholder="Not connected"></div><div class="field"><label>Account UID</label><input id="piUid" readonly placeholder="Not available"></div></div></div>
 </section>
@@ -1129,7 +1131,8 @@ restoreAdminSession();
 
 function updateAccountUI(){
 const signed=!!piUser;
-$("userStatus").textContent=signed?"Connected":"Guest";
+const isAdmin=!!(piUser?.isAdmin&&piUser?.adminSession);
+$("userStatus").textContent=isAdmin?"Administrator":signed?"Connected":"Guest";
 $("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";
 $("piStatus").textContent=signed?"Connected":"Not connected";
 $("piUsername").value=piUser?.username||"";
@@ -1138,6 +1141,13 @@ $("piLoginBtn").classList.toggle("hidden",signed||adminSessionRestoring);
 $("piLogoutBtn").classList.toggle("hidden",!signed);
 $("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";
 $("adminSession").textContent=signed?(piUser?.adminSession?"Persistent admin session":"Pi connected"):"Guest";
+$("accountPageTitle").textContent=isAdmin?"Administrator Account":"User Center";
+$("accountPageSubtitle").textContent=isAdmin?"Your verified administrator identity and secure management session.":"Your account, digital identity and connection settings.";
+$("adminAccountPanel").classList.toggle("hidden",!isAdmin);
+$("socialUserAccountPanel").classList.toggle("hidden",isAdmin);
+$("socialAccountStatusCard").classList.toggle("hidden",isAdmin);
+$("adminAccountUsername").textContent=isAdmin?(piUser.username||"Admin"):"—";
+$("adminAccountSession").textContent=isAdmin?(piUser.adminSession?"Active":"Not active"):"—";
 }
 async function piLogin(){
 const button=$("piLoginBtn"),message=$("piMessage");
