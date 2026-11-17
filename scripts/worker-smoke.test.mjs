@@ -1272,3 +1272,16 @@ test("MEHRAN Intelligence scheduled runner executes only owner-approved allowlis
   assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_type/);
   assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_payload/);
 });
+
+
+test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
+  const html = read("index.html");
+  const worker = read("worker.js");
+  for (const action of ["project_status_report", "social_metrics_report", "service_health_report"]) {
+    assert.ok(html.includes(action), `Task Hub exposes ${action}`);
+    assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
+  }
+  assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|actionType\)/);
+  assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.match(html, /actionTypes\[task\.actionType\]/);
+});
