@@ -5508,6 +5508,10 @@
       "source": "VSCO 2 CE Solo Violin CC0 + preserved ToneJS violin recordings CC-BY-3.0",
       "license": "Mixed: CC0-1.0 and CC-BY-3.0; see per-sample sourceFile and license notices",
       "maxPitchShiftSemitones": 2,
+      "expectedKeyRange": [
+        55,
+        98
+      ],
       "samples": [
         {
           "rootNote": 55,
