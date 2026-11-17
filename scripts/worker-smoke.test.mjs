@@ -1275,8 +1275,8 @@ test("MEHRAN Intelligence scheduled runner executes only owner-approved allowlis
 
 
 test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
-  const html = read("index.html");
-  const worker = read("worker.js");
+  const html = indexSource;
+  const worker = workerSource;
   for (const action of ["project_status_report", "social_metrics_report", "service_health_report"]) {
     assert.ok(html.includes(action), `Task Hub exposes ${action}`);
     assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
