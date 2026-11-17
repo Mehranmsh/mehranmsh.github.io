@@ -117,18 +117,22 @@ test("password hashing parameters remain explicit and compatible with the deploy
   assert.match(workerSource, /iterations !== PBKDF2_ITERATIONS/);
 });
 
-test("Workers AI has separate Music and SOCIAL daily budgets under one fail-closed ceiling", () => {
+test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets under one fail-closed ceiling", () => {
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
   assert.match(workerSource, /WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS workers_ai_daily_budget/);
-  assert.match(workerSource, /productKey === "music"/);
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 1000 \}/);
+  assert.match(workerSource, /ensureColumn\("workers_ai_daily_budget", "intelligence_reserved"/);
   assert.match(workerSource, /total_reserved/);
   assert.match(workerSource, /music_reserved/);
   assert.match(workerSource, /social_reserved/);
+  assert.match(workerSource, /intelligence_reserved/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 500, "social"\)/);
-  assert.match(workerSource, /if \(!budget\.allowed\) throw new Error\("Daily free Workers AI budget is reserved for today\."/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 100, "intelligence"\)/);
+  assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected\.cap/);
+  assert.doesNotMatch(workerSource, /intelligence_ai_daily_budget/);
 });
 
 
