@@ -785,7 +785,7 @@ async function getSocialUser(request, env) {
   const row = await env.DB.prepare(`
     SELECT
       u.id,u.username,u.email,u.display_name,u.bio,u.avatar_url,
-      u.pi_username,u.pi_verified,u.email_verified,u.created_at,u.account_type,u.business_category,u.business_website,
+      u.pi_username,u.pi_uid,u.pi_verified,u.email_verified,u.created_at,u.account_type,u.business_category,u.business_website,
       s.id AS session_id,s.expires_at
     FROM social_sessions s
     JOIN social_users u ON u.id=s.user_id
@@ -806,6 +806,7 @@ async function getSocialUser(request, env) {
     bio: row.bio || "",
     avatarUrl: row.avatar_url || "",
     piUsername: row.pi_username || "",
+    piUid: row.pi_uid || "",
     piVerified: Boolean(row.pi_verified),
     emailVerified: Boolean(row.email_verified),
     isCreator: Boolean(row.pi_verified && String(row.pi_username || "").trim().toLowerCase() === "mehranmsh"),
