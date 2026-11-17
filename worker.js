@@ -5130,10 +5130,14 @@ async function ensureIntelligenceTaskTable(env) {
       requires_approval INTEGER NOT NULL DEFAULT 0,
       result_text TEXT NOT NULL DEFAULT '',
       created_by TEXT NOT NULL,
+      action_type TEXT NOT NULL DEFAULT '',
+      action_payload TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_type TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
@@ -5142,6 +5146,7 @@ function formatIntelligenceTask(row) {
     id: row.id, title: row.title, description: row.description || "",
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
+    actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
     result: row.result_text || "", createdBy: row.created_by,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
@@ -5410,6 +5415,49 @@ async function socialDeleteAccount(request, env) {
 }
 
 export default {
+  async scheduled(controller, env, ctx) {
+    const run = async () => {
+      if (!env.DB) return;
+      await ensureIntelligenceTaskTable(env);
+      for (let n = 0; n < 5; n++) {
+        const candidate = await env.DB.prepare(
+          "SELECT id,action_type FROM intelligence_tasks WHERE status='accepted' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+        ).first();
+        if (!candidate) break;
+        const claimed = await env.DB.prepare(
+          "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
+        ).bind(candidate.id).run();
+        if (!Number(claimed?.meta?.changes || 0)) continue;
+        try {
+          let report;
+          if (candidate.action_type === "project_status_report") {
+            const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
+            report = { type: candidate.action_type, generatedAt: new Date().toISOString(), projects: (rows.results || []).map(x => ({ name:x.name, status:x.status, description:String(x.description || "").slice(0,300), updatedAt:x.updated_at || null })) };
+          } else if (candidate.action_type === "social_metrics_report") {
+            const rows = await Promise.all([
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+            ]);
+            report = { type:candidate.action_type, generatedAt:new Date().toISOString(), registeredUsers:Number(rows[0]?.total || 0), activeUsers:Number(rows[1]?.total || 0), posts:Number(rows[2]?.total || 0), openReports:Number(rows[3]?.total || 0) };
+          } else if (candidate.action_type === "service_health_report") {
+            await env.DB.prepare("SELECT 1 AS healthy").first();
+            const projects = await env.DB.prepare("SELECT COUNT(*) AS total FROM projects").first();
+            report = { type:candidate.action_type, generatedAt:new Date().toISOString(), database:"healthy", projectRecords:Number(projects?.total || 0) };
+          } else {
+            throw new Error("Unsupported action type.");
+          }
+          const resultText = JSON.stringify(report).slice(0,3000);
+          await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+        } catch (err) {
+          const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
+          await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+        }
+      }
+    };
+    ctx.waitUntil(run());
+  },
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
 
@@ -6422,7 +6470,7 @@ export default {
           {name:"get_project_status",description:"Read current MEHRAN project names, statuses and short descriptions. Read-only.",parameters:{type:"object",properties:{},additionalProperties:false}},
           {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics only. Never return personal user records.",parameters:{type:"object",properties:{},additionalProperties:false}},
           {name:"list_collaboration_tasks",description:"List recent MEHRAN collaboration tasks. Optional filters: status and assignedTo.",parameters:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
-          {name:"propose_collaboration_task",description:"Create an internal task proposal for MEHRAN INTELLIGENCE or shared team. This ALWAYS requires owner approval and does not execute the task.",parameters:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","shared"]},priority:{type:"string",enum:["low","normal","high"]}},required:["title","description"],additionalProperties:false}}
+          {name:"propose_collaboration_task",description:"Create an internal task proposal for MEHRAN INTELLIGENCE or shared team. This ALWAYS requires owner approval. Only the listed read-only report action types can run automatically after approval; other tasks remain proposals.",parameters:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","shared"]},priority:{type:"string",enum:["low","normal","high"]},actionType:{type:"string",enum:["project_status_report","social_metrics_report","service_health_report"]}},required:["title","description"],additionalProperties:false}}
         ];
         const messages = [
           {role:"system",content:system},
@@ -6460,13 +6508,13 @@ export default {
             return {tasks:(rows.results||[]).map(formatIntelligenceTask)};
           }
           if (name === "propose_collaboration_task") {
-            if(Object.keys(args).some(k=>!["title","description","assignedTo","priority"].includes(k)))throw new Error("Unknown task field.");
+            if(Object.keys(args).some(k=>!["title","description","assignedTo","priority","actionType"].includes(k)))throw new Error("Unknown task field.");
             const title=cleanText(args.title,120),description=cleanText(args.description,3000);
-            const assignedTo=args.assignedTo||"mehran_intelligence",priority=args.priority||"normal";
+            const assignedTo=args.assignedTo||"mehran_intelligence",priority=args.priority||"normal",actionType=args.actionType||"";
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000||!description)throw new Error("A valid task title and description are required.");
-            if(!["mehran_intelligence","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority))throw new Error("Invalid task assignment or priority.");
+            if(!["mehran_intelligence","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)||!["","project_status_report","social_metrics_report","service_health_report"].includes(actionType))throw new Error("Invalid task assignment, priority or action type.");
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,'awaiting_approval',1,?)").bind(id,title,description,assignedTo,priority,admin.username).run();
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,actionType,"{}").run();
             await writeAdminAudit(env,admin,"intelligence_task_proposed","intelligence_task",id,JSON.stringify({assignedTo,priority,source:"intelligence_chat"}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return {task:formatIntelligenceTask(row),message:"Task proposal created and is awaiting owner approval. No execution was performed."};
