@@ -982,6 +982,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <form id="intelTaskForm" class="card" autocomplete="off">
 <div class="field"><label for="intelTaskTitle">Task title</label><input id="intelTaskTitle" maxlength="120" required placeholder="مثلاً بررسی و تکمیل ماژول SOCIAL"></div>
 <div class="field"><label for="intelTaskDescription">Task details</label><textarea id="intelTaskDescription" rows="3" maxlength="3000" required placeholder="هدف، محدوده و نتیجهٔ مورد انتظار را بنویس..."></textarea></div>
+<div class="field"><label for="intelTaskActionType">Execution type</label><select id="intelTaskActionType"><option value="">Manual task · no automatic execution</option><option value="project_status_report">Project status report</option><option value="social_metrics_report">SOCIAL metrics report</option><option value="service_health_report">Service health report</option></select><div class="small-text">Automated reports always require owner approval first.</div></div>
 <div class="grid">
 <div class="field"><label for="intelTaskAssignee">Assign to</label><select id="intelTaskAssignee"><option value="mehran_intelligence">MEHRAN INTELLIGENCE</option><option value="chatgpt">ChatGPT</option><option value="shared">Shared collaboration</option></select></div>
 <div class="field"><label for="intelTaskPriority">Priority</label><select id="intelTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
@@ -995,7 +996,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
 <div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
 <div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً مهم‌ترین قدم بعدی شرکت چیه؟"></textarea></div>
-<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 10/day</span></div>
+<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 3/day</span></div>
 <div id="intelReply" class="card intelligence-reply" aria-live="polite"></div>
 </div>
 <details class="panel intelligence-advanced"><summary>Technical connections and project data</summary>
@@ -2213,7 +2214,7 @@ status.className="notice";
 try{
 const data=await api("/intelligence/tasks");
 renderIntelligenceTasks(data.tasks||[]);
-status.textContent=(data.tasks||[]).length+" recent collaboration tasks loaded. Tasks are records, not automatic executions.";
+status.textContent=(data.tasks||[]).length+" recent tasks loaded. Only approved, allowlisted reports run automatically.";
 status.className="notice success";
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
@@ -2225,12 +2226,13 @@ function renderIntelligenceTasks(tasks){
 const list=$("intelTasksList");if(!list)return;
 if(!tasks.length){list.innerHTML='<div class="empty">No collaboration tasks yet. Add the first task above.</div>';return}
 const labels={queued:"Queued",accepted:"Accepted",in_progress:"In progress",blocked:"Blocked",awaiting_approval:"Awaiting approval",completed:"Completed",cancelled:"Cancelled"};
+const actionTypes={project_status_report:"Project status report",social_metrics_report:"SOCIAL metrics report",service_health_report:"Service health report"};
 list.innerHTML=tasks.map(task=>{
 const status=labels[task.status]||task.status;
 const next=task.status==="awaiting_approval"?"accepted":(task.status==="queued"||task.status==="accepted")?"in_progress":task.status==="in_progress"?"completed":null;
 const actionLabel=task.status==="awaiting_approval"?"Approve task":next==="completed"?"Mark complete":next==="in_progress"?"Mark as in progress":"";
 const action=next?'<button class="btn secondary small" type="button" data-intel-task-status="'+escapeHTML(task.id)+'" data-next-status="'+next+'">'+actionLabel+'</button>':"";
-return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'<div class="hero-actions" style="margin-top:10px">'+action+'</div></article>';
+return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'<div class="hero-actions" style="margin-top:10px">'+action+'</div></article>';
 }).join("");
 }
 async function createIntelligenceTask(event){
@@ -2240,7 +2242,7 @@ const title=$("intelTaskTitle").value.trim(),description=$("intelTaskDescription
 if(!title||!description){status.textContent="Enter a title and task details.";status.className="notice warn";return}
 button.disabled=true;status.textContent="Saving task to the shared queue...";status.className="notice";
 try{
-await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,assignedTo:$("intelTaskAssignee").value,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked})});
+await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,assignedTo:$("intelTaskAssignee").value,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked,actionType:$("intelTaskActionType").value})});
 form.reset();
 status.textContent="Task added to the shared queue. No external action was executed.";
 status.className="notice success";
