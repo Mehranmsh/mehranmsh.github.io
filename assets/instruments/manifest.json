@@ -10959,6 +10959,10 @@
           "url": "./assets/instruments/samples/saxophone/Gs5.ogg",
           "sourceFile": "Gs5.ogg"
         }
+      ],
+      "expectedRootRange": [
+        49,
+        81
       ]
     },
     "trombone": {
