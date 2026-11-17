@@ -10408,10 +10408,6 @@
           "sourceFile": "Gs4.ogg"
         }
       ],
-      "expectedRootRange": [
-        36,
-        74
-      ],
       "maxPitchShiftSemitones": 1
     },
     "harp": {
@@ -10976,10 +10972,6 @@
           "url": "./assets/instruments/samples/saxophone/Gs5.ogg",
           "sourceFile": "Gs5.ogg"
         }
-      ],
-      "expectedRootRange": [
-        49,
-        81
       ],
       "maxPitchShiftSemitones": 2
     },
@@ -11865,6 +11857,125 @@
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-1_11.ogg",
           "sourceFile": "samples/Bongos/1_11.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_06.ogg",
+          "sourceFile": "samples/Bongos/2_06.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_01.ogg",
+          "sourceFile": "samples/Bongos/2_01.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_07.ogg",
+          "sourceFile": "samples/Bongos/2_07.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_20.ogg",
+          "sourceFile": "samples/Bongos/2_20.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_13.ogg",
+          "sourceFile": "samples/Bongos/2_13.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_14.ogg",
+          "sourceFile": "samples/Bongos/2_14.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_15.ogg",
+          "sourceFile": "samples/Bongos/2_15.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_17.ogg",
+          "sourceFile": "samples/Bongos/2_17.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_10.ogg",
+          "sourceFile": "samples/Bongos/2_10.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_11.ogg",
+          "sourceFile": "samples/Bongos/2_11.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_12.ogg",
+          "sourceFile": "samples/Bongos/2_12.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_13.ogg",
+          "sourceFile": "samples/Bongos/2_13.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_14.ogg",
+          "sourceFile": "samples/Bongos/2_14.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_15.ogg",
+          "sourceFile": "samples/Bongos/2_15.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_16.ogg",
+          "sourceFile": "samples/Bongos/2_16.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_03.ogg",
+          "sourceFile": "samples/Bongos/2_03.flac"
+        },
+        {
+          "rootNote": 53,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_17.ogg",
+          "sourceFile": "samples/Bongos/2_17.flac"
         },
         {
           "rootNote": 54,
@@ -13090,125 +13201,6 @@
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Darbuka-pa_03_07.ogg",
           "sourceFile": "samples/Darbuka/pa_03_07.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_06.ogg",
-          "sourceFile": "samples/Bongos/2_06.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_01.ogg",
-          "sourceFile": "samples/Bongos/2_01.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_07.ogg",
-          "sourceFile": "samples/Bongos/2_07.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_20.ogg",
-          "sourceFile": "samples/Bongos/2_20.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_13.ogg",
-          "sourceFile": "samples/Bongos/2_13.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_14.ogg",
-          "sourceFile": "samples/Bongos/2_14.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_15.ogg",
-          "sourceFile": "samples/Bongos/2_15.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0,
-          "velocityMax": 0.4330708661417323,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_17.ogg",
-          "sourceFile": "samples/Bongos/2_17.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_10.ogg",
-          "sourceFile": "samples/Bongos/2_10.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_11.ogg",
-          "sourceFile": "samples/Bongos/2_11.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_12.ogg",
-          "sourceFile": "samples/Bongos/2_12.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_13.ogg",
-          "sourceFile": "samples/Bongos/2_13.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_14.ogg",
-          "sourceFile": "samples/Bongos/2_14.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_15.ogg",
-          "sourceFile": "samples/Bongos/2_15.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_16.ogg",
-          "sourceFile": "samples/Bongos/2_16.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_03.ogg",
-          "sourceFile": "samples/Bongos/2_03.flac"
-        },
-        {
-          "rootNote": 53,
-          "velocityMin": 0.4409448818897638,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_17.ogg",
-          "sourceFile": "samples/Bongos/2_17.flac"
         }
       ]
     },
@@ -13223,7 +13215,7 @@
       "samples": [
         {
           "rootNote": 42,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr1.ogg",
           "sourceFile": "hhc_vl1_rr1.flac",
@@ -13231,7 +13223,7 @@
         },
         {
           "rootNote": 42,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr2.ogg",
           "sourceFile": "hhc_vl1_rr2.flac",
@@ -13239,7 +13231,7 @@
         },
         {
           "rootNote": 42,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr3.ogg",
           "sourceFile": "hhc_vl1_rr3.flac",
@@ -13247,7 +13239,7 @@
         },
         {
           "rootNote": 42,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl1_rr4.ogg",
           "sourceFile": "hhc_vl1_rr4.flac",
@@ -13320,7 +13312,7 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr1.ogg",
           "sourceFile": "hhc_vl4_rr1.flac",
           "roundRobin": 1
@@ -13328,7 +13320,7 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr2.ogg",
           "sourceFile": "hhc_vl4_rr2.flac",
           "roundRobin": 2
@@ -13336,7 +13328,7 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr3.ogg",
           "sourceFile": "hhc_vl4_rr3.flac",
           "roundRobin": 3
@@ -13344,14 +13336,14 @@
         {
           "rootNote": 42,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhc_vl4_rr4.ogg",
           "sourceFile": "hhc_vl4_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 46,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl1_rr1.ogg",
           "sourceFile": "hho_vl1_rr1.flac",
@@ -13359,7 +13351,7 @@
         },
         {
           "rootNote": 46,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl1_rr2.ogg",
           "sourceFile": "hho_vl1_rr2.flac",
@@ -13367,7 +13359,7 @@
         },
         {
           "rootNote": 46,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl1_rr3.ogg",
           "sourceFile": "hho_vl1_rr3.flac",
@@ -13424,7 +13416,7 @@
         {
           "rootNote": 46,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl4_rr1.ogg",
           "sourceFile": "hho_vl4_rr1.flac",
           "roundRobin": 1
@@ -13432,7 +13424,7 @@
         {
           "rootNote": 46,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl4_rr2.ogg",
           "sourceFile": "hho_vl4_rr2.flac",
           "roundRobin": 2
@@ -13440,14 +13432,14 @@
         {
           "rootNote": 46,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hho_vl4_rr3.ogg",
           "sourceFile": "hho_vl4_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 44,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr1.ogg",
           "sourceFile": "hhp_vl1_rr1.flac",
@@ -13455,7 +13447,7 @@
         },
         {
           "rootNote": 44,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr2.ogg",
           "sourceFile": "hhp_vl1_rr2.flac",
@@ -13463,7 +13455,7 @@
         },
         {
           "rootNote": 44,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr3.ogg",
           "sourceFile": "hhp_vl1_rr3.flac",
@@ -13471,7 +13463,7 @@
         },
         {
           "rootNote": 44,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl1_rr4.ogg",
           "sourceFile": "hhp_vl1_rr4.flac",
@@ -13512,7 +13504,7 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr1.ogg",
           "sourceFile": "hhp_vl3_rr1.flac",
           "roundRobin": 1
@@ -13520,7 +13512,7 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr2.ogg",
           "sourceFile": "hhp_vl3_rr2.flac",
           "roundRobin": 2
@@ -13528,7 +13520,7 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr3.ogg",
           "sourceFile": "hhp_vl3_rr3.flac",
           "roundRobin": 3
@@ -13536,14 +13528,14 @@
         {
           "rootNote": 44,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/hhp_vl3_rr4.ogg",
           "sourceFile": "hhp_vl3_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 36,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr1.ogg",
           "sourceFile": "kick_vl1_rr1.flac",
@@ -13551,7 +13543,7 @@
         },
         {
           "rootNote": 36,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr2.ogg",
           "sourceFile": "kick_vl1_rr2.flac",
@@ -13559,7 +13551,7 @@
         },
         {
           "rootNote": 36,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr3.ogg",
           "sourceFile": "kick_vl1_rr3.flac",
@@ -13567,7 +13559,7 @@
         },
         {
           "rootNote": 36,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl1_rr4.ogg",
           "sourceFile": "kick_vl1_rr4.flac",
@@ -13640,7 +13632,7 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr1.ogg",
           "sourceFile": "kick_vl4_rr1.flac",
           "roundRobin": 1
@@ -13648,7 +13640,7 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr2.ogg",
           "sourceFile": "kick_vl4_rr2.flac",
           "roundRobin": 2
@@ -13656,7 +13648,7 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr3.ogg",
           "sourceFile": "kick_vl4_rr3.flac",
           "roundRobin": 3
@@ -13664,14 +13656,14 @@
         {
           "rootNote": 36,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/kick_vl4_rr4.ogg",
           "sourceFile": "kick_vl4_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 51,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr1.ogg",
           "sourceFile": "ride_vl1_rr1.flac",
@@ -13679,7 +13671,7 @@
         },
         {
           "rootNote": 51,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr2.ogg",
           "sourceFile": "ride_vl1_rr2.flac",
@@ -13687,7 +13679,7 @@
         },
         {
           "rootNote": 51,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr3.ogg",
           "sourceFile": "ride_vl1_rr3.flac",
@@ -13695,7 +13687,7 @@
         },
         {
           "rootNote": 51,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl1_rr4.ogg",
           "sourceFile": "ride_vl1_rr4.flac",
@@ -13736,7 +13728,7 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr1.ogg",
           "sourceFile": "ride_vl3_rr1.flac",
           "roundRobin": 1
@@ -13744,7 +13736,7 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr2.ogg",
           "sourceFile": "ride_vl3_rr2.flac",
           "roundRobin": 2
@@ -13752,7 +13744,7 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr3.ogg",
           "sourceFile": "ride_vl3_rr3.flac",
           "roundRobin": 3
@@ -13760,14 +13752,14 @@
         {
           "rootNote": 51,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ride_vl3_rr4.ogg",
           "sourceFile": "ride_vl3_rr4.flac",
           "roundRobin": 4
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl1_rr1.ogg",
           "sourceFile": "ridebell_vl1_rr1.flac",
@@ -13775,7 +13767,7 @@
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl1_rr2.ogg",
           "sourceFile": "ridebell_vl1_rr2.flac",
@@ -13783,7 +13775,7 @@
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.33070866141732286,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl1_rr3.ogg",
           "sourceFile": "ridebell_vl1_rr3.flac",
@@ -13816,7 +13808,7 @@
         {
           "rootNote": 53,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl3_rr1.ogg",
           "sourceFile": "ridebell_vl3_rr1.flac",
           "roundRobin": 1
@@ -13824,7 +13816,7 @@
         {
           "rootNote": 53,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl3_rr2.ogg",
           "sourceFile": "ridebell_vl3_rr2.flac",
           "roundRobin": 2
@@ -13832,14 +13824,14 @@
         {
           "rootNote": 53,
           "velocityMin": 0.6771653543307087,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/ridebell_vl3_rr3.ogg",
           "sourceFile": "ridebell_vl3_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 37,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.3700787401574803,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl1_rr1.ogg",
           "sourceFile": "sidestick_vl1_rr1.flac",
@@ -13847,7 +13839,7 @@
         },
         {
           "rootNote": 37,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.3700787401574803,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl1_rr2.ogg",
           "sourceFile": "sidestick_vl1_rr2.flac",
@@ -13855,7 +13847,7 @@
         },
         {
           "rootNote": 37,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.3700787401574803,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl1_rr3.ogg",
           "sourceFile": "sidestick_vl1_rr3.flac",
@@ -13888,7 +13880,7 @@
         {
           "rootNote": 37,
           "velocityMin": 0.6929133858267716,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl3_rr1.ogg",
           "sourceFile": "sidestick_vl3_rr1.flac",
           "roundRobin": 1
@@ -13896,7 +13888,7 @@
         {
           "rootNote": 37,
           "velocityMin": 0.6929133858267716,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl3_rr2.ogg",
           "sourceFile": "sidestick_vl3_rr2.flac",
           "roundRobin": 2
@@ -13904,14 +13896,14 @@
         {
           "rootNote": 37,
           "velocityMin": 0.6929133858267716,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/sidestick_vl3_rr3.ogg",
           "sourceFile": "sidestick_vl3_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 38,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.16535433070866143,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl1_rr1.ogg",
           "sourceFile": "snare_vl1_rr1.flac",
@@ -13919,7 +13911,7 @@
         },
         {
           "rootNote": 38,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.16535433070866143,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl1_rr2.ogg",
           "sourceFile": "snare_vl1_rr2.flac",
@@ -13927,7 +13919,7 @@
         },
         {
           "rootNote": 38,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.16535433070866143,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl1_rr3.ogg",
           "sourceFile": "snare_vl1_rr3.flac",
@@ -14032,7 +14024,7 @@
         {
           "rootNote": 38,
           "velocityMin": 0.8346456692913385,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl6_rr1.ogg",
           "sourceFile": "snare_vl6_rr1.flac",
           "roundRobin": 1
@@ -14040,7 +14032,7 @@
         {
           "rootNote": 38,
           "velocityMin": 0.8346456692913385,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl6_rr2.ogg",
           "sourceFile": "snare_vl6_rr2.flac",
           "roundRobin": 2
@@ -14048,14 +14040,14 @@
         {
           "rootNote": 38,
           "velocityMin": 0.8346456692913385,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/snare_vl6_rr3.ogg",
           "sourceFile": "snare_vl6_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 50,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl1_rr1.ogg",
           "sourceFile": "tomhi_vl1_rr1.flac",
@@ -14063,7 +14055,7 @@
         },
         {
           "rootNote": 50,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl1_rr2.ogg",
           "sourceFile": "tomhi_vl1_rr2.flac",
@@ -14071,7 +14063,7 @@
         },
         {
           "rootNote": 50,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl1_rr3.ogg",
           "sourceFile": "tomhi_vl1_rr3.flac",
@@ -14128,7 +14120,7 @@
         {
           "rootNote": 50,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl4_rr1.ogg",
           "sourceFile": "tomhi_vl4_rr1.flac",
           "roundRobin": 1
@@ -14136,7 +14128,7 @@
         {
           "rootNote": 50,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl4_rr2.ogg",
           "sourceFile": "tomhi_vl4_rr2.flac",
           "roundRobin": 2
@@ -14144,14 +14136,14 @@
         {
           "rootNote": 50,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/tomhi_vl4_rr3.ogg",
           "sourceFile": "tomhi_vl4_rr3.flac",
           "roundRobin": 3
         },
         {
           "rootNote": 43,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl1_rr1.ogg",
           "sourceFile": "tomlo_vl1_rr1.flac",
@@ -14159,7 +14151,7 @@
         },
         {
           "rootNote": 43,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl1_rr2.ogg",
           "sourceFile": "tomlo_vl1_rr2.flac",
@@ -14167,7 +14159,7 @@
         },
         {
           "rootNote": 43,
-          "velocityMin": 0,
+          "velocityMin": 0.0,
           "velocityMax": 0.2440944881889764,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl1_rr3.ogg",
           "sourceFile": "tomlo_vl1_rr3.flac",
@@ -14224,7 +14216,7 @@
         {
           "rootNote": 43,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl4_rr1.ogg",
           "sourceFile": "tomlo_vl4_rr1.flac",
           "roundRobin": 1
@@ -14232,7 +14224,7 @@
         {
           "rootNote": 43,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl4_rr2.ogg",
           "sourceFile": "tomlo_vl4_rr2.flac",
           "roundRobin": 2
@@ -14240,7 +14232,7 @@
         {
           "rootNote": 43,
           "velocityMin": 0.7559055118110236,
-          "velocityMax": 1,
+          "velocityMax": 1.0,
           "url": "./assets/instruments/samples/virtuosity-drums/tomlo_vl4_rr3.ogg",
           "sourceFile": "tomlo_vl4_rr3.flac",
           "roundRobin": 3
@@ -18800,6 +18792,425 @@
         }
       ],
       "maxPitchShiftSemitones": 2
+    },
+    "handpan": {
+      "displayName": "Handpan (Hang, D minor)",
+      "attackSeconds": 0.004,
+      "releaseSeconds": 0.8,
+      "filterHz": 16000,
+      "source": "FreePats Hang D minor, recorded live in 2017",
+      "license": "CC0-1.0",
+      "roundRobin": true,
+      "samples": [
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A3_01.ogg",
+          "sourceFile": "samples/A3_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A3_02.ogg",
+          "sourceFile": "samples/A3_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A3_03.ogg",
+          "sourceFile": "samples/A3_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A3_04.ogg",
+          "sourceFile": "samples/A3_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 57,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A3_05.ogg",
+          "sourceFile": "samples/A3_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_01.ogg",
+          "sourceFile": "samples/D4_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_02.ogg",
+          "sourceFile": "samples/D4_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_03.ogg",
+          "sourceFile": "samples/D4_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_04.ogg",
+          "sourceFile": "samples/D4_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_05.ogg",
+          "sourceFile": "samples/D4_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_06.ogg",
+          "sourceFile": "samples/D4_06.flac",
+          "roundRobin": 5
+        },
+        {
+          "rootNote": 62,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D4_07.ogg",
+          "sourceFile": "samples/D4_07.flac",
+          "roundRobin": 6
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/E4_01.ogg",
+          "sourceFile": "samples/E4_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/E4_02.ogg",
+          "sourceFile": "samples/E4_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/E4_03.ogg",
+          "sourceFile": "samples/E4_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/E4_04.ogg",
+          "sourceFile": "samples/E4_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/E4_05.ogg",
+          "sourceFile": "samples/E4_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 64,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/E4_06.ogg",
+          "sourceFile": "samples/E4_06.flac",
+          "roundRobin": 5
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/F4_01.ogg",
+          "sourceFile": "samples/F4_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/F4_02.ogg",
+          "sourceFile": "samples/F4_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/F4_03.ogg",
+          "sourceFile": "samples/F4_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/F4_04.ogg",
+          "sourceFile": "samples/F4_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/F4_05.ogg",
+          "sourceFile": "samples/F4_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 65,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/F4_06.ogg",
+          "sourceFile": "samples/F4_06.flac",
+          "roundRobin": 5
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/G4_01.ogg",
+          "sourceFile": "samples/G4_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/G4_02.ogg",
+          "sourceFile": "samples/G4_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/G4_03.ogg",
+          "sourceFile": "samples/G4_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/G4_04.ogg",
+          "sourceFile": "samples/G4_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/G4_05.ogg",
+          "sourceFile": "samples/G4_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 67,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/G4_06.ogg",
+          "sourceFile": "samples/G4_06.flac",
+          "roundRobin": 5
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A4_01.ogg",
+          "sourceFile": "samples/A4_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A4_02.ogg",
+          "sourceFile": "samples/A4_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A4_03.ogg",
+          "sourceFile": "samples/A4_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A4_04.ogg",
+          "sourceFile": "samples/A4_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A4_05.ogg",
+          "sourceFile": "samples/A4_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 69,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/A4_06.ogg",
+          "sourceFile": "samples/A4_06.flac",
+          "roundRobin": 5
+        },
+        {
+          "rootNote": 70,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/Bb4_01.ogg",
+          "sourceFile": "samples/Bb4_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 70,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/Bb4_02.ogg",
+          "sourceFile": "samples/Bb4_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 70,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/Bb4_03.ogg",
+          "sourceFile": "samples/Bb4_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 70,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/Bb4_04.ogg",
+          "sourceFile": "samples/Bb4_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 70,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/Bb4_05.ogg",
+          "sourceFile": "samples/Bb4_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/C5_01.ogg",
+          "sourceFile": "samples/C5_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/C5_02.ogg",
+          "sourceFile": "samples/C5_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/C5_03.ogg",
+          "sourceFile": "samples/C5_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/C5_04.ogg",
+          "sourceFile": "samples/C5_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 72,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/C5_05.ogg",
+          "sourceFile": "samples/C5_05.flac",
+          "roundRobin": 4
+        },
+        {
+          "rootNote": 74,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D5_01.ogg",
+          "sourceFile": "samples/D5_01.flac",
+          "roundRobin": 0
+        },
+        {
+          "rootNote": 74,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D5_02.ogg",
+          "sourceFile": "samples/D5_02.flac",
+          "roundRobin": 1
+        },
+        {
+          "rootNote": 74,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D5_03.ogg",
+          "sourceFile": "samples/D5_03.flac",
+          "roundRobin": 2
+        },
+        {
+          "rootNote": 74,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D5_04.ogg",
+          "sourceFile": "samples/D5_04.flac",
+          "roundRobin": 3
+        },
+        {
+          "rootNote": 74,
+          "velocityMin": 0,
+          "velocityMax": 1,
+          "url": "./assets/instruments/samples/freepats-handpan/D5_05.ogg",
+          "sourceFile": "samples/D5_05.flac",
+          "roundRobin": 4
+        }
+      ]
     }
   },
   "sourcePolicy": "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider.",
