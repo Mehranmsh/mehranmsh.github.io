@@ -717,6 +717,8 @@ async function createSocialTables(db) {
   };
   await ensureColumn("workers_ai_daily_budget", "intelligence_reserved", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("social_users", "last_seen_at", "TEXT");
+  await ensureColumn("social_users", "pi_uid", "TEXT");
+  await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_pi_uid ON social_users(pi_uid) WHERE pi_uid IS NOT NULL AND pi_uid<>''").run();
   await ensureColumn("social_conversations", "type", "TEXT NOT NULL DEFAULT 'direct'");
   await ensureColumn("social_conversations", "title", "TEXT NOT NULL DEFAULT ''");
   await ensureColumn("social_conversations", "owner_id", "TEXT");
@@ -1054,6 +1056,116 @@ async function socialMe(request, env) {
   delete user.sessionId;
   delete user.sessionExpiresAt;
   return json({ success: true, user });
+}
+
+async function socialLinkPi(request, env) {
+  const user = await getSocialUser(request, env);
+  if (!user) return error("SOCIAL authentication required", 401);
+  const body = await readBody(request);
+  if (!body || typeof body.accessToken !== "string") return error("Pi access token is required", 400);
+  const piUser = await fetchPiUser(body.accessToken);
+  if (!piUser || !piUser.uid || !piUser.username) return error("Pi identity could not be verified", 401);
+  if (!await checkRateLimit(env, request, "social-pi-link", 5, 3600, 1800, piUser.uid)) {
+    return error("Too many Pi account-link attempts. Try again later.", 429);
+  }
+
+  const linkedIdentity = await env.DB.prepare(
+    "SELECT id FROM social_users WHERE pi_uid=? LIMIT 1"
+  ).bind(piUser.uid).first();
+  if (linkedIdentity && linkedIdentity.id !== user.id) {
+    return error("This Pi account is already connected to another SOCIAL account.", 409);
+  }
+
+  const currentIdentity = await env.DB.prepare(
+    "SELECT pi_uid,pi_username FROM social_users WHERE id=? LIMIT 1"
+  ).bind(user.id).first();
+  if (!currentIdentity) return error("SOCIAL account was not found.", 404);
+  if (currentIdentity.pi_uid && currentIdentity.pi_uid !== piUser.uid) {
+    return error("This SOCIAL account is already connected to a different Pi identity.", 409);
+  }
+
+  const usernameOwner = await env.DB.prepare(
+    "SELECT id FROM social_users WHERE pi_username=? AND id<>? LIMIT 1"
+  ).bind(piUser.username, user.id).first();
+  if (usernameOwner) return error("This Pi username is already associated with another SOCIAL account.", 409);
+
+  try {
+    await env.DB.prepare(`
+      UPDATE social_users
+      SET pi_uid=?,pi_username=?,pi_verified=1,updated_at=CURRENT_TIMESTAMP
+      WHERE id=? AND (pi_uid IS NULL OR pi_uid=?)
+    `).bind(piUser.uid, piUser.username, user.id, piUser.uid).run();
+  } catch (err) {
+    console.error("SOCIAL_PI_LINK_FAILURE", String(err?.message || err).slice(0, 250));
+    return error("Pi identity could not be linked safely. Please retry.", 409);
+  }
+
+  const confirmed = await env.DB.prepare(
+    "SELECT id,pi_uid,pi_username FROM social_users WHERE id=? LIMIT 1"
+  ).bind(user.id).first();
+  if (!confirmed || confirmed.pi_uid !== piUser.uid) {
+    return error("Pi identity link could not be confirmed.", 409);
+  }
+  return json({
+    success: true,
+    linked: true,
+    piUid: confirmed.pi_uid,
+    piUsername: confirmed.pi_username,
+    creatorVerified: String(confirmed.pi_username || "").trim().toLowerCase() === "mehranmsh",
+    creatorLabel: String(confirmed.pi_username || "").trim().toLowerCase() === "mehranmsh" ? "Creator" : ""
+  });
+}
+
+async function socialPiSession(request, env) {
+  const body = await readBody(request);
+  if (!body || typeof body.accessToken !== "string") return error("Pi access token is required", 400);
+  const piUser = await fetchPiUser(body.accessToken);
+  if (!piUser || !piUser.uid || !piUser.username) return error("Pi authentication failed", 401);
+  if (!await checkRateLimit(env, request, "social-pi-session", 10, 900, 900, piUser.uid)) {
+    return error("Too many Pi sign-in attempts. Try again later.", 429);
+  }
+
+  const user = await env.DB.prepare(`
+    SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
+      email_verified,created_at,account_type,business_category,business_website,is_active
+    FROM social_users
+    WHERE pi_uid=? LIMIT 1
+  `).bind(piUser.uid).first();
+
+  if (!user) {
+    return json({
+      success: false,
+      error: "Connect your existing SOCIAL account to Pi once to enable unified sign-in.",
+      code: "PI_ACCOUNT_NOT_LINKED"
+    }, 409);
+  }
+  if (!user.is_active) return error("This SOCIAL account is disabled.", 403);
+  if (!user.email_verified) return error("This SOCIAL account is not verified.", 403);
+
+  const session = await createSocialSession(env, user.id);
+  return json({
+    success: true,
+    message: "Pi identity recognized. SOCIAL is connected.",
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      displayName: user.display_name || "",
+      accountType: normalizeAccountType(user.account_type),
+      businessCategory: user.business_category || "",
+      businessWebsite: user.business_website || "",
+      bio: user.bio || "",
+      avatarUrl: user.avatar_url || "",
+      piUsername: user.pi_username || "",
+      piVerified: Boolean(user.pi_verified),
+      emailVerified: Boolean(user.email_verified),
+      isCreator: Boolean(user.pi_verified && String(user.pi_username || "").trim().toLowerCase() === "mehranmsh"),
+      creatorLabel: Boolean(user.pi_verified && String(user.pi_username || "").trim().toLowerCase() === "mehranmsh") ? "Creator" : "",
+      createdAt: user.created_at || ""
+    }
+  });
 }
 
 async function socialLogout(request, env) {
@@ -5395,17 +5507,11 @@ export default {
         }
 
         if (path === "/social/link-pi" && method === "POST") {
-          const user = await getSocialUser(request, env);
-          if (!user) return error("SOCIAL authentication required", 401);
-          const body = await readBody(request);
-          if (!body || !body.accessToken) return error("Pi access token is required");
-          const piUser = await fetchPiUser(body.accessToken);
-          if (!piUser || String(piUser.username || "").trim().toLowerCase() !== "mehranmsh") {
-            return error("Only the verified Pi account mehranmsh can receive the Creator badge", 403);
-          }
-          await env.DB.prepare("UPDATE social_users SET pi_username=?,pi_verified=1,updated_at=CURRENT_TIMESTAMP WHERE id=?")
-            .bind(piUser.username,user.id).run();
-          return json({success:true,creatorVerified:true,creatorLabel:"Creator"});
+          return await socialLinkPi(request, env);
+        }
+
+        if (path === "/social/pi-session" && method === "POST") {
+          return await socialPiSession(request, env);
         }
 
         if (path === "/social/logout" && method === "POST") {
