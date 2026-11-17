@@ -856,7 +856,7 @@ test("SOCIAL legacy registration cannot bypass verified email identity", () => {
   const sessionStart = workerSource.indexOf("async function getSocialUser");
   const sessionEnd = workerSource.indexOf("async function createSocialSession", sessionStart);
   const sessionLookup = workerSource.slice(sessionStart, sessionEnd);
-  assert.match(sessionLookup, /u\\.is_active=1 AND \\(u\\.email_verified=1 OR \\(u\\.pi_uid IS NOT NULL AND u\\.pi_verified=1\\)\\)/);
+  assert.match(sessionLookup, /u\.is_active=1 AND \(u\.email_verified=1 OR \(u\.pi_uid IS NOT NULL AND u\.pi_verified=1\)\)/);
   const loginStart = workerSource.indexOf("async function socialLogin");
   const loginEnd = workerSource.indexOf("async function socialMe", loginStart);
   const login = workerSource.slice(loginStart, loginEnd);
