@@ -1361,9 +1361,9 @@ def main():
                     const nonNativePlayed = player.play(58, 0.3, 0.2, {gain: 0.5, velocity: 0.5});
                     await ctx.close();
                     if (nativePlayed === false || nonNativePlayed !== false) throw new Error("Handpan must play native notes and reject non-native notes without transposition");
-                    return {samples: bank.samples.length, roots: expectedRoots, roundRobin: bank.roundRobin === true, rootLayerCounts: Object.fromEntries(groups), nativePlayed, nonNativeRejected: nonNativePlayed === false};
+                    return {samples: bank.samples.length, roots: expectedRoots, roundRobin: bank.roundRobin === true, rootLayerCounts: Object.fromEntries(groups), nativeAccepted: nativePlayed !== false, nonNativeRejected: nonNativePlayed === false};
                 }""")
-                assert handpan_assets["samples"] == 51 and handpan_assets["roundRobin"] and handpan_assets["nativePlayed"] and handpan_assets["nonNativeRejected"], "Recorded handpan bank validation failed: " + str(handpan_assets)
+                assert handpan_assets["samples"] == 51 and handpan_assets["roundRobin"] and handpan_assets["nativeAccepted"] and handpan_assets["nonNativeRejected"], "Recorded handpan bank validation failed: " + str(handpan_assets)
                 print("PASS: handpan loads 51 CC0 recordings, round-robins native notes, and rejects non-native notes without pitch shifting", flush=True)
                 accordion_assets = page.evaluate("""async () => {
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
