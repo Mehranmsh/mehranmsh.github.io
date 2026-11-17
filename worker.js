@@ -1117,6 +1117,56 @@ async function socialLinkPi(request, env) {
   });
 }
 
+
+async function socialCreatePiProfile(request, env) {
+  const body = await readBody(request);
+  if (!body || typeof body.accessToken !== "string") return error("Pi access token is required", 400);
+  const piUser = await fetchPiUser(body.accessToken);
+  if (!piUser || !piUser.uid || !piUser.username) return error("Pi authentication failed", 401);
+  if (!await checkRateLimit(env, request, "social-pi-profile-create", 5, 3600, 1800, piUser.uid)) {
+    return error("Too many profile creation attempts. Try again later.", 429);
+  }
+  const username = cleanUsername(body.username);
+  const displayName = cleanText(body.displayName, 60);
+  const bio = cleanText(body.bio, 300);
+  const accountType = body.accountType === "business" ? "business" : "human";
+  if (!validUsername(username)) return error("Username must contain 3 to 24 letters, numbers or underscores.");
+  if (!displayName) return error("Choose a display name for your SOCIAL profile.");
+  const linked = await env.DB.prepare("SELECT id FROM social_users WHERE pi_uid=? LIMIT 1").bind(piUser.uid).first();
+  if (linked) return error("This Pi identity already has a SOCIAL profile. Sign in with Pi to continue.", 409);
+  const existingUsername = await env.DB.prepare("SELECT id FROM social_users WHERE username=? LIMIT 1").bind(username).first();
+  if (existingUsername) return error("That SOCIAL username is already taken. Choose another one.", 409);
+
+  // Legacy schema requires email/password columns. These random values are inaccessible;
+  // Pi UID is the only login identity for this profile.
+  const internalEmail = "pi_" + await sha256(piUser.uid) + "@pi.mehran.internal";
+  const internalPassword = toBase64Url(crypto.getRandomValues(new Uint8Array(48)));
+  const passwordHash = await hashPassword(internalPassword);
+  const id = crypto.randomUUID();
+  const session = await createSocialSession(env, id);
+  try {
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO social_users(id,username,email,password_hash,display_name,bio,pi_username,pi_verified,email_verified,pi_uid,account_type) VALUES(?,?,?,?,?,?,?,1,0,?,?)")
+        .bind(id, username, internalEmail, passwordHash, displayName, bio, piUser.username, piUser.uid, accountType),
+      env.DB.prepare("INSERT INTO social_user_settings(user_id) VALUES(?)").bind(id),
+      env.DB.prepare("INSERT INTO social_sessions(id,user_id,token_hash,expires_at) VALUES(?,?,?,?)")
+        .bind(session.id, id, session.tokenHash, session.expiresAt)
+    ]);
+  } catch (err) {
+    console.error("SOCIAL_PI_PROFILE_CREATE_FAILURE", err);
+    const detail = String(err?.message || "").toLowerCase();
+    if (detail.includes("unique")) return error("That SOCIAL username or Pi identity is already in use. Please sign in or choose another username.", 409);
+    return error("Could not create your SOCIAL profile. Please try again.", 500);
+  }
+  return json({
+    success: true,
+    message: "Your SOCIAL profile has been created and linked to your verified Pi identity.",
+    token: session.token,
+    expiresAt: session.expiresAt,
+    user: { id, username, displayName, bio, email: "", piUsername: piUser.username, piVerified: true, emailVerified: false, accountType }
+  }, 201);
+}
+
 async function socialPiSession(request, env) {
   const body = await readBody(request);
   if (!body || typeof body.accessToken !== "string") return error("Pi access token is required", 400);
@@ -5537,6 +5587,10 @@ export default {
 
         if (path === "/social/link-pi" && method === "POST") {
           return await socialLinkPi(request, env);
+        }
+
+        if (path === "/social/pi-profile" && method === "POST") {
+          return await socialCreatePiProfile(request, env);
         }
 
         if (path === "/social/pi-session" && method === "POST") {
