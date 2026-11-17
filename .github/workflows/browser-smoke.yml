@@ -10,6 +10,7 @@ on:
       - "instrument-sampler.js"
       - "assets/instruments/**"
       - ".github/workflows/browser-smoke.yml"
+      - ".github/workflows/import-recorded-instruments.yml"
   pull_request:
     paths:
       - "music-studio.html"
