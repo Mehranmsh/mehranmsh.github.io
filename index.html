@@ -1118,7 +1118,7 @@ show(error?.message||"Pi authentication failed. Please retry.","notice error");
 button.disabled=false;button.textContent="Sign in with Pi";
 }
 }
-$("piLoginBtn").onclick=piLogin;
+window.piLogin=piLogin;
 $("piLogoutBtn").addEventListener("click",async()=>{
 const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
 if(token){try{await api("/admin/session",{method:"DELETE",headers:{"Authorization":"Bearer "+token}})}catch{}}
@@ -3685,6 +3685,30 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
   back.addEventListener("click",home);home();root.dataset.categoryFoldersReady="true";
  };
  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});else init();
+})();
+</script>
+
+
+<script id="pi-signin-fallback">
+(function(){
+  function bindPiSignIn(){
+    const button=document.getElementById("piLoginBtn");
+    if(!button || button.dataset.piClickBound==="true") return;
+    button.dataset.piClickBound="true";
+    button.addEventListener("click",function(event){
+      event.preventDefault();
+      const message=document.getElementById("piMessage");
+      if(message){message.textContent="Pi sign-in button received the click. Starting authentication...";message.className="notice";}
+      if(typeof window.piLogin==="function"){
+        window.piLogin();
+      }else if(message){
+        message.textContent="The Pi sign-in script did not load correctly. Please reload the page.";
+        message.className="notice error";
+      }
+    });
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bindPiSignIn,{once:true});
+  else bindPiSignIn();
 })();
 </script>
 
