@@ -1183,28 +1183,10 @@ async function socialPiSession(request, env) {
     WHERE pi_uid=? LIMIT 1
   `).bind(piUser.uid).first();
 
-  // Attach the immutable Pi UID only to a legacy SOCIAL profile that was already
-  // marked Pi-verified server-side. Never infer profile ownership from a matching
-  // username alone.
-  if (!user) {
-    user = await env.DB.prepare(`
-      SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
-        email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
-      FROM social_users
-      WHERE pi_verified=1 AND pi_username IS NOT NULL AND trim(pi_username)<>'' AND lower(pi_username)=lower(?) LIMIT 1
-    `).bind(piUser.username).first();
-    if (user) {
-      const conflict = await env.DB.prepare(
-        "SELECT id FROM social_users WHERE pi_uid=? AND id<>? LIMIT 1"
-      ).bind(piUser.uid,user.id).first();
-      if (conflict) return error("This Pi identity is already connected to another SOCIAL account.",409);
-      await env.DB.prepare(
-        "UPDATE social_users SET pi_uid=?,pi_username=?,pi_verified=1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND (pi_uid IS NULL OR pi_uid=?)"
-      ).bind(piUser.uid,piUser.username,user.id,piUser.uid).run();
-      user.pi_uid=piUser.uid;
-      user.pi_username=piUser.username;
-    }
-  }
+  // A Pi username is mutable and is not proof of ownership of a legacy SOCIAL
+  // account. Only an immutable Pi UID previously linked after authenticated
+  // SOCIAL login may resolve an existing profile here. Legacy accounts must
+  // sign in to SOCIAL first, then explicitly link their verified Pi identity.
 
   // Pi authentication identifies the person; it must never silently create or
   // name their SOCIAL profile. A separate, user-chosen profile onboarding flow
@@ -5449,7 +5431,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "5.5",
+          version: "5.6",
           database
         });
       }
