@@ -255,6 +255,68 @@ def import_handpan_bank(manifest):
             encoding="utf-8")
     print(f"Handpan: imported {len(entries)} real recordings across {len(actual)} native pitches; pitch shifting disabled")
 
+def import_xylophone_bank(manifest):
+    """Import the FreePats/Floe CC0 xylophone with its two recorded velocity layers."""
+    archive = get("https://codeload.github.com/floe-audio/Xylophone/zip/refs/heads/main")
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        names = bundle.namelist()
+        sfz_name = next((n for n in names if n.endswith("Xylophone-MediumMallets-20200706.sfz")), None)
+        license_name = next((n for n in names if n.endswith("/library/license.txt")), None)
+        if not sfz_name or not license_name:
+            raise RuntimeError("FreePats/Floe xylophone archive is missing SFZ or CC0 license")
+        sfz = bundle.read(sfz_name).decode("utf-8")
+        target_dir = ROOT / "assets/instruments/samples/freepats-xylophone"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        entries = []
+        for group in re.findall(r"<group>(.*?)(?=<group>|$)", sfz, re.S):
+            low_velocity = re.search(r"(?m)^\\s*lovel=(\\d+)", group)
+            high_velocity = re.search(r"(?m)^\\s*hivel=(\\d+)", group)
+            if not low_velocity or not high_velocity:
+                continue
+            velocity_min = int(low_velocity.group(1)) / 127
+            velocity_max = int(high_velocity.group(1)) / 127
+            for region in re.findall(r"<region>(.*?)(?=<region>|$)", group, re.S):
+                values = {key:int(value) for key,value in re.findall(r"(?m)^\\s*(lokey|hikey|pitch_keycenter)=(\\d+)", region)}
+                sample_match = re.search(r"(?m)^\\s*sample=([^\\s]+)", region)
+                if len(values) != 3 or not sample_match:
+                    continue
+                source_path = sample_match.group(1)
+                archive_path = next((n for n in names if n.endswith("/" + source_path)), None)
+                if not archive_path:
+                    raise RuntimeError("Missing xylophone recording: " + source_path)
+                filename = Path(source_path).stem + ".ogg"
+                target = target_dir / filename
+                if not target.exists() or target.stat().st_size < 128:
+                    raw_path = ROOT / "tmp-freepats-xylophone" / Path(source_path).name
+                    raw_path.parent.mkdir(parents=True, exist_ok=True)
+                    raw_path.write_bytes(bundle.read(archive_path))
+                    subprocess.run(["ffmpeg","-nostdin","-y","-loglevel","error","-i",str(raw_path),"-c:a","libvorbis","-q:a","5",str(target)],check=True)
+                    raw_path.unlink(missing_ok=True)
+                entries.append({
+                    "rootNote":values["pitch_keycenter"],"pitchKeyCenter":values["pitch_keycenter"],
+                    "keyLow":values["lokey"],"keyHigh":values["hikey"],
+                    "velocityMin":velocity_min,"velocityMax":velocity_max,
+                    "url":f"./assets/instruments/samples/freepats-xylophone/{filename}","sourceFile":source_path
+                })
+        expected_centers = {48,55,60,67,72,79,84,91,96}
+        actual_centers = {x["rootNote"] for x in entries}
+        if len(entries) != 18 or actual_centers != expected_centers:
+            raise RuntimeError(f"Xylophone import incomplete: {len(entries)} samples, centers={sorted(actual_centers)}")
+        manifest["instruments"]["xylophone"] = {
+            "displayName":"Xylophone (medium mallets)","attackSeconds":0.004,"releaseSeconds":0.7,
+            "filterHz":16000,"source":"FreePats/Floe Xylophone, based on VCSL recordings",
+            "license":"CC0-1.0","samples":entries
+        }
+        (ROOT / "assets/instruments/samples/FREEPATS-XYLOPHONE-CC0-LICENSE.txt").write_bytes(bundle.read(license_name))
+        (ROOT / "assets/instruments/samples/FREEPATS-XYLOPHONE-ATTRIBUTION.txt").write_text(
+            "Xylophone (medium mallets), FreePats bank packaged by Floe Audio; samples based on the Versilian Community Sample Library.\n"
+            "Source: https://github.com/floe-audio/Xylophone\n"
+            "Original bank: https://freepats.zenvoid.org/ChromaticPercussion/xylophone.html\n"
+            "License: CC0 1.0. Includes nine mapped pitch zones and two recorded velocity layers.\n",
+            encoding="utf-8")
+    print(f"Xylophone: imported {len(entries)} real recordings, 9 mapped zones, 2 velocity layers")
+
+
 def main():
     manifest_path = ROOT / "assets/instruments/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -372,6 +434,7 @@ def main():
         setar_count = import_setar_commons(manifest)
     import_drum_and_percussion_banks(manifest)
     import_handpan_bank(manifest)
+    import_xylophone_bank(manifest)
     manifest["status"] = "expanded-recorded-bank"
     manifest["sourcePolicy"] = "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
