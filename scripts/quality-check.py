@@ -54,6 +54,8 @@ def main():
     sampler_source = SAMPLER_FILE.read_text(encoding="utf-8")
     if "No real recorded samples are installed" not in sampler_source or "External sample URL blocked" not in sampler_source:
         raise SystemExit("Recorded sampler must reject missing assets and cross-origin sample URLs.")
+    if "sample.rootNote===note" not in sampler_source or "source.playbackRate.setValueAtTime(1,voiceStart)" not in sampler_source or "Math.pow(2,(note-selected.rootNote)/12)" in sampler_source:
+        raise SystemExit("Recorded sampler must use exact recorded pitches and must not transpose neighboring samples.")
     manifest = json.loads(SAMPLE_MANIFEST.read_text(encoding="utf-8"))
     if manifest.get("schemaVersion") != 1 or manifest.get("policy") != "same-origin-only":
         raise SystemExit("Recorded instrument manifest must use schema v1 and same-origin-only sample policy.")
