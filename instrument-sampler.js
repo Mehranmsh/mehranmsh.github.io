@@ -78,17 +78,17 @@
       const velocity=clamp(rawVelocity>1?rawVelocity/127:rawVelocity,.01,1);
       const candidates=bankSamples.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
       const pool=candidates.length?candidates:bankSamples;
-      const bestDistance=Math.min(...pool.map(sample=>Math.abs(sample.rootNote-note)));
-      const nearest=pool.filter(sample=>Math.abs(sample.rootNote-note)===bestDistance);
+      const exact=pool.filter(sample=>sample.rootNote===note);
+      if(!exact.length)throw new Error("No exact recorded note "+note+" is installed for "+name+". Pitch-shifted substitutes are disabled.");
       if(spec.layered===true){
        const perSinger=new Map();
-       for(const sample of pool){
-        const singer=String(sample.singer||sample.url),distance=Math.abs(sample.rootNote-note),previous=perSinger.get(singer);
-        if(!previous||distance<previous.distance)perSinger.set(singer,{sample,distance});
+       for(const sample of exact){
+        const singer=String(sample.singer||sample.url);
+        if(!perSinger.has(singer))perSinger.set(singer,sample);
        }
-       for(const item of perSinger.values())selected.set(item.sample.url,item.sample);
-      }else if(spec.roundRobin===true){for(const sample of pool.filter(item=>Math.abs(item.rootNote-note)===bestDistance))selected.set(sample.url,sample);}
-      else{const ranked=pool.slice().sort((a,b)=>Math.abs(a.rootNote-note)-Math.abs(b.rootNote-note)||Number(a.stringRank??99)-Number(b.stringRank??99));for(const candidate of ranked.slice(0,maxSamplesPerNote))selected.set(candidate.url,candidate);}
+       for(const sample of perSinger.values())selected.set(sample.url,sample);
+      }else if(spec.roundRobin===true){for(const sample of exact)selected.set(sample.url,sample);}
+      else{const ranked=exact.slice().sort((a,b)=>Number(a.stringRank??99)-Number(b.stringRank??99));for(const candidate of ranked.slice(0,maxSamplesPerNote))selected.set(candidate.url,candidate);}
      }
     }else{
      for(const sample of bankSamples)selected.set(sample.url,sample);
@@ -100,20 +100,20 @@
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
      const candidates=prepared.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
      const pool=candidates.length?candidates:prepared;
+     const exact=pool.filter(sample=>sample.rootNote===note);
+     if(!exact.length)throw new Error("No exact recorded note "+note+" is installed for "+name+". Pitch-shifted substitutes are disabled.");
      let voices=[];
      if(spec.layered===true){
       const perSinger=new Map();
-      for(const sample of pool){
-       const singer=String(sample.singer||sample.url),distance=Math.abs(sample.rootNote-note),previous=perSinger.get(singer);
-       if(!previous||distance<previous.distance)perSinger.set(singer,{sample,distance});
+      for(const sample of exact){
+       const singer=String(sample.singer||sample.url);
+       if(!perSinger.has(singer))perSinger.set(singer,sample);
       }
-      voices=[...perSinger.values()].map(item=>item.sample);
+      voices=[...perSinger.values()];
      }else{
-      const nearestDistance=Math.min(...pool.map(s=>Math.abs(s.rootNote-note)));
-      const nearest=pool.filter(s=>Math.abs(s.rootNote-note)===nearestDistance);
       const rrKey=String(note)+":"+String(Math.round(velocity*127));
       const rrIndex=roundRobinCounters.get(rrKey)||0;
-      voices=[nearest[spec.roundRobin===true?rrIndex%nearest.length:0]];
+      voices=[exact[spec.roundRobin===true?rrIndex%exact.length:0]];
       if(spec.roundRobin===true)roundRobinCounters.set(rrKey,rrIndex+1);
      }
      const requestedDetuneCents=clamp(Number(settings&&settings.detuneCents)||0,-200,200);const basePeak=clamp(Number((options&&options.gain)??1)*Number((settings&&settings.gain)??1)*(.35+.65*velocity),.0001,1.5);
@@ -136,7 +136,7 @@
       }
       if(source.detune)source.detune.setValueAtTime(requestedDetuneCents+(ensemble?ensembleCents:0),voiceStart);
       source.buffer=selected.buffer;
-      source.playbackRate.setValueAtTime(Math.pow(2,(note-selected.rootNote)/12),voiceStart);
+      source.playbackRate.setValueAtTime(1,voiceStart);
       filter.type="lowpass";filter.frequency.setValueAtTime(Math.min(ctx.sampleRate*.45,Number(spec.filterHz)||18000),voiceStart);
       gain.gain.setValueAtTime(.0001,voiceStart);voicePeak=Math.min(1.35,voicePeak*Math.max(1,Number(selected.normalizationGain)||1));gain.gain.linearRampToValueAtTime(voicePeak,voiceStart+attack);
       const loop=Number.isFinite(selected.loopStart)&&Number.isFinite(selected.loopEnd)&&selected.loopEnd>selected.loopStart;
