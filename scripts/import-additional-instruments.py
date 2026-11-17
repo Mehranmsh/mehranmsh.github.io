@@ -269,15 +269,15 @@ def import_xylophone_bank(manifest):
         target_dir.mkdir(parents=True, exist_ok=True)
         entries = []
         for group in re.findall(r"<group>(.*?)(?=<group>|$)", sfz, re.S):
-            low_velocity = re.search(r"(?m)^\\s*lovel=(\\d+)", group)
-            high_velocity = re.search(r"(?m)^\\s*hivel=(\\d+)", group)
+            low_velocity = re.search(r"(?m)^\s*lovel=(\d+)", group)
+            high_velocity = re.search(r"(?m)^\s*hivel=(\d+)", group)
             if not low_velocity or not high_velocity:
                 continue
             velocity_min = int(low_velocity.group(1)) / 127
             velocity_max = int(high_velocity.group(1)) / 127
             for region in re.findall(r"<region>(.*?)(?=<region>|$)", group, re.S):
-                values = {key:int(value) for key,value in re.findall(r"(?m)^\\s*(lokey|hikey|pitch_keycenter)=(\\d+)", region)}
-                sample_match = re.search(r"(?m)^\\s*sample=([^\\s]+)", region)
+                values = {key:int(value) for key,value in re.findall(r"(?m)^\s*(lokey|hikey|pitch_keycenter)=(\d+)", region)}
+                sample_match = re.search(r"(?m)^\s*sample=([^\s]+)", region)
                 if len(values) != 3 or not sample_match:
                     continue
                 source_path = sample_match.group(1)
