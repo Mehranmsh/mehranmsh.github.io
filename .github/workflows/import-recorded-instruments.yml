@@ -156,6 +156,9 @@ jobs:
           print("\nPitch audit only. These recordings remain unimported until note coverage and license scope are reviewed.")
           PY
 
+      - name: Import additional recorded instrument banks, including handpan
+        run: python scripts/import-additional-instruments.py
+
       - name: Import real female and male human vocal samples
         run: python scripts/import-vocalset.py
 
