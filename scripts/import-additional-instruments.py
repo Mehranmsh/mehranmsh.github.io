@@ -281,7 +281,7 @@ def import_xylophone_bank(manifest):
                 if len(values) != 3 or not sample_match:
                     continue
                 source_path = sample_match.group(1)
-                archive_path = next((n for n in names if n.endswith("/" + source_path)), None)
+                archive_path = next((n for n in names if n.lower().endswith("/" + source_path.lower())), None)
                 if not archive_path:
                     raise RuntimeError("Missing xylophone recording: " + source_path)
                 filename = Path(source_path).stem + ".ogg"
