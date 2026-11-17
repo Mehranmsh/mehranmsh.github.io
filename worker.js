@@ -5431,7 +5431,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "5.6",
+          version: "5.7",
           database
         });
       }
@@ -5446,7 +5446,7 @@ export default {
             return error("Verified admin Pi account required", 403);
           }
           // Rate-limit verified admin identities rather than shared Pi Browser/IP traffic.
-          if (!await checkRateLimit(env, request, "admin-session-create", 10, 3600, 1800, piUser.uid)) {
+          if (!await checkRateLimit(env, request, "admin-session-create", 15, 900, 600, piUser.uid)) {
             return error("Too many admin sign-in attempts. Try again later.", 429);
           }
           const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
