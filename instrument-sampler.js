@@ -165,7 +165,7 @@
       }
       voices=[...perSinger.values()];
      }else{
-      const rrKey=String(note)+":"+String(Math.round(velocity*127));
+      const rrLayer=exact[0],rrKey=String(note)+":"+String(rrLayer.velocityMin??0)+":"+String(rrLayer.velocityMax??1);
       const rrIndex=roundRobinCounters.get(rrKey)||0;
       voices=[exact[spec.roundRobin===true?rrIndex%exact.length:0]];
       if(spec.roundRobin===true)roundRobinCounters.set(rrKey,rrIndex+1);
