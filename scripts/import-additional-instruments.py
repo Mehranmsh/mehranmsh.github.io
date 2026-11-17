@@ -379,7 +379,7 @@ def import_violin_bank(manifest):
         "attackSeconds":0.008,"releaseSeconds":0.45,"filterHz":15500,
         "source":"VSCO 2 CE Solo Violin CC0 + preserved ToneJS violin recordings CC-BY-3.0",
         "license":"Mixed: CC0-1.0 and CC-BY-3.0; see per-sample sourceFile and license notices",
-        "maxPitchShiftSemitones":2,"samples":merged
+        "maxPitchShiftSemitones":2,"expectedKeyRange":[55,98],"samples":merged
     }
     (ROOT / "assets/instruments/samples/CC0-SOLO-VIOLIN-LICENSE.txt").write_text(
         "CC0-1.0. Source recordings: VSCO 2 Community Edition, Solo Violin (LLVln).\\n"
