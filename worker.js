@@ -5474,7 +5474,7 @@ export default {
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
-        const agentResultMatch = path.match(/^\\/agent\\/v1\\/tasks\\/([^/]+)\\/result$/);
+        const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
           if (!id || id.length > 80) return error("Invalid task ID.");
