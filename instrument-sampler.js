@@ -58,7 +58,7 @@
  async function create(){
   const manifest=await loadManifest();
   return {
-   async status(requiredIds){const rows=Object.entries(manifest.instruments).map(([id,item])=>({id,displayName:item.displayName,recordedSamples:Array.isArray(item.samples)?item.samples.length:0}));const required=Array.isArray(requiredIds)?rows.filter(x=>requiredIds.includes(x.id)):rows;return {ready:required.length>0&&required.every(x=>x.recordedSamples>0),instruments:rows,totalSamples:rows.reduce((n,x)=>n+x.recordedSamples,0)};},
+   async status(requiredIds){const rows=Object.entries(manifest.instruments).map(([id,item])=>{const rootNotes=[...new Set((Array.isArray(item.samples)?item.samples:[]).map(sample=>sample.rootNote).filter(Number.isInteger))].sort((a,b)=>a-b);return {id,displayName:item.displayName,recordedSamples:Array.isArray(item.samples)?item.samples.length:0,rootNotes,noteRange:rootNotes.length?[rootNotes[0],rootNotes[rootNotes.length-1]]:[]};});const required=Array.isArray(requiredIds)?rows.filter(x=>requiredIds.includes(x.id)):rows;return {ready:required.length>0&&required.every(x=>x.recordedSamples>0),instruments:rows,totalSamples:rows.reduce((n,x)=>n+x.recordedSamples,0)};},
    async instrument(ctx,name,options){
     const spec=manifest.instruments[name];
     if(!spec||!Array.isArray(spec.samples)||spec.samples.length===0)throw new Error("No real recorded samples are installed for "+name+". Synthetic fallback is disabled.");
