@@ -1175,11 +1175,12 @@ const savedToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";
 if(savedToken!==session.token)throw new Error("Admin session token was returned but could not be read back from browser storage.");
 piUser={...piUser,adminSession:true};
 }
-let socialLinked=false,needsSocialLink=false;
+let socialLinked=false,needsSocialLink=false,socialIssue="";
 try{
 const socialResponse=await fetch(SOCIAL_API+"/pi-session",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
 const socialData=await socialResponse.json().catch(()=>({}));
 if(socialResponse.ok&&socialData.success===true&&socialData.token){
+if(socialMePromise){try{await socialMePromise}catch{}}
 localStorage.setItem(SOCIAL_TOKEN_KEY,socialData.token);
 socialUser=null;socialSessionVerified=false;localStorage.removeItem("msh_social_cached_user");
 socialLinked=await socialMe();
@@ -1191,13 +1192,16 @@ throw new Error(socialData.error||"SOCIAL could not exchange the verified Pi ide
 }
 }catch(socialError){
 console.warn("MEHRAN MSH unified SOCIAL sign-in:",socialError);
-if(!needsSocialLink)show("Pi connected, but SOCIAL sign-in needs a retry: "+(socialError.message||"connection issue"),"notice warn");
+if(!needsSocialLink)socialIssue=socialError.message||"connection issue";
 }
-show(piUser.isAdmin?"Administrator identity verified.": "Pi identity connected to MEHRAN MSH.", "notice success");
 if(needsSocialLink){
 show("Pi connected. Sign in to your existing SOCIAL account once, then open Profile and choose Connect Pi account. After linking, Pi sign-in will recognize you automatically.","notice warn");
 }else if(socialLinked){
 show("Pi sign-in complete. SOCIAL recognizes the same account.","notice success");
+}else if(socialIssue){
+show("Pi connected, but SOCIAL sign-in needs a retry: "+socialIssue,"notice warn");
+}else{
+show(piUser.isAdmin?"Administrator identity verified.": "Pi identity connected to MEHRAN MSH.", "notice success");
 }
 updateAccountUI();toast(socialLinked?"MEHRAN MSH and SOCIAL connected":"Pi account connected");
 }catch(error){
@@ -1534,6 +1538,7 @@ throw new Error("The server returned an incomplete account identity. Please sign
 }
 socialUser=verifiedUser;
 socialSessionVerified=true;
+if(verifiedUser.piUid&&!piUser){piUser={uid:verifiedUser.piUid,username:verifiedUser.piUsername||verifiedUser.username,isAdmin:false,socialLinked:true};updateAccountUI();}
 saveJSON("msh_social_cached_user",socialUser);
 $("settingsUsername").value=socialUser.username||"";
 $("socialStatus").textContent="Connected";
@@ -1840,6 +1845,7 @@ stage="Unified session creation";
 const sessionResponse=await fetch(SOCIAL_API+"/pi-session",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
 const sessionData=await sessionResponse.json().catch(()=>({}));
 if(!sessionResponse.ok||!sessionData.success||!sessionData.token)throw new Error(sessionData.error||"The unified SOCIAL session could not be created.");
+if(socialMePromise){try{await socialMePromise}catch{}}
 localStorage.setItem(SOCIAL_TOKEN_KEY,sessionData.token);
 socialUser=null;socialSessionVerified=false;localStorage.removeItem("msh_social_cached_user");
 if(!await socialMe())throw new Error("The new SOCIAL session could not be verified.");
