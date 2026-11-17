@@ -223,7 +223,7 @@ def import_handpan_bank(manifest):
                 continue
             root_note = int(km.group(1))
             for rr_index, source_path in enumerate(re.findall(r"(?m)^\s*sample=([^\s]+)", group)):
-                archive_path = next((n for n in names if n.endswith("/" + source_path)), None)
+                archive_path = next((n for n in names if n.lower().endswith("/samples/" + Path(source_path).name.lower())), None)
                 if not archive_path:
                     raise RuntimeError("Missing FreePats Hang sample: " + source_path)
                 filename = Path(source_path).stem + ".ogg"
