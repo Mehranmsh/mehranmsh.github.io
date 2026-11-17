@@ -1346,6 +1346,7 @@ def main():
                     const bank = manifest.instruments?.violin;
                     const expectedRoots = [55,57,60,64,67,69,72,76,79,81,84,88,91,93,96];
                     if (!bank || bank.samples?.length !== 45 || !String(bank.license).includes("CC0-1.0")) throw new Error("Violin hybrid bank must contain CC0 and preserved legacy recordings");
+                    if (JSON.stringify(bank.expectedKeyRange) !== JSON.stringify([55,98]) || bank.maxPitchShiftSemitones !== 2) throw new Error("Violin must declare complete G3-D7 chromatic coverage with a maximum two-semitone sample shift");
                     const cc0Samples = bank.samples.filter(x => x.sourceSha256);
                     const legacySamples = bank.samples.filter(x => x.sourceBank === "ToneJS legacy");
                     if (cc0Samples.length !== 30 || legacySamples.length !== 15) throw new Error("Violin source-bank merge is incomplete");
@@ -1359,15 +1360,18 @@ def main():
                     }
                     const ctx = new AudioContext();
                     const engine = await window.MEHRAN_SAMPLE_ENGINE.create();
-                    const player = await engine.instrument(ctx, "violin", {destination:ctx.destination, noteEvents:[]});
-                    const soft = player.play(57, 0, 0.3, {gain:0.5, velocity:0.25});
-                    const strong = player.play(57, 0.4, 0.3, {gain:0.5, velocity:0.85});
+                    const notes = Array.from({length:44}, (_,index)=>55+index);
+                    const softPlayer = await engine.instrument(ctx, "violin", {destination:ctx.destination, noteEvents:notes.map(note=>({note,velocity:0.25}))});
+                    const strongPlayer = await engine.instrument(ctx, "violin", {destination:ctx.destination, noteEvents:notes.map(note=>({note,velocity:0.85}))});
+                    if (softPlayer.unavailableNotes.length || strongPlayer.unavailableNotes.length) throw new Error("Violin has missing chromatic notes between G3 and D7: "+JSON.stringify({soft:softPlayer.unavailableNotes,strong:strongPlayer.unavailableNotes}));
+                    const soft = softPlayer.play(55, 0, 0.3, {gain:0.5, velocity:0.25});
+                    const strong = strongPlayer.play(98, 0.4, 0.3, {gain:0.5, velocity:0.85});
                     await ctx.close();
-                    if (soft === false || strong === false) throw new Error("Violin recorded velocity-layer playback failed");
-                    return {samples:bank.samples.length, roots, layers, softAccepted:soft!==false, strongAccepted:strong!==false};
+                    if (soft === false || strong === false) throw new Error("Violin recorded velocity-layer endpoint playback failed");
+                    return {samples:bank.samples.length, roots, layers, playableRange:[55,98], chromaticNotes:notes.length, softAccepted:soft!==false, strongAccepted:strong!==false};
                 }""")
-                assert violin_assets["samples"] == 45 and violin_assets["softAccepted"] and violin_assets["strongAccepted"], "Recorded solo violin bank validation failed: " + str(violin_assets)
-                print("PASS: solo violin loads 30 checksum-verified CC0 samples plus 15 preserved legacy recordings across 15 roots and two recorded velocity layers", flush=True)
+                assert violin_assets["samples"] == 45 and violin_assets["chromaticNotes"] == 44 and violin_assets["softAccepted"] and violin_assets["strongAccepted"], "Recorded solo violin bank validation failed: " + str(violin_assets)
+                print("PASS: solo violin loads 30 checksum-verified CC0 samples plus 15 preserved legacy recordings; all 44 chromatic notes G3-D7 pass both velocity layers", flush=True)
 
                 handpan_assets = page.evaluate("""async () => {
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
