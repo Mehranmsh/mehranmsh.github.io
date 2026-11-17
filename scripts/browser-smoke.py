@@ -1345,7 +1345,7 @@ def main():
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache:"no-store"})).json();
                     const bank = manifest.instruments?.violin;
                     const expectedRoots = [55,57,60,64,67,69,72,76,79,81,84,88,91,93,96];
-                    if (!bank || bank.samples?.length !== 30 || bank.license !== "CC0-1.0") throw new Error("Violin must use the 30-sample CC0 solo bank");
+                    if (!bank || bank.samples?.length !== 45 || bank.license !== "CC0-1.0") throw new Error("Violin must use the 30-sample CC0 solo bank");
                     const roots = [...new Set(bank.samples.map(x => x.rootNote))].sort((a,b)=>a-b);
                     if (JSON.stringify(roots) !== JSON.stringify(expectedRoots)) throw new Error("Violin root-note coverage is incomplete");
                     const layers = [...new Set(bank.samples.map(x => Math.round(x.velocityMin*127)))].sort((a,b)=>a-b);
@@ -1363,8 +1363,8 @@ def main():
                     if (soft === false || strong === false) throw new Error("Violin recorded velocity-layer playback failed");
                     return {samples:bank.samples.length, roots, layers, softAccepted:soft!==false, strongAccepted:strong!==false};
                 }""")
-                assert violin_assets["samples"] == 30 and violin_assets["softAccepted"] and violin_assets["strongAccepted"], "Recorded solo violin bank validation failed: " + str(violin_assets)
-                print("PASS: solo violin loads 30 checksum-verified CC0 samples across 15 roots and two recorded velocity layers", flush=True)
+                assert violin_assets["samples"] == 45 and violin_assets["softAccepted"] and violin_assets["strongAccepted"], "Recorded solo violin bank validation failed: " + str(violin_assets)
+                print("PASS: solo violin loads 30 checksum-verified CC0 samples plus 15 preserved legacy recordings across 15 roots and two recorded velocity layers", flush=True)
 
                 handpan_assets = page.evaluate("""async () => {
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
