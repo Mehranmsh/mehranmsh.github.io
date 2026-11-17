@@ -1365,6 +1365,33 @@ def main():
                 }""")
                 assert handpan_assets["samples"] == 51 and handpan_assets["roundRobin"] and handpan_assets["nativeAccepted"] and handpan_assets["nonNativeRejected"], "Recorded handpan bank validation failed: " + str(handpan_assets)
                 print("PASS: handpan loads 51 CC0 recordings, round-robins native notes, and rejects non-native notes without pitch shifting", flush=True)
+
+                xylophone_assets = page.evaluate("""async () => {
+                    const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
+                    const bank = manifest.instruments?.xylophone;
+                    if (!bank || bank.samples?.length !== 18) throw new Error("Xylophone must contain 18 recorded samples");
+                    const layers = [...new Set(bank.samples.map(x => x.velocityMin))].sort((a,b) => a-b);
+                    if (layers.length !== 2 || Math.abs(layers[0] - 0) > 0.001 || Math.abs(layers[1] - 84/127) > 0.001) throw new Error("Xylophone must retain both recorded velocity layers");
+                    const coverage = new Set();
+                    for (const sample of bank.samples) {
+                        if (!Number.isInteger(sample.keyLow) || !Number.isInteger(sample.keyHigh) || !Number.isInteger(sample.pitchKeyCenter)) throw new Error("Xylophone key-zone mapping is incomplete");
+                        for (let note=sample.keyLow; note<=sample.keyHigh; note++) coverage.add(note);
+                        const response = await fetch(sample.url, {cache:"no-store"});
+                        if (!response.ok || (await response.arrayBuffer()).byteLength < 256) throw new Error("Xylophone recording unavailable: " + sample.url);
+                    }
+                    for (let note=46; note<=99; note++) if (!coverage.has(note)) throw new Error("Xylophone chromatic key zone missing MIDI " + note);
+                    const ctx = new AudioContext();
+                    const engine = await window.MEHRAN_SAMPLE_ENGINE.create();
+                    const player = await engine.instrument(ctx, "xylophone", {destination:ctx.destination, noteEvents:[]});
+                    const soft = player.play(48, 0, 0.2, {gain:0.5, velocity:0.4});
+                    const hard = player.play(48, 0.3, 0.2, {gain:0.5, velocity:0.95});
+                    const outside = player.play(45, 0.6, 0.2, {gain:0.5, velocity:0.5});
+                    await ctx.close();
+                    if (soft === false || hard === false || outside !== false) throw new Error("Xylophone velocity-layer or native key-zone playback failed");
+                    return {samples:bank.samples.length, layers, coverage:[46,99], softAccepted:soft!==false, hardAccepted:hard!==false, outsideRejected:outside===false};
+                }""")
+                assert xylophone_assets["samples"] == 18 and xylophone_assets["softAccepted"] and xylophone_assets["hardAccepted"] and xylophone_assets["outsideRejected"], "Recorded xylophone bank validation failed: " + str(xylophone_assets)
+                print("PASS: xylophone loads 18 CC0 recordings, both velocity layers, full mapped key range, and rejects unmapped notes", flush=True)
                 accordion_assets = page.evaluate("""async () => {
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
                     const bank = manifest.instruments.button_accordion;
