@@ -1635,10 +1635,10 @@ $("profileBioCount").textContent=String(bio.length);
 function syncPiVerificationUI(){
 const button=$("verifyCreatorBtn");
 if(!button)return;
-const verified=!!(socialUser?.piVerified||profileData?.piVerified);
-button.disabled=verified;
-button.textContent=verified?"✓ Pi identity verified":"✦ Verify with Pi";
-button.title=verified?"Your Pi identity is already verified for this SOCIAL account.":"Verify your Pi identity once to enable the Creator badge.";
+const linked=!!(socialUser?.piUid||profileData?.piUid);
+button.disabled=linked;
+button.textContent=linked?"✓ Pi account connected":"✦ Connect Pi account";
+button.title=linked?"This SOCIAL account is linked to your verified Pi identity.":"Connect your Pi identity once so MEHRAN MSH and SOCIAL recognize the same account.";
 }
 async function renderProfile(){
 const logged=!!socialUser;
