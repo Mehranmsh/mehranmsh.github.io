@@ -185,6 +185,11 @@ test("MEHRAN Intelligence agent API fails closed until its service secret is con
   assert.match(payload.error, /Agent service identity is not configured/);
 });
 
+test("owner approval releases a task from the approval gate for agent claiming", () => {
+  assert.match(workerSource, /requires_approval=CASE WHEN \?='accepted' THEN 0 ELSE requires_approval END/);
+  assert.match(workerSource, /status IN \('queued','accepted'\) AND requires_approval=0/);
+});
+
 test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approved task proposals", () => {
   const start = workerSource.indexOf('const system = "You are MEHRAN INTELLIGENCE');
   const end = workerSource.indexOf('if (path === "/admin/overview"', start);
