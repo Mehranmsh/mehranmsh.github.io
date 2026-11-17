@@ -1,0 +1,4 @@
+Xylophone (medium mallets), FreePats bank packaged by Floe Audio; samples based on the Versilian Community Sample Library.
+Source: https://github.com/floe-audio/Xylophone
+Original bank: https://freepats.zenvoid.org/ChromaticPercussion/xylophone.html
+License: CC0 1.0. Includes nine mapped pitch zones and two recorded velocity layers.

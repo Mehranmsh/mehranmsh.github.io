@@ -5501,120 +5501,405 @@
       "coverageSourceUrl": "https://github.com/facebookincubator/Meta-open-sound"
     },
     "violin": {
-      "displayName": "Violin",
+      "displayName": "Violin (hybrid multisample)",
       "attackSeconds": 0.008,
-      "releaseSeconds": 0.35,
-      "filterHz": 14500,
-      "source": "nbrosowsky/tonejs-instruments",
-      "license": "CC-BY-3.0",
+      "releaseSeconds": 0.45,
+      "filterHz": 15500,
+      "source": "VSCO 2 CE Solo Violin CC0 + preserved ToneJS violin recordings CC-BY-3.0",
+      "license": "Mixed: CC0-1.0 and CC-BY-3.0; see per-sample sourceFile and license notices",
+      "maxPitchShiftSemitones": 2,
       "samples": [
+        {
+          "rootNote": 55,
+          "pitchKeyCenter": 55,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/55_v0-63_rr1.ogg",
+          "sourceFile": "samples/55_v0-63_rr1.wav",
+          "sourceSha256": "8797bb165fef330068d3753bd6deb151783a951e3c70f50bb9cd7c9e1a634dc9"
+        },
+        {
+          "rootNote": 55,
+          "pitchKeyCenter": 55,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/55_v64-127_rr1.ogg",
+          "sourceFile": "samples/55_v64-127_rr1.wav",
+          "sourceSha256": "70a208a87fcf1ca49c25f8e9e37bfba90d632c3dc381403b81804c6b35ca1c15"
+        },
+        {
+          "rootNote": 57,
+          "pitchKeyCenter": 57,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/57_v0-63_rr1.ogg",
+          "sourceFile": "samples/57_v0-63_rr1.wav",
+          "sourceSha256": "9c43012530fe1b4404f5c402061f153e54ae67d0a92b5f37484d50afe1ecf260"
+        },
+        {
+          "rootNote": 57,
+          "pitchKeyCenter": 57,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/57_v64-127_rr1.ogg",
+          "sourceFile": "samples/57_v64-127_rr1.wav",
+          "sourceSha256": "ca41e9d65da3b947d667af16cb6de893cf8370936d83f55d3d8bc2865febb47f"
+        },
+        {
+          "rootNote": 60,
+          "pitchKeyCenter": 60,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/60_v0-63_rr1.ogg",
+          "sourceFile": "samples/60_v0-63_rr1.wav",
+          "sourceSha256": "9fc5d23a697ad41a3299702b65acf724c663c803c7e850b95bfe7e2f0f479e84"
+        },
+        {
+          "rootNote": 60,
+          "pitchKeyCenter": 60,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/60_v64-127_rr1.ogg",
+          "sourceFile": "samples/60_v64-127_rr1.wav",
+          "sourceSha256": "a8b53f653cca7cf14559a6c66cc6ee73d76ee6f051fe93c096a03ee6b11d3b56"
+        },
+        {
+          "rootNote": 64,
+          "pitchKeyCenter": 64,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/64_v0-63_rr1.ogg",
+          "sourceFile": "samples/64_v0-63_rr1.wav",
+          "sourceSha256": "13a745f6aa5292d1b8a2fa992cb24d818c87355a87f58e5d15bafba484e48e88"
+        },
+        {
+          "rootNote": 64,
+          "pitchKeyCenter": 64,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/64_v64-127_rr1.ogg",
+          "sourceFile": "samples/64_v64-127_rr1.wav",
+          "sourceSha256": "cc08fa6af6c10d95fc74822db400e47fedd000cdebf78f84da73e243bef73929"
+        },
+        {
+          "rootNote": 67,
+          "pitchKeyCenter": 67,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/67_v0-63_rr1.ogg",
+          "sourceFile": "samples/67_v0-63_rr1.wav",
+          "sourceSha256": "f3d4f38a21e6efb5e7d9278017f2b2ff399365c215c2374380d74dee13c623ad"
+        },
+        {
+          "rootNote": 67,
+          "pitchKeyCenter": 67,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/67_v64-127_rr1.ogg",
+          "sourceFile": "samples/67_v64-127_rr1.wav",
+          "sourceSha256": "2665c3f4f5cb8c796c225f71127090fa9c0a045216efe41c52bed282730cfad8"
+        },
+        {
+          "rootNote": 69,
+          "pitchKeyCenter": 69,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/69_v0-63_rr1.ogg",
+          "sourceFile": "samples/69_v0-63_rr1.wav",
+          "sourceSha256": "40960e0aafe95699271b197806f8a081dbd1d788b8977c92730088c0ca4ef2d6"
+        },
+        {
+          "rootNote": 69,
+          "pitchKeyCenter": 69,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/69_v64-127_rr1.ogg",
+          "sourceFile": "samples/69_v64-127_rr1.wav",
+          "sourceSha256": "1fc19efbb73c95921b696a45a615495c3937667365e7e9b5abc34338a0065b76"
+        },
+        {
+          "rootNote": 72,
+          "pitchKeyCenter": 72,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/72_v0-63_rr1.ogg",
+          "sourceFile": "samples/72_v0-63_rr1.wav",
+          "sourceSha256": "5a082a3ab3e0e9a268f2e497f54795b0c1c4b00410839cab5da3b6f4cd1dc1f4"
+        },
+        {
+          "rootNote": 72,
+          "pitchKeyCenter": 72,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/72_v64-127_rr1.ogg",
+          "sourceFile": "samples/72_v64-127_rr1.wav",
+          "sourceSha256": "98bf868e34b238bea77da7625238b14ef93886744f458f75469abe77b9119b73"
+        },
+        {
+          "rootNote": 76,
+          "pitchKeyCenter": 76,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/76_v0-63_rr1.ogg",
+          "sourceFile": "samples/76_v0-63_rr1.wav",
+          "sourceSha256": "570fb4b56a6126655f83fb89e75fe15a210b97eaa863a49a8147158ba841e737"
+        },
+        {
+          "rootNote": 76,
+          "pitchKeyCenter": 76,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/76_v64-127_rr1.ogg",
+          "sourceFile": "samples/76_v64-127_rr1.wav",
+          "sourceSha256": "01185cd3a62d47fb4489afd06a8925c0789f1d9c912bbebd0a44fdb16795c874"
+        },
+        {
+          "rootNote": 79,
+          "pitchKeyCenter": 79,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/79_v0-63_rr1.ogg",
+          "sourceFile": "samples/79_v0-63_rr1.wav",
+          "sourceSha256": "30e73de2e94c71e4b1135ad421ab8771a1329c918a50bf87f9c98c14eb78b290"
+        },
+        {
+          "rootNote": 79,
+          "pitchKeyCenter": 79,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/79_v64-127_rr1.ogg",
+          "sourceFile": "samples/79_v64-127_rr1.wav",
+          "sourceSha256": "efd2050d0b5a5c9bd91f246f4b605fd7f8deda40ff125411aa94fc746082c5b6"
+        },
+        {
+          "rootNote": 81,
+          "pitchKeyCenter": 81,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/81_v0-63_rr1.ogg",
+          "sourceFile": "samples/81_v0-63_rr1.wav",
+          "sourceSha256": "e506fe5e039eca2e73c2eda9810e699597eb2e1dee2f299729069067a497c7d2"
+        },
+        {
+          "rootNote": 81,
+          "pitchKeyCenter": 81,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/81_v64-127_rr1.ogg",
+          "sourceFile": "samples/81_v64-127_rr1.wav",
+          "sourceSha256": "757b562edb1eca4d45a521c8a412b7f882b10684b0c89a05348aef6ef00f84cd"
+        },
+        {
+          "rootNote": 84,
+          "pitchKeyCenter": 84,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/84_v0-63_rr1.ogg",
+          "sourceFile": "samples/84_v0-63_rr1.wav",
+          "sourceSha256": "2ae08859cdda57b2dbd18660c36004bc58c05e8b4da86d6cdf24241895b4191a"
+        },
+        {
+          "rootNote": 84,
+          "pitchKeyCenter": 84,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/84_v64-127_rr1.ogg",
+          "sourceFile": "samples/84_v64-127_rr1.wav",
+          "sourceSha256": "10138b5a3d4bcc58aeda300dcebbdfce53d9b5b1deacb9ec9b61a6d42122c4d5"
+        },
+        {
+          "rootNote": 88,
+          "pitchKeyCenter": 88,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/88_v0-63_rr1.ogg",
+          "sourceFile": "samples/88_v0-63_rr1.wav",
+          "sourceSha256": "0b9293717790031bac79ef212ddf3b45c28e3eab823ed288ebaecb242caf30cf"
+        },
+        {
+          "rootNote": 88,
+          "pitchKeyCenter": 88,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/88_v64-127_rr1.ogg",
+          "sourceFile": "samples/88_v64-127_rr1.wav",
+          "sourceSha256": "645808b9397137c5d15864df9ec8dc7fbf1ff5467149055aa0981685bc0a763d"
+        },
+        {
+          "rootNote": 91,
+          "pitchKeyCenter": 91,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/91_v0-63_rr1.ogg",
+          "sourceFile": "samples/91_v0-63_rr1.wav",
+          "sourceSha256": "63225c7d9e842d4d3e3351600da4c2d06ea66dcc96534dfb3e21cb974f795c15"
+        },
+        {
+          "rootNote": 91,
+          "pitchKeyCenter": 91,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/91_v64-127_rr1.ogg",
+          "sourceFile": "samples/91_v64-127_rr1.wav",
+          "sourceSha256": "a9d8320f6c631e7c748b3fda0c173b6ea48c27ff32704ab5ee99343e6480a9f8"
+        },
+        {
+          "rootNote": 93,
+          "pitchKeyCenter": 93,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/93_v0-63_rr1.ogg",
+          "sourceFile": "samples/93_v0-63_rr1.wav",
+          "sourceSha256": "4f2a1bbf5bae70b97be2c404219cb6a47b9c9c9ad6f66ce36763918c253a0284"
+        },
+        {
+          "rootNote": 93,
+          "pitchKeyCenter": 93,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/93_v64-127_rr1.ogg",
+          "sourceFile": "samples/93_v64-127_rr1.wav",
+          "sourceSha256": "0110b4394c762ca091c9c8af1c81f769a1ec91d84566311edcb1c04e0330209c"
+        },
+        {
+          "rootNote": 96,
+          "pitchKeyCenter": 96,
+          "velocityMin": 0.0,
+          "velocityMax": 0.49606299212598426,
+          "url": "./assets/instruments/samples/cc0-solo-violin/96_v0-63_rr1.ogg",
+          "sourceFile": "samples/96_v0-63_rr1.wav",
+          "sourceSha256": "bcb7890ab24111e047d9ba19786c3c9b27dc8adc3a1b733abd9b717502cdc973"
+        },
+        {
+          "rootNote": 96,
+          "pitchKeyCenter": 96,
+          "velocityMin": 0.5039370078740157,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/cc0-solo-violin/96_v64-127_rr1.ogg",
+          "sourceFile": "samples/96_v64-127_rr1.wav",
+          "sourceSha256": "191a93c1d7171d93901bff5b121a747fd9ca569499577320e4d528c7bed624a9"
+        },
         {
           "rootNote": 57,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/A3.ogg",
-          "sourceFile": "A3.ogg"
+          "sourceFile": "A3.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 69,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/A4.ogg",
-          "sourceFile": "A4.ogg"
+          "sourceFile": "A4.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 81,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/A5.ogg",
-          "sourceFile": "A5.ogg"
+          "sourceFile": "A5.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 93,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/A6.ogg",
-          "sourceFile": "A6.ogg"
+          "sourceFile": "A6.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 60,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/C4.ogg",
-          "sourceFile": "C4.ogg"
+          "sourceFile": "C4.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 72,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/C5.ogg",
-          "sourceFile": "C5.ogg"
+          "sourceFile": "C5.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 84,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/C6.ogg",
-          "sourceFile": "C6.ogg"
+          "sourceFile": "C6.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 96,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/C7.ogg",
-          "sourceFile": "C7.ogg"
+          "sourceFile": "C7.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 64,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/E4.ogg",
-          "sourceFile": "E4.ogg"
+          "sourceFile": "E4.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 76,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/E5.ogg",
-          "sourceFile": "E5.ogg"
+          "sourceFile": "E5.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 88,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/E6.ogg",
-          "sourceFile": "E6.ogg"
+          "sourceFile": "E6.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 55,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/G3.ogg",
-          "sourceFile": "G3.ogg"
+          "sourceFile": "G3.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 67,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/G4.ogg",
-          "sourceFile": "G4.ogg"
+          "sourceFile": "G4.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 79,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/G5.ogg",
-          "sourceFile": "G5.ogg"
+          "sourceFile": "G5.ogg",
+          "sourceBank": "ToneJS legacy"
         },
         {
           "rootNote": 91,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.0001,
           "url": "./assets/instruments/samples/violin/G6.ogg",
-          "sourceFile": "G6.ogg"
+          "sourceFile": "G6.ogg",
+          "sourceBank": "ToneJS legacy"
         }
-      ],
-      "maxPitchShiftSemitones": 2
+      ]
     },
     "cello": {
       "displayName": "Cello",
@@ -11268,71 +11553,194 @@
       "maxPitchShiftSemitones": 2
     },
     "xylophone": {
-      "displayName": "Xylophone",
-      "attackSeconds": 0.008,
-      "releaseSeconds": 0.35,
-      "filterHz": 14500,
-      "source": "nbrosowsky/tonejs-instruments",
-      "license": "CC-BY-3.0",
+      "displayName": "Xylophone (medium mallets)",
+      "attackSeconds": 0.004,
+      "releaseSeconds": 0.7,
+      "filterHz": 16000,
+      "source": "FreePats/Floe Xylophone, based on VCSL recordings",
+      "license": "CC0-1.0",
       "samples": [
         {
-          "rootNote": 72,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/C5.ogg",
-          "sourceFile": "C5.ogg"
+          "rootNote": 48,
+          "pitchKeyCenter": 48,
+          "keyLow": 46,
+          "keyHigh": 51,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/C3_pp.ogg",
+          "sourceFile": "samples/C3_pp.flac"
         },
         {
-          "rootNote": 84,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/C6.ogg",
-          "sourceFile": "C6.ogg"
+          "rootNote": 55,
+          "pitchKeyCenter": 55,
+          "keyLow": 52,
+          "keyHigh": 57,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/G3_pp.ogg",
+          "sourceFile": "samples/G3_pp.flac"
         },
         {
-          "rootNote": 96,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/C7.ogg",
-          "sourceFile": "C7.ogg"
-        },
-        {
-          "rootNote": 108,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/C8.ogg",
-          "sourceFile": "C8.ogg"
+          "rootNote": 60,
+          "pitchKeyCenter": 60,
+          "keyLow": 58,
+          "keyHigh": 63,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/C4_pp.ogg",
+          "sourceFile": "samples/C4_pp.flac"
         },
         {
           "rootNote": 67,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/G4.ogg",
-          "sourceFile": "G4.ogg"
+          "pitchKeyCenter": 67,
+          "keyLow": 64,
+          "keyHigh": 69,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/G4_pp.ogg",
+          "sourceFile": "samples/G4_pp.flac"
+        },
+        {
+          "rootNote": 72,
+          "pitchKeyCenter": 72,
+          "keyLow": 70,
+          "keyHigh": 75,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/C5_pp.ogg",
+          "sourceFile": "samples/C5_pp.flac"
         },
         {
           "rootNote": 79,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/G5.ogg",
-          "sourceFile": "G5.ogg"
+          "pitchKeyCenter": 79,
+          "keyLow": 76,
+          "keyHigh": 81,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/G5_pp.ogg",
+          "sourceFile": "samples/G5_pp.flac"
+        },
+        {
+          "rootNote": 84,
+          "pitchKeyCenter": 84,
+          "keyLow": 82,
+          "keyHigh": 87,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/C6_pp.ogg",
+          "sourceFile": "samples/C6_pp.flac"
         },
         {
           "rootNote": 91,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/G6.ogg",
-          "sourceFile": "G6.ogg"
+          "pitchKeyCenter": 91,
+          "keyLow": 88,
+          "keyHigh": 93,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/G6_pp.ogg",
+          "sourceFile": "samples/G6_pp.flac"
         },
         {
-          "rootNote": 103,
-          "velocityMin": 0,
-          "velocityMax": 1,
-          "url": "./assets/instruments/samples/xylophone/G7.ogg",
-          "sourceFile": "G7.ogg"
+          "rootNote": 96,
+          "pitchKeyCenter": 96,
+          "keyLow": 94,
+          "keyHigh": 99,
+          "velocityMin": 0.0,
+          "velocityMax": 0.6535433070866141,
+          "url": "./assets/instruments/samples/freepats-xylophone/C7_pp.ogg",
+          "sourceFile": "samples/C7_pp.flac"
+        },
+        {
+          "rootNote": 48,
+          "pitchKeyCenter": 48,
+          "keyLow": 46,
+          "keyHigh": 51,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/C3_ff.ogg",
+          "sourceFile": "samples/C3_ff.flac"
+        },
+        {
+          "rootNote": 55,
+          "pitchKeyCenter": 55,
+          "keyLow": 52,
+          "keyHigh": 57,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/G3_ff.ogg",
+          "sourceFile": "samples/G3_ff.flac"
+        },
+        {
+          "rootNote": 60,
+          "pitchKeyCenter": 60,
+          "keyLow": 58,
+          "keyHigh": 63,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/C4_ff.ogg",
+          "sourceFile": "samples/C4_ff.flac"
+        },
+        {
+          "rootNote": 67,
+          "pitchKeyCenter": 67,
+          "keyLow": 64,
+          "keyHigh": 69,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/G4_ff.ogg",
+          "sourceFile": "samples/G4_ff.flac"
+        },
+        {
+          "rootNote": 72,
+          "pitchKeyCenter": 72,
+          "keyLow": 70,
+          "keyHigh": 75,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/C5_ff.ogg",
+          "sourceFile": "samples/C5_ff.flac"
+        },
+        {
+          "rootNote": 79,
+          "pitchKeyCenter": 79,
+          "keyLow": 76,
+          "keyHigh": 81,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/G5_ff.ogg",
+          "sourceFile": "samples/G5_ff.flac"
+        },
+        {
+          "rootNote": 84,
+          "pitchKeyCenter": 84,
+          "keyLow": 82,
+          "keyHigh": 87,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/C6_ff.ogg",
+          "sourceFile": "samples/C6_ff.flac"
+        },
+        {
+          "rootNote": 91,
+          "pitchKeyCenter": 91,
+          "keyLow": 88,
+          "keyHigh": 93,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/G6_ff.ogg",
+          "sourceFile": "samples/G6_ff.flac"
+        },
+        {
+          "rootNote": 96,
+          "pitchKeyCenter": 96,
+          "keyLow": 94,
+          "keyHigh": 99,
+          "velocityMin": 0.6614173228346457,
+          "velocityMax": 1.0,
+          "url": "./assets/instruments/samples/freepats-xylophone/C7_ff.ogg",
+          "sourceFile": "samples/C7_ff.flac"
         }
-      ],
-      "maxPitchShiftSemitones": 1
+      ]
     },
     "cajon": {
       "displayName": "Cajón Flamenco",

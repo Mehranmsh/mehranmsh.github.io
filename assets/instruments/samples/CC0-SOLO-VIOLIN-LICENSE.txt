@@ -1,0 +1,1 @@
+CC0-1.0. Source recordings: VSCO 2 Community Edition, Solo Violin (LLVln).\nRepackaged multisamples: AEmotionStudio/stringstudio-violin-samples.\nSource: https://huggingface.co/AEmotionStudio/stringstudio-violin-samples\nOriginal library: https://github.com/sgossner/VSCO-2-CE\n
