@@ -1301,6 +1301,28 @@ def main():
                 }""")
                 assert vocal_assets == {"female_vocal": 45, "male_vocal": 55, "female_choir": 45, "male_choir": 55, "mixed_choir": 100}, "Self-hosted human vocal assets are incomplete: " + str(vocal_assets)
 
+                accordion_assets = page.evaluate("""async () => {
+                    const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
+                    const bank = manifest.instruments.button_accordion;
+                    if (!bank || bank.samples?.length !== 17 || bank.releaseSamples?.length !== 17 || bank.requireReleaseSamples !== true) {
+                        throw new Error("Button accordion sustain/release bank is incomplete");
+                    }
+                    const ctx = new AudioContext();
+                    const decoded = [];
+                    for (const sample of [...bank.samples, ...bank.releaseSamples]) {
+                        const response = await fetch(sample.url, {cache: "no-store"});
+                        if (!response.ok) throw new Error("Accordion asset unavailable: " + sample.url);
+                        const buffer = await ctx.decodeAudioData(await response.arrayBuffer());
+                        if (buffer.length < 1000 || buffer.numberOfChannels < 1) throw new Error("Invalid accordion audio: " + sample.url);
+                        decoded.push({url: sample.url, duration: buffer.duration});
+                    }
+                    await ctx.close();
+                    return {sustain: bank.samples.length, release: bank.releaseSamples.length, decoded: decoded.length,
+                        range: bank.expectedKeyRange, uniqueSustainRoots: new Set(bank.samples.map(x => x.rootNote)).size};
+                }""")
+                assert accordion_assets == {"sustain": 17, "release": 17, "decoded": 34, "range": [47, 79], "uniqueSustainRoots": 17}, "Recorded Hohner accordion bank or key-release recordings are incomplete: " + str(accordion_assets)
+                print("PASS: Hohner button accordion loads 17 sustain and 17 dedicated release recordings (CC0)", flush=True)
+
                 # Inspect the full recorded Setar note bank at source level before judging the rendered sampler.
                 setar_diagnostics = page.evaluate("""async () => {
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
@@ -1330,7 +1352,7 @@ def main():
                 }""")
                 print("SETAR SOURCE DIAGNOSTICS:", json.dumps(setar_diagnostics), flush=True)
 
-                live_modes_available = ["live_violin", "live_cello", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
+                live_modes_available = ["live_violin", "live_cello", "live_accordion", "live_kalimba", "live_bass", "live_setar", "live_electric_bass", "live_bassoon", "live_clarinet", "live_flute", "live_french_horn", "live_electric_guitar", "live_harmonium", "live_harp", "live_organ", "live_saxophone", "live_trombone", "live_trumpet", "live_tuba", "live_xylophone", "live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]
                 live_modes_missing = ["live_tar", "live_santur", "live_ney", "live_kamancheh"]
                 page.locator('[data-view="arrangement"]').click()
                 page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
@@ -1340,7 +1362,7 @@ def main():
                     page.wait_for_function("!document.querySelector('#view-arrangement')?.classList.contains('hidden')", timeout=5000)
                     print("START LIVE BANK:", mode, flush=True)
                     page.locator("#patternMode").evaluate("(el, value) => { el.value = value; el.dispatchEvent(new Event('change', {bubbles:true})); }", mode)
-                    page.locator("#patternNotes").evaluate("""async (el, mode) => { const map={live_violin:"violin",live_cello:"cello",live_kalimba:"kalimba",live_bass:"acoustic_bass",live_setar:"setar",live_electric_bass:"electric_bass",live_bassoon:"bassoon",live_clarinet:"clarinet",live_flute:"flute",live_french_horn:"french_horn",live_electric_guitar:"electric_guitar",live_harmonium:"harmonium",live_harp:"harp",live_organ:"organ",live_saxophone:"saxophone",live_trombone:"trombone",live_trumpet:"trumpet",live_tuba:"tuba",live_xylophone:"xylophone",live_female_vocal:"female_vocal",live_male_vocal:"male_vocal",live_female_choir:"female_choir",live_male_choir:"male_choir",live_mixed_choir:"mixed_choir"}; const inventory=await (await window.MEHRAN_SAMPLE_ENGINE.create()).status([map[mode]]); const info=inventory.instruments.find(item=>item.id===map[mode]); const roots=(mode.includes("vocal")||mode.includes("choir")?(info?.rootNotesByVowel?.o||[]):info?.rootNotes)||[]; if(!roots.length) throw new Error("No recorded roots for browser QA bank: "+mode); const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]; const label=n=>names[n%12]+(Math.floor(n/12)-1); const noteRoots=mode.includes("choir")?roots:[...roots.slice(0,5),...roots.slice(0,3)]; const notes=[...noteRoots,...noteRoots].slice(0,8).map(label); el.value=notes.join(", ")+", -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""", mode)
+                    page.locator("#patternNotes").evaluate("""async (el, mode) => { const map={live_violin:"violin",live_cello:"cello",live_accordion:"button_accordion",live_kalimba:"kalimba",live_bass:"acoustic_bass",live_setar:"setar",live_electric_bass:"electric_bass",live_bassoon:"bassoon",live_clarinet:"clarinet",live_flute:"flute",live_french_horn:"french_horn",live_electric_guitar:"electric_guitar",live_harmonium:"harmonium",live_harp:"harp",live_organ:"organ",live_saxophone:"saxophone",live_trombone:"trombone",live_trumpet:"trumpet",live_tuba:"tuba",live_xylophone:"xylophone",live_female_vocal:"female_vocal",live_male_vocal:"male_vocal",live_female_choir:"female_choir",live_male_choir:"male_choir",live_mixed_choir:"mixed_choir"}; const inventory=await (await window.MEHRAN_SAMPLE_ENGINE.create()).status([map[mode]]); const info=inventory.instruments.find(item=>item.id===map[mode]); const roots=(mode.includes("vocal")||mode.includes("choir")?(info?.rootNotesByVowel?.o||[]):info?.rootNotes)||[]; if(!roots.length) throw new Error("No recorded roots for browser QA bank: "+mode); const names=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]; const label=n=>names[n%12]+(Math.floor(n/12)-1); const noteRoots=mode.includes("choir")?roots:[...roots.slice(0,5),...roots.slice(0,3)]; const notes=[...noteRoots,...noteRoots].slice(0,8).map(label); el.value=notes.join(", ")+", -, -, -, -, -, -, -, -"; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }""", mode)
                     page.locator("#patternTrackName").evaluate("(el) => el.dispatchEvent(new Event('input', { bubbles: true }))")
                     if mode in ["live_female_vocal", "live_male_vocal", "live_female_choir", "live_male_choir", "live_mixed_choir"]:
                         page.wait_for_function("""() => { const panel=document.querySelector("#vocalVowelPanel"); return !!panel && !panel.classList.contains("hidden") && getComputedStyle(panel).display !== "none"; }""", timeout=5000)
