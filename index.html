@@ -1106,7 +1106,9 @@ const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:aut
 piUser={...(auth.user||{}),uid:data.uid||auth.user?.uid,username:data.username||auth.user?.username,isAdmin:!!data.isAdmin};
 if(piUser.isAdmin){
 const session=await api("/admin/session",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})});
-localStorage.setItem(ADMIN_SESSION_KEY,session.token);
+try{localStorage.setItem(ADMIN_SESSION_KEY,session.token);}catch(storageError){throw new Error("Admin session created, but browser could not save it: "+(storageError?.name||"StorageError")+" "+(storageError?.message||""));}
+const savedToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+if(savedToken!==session.token)throw new Error("Admin session token was returned but could not be read back from browser storage.");
 piUser={...piUser,adminSession:true};
 }
 show(piUser.isAdmin?"Admin recognized. This device will remember you.":"Pi authentication completed successfully.","notice success");
@@ -1130,35 +1132,35 @@ $("piMessage").className="notice";
 
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
 async function restoreAdminSession(){
+ const message=$("piMessage");
+ const report=(text,kind="notice")=>{message.textContent="SESSION DEBUG: "+text;message.className=kind;console.info("[ADMIN SESSION DEBUG]",text);};
  let token="";
  try{
-  token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+  report("startup reached; checking browser storage...");
+  try{
+   token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+  }catch(storageError){
+   report("LOCAL STORAGE READ FAILED: "+(storageError?.name||"Error")+" - "+(storageError?.message||"unknown"),"notice error");
+   return;
+  }
   if(!token){
-   $("piMessage").textContent="No saved admin session was found in this browser storage.";
+   report("storage is readable, but key msh_admin_session is MISSING. The sign-in flow did not leave a saved token in this browser.","notice error");
+   return;
   }
-  if(token){
-   let data;
-   try{
-    data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
-   }catch(firstError){
-    if(!firstError.status||firstError.status>=500){
-     await new Promise(resolve=>setTimeout(resolve,900));
-     data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
-    }else{
-     throw firstError;
-    }
-   }
-   piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
-   $("piMessage").textContent="Persistent admin session restored.";
-   $("piMessage").className="notice success";
+  report("saved token FOUND (length "+token.length+"). Sending GET /admin/session to verify it...");
+  let data;
+  try{
+   data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
+  }catch(requestError){
+   report("TOKEN FOUND, SERVER CHECK FAILED. HTTP "+(requestError.status||"no response")+"; "+(requestError.message||"unknown fetch error"),"notice error");
+   console.error("[ADMIN SESSION DEBUG] verification request failed",requestError);
+   return;
   }
+  piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
+  report("SUCCESS: token exists and Worker accepted it for "+(data.username||"admin")+".","notice success");
  }catch(error){
-  if(error.status===401||error.status===403){
-   $("piMessage").textContent="A saved admin session was found, but the server rejected it ("+error.status+"). The saved token was kept for diagnosis.";
-  }else if(token){
-   $("piMessage").textContent="A saved admin session was found, but the server could not be reached. The token was kept; retry when the connection is stable.";
-  }
-  console.warn("Saved admin session could not be restored:",error);
+  report("UNEXPECTED RESTORE ERROR: "+(error?.name||"Error")+"; "+(error?.message||String(error)),"notice error");
+  console.error("[ADMIN SESSION DEBUG] unexpected restore error",error);
  }finally{
   adminSessionRestoring=false;
   updateAccountUI();
