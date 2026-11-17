@@ -985,7 +985,7 @@ function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message,duration=3200){const el=$("toast");el.textContent=String(message??"");el.title="Tap to copy";el.onclick=()=>{const value=el.textContent; if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>{el.textContent="Copied: "+value;}).catch(()=>{});}};el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),duration)}
-async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path.startsWith("/intelligence/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
+async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path.startsWith("/intelligence/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||"Request failed ("+response.status+")");error.status=response.status;throw error}return data}
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
@@ -1130,16 +1130,32 @@ $("piMessage").className="notice";
 
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
 async function restoreAdminSession(){
- const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+ let token="";
  try{
+  token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
   if(token){
-   const data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
+   let data;
+   try{
+    data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
+   }catch(firstError){
+    if(!firstError.status||firstError.status>=500){
+     await new Promise(resolve=>setTimeout(resolve,900));
+     data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
+    }else{
+     throw firstError;
+    }
+   }
    piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
    $("piMessage").textContent="Persistent admin session restored.";
    $("piMessage").className="notice success";
   }
  }catch(error){
-  localStorage.removeItem(ADMIN_SESSION_KEY);
+  if(error.status===401||error.status===403){
+   localStorage.removeItem(ADMIN_SESSION_KEY);
+   $("piMessage").textContent="Saved admin session expired or was revoked. Please sign in again.";
+  }else if(token){
+   $("piMessage").textContent="Saved admin session is still on this device, but the server could not be reached. Refresh once the connection is back.";
+  }
   console.warn("Saved admin session could not be restored:",error);
  }finally{
   adminSessionRestoring=false;
