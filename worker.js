@@ -6399,7 +6399,7 @@ export default {
         if (!body) return error("Invalid request body");
         const question = cleanText(body.message, 2000);
         if (!question) return error("Write a question first.", 400);
-        const budget = await reserveSocialWorkersAIBudget(env, 100, "intelligence");
+        const budget = await reserveSocialWorkersAIBudget(env, 300, "intelligence");
         if (!budget.allowed) return error("Daily MEHRAN INTELLIGENCE or shared Workers AI allowance reached.", 429);
         const [projectRows, userRow, activeRow, postRow, reportRow] = await Promise.all([
           env.DB.prepare("SELECT name,status,description FROM projects ORDER BY created_at DESC LIMIT 30").all(),
@@ -6426,7 +6426,7 @@ export default {
         ];
         const messages = [
           {role:"system",content:system},
-          {role:"user",content:"Company data snapshot (JSON): "+JSON.stringify(companyContext)+"\\n\\nAdmin question: "+question}
+          {role:"user",content:"Company data snapshot (JSON): "+JSON.stringify(companyContext)+"\n\nAdmin question: "+question}
         ];
         const executeTool = async (name,args) => {
           if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid tool arguments.");
@@ -6490,14 +6490,10 @@ export default {
           }
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
-          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/100),dailyLimit:10,hourlyLimit:3,toolRounds:Math.min(2,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
+          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:Math.min(2,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
         } catch(e) {
           console.error("MEHRAN INTELLIGENCE AI error:",String(e?.message||e).slice(0,300));
           return error("MEHRAN INTELLIGENCE could not complete its tool-assisted response.",502);
-        }
-        } catch (e) {
-          console.error("MEHRAN INTELLIGENCE AI error:",String(e?.message||e).slice(0,300));
-          return error("MEHRAN INTELLIGENCE could not reach its AI model.", 502);
         }
       }
 
