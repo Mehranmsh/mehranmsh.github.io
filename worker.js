@@ -5973,6 +5973,67 @@ export default {
         await ensureAdminSessionTable(env);
       }
 
+      if (path === "/mcp" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const rpc = await readBody(request);
+        const rpcId = rpc && Object.prototype.hasOwnProperty.call(rpc, "id") ? rpc.id : undefined;
+        const rpcReply = (result, status = 200) => json({jsonrpc:"2.0",id:rpcId,result}, status);
+        const rpcError = (code, message, status = 200) => json({jsonrpc:"2.0",id:rpcId ?? null,error:{code,message}}, status);
+        if (!rpc || rpc.jsonrpc !== "2.0" || typeof rpc.method !== "string") return rpcError(-32600,"Invalid JSON-RPC request");
+        if (rpc.method === "notifications/initialized" || rpc.method.startsWith("notifications/")) {
+          return new Response(null,{status:202,headers:{"Access-Control-Allow-Origin":ALLOWED_ORIGIN,"Cache-Control":"no-store","Vary":"Origin"}});
+        }
+        if (rpc.method === "initialize") {
+          const requested = String(rpc.params?.protocolVersion || "");
+          const supported = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
+          const protocolVersion = supported.includes(requested) ? requested : "2025-06-18";
+          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.0.0"},instructions:"Read-only MEHRAN MSH operations tools. Every request requires an authenticated MEHRAN administrator session."});
+        }
+        if (rpc.method === "ping") return rpcReply({});
+        if (rpc.method === "tools/list") {
+          return rpcReply({tools:[
+            {name:"get_project_status",description:"List MEHRAN projects and their current status. Read-only.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+            {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics. No personal user data is returned.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+            {name:"get_service_health",description:"Report configured service dependencies. Does not perform external health probes.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+            {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}}
+          ]});
+        }
+        if (rpc.method === "tools/call") {
+          const name = cleanText(rpc.params?.name,80);
+          const args = rpc.params?.arguments || {};
+          if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length) return rpcError(-32602,"This read-only tool accepts no arguments.");
+          let data;
+          if (name === "get_project_status") {
+            const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
+            data = {projects:(rows.results||[]).map(p=>({name:p.name,status:p.status,description:String(p.description||"").slice(0,500),updatedAt:p.updated_at||null}))};
+          } else if (name === "get_social_metrics") {
+            const rows = await Promise.all([
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+            ]);
+            data = {registeredUsers:Number(rows[0]?.total||0),activeUsers:Number(rows[1]?.total||0),posts:Number(rows[2]?.total||0),openReports:Number(rows[3]?.total||0)};
+          } else if (name === "get_service_health") {
+            data = {worker:"available",databaseBinding:!!env.DB,aiBinding:!!(env.AI&&typeof env.AI.run==="function"),mcp:"read-only-v1",note:"Bindings are reported as configured; no external service probe was run."};
+          } else if (name === "get_management_report") {
+            const [projects,users,active,posts,reports] = await Promise.all([
+              env.DB.prepare("SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 50").all(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+              env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+            ]);
+            data = {projectCount:(projects.results||[]).length,projects:(projects.results||[]).map(p=>({name:p.name,status:p.status})),social:{registeredUsers:Number(users?.total||0),activeUsers:Number(active?.total||0),posts:Number(posts?.total||0),openReports:Number(reports?.total||0)}};
+          } else {
+            return rpcError(-32602,"Unknown tool.");
+          }
+          return rpcReply({content:[{type:"text",text:JSON.stringify(data)}],structuredContent:data,isError:false});
+        }
+        return rpcError(-32601,"Method not found.");
+      }
+
       if (path === "/intelligence/chat" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
