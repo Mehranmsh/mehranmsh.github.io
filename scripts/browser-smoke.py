@@ -1142,6 +1142,28 @@ def main():
                 for case, expected_layer in zip(velocity_layer_audit, expected_layers):
                     assert len(case["urls"]) == 1 and expected_layer in case["urls"][0], "Piano velocity did not select exactly its intended recorded layer: " + str(velocity_layer_audit)
                 print("PASS: piano velocity selects one matching recorded sample layer at soft, medium and strong dynamics", flush=True)
+                # Round-robin must advance within a velocity layer even when humanized MIDI velocities differ slightly.
+                round_robin_audit = page.evaluate("""async () => {
+                    const engine = await window.MEHRAN_SAMPLE_ENGINE.create();
+                    const ctx = new AudioContext();
+                    const velocities = [0.10, 0.12, 0.14, 0.16];
+                    const player = await engine.instrument(ctx, "acoustic_drums", {
+                        noteEvents: velocities.map(velocity => ({note: 36, velocity}))
+                    });
+                    const buffers = [];
+                    const createSource = ctx.createBufferSource.bind(ctx);
+                    ctx.createBufferSource = () => {
+                        const source = createSource();
+                        const start = source.start.bind(source);
+                        source.start = (...args) => { buffers.push(source.buffer); return start(...args); };
+                        return source;
+                    };
+                    velocities.forEach((velocity, index) => player.play(36, ctx.currentTime + 0.05 + index * 0.08, 0.06, {velocity}));
+                    await ctx.close();
+                    return {plays: buffers.length, uniqueBuffers: new Set(buffers).size, prepared: player.sampleDiagnostics.length};
+                }""")
+                assert round_robin_audit["plays"] == 4 and round_robin_audit["uniqueBuffers"] == 4, "Acoustic drum round-robin repeated a sample across slightly varied velocities: " + str(round_robin_audit)
+                print("PASS: acoustic-drum round-robin advances across four recorded kick takes while velocity is humanized", flush=True)
                 page.locator('[data-view="arrangement"]').first.click()
                 page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
