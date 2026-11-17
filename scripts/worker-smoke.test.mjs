@@ -1258,3 +1258,17 @@ test("generated lyrics return transparent language and section-structure review 
   assert.match(workerSource, /بخش عنوان‌گذاری شده اما بدون متن است/);
   assert.match(workerSource, /qualityWarnings, provider: "cloudflare"/);
 });
+
+test("MEHRAN Intelligence scheduled runner executes only owner-approved allowlisted reports", () => {
+  assert.match(workerSource, /async scheduled\(controller, env, ctx\)/);
+  assert.match(workerSource, /status='accepted' AND requires_approval=0/);
+  assert.match(workerSource, /action_type IN \('project_status_report','social_metrics_report','service_health_report'\)/);
+  assert.match(workerSource, /SET status='in_progress'/);
+  assert.match(workerSource, /SET status='completed',result_text=/);
+  assert.match(workerSource, /SET status='blocked',result_text=/);
+  assert.match(workerSource, /for \(let n = 0; n < 5; n\+\+\)/);
+  assert.match(workerSource, /actionType:\s*row\.action_type/);
+  assert.match(workerSource, /actionType:\{type:"string",enum:\["project_status_report","social_metrics_report","service_health_report"\]\}/);
+  assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_type/);
+  assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_payload/);
+});
