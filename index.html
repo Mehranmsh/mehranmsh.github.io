@@ -972,6 +972,9 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 
 <div class="modal" id="authModal"><div class="modal-box"><div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div><p class="small-text">Create an account or sign in to interact with SOCIAL.</p><div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div><div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 10 characters" autocomplete="new-password"></div><div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div><div class="field" id="accountTypeField"><label>Account type</label><select id="socialAccountType"><option value="human">Human · Personal account</option><option value="business">Business · Company or service</option></select><p class="small-text">AI assistants and bots are created separately in Bot Developer.</p></div><div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div class="hero-actions"><button class="btn secondary" type="button" id="socialPiLoginBtn">Continue with Pi</button></div><div class="small-text" style="margin-top:14px;text-align:center"><span id="authSwitchText">Don't have an account?</span><button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button></div><div class="small-text" style="margin-top:13px">Already verified with Pi? Continue with Pi to enter SOCIAL without email or password. Email and password are only for accounts that do not use Pi. Never enter your Pi wallet passphrase here.</div><div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div></div></div>
 
+
+<div class="modal" id="piProfileModal"><div class="modal-box"><div class="modal-head"><h2>Create your SOCIAL profile</h2><button class="close-btn" type="button" id="closePiProfile">×</button></div><p class="small-text">Your Pi identity is verified. Now choose how people will know you on SOCIAL. Your Pi username will not be used as your profile name.</p><div class="field"><label>SOCIAL username</label><input id="piSocialUsername" maxlength="24" placeholder="Choose a unique username" autocomplete="off"></div><div class="field"><label>Display name</label><input id="piSocialDisplayName" maxlength="60" placeholder="Your name on SOCIAL" autocomplete="off"></div><div class="field"><label>Bio (optional)</label><textarea id="piSocialBio" maxlength="300" placeholder="A little about you"></textarea></div><div class="field"><label>Account type</label><select id="piSocialAccountType"><option value="human">Personal</option><option value="business">Business</option></select></div><div class="notice" id="piProfileMessage">You can edit these details later in your profile settings.</div><div class="hero-actions"><button class="btn" type="button" id="createPiProfileBtn">Create SOCIAL profile</button><button class="btn secondary" type="button" id="useExistingSocialBtn">I already have a SOCIAL account</button></div></div></div>
+
 <div class="modal" id="createModal"><div class="modal-box"><div class="modal-head"><h2>Create a post</h2><button class="close-btn" id="closeCreate">×</button></div><section class="field post-media-field media-composer-panel"><div class="media-composer-heading"><div class="media-heading-icon">▧</div><div><span class="media-panel-eyebrow">POST ATTACHMENTS</span><h3>Bring your post to life</h3><p>Add photos and videos from your device</p></div><span class="media-count-pill">UP TO 10</span></div><label class="file-dropzone post-file-drop media-dropzone" for="postMediaInput"><span class="file-drop-icon post-upload-icon">＋</span><span class="file-drop-copy"><strong>Choose photos or videos</strong><small>Select multiple files together. Your previews will appear below.</small><em class="file-picker-note">Images & videos · Up to 700 KB per file</em></span><span class="file-pick-cta">Browse files <b>↗</b></span><input id="postMediaInput" type="file" accept="image/*,video/*" multiple></label><div class="media-selection-row"><span class="media-selection-dot"></span><div class="file-selection-status" id="postFileStatus">No media selected yet</div></div><div class="media-preview-heading"><strong>Selected media</strong><span>PREVIEW</span></div><div id="uploadPreview" class="upload-preview media-preview-grid"></div></section><div class="field"><label>Caption</label><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="postCaption">☺ Emoji</button><textarea id="postCaption" maxlength="2200" placeholder="Write a caption..."></textarea></div><div class="small-text" id="captionCount">0 / 2200</div></div><div class="notice">Posts are currently saved in this browser on this device. Public shared feed storage is not connected yet.</div><div class="hero-actions"><button class="btn" id="publishPostBtn">Share post</button><button class="btn secondary" id="cancelPostBtn">Cancel</button></div></div></div>
 
 
@@ -1209,7 +1212,8 @@ console.warn("MEHRAN MSH unified SOCIAL sign-in:",socialError);
 if(!needsSocialLink)socialIssue=socialError.message||"connection issue";
 }
 if(needsSocialLink){
-show("Pi connected. Sign in to your existing SOCIAL account once, then open Profile, choose Edit profile, then Connect Pi account. After linking, Pi sign-in will recognize you automatically.","notice warn");
+show("Pi identity verified. Choose your SOCIAL profile details, or sign in to your existing SOCIAL account to connect it.","notice warn");
+openPiProfileSetup(auth.accessToken);
 }else if(socialLinked){
 show("Pi sign-in complete. SOCIAL recognizes the same account.","notice success");
 }else if(socialIssue){
@@ -1395,6 +1399,73 @@ try{await socialRequest("/posts/"+encodeURIComponent(id),{method:"DELETE"});post
 catch(error){toast("Delete failed: "+error.message)}
 }
 
+
+let pendingPiProfileAccessToken = "";
+function openPiProfileSetup(accessToken){
+pendingPiProfileAccessToken=accessToken||"";
+$("piProfileMessage").textContent="Choose your own SOCIAL username and display name. Your Pi username stays separate.";
+$("piProfileMessage").className="notice";
+$("piProfileModal").classList.add("open");
+document.body.style.overflow="hidden";
+}
+function closePiProfileSetup(){
+$("piProfileModal").classList.remove("open");
+pendingPiProfileAccessToken="";
+document.body.style.overflow="";
+}
+async function createPiSocialProfile(){
+const username=$("piSocialUsername").value.trim();
+const displayName=$("piSocialDisplayName").value.trim();
+const bio=$("piSocialBio").value.trim();
+const accountType=$("piSocialAccountType").value;
+const message=$("piProfileMessage");
+const button=$("createPiProfileBtn");
+if(!/^[a-z0-9_]{3,24}$/i.test(username)){
+message.textContent="Username must be 3 to 24 letters, numbers or underscores.";
+message.className="notice warn";return;
+}
+if(!displayName){
+message.textContent="Please choose a display name.";
+message.className="notice warn";return;
+}
+if(!pendingPiProfileAccessToken){
+message.textContent="Your Pi sign-in session expired. Close this window and sign in with Pi again.";
+message.className="notice error";return;
+}
+button.disabled=true;button.textContent="Creating profile...";
+try{
+const response=await fetch(SOCIAL_API+"/pi-profile",{
+method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},
+cache:"no-store",
+body:JSON.stringify({accessToken:pendingPiProfileAccessToken,username,displayName,bio,accountType})
+});
+const data=await response.json().catch(()=>({}));
+if(!response.ok||!data.success||!data.token)throw new Error(data.error||"Could not create your SOCIAL profile.");
+localStorage.setItem(SOCIAL_TOKEN_KEY,data.token);
+socialUser=null;socialSessionVerified=false;
+localStorage.removeItem("msh_social_cached_user");
+pendingPiProfileAccessToken="";
+$("piProfileModal").classList.remove("open");
+document.body.style.overflow="";
+const verified=await socialMe();
+if(!verified)throw new Error("Profile created, but the new SOCIAL session could not be verified. Sign in with Pi again.");
+await renderProfile();
+switchSocial("profile");
+toast("Your SOCIAL profile is ready.");
+}catch(error){
+message.textContent=error.message||"Profile creation failed. Please retry.";
+message.className="notice error";
+}finally{
+button.disabled=false;button.textContent="Create SOCIAL profile";
+}
+}
+$("createPiProfileBtn").addEventListener("click",createPiSocialProfile);
+$("closePiProfile").addEventListener("click",closePiProfileSetup);
+$("useExistingSocialBtn").addEventListener("click",()=>{
+closePiProfileSetup();
+openAuth("login");
+setSocialAuthMessage("Sign in to your existing SOCIAL profile, then connect your verified Pi identity from Edit profile.","notice warn");
+});
 function setSocialAuthMessage(message,type="notice"){$("socialAuthMessage").textContent=message;$("socialAuthMessage").className=type}
 function openAuth(mode="register"){
 authMode=mode;
