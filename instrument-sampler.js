@@ -69,7 +69,7 @@
     const bankSamples=requestedVowel?valid.filter(s=>String(s.vowel||"").toLowerCase()===requestedVowel):valid;
     if(!bankSamples.length)throw new Error("No recorded "+requestedVowel+" vowel samples are installed for "+name+".");
     const requested=Array.isArray(options&&options.noteEvents)?options.noteEvents:[];
-    const selected=new Map();
+    const selected=new Map(),unavailableNotes=new Set();
     if(requested.length){
      for(const event of requested){
       const note=midiValue(event&&event.note);
@@ -79,7 +79,7 @@
       const candidates=bankSamples.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
       const pool=candidates.length?candidates:bankSamples;
       const exact=pool.filter(sample=>sample.rootNote===note);
-      if(!exact.length)throw new Error("No exact recorded note "+note+" is installed for "+name+". Pitch-shifted substitutes are disabled.");
+      if(!exact.length){unavailableNotes.add(note);continue;}
       if(spec.layered===true){
        const perSinger=new Map();
        for(const sample of exact){
@@ -93,15 +93,15 @@
     }else{
      for(const sample of bankSamples)selected.set(sample.url,sample);
     }
-    if(!selected.size)throw new Error("No playable note samples selected for "+name+"; event note examples: "+requested.slice(0,4).map(event=>String(event&&event.note)).join(", "));
+    if(!selected.size)throw new Error("No exact recorded notes are installed for "+name+". Pitch-shifted substitutes are disabled. Requested notes: "+[...unavailableNotes].slice(0,8).join(", "));
     const prepared=(await Promise.all([...selected.values()].map(async sample=>{try{const decoded=await decodeSample(ctx,sample);let sourceBuffer=decoded;if(spec.trimLeadingSilence===true){let peak=0;for(let channel=0;channel<decoded.numberOfChannels;channel++){const data=decoded.getChannelData(channel);for(let i=0;i<data.length;i++)peak=Math.max(peak,Math.abs(data[i]));}const threshold=Math.max(.0025,peak*.035),windowSize=Math.max(1,Math.floor(decoded.sampleRate*.01));let onset=-1;for(let start=0;start<decoded.length;start+=windowSize){let energy=0,count=0;for(let channel=0;channel<decoded.numberOfChannels;channel++){const data=decoded.getChannelData(channel),end=Math.min(decoded.length,start+windowSize);for(let i=start;i<end;i++){energy+=data[i]*data[i];count++;}}if(Math.sqrt(energy/Math.max(1,count))>=threshold){onset=start;break;}}if(onset>0){const trimStart=Math.max(0,onset-Math.floor(decoded.sampleRate*.02)),length=decoded.length-trimStart,trimmed=ctx.createBuffer(decoded.numberOfChannels,length,decoded.sampleRate);for(let channel=0;channel<decoded.numberOfChannels;channel++)trimmed.getChannelData(channel).set(decoded.getChannelData(channel).subarray(trimStart));sourceBuffer=trimmed;}}let samplePeak=0,squareSum=0,sampleCount=0;for(let channel=0;channel<sourceBuffer.numberOfChannels;channel++){const data=sourceBuffer.getChannelData(channel);for(let i=0;i<data.length;i++){const value=data[i],magnitude=Math.abs(value);samplePeak=Math.max(samplePeak,magnitude);squareSum+=value*value;sampleCount++;}}const sourceRms=Math.sqrt(squareSum/Math.max(1,sampleCount)),normalizationGain=samplePeak>0?Math.min(Math.max(1,Number(spec.maxNormalizationGain)||512),.78/samplePeak):1,buffer=ctx.createBuffer(sourceBuffer.numberOfChannels,sourceBuffer.length,sourceBuffer.sampleRate);let normalizedPeak=0;for(let channel=0;channel<sourceBuffer.numberOfChannels;channel++){const source=sourceBuffer.getChannelData(channel),target=buffer.getChannelData(channel);for(let i=0;i<source.length;i++){target[i]=source[i]*normalizationGain;normalizedPeak=Math.max(normalizedPeak,Math.abs(target[i]));}}return {...sample,buffer,normalizationGain:1,sourcePeak:samplePeak,sampleRms:sourceRms,appliedNormalizationGain:normalizationGain,normalizedPeak,sampleDuration:sourceBuffer.duration};}catch(error){console.warn("MEHRAN recorded sample unavailable; no substitute will be used:",sample.url,error);return null;}}))).filter(Boolean);if(!prepared.length)throw new Error("No recorded samples could be loaded for "+name+". Check the connection and retry.");const roundRobinCounters=new Map();
-    return {layeredVoiceCount:spec.layered===true?new Set(prepared.map(sample=>String(sample.singer||sample.url))).size:1,sampleDiagnostics:prepared.map(sample=>({url:sample.url,rootNote:sample.rootNote,duration:sample.sampleDuration,sourcePeak:sample.sourcePeak,sourceRms:sample.sampleRms,normalizationGain:sample.appliedNormalizationGain,normalizedPeak:sample.normalizedPeak})),play(midi,at,duration,settings){
+    return {layeredVoiceCount:spec.layered===true?new Set(prepared.map(sample=>String(sample.singer||sample.url))).size:1,unavailableNotes:[...unavailableNotes].sort((a,b)=>a-b),sampleDiagnostics:prepared.map(sample=>({url:sample.url,rootNote:sample.rootNote,duration:sample.sampleDuration,sourcePeak:sample.sourcePeak,sourceRms:sample.sampleRms,normalizationGain:sample.appliedNormalizationGain,normalizedPeak:sample.normalizedPeak})),play(midi,at,duration,settings){
      const note=Number(midi),start=Number(at),length=Number(duration),velocity=clamp(Number((settings&&settings.velocity)??(settings&&settings.gain)??.8),.01,1);
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
      const candidates=prepared.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
      const pool=candidates.length?candidates:prepared;
      const exact=pool.filter(sample=>sample.rootNote===note);
-     if(!exact.length)throw new Error("No exact recorded note "+note+" is installed for "+name+". Pitch-shifted substitutes are disabled.");
+     if(!exact.length)return false;
      let voices=[];
      if(spec.layered===true){
       const perSinger=new Map();
