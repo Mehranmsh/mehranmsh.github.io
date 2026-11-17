@@ -798,7 +798,7 @@ async function getSocialUser(request, env) {
   return {
     id: row.id,
     username: row.username,
-    email: row.email,
+    email: String(row.email || "").endsWith("@pi.mehran.internal") ? "" : row.email,
     displayName: row.display_name || "",
     accountType: ["human", "business", "ai"].includes(row.account_type) ? row.account_type : "human",
     businessCategory: row.business_category || "",
@@ -980,7 +980,7 @@ async function socialFirebaseSession(request, env) {
     token: session.token,
     expiresAt: session.expiresAt,
     user: {
-      id: user.id, username: user.username, email: user.email,
+      id: user.id, username: user.username, email: String(user.email || "").endsWith("@pi.mehran.internal") ? "" : user.email,
       displayName: user.display_name || "",
       accountType: normalizeAccountType(user.account_type),
       businessCategory: user.business_category || "", businessWebsite: user.business_website || "",
