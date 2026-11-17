@@ -214,7 +214,7 @@
       const releaseSample=preparedRelease.find(sample=>matchesNote(sample,note));
       if(releaseSample){
        const releaseSource=ctx.createBufferSource(),releaseGain=ctx.createGain();
-       releaseSource.buffer=releaseSample.buffer;
+       releaseSource.__mehranReleaseTrigger=true;releaseSource.buffer=releaseSample.buffer;
        const releaseCenter=Number.isInteger(releaseSample.pitchKeyCenter)?releaseSample.pitchKeyCenter:releaseSample.rootNote;
        const releaseTune=Number(releaseSample.tuneCents)||0;
        releaseSource.playbackRate.setValueAtTime(Math.pow(2,(note-releaseCenter+releaseTune/100)/12),stopAt);
