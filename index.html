@@ -1177,6 +1177,10 @@ piUser={...piUser,adminSession:true};
 }
 let socialLinked=false,needsSocialLink=false,socialIssue="";
 try{
+// A new Pi identity must never inherit a previously signed-in, different SOCIAL account.
+localStorage.removeItem(SOCIAL_TOKEN_KEY);
+localStorage.removeItem("msh_social_cached_user");
+socialUser=null;socialSessionVerified=false;renderSocial();
 const socialResponse=await fetch(SOCIAL_API+"/pi-session",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
 const socialData=await socialResponse.json().catch(()=>({}));
 if(socialResponse.ok&&socialData.success===true&&socialData.token){
