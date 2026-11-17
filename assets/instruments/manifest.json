@@ -14264,7 +14264,7 @@
           "sourceFile": "f1_long_straight_a.wav",
           "singer": "f1",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.96,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14277,7 +14277,7 @@
           "sourceFile": "f1_long_straight_e.wav",
           "singer": "f1",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.89,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14290,7 +14290,7 @@
           "sourceFile": "f1_long_straight_i.wav",
           "singer": "f1",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.929,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14303,7 +14303,7 @@
           "sourceFile": "f1_long_straight_o.wav",
           "singer": "f1",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14316,7 +14316,7 @@
           "sourceFile": "f1_long_straight_u.wav",
           "singer": "f1",
           "vowel": "u",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.991,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14329,7 +14329,7 @@
           "sourceFile": "f2_long_straight_a.wav",
           "singer": "f2",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14342,7 +14342,7 @@
           "sourceFile": "f2_long_straight_e.wav",
           "singer": "f2",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.966,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14355,7 +14355,7 @@
           "sourceFile": "f2_long_straight_i.wav",
           "singer": "f2",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14459,7 +14459,7 @@
           "sourceFile": "f4_long_straight_a.wav",
           "singer": "f4",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14472,7 +14472,7 @@
           "sourceFile": "f4_long_straight_e.wav",
           "singer": "f4",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.997,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14485,7 +14485,7 @@
           "sourceFile": "f4_long_straight_i.wav",
           "singer": "f4",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.999,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14498,7 +14498,7 @@
           "sourceFile": "f4_long_straight_o.wav",
           "singer": "f4",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14511,7 +14511,7 @@
           "sourceFile": "f4_long_straight_u.wav",
           "singer": "f4",
           "vowel": "u",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14524,7 +14524,7 @@
           "sourceFile": "f5_long_straight_a.wav",
           "singer": "f5",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.258
@@ -14550,7 +14550,7 @@
           "sourceFile": "f5_long_straight_i.wav",
           "singer": "f5",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14589,7 +14589,7 @@
           "sourceFile": "f6_long_straight_a.wav",
           "singer": "f6",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.983,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14602,7 +14602,7 @@
           "sourceFile": "f6_long_straight_e.wav",
           "singer": "f6",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.987,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14654,7 +14654,7 @@
           "sourceFile": "f7_long_straight_a.wav",
           "singer": "f7",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 0.928
@@ -14719,7 +14719,7 @@
           "sourceFile": "f8_long_straight_a.wav",
           "singer": "f8",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -14784,7 +14784,7 @@
           "sourceFile": "f9_long_straight_a.wav",
           "singer": "f9",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.976,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15380,7 +15380,7 @@
           "sourceFile": "m9_long_straight_a.wav",
           "singer": "m9",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.128
@@ -15393,7 +15393,7 @@
           "sourceFile": "m9_long_straight_e.wav",
           "singer": "m9",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.994,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15419,7 +15419,7 @@
           "sourceFile": "m9_long_straight_o.wav",
           "singer": "m9",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15586,7 +15586,7 @@
           "sourceFile": "f1_long_straight_a.wav",
           "singer": "f1",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.96,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15599,7 +15599,7 @@
           "sourceFile": "f1_long_straight_e.wav",
           "singer": "f1",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.89,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15612,7 +15612,7 @@
           "sourceFile": "f1_long_straight_i.wav",
           "singer": "f1",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.929,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15625,7 +15625,7 @@
           "sourceFile": "f1_long_straight_o.wav",
           "singer": "f1",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15638,7 +15638,7 @@
           "sourceFile": "f1_long_straight_u.wav",
           "singer": "f1",
           "vowel": "u",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.991,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15651,7 +15651,7 @@
           "sourceFile": "f2_long_straight_a.wav",
           "singer": "f2",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15664,7 +15664,7 @@
           "sourceFile": "f2_long_straight_e.wav",
           "singer": "f2",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.966,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15677,7 +15677,7 @@
           "sourceFile": "f2_long_straight_i.wav",
           "singer": "f2",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15781,7 +15781,7 @@
           "sourceFile": "f4_long_straight_a.wav",
           "singer": "f4",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15794,7 +15794,7 @@
           "sourceFile": "f4_long_straight_e.wav",
           "singer": "f4",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.997,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15807,7 +15807,7 @@
           "sourceFile": "f4_long_straight_i.wav",
           "singer": "f4",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.999,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15820,7 +15820,7 @@
           "sourceFile": "f4_long_straight_o.wav",
           "singer": "f4",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15833,7 +15833,7 @@
           "sourceFile": "f4_long_straight_u.wav",
           "singer": "f4",
           "vowel": "u",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15846,7 +15846,7 @@
           "sourceFile": "f5_long_straight_a.wav",
           "singer": "f5",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.258
@@ -15872,7 +15872,7 @@
           "sourceFile": "f5_long_straight_i.wav",
           "singer": "f5",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15911,7 +15911,7 @@
           "sourceFile": "f6_long_straight_a.wav",
           "singer": "f6",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.983,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15924,7 +15924,7 @@
           "sourceFile": "f6_long_straight_e.wav",
           "singer": "f6",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.987,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -15976,7 +15976,7 @@
           "sourceFile": "f7_long_straight_a.wav",
           "singer": "f7",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 0.928
@@ -16041,7 +16041,7 @@
           "sourceFile": "f8_long_straight_a.wav",
           "singer": "f8",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16106,7 +16106,7 @@
           "sourceFile": "f9_long_straight_a.wav",
           "singer": "f9",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.976,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16702,7 +16702,7 @@
           "sourceFile": "m9_long_straight_a.wav",
           "singer": "m9",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.128
@@ -16715,7 +16715,7 @@
           "sourceFile": "m9_long_straight_e.wav",
           "singer": "m9",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.994,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16741,7 +16741,7 @@
           "sourceFile": "m9_long_straight_o.wav",
           "singer": "m9",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16908,7 +16908,7 @@
           "sourceFile": "f1_long_straight_a.wav",
           "singer": "f1",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.96,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16921,7 +16921,7 @@
           "sourceFile": "f1_long_straight_e.wav",
           "singer": "f1",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.89,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16934,7 +16934,7 @@
           "sourceFile": "f1_long_straight_i.wav",
           "singer": "f1",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.929,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16947,7 +16947,7 @@
           "sourceFile": "f1_long_straight_o.wav",
           "singer": "f1",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16960,7 +16960,7 @@
           "sourceFile": "f1_long_straight_u.wav",
           "singer": "f1",
           "vowel": "u",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.991,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16973,7 +16973,7 @@
           "sourceFile": "f2_long_straight_a.wav",
           "singer": "f2",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16986,7 +16986,7 @@
           "sourceFile": "f2_long_straight_e.wav",
           "singer": "f2",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.966,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -16999,7 +16999,7 @@
           "sourceFile": "f2_long_straight_i.wav",
           "singer": "f2",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.989,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17103,7 +17103,7 @@
           "sourceFile": "f4_long_straight_a.wav",
           "singer": "f4",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17116,7 +17116,7 @@
           "sourceFile": "f4_long_straight_e.wav",
           "singer": "f4",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.997,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17129,7 +17129,7 @@
           "sourceFile": "f4_long_straight_i.wav",
           "singer": "f4",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.999,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17142,7 +17142,7 @@
           "sourceFile": "f4_long_straight_o.wav",
           "singer": "f4",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17155,7 +17155,7 @@
           "sourceFile": "f4_long_straight_u.wav",
           "singer": "f4",
           "vowel": "u",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17168,7 +17168,7 @@
           "sourceFile": "f5_long_straight_a.wav",
           "singer": "f5",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.258
@@ -17194,7 +17194,7 @@
           "sourceFile": "f5_long_straight_i.wav",
           "singer": "f5",
           "vowel": "i",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17233,7 +17233,7 @@
           "sourceFile": "f6_long_straight_a.wav",
           "singer": "f6",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.983,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17246,7 +17246,7 @@
           "sourceFile": "f6_long_straight_e.wav",
           "singer": "f6",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.987,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17298,7 +17298,7 @@
           "sourceFile": "f7_long_straight_a.wav",
           "singer": "f7",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.998,
           "loopStart": 0,
           "loopEnd": 0.928
@@ -17363,7 +17363,7 @@
           "sourceFile": "f8_long_straight_a.wav",
           "singer": "f8",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.993,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -17428,7 +17428,7 @@
           "sourceFile": "f9_long_straight_a.wav",
           "singer": "f9",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.976,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -18013,7 +18013,7 @@
           "sourceFile": "m9_long_straight_a.wav",
           "singer": "m9",
           "vowel": "a",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.128
@@ -18026,7 +18026,7 @@
           "sourceFile": "m9_long_straight_e.wav",
           "singer": "m9",
           "vowel": "e",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.994,
           "loopStart": 0,
           "loopEnd": 1.318
@@ -18052,7 +18052,7 @@
           "sourceFile": "m9_long_straight_o.wav",
           "singer": "m9",
           "vowel": "o",
-          "rootHz": 525,
+          "rootHz": 525.0,
           "pitchConfidence": 0.986,
           "loopStart": 0,
           "loopEnd": 1.318
