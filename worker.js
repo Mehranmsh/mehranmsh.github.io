@@ -5448,6 +5448,52 @@ export default {
         return error("Database binding is missing", 503);
       }
 
+      if (path.startsWith("/agent/v1/")) {
+        const configuredToken = typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "";
+        const suppliedToken = getBearer(request);
+        if (!configuredToken || configuredToken.length < 40 || !suppliedToken || suppliedToken.length > 200) {
+          return error("Agent service identity is not configured.", 503);
+        }
+        const expectedHash = await sha256(configuredToken);
+        const suppliedHash = await sha256(suppliedToken);
+        let mismatch = expectedHash.length ^ suppliedHash.length;
+        for (let i = 0; i < Math.max(expectedHash.length, suppliedHash.length); i++) {
+          mismatch |= (expectedHash.charCodeAt(i) || 0) ^ (suppliedHash.charCodeAt(i) || 0);
+        }
+        if (mismatch !== 0) return error("Agent authentication required.", 401);
+        await ensureIntelligenceTaskTable(env);
+        if (path === "/agent/v1/tasks/next" && method === "GET") {
+          const candidate = await env.DB.prepare(
+            "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+          ).first();
+          if (!candidate) return json({success:true,task:null});
+          const claimed = await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
+          ).bind(candidate.id).run();
+          if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
+          const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
+          return json({success:true,task:row?formatIntelligenceTask(row):null});
+        }
+        const agentResultMatch = path.match(/^\\/agent\\/v1\\/tasks\\/([^/]+)\\/result$/);
+        if (agentResultMatch && method === "POST") {
+          const id = decodeURIComponent(agentResultMatch[1]);
+          if (!id || id.length > 80) return error("Invalid task ID.");
+          const body = await readBody(request);
+          if (!body || typeof body.result !== "string" || body.result.length > 3000 || !["completed","blocked"].includes(body.status || "completed")) {
+            return error("A bounded result and valid terminal status are required.");
+          }
+          const resultText = cleanText(body.result,3000);
+          if (!resultText) return error("Task result cannot be empty.");
+          const update = await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
+          ).bind(body.status || "completed",resultText,id).run();
+          if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
+          const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+          return json({success:true,task:row?formatIntelligenceTask(row):null});
+        }
+        return error("Not found",404);
+      }
+
       if (path === "/health" && method === "GET") {
         let database = false;
         try {
