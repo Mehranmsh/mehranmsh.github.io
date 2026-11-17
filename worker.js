@@ -5968,7 +5968,7 @@ export default {
         }
       }
 
-      if (path.startsWith("/admin/") || path.startsWith("/intelligence/")) {
+      if (path.startsWith("/admin/") || path.startsWith("/intelligence/") || path === "/mcp") {
         await ensureSocialTables(env);
         await ensureAdminSessionTable(env);
       }
