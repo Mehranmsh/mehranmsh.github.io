@@ -978,7 +978,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
-let piUser=null,socialUser=null,socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
+let piUser=null,adminSessionRestoring=true,socialUser=null,socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 let profileTab="posts",profileData=null;
 function $(id){return document.getElementById(id)}
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -1082,7 +1082,7 @@ $("dashIdentity").textContent=signed?(piUser.username||"Pioneer"):"Guest";
 $("piStatus").textContent=signed?"Connected":"Not connected";
 $("piUsername").value=piUser?.username||"";
 $("piUid").value=piUser?.uid||"";
-$("piLoginBtn").classList.toggle("hidden",signed);
+$("piLoginBtn").classList.toggle("hidden",signed||adminSessionRestoring);
 $("piLogoutBtn").classList.toggle("hidden",!signed);
 $("sideUser").textContent=signed?"Pi: "+(piUser.username||"Connected"):"Guest session";
 $("adminSession").textContent=signed?(piUser?.adminSession?"Persistent admin session":"Pi connected"):"Guest";
@@ -1131,16 +1131,20 @@ $("piMessage").className="notice";
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
 async function restoreAdminSession(){
  const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
- if(!token)return;
  try{
-  const data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
-  piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
-  $("piMessage").textContent="Persistent admin session restored.";
-  $("piMessage").className="notice success";
+  if(token){
+   const data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
+   piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
+   $("piMessage").textContent="Persistent admin session restored.";
+   $("piMessage").className="notice success";
+  }
  }catch(error){
   localStorage.removeItem(ADMIN_SESSION_KEY);
+  console.warn("Saved admin session could not be restored:",error);
+ }finally{
+  adminSessionRestoring=false;
+  updateAccountUI();
  }
- updateAccountUI();
 }
 function socialHeaders(){return {"Authorization":"Bearer "+getSocialToken()}}
 async function socialRequest(path,options={}){
