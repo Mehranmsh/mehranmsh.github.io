@@ -64,6 +64,14 @@
      const samples=Array.isArray(item.samples)?item.samples:[];
      const rootNotes=[...new Set(samples.map(sample=>sample.rootNote).filter(Number.isInteger))].sort((a,b)=>a-b);
      const rootSet=new Set(rootNotes);
+     const mappedNotes=new Set();
+     for(const sample of samples){
+      if(!Number.isInteger(sample.rootNote))continue;
+      const low=Number.isInteger(sample.keyLow)?sample.keyLow:sample.rootNote;
+      const high=Number.isInteger(sample.keyHigh)?sample.keyHigh:sample.rootNote;
+      if(low>=0&&high<=127&&low<=high)for(let note=low;note<=high;note++)mappedNotes.add(note);
+     }
+     const mappedSorted=[...mappedNotes].sort((a,b)=>a-b);
      const rootNotesByVowel={};
      for(const sample of samples){
       const vowel=String(sample.vowel||"").toLowerCase();
@@ -73,16 +81,19 @@
       }
      }
      for(const vowel of Object.keys(rootNotesByVowel))rootNotesByVowel[vowel]=[...rootNotesByVowel[vowel]].sort((a,b)=>a-b);
-     const low=rootNotes[0]??null,high=rootNotes.at(-1)??null;
-     const internalGaps=low===null?[]:Array.from({length:high-low+1},(_,index)=>low+index).filter(note=>!rootSet.has(note));
-     const expected=Array.isArray(item.expectedRootRange)&&item.expectedRootRange.length===2&&item.expectedRootRange.every(Number.isInteger)?item.expectedRootRange:null;
-     const missingNotes=expected?Array.from({length:expected[1]-expected[0]+1},(_,index)=>expected[0]+index).filter(note=>!rootSet.has(note)):internalGaps;
+     const low=mappedSorted[0]??null,high=mappedSorted.at(-1)??null;
+     const internalGaps=low===null?[]:Array.from({length:high-low+1},(_,index)=>low+index).filter(note=>!mappedNotes.has(note));
+     const expectedKeys=Array.isArray(item.expectedKeyRange)&&item.expectedKeyRange.length===2&&item.expectedKeyRange.every(Number.isInteger)?item.expectedKeyRange:null;
+     const expectedRoots=Array.isArray(item.expectedRootRange)&&item.expectedRootRange.length===2&&item.expectedRootRange.every(Number.isInteger)?item.expectedRootRange:null;
+     const expected=expectedKeys||expectedRoots;
+     const coverageSet=expectedKeys?mappedNotes:rootSet;
+     const missingNotes=expected?Array.from({length:expected[1]-expected[0]+1},(_,index)=>expected[0]+index).filter(note=>!coverageSet.has(note)):internalGaps;
      const coverageDefined=!!expected;
      const chromaticCoverageComplete=coverageDefined&&missingNotes.length===0;
      return {
       id,displayName:item.displayName,recordedSamples:samples.length,hasSamples:samples.length>0,
-      rootNotes,rootNotesByVowel,noteRange:rootNotes.length?[low,high]:[],
-      expectedRootRange:expected,missingNotes,internalGaps,coverageDefined,
+      rootNotes,rootNotesByVowel,noteRange:mappedSorted.length?[low,high]:[],
+      expectedRootRange:expectedRoots,expectedKeyRange:expectedKeys,missingNotes,internalGaps,coverageDefined,
       coverageStatus:!coverageDefined?"range-not-verified":chromaticCoverageComplete?"complete":"incomplete",
       chromaticCoverageComplete
      };
@@ -99,8 +110,8 @@
    async instrument(ctx,name,options){
     const spec=manifest.instruments[name];
     if(!spec||!Array.isArray(spec.samples)||spec.samples.length===0)throw new Error("No real recorded samples are installed for "+name+". Synthetic fallback is disabled.");
-    const valid=spec.samples.filter(s=>Number.isInteger(s.rootNote)&&s.rootNote>=0&&s.rootNote<=127&&typeof s.url==="string");
-    if(valid.length!==spec.samples.length)throw new Error("Invalid sample entry for "+name);
+    const valid=spec.samples.filter(s=>Number.isInteger(s.rootNote)&&s.rootNote>=0&&s.rootNote<=127&&typeof s.url==="string"&&(!Number.isInteger(s.keyLow)||s.keyLow>=0&&s.keyLow<=127)&&(!Number.isInteger(s.keyHigh)||s.keyHigh>=0&&s.keyHigh<=127)&&(!Number.isInteger(s.keyLow)||!Number.isInteger(s.keyHigh)||s.keyLow<=s.keyHigh)&&(!Number.isInteger(s.pitchKeyCenter)||s.pitchKeyCenter>=0&&s.pitchKeyCenter<=127)&&(!Number.isFinite(s.tuneCents)||Math.abs(s.tuneCents)<=1200)&&(!Number.isFinite(s.loopStartFrame)||s.loopStartFrame>=0)&&(!Number.isFinite(s.loopEndFrame)||s.loopEndFrame>s.loopStartFrame));
+    if(valid.length!==spec.samples.length)throw new Error("Invalid sample entry or SFZ region mapping for "+name);
     const requestedVowel=String(options&&options.vowel||"").toLowerCase();
     const maxSamplesPerNote=clamp(Math.floor(Number(options&&options.maxSamplesPerNote)||3),1,6);
     const bankSamples=requestedVowel?valid.filter(s=>String(s.vowel||"").toLowerCase()===requestedVowel):valid;
