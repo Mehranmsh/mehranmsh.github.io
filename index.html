@@ -1177,10 +1177,19 @@ piUser={...piUser,adminSession:true};
 }
 let socialLinked=false,needsSocialLink=false,socialIssue="";
 try{
-// A new Pi identity must never inherit a previously signed-in, different SOCIAL account.
-localStorage.removeItem(SOCIAL_TOKEN_KEY);
-localStorage.removeItem("msh_social_cached_user");
-socialUser=null;socialSessionVerified=false;renderSocial();
+// Preserve and verify an existing SOCIAL login before linking this verified Pi identity.
+// Never erase a valid SOCIAL session during Pi sign-in.
+let existingSocialToken=getSocialToken();
+let existingSocialValid=false;
+if(existingSocialToken){
+  existingSocialValid=await socialMe();
+  if(!existingSocialValid)existingSocialToken=getSocialToken();
+}
+if(existingSocialValid&&socialUser&&socialSessionVerified){
+  const linkResponse=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:{...socialHeaders(),"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
+  const linkData=await linkResponse.json().catch(()=>({}));
+  if(!linkResponse.ok||!linkData.success)throw new Error(linkData.error||"Your existing SOCIAL account could not be securely connected to Pi.");
+}
 const socialResponse=await fetch(SOCIAL_API+"/pi-session",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
 const socialData=await socialResponse.json().catch(()=>({}));
 if(socialResponse.ok&&socialData.success===true&&socialData.token){
@@ -1189,6 +1198,7 @@ localStorage.setItem(SOCIAL_TOKEN_KEY,socialData.token);
 socialUser=null;socialSessionVerified=false;localStorage.removeItem("msh_social_cached_user");
 socialLinked=await socialMe();
 if(!socialLinked)throw new Error("SOCIAL session was issued but could not be verified.");
+await renderProfile();
 }else if(socialData.code==="PI_ACCOUNT_NOT_LINKED"){
 needsSocialLink=true;
 }else{
