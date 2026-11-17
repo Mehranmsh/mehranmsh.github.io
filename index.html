@@ -41,13 +41,25 @@
   await timed(Pi.init({version:"2.0",sandbox:false}),"Pi SDK initialization",30000);
   return true;
  }
+ function startInitialization(){
+  const pending=initialize();
+  window.__piInitPromise=pending;
+  pending.catch(error=>{
+   if(window.__piInitPromise===pending)window.__piInitPromise=null;
+   console.warn("Pi SDK initialization can be retried:",error);
+  });
+  return pending;
+ }
  window.ensurePiReady=async function(){
-  if(!window.__piInitPromise)window.__piInitPromise=initialize();
-  try{return await window.__piInitPromise;}
-  catch(error){window.__piInitPromise=null;throw error;}
+  let lastError=null;
+  for(let attempt=0;attempt<2;attempt++){
+   if(!window.__piInitPromise)startInitialization();
+   try{return await window.__piInitPromise;}
+   catch(error){lastError=error;window.__piInitPromise=null;}
+  }
+  throw lastError||new Error("Pi SDK could not be initialized. Please retry.");
  };
- window.__piInitPromise=initialize();
- window.__piInitPromise.catch(error=>console.warn("Pi SDK initialization can be retried:",error));
+ startInitialization();
 })();
 </script>
 <style>
