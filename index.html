@@ -644,7 +644,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
    <div class="field profile-photo-field"><span class="file-field-label">Main profile photo</span><label class="file-dropzone profile-file-drop" for="profilePhoto"><span class="file-drop-icon profile-upload-icon">◎</span><span class="file-drop-copy"><strong>Choose your main profile photo</strong><small>This photo appears beside your name across SOCIAL.</small><em class="file-picker-note">JPG, PNG or WEBP</em></span><span class="file-pick-cta">Choose photo <b>＋</b></span><input type="file" id="profilePhoto" accept="image/*"></label><div class="file-selection-status" id="profileFileStatus">No new profile photo selected</div></div>
    <div class="field profile-gallery-field"><div class="profile-gallery-heading"><span class="file-field-label">Your photo gallery</span><span class="profile-gallery-limit">Multiple photos</span></div><label class="profile-gallery-add" for="profileGalleryInput"><span>＋</span><strong>Add photos</strong><small>Select several images at once</small><input type="file" id="profileGalleryInput" accept="image/*" multiple></label><div id="profileGalleryEditor" class="profile-gallery-editor"></div></div>
   </div></section>
-  <div class="profile-editor-footer"><div class="profile-editor-actions"><button class="btn" id="saveProfileBtn">Save changes</button><button class="btn secondary" id="removePhotoBtn">Remove main photo</button><button class="btn secondary" id="verifyCreatorBtn">✦ Verify with Pi</button></div><div id="profileMessage" class="notice">Your profile changes will be saved to your SOCIAL account.</div></div>
+  <div class="profile-editor-footer"><div class="profile-editor-actions"><button class="btn" id="saveProfileBtn">Save changes</button><button class="btn secondary" id="removePhotoBtn">Remove main photo</button><button class="btn secondary" id="verifyCreatorBtn">✦ Connect Pi account</button></div><div id="profileMessage" class="notice">Your profile changes will be saved to your SOCIAL account.</div></div>
  </div>
 
 </div>
@@ -1154,6 +1154,7 @@ async function piLogin(){
 const button=$("piLoginBtn"),message=$("piMessage");
 const show=(text,kind="notice")=>{message.textContent=text;message.className=kind;};
 const withTimeout=(promise,label,ms=15000)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+" timed out. Close and reopen Pi Browser, then retry.")),ms))]);
+if(button.disabled)return;
 button.disabled=true;button.textContent="Connecting...";
 show("Checking Pi Browser connection...","notice");
 try{
@@ -1162,11 +1163,11 @@ show("Pi SDK detected. Initializing Pi connection...","notice");
 await withTimeout(window.__piInitPromise,"Pi SDK initialization");
 if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("Pi authentication service is unavailable. Please reload Pi Browser.");
 show("Pi is ready. Waiting for the official sign-in window...","notice");
-const auth=await withTimeout(window.Pi.authenticate(["username","payments"],async payment=>console.log("Incomplete Pi payment:",payment)),"Pi sign-in");
+const auth=await withTimeout(window.Pi.authenticate(["username"],async()=>{}),"Pi sign-in");
 if(!auth?.accessToken||!auth?.user)throw new Error("Pi returned an incomplete authentication response. Please retry.");
 show("Pi identity verified. Connecting to MEHRAN MSH...","notice");
-const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken,user:auth.user})});
-piUser={...(auth.user||{}),uid:data.uid||auth.user?.uid,username:data.username||auth.user?.username,isAdmin:!!data.isAdmin};
+const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})});
+piUser={uid:data.uid||auth.user?.uid,username:data.username||auth.user?.username,isAdmin:!!data.isAdmin};
 if(piUser.isAdmin){
 const session=await api("/admin/session",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})});
 try{localStorage.setItem(ADMIN_SESSION_KEY,session.token);}catch(storageError){throw new Error("Admin session created, but browser could not save it: "+(storageError?.name||"StorageError")+" "+(storageError?.message||""));}
@@ -1174,8 +1175,31 @@ const savedToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";
 if(savedToken!==session.token)throw new Error("Admin session token was returned but could not be read back from browser storage.");
 piUser={...piUser,adminSession:true};
 }
-show(piUser.isAdmin?"Admin recognized. This device will remember you.":"Pi authentication completed successfully.","notice success");
-updateAccountUI();toast("Pi account connected");
+let socialLinked=false,needsSocialLink=false;
+try{
+const socialResponse=await fetch(SOCIAL_API+"/pi-session",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
+const socialData=await socialResponse.json().catch(()=>({}));
+if(socialResponse.ok&&socialData.success===true&&socialData.token){
+localStorage.setItem(SOCIAL_TOKEN_KEY,socialData.token);
+socialUser=null;socialSessionVerified=false;localStorage.removeItem("msh_social_cached_user");
+socialLinked=await socialMe();
+if(!socialLinked)throw new Error("SOCIAL session was issued but could not be verified.");
+}else if(socialData.code==="PI_ACCOUNT_NOT_LINKED"){
+needsSocialLink=true;
+}else{
+throw new Error(socialData.error||"SOCIAL could not exchange the verified Pi identity.");
+}
+}catch(socialError){
+console.warn("MEHRAN MSH unified SOCIAL sign-in:",socialError);
+if(!needsSocialLink)show("Pi connected, but SOCIAL sign-in needs a retry: "+(socialError.message||"connection issue"),"notice warn");
+}
+show(piUser.isAdmin?"Administrator identity verified.": "Pi identity connected to MEHRAN MSH.", "notice success");
+if(needsSocialLink){
+show("Pi connected. Sign in to your existing SOCIAL account once, then open Profile and choose Connect Pi account. After linking, Pi sign-in will recognize you automatically.","notice warn");
+}else if(socialLinked){
+show("Pi sign-in complete. SOCIAL recognizes the same account.","notice success");
+}
+updateAccountUI();toast(socialLinked?"MEHRAN MSH and SOCIAL connected":"Pi account connected");
 }catch(error){
 console.error("MEHRAN MSH Pi sign-in failed:",error);
 show(error?.message||"Pi authentication failed. Please retry.","notice error");
@@ -1187,9 +1211,14 @@ window.piLogin=piLogin;
 $("piLogoutBtn").addEventListener("click",async()=>{
 const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
 if(token){try{await api("/admin/session",{method:"DELETE",headers:{"Authorization":"Bearer "+token}})}catch{}}
+const socialToken=getSocialToken();
+if(socialToken){try{await fetch(SOCIAL_API+"/logout",{method:"POST",headers:{"Authorization":"Bearer "+socialToken}})}catch{}}
 localStorage.removeItem(ADMIN_SESSION_KEY);
-piUser=null;updateAccountUI();
-$("piMessage").textContent="Pi session disconnected from this page.";
+localStorage.removeItem(SOCIAL_TOKEN_KEY);
+localStorage.removeItem("msh_social_cached_user");
+socialUser=null;socialSessionVerified=false;piUser=null;
+updateAccountUI();renderSocial();
+$("piMessage").textContent="MEHRAN MSH and SOCIAL sessions disconnected.";
 $("piMessage").className="notice";
 });
 
@@ -1354,7 +1383,7 @@ authMode=mode;
 $("authModal").classList.add("open");
 document.body.style.overflow="hidden";
 updateAuthMode();
-setSocialAuthMessage("Your SOCIAL account is separate from your Pi wallet.","notice");
+setSocialAuthMessage("Connect your verified Pi identity once to use the same account across MEHRAN MSH and SOCIAL. Never enter your wallet passphrase here.","notice");
 }
 function closeAuth(){$("authModal").classList.remove("open");document.body.style.overflow=""}
 function updateAuthMode(){
@@ -1794,8 +1823,8 @@ return await readFileData(file);
 async function socialVerifyCreator(){
 const message=$("profileMessage"),button=$("verifyCreatorBtn");
 if(!button||button.disabled)return;
-if(!socialUser){message.textContent="Sign in to SOCIAL first.";message.className="notice warn";return}
-if(!window.Pi){message.textContent="Open SOCIAL in Pi Browser to verify your Pi identity.";message.className="notice warn";return}
+if(!socialUser||!socialSessionVerified){message.textContent="Sign in to your existing SOCIAL account first. This is a one-time connection.";message.className="notice warn";return}
+if(!window.Pi){message.textContent="Open MEHRAN MSH in Pi Browser to connect your verified Pi identity.";message.className="notice warn";return}
 button.disabled=true;message.textContent="Connecting to Pi Browser...";message.className="notice";
 let stage="Pi SDK initialization";
 try{
@@ -1803,18 +1832,23 @@ await window.__piInitPromise;
 stage="Pi Browser authorization";
 const auth=await window.Pi.authenticate(["username"],async()=>{});
 if(!auth?.accessToken)throw new Error("Pi did not return an access token.");
-stage="SOCIAL server verification";
-const result=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:{...socialHeaders(),"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
-const responseText=await result.text();
-let data={};try{data=JSON.parse(responseText)}catch{}
-if(!result.ok)throw new Error((data.message||data.error||responseText.trim().slice(0,300)||"Empty server response")+" (HTTP "+result.status+", "+(result.headers.get("content-type")||"unknown content type")+")");
-await socialMe();
+stage="Secure account linking";
+const response=await fetch(SOCIAL_API+"/link-pi",{method:"POST",headers:{...socialHeaders(),"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
+const data=await response.json().catch(()=>({}));
+if(!response.ok||!data.success)throw new Error(data.error||"Pi identity could not be linked (HTTP "+response.status+").");
+stage="Unified session creation";
+const sessionResponse=await fetch(SOCIAL_API+"/pi-session",{method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},cache:"no-store",body:JSON.stringify({accessToken:auth.accessToken})});
+const sessionData=await sessionResponse.json().catch(()=>({}));
+if(!sessionResponse.ok||!sessionData.success||!sessionData.token)throw new Error(sessionData.error||"The unified SOCIAL session could not be created.");
+localStorage.setItem(SOCIAL_TOKEN_KEY,sessionData.token);
+socialUser=null;socialSessionVerified=false;localStorage.removeItem("msh_social_cached_user");
+if(!await socialMe())throw new Error("The new SOCIAL session could not be verified.");
 await renderProfile();
 syncPiVerificationUI();
-message.textContent="Creator identity verified. Your Creator badge is now active.";
+message.textContent=data.creatorVerified?"Pi identity connected. Your Creator badge is active. Future Pi sign-ins will recognize this SOCIAL account automatically.":"Pi identity connected. Future Pi sign-ins will recognize this SOCIAL account automatically.";
 message.className="notice success";
 }catch(error){message.textContent=stage+": "+(error.message||"Unknown error");message.className="notice error"}
-finally{syncPiVerificationUI();if(!socialUser?.piVerified&&!profileData?.piVerified)button.disabled=false}
+finally{syncPiVerificationUI();button.disabled=false;}
 }
 
 $("removePhotoBtn").addEventListener("click",async()=>{
