@@ -1341,6 +1341,31 @@ def main():
                 }""")
                 assert vocal_assets == {"female_vocal": 45, "male_vocal": 55, "female_choir": 45, "male_choir": 55, "mixed_choir": 100}, "Self-hosted human vocal assets are incomplete: " + str(vocal_assets)
 
+                violin_assets = page.evaluate("""async () => {
+                    const manifest = await (await fetch("./assets/instruments/manifest.json", {cache:"no-store"})).json();
+                    const bank = manifest.instruments?.violin;
+                    const expectedRoots = [55,57,60,64,67,69,72,76,79,81,84,88,91,93,96];
+                    if (!bank || bank.samples?.length !== 30 || bank.license !== "CC0-1.0") throw new Error("Violin must use the 30-sample CC0 solo bank");
+                    const roots = [...new Set(bank.samples.map(x => x.rootNote))].sort((a,b)=>a-b);
+                    if (JSON.stringify(roots) !== JSON.stringify(expectedRoots)) throw new Error("Violin root-note coverage is incomplete");
+                    const layers = [...new Set(bank.samples.map(x => Math.round(x.velocityMin*127)))].sort((a,b)=>a-b);
+                    if (JSON.stringify(layers) !== JSON.stringify([0,64])) throw new Error("Violin must have both recorded velocity layers");
+                    for (const sample of bank.samples) {
+                        const response = await fetch(sample.url, {cache:"no-store"});
+                        if (!response.ok || (await response.arrayBuffer()).byteLength < 256) throw new Error("Violin recording unavailable: " + sample.url);
+                    }
+                    const ctx = new AudioContext();
+                    const engine = await window.MEHRAN_SAMPLE_ENGINE.create();
+                    const player = await engine.instrument(ctx, "violin", {destination:ctx.destination, noteEvents:[]});
+                    const soft = player.play(57, 0, 0.3, {gain:0.5, velocity:0.25});
+                    const strong = player.play(57, 0.4, 0.3, {gain:0.5, velocity:0.85});
+                    await ctx.close();
+                    if (soft === false || strong === false) throw new Error("Violin recorded velocity-layer playback failed");
+                    return {samples:bank.samples.length, roots, layers, softAccepted:soft!==false, strongAccepted:strong!==false};
+                }""")
+                assert violin_assets["samples"] == 30 and violin_assets["softAccepted"] and violin_assets["strongAccepted"], "Recorded solo violin bank validation failed: " + str(violin_assets)
+                print("PASS: solo violin loads 30 checksum-verified CC0 samples across 15 roots and two recorded velocity layers", flush=True)
+
                 handpan_assets = page.evaluate("""async () => {
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache: "no-store"})).json();
                     const bank = manifest.instruments?.handpan;
