@@ -307,6 +307,13 @@ body[data-theme="light"]{--bg:#f2f6fc;--panel:#ffffff;--panel2:#eaf0f8;--line:#d
 #page-social .communication-view:not(.hidden){display:block}
 #page-social #socialChatApp.communication-view:not(.hidden){display:flex}
 #page-social .communication-view#communication-groups,#page-social .communication-view#communication-channels,#page-social .communication-view#communication-bots{min-height:300px}
+
+/* MEHRAN MSH layout cleanup: clear page ownership and quieter surfaces */
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.dashboard-hero{padding:clamp(22px,3vw,30px);margin-bottom:18px}.dashboard-hero h1{font-size:clamp(25px,3vw,34px);margin:9px 0}.dashboard-hero p{margin:0;max-width:540px}
+.workspace-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.workspace-link{display:flex;align-items:center;gap:13px;text-align:left;width:100%;padding:16px;border:1px solid var(--line);border-radius:13px;background:var(--panel);color:var(--text)}.workspace-link:hover{border-color:#287ca2;background:var(--panel2)}.workspace-link-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:11px;background:#122b43;color:var(--cyan);font-size:19px}.workspace-link strong,.workspace-link small{display:block}.workspace-link strong{font-size:13px}.workspace-link small{font-size:11px;color:var(--muted);margin-top:4px}.workspace-arrow{margin-left:auto;color:var(--muted);font-size:22px}
+.services-grid .feature{min-height:175px}.service-action{margin-top:14px!important}.intelligence-overview .section-title{margin-top:0}.intelligence-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.intelligence-stats .card{padding:14px}.intelligence-stats .stat{font-size:22px}.intelligence-assistant .section-title{margin-top:0}.intelligence-reply{display:none;margin-top:14px;white-space:pre-wrap;line-height:1.8}.intelligence-advanced{padding:16px}.intelligence-advanced summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:700}.intelligence-advanced[open] summary{margin-bottom:16px}
+@media(max-width:700px){.workspace-links{grid-template-columns:1fr}.intelligence-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-link{padding:13px}.services-grid .feature{min-height:0}}
 </style>
 <style id="social-profile-editor-refresh">
 /* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
@@ -521,17 +528,23 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <button class="nav-btn" data-page="user"><span class="nav-icon">◉</span>User Center</button>
 <button class="nav-btn" data-page="social"><span class="nav-icon">◎</span>SOCIAL</button>
 <button class="nav-btn" data-page="admin"><span class="nav-icon">⚙</span>Admin</button>
-<div class="nav-label">INTELLIGENCE</div><button class="nav-btn" data-page="intelligence"><span class="nav-icon">✧</span>Intelligence</button>
-<div class="nav-label">ECOSYSTEM</div><button class="nav-btn" data-page="projects"><span class="nav-icon">▦</span>Projects</button><button class="nav-btn" data-page="services"><span class="nav-icon">◇</span>Services</button>
+<div class="nav-label">WORKSPACE</div><button class="nav-btn" data-page="projects"><span class="nav-icon">▦</span>Projects</button><button class="nav-btn" data-page="services"><span class="nav-icon">◇</span>Services</button><button class="nav-btn" data-page="intelligence"><span class="nav-icon">✧</span>Intelligence</button>
 <div class="sidebar-bottom">MEHRAN MSH<br><span class="status-dot"></span>Digital ecosystem interface<br><span id="sideUser">Guest session</span></div>
 </aside>
 <main class="main">
 <header class="topbar"><div class="breadcrumb">MEHRAN MSH <span style="color:#405875">/</span> <span id="crumb">Dashboard</span></div><div class="top-actions"><span class="pill" id="connectionStatus">● Checking connection</span><button class="btn secondary small" id="languageBtn">EN / FA</button></div></header>
 
 <section class="page active" id="page-dashboard">
-<div class="hero"><div class="eyebrow">WELCOME TO YOUR DIGITAL WORLD</div><h1 id="heroTitle">One Hub. Many Possibilities.</h1><p id="heroText">MEHRAN MSH is a central hub for your digital identity, projects, social experience and intelligent services. One connected ecosystem, built step by step.</p><div class="hero-slogan" aria-label="MEHRAN MSH motto"><span>Built on Pi.</span><span>Connected by MEHRAN.</span><span>Independent in Purpose.</span></div><div class="hero-actions"><button class="btn" onclick="showPage('user')">Open User Center</button><button class="btn secondary" onclick="showPage('social')">Explore SOCIAL</button></div></div>
-<div class="grid"><div class="card"><div class="eyebrow">IDENTITY</div><div class="stat" id="dashIdentity">Guest</div><div class="stat-label">Current account</div></div><div class="card"><div class="eyebrow">SOCIAL</div><div class="stat" id="dashPosts">0</div><div class="stat-label">Your local posts</div></div><div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="dashProjects">0</div><div class="stat-label">Projects available</div></div></div>
-<div class="section-title"><h2>Explore your workspace</h2></div><div class="grid"><div class="card"><h3>◉ User Center</h3><p>Manage your account, profile and Pi Network connection.</p></div><div class="card"><h3>◎ SOCIAL</h3><p>Profiles, posts, reels, messages, groups, channels and discovery.</p></div><div class="card"><h3>✧ Intelligence</h3><p>A dedicated space for intelligent tools and future AI services.</p></div></div>
+<div class="page-heading"><h1 id="heroTitle">MEHRAN MSH</h1><p id="heroText">Your ecosystem, organized in one place.</p></div>
+<div class="hero dashboard-hero"><div class="eyebrow">YOUR WORKSPACE</div><h1>Everything in its place.</h1><p>Open the part of MEHRAN you want to work on. Each area has its own tools and responsibilities.</p><div class="hero-actions"><button class="btn" onclick="showPage('projects')">Open Projects</button><button class="btn secondary" onclick="showPage('social')">Open SOCIAL</button></div></div>
+<div class="section-title"><h2>Workspace</h2></div>
+<div class="workspace-links">
+<button class="workspace-link" onclick="showPage('projects')"><span class="workspace-link-icon">▦</span><span><strong>Projects</strong><small>Build and manage company projects</small></span><span class="workspace-arrow">›</span></button>
+<button class="workspace-link" onclick="showPage('services')"><span class="workspace-link-icon">◇</span><span><strong>Services</strong><small>Explore MEHRAN products and divisions</small></span><span class="workspace-arrow">›</span></button>
+<button class="workspace-link" onclick="showPage('intelligence')"><span class="workspace-link-icon">✧</span><span><strong>Intelligence</strong><small>Company analysis and AI assistant</small></span><span class="workspace-arrow">›</span></button>
+<button class="workspace-link" onclick="showPage('user')"><span class="workspace-link-icon">◉</span><span><strong>User Center</strong><small>Account and Pi connection</small></span><span class="workspace-arrow">›</span></button>
+</div>
+<div class="sr-only" aria-hidden="true"><span id="dashIdentity">Guest</span><span id="dashPosts">0</span><span id="dashProjects">0</span></div>
 </section>
 
 <section class="page" id="page-user">
@@ -868,53 +881,48 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="panel"><h2>Admin Settings</h2><div id="adminSettingsMessage" class="notice">Loading protected administration settings...</div></div></section>
 
 <section class="page" id="page-intelligence">
-<div class="page-heading"><h1>Intelligence</h1><p>Central intelligence and operational visibility for the MEHRAN ecosystem.</p></div>
-<div class="hero"><div class="eyebrow">MEHRAN INTELLIGENCE · PHASE 01</div><h1>One intelligence layer. One company view.</h1><p>A protected control room with live project and SOCIAL data, plus a private AI assistant for analysis. The first assistant tools are read-only.</p><div class="hero-slogan"><span>READ FIRST.</span><span>ANALYZE CLEARLY.</span><span>HUMAN APPROVAL.</span></div></div>
-<div class="panel"><div class="section-title"><div><h2>Company Overview</h2><div class="small-text">Live data from the existing MEHRAN MSH services</div></div><button class="btn secondary small" id="refreshIntelligenceBtn">Refresh data</button></div>
-<div class="grid">
+<div class="page-heading"><h1>Intelligence</h1><p>Your private company analysis and AI workspace.</p></div>
+<div class="panel intelligence-overview">
+<div class="section-title"><div><h2>Company Overview</h2><div class="small-text">A concise snapshot of MEHRAN MSH</div></div><button class="btn secondary small" id="refreshIntelligenceBtn">Refresh</button></div>
+<div class="grid intelligence-stats">
 <div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="intelProjects">—</div><div class="stat-label">Registered projects</div></div>
-<div class="card"><div class="eyebrow">USERS</div><div class="stat" id="intelUsers">—</div><div class="stat-label">Total SOCIAL accounts</div></div>
-<div class="card"><div class="eyebrow">ACTIVE USERS</div><div class="stat" id="intelActiveUsers">—</div><div class="stat-label">Currently active accounts</div></div>
-<div class="card"><div class="eyebrow">OPEN REPORTS</div><div class="stat" id="intelOpenReports">—</div><div class="stat-label">Require administrator review</div></div>
-</div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account, then refresh to load company data.</div></div>
+<div class="card"><div class="eyebrow">SOCIAL USERS</div><div class="stat" id="intelUsers">—</div><div class="stat-label">Registered accounts</div></div>
+<div class="card"><div class="eyebrow">ACTIVE USERS</div><div class="stat" id="intelActiveUsers">—</div><div class="stat-label">Active accounts</div></div>
+<div class="card"><div class="eyebrow">OPEN REPORTS</div><div class="stat" id="intelOpenReports">—</div><div class="stat-label">Need review</div></div>
+</div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account to load company data.</div>
+</div>
+<div class="panel intelligence-assistant">
+<div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
+<div id="intelChatStatus" class="notice">The assistant can analyze available company data and recommend actions. It cannot change company data.</div>
+<div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً مهم‌ترین قدم بعدی شرکت چیه؟"></textarea></div>
+<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 10/day</span></div>
+<div id="intelReply" class="card intelligence-reply" aria-live="polite"></div>
+</div>
+<details class="panel intelligence-advanced"><summary>Technical connections and project data</summary>
 <div class="grid">
-<div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI · Llama 3.3</h3><p>A private, administrator-only assistant endpoint is now implemented. Live model availability still needs a deployment test.</p><div class="notice">Endpoint implemented · live test pending</div></div>
-<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Tool connectivity</h3><p>An authenticated MCP gateway is deployed with four read-only tools for projects, SOCIAL metrics, service bindings and management reports. Live client handshake still requires an authorized admin session.</p><div class="notice" id="mcpStatus">Gateway deployed · waiting for authenticated connection test</div><button class="btn secondary small" id="testMcpBtn" type="button">Test MCP connection</button></div>
-<div class="card"><div class="eyebrow">SECURITY LAYER</div><h3>Admin-controlled access</h3><p>Company data is loaded through the existing protected admin session. Sensitive actions remain outside AI authority.</p><div class="notice success">Protected data path available</div></div>
+<div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI · Llama 3.3</h3><p>Private assistant model connection.</p></div>
+<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Company tools</h3><p>Read-only access to approved company information.</p><div class="notice" id="mcpStatus">Connection test has not been run.</div><button class="btn secondary small" id="testMcpBtn" type="button">Test MCP connection</button></div>
+<div class="card"><div class="eyebrow">SECURITY</div><h3>Administrator access</h3><p>Company information is protected by the MEHRAN administrator session.</p></div>
 </div>
-<div class="panel">
-<div class="section-title"><div><h2>MEHRAN Intelligence Assistant</h2><div class="small-text">Private administrator assistant · read-only company context</div></div><span class="pill">AI · Beta</span></div>
-<div id="intelChatStatus" class="notice">Ask about registered projects, SOCIAL activity or the next practical company steps. The assistant cannot execute changes.</div>
-<div class="field"><label for="intelQuestion">Your question</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً وضعیت فعلی شرکت مهران چطوره و قدم بعدی چی باشه؟"></textarea></div>
-<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">Limit: 3 requests/hour · 10/day</span></div>
-<div id="intelReply" class="card" style="margin-top:14px;white-space:pre-wrap;line-height:1.8;display:none" aria-live="polite"></div>
-</div>
-<div class="panel"><div class="section-title"><h2>Project Intelligence</h2><span class="small-text">Read-only view</span></div><div id="intelligenceProjectsList" class="small-text">Project data will appear after a successful refresh.</div></div>
+<div class="section-title"><h2>Project data</h2><span class="small-text">Read-only technical view</span></div>
+<div id="intelligenceProjectsList" class="small-text">Project data will appear after a successful refresh.</div>
+</details>
 </section>
 
 <section class="page" id="page-projects"><div class="page-heading"><h1>Projects</h1><p>Manage and explore projects connected to MEHRAN MSH.</p></div><div class="panel"><div class="section-title"><h2>Project Workspace</h2><button class="btn small" id="refreshProjectsBtn">Refresh</button></div><div id="projectsMessage" class="notice">Loading projects...</div><div id="projectsList"></div></div><div class="panel"><h3>Create Project</h3><div class="field"><label>Project name</label><input id="projectName" placeholder="Project name"></div><div class="field"><label>Description</label><textarea id="projectDescription" placeholder="Describe your project"></textarea></div><button class="btn" id="createProjectBtn">Create project</button></div></section>
 
 <section class="page" id="page-services">
-<div class="page-heading"><h1>Services</h1><p>Independent products and services across the MEHRAN MSH ecosystem.</p></div>
-<div class="panel" style="margin-bottom:16px">
-<div class="eyebrow">PARENT BRAND</div><h2 style="font-size:23px;letter-spacing:2px;margin:7px 0">MEHRAN</h2><p class="small-text">One brand family. Independent products, clear purposes and dedicated experiences.</p>
+<div class="page-heading"><h1>Services</h1><p>Products and business divisions across the MEHRAN ecosystem.</p></div>
+<div class="feature-grid services-grid">
+<div class="feature"><div class="feature-icon">🎙</div><h3>MEHRAN MUSIC STUDIO</h3><p>Music creation, recording, production and AI-assisted music tools.</p><p class="service-action"><a class="btn small" href="music-studio.html">Open Music Studio ↗</a></p></div>
+<div class="feature"><div class="feature-icon">🎸</div><h3>MEHRAN INSTRUMENTS</h3><p>Musical instruments, professional studio equipment, music technology and global trade.</p><span class="pill">Business division</span></div>
+<div class="feature"><div class="feature-icon">✧</div><h3>MEHRAN AI</h3><p>Artificial intelligence products, assistants and intelligent tools.</p><span class="pill">Technology division</span></div>
+<div class="feature"><div class="feature-icon">🤖</div><h3>MEHRAN ROBOTICS</h3><p>Robotics research, intelligent machines and future automation products.</p><span class="pill">Future division</span></div>
 </div>
-<div class="section-title"><h2>MEHRAN MUSIC</h2><span class="small-text">Music division</span></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">🎙</div><h3>MEHRAN MUSIC STUDIO</h3><p>Independent music creation workspace for instrumentals, songs, AI singers, personal voice workflows and production.</p><p style="margin-top:10px"><span class="pill">Early workspace build</span></p><p style="margin-top:12px"><a class="btn small" href="music-studio.html">Open Music Studio ↗</a></p></div>
-<div class="feature"><div class="feature-icon">🎸</div><h3>MEHRAN INSTRUMENTS</h3><p>Musical instruments, professional studio equipment, music technology and global trade.</p><p style="margin-top:10px"><span class="pill">Brand division</span></p></div>
-</div>
-<div class="section-title" style="margin-top:22px"><h2>Technology &amp; Future Divisions</h2></div>
-<div class="feature-grid">
-<div class="feature"><div class="feature-icon">✧</div><h3>MEHRAN AI</h3><p>Artificial intelligence products, assistants and intelligent tools.</p><p style="margin-top:10px"><span class="pill">Brand division</span></p></div>
-<div class="feature"><div class="feature-icon">🤖</div><h3>MEHRAN ROBOTICS</h3><p>Robotics research, intelligent machines and future automation products.</p><p style="margin-top:10px"><span class="pill">Future division</span></p></div>
-</div>
-<div class="section-title" style="margin-top:22px"><h2>Ecosystem Services</h2></div>
-<div class="feature-grid"><div class="feature"><div class="feature-icon">◉</div><h3>Identity</h3><p>Account identity and authentication services.</p></div><div class="feature"><div class="feature-icon">◎</div><h3>SOCIAL</h3><p>Independent social network for profiles, content and communication.</p></div><div class="feature"><div class="feature-icon">✧</div><h3>Intelligence</h3><p>Central intelligent services and future integrations.</p></div><div class="feature"><div class="feature-icon">▦</div><h3>Projects</h3><p>Project workspace and management.</p></div></div>
 </section>
 </main></div>
 
-<nav class="mobile-nav"><button class="active" data-page="dashboard"><span>⌂</span>Home</button><button data-page="admin"><span>⚙</span>Admin</button><button data-page="user"><span>◉</span>Account</button><button data-page="intelligence"><span>✧</span>Intel</button><button data-page="social"><span>◎</span>SOCIAL</button><button data-page="projects"><span>▦</span>Projects</button><button data-page="services"><span>◇</span>Services</button></nav>
+<nav class="mobile-nav"><button class="active" data-page="dashboard"><span>⌂</span>Home</button><button data-page="social"><span>◎</span>SOCIAL</button><button data-page="projects"><span>▦</span>Projects</button><button data-page="intelligence"><span>✧</span>Intel</button><button data-page="user"><span>◉</span>Account</button></nav>
 <div class="toast" id="toast"></div>
 
 <div class="modal" id="authModal"><div class="modal-box"><div class="modal-head"><h2 id="authTitle">Welcome to SOCIAL</h2><button class="close-btn" onclick="closeAuth()">×</button></div><p class="small-text">Create an account or sign in to interact with SOCIAL.</p><div class="field"><label>Username</label><input id="socialUsername" placeholder="Your username" autocomplete="username"></div><div class="field" id="emailField"><label>Email</label><input id="socialEmail" type="email" placeholder="you@example.com" autocomplete="email"></div><div class="field"><label>Password</label><input id="socialPassword" type="password" placeholder="At least 10 characters" autocomplete="new-password"></div><div class="field" id="displayNameField"><label>Display name</label><input id="socialDisplayName" placeholder="Your display name"></div><div class="field" id="accountTypeField"><label>Account type</label><select id="socialAccountType"><option value="human">Human · Personal account</option><option value="business">Business · Company or service</option></select><p class="small-text">AI assistants and bots are created separately in Bot Developer.</p></div><div class="hero-actions"><button class="btn" id="socialRegisterBtn">Create account</button><button class="btn secondary" id="socialLoginBtn">Sign in</button></div><div class="small-text" style="margin-top:14px;text-align:center"><span id="authSwitchText">Don't have an account?</span><button type="button" id="authSwitchBtn" style="background:none;border:0;color:var(--cyan);font-weight:800;cursor:pointer;padding:5px">Create account</button></div><div class="small-text" style="margin-top:13px">Pi account linking is optional. Never enter your Pi wallet passphrase here.</div><div id="socialAuthMessage" class="notice">Your SOCIAL account is separate from your Pi wallet.</div></div></div>
