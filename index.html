@@ -10,17 +10,45 @@
 <title>MEHRAN MSH | Digital Ecosystem</title>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <script>
-/* Initialize the Pi bridge only after the page and native-browser bridge have had time to become ready. */
-window.__piInitPromise=new Promise(resolve=>{
- const start=()=>setTimeout(resolve,500);
- if(document.readyState==="complete")start();
- else window.addEventListener("load",start,{once:true});
-}).then(async()=>{
- if(!window.Pi)throw new Error("Pi SDK did not load. Open this app inside Pi Browser and check your connection.");
- await window.Pi.init({version:"2.0",sandbox:false});
- return true;
-});
-window.__piInitPromise.catch(error=>console.error("Pi SDK initialization failed:",error));
+/* Pi SDK bootstrap: wait for the official SDK, initialize once, and allow a clean retry after a transient failure. */
+(function(){
+ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ function timed(promise,label,ms){
+  let timer;
+  return Promise.race([
+   Promise.resolve(promise),
+   new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+" timed out after "+Math.round(ms/1000)+" seconds.")),ms);})
+  ]).finally(()=>clearTimeout(timer));
+ }
+ async function waitForPi(ms){
+  const end=Date.now()+ms;
+  while(Date.now()<end){
+   if(window.Pi&&typeof window.Pi.init==="function"&&typeof window.Pi.authenticate==="function")return window.Pi;
+   await pause(200);
+  }
+  throw new Error("Pi SDK is not responding. Check your Pi Browser connection and retry.");
+ }
+ async function initialize(){
+  let Pi;
+  try{Pi=await waitForPi(20000);}
+  catch(firstError){
+   const retry=document.createElement("script");
+   retry.src="https://sdk.minepi.com/pi-sdk.js";
+   retry.async=true;
+   document.head.appendChild(retry);
+   Pi=await waitForPi(20000);
+  }
+  await timed(Pi.init({version:"2.0",sandbox:false}),"Pi SDK initialization",30000);
+  return true;
+ }
+ window.ensurePiReady=async function(){
+  if(!window.__piInitPromise)window.__piInitPromise=initialize();
+  try{return await window.__piInitPromise;}
+  catch(error){window.__piInitPromise=null;throw error;}
+ };
+ window.__piInitPromise=initialize();
+ window.__piInitPromise.catch(error=>console.warn("Pi SDK initialization can be retried:",error));
+})();
 </script>
 <style>
 :root{--bg:#070b14;--panel:#0e1728;--panel2:#111e32;--line:#20324c;--cyan:#28d9ff;--blue:#397bff;--gold:#f3c969;--text:#edf5ff;--muted:#91a4bd;--green:#39d99b;--red:#ff667d}
@@ -1153,29 +1181,34 @@ $("adminAccountUsername").textContent=isAdmin?(piUser.username||"Admin"):"—";
 $("adminAccountSession").textContent=isAdmin?(piUser.adminSession?"Active":"Not active"):"—";
 document.querySelectorAll('.mobile-nav [data-page="admin"]').forEach(button=>{button.hidden=!isAdmin;});
 }
+let piLoginInFlight=false;
 async function piLogin(){
 const button=$("piLoginBtn"),message=$("piMessage");
 const show=(text,kind="notice")=>{message.textContent=text;message.className=kind;};
-const withTimeout=(promise,label,ms=15000)=>Promise.race([promise,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label+" timed out. Close and reopen Pi Browser, then retry.")),ms))]);
-if(button.disabled)return;
-button.disabled=true;button.textContent="Connecting...";
-show("Checking Pi Browser connection...","notice");
+const withTimeout=(promise,label,ms=60000)=>{
+ let timer;
+ return Promise.race([Promise.resolve(promise),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+" is taking too long. Check Pi Browser and retry.")),ms);})]).finally(()=>clearTimeout(timer));
+};
+if(piLoginInFlight||button.disabled)return;
+piLoginInFlight=true;button.disabled=true;button.textContent="Connecting...";
+show("Preparing the official Pi connection...","notice");
 try{
-if(!window.Pi)throw new Error("Pi SDK was not detected. Open MEHRAN MSH inside Pi Browser and reload the page.");
-show("Pi SDK detected. Initializing Pi connection...","notice");
-await withTimeout(window.__piInitPromise,"Pi SDK initialization");
-if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("Pi authentication service is unavailable. Please reload Pi Browser.");
-show("Pi is ready. Waiting for the official sign-in window...","notice");
-const auth=await withTimeout(window.Pi.authenticate(["username"],async()=>{}),"Pi sign-in");
+show("Checking Pi SDK and Pi Browser bridge...","notice");
+if(typeof window.ensurePiReady==="function")await withTimeout(window.ensurePiReady(),"Pi SDK initialization",45000);
+else await withTimeout(window.__piInitPromise,"Pi SDK initialization",45000);
+if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("The Pi authentication service is unavailable. Reopen MEHRAN MSH inside Pi Browser and retry.");
+show("Pi is ready. Waiting for your approval in the official Pi sign-in window...","notice");
+const auth=await withTimeout(window.Pi.authenticate(["username"],async()=>{}),"Pi sign-in",90000);
 if(!auth?.accessToken||!auth?.user)throw new Error("Pi returned an incomplete authentication response. Please retry.");
-show("Pi identity verified. Connecting to MEHRAN MSH...","notice");
-const data=await api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})});
+show("Pi identity received. Verifying it securely with MEHRAN MSH...","notice");
+const data=await withTimeout(api("/auth",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})}),"MEHRAN MSH verification",30000);
 piUser={uid:data.uid||auth.user?.uid,username:data.username||auth.user?.username,isAdmin:!!data.isAdmin};
 if(piUser.isAdmin){
-const session=await api("/admin/session",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})});
-try{localStorage.setItem(ADMIN_SESSION_KEY,session.token);}catch(storageError){throw new Error("Admin session created, but browser could not save it: "+(storageError?.name||"StorageError")+" "+(storageError?.message||""));}
+show("Pi identity verified. Creating your secure administrator session...","notice");
+const session=await withTimeout(api("/admin/session",{method:"POST",body:JSON.stringify({accessToken:auth.accessToken})}),"Administrator session creation",30000);
+try{localStorage.setItem(ADMIN_SESSION_KEY,session.token);}catch(storageError){throw new Error("Pi verified you, but this browser could not save the administrator session. Allow site storage and retry.");}
 const savedToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";
-if(savedToken!==session.token)throw new Error("Admin session token was returned but could not be read back from browser storage.");
+if(savedToken!==session.token)throw new Error("The administrator session was created but browser storage did not retain it. Check Pi Browser site storage.");
 piUser={...piUser,adminSession:true};
 }
 let socialLinked=false,needsSocialLink=false,socialIssue="";
@@ -1226,6 +1259,7 @@ updateAccountUI();toast(socialLinked?"MEHRAN MSH and SOCIAL connected":"Pi accou
 console.error("MEHRAN MSH Pi sign-in failed:",error);
 show(error?.message||"Pi authentication failed. Please retry.","notice error");
 }finally{
+piLoginInFlight=false;
 button.disabled=false;button.textContent="Sign in with Pi";
 }
 }
@@ -1246,35 +1280,40 @@ $("piMessage").className="notice";
 
 function getSocialToken(){return localStorage.getItem(SOCIAL_TOKEN_KEY)||""}
 async function restoreAdminSession(){
- const message=$("piMessage");
- const report=(text,kind="notice")=>{message.textContent="SESSION DEBUG: "+text;message.className=kind;console.info("[ADMIN SESSION DEBUG]",text);};
  let token="";
  try{
-  report("startup reached; checking browser storage...");
-  try{
-   token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
-  }catch(storageError){
-   report("LOCAL STORAGE READ FAILED: "+(storageError?.name||"Error")+" - "+(storageError?.message||"unknown"),"notice error");
-   return;
+  token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+  if(!token)return;
+  let data=null,lastError=null;
+  for(let attempt=0;attempt<3;attempt++){
+   try{
+    data=await Promise.race([
+     api("/admin/session",{headers:{"Authorization":"Bearer "+token}}),
+     new Promise((_,reject)=>setTimeout(()=>reject(new Error("Session verification timed out")),12000))
+    ]);
+    break;
+   }catch(error){
+    lastError=error;
+    if(error.status===401||error.status===403){
+     localStorage.removeItem(ADMIN_SESSION_KEY);
+     throw error;
+    }
+    if(attempt<2)await new Promise(resolve=>setTimeout(resolve,700*(attempt+1)));
+   }
   }
-  if(!token){
-   report("storage is readable, but key msh_admin_session is MISSING. The sign-in flow did not leave a saved token in this browser.","notice error");
-   return;
-  }
-  report("saved token FOUND (length "+token.length+"). Sending GET /admin/session to verify it...");
-  let data;
-  try{
-   data=await api("/admin/session",{headers:{"Authorization":"Bearer "+token}});
-  }catch(requestError){
-   report("TOKEN FOUND, SERVER CHECK FAILED. HTTP "+(requestError.status||"no response")+"; "+(requestError.message||"unknown fetch error"),"notice error");
-   console.error("[ADMIN SESSION DEBUG] verification request failed",requestError);
+  if(!data){
+   console.warn("Saved administrator session could not be reached after retries:",lastError);
+   $("piMessage").textContent="Your saved Pi session is still on this device, but the server could not be reached. Check your connection and retry.";
+   $("piMessage").className="notice warn";
    return;
   }
   piUser={uid:data.uid,username:data.username,isAdmin:true,adminSession:true};
-  report("SUCCESS: token exists and Worker accepted it for "+(data.username||"admin")+".","notice success");
+  $("piMessage").textContent="Welcome back. Your Pi administrator session has been restored.";
+  $("piMessage").className="notice success";
  }catch(error){
-  report("UNEXPECTED RESTORE ERROR: "+(error?.name||"Error")+"; "+(error?.message||String(error)),"notice error");
-  console.error("[ADMIN SESSION DEBUG] unexpected restore error",error);
+  console.warn("Saved Pi administrator session could not be restored:",error);
+  $("piMessage").textContent=error.status===401?"Your saved Pi session has expired. Sign in with Pi again.":"Could not restore your saved Pi session. You can safely retry.";
+  $("piMessage").className="notice warn";
  }finally{
   adminSessionRestoring=false;
   updateAccountUI();
