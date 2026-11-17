@@ -1133,6 +1133,9 @@ async function restoreAdminSession(){
  let token="";
  try{
   token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
+  if(!token){
+   $("piMessage").textContent="No saved admin session was found in this browser storage.";
+  }
   if(token){
    let data;
    try{
@@ -1151,10 +1154,9 @@ async function restoreAdminSession(){
   }
  }catch(error){
   if(error.status===401||error.status===403){
-   localStorage.removeItem(ADMIN_SESSION_KEY);
-   $("piMessage").textContent="Saved admin session expired or was revoked. Please sign in again.";
+   $("piMessage").textContent="A saved admin session was found, but the server rejected it ("+error.status+"). The saved token was kept for diagnosis.";
   }else if(token){
-   $("piMessage").textContent="Saved admin session is still on this device, but the server could not be reached. Refresh once the connection is back.";
+   $("piMessage").textContent="A saved admin session was found, but the server could not be reached. The token was kept; retry when the connection is stable.";
   }
   console.warn("Saved admin session could not be restored:",error);
  }finally{
