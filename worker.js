@@ -5449,7 +5449,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "5.4",
+          version: "5.5",
           database
         });
       }
