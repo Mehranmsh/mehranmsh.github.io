@@ -5118,6 +5118,35 @@ async function ensureAdminSessionTable(env) {
   try { await env.DB.prepare("ALTER TABLE social_reports ADD COLUMN resolved_by TEXT").run(); } catch {}
 }
 
+async function ensureIntelligenceTaskTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_tasks(
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      assigned_to TEXT NOT NULL DEFAULT 'mehran_intelligence',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'queued',
+      requires_approval INTEGER NOT NULL DEFAULT 0,
+      result_text TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
+}
+
+function formatIntelligenceTask(row) {
+  return {
+    id: row.id, title: row.title, description: row.description || "",
+    assignedTo: row.assigned_to, priority: row.priority, status: row.status,
+    requiresApproval: !!Number(row.requires_approval),
+    result: row.result_text || "", createdBy: row.created_by,
+    createdAt: row.created_at, updatedAt: row.updated_at
+  };
+}
+
 async function writeAdminAudit(env, admin, action, targetType = "", targetId = "", details = "") {
   await env.DB.prepare(`
     INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details)
@@ -6152,6 +6181,7 @@ export default {
         if (!await checkRateLimit(env, request, "intelligence-mcp", 60, 60, 60, admin.uid)) {
           return error("MEHRAN MCP request limit reached. Try again shortly.", 429);
         }
+        await ensureIntelligenceTaskTable(env);
         const rpc = await readBody(request);
         const rpcId = rpc && Object.prototype.hasOwnProperty.call(rpc, "id") ? rpc.id : undefined;
         const rpcReply = (result, status = 200) => json({jsonrpc:"2.0",id:rpcId,result}, status);
@@ -6164,7 +6194,7 @@ export default {
           const requested = String(rpc.params?.protocolVersion || "");
           const supported = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
           const protocolVersion = supported.includes(requested) ? requested : "2025-06-18";
-          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.0.0"},instructions:"Read-only MEHRAN MSH operations tools. Every request requires an authenticated MEHRAN administrator session."});
+          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.1.0"},instructions:"Authenticated MEHRAN MSH company tools. Read tools expose aggregate company data. Collaboration task tools create and update task records only; they do not execute deployments, payments, account changes or other external actions. Every request requires an authenticated MEHRAN administrator session."});
         }
         if (rpc.method === "ping") return rpcReply({});
         if (rpc.method === "tools/list") {
@@ -6172,42 +6202,140 @@ export default {
             {name:"get_project_status",description:"List MEHRAN projects and their current status. Read-only.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics. No personal user data is returned.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_service_health",description:"Report configured service dependencies. Does not perform external health probes.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
-            {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}}
+            {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+            {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN collaboration queue. This records work only and does not execute it.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
+            {name:"list_collaboration_tasks",description:"List recent tasks in the shared MEHRAN collaboration queue.",inputSchema:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
+            {name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}
           ]});
         }
         if (rpc.method === "tools/call") {
           const name = cleanText(rpc.params?.name,80);
           const args = rpc.params?.arguments || {};
-          if (!args || typeof args !== "object" || Array.isArray(args) || Object.keys(args).length) return rpcError(-32602,"This read-only tool accepts no arguments.");
+          if (!args || typeof args !== "object" || Array.isArray(args)) return rpcError(-32602,"Tool arguments must be an object.");
+          const replyData = data => rpcReply({content:[{type:"text",text:JSON.stringify(data)}],structuredContent:data,isError:false});
           let data;
-          if (name === "get_project_status") {
-            const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
-            data = {projects:(rows.results||[]).map(p=>({name:p.name,status:p.status,description:String(p.description||"").slice(0,500),updatedAt:p.updated_at||null}))};
-          } else if (name === "get_social_metrics") {
-            const rows = await Promise.all([
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
-            ]);
-            data = {registeredUsers:Number(rows[0]?.total||0),activeUsers:Number(rows[1]?.total||0),posts:Number(rows[2]?.total||0),openReports:Number(rows[3]?.total||0)};
-          } else if (name === "get_service_health") {
-            data = {worker:"available",databaseBinding:!!env.DB,aiBinding:!!(env.AI&&typeof env.AI.run==="function"),mcp:"read-only-v1",note:"Bindings are reported as configured; no external service probe was run."};
-          } else if (name === "get_management_report") {
-            const [projects,users,active,posts,reports] = await Promise.all([
-              env.DB.prepare("SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 50").all(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
-            ]);
-            data = {projectCount:(projects.results||[]).length,projects:(projects.results||[]).map(p=>({name:p.name,status:p.status})),social:{registeredUsers:Number(users?.total||0),activeUsers:Number(active?.total||0),posts:Number(posts?.total||0),openReports:Number(reports?.total||0)}};
-          } else {
-            return rpcError(-32602,"Unknown tool.");
+          if (name === "get_project_status" || name === "get_social_metrics" || name === "get_service_health" || name === "get_management_report") {
+            if (Object.keys(args).length) return rpcError(-32602,"This tool accepts no arguments.");
+            if (name === "get_project_status") {
+              const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
+              data = {projects:(rows.results||[]).map(p=>({name:p.name,status:p.status,description:String(p.description||"").slice(0,500),updatedAt:p.updated_at||null}))};
+            } else if (name === "get_social_metrics") {
+              const rows = await Promise.all([
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+              ]);
+              data = {registeredUsers:Number(rows[0]?.total||0),activeUsers:Number(rows[1]?.total||0),posts:Number(rows[2]?.total||0),openReports:Number(rows[3]?.total||0)};
+            } else if (name === "get_service_health") {
+              data = {worker:"available",databaseBinding:!!env.DB,aiBinding:!!(env.AI&&typeof env.AI.run==="function"),mcp:"collaboration-v1",note:"Bindings are reported as configured; no external service probe was run."};
+            } else {
+              const [projects,users,active,posts,reports] = await Promise.all([
+                env.DB.prepare("SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 50").all(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+              ]);
+              data = {projectCount:(projects.results||[]).length,projects:(projects.results||[]).map(p=>({name:p.name,status:p.status})),social:{registeredUsers:Number(users?.total||0),activeUsers:Number(active?.total||0),posts:Number(posts?.total||0),openReports:Number(reports?.total||0)}};
+            }
+            return replyData(data);
           }
-          return rpcReply({content:[{type:"text",text:JSON.stringify(data)}],structuredContent:data,isError:false});
+          if (name === "create_collaboration_task") {
+            const allowed=["title","description","assignedTo","priority","requiresApproval"];
+            if (Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
+            const title=cleanText(args.title,120), description=cleanText(args.description,3000);
+            const assignedTo=args.assignedTo||"mehran_intelligence", priority=args.priority||"normal";
+            if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000) return rpcError(-32602,"A task title and description are required.");
+            if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
+            const id=crypto.randomUUID();
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,'queued',?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?1:0,admin.username).run();
+            await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
+            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+            return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
+          }
+          if (name === "list_collaboration_tasks") {
+            const allowed=["status","assignedTo"];
+            if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown filter.");
+            const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
+            const assignments=["mehran_intelligence","chatgpt","shared"];
+            if(args.status&&!statuses.includes(args.status)) return rpcError(-32602,"Invalid status filter.");
+            if(args.assignedTo&&!assignments.includes(args.assignedTo)) return rpcError(-32602,"Invalid assignment filter.");
+            let sql="SELECT * FROM intelligence_tasks WHERE 1=1", binds=[];
+            if(args.status){sql+=" AND status=?";binds.push(args.status)}
+            if(args.assignedTo){sql+=" AND assigned_to=?";binds.push(args.assignedTo)}
+            sql+=" ORDER BY created_at DESC LIMIT 50";
+            let query=env.DB.prepare(sql);if(binds.length)query=query.bind(...binds);
+            const rows=await query.all();
+            return replyData({tasks:(rows.results||[]).map(formatIntelligenceTask)});
+          }
+          if (name === "update_collaboration_task") {
+            const allowed=["taskId","status","result"];
+            if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
+            const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
+            const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
+            if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
+            const existing=await env.DB.prepare("SELECT id FROM intelligence_tasks WHERE id=?").bind(id).first();
+            if(!existing) return rpcError(-32602,"Task not found.");
+            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(args.status,result,id).run();
+            await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
+            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+            return replyData({task:formatIntelligenceTask(row),message:"Task record updated. No external action was executed."});
+          }
+          return rpcError(-32602,"Unknown tool.");
         }
         return rpcError(-32601,"Method not found.");
+      }
+
+      if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
+        const admin=await verifyAdmin(request,env);
+        if(!admin)return error("Admin authentication required",403);
+        await ensureIntelligenceTaskTable(env);
+        if(method==="GET"){
+          const url=new URL(request.url), status=url.searchParams.get("status"), assignedTo=url.searchParams.get("assignedTo");
+          const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
+          const assignments=["mehran_intelligence","chatgpt","shared"];
+          if(status&&!statuses.includes(status))return error("Invalid task status filter.");
+          if(assignedTo&&!assignments.includes(assignedTo))return error("Invalid task assignment filter.");
+          let sql="SELECT * FROM intelligence_tasks WHERE 1=1",binds=[];
+          if(status){sql+=" AND status=?";binds.push(status)}
+          if(assignedTo){sql+=" AND assigned_to=?";binds.push(assignedTo)}
+          sql+=" ORDER BY created_at DESC LIMIT 50";
+          let query=env.DB.prepare(sql);if(binds.length)query=query.bind(...binds);
+          const rows=await query.all();
+          return json({success:true,tasks:(rows.results||[]).map(formatIntelligenceTask)});
+        }
+        if(!await checkRateLimit(env,request,"intelligence-task-write",30,3600,900,admin.uid))return error("Too many task changes. Try again later.",429);
+        const body=await readBody(request);if(!body)return error("Invalid request body");
+        const title=cleanText(body.title,120),description=cleanText(body.description,3000);
+        const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
+        if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
+        if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean"))return error("Invalid task assignment, priority or approval flag.");
+        const id=crypto.randomUUID();
+        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,'queued',?,?)").bind(id,title,description,assignedTo,priority,body.requiresApproval?1:0,admin.username).run();
+        await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
+        const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+        return json({success:true,task:formatIntelligenceTask(row)},201);
+      }
+
+      const intelligenceTaskMatch=path.match(/^\/intelligence\/tasks\/([^/]+)$/);
+      if(intelligenceTaskMatch&&method==="PATCH"){
+        const admin=await verifyAdmin(request,env);
+        if(!admin)return error("Admin authentication required",403);
+        await ensureIntelligenceTaskTable(env);
+        if(!await checkRateLimit(env,request,"intelligence-task-write",30,3600,900,admin.uid))return error("Too many task changes. Try again later.",429);
+        const id=decodeURIComponent(intelligenceTaskMatch[1]);
+        if(!id||id.length>80)return error("Invalid task ID.");
+        const body=await readBody(request);if(!body)return error("Invalid request body");
+        const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
+        const result=typeof body.result==="string"?body.result:"";
+        if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
+        const existing=await env.DB.prepare("SELECT id FROM intelligence_tasks WHERE id=?").bind(id).first();
+        if(!existing)return error("Task not found.",404);
+        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,result,id).run();
+        await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
+        const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+        return json({success:true,task:formatIntelligenceTask(row)});
       }
 
       if (path === "/intelligence/chat" && method === "POST") {
