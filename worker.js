@@ -1141,7 +1141,7 @@ async function socialPiSession(request, env) {
       SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
         email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
       FROM social_users
-      WHERE pi_verified=1 AND lower(pi_username)=lower(?) LIMIT 1
+      WHERE pi_username IS NOT NULL AND trim(pi_username)<>'' AND lower(pi_username)=lower(?) LIMIT 1
     `).bind(piUser.username).first();
     if (user) {
       const conflict = await env.DB.prepare(
