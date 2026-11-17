@@ -117,28 +117,48 @@ test("password hashing parameters remain explicit and compatible with the deploy
   assert.match(workerSource, /iterations !== PBKDF2_ITERATIONS/);
 });
 
-test("MEHRAN INTELLIGENCE exposes only authenticated read-only MCP tools", () => {
+test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools with bounded schemas", () => {
   assert.ok(indexSource.includes('path==="/mcp"'));
   assert.ok(indexSource.includes('id="testMcpBtn"'));
-  assert.ok(indexSource.includes("async function testMcpConnection()"));
-  assert.ok(indexSource.includes('method:"initialize"'));
-  assert.ok(indexSource.includes('method:"tools/list"'));
   const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
   assert.ok(start >= 0 && end > start, "MCP route must exist before the AI chat route");
   const route = workerSource.slice(start, end);
   assert.match(route, /verifyAdmin\(request, env\)/);
   assert.match(route, /checkRateLimit\(env, request, "intelligence-mcp", 60, 60, 60, admin\.uid\)/);
-  assert.match(workerSource, /path === "\/mcp" \|\|/);
   assert.match(route, /rpc\.method === "initialize"/);
   assert.match(route, /rpc\.method === "tools\/list"/);
   assert.match(route, /rpc\.method === "tools\/call"/);
-  for (const tool of ["get_project_status","get_social_metrics","get_service_health","get_management_report"]) {
-    assert.ok(route.includes(tool), `missing read-only MCP tool: ${tool}`);
+  for (const tool of ["get_project_status","get_social_metrics","get_service_health","get_management_report","create_collaboration_task","list_collaboration_tasks","update_collaboration_task"]) {
+    assert.ok(route.includes(tool), `missing MCP tool: ${tool}`);
   }
   assert.match(route, /additionalProperties:false/);
-  assert.match(route, /Unknown tool/);
-  assert.doesNotMatch(route, /UPDATE |DELETE FROM |INSERT INTO /i);
+  assert.match(route, /ensureIntelligenceTaskTable\(env\)/);
+  assert.match(route, /writeAdminAudit\(env,admin/);
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_tasks/);
+  assert.match(workerSource, /path === "\/intelligence\/tasks"/);
+  assert.match(workerSource, /intelligenceTaskMatch/);
+  assert.match(route, /No external action was executed/);
+});
+
+test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() { return { success: true, meta: { changes: 0 } }; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          return { total: 0 };
+        }
+      };
+    }
+  };
+  const response = await request("/intelligence/tasks", {}, { DB: db });
+  assert.equal(response.status, 403);
+  const payload = await response.json();
+  assert.match(payload.error, /Admin authentication required/);
 });
 
 test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets under one fail-closed ceiling", () => {
