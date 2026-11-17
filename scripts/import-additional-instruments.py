@@ -203,6 +203,58 @@ def import_drum_and_percussion_banks(manifest):
     (sample_root / "VIRTUOSITY-DRUMS-ATTRIBUTION.txt").write_bytes(drum_provenance_bytes)
     print(f"Imported cajon {len(cajon_entries)} samples, world percussion {len(percussion_entries)} samples, acoustic drums {len(drum_entries)} samples")
 
+
+def import_handpan_bank(manifest):
+    """Import FreePats Hang recordings; only the nine native pitches are playable."""
+    archive = get("https://codeload.github.com/freepats/hang-D-minor/zip/refs/heads/main")
+    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
+        names = bundle.namelist()
+        sfz_name = next((n for n in names if n.endswith("Hang-D-minor 20220330.sfz")), None)
+        license_name = next((n for n in names if n.endswith("LICENSE.txt")), None)
+        if not sfz_name or not license_name:
+            raise RuntimeError("FreePats Hang archive is missing its SFZ or CC0 license")
+        groups = re.findall(r"<group>(.*?)(?=<group>|$)", bundle.read(sfz_name).decode("utf-8"), re.S)
+        target_dir = ROOT / "assets/instruments/samples/freepats-handpan"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        entries = []
+        for group in groups:
+            km = re.search(r"(?m)^\s*key=(\d+)", group)
+            if not km:
+                continue
+            root_note = int(km.group(1))
+            for rr_index, source_path in enumerate(re.findall(r"(?m)^\s*sample=([^\s]+)", group)):
+                archive_path = next((n for n in names if n.endswith("/" + source_path)), None)
+                if not archive_path:
+                    raise RuntimeError("Missing FreePats Hang sample: " + source_path)
+                filename = Path(source_path).stem + ".ogg"
+                target = target_dir / filename
+                if not target.exists() or target.stat().st_size < 128:
+                    raw_path = ROOT / "tmp-freepats-handpan" / Path(source_path).name
+                    raw_path.parent.mkdir(parents=True, exist_ok=True)
+                    raw_path.write_bytes(bundle.read(archive_path))
+                    subprocess.run(["ffmpeg","-nostdin","-y","-loglevel","error","-i",str(raw_path),"-c:a","libvorbis","-q:a","5",str(target)],check=True)
+                    raw_path.unlink(missing_ok=True)
+                entries.append({"rootNote":root_note,"velocityMin":0,"velocityMax":1,
+                    "url":f"./assets/instruments/samples/freepats-handpan/{filename}",
+                    "sourceFile":source_path,"roundRobin":rr_index})
+        expected = {57,62,64,65,67,69,70,72,74}
+        actual = {x["rootNote"] for x in entries}
+        if len(entries) != 51 or actual != expected:
+            raise RuntimeError(f"Handpan import incomplete: {len(entries)} samples, notes={sorted(actual)}")
+        manifest["instruments"]["handpan"] = {
+            "displayName":"Handpan (Hang, D minor)","attackSeconds":0.004,"releaseSeconds":0.8,
+            "filterHz":16000,"source":"FreePats Hang D minor, recorded live in 2017",
+            "license":"CC0-1.0","roundRobin":True,"samples":entries}
+        (ROOT / "assets/instruments/samples/FREEPATS-HANG-CC0-LICENSE.txt").write_bytes(bundle.read(license_name))
+        (ROOT / "assets/instruments/samples/FREEPATS-HANG-ATTRIBUTION.txt").write_text(
+            "Hang D minor recordings by Mar, recorded July 2017 at Medialab-Prado by Gonzalo and Roberto using a Zoom H1.\\n"
+            "Source: https://github.com/freepats/hang-D-minor\\n"
+            "Project page: https://freepats.zenvoid.org/ChromaticPercussion/hang.html\\n"
+            "License: CC0 1.0.\\n"
+            "Only native pitches MIDI 57, 62, 64, 65, 67, 69, 70, 72 and 74 are mapped. Pitch shifting is disabled because of fixed background harmonics.\\n",
+            encoding="utf-8")
+    print(f"Handpan: imported {len(entries)} real recordings across {len(actual)} native pitches; pitch shifting disabled")
+
 def main():
     manifest_path = ROOT / "assets/instruments/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -311,6 +363,7 @@ def main():
     else:
         setar_count = import_setar_commons(manifest)
     import_drum_and_percussion_banks(manifest)
+    import_handpan_bank(manifest)
     manifest["status"] = "expanded-recorded-bank"
     manifest["sourcePolicy"] = "Samples are imported once and served same-origin by MEHRAN MUSIC; no runtime audio provider."
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
