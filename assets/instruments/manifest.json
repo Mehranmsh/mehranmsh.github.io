@@ -11843,76 +11843,76 @@
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_06.ogg",
           "sourceFile": "samples/Bongos/2_06.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_01.ogg",
           "sourceFile": "samples/Bongos/2_01.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_07.ogg",
           "sourceFile": "samples/Bongos/2_07.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_20.ogg",
           "sourceFile": "samples/Bongos/2_20.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_13.ogg",
           "sourceFile": "samples/Bongos/2_13.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_14.ogg",
           "sourceFile": "samples/Bongos/2_14.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_15.ogg",
           "sourceFile": "samples/Bongos/2_15.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_17.ogg",
           "sourceFile": "samples/Bongos/2_17.flac"
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.4409448818897638,
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_10.ogg",
           "sourceFile": "samples/Bongos/2_10.flac"
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.4409448818897638,
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_11.ogg",
           "sourceFile": "samples/Bongos/2_11.flac"
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.4409448818897638,
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_12.ogg",
           "sourceFile": "samples/Bongos/2_12.flac"
@@ -11920,34 +11920,34 @@
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_13.ogg",
           "sourceFile": "samples/Bongos/2_13.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_14.ogg",
           "sourceFile": "samples/Bongos/2_14.flac"
         },
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_15.ogg",
           "sourceFile": "samples/Bongos/2_15.flac"
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.4409448818897638,
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_16.ogg",
           "sourceFile": "samples/Bongos/2_16.flac"
         },
         {
           "rootNote": 53,
-          "velocityMin": 0,
+          "velocityMin": 0.4409448818897638,
           "velocityMax": 1,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_03.ogg",
           "sourceFile": "samples/Bongos/2_03.flac"
@@ -11955,7 +11955,7 @@
         {
           "rootNote": 53,
           "velocityMin": 0,
-          "velocityMax": 1,
+          "velocityMax": 0.4330708661417323,
           "url": "./assets/instruments/samples/freepats-world/samples-Bongos-2_17.ogg",
           "sourceFile": "samples/Bongos/2_17.flac"
         },
