@@ -1199,7 +1199,7 @@ console.warn("MEHRAN MSH unified SOCIAL sign-in:",socialError);
 if(!needsSocialLink)socialIssue=socialError.message||"connection issue";
 }
 if(needsSocialLink){
-show("Pi connected. Sign in to your existing SOCIAL account once, then open Profile and choose Connect Pi account. After linking, Pi sign-in will recognize you automatically.","notice warn");
+show("Pi connected. Sign in to your existing SOCIAL account once, then open Profile, choose Edit profile, then Connect Pi account. After linking, Pi sign-in will recognize you automatically.","notice warn");
 }else if(socialLinked){
 show("Pi sign-in complete. SOCIAL recognizes the same account.","notice success");
 }else if(socialIssue){
