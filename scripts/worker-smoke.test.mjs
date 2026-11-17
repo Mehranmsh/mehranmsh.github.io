@@ -123,6 +123,8 @@ test("MEHRAN INTELLIGENCE exposes only authenticated read-only MCP tools", () =>
   assert.ok(start >= 0 && end > start, "MCP route must exist before the AI chat route");
   const route = workerSource.slice(start, end);
   assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /checkRateLimit\(env, request, "intelligence-mcp", 60, 60, 60, admin\.uid\)/);
+  assert.match(workerSource, /path === "\/mcp" \|\|/);
   assert.match(route, /rpc\.method === "initialize"/);
   assert.match(route, /rpc\.method === "tools\/list"/);
   assert.match(route, /rpc\.method === "tools\/call"/);
