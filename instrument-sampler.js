@@ -58,7 +58,43 @@
  async function create(){
   const manifest=await loadManifest();
   return {
-   async status(requiredIds){const rows=Object.entries(manifest.instruments).map(([id,item])=>{const samples=Array.isArray(item.samples)?item.samples:[],rootNotes=[...new Set(samples.map(sample=>sample.rootNote).filter(Number.isInteger))].sort((a,b)=>a-b),rootNotesByVowel={};for(const sample of samples){const vowel=String(sample.vowel||"").toLowerCase();if(vowel){if(!rootNotesByVowel[vowel])rootNotesByVowel[vowel]=new Set();if(Number.isInteger(sample.rootNote))rootNotesByVowel[vowel].add(sample.rootNote);}}for(const vowel of Object.keys(rootNotesByVowel))rootNotesByVowel[vowel]=[...rootNotesByVowel[vowel]].sort((a,b)=>a-b);const low=rootNotes[0]??null,high=rootNotes.at(-1)??null,missingNotes=low===null?[]:Array.from({length:high-low+1},(_,index)=>low+index).filter(note=>!rootNotes.includes(note));return {id,displayName:item.displayName,recordedSamples:samples.length,rootNotes,rootNotesByVowel,noteRange:rootNotes.length?[low,high]:[],missingNotes,chromaticCoverageComplete:rootNotes.length>0&&missingNotes.length===0};});const required=Array.isArray(requiredIds)?rows.filter(x=>requiredIds.includes(x.id)):rows;return {ready:required.length>0&&required.every(x=>x.recordedSamples>0),complete:required.length>0&&required.every(x=>x.chromaticCoverageComplete),instruments:rows,totalSamples:rows.reduce((n,x)=>n+x.recordedSamples,0),completeBanks:rows.filter(x=>x.chromaticCoverageComplete).map(x=>x.id),incompleteBanks:rows.filter(x=>!x.chromaticCoverageComplete).map(x=>({id:x.id,missingNotes:x.missingNotes}))};},
+   async status(requiredIds){
+    const rows=Object.entries(manifest.instruments).map(([id,item])=>{
+     const samples=Array.isArray(item.samples)?item.samples:[];
+     const rootNotes=[...new Set(samples.map(sample=>sample.rootNote).filter(Number.isInteger))].sort((a,b)=>a-b);
+     const rootSet=new Set(rootNotes);
+     const rootNotesByVowel={};
+     for(const sample of samples){
+      const vowel=String(sample.vowel||"").toLowerCase();
+      if(vowel){
+       if(!rootNotesByVowel[vowel])rootNotesByVowel[vowel]=new Set();
+       if(Number.isInteger(sample.rootNote))rootNotesByVowel[vowel].add(sample.rootNote);
+      }
+     }
+     for(const vowel of Object.keys(rootNotesByVowel))rootNotesByVowel[vowel]=[...rootNotesByVowel[vowel]].sort((a,b)=>a-b);
+     const low=rootNotes[0]??null,high=rootNotes.at(-1)??null;
+     const internalGaps=low===null?[]:Array.from({length:high-low+1},(_,index)=>low+index).filter(note=>!rootSet.has(note));
+     const expected=Array.isArray(item.expectedRootRange)&&item.expectedRootRange.length===2&&item.expectedRootRange.every(Number.isInteger)?item.expectedRootRange:null;
+     const missingNotes=expected?Array.from({length:expected[1]-expected[0]+1},(_,index)=>expected[0]+index).filter(note=>!rootSet.has(note)):internalGaps;
+     const coverageDefined=!!expected;
+     const chromaticCoverageComplete=coverageDefined&&missingNotes.length===0;
+     return {
+      id,displayName:item.displayName,recordedSamples:samples.length,hasSamples:samples.length>0,
+      rootNotes,rootNotesByVowel,noteRange:rootNotes.length?[low,high]:[],
+      expectedRootRange:expected,missingNotes,internalGaps,coverageDefined,
+      coverageStatus:!coverageDefined?"range-not-verified":chromaticCoverageComplete?"complete":"incomplete",
+      chromaticCoverageComplete
+     };
+    });
+    const required=Array.isArray(requiredIds)?rows.filter(x=>requiredIds.includes(x.id)):rows;
+    return {
+     ready:required.length>0&&required.every(x=>x.hasSamples),
+     complete:required.length>0&&required.every(x=>x.chromaticCoverageComplete),
+     instruments:rows,totalSamples:rows.reduce((n,x)=>n+x.recordedSamples,0),
+     completeBanks:rows.filter(x=>x.chromaticCoverageComplete).map(x=>x.id),
+     incompleteBanks:rows.filter(x=>!x.chromaticCoverageComplete).map(x=>({id:x.id,coverageStatus:x.coverageStatus,missingNotes:x.missingNotes}))
+    };
+   },
    async instrument(ctx,name,options){
     const spec=manifest.instruments[name];
     if(!spec||!Array.isArray(spec.samples)||spec.samples.length===0)throw new Error("No real recorded samples are installed for "+name+". Synthetic fallback is disabled.");
