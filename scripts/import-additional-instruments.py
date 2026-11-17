@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Import four additional recorded instruments into the self-hosted MEHRAN bank."""
 import json
+import hashlib
 import io
 import re
 import subprocess
@@ -317,6 +318,66 @@ def import_xylophone_bank(manifest):
     print(f"Xylophone: imported {len(entries)} real recordings, 9 mapped zones, 2 velocity layers")
 
 
+
+def import_violin_bank(manifest):
+    """Replace sparse ToneJS violin notes with a verified CC0 solo-violin multisample bank."""
+    base = "https://huggingface.co/AEmotionStudio/stringstudio-violin-samples/resolve/main/"
+    metadata = json.loads(get(base + "manifest.json").decode("utf-8"))
+    if metadata.get("license") != "CC0-1.0" or metadata.get("instrument") != "violin":
+        raise RuntimeError("Violin source metadata/license check failed")
+    zones = metadata.get("zones", [])
+    expected_roots = {55,57,60,64,67,69,72,76,79,81,84,88,91,93,96}
+    roots = {int(zone["rootPitch"]) for zone in zones}
+    if len(zones) != 30 or roots != expected_roots:
+        raise RuntimeError(f"Violin source coverage mismatch: {len(zones)} zones, roots={sorted(roots)}")
+    target_dir = ROOT / "assets/instruments/samples/cc0-solo-violin"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for zone in zones:
+        source_path = zone["file"]
+        raw = get(base + urllib.parse.quote(source_path, safe="/"))
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest != zone.get("sha256"):
+            raise RuntimeError("Violin sample checksum mismatch: " + source_path)
+        root = int(zone["rootPitch"])
+        low_velocity = int(zone["lowVelocity"])
+        high_velocity = int(zone["highVelocity"])
+        filename = Path(source_path).stem + ".ogg"
+        target = target_dir / filename
+        raw_path = ROOT / "tmp-cc0-violin" / Path(source_path).name
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_bytes(raw)
+        subprocess.run(["ffmpeg","-nostdin","-y","-loglevel","error","-i",str(raw_path),
+            "-c:a","libvorbis","-q:a","5",str(target)],check=True)
+        raw_path.unlink(missing_ok=True)
+        if not target.is_file() or target.stat().st_size < 128:
+            raise RuntimeError("Converted violin sample is missing or too small: " + filename)
+        entries.append({
+            "rootNote":root,"pitchKeyCenter":root,
+            "velocityMin":low_velocity/127,"velocityMax":high_velocity/127,
+            "url":f"./assets/instruments/samples/cc0-solo-violin/{filename}",
+            "sourceFile":source_path,"sourceSha256":digest
+        })
+    layer_roots = {}
+    for entry in entries:
+        layer_roots.setdefault(entry["rootNote"], set()).add(round(entry["velocityMin"]*127))
+    if len(entries) != 30 or any(layers != {0,64} for layers in layer_roots.values()):
+        raise RuntimeError("Violin bank failed two-velocity-layer validation")
+    manifest["instruments"]["violin"] = {
+        "displayName":"Violin (solo, CC0)",
+        "attackSeconds":0.008,"releaseSeconds":0.55,"filterHz":16000,
+        "source":"VSCO 2 CE Solo Violin, repackaged as String Studio multisamples",
+        "license":"CC0-1.0","maxPitchShiftSemitones":2,"samples":entries
+    }
+    (ROOT / "assets/instruments/samples/CC0-SOLO-VIOLIN-LICENSE.txt").write_text(
+        "CC0-1.0. Source recordings: VSCO 2 Community Edition, Solo Violin (LLVln).\\n"
+        "Repackaged multisamples: AEmotionStudio/stringstudio-violin-samples.\\n"
+        "Source: https://huggingface.co/AEmotionStudio/stringstudio-violin-samples\\n"
+        "Original library: https://github.com/sgossner/VSCO-2-CE\\n",
+        encoding="utf-8")
+    print(f"Violin: installed {len(entries)} checksum-verified real samples, {len(roots)} roots, 2 velocity layers; CC0")
+
+
 def main():
     manifest_path = ROOT / "assets/instruments/manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -374,6 +435,7 @@ def main():
         manifest["instruments"][instrument] = updated_spec
         print(f"{instrument}: {len(entries)} recorded notes")
 
+    import_violin_bank(manifest)
     source_info = get(f"{BASE}/sample-source-info.txt").decode("utf-8")
     notice = ("The following bundled note samples are redistributed under CC BY 3.0.\n"
         "Source: https://github.com/nbrosowsky/tonejs-instruments\n"
