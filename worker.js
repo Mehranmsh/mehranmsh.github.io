@@ -1143,7 +1143,7 @@ async function socialCreatePiProfile(request, env) {
   const internalPassword = toBase64Url(crypto.getRandomValues(new Uint8Array(48)));
   const passwordHash = await hashPassword(internalPassword);
   const id = crypto.randomUUID();
-  const session = await createSocialSession(env, id);
+  const session = await createSessionTokenAndHash();
   try {
     await env.DB.batch([
       env.DB.prepare("INSERT INTO social_users(id,username,email,password_hash,display_name,bio,pi_username,pi_verified,email_verified,pi_uid,account_type) VALUES(?,?,?,?,?,?,?,1,0,?,?)")
