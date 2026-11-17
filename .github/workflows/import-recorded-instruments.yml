@@ -191,7 +191,9 @@ jobs:
           assert len(data["instruments"]["acoustic_drums"]["samples"]) == 128
           violin = data["instruments"]["violin"]
           assert len(violin["samples"]) == 45, ("violin", len(violin["samples"]))
-          assert violin.get("license") == "CC0-1.0"
+          assert "CC0-1.0" in violin.get("license", "")
+          assert len([s for s in violin["samples"] if s.get("sourceSha256")]) == 30
+          assert len([s for s in violin["samples"] if s.get("sourceBank") == "ToneJS legacy"]) == 15
           assert {s["rootNote"] for s in violin["samples"]} == {55,57,60,64,67,69,72,76,79,81,84,88,91,93,96}
           assert {round(s["velocityMin"]*127) for s in violin["samples"]} == {0,64}
           assert all((Path("assets/instruments") / s["url"].removeprefix("./assets/instruments/")).is_file() for s in violin["samples"])
