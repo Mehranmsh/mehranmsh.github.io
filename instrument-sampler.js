@@ -9,6 +9,7 @@
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
  function matchesNote(sample,note){const low=Number.isInteger(sample.keyLow)?sample.keyLow:sample.rootNote,high=Number.isInteger(sample.keyHigh)?sample.keyHigh:sample.rootNote;return note>=low&&note<=high;}
  function matchingSamples(samples,note,spec){const exact=samples.filter(sample=>matchesNote(sample,note));if(exact.length)return exact;const maxShift=clamp(Math.floor(Number(spec&&spec.maxPitchShiftSemitones)||0),0,2);if(!maxShift)return [];let nearestDistance=Infinity,nearest=[];for(const sample of samples){const center=Number.isInteger(sample.pitchKeyCenter)?sample.pitchKeyCenter:sample.rootNote;const distance=Math.abs(note-center);if(distance>maxShift)continue;if(distance<nearestDistance){nearestDistance=distance;nearest=[sample];}else if(distance===nearestDistance)nearest.push(sample);}return nearest;}
+ function selectVelocitySamples(samples,velocity){const inRange=samples.filter(sample=>{const low=Number(sample.velocityMin??0),high=Number(sample.velocityMax??1);return velocity>=low&&(velocity<high||(high>=1&&velocity<=high));});if(inRange.length)return inRange;let nearestDistance=Infinity,nearest=[];for(const sample of samples){const low=Number(sample.velocityMin??0),high=Number(sample.velocityMax??1);const distance=velocity<low?low-velocity:velocity>high?velocity-high:0;if(distance<nearestDistance){nearestDistance=distance;nearest=[sample];}else if(distance===nearestDistance)nearest.push(sample);}return nearest;}
  const NOTE_SEMITONES={C:0,Cs:1,D:2,Ds:3,E:4,F:5,Fs:6,G:7,Gs:8,A:9,As:10,B:11};
  function midiValue(value){
   const raw=String(value??"").trim();
@@ -127,8 +128,7 @@
       if(!Number.isFinite(note))continue;
       const rawVelocity=Number(event.velocity??80);
       const velocity=clamp(rawVelocity>1?rawVelocity/127:rawVelocity,.01,1);
-      const candidates=bankSamples.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
-      const pool=candidates.length?candidates:bankSamples;
+      const pool=selectVelocitySamples(bankSamples,velocity);
       const exact=matchingSamples(pool,note,spec);
       if(!exact.length){unavailableNotes.add(note);continue;}
       if(spec.layered===true){
@@ -153,8 +153,7 @@
     return {layeredVoiceCount:spec.layered===true?new Set(prepared.map(sample=>String(sample.singer||sample.url))).size:1,unavailableNotes:[...unavailableNotes].sort((a,b)=>a-b),sampleDiagnostics:prepared.map(sample=>({url:sample.url,rootNote:sample.rootNote,duration:sample.sampleDuration,sourcePeak:sample.sourcePeak,sourceRms:sample.sampleRms,normalizationGain:sample.appliedNormalizationGain,normalizedPeak:sample.normalizedPeak})),play(midi,at,duration,settings){
      const note=Number(midi),start=Number(at),length=Number(duration),velocity=clamp(Number((settings&&settings.velocity)??(settings&&settings.gain)??.8),.01,1);
      if(!Number.isFinite(note)||note<0||note>127||!Number.isFinite(start)||start<0||!Number.isFinite(length)||length<=0)throw new Error("Invalid sample playback event for "+name);
-     const candidates=prepared.filter(s=>velocity>=Number(s.velocityMin??0)&&velocity<=Number(s.velocityMax??1));
-     const pool=candidates.length?candidates:prepared;
+     const pool=selectVelocitySamples(prepared,velocity);
      const exact=matchingSamples(pool,note,spec);
      if(!exact.length)return false;
      let voices=[];
