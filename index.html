@@ -879,7 +879,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 </div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account, then refresh to load company data.</div></div>
 <div class="grid">
 <div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI · Llama 3.3</h3><p>A private, administrator-only assistant endpoint is now implemented. Live model availability still needs a deployment test.</p><div class="notice">Endpoint implemented · live test pending</div></div>
-<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Tool connectivity</h3><p>An authenticated MCP gateway is deployed with four read-only tools for projects, SOCIAL metrics, service bindings and management reports. Live client handshake still requires an authorized admin session.</p><div class="notice">Gateway deployed · client test pending</div></div>
+<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Tool connectivity</h3><p>An authenticated MCP gateway is deployed with four read-only tools for projects, SOCIAL metrics, service bindings and management reports. Live client handshake still requires an authorized admin session.</p><div class="notice" id="mcpStatus">Gateway deployed · waiting for authenticated connection test</div><button class="btn secondary small" id="testMcpBtn" type="button">Test MCP connection</button></div>
 <div class="card"><div class="eyebrow">SECURITY LAYER</div><h3>Admin-controlled access</h3><p>Company data is loaded through the existing protected admin session. Sensitive actions remain outside AI authority.</p><div class="notice success">Protected data path available</div></div>
 </div>
 <div class="panel">
@@ -985,7 +985,7 @@ function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message,duration=3200){const el=$("toast");el.textContent=String(message??"");el.title="Tap to copy";el.onclick=()=>{const value=el.textContent; if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>{el.textContent="Copied: "+value;}).catch(()=>{});}};el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),duration)}
-async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path.startsWith("/intelligence/")){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
+async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path.startsWith("/intelligence/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||data.error||"Request failed ("+response.status+")");return data}
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
@@ -1881,6 +1881,28 @@ $("intelligenceProjectsList").textContent="Project information is unavailable un
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
 }finally{$("refreshIntelligenceBtn").disabled=false}
 }
+async function testMcpConnection(){
+const button=$("testMcpBtn"),status=$("mcpStatus");
+if(!button||!status)return;
+button.disabled=true;status.textContent="Checking authenticated MCP handshake...";
+status.className="notice";
+try{
+const initialized=await api("/mcp",{method:"POST",body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-06-18",capabilities:{},clientInfo:{name:"mehran-msh-dashboard",version:"1.0.0"}}})});
+if(initialized.error)throw new Error(initialized.error.message||"MCP initialization failed");
+await api("/mcp",{method:"POST",body:JSON.stringify({jsonrpc:"2.0",method:"notifications/initialized"})});
+const listed=await api("/mcp",{method:"POST",body:JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/list",params:{}})});
+if(listed.error)throw new Error(listed.error.message||"MCP tools/list failed");
+const tools=listed.result?.tools||[];
+if(!initialized.result?.serverInfo||!tools.length)throw new Error("MCP server returned an incomplete handshake");
+status.textContent="MCP connected · "+initialized.result.serverInfo.name+" · "+tools.length+" read-only tools available.";
+status.className="notice success";
+}catch(error){
+status.textContent="MCP connection failed: "+error.message+". Sign in with the administrator account and retry.";
+status.className="notice warn";
+}finally{button.disabled=false}
+}
+$("testMcpBtn")?.addEventListener("click",testMcpConnection);
+
 async function sendIntelligenceMessage(){
 const input=$("intelQuestion"),button=$("intelSendBtn"),reply=$("intelReply"),status=$("intelChatStatus");
 const message=(input.value||"").trim();if(!message){status.textContent="Write a question first.";status.className="notice warn";return}
