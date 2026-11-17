@@ -320,7 +320,7 @@ def import_xylophone_bank(manifest):
 
 
 def import_violin_bank(manifest):
-    """Replace sparse ToneJS violin notes with a verified CC0 solo-violin multisample bank."""
+    """Merge CC0 solo-violin multisamples with preserved ToneJS recordings."""
     base = "https://huggingface.co/AEmotionStudio/stringstudio-violin-samples/resolve/main/"
     metadata = json.loads(get(base + "manifest.json").decode("utf-8"))
     if metadata.get("license") != "CC0-1.0" or metadata.get("instrument") != "violin":
@@ -363,11 +363,23 @@ def import_violin_bank(manifest):
         layer_roots.setdefault(entry["rootNote"], set()).add(round(entry["velocityMin"]*127))
     if len(entries) != 30 or any(layers != {0,64} for layers in layer_roots.values()):
         raise RuntimeError("Violin bank failed two-velocity-layer validation")
+    previous_spec = manifest["instruments"].get("violin", {})
+    previous_samples = list(previous_spec.get("samples", []))
+    # Preserve the original ToneJS recordings as an emergency fallback layer.
+    legacy_samples = []
+    for sample in previous_samples:
+        legacy = dict(sample)
+        legacy["velocityMin"] = 0
+        legacy["velocityMax"] = 0.0001
+        legacy["sourceBank"] = "ToneJS legacy"
+        legacy_samples.append(legacy)
+    merged = entries + legacy_samples
     manifest["instruments"]["violin"] = {
-        "displayName":"Violin (solo, CC0)",
-        "attackSeconds":0.008,"releaseSeconds":0.55,"filterHz":16000,
-        "source":"VSCO 2 CE Solo Violin, repackaged as String Studio multisamples",
-        "license":"CC0-1.0","maxPitchShiftSemitones":2,"samples":entries
+        "displayName":"Violin (hybrid multisample)",
+        "attackSeconds":0.008,"releaseSeconds":0.45,"filterHz":15500,
+        "source":"VSCO 2 CE Solo Violin CC0 + preserved ToneJS violin recordings CC-BY-3.0",
+        "license":"Mixed: CC0-1.0 and CC-BY-3.0; see per-sample sourceFile and license notices",
+        "maxPitchShiftSemitones":2,"samples":merged
     }
     (ROOT / "assets/instruments/samples/CC0-SOLO-VIOLIN-LICENSE.txt").write_text(
         "CC0-1.0. Source recordings: VSCO 2 Community Edition, Solo Violin (LLVln).\\n"
