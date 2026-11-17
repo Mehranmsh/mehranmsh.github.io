@@ -5266,14 +5266,15 @@ export default {
       if (path.startsWith("/admin/session")) {
         await ensureAdminSessionTable(env);
         if (path === "/admin/session" && method === "POST") {
-          if (!await checkRateLimit(env, request, "admin-session-create", 10, 3600, 1800)) {
-            return error("Too many admin sign-in attempts. Try again later.", 429);
-          }
           const body = await readBody(request);
           if (!body) return error("Invalid request body");
           const piUser = await fetchPiUser(body.accessToken);
           if (!piUser || piUser.username.trim().toLowerCase() !== "mehranmsh") {
             return error("Verified admin Pi account required", 403);
+          }
+          // Rate-limit verified admin identities rather than shared Pi Browser/IP traffic.
+          if (!await checkRateLimit(env, request, "admin-session-create", 10, 3600, 1800, piUser.uid)) {
+            return error("Too many admin sign-in attempts. Try again later.", 429);
           }
           const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
           const tokenHash = await sha256(token);
