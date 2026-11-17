@@ -1133,15 +1133,15 @@ async function socialPiSession(request, env) {
     WHERE pi_uid=? LIMIT 1
   `).bind(piUser.uid).first();
 
-  // Migrate a previously Pi-verified SOCIAL account to immutable Pi UID identity.
-  // A Pi username is used only when the existing row already carries a server-side
-  // Pi verification flag; an unverified username is never sufficient for account takeover.
+  // Attach the immutable Pi UID only to a legacy SOCIAL profile that was already
+  // marked Pi-verified server-side. Never infer profile ownership from a matching
+  // username alone.
   if (!user) {
     user = await env.DB.prepare(`
       SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
         email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
       FROM social_users
-      WHERE pi_username IS NOT NULL AND trim(pi_username)<>'' AND lower(pi_username)=lower(?) LIMIT 1
+      WHERE pi_verified=1 AND pi_username IS NOT NULL AND trim(pi_username)<>'' AND lower(pi_username)=lower(?) LIMIT 1
     `).bind(piUser.username).first();
     if (user) {
       const conflict = await env.DB.prepare(
@@ -1156,45 +1156,15 @@ async function socialPiSession(request, env) {
     }
   }
 
-  // Pi-authenticated Pioneers can use SOCIAL without an email address.
-  // Legacy NOT NULL email/password columns receive private, non-deliverable placeholders;
-  // these are never presented as contact details or accepted as an email login.
+  // Pi authentication identifies the person; it must never silently create or
+  // name their SOCIAL profile. A separate, user-chosen profile onboarding flow
+  // is required when no existing SOCIAL profile is linked.
   if (!user) {
-    const base = cleanUsername(piUser.username);
-    let username = validUsername(base) ? base : "pi_"+String(piUser.uid).replace(/[^a-z0-9]/gi,"").slice(-12).toLowerCase();
-    if (!validUsername(username)) username = "pi_"+crypto.randomUUID().replace(/-/g,"").slice(0,12);
-    const usernameTaken = await env.DB.prepare("SELECT id FROM social_users WHERE username=? LIMIT 1").bind(username).first();
-    if (usernameTaken) {
-      const suffix = String(piUser.uid).replace(/[^a-z0-9]/gi,"").slice(-6).toLowerCase() || crypto.randomUUID().slice(0,6);
-      username = (username.slice(0,17)+"_"+suffix).slice(0,24);
-    }
-    const id=crypto.randomUUID();
-    const internalEmail="pi_"+String(piUser.uid).replace(/[^a-z0-9]/gi,"").toLowerCase().slice(0,80)+"@pi.mehran.internal";
-    const randomPassword=toBase64Url(crypto.getRandomValues(new Uint8Array(48)));
-    const passwordHash=await hashPassword(randomPassword);
-    try {
-      await env.DB.batch([
-        env.DB.prepare(`
-          INSERT INTO social_users(id,username,email,password_hash,display_name,pi_username,pi_uid,pi_verified,email_verified,email_verified_at)
-          VALUES(?,?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP)
-        `).bind(id,username,internalEmail,passwordHash,piUser.username,piUser.username,piUser.uid,1),
-        env.DB.prepare("INSERT INTO social_user_settings(user_id) VALUES(?)").bind(id)
-      ]);
-    } catch (err) {
-      console.error("SOCIAL_PI_ACCOUNT_CREATE_FAILURE",String(err?.message||err).slice(0,250));
-      // Another concurrent request may have created the UID account.
-      user=await env.DB.prepare(`
-        SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
-          email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
-        FROM social_users WHERE pi_uid=? LIMIT 1
-      `).bind(piUser.uid).first();
-      if (!user) return error("A SOCIAL account could not be created from your verified Pi identity. Please retry.",500);
-    }
-    if (!user) user=await env.DB.prepare(`
-      SELECT id,username,email,display_name,bio,avatar_url,pi_username,pi_verified,
-        email_verified,created_at,account_type,business_category,business_website,is_active,pi_uid
-      FROM social_users WHERE pi_uid=? LIMIT 1
-    `).bind(piUser.uid).first();
+    return json({
+      success: false,
+      code: "PI_ACCOUNT_NOT_LINKED",
+      error: "Your Pi identity is verified, but no SOCIAL profile is linked yet. Sign in to your existing SOCIAL profile or create a new profile with your own username."
+    }, 409);
   }
 
   if (!user) return error("SOCIAL account could not be loaded after Pi authentication.",500);
