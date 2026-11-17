@@ -5239,6 +5239,7 @@ export default {
         path.startsWith("/music/") ||
         path.startsWith("/admin/") ||
         path.startsWith("/intelligence/") ||
+        path === "/mcp" ||
         path === "/auth";
 
       if (needsDB && !env.DB) {
@@ -5976,6 +5977,9 @@ export default {
       if (path === "/mcp" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-mcp", 60, 60, 60, admin.uid)) {
+          return error("MEHRAN MCP request limit reached. Try again shortly.", 429);
+        }
         const rpc = await readBody(request);
         const rpcId = rpc && Object.prototype.hasOwnProperty.call(rpc, "id") ? rpc.id : undefined;
         const rpcReply = (result, status = 200) => json({jsonrpc:"2.0",id:rpcId,result}, status);
