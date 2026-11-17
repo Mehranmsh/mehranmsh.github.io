@@ -6313,7 +6313,7 @@ export default {
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean"))return error("Invalid task assignment, priority or approval flag.");
         const id=crypto.randomUUID();
-        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,'queued',?,?)").bind(id,title,description,assignedTo,priority,body.requiresApproval?'awaiting_approval':'queued',body.requiresApproval?1:0,admin.username).run();
+        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,body.requiresApproval?'awaiting_approval':'queued',body.requiresApproval?1:0,admin.username).run();
         await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
