@@ -1,0 +1,8 @@
+MEHRAN MUSIC STUDIO - Button Accordion bank
+Source: FreePats Button Accordion HN
+Repository: https://github.com/freepats/button-accordion-HN
+Instrument: Hohner button accordion recorded by Jeff Stauffer in November 2023.
+License: CC0 1.0 Universal (public domain dedication).
+Preset mapping: PRESET Button Accordion HN tuned.sfz
+Sustain recordings and separate key-release recordings are preserved as original FLAC assets.
+Practical declared coverage: MIDI 47-79 (33 mapped keys across 17 recorded sustain roots and 17 release regions).
