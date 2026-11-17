@@ -185,6 +185,21 @@ test("MEHRAN Intelligence agent API fails closed until its service secret is con
   assert.match(payload.error, /Agent service identity is not configured/);
 });
 
+test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approved task proposals", () => {
+  const start = workerSource.indexOf('const system = "You are MEHRAN INTELLIGENCE');
+  const end = workerSource.indexOf('if (path === "/admin/overview"', start);
+  assert.ok(start >= 0 && end > start, "tool-assisted Intelligence chat must exist");
+  const chat = workerSource.slice(start, end);
+  assert.match(chat, /get_project_status/);
+  assert.match(chat, /get_social_metrics/);
+  assert.match(chat, /list_collaboration_tasks/);
+  assert.match(chat, /propose_collaboration_task/);
+  assert.match(chat, /status,requires_approval,created_by/);
+  assert.match(chat, /'awaiting_approval',1/);
+  assert.match(chat, /cannot deploy code, alter user accounts, move funds/);
+  assert.doesNotMatch(chat, /deploy_worker|transfer_pi|delete_social_user/);
+});
+
 test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets under one fail-closed ceiling", () => {
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
@@ -198,7 +213,7 @@ test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets unde
   assert.match(workerSource, /intelligence_reserved/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, structure === "short" \? 250 : 500, "music"\)/);
   assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 500, "social"\)/);
-  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 100, "intelligence"\)/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 300, "intelligence"\)/);
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected\.cap/);
   assert.doesNotMatch(workerSource, /intelligence_ai_daily_budget/);
 });
