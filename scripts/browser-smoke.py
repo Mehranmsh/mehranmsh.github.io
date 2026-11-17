@@ -1124,6 +1124,24 @@ def main():
                 assert audio_audit["duration"] >= 20.5, "Eight-bar audition should be about 21 seconds: " + str(audio_audit)
                 assert all(level > 0.00035 for level in audio_audit["rms"]), "Audition contains silent seconds: " + str(audio_audit)
                 print("PASS: selected violin uses only self-hosted recorded samples; 21-second WAV has active audio in every one-second window")
+                # Velocity-layer regression: each piano velocity must load only its matching recorded layer.
+                velocity_layer_audit = page.evaluate("""async () => {
+                    const engine = await window.MEHRAN_SAMPLE_ENGINE.create();
+                    const ctx = new AudioContext();
+                    const cases = [];
+                    for (const velocity of [0.1, 0.4, 0.9]) {
+                        const player = await engine.instrument(ctx, "acoustic_grand_piano", {
+                            noteEvents: [{note: 60, velocity}]
+                        });
+                        cases.push({velocity, urls: player.sampleDiagnostics.map(item => item.url)});
+                    }
+                    await ctx.close();
+                    return cases;
+                }""")
+                expected_layers = ["Vel01", "Vel02", "Vel04"]
+                for case, expected_layer in zip(velocity_layer_audit, expected_layers):
+                    assert len(case["urls"]) == 1 and expected_layer in case["urls"][0], "Piano velocity did not select exactly its intended recorded layer: " + str(velocity_layer_audit)
+                print("PASS: piano velocity selects one matching recorded sample layer at soft, medium and strong dynamics", flush=True)
                 page.locator('[data-view="arrangement"]').first.click()
                 page.locator("#mixProject").evaluate("""el => { const option = [...el.options].find(item => item.label === "Automated Audio QA"); if (!option) throw new Error("Automated Audio QA project option is missing"); el.value = option.value; el.dispatchEvent(new Event("change", { bubbles: true })); }""")
                 page.locator("#patternMode").dispatch_event("change")  # Restore the pre-existing QA project's piano-roll state.
