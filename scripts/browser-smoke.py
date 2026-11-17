@@ -1345,7 +1345,10 @@ def main():
                     const manifest = await (await fetch("./assets/instruments/manifest.json", {cache:"no-store"})).json();
                     const bank = manifest.instruments?.violin;
                     const expectedRoots = [55,57,60,64,67,69,72,76,79,81,84,88,91,93,96];
-                    if (!bank || bank.samples?.length !== 45 || bank.license !== "CC0-1.0") throw new Error("Violin must use the 30-sample CC0 solo bank");
+                    if (!bank || bank.samples?.length !== 45 || !String(bank.license).includes("CC0-1.0")) throw new Error("Violin hybrid bank must contain CC0 and preserved legacy recordings");
+                    const cc0Samples = bank.samples.filter(x => x.sourceSha256);
+                    const legacySamples = bank.samples.filter(x => x.sourceBank === "ToneJS legacy");
+                    if (cc0Samples.length !== 30 || legacySamples.length !== 15) throw new Error("Violin source-bank merge is incomplete");
                     const roots = [...new Set(bank.samples.map(x => x.rootNote))].sort((a,b)=>a-b);
                     if (JSON.stringify(roots) !== JSON.stringify(expectedRoots)) throw new Error("Violin root-note coverage is incomplete");
                     const layers = [...new Set(bank.samples.map(x => Math.round(x.velocityMin*127)))].sort((a,b)=>a-b);
