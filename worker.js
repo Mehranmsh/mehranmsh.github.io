@@ -242,45 +242,35 @@ const WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000;
 const WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000;
 const WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000;
 async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "social") {
-  if (!env?.DB || !Number.isInteger(reservedCredits) || reservedCredits < 1 ||
-      !["music", "social"].includes(productKey)) {
+  const budgetColumns = {
+    music: { column: "music_reserved", cap: WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS },
+    social: { column: "social_reserved", cap: WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS },
+    intelligence: { column: "intelligence_reserved", cap: 1000 }
+  };
+  const selected = budgetColumns[productKey];
+  if (!env?.DB || !Number.isInteger(reservedCredits) || reservedCredits < 1 || !selected) {
     throw new Error("Workers AI budget guard is unavailable.");
   }
   await ensureSocialTables(env);
   const dayKey = new Date().toISOString().slice(0, 10);
-  const isMusic = productKey === "music";
-  const statement = isMusic ? `
-    INSERT INTO workers_ai_daily_budget(day_key,music_reserved,social_reserved,total_reserved,request_count)
-    VALUES(?,?,0,?,1)
+  const column = selected.column;
+  const row = await env.DB.prepare(`
+    INSERT INTO workers_ai_daily_budget(day_key,${column},total_reserved,request_count)
+    VALUES(?,?,?,1)
     ON CONFLICT(day_key) DO UPDATE SET
-      music_reserved=workers_ai_daily_budget.music_reserved+excluded.music_reserved,
+      ${column}=workers_ai_daily_budget.${column}+excluded.${column},
       total_reserved=workers_ai_daily_budget.total_reserved+excluded.total_reserved,
       request_count=workers_ai_daily_budget.request_count+1,
       updated_at=CURRENT_TIMESTAMP
     WHERE workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?
-      AND workers_ai_daily_budget.music_reserved+excluded.music_reserved<=?
-    RETURNING music_reserved,social_reserved,total_reserved,request_count
-  ` : `
-    INSERT INTO workers_ai_daily_budget(day_key,music_reserved,social_reserved,total_reserved,request_count)
-    VALUES(?,0,?,?,1)
-    ON CONFLICT(day_key) DO UPDATE SET
-      social_reserved=workers_ai_daily_budget.social_reserved+excluded.social_reserved,
-      total_reserved=workers_ai_daily_budget.total_reserved+excluded.total_reserved,
-      request_count=workers_ai_daily_budget.request_count+1,
-      updated_at=CURRENT_TIMESTAMP
-    WHERE workers_ai_daily_budget.total_reserved+excluded.total_reserved<=?
-      AND workers_ai_daily_budget.social_reserved+excluded.social_reserved<=?
-    RETURNING music_reserved,social_reserved,total_reserved,request_count
-  `;
-  const row = isMusic
-    ? await env.DB.prepare(statement).bind(dayKey, reservedCredits, reservedCredits,
-        WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS, WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS).first()
-    : await env.DB.prepare(statement).bind(dayKey, reservedCredits, reservedCredits,
-        WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS, WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS).first();
+      AND workers_ai_daily_budget.${column}+excluded.${column}<=?
+    RETURNING ${column} AS product_reserved,total_reserved,request_count
+  `).bind(dayKey,reservedCredits,reservedCredits,
+    WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS,selected.cap).first();
   return {
     allowed: !!row,
     product: productKey,
-    reservedCredits: row ? Number(row[isMusic ? "music_reserved" : "social_reserved"]) : null,
+    reservedCredits: row ? Number(row.product_reserved) : null,
     totalReservedCredits: row ? Number(row.total_reserved) : null,
     requestCount: row ? Number(row.request_count) : null,
     dayKey
@@ -327,6 +317,7 @@ async function createSocialTables(db) {
       day_key TEXT PRIMARY KEY,
       music_reserved INTEGER NOT NULL DEFAULT 0,
       social_reserved INTEGER NOT NULL DEFAULT 0,
+      intelligence_reserved INTEGER NOT NULL DEFAULT 0,
       total_reserved INTEGER NOT NULL DEFAULT 0,
       request_count INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -724,6 +715,7 @@ async function createSocialTables(db) {
       }
     }
   };
+  await ensureColumn("workers_ai_daily_budget", "intelligence_reserved", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("social_users", "last_seen_at", "TEXT");
   await ensureColumn("social_conversations", "type", "TEXT NOT NULL DEFAULT 'direct'");
   await ensureColumn("social_conversations", "title", "TEXT NOT NULL DEFAULT ''");
@@ -5994,26 +5986,8 @@ export default {
         if (!body) return error("Invalid request body");
         const question = cleanText(body.message, 2000);
         if (!question) return error("Write a question first.", 400);
-        await env.DB.prepare(`
-          CREATE TABLE IF NOT EXISTS intelligence_ai_daily_budget(
-            day_key TEXT PRIMARY KEY,
-            reserved INTEGER NOT NULL DEFAULT 0,
-            requests INTEGER NOT NULL DEFAULT 0,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-          )
-        `).run();
-        const dayKey = new Date().toISOString().slice(0,10);
-        const budget = await env.DB.prepare(`
-          INSERT INTO intelligence_ai_daily_budget(day_key,reserved,requests)
-          VALUES(?,100,1)
-          ON CONFLICT(day_key) DO UPDATE SET
-            reserved=intelligence_ai_daily_budget.reserved+100,
-            requests=intelligence_ai_daily_budget.requests+1,
-            updated_at=CURRENT_TIMESTAMP
-          WHERE intelligence_ai_daily_budget.reserved+100<=1000
-          RETURNING reserved,requests
-        `).bind(dayKey).first();
-        if (!budget) return error("Daily MEHRAN INTELLIGENCE AI allowance reached.", 429);
+        const budget = await reserveSocialWorkersAIBudget(env, 100, "intelligence");
+        if (!budget.allowed) return error("Daily MEHRAN INTELLIGENCE or shared Workers AI allowance reached.", 429);
         const [projectRows, userRow, activeRow, postRow, reportRow] = await Promise.all([
           env.DB.prepare("SELECT name,status,description FROM projects ORDER BY created_at DESC LIMIT 30").all(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
@@ -6041,7 +6015,7 @@ export default {
           });
           const reply = result?.response || result?.result?.response || "";
           if (typeof reply !== "string" || !reply.trim()) return error("AI returned an empty response.", 502);
-          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Number(budget.requests),dailyLimit:10,hourlyLimit:3}});
+          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/100),dailyLimit:10,hourlyLimit:3}});
         } catch (e) {
           console.error("MEHRAN INTELLIGENCE AI error:",String(e?.message||e).slice(0,300));
           return error("MEHRAN INTELLIGENCE could not reach its AI model.", 502);
