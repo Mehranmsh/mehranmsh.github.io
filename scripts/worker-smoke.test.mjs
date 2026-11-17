@@ -117,6 +117,23 @@ test("password hashing parameters remain explicit and compatible with the deploy
   assert.match(workerSource, /iterations !== PBKDF2_ITERATIONS/);
 });
 
+test("MEHRAN INTELLIGENCE exposes only authenticated read-only MCP tools", () => {
+  const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "MCP route must exist before the AI chat route");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /rpc\.method === "initialize"/);
+  assert.match(route, /rpc\.method === "tools\/list"/);
+  assert.match(route, /rpc\.method === "tools\/call"/);
+  for (const tool of ["get_project_status","get_social_metrics","get_service_health","get_management_report"]) {
+    assert.ok(route.includes(tool), `missing read-only MCP tool: ${tool}`);
+  }
+  assert.match(route, /additionalProperties:false/);
+  assert.match(route, /Unknown tool/);
+  assert.doesNotMatch(route, /UPDATE |DELETE FROM |INSERT INTO /i);
+});
+
 test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets under one fail-closed ceiling", () => {
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
