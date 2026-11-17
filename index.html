@@ -867,7 +867,23 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="panel"><div class="section-title"><h2>Activity Log</h2><button class="btn secondary small" id="refreshAdminAudit">Refresh</button></div><div id="adminAuditMessage" class="notice">No activity loaded.</div><div id="adminAuditList"></div></div>
 <div class="panel"><h2>Admin Settings</h2><div id="adminSettingsMessage" class="notice">Loading protected administration settings...</div></div></section>
 
-<section class="page" id="page-intelligence"><div class="page-heading"><h1>Intelligence</h1><p>Intelligent tools and AI experiences inside the ecosystem.</p></div><div class="hero"><div class="eyebrow">INTELLIGENCE LAYER</div><h1>Ideas into intelligence.</h1><p>A dedicated space for future AI assistants, creative tools, personal intelligence and connected services.</p></div><div class="feature-grid"><div class="feature"><div class="feature-icon">✧</div><h3>AI Assistant</h3><p>Personal intelligent assistant integration is planned.</p></div><div class="feature"><div class="feature-icon">🎙</div><h3>Creative Studio</h3><p>Creative and music-related AI tools are planned.</p></div><div class="feature"><div class="feature-icon">🧠</div><h3>Personal Intelligence</h3><p>A future space for personalized intelligent workflows.</p></div><div class="feature"><div class="feature-icon">🔗</div><h3>Connected Services</h3><p>Integrations will be added as services become available.</p></div></div></section>
+<section class="page" id="page-intelligence">
+<div class="page-heading"><h1>Intelligence</h1><p>Central intelligence and operational visibility for the MEHRAN ecosystem.</p></div>
+<div class="hero"><div class="eyebrow">MEHRAN INTELLIGENCE · PHASE 01</div><h1>One intelligence layer. One company view.</h1><p>A protected control room that reads live project and ecosystem data. AI assistance and MCP tools will be added behind the same permission and security layer.</p><div class="hero-slogan"><span>READ FIRST.</span><span>ANALYZE CLEARLY.</span><span>HUMAN APPROVAL.</span></div></div>
+<div class="panel"><div class="section-title"><div><h2>Company Overview</h2><div class="small-text">Live data from the existing MEHRAN MSH services</div></div><button class="btn secondary small" id="refreshIntelligenceBtn">Refresh data</button></div>
+<div class="grid">
+<div class="card"><div class="eyebrow">PROJECTS</div><div class="stat" id="intelProjects">—</div><div class="stat-label">Registered projects</div></div>
+<div class="card"><div class="eyebrow">USERS</div><div class="stat" id="intelUsers">—</div><div class="stat-label">Total SOCIAL accounts</div></div>
+<div class="card"><div class="eyebrow">ACTIVE USERS</div><div class="stat" id="intelActiveUsers">—</div><div class="stat-label">Currently active accounts</div></div>
+<div class="card"><div class="eyebrow">OPEN REPORTS</div><div class="stat" id="intelOpenReports">—</div><div class="stat-label">Require administrator review</div></div>
+</div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account, then refresh to load company data.</div></div>
+<div class="grid">
+<div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI</h3><p>AI binding exists in the deployment configuration. A live inference test and dedicated MEHRAN assistant endpoint are the next implementation steps.</p><div class="notice">Connection test pending</div></div>
+<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Tool connectivity</h3><p>Design the first read-only tools for project status, service health and management reports.</p><div class="notice">Not connected yet</div></div>
+<div class="card"><div class="eyebrow">SECURITY LAYER</div><h3>Admin-controlled access</h3><p>Company data is loaded through the existing protected admin session. Sensitive actions remain outside AI authority.</p><div class="notice success">Protected data path available</div></div>
+</div>
+<div class="panel"><div class="section-title"><h2>Project Intelligence</h2><span class="small-text">Read-only view</span></div><div id="intelligenceProjectsList" class="small-text">Project data will appear after a successful refresh.</div></div>
+</section>
 
 <section class="page" id="page-projects"><div class="page-heading"><h1>Projects</h1><p>Manage and explore projects connected to MEHRAN MSH.</p></div><div class="panel"><div class="section-title"><h2>Project Workspace</h2><button class="btn small" id="refreshProjectsBtn">Refresh</button></div><div id="projectsMessage" class="notice">Loading projects...</div><div id="projectsList"></div></div><div class="panel"><h3>Create Project</h3><div class="field"><label>Project name</label><input id="projectName" placeholder="Project name"></div><div class="field"><label>Description</label><textarea id="projectDescription" placeholder="Describe your project"></textarea></div><button class="btn" id="createProjectBtn">Create project</button></div></section>
 
@@ -972,6 +988,7 @@ if(page)page.classList.add("active");
 document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));
 $("crumb").textContent=name.charAt(0).toUpperCase()+name.slice(1);
 if(name==="projects")loadProjects();
+if(name==="intelligence")loadIntelligence();
 if(name==="admin"){loadAdminOverview();loadAdminUsers();loadAdminReports();loadAdminSecurity();loadAdminAudit();loadAdminSettings();}
 if(name==="social")renderSocial();
 window.scrollTo({top:0,behavior:"smooth"});
@@ -1833,6 +1850,31 @@ toast("Account "+(active?"reactivated":"suspended"));
 await loadAdminUsers();
 }catch(error){toast("Account update failed: "+error.message);button.disabled=false}
 });
+
+async function loadIntelligence(){
+const message=$("intelligenceMessage");
+message.textContent="Checking administrator session and loading live company data...";
+message.className="notice";
+$("refreshIntelligenceBtn").disabled=true;
+try{
+const [overview,projectData]=await Promise.all([api("/admin/overview"),api("/projects")]);
+const stats=overview.stats||{};
+const list=Array.isArray(projectData.projects)?projectData.projects:[];
+$("intelProjects").textContent=String(list.length);
+$("intelUsers").textContent=String(stats.users??0);
+$("intelActiveUsers").textContent=String(stats.activeUsers??0);
+$("intelOpenReports").textContent=String(stats.openReports??0);
+$("intelligenceProjectsList").innerHTML=list.length?'<div class="grid">'+list.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="small-text" style="margin-top:10px">Updated: '+escapeHTML(p.updatedAt||p.updated_at||"Not available")+'</div></div>').join("")+'</div>':'<div class="empty">No registered projects yet.</div>';
+message.textContent="Live company data loaded successfully. Updated "+new Date().toLocaleString()+".";
+message.className="notice success";
+}catch(error){
+message.textContent="Company data could not be loaded: "+error.message+". Sign in again with the authorized Pi administrator account if your session has expired.";
+message.className="notice warn";
+$("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
+$("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
+}finally{$("refreshIntelligenceBtn").disabled=false}
+}
+$("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
 
 async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";
