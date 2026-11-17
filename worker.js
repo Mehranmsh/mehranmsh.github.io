@@ -5371,7 +5371,7 @@ export default {
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "5.1",
+          version: "5.2",
           database
         });
       }
