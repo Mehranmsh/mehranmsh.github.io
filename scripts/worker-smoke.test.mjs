@@ -1355,7 +1355,7 @@ test("MEHRAN Intelligence scheduled runner does not claim tasks that still requi
         async first() {
           if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
             state.candidateReads++;
-            return state.candidateReads === 1
+            return sql.includes("requires_approval=0") && state.requiresApproval === 0 && state.candidateReads === 1
               ? { id: "unapproved-task", action_type: "project_status_report" }
               : null;
           }
