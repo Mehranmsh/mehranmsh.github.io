@@ -86,3 +86,18 @@ This document is a design contract, not an implemented verifier. The current pat
 The helper does not fetch GitHub data, prove that caller-supplied snapshots are authentic, parse unified diffs, create commits/branches/PRs, or perform any write. A future trusted adapter must fetch snapshots from GitHub by immutable commit SHA, verify the repository and response completeness, independently cross-check the diff, and re-fetch before any separately approved draft-PR action. The helper's success result alone is not authorization to write.
 
 A focused Node test suite is included and wired into the read-only, secret-free branch test workflow. Do not treat the suite as passed until the workflow result for the exact latest commit is confirmed.
+
+
+## Implemented read-only GitHub adapter
+
+`scripts/intelligence-github-readonly-audit.mjs` now provides a read-only adapter for auditing this proposal branch. It is intentionally separate from the future task-scoped patch verifier.
+
+- The adapter is pinned to the exact repository `Mehranmsh/mehranmsh.github.io` and immutable base/head commit SHAs.
+- It uses HTTPS requests to `api.github.com` only, GET methods only, redirect rejection, a 10-second request timeout, JSON content-type validation, and a 2 MiB per-response cap.
+- It requires valid commit metadata, complete recursive trees, and a compare response whose base, merge-base, and head SHAs match the pinned commits.
+- It compares the tree-derived path/status set with GitHub's compare file list and an exact allowlist for this PR's aggregate changes.
+- It fetches every changed blob and recomputes the canonical Git blob SHA-1 from the received bytes. Size and hash mismatches fail closed.
+- The CI token has only `contents: read`. No branch, commit, PR, merge, deployment, or repository-setting write is performed.
+- The adapter's HTTP layer is injectable for tests. The test suite covers authenticated GET-only behavior, wrong-repository rejection, redirect rejection, non-JSON and malformed responses, oversized bodies, malformed commit metadata, truncated trees, compare mismatches, and blob integrity.
+
+The adapter does **not** parse the unified diff itself, prove owner approval, consume a one-time approval record, or authorize a write. It is a CI audit of the current PR's aggregate branch diff, not a patch deployment service. A future write workflow must separately bind task, approval, repository, branch, base, artifact, and one-time execution state to trusted control-plane records, then re-fetch and re-verify immediately before any write.
