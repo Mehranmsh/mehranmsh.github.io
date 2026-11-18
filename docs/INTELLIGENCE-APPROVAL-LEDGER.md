@@ -35,7 +35,7 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 - A task's `requires_approval` flag is not a substitute for a ledger record.
 - No arbitrary shell commands, direct writes to main, merge, deployment, wallet/payment actions, or user-data migrations.
 - Initial code-change scope remains documentation-only Markdown under the strict allowlist.
-- Separate owner review is required before enabling approval routes or any executor.
+- Separate owner review is required before enabling approval issuance, one-time consumption, or any executor.
 
 ## Current limitation
 
