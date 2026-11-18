@@ -34,8 +34,8 @@ test("rejects comparison responses bound to different base or head commits",asyn
 
 test("HTTP adapter performs only authenticated GET requests and verifies real API-shaped responses",async()=>{
  const baseSha="1".repeat(40),headSha="2".repeat(40),baseTreeSha="3".repeat(40),headTreeSha="4".repeat(40);
- const filePath="docs/approved.md",bytes=Buffer.from("# live audit\\n");
- const sha=createHash("sha1").update(Buffer.concat([Buffer.from(`blob ${bytes.length}\\0`),bytes])).digest("hex");
+ const filePath="docs/approved.md",bytes=Buffer.from("# live audit\n");
+ const sha=createHash("sha1").update(Buffer.concat([Buffer.from(`blob ${bytes.length}\0`),bytes])).digest("hex");
  const requests=[];
  const responses=new Map([
   [`/repos/${repository}/commits/${baseSha}`,{sha:baseSha,parents:[{sha:"9".repeat(40)}],commit:{tree:{sha:baseTreeSha}}}],
