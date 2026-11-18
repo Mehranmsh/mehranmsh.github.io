@@ -21,3 +21,18 @@ Retrieved entries retain their source and `updatedAt` provenance. The current co
 ## Future evaluation
 
 Before adding embeddings, external model providers or broader tools, measure retrieval precision and recall on owner-approved Persian and English evaluation questions. Include tests for conflicting/stale entries, prompt injection, missing knowledge and owner isolation. Any future vector index must remain inside the approved Pi Network company architecture and must not become an execution authority.
+
+## Next conflict-management phase (design only)
+
+The next conflict improvement must not rely on title similarity, recency, importance, or an LLM guess as proof that two statements contradict each other. The current schema has no durable relationship field, so semantic conflict detection is not yet implemented.
+
+The safe staged design is:
+
+1. Keep the existing lexical retrieval path read-only and fail-closed.
+2. Add an owner-scoped knowledge-relationship record with a narrowly defined relation type such as `conflicts_with`, `supersedes`, or `supports`. A relationship must point to existing knowledge IDs and must never grant permissions.
+3. Let INTELLIGENCE propose candidate relationships with evidence snippets and source timestamps. Candidate relationships remain unconfirmed and cannot change retrieval priority or archive either entry.
+4. Require the owner to confirm, dismiss, or resolve a conflict. A resolution must identify the chosen knowledge record and retain the losing/older record and audit history; it must not silently delete information.
+5. In chat, surface confirmed conflicts and unresolved candidate conflicts separately. Only owner-confirmed resolution metadata or independently verified current company data may settle a conflict.
+6. Enforce owner UID checks on both ends of every relationship, reject cross-owner/system-seed mutations, and test archived, missing, duplicate, self-referential, and stale records.
+
+Before implementation, add a dedicated migration and disposable SQLite lifecycle tests. Do not run that migration against production D1 until an isolated staging database has been created and verified. This section is a design target, not an implemented feature.
