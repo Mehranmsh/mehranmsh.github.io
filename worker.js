@@ -114,6 +114,11 @@ async function sha256(value) {
   return toBase64Url(new Uint8Array(digest));
 }
 
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function hashPassword(password, iterations = PBKDF2_ITERATIONS) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
@@ -6565,6 +6570,82 @@ export default {
         }))});
       }
 
+      if (path === "/intelligence/approvals" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialAuthLimitsTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-approvals-issue", 5, 3600, 1800, admin.uid)) {
+          return error("Too many approval issuance requests. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body || Object.keys(body).some(key => !["taskId","branch","baseSha","paths","expiresInMinutes"].includes(key))) {
+          return error("Invalid approval request fields.");
+        }
+        const taskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
+        const branch = typeof body.branch === "string" ? body.branch.trim() : "";
+        const baseSha = typeof body.baseSha === "string" ? body.baseSha.toLowerCase() : "";
+        const expiresInMinutes = body.expiresInMinutes === undefined ? 15 : body.expiresInMinutes;
+        if (!taskId || taskId.length > 80 ||
+            !/^intelligence\\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+            !/^[0-9a-f]{40}$/.test(baseSha) ||
+            !Number.isInteger(expiresInMinutes) || expiresInMinutes < 5 || expiresInMinutes > 60 ||
+            !Array.isArray(body.paths) || body.paths.length < 1 || body.paths.length > 5) {
+          return error("Invalid task, branch, base commit, scope or expiry.");
+        }
+        const paths = [];
+        const seen = new Set();
+        for (const rawPath of body.paths) {
+          if (typeof rawPath !== "string" || rawPath.length > 200 ||
+              !/^docs\\/[A-Za-z0-9._/-]+\\.md$/.test(rawPath) ||
+              rawPath.includes("\\\\") || /[\\u0000-\\u001f\\u007f]/.test(rawPath)) {
+            return error("Approval scope is limited to safe Markdown files under docs/.");
+          }
+          const segments = rawPath.split("/");
+          if (segments[0] !== "docs" || segments.some(segment =>
+              !segment || segment === "." || segment === ".." ||
+              /[. ]$/.test(segment) ||
+              /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\.|$)/i.test(segment))) {
+            return error("Approval scope contains an unsafe path.");
+          }
+          const normalized = rawPath.normalize("NFC");
+          const collisionKey = normalized.toLowerCase();
+          if (seen.has(collisionKey)) return error("Approval scope contains duplicate or colliding paths.");
+          seen.add(collisionKey);
+          paths.push(normalized);
+        }
+        paths.sort();
+        const task = await env.DB.prepare(
+          "SELECT id,status,requires_approval,action_type,assigned_to FROM intelligence_tasks WHERE id=? LIMIT 1"
+        ).bind(taskId).first();
+        if (!task || task.status !== "accepted" || Number(task.requires_approval) !== 0 ||
+            task.action_type !== "documentation_patch_proposal" ||
+            !["mehran_intelligence","shared"].includes(task.assigned_to)) {
+          return error("Only an owner-approved documentation proposal assigned to Intelligence can receive an approval.", 409);
+        }
+        const now = Math.floor(Date.now() / 1000);
+        const existing = await env.DB.prepare(
+          "SELECT id FROM intelligence_approval_ledger WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at>? LIMIT 1"
+        ).bind(taskId, admin.uid, now).first();
+        if (existing) return error("This task already has an active approval. Revoke or wait for it to expire.", 409);
+        const scope = { version:1, paths };
+        const scopeJson = JSON.stringify(scope);
+        const scopeSha256 = await sha256Hex(scopeJson);
+        const id = crypto.randomUUID();
+        const expiresAt = now + expiresInMinutes * 60;
+        await env.DB.prepare(
+          "INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)"
+        ).bind(id,taskId,admin.uid,admin.username,"Mehranmsh/mehranmsh.github.io",branch,baseSha,scopeJson,scopeSha256,now,expiresAt).run();
+        await writeAdminAudit(env,admin,"intelligence_approval_issued","intelligence_approval",id,JSON.stringify({
+          taskId,repository:"Mehranmsh/mehranmsh.github.io",branch,baseSha,pathCount:paths.length,expiresAt
+        }));
+        return json({success:true,approval:{
+          id,taskId,repository:"Mehranmsh/mehranmsh.github.io",branch,baseSha,
+          scope,scopeSha256,status:"issued",issuedAt:now,expiresAt
+        }},201);
+      }
+
       if (path === "/intelligence/approvals" && method === "GET") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
@@ -6633,7 +6714,7 @@ export default {
         const title=cleanText(body.title,120),description=cleanText(body.description,3000);
         const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
         const actionType=body.actionType||"";
-        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
+        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check","documentation_patch_proposal"];
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
         const preapprovedReadOnlyActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
