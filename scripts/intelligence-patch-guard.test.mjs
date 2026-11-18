@@ -67,3 +67,8 @@ test("rejects malformed entries, non-text values, and invalid Unicode", () => {
   assert.equal(validateIntelligencePatch([{ path: "docs/a.md", content: new Uint8Array([1, 2]), status: "added", mode: "100644" }]).ok, false);
   assert.equal(validateIntelligencePatch([valid("docs/a.md", "\ud800")]).ok, false);
 });
+
+test("rejects case-insensitive path collisions on common filesystems", () => {
+  const files = [valid("docs/Guide.md"), valid("docs/guide.md")];
+  assert.equal(validateIntelligencePatch(files).ok, false);
+});
