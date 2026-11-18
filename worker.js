@@ -7486,6 +7486,3 @@ export default {
     }
   }
 };
-
-// Named export for direct, isolated unit testing; no HTTP route exposes this primitive.
-export { consumeIntelligenceApproval };
