@@ -1,0 +1,48 @@
+name: MEHRAN INTELLIGENCE Patch Guard Tests
+
+on:
+  pull_request:
+    branches:
+      - intelligence/mcp-task-approval-guardrails
+      - security/intelligence-integrated-claim-fencing-2026-11-18
+      - intelligence/integrated-knowledge-approval-v2
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  patch-guard-tests:
+    name: Run isolated patch guard tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout tested PR head commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run patch guard tests
+        run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs scripts/intelligence-git-tree-guard.test.mjs scripts/intelligence-github-readonly-audit.test.mjs
+      - name: Resolve immutable merge base and PR head
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          BASE_BRANCH_SHA="$(git rev-parse "refs/remotes/origin/${BASE_REF}")"
+          [[ "${BASE_BRANCH_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          MERGE_BASE_SHA="$(git merge-base "${BASE_BRANCH_SHA}" "${HEAD_SHA}")"
+          [[ "${MERGE_BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          echo "MEHRAN_AUDIT_BASE_SHA=${MERGE_BASE_SHA}" >> "${GITHUB_ENV}"
+          echo "MEHRAN_AUDIT_HEAD_SHA=${HEAD_SHA}" >> "${GITHUB_ENV}"
+      - name: Audit actual GitHub branch trees (read-only)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/intelligence-github-readonly-audit.mjs
