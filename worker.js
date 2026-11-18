@@ -6780,12 +6780,9 @@ export default {
           return error("Too many approval ledger requests. Try again later.", 429);
         }
         const now = Math.floor(Date.now() / 1000);
-        await env.DB.prepare(
-          "UPDATE intelligence_approval_ledger SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?"
-        ).bind(admin.uid,now).run();
         const rows = await env.DB.prepare(
-          "SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE owner_uid=? ORDER BY issued_at DESC LIMIT 50"
-        ).bind(admin.uid).all();
+          "SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,CASE WHEN status='issued' AND expires_at<=? THEN 'expired' ELSE status END AS status,issued_at,expires_at,revoked_at,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE owner_uid=? ORDER BY issued_at DESC LIMIT 50"
+        ).bind(now,admin.uid).all();
         return json({success:true,approvals:(rows.results || []).map(row => {
           let scope = null;
           try { scope = JSON.parse(row.scope_json); } catch {}
@@ -6811,9 +6808,6 @@ export default {
         const id=decodeURIComponent(intelligenceApprovalMatch[1]);
         if(!id||id.length>80)return error("Invalid approval ID.");
         const now=Math.floor(Date.now()/1000);
-        await env.DB.prepare(
-          "UPDATE intelligence_approval_ledger SET status='expired' WHERE id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
-        ).bind(id,admin.uid,now).run();
         const transition=await env.DB.prepare(
           "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?"
         ).bind(now,id,admin.uid,now).run();
