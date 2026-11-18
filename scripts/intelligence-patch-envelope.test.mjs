@@ -18,15 +18,16 @@ const file = { path: "docs/proposal.md", status: "added", mode: "100644", conten
 
 
 test("normalizes the authenticated Worker issued-grant record into trusted approval context", () => {
-  const paths = ["docs/proposal.md"];
+  const paths = ["docs/a.md", "docs/proposal.md"];
+  const scope = { version: 1, paths };
   const workerRecord = {
     id: "00000000-0000-4000-8000-000000000001",
     taskId,
     repository: "Mehranmsh/mehranmsh.github.io",
     branch: "intelligence/patch-task_12345678",
     baseSha,
-    scope: { paths },
-    scopeSha256: createHash("sha256").update(JSON.stringify({ paths })).digest("hex"),
+    scope,
+    scopeSha256: createHash("sha256").update(JSON.stringify(scope)).digest("hex"),
     status: "issued",
     issuedAt: Date.parse(approvedAt) / 1000,
     expiresAt: Date.parse(expiresAt) / 1000,
@@ -49,14 +50,15 @@ test("normalizes the authenticated Worker issued-grant record into trusted appro
 
 test("rejects Worker approval records that are revoked, consumed, malformed, or not owner-issued", () => {
   const paths = ["docs/proposal.md"];
+  const scope = { version: 1, paths };
   const workerRecord = {
     id: "00000000-0000-4000-8000-000000000001",
     taskId,
     repository: "Mehranmsh/mehranmsh.github.io",
     branch: "intelligence/patch-task_12345678",
     baseSha,
-    scope: { paths },
-    scopeSha256: createHash("sha256").update(JSON.stringify({ paths })).digest("hex"),
+    scope,
+    scopeSha256: createHash("sha256").update(JSON.stringify(scope)).digest("hex"),
     status: "issued",
     issuedAt: Date.parse(approvedAt) / 1000,
     expiresAt: Date.parse(expiresAt) / 1000,
@@ -67,6 +69,9 @@ test("rejects Worker approval records that are revoked, consumed, malformed, or 
   assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, consumedAt: Date.parse(approvedAt) / 1000 }), null);
   assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, repository: "other/repo" }), null);
   assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, scopeSha256: "c".repeat(64) }), null);
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, scope: { paths } }), null);
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, scope: { ...scope, version: 2 } }), null);
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, scope: { ...scope, extra: true } }), null);
 });
 
 function fixture() {
