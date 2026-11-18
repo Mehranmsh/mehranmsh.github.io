@@ -201,6 +201,9 @@ test("MEHRAN Intelligence agent API is separately scoped and approval-gated", ()
   assert.match(workerSource, /assigned_to IN \('mehran_intelligence','shared'\)/);
   assert.match(workerSource, /status IN \('queued','accepted'\)/);
   assert.match(workerSource, /status='in_progress'/);
+  assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
+  assert.match(workerSource, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(workerSource, /agent_claimed_at=NULL/);
   assert.match(workerSource, /\["completed","blocked"\]/);
   assert.match(workerSource, /Agent authentication required/);
   assert.match(workerSource, /Agent service identity is not configured/);
