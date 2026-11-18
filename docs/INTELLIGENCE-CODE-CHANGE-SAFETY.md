@@ -1,6 +1,6 @@
 # MEHRAN INTELLIGENCE: Safe Code-Change Proposal Design
 
-**Status:** Design only. No code-writing capability is enabled by this document.
+**Status:** Design and isolated validator prototype only. No code-writing capability is enabled.
 
 ## Objective
 
@@ -28,7 +28,7 @@ The first implementation must be a proposal workflow, not an autonomous producti
 
 ## Initial scope restrictions
 
-The first code-change pilot must use a strict path allowlist, not a denylist. Start with documentation and isolated, low-risk UI assets only.
+The first code-change pilot must use a strict path allowlist, not a denylist. Start with documentation only.
 
 Explicitly excluded until a separate security review:
 - `worker.js`, authentication, authorization, sessions, and security controls
@@ -38,15 +38,16 @@ Explicitly excluded until a separate security review:
 - dependency manifests, lockfiles, build scripts, package lifecycle scripts, and executable workflow files
 - Pi wallet/payment code, financial actions, user data migrations, and production database schema changes
 
-Reject absolute paths, parent traversal (`..`), symlinks, submodules, binary files, and any path not explicitly approved.
+Reject absolute paths, parent traversal (`..`), empty path segments, ambiguous Unicode/control characters, Windows-reserved device names, trailing dots/spaces, symlinks, submodules, binary files, and any path not explicitly approved.
 
 ## Patch and execution limits
 
 Initial conservative limits:
 - Maximum 5 changed files per task
-- Maximum 180 KiB total patch
+- Maximum 180 KiB total UTF-8 content
 - Maximum 40 KiB per file
 - Text files only
+- Each entry must include explicit change status and regular-file mode metadata
 - No arbitrary shell command, script, workflow, or task-payload execution
 - No network access from the patch-generation sandbox except explicitly required read-only repository access
 - Fixed test commands selected by trusted server-side policy, never supplied by the task description
@@ -55,6 +56,12 @@ Initial conservative limits:
 - A hard execution timeout and bounded logs/output
 
 Any limit increase requires a reviewed policy change.
+
+## Validator prototype boundary
+
+`scripts/intelligence-patch-guard.mjs` is a pure validation helper. It currently enforces the documentation-only path allowlist, mandatory status/mode metadata, path ambiguity checks, size caps, NUL rejection, and a small set of common credential-pattern heuristics. Its tests are standalone Node tests.
+
+This prototype is not a patch parser, sandbox, filesystem writer, GitHub integration, or comprehensive secret scanner. Pattern checks can miss credentials and can produce false positives. A future implementation must add a dedicated secret-scanning gate and validate the actual Git diff and repository object metadata before any write.
 
 ## Credential design
 
@@ -110,4 +117,4 @@ Cancellation must be checked before patch generation, before GitHub writes, and 
 
 ## Current implementation boundary
 
-This document does not enable code changes. The current runner remains limited to the existing allowlisted read-only repository quality and service health tasks. Any implementation of Stages 2 or 3 requires a separate reviewed change and explicit owner approval.
+This document and validator do not enable code changes. The current runner remains limited to the existing allowlisted read-only repository quality and service health tasks. Any implementation of Stages 2 or 3 requires a separate reviewed change and explicit owner approval.
