@@ -7176,7 +7176,8 @@ export default {
           return error("Too many project changes. Try again later.", 429);
         }
 
-        if (!await verifyAdmin(request, env)) {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) {
           return error("Admin authentication required", 403);
         }
 
@@ -7207,6 +7208,7 @@ export default {
         const saved = await env.DB.prepare(
           "SELECT * FROM projects WHERE id=?"
         ).bind(project.id).first();
+        await writeAdminAudit(env, admin, "project_created", "project", project.id, "Project created or upserted");
 
         return json({ success: true, project: formatProject(saved) }, 201);
       }
@@ -7221,7 +7223,8 @@ export default {
           return error("Too many project changes. Try again later.", 429);
         }
 
-        if (!await verifyAdmin(request, env)) {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) {
           return error("Admin authentication required", 403);
         }
 
@@ -7237,6 +7240,7 @@ export default {
             return error("Project not found", 404);
           }
 
+          await writeAdminAudit(env, admin, "project_deleted", "project", id, "Project deleted");
           return json({ success: true, deleted: true, id });
         }
 
@@ -7264,6 +7268,7 @@ export default {
         const saved = await env.DB.prepare(
           "SELECT * FROM projects WHERE id=?"
         ).bind(id).first();
+        await writeAdminAudit(env, admin, "project_updated", "project", id, "Project updated");
 
         return json({ success: true, project: formatProject(saved) });
       }
