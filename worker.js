@@ -5143,6 +5143,32 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+async function ensureIntelligenceApprovalLedgerTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_approval_ledger(
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      owner_uid TEXT NOT NULL,
+      owner_username TEXT NOT NULL,
+      repository TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      base_sha TEXT NOT NULL,
+      scope_json TEXT NOT NULL,
+      scope_sha256 TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'issued' CHECK(status IN ('issued','revoked','consumed','expired')),
+      issued_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      consumed_at INTEGER,
+      consumed_by TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(task_id) REFERENCES intelligence_tasks(id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_task ON intelligence_approval_ledger(task_id,status,expires_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_owner ON intelligence_approval_ledger(owner_uid,issued_at DESC)").run();
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
