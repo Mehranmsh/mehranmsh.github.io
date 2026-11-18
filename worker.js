@@ -6539,13 +6539,14 @@ export default {
         if(!existing)return error("Task not found.",404);
         if(existing.action_type){
           const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
-          const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
+          const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted","in_progress"].includes(existing.status);
           if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
-        await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
+        const updated=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,agent_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claimed_at END,agent_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claim_id END,scheduler_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claimed_at END,scheduler_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claim_id END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?").bind(body.status,nextResult,body.status,body.status,body.status,body.status,body.status,id,existing.status).run();
+        if(!Number(updated?.meta?.changes||0))return error("Task state changed before this update. Refresh and try again.",409);
+        await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status,previousStatus:existing.status,claimsRevoked:body.status==="cancelled"}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});
       }
