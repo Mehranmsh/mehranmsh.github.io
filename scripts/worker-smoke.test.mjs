@@ -171,6 +171,15 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(workerSource, /args\.requiresApproval\?'awaiting_approval':'queued'/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
+  assert.match(route, /checkRateLimit\(env,request,"intelligence-task-write",30,3600,900,admin\.uid\)/);
+  assert.match(route, /SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks/);
+  assert.match(route, /approvalTransition=args\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
+  assert.match(route, /cancelTransition=args\.status==="cancelled"&&\["awaiting_approval","queued","accepted","in_progress"\]\.includes\(existing\.status\)/);
+  assert.match(route, /agent_claim_id=CASE WHEN \?=\x27cancelled\x27 THEN NULL ELSE agent_claim_id END/);
+  assert.match(route, /scheduler_claim_id=CASE WHEN \?=\x27cancelled\x27 THEN NULL ELSE scheduler_claim_id END/);
+  assert.match(route, /WHERE id=\? AND status=\?/);
+  assert.match(route, /Task state changed before this update/);
+  assert.match(route, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
 });
 
