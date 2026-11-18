@@ -2013,3 +2013,30 @@ test("SOCIAL media upload identity migration is additive and preserves legacy UR
   const migrationBlock = workerSource.slice(migrationStart, migrationEnd);
   assert.doesNotMatch(migrationBlock, /DELETE FROM social_(?:users|profile_photos|stories)/i);
 });
+
+
+test("SOCIAL story publishing and reads are bound to verified upload IDs", () => {
+  const createStart = workerSource.indexOf("async function socialCreateStory(");
+  const createEnd = workerSource.indexOf("\nasync function ", createStart + 10);
+  assert.ok(createStart >= 0 && createEnd > createStart, "story create route must exist");
+  const createRoute = workerSource.slice(createStart, createEnd);
+  assert.match(createRoute, /WHERE id=\? AND user_id=\? LIMIT 1/);
+  assert.match(createRoute, /upload\.status !== "ready"/);
+  assert.match(createRoute, /upload\.acl !== "public"/);
+  assert.match(createRoute, /upload\.mime_type/);
+  assert.match(createRoute, /INSERT INTO social_stories\([^)]*upload_id\)/);
+
+  const readStart = workerSource.indexOf("async function socialStories(");
+  const readEnd = workerSource.indexOf("\nasync function ", readStart + 10);
+  assert.ok(readStart >= 0 && readEnd > readStart, "story read route must exist");
+  const readRoute = workerSource.slice(readStart, readEnd);
+  assert.match(readRoute, /LEFT JOIN social_uploads up/);
+  assert.match(readRoute, /up\.id=s\.upload_id AND up\.user_id=s\.user_id/);
+  assert.match(readRoute, /up\.status='ready' AND up\.acl='public'/);
+  assert.match(readRoute, /validHttpsUrl\(row\.resolved_media_url\)/);
+
+  assert.match(indexSource, /async function socialUploadFile\(file,returnReference=false\)/);
+  assert.match(indexSource, /return returnReference\?\{id,url:completed\.file\.url\}:completed\.file\.url/);
+  assert.match(indexSource, /const uploaded=await socialUploadFile\(uploadFile,true\)/);
+  assert.match(indexSource, /JSON\.stringify\(\{uploadId:uploaded\.id,mediaType:/);
+});
