@@ -54,7 +54,7 @@ test("HTTP adapter performs only authenticated GET requests and verifies real AP
  };
  const result=await runReadOnlyAudit({
   GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",
-  MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha
+  MEHRAN_AUDIT_BASE_SHA:baseSha,MEHRAN_AUDIT_HEAD_SHA:headSha
  },fakeFetch,new Set([filePath]));
  assert.equal(result.changedFiles.length,1);
  assert.equal(requests.length,6);
@@ -63,19 +63,19 @@ test("HTTP adapter performs only authenticated GET requests and verifies real AP
  assert.ok(requests.every(r=>r.authorization==="Bearer test-token"));
 });
 test("HTTP adapter refuses to start without a token or immutable SHAs",async()=>{
- await assert.rejects(()=>runReadOnlyAudit({GITHUB_REPOSITORY:repository,MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha},async()=>{}),/Missing, untrusted, or malformed/);
+ await assert.rejects(()=>runReadOnlyAudit({GITHUB_REPOSITORY:repository,MEHRAN_AUDIT_BASE_SHA:baseSha,MEHRAN_AUDIT_HEAD_SHA:headSha},async()=>{}),/Missing, untrusted, or malformed/);
 });
 
 test("HTTP adapter rejects a different repository before making a request", async () => {
  let calls=0;
  await assert.rejects(()=>runReadOnlyAudit({
   GITHUB_REPOSITORY:"attacker/other",GITHUB_TOKEN:"test-token",
-  MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha
+  MEHRAN_AUDIT_BASE_SHA:baseSha,MEHRAN_AUDIT_HEAD_SHA:headSha
  },async()=>{calls++;}),/Missing, untrusted, or malformed/);
  assert.equal(calls,0);
 });
 test("HTTP adapter rejects redirects and non-JSON responses", async () => {
- const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
+ const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,MEHRAN_AUDIT_HEAD_SHA:headSha};
  await assert.rejects(()=>runReadOnlyAudit(env,async(_url,options)=>{
   assert.equal(options.redirect,"error");
   throw new TypeError("redirect blocked");
@@ -83,13 +83,13 @@ test("HTTP adapter rejects redirects and non-JSON responses", async () => {
  await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response("<html>no</html>",{headers:{"content-type":"text/html"}})),/unexpected content type/);
 });
 test("HTTP adapter rejects invalid JSON and oversized API bodies", async () => {
- const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
+ const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,MEHRAN_AUDIT_HEAD_SHA:headSha};
  await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response("{bad json",{headers:{"content-type":"application/json"}})),/invalid JSON/);
  const huge="x".repeat(2*1024*1024+1);
  await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response(huge,{headers:{"content-type":"application/json"}})),/size limit/);
 });
 test("HTTP adapter rejects malformed commit response before dereferencing tree fields", async () => {
- const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
+ const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,MEHRAN_AUDIT_HEAD_SHA:headSha};
  await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response(JSON.stringify({sha:baseSha,parents:[],commit:{}}),{headers:{"content-type":"application/json"}})),/malformed base commit/);
 });
 
