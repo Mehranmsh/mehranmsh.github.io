@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { runReadOnlyAudit, verifyReadOnlyGitHubSnapshot } from "./intelligence-github-readonly-audit.mjs";
 
-const repository = "owner/repo";
+const repository = "Mehranmsh/mehranmsh.github.io";
 const baseSha = "a".repeat(40), headSha = "b".repeat(40);
 const baseTreeSha = "c".repeat(40), headTreeSha = "d".repeat(40);
 const path = "docs/approved.md", content = Buffer.from("# approved\n");
@@ -46,11 +46,11 @@ test("HTTP adapter performs only authenticated GET requests and verifies real AP
   [`/repos/${repository}/git/blobs/${sha}`,{encoding:"base64",content:bytes.toString("base64")}]
  ]);
  const fakeFetch=async(url,options)=>{
-  requests.push({url:String(url),method:options.method,authorization:options.headers.Authorization});
+  requests.push({url:String(url),method:options.method,redirect:options.redirect,hasTimeout:Boolean(options.signal),authorization:options.headers.Authorization});
   const pathname=new URL(url).pathname;
   const key=pathname;
-  if(!responses.has(key))return {ok:false,status:404,json:async()=>({})};
-  return {ok:true,status:200,json:async()=>responses.get(key)};
+  if(!responses.has(key))return new Response("not found",{status:404,headers:{"content-type":"application/json"}});
+  return new Response(JSON.stringify(responses.get(key)),{status:200,headers:{"content-type":"application/json; charset=utf-8"}});
  };
  const result=await runReadOnlyAudit({
   GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",
@@ -59,8 +59,36 @@ test("HTTP adapter performs only authenticated GET requests and verifies real AP
  assert.equal(result.changedFiles.length,1);
  assert.equal(requests.length,6);
  assert.ok(requests.every(r=>r.method==="GET"));
+ assert.ok(requests.every(r=>r.redirect==="error" && r.hasTimeout));
  assert.ok(requests.every(r=>r.authorization==="Bearer test-token"));
 });
 test("HTTP adapter refuses to start without a token or immutable SHAs",async()=>{
- await assert.rejects(()=>runReadOnlyAudit({GITHUB_REPOSITORY:repository,MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha},async()=>{}),/Missing or malformed/);
+ await assert.rejects(()=>runReadOnlyAudit({GITHUB_REPOSITORY:repository,MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha},async()=>{}),/Missing, untrusted, or malformed/);
+});
+
+test("HTTP adapter rejects a different repository before making a request", async () => {
+ let calls=0;
+ await assert.rejects(()=>runReadOnlyAudit({
+  GITHUB_REPOSITORY:"attacker/other",GITHUB_TOKEN:"test-token",
+  MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha
+ },async()=>{calls++;}),/Missing, untrusted, or malformed/);
+ assert.equal(calls,0);
+});
+test("HTTP adapter rejects redirects and non-JSON responses", async () => {
+ const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
+ await assert.rejects(()=>runReadOnlyAudit(env,async(_url,options)=>{
+  assert.equal(options.redirect,"error");
+  throw new TypeError("redirect blocked");
+ }),/redirect blocked/);
+ await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response("<html>no</html>",{headers:{"content-type":"text/html"}})),/unexpected content type/);
+});
+test("HTTP adapter rejects invalid JSON and oversized API bodies", async () => {
+ const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
+ await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response("{bad json",{headers:{"content-type":"application/json"}})),/invalid JSON/);
+ const huge="x".repeat(2*1024*1024+1);
+ await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response(huge,{headers:{"content-type":"application/json"}})),/size limit/);
+});
+test("HTTP adapter rejects malformed commit response before dereferencing tree fields", async () => {
+ const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
+ await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response(JSON.stringify({sha:baseSha,parents:[],commit:{}}),{headers:{"content-type":"application/json"}})),/malformed base commit/);
 });
