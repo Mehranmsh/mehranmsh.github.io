@@ -1651,6 +1651,7 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   const route = workerSource.slice(routeStart, routeEnd);
   assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
   assert.match(route, /cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"/);
+  assert.match(route, /SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=\?/);
   assert.match(route, /cancelTransition=body.status==="cancelled"/);
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
   assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?approval or cancellation transition\.[\s\S]*?409/);
