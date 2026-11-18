@@ -284,6 +284,8 @@ test("admin sessions fail closed without the immutable Pi owner UID and expire w
   assert.match(verify, /MEHRAN_OWNER_PI_UID/);
   assert.match(verify, /!expectedOwnerUid/);
   assert.match(verify, /String\(session\.uid\)\s*!==\s*expectedOwnerUid/);
+  assert.match(verify, /session\.created_at/);
+  assert.match(verify, /Number\(session\.created_at\)\s*<\s*now\s*-\s*12\s*\*\s*60\s*\*\s*60/);
   const loginStart = workerSource.indexOf('if (path.startsWith("/admin/session"))');
   const loginEnd = workerSource.indexOf('if (path === "/auth" && method === "POST")', loginStart);
   const login = workerSource.slice(loginStart, loginEnd);
