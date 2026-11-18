@@ -1922,11 +1922,11 @@ test("Intelligence approval consumption executes the real helper and is one-time
     "SET status='consumed',consumed_at=?",
     "Number(transition?.meta?.changes || 0) !== 1"
   ]) assert.ok(helper.includes(binding), "consumption guard missing: " + binding);
-  assert.match(helper, /repository !== "Mehranmsh\\/mehranmsh\\.github\\.io"/);
-  assert.match(helper, /const now = Math.floor\\(Date.now\\(\\) \\/ 1000\\)/);
-  assert.doesNotMatch(helper, /value\\.now/);
+  assert.ok(helper.includes('repository !== "Mehranmsh/mehranmsh.github.io"'));
+  assert.ok(helper.includes("const now = Math.floor(Date.now() / 1000)"));
+  assert.equal(helper.includes("value.now"), false);
   assert.ok(helper.includes('patch-[A-Za-z0-9_-]{8,64}'));
-  assert.doesNotMatch(helper, /fetch\\(|fetch\\s*\\(/);
+  assert.equal(/fetch\\(|fetch\\s*\\(/.test(helper), false);
   assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
 
   const input = {
