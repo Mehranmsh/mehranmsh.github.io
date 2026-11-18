@@ -1907,7 +1907,7 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
 });
 
 
-test("Intelligence approval consumption is atomic, bound, and not exposed to routes", () => {
+test("Intelligence approval consumption executes the real helper and is one-time", async () => {
   const start = workerSource.indexOf("async function consumeIntelligenceApproval(env, input)");
   const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", start);
   assert.ok(start >= 0 && end > start, "internal approval consumption primitive must exist");
@@ -1922,12 +1922,45 @@ test("Intelligence approval consumption is atomic, bound, and not exposed to rou
     "SET status='consumed',consumed_at=?",
     "Number(transition?.meta?.changes || 0) !== 1"
   ]) assert.ok(helper.includes(binding), "consumption guard missing: " + binding);
-  assert.match(helper, /repository !== "Mehranmsh\/mehranmsh\.github\.io"/);
-  assert.match(helper, /const now = Math.floor\(Date\.now\(\) \/ 1000\)/);
-  assert.doesNotMatch(helper, /value\.now/);
+  assert.match(helper, /repository !== "Mehranmsh\\/mehranmsh\\.github\\.io"/);
+  assert.match(helper, /const now = Math.floor\\(Date.now\\(\\) \\/ 1000\\)/);
+  assert.doesNotMatch(helper, /value\\.now/);
   assert.ok(helper.includes('patch-[A-Za-z0-9_-]{8,64}'));
-  assert.doesNotMatch(helper, /fetch\(|fetch\s*\(/);
+  assert.doesNotMatch(helper, /fetch\\(|fetch\\s*\\(/);
   assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
+
+  const input = {
+    approvalId:"123e4567-e89b-12d3-a456-426614174000",
+    taskId:"task-doc-001", ownerUid:"owner-pi-uid",
+    repository:"Mehranmsh/mehranmsh.github.io",
+    branch:"intelligence/patch-safe-docs-001",
+    baseSha:"a".repeat(40), scopeSha256:"b".repeat(64)
+  };
+  let ledgerStatus="issued";
+  let transitionCalls=0;
+  const env={DB:{prepare(sql){return {
+    bind(...values){this.values=values;return this;},
+    async run(){
+      if (sql.includes("UPDATE intelligence_approval_ledger SET status='expired'")) return {meta:{changes:0}};
+      if (sql.includes("UPDATE intelligence_approval_ledger SET status='consumed'")) {
+        transitionCalls++;
+        if (ledgerStatus!=="issued") return {meta:{changes:0}};
+        ledgerStatus="consumed";
+        return {meta:{changes:1}};
+      }
+      return {meta:{changes:0}};
+    }
+  };}}};
+  const first=await workerModule.consumeIntelligenceApproval(env,input);
+  assert.equal(first.consumed,true);
+  assert.equal(ledgerStatus,"consumed");
+  const replay=await workerModule.consumeIntelligenceApproval(env,input);
+  assert.equal(replay.consumed,false);
+  assert.equal(replay.reason,"approval_unavailable_or_task_not_eligible");
+  assert.equal(transitionCalls,2);
+  const mismatch=await workerModule.consumeIntelligenceApproval(env,{...input,repository:"attacker/repo"});
+  assert.equal(mismatch.consumed,false);
+  assert.equal(mismatch.reason,"invalid_binding");
 });
 
 
