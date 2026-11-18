@@ -6446,7 +6446,7 @@ export default {
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
             const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
-            if(existing.action_type) return rpcError(-32003,"Automated task approval, cancellation and execution results are controlled by the owner Task Hub and MEHRAN INTELLIGENCE service.");
+            if(existing.action_type||Number(existing.requires_approval)===1||existing.status==="awaiting_approval") return rpcError(-32003,"Pending proposals and automated task approval, cancellation and execution results are controlled by the owner Task Hub and MEHRAN INTELLIGENCE service.");
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
             await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(args.status,nextResult,id).run();
             await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
@@ -6534,7 +6534,17 @@ export default {
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
+        if(existing.action_type){
+          let transition;
+          if(approvalTransition){
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='accepted',requires_approval=0,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_approval' AND requires_approval=1").bind(id).run();
+          }else{
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')").bind(id,existing.status,Number(existing.requires_approval)).run();
+          }
+          if(Number(transition?.meta?.changes||0)!==1)return error("Task state changed before this approval or cancellation could be applied. Refresh and review the task again.",409);
+        }else{
+          await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
+        }
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});
