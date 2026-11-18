@@ -357,6 +357,24 @@ test("owner approval releases a task from the approval gate for agent claiming",
   assert.match(workerSource, /status IN \('queued','accepted'\) AND requires_approval=0/);
 });
 
+test("MEHRAN INTELLIGENCE bounds model tool cycles and rejects unapproved tool surfaces", () => {
+  const start=workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
+  const end=workerSource.indexOf('if (path === "/admin/overview"',start);
+  assert.ok(start>=0&&end>start);
+  const chat=workerSource.slice(start,end);
+  assert.match(chat,/env\.AI\.run\("@cf\/meta\/llama-3\.3-70b-instruct-fp8-fast"/);
+  assert.match(chat,/tool_choice:"auto",max_tokens:900/);
+  assert.match(chat,/round<2/,"tool-assisted model interaction must have a hard two-round ceiling");
+  assert.match(chat,/tool_calls\.slice\(0,4\)/,"each model response must be limited to four tool calls");
+  assert.match(chat,/if \(!args \|\| typeof args !== "object" \|\| Array\.isArray\(args\)\)/);
+  assert.match(chat,/throw new Error\("Tool is not available\."\)/);
+  assert.match(chat,/status,requires_approval,created_by/);
+  assert.match(chat,/VALUES\(\?,\?,\?,\?,\?,'awaiting_approval',1,/);
+  assert.match(chat,/Task proposal created and is awaiting owner approval\. No execution was performed\./);
+  assert.match(chat,/if \(!env\.AI \|\| typeof env\.AI\.run !== "function"\)/);
+  assert.match(chat,/checkRateLimit\(env, request, "intelligence-ai-chat", 3, 3600, 3600, admin\.uid\)/);
+});
+
 test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approved task proposals", () => {
   const start = workerSource.indexOf('const system = "You are MEHRAN INTELLIGENCE');
   const end = workerSource.indexOf('if (path === "/admin/overview"', start);
