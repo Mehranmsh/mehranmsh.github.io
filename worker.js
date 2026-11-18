@@ -7151,7 +7151,7 @@ export default {
         return json({success:true,id,status:"candidate"},201);
       }
 
-      const knowledgeRelationMatch = path.match(/^\\/intelligence\\/knowledge\\/relations\\/([^/]+)$/);
+      const knowledgeRelationMatch = path.match(new RegExp("^/intelligence/knowledge/relations/([^/]+)$"));
       if (knowledgeRelationMatch && method === "PUT") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required",403);
