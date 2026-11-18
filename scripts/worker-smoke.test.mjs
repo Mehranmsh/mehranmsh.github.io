@@ -2726,3 +2726,28 @@ test("INTELLIGENCE cannot confirm a candidate after its evidence disappears from
   assert.equal(response.status,409);
   assert.equal(db.calls.filter(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")).length,0);
 });
+
+test("INTELLIGENCE confirms a candidate only when both exact evidence snippets remain current", async () => {
+  const db=makeRelationshipRouteDb({
+    current:{
+      left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"conflicts_with",
+      status:"candidate",proposed_by:"intelligence",
+      evidence_json:JSON.stringify([
+        {knowledgeId:"k1",text:"Carrier A is required.",source:"owner_knowledge"},
+        {knowledgeId:"k2",text:"Carrier B is required.",source:"owner_knowledge"}
+      ]),
+      updated_at:"2026-11-19 00:00:00",left_updated_at:"2026-11-19 00:00:00",right_updated_at:"2026-11-19 00:00:00"
+    },
+    sourceRows:[
+      {id:"k1",title:"Shipping A",content:"Carrier A is required."},
+      {id:"k2",title:"Shipping B",content:"Carrier B is required."}
+    ]
+  });
+  const response=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships/rel-candidate",{
+    method:"PUT",headers:{Authorization:"Bearer "+"f".repeat(48),"Content-Type":"application/json"},
+    body:JSON.stringify({action:"confirm"})
+  }),{DB:db,MEHRAN_OWNER_PI_UID:"owner-1"},{});
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).status,"confirmed");
+  assert.ok(db.calls.some(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")));
+});
