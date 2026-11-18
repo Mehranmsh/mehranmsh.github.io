@@ -40,9 +40,18 @@ Use a staging admin session and disposable knowledge records belonging to the st
 9. Verify a second owner cannot read, confirm, dismiss, or resolve the first owner's relationships.
 10. Verify both original knowledge records remain present after confirmation, dismissal, and resolution.
 
+## Private dashboard checks
+
+1. Sign in through the staging Pi/admin flow and open the private Intelligence page.
+2. Confirm the relationship panel loads only after administrator authentication and is not visible as a public route.
+3. Create one symmetric conflict and one directional supersedes/supports relation; verify source/target labels are correct.
+4. Confirm and dismiss candidates, resolve a confirmed conflict, then change a linked knowledge entry and verify the stale warning appears.
+5. Reaffirm a stale confirmed relation and reopen a stale resolved conflict. Verify the activity log labels each owner action.
+6. Verify all user-provided titles, evidence and snippets render as text, not executable HTML.
+
 ## Exit criteria
 
-Do not consider the feature staging-verified until the live D1 lifecycle, owner-isolation checks, Worker route checks, and audit records all pass. Production migration and deployment require a separate explicit owner decision after staging evidence is reviewed.
+Do not consider the feature staging-verified until the live D1 lifecycle, owner-isolation checks, Worker route checks, private dashboard checks, and audit records all pass. Production migration and deployment require a separate explicit owner decision after staging evidence is reviewed.
 
 ## Rollback
 
