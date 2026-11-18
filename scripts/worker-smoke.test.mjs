@@ -1668,6 +1668,9 @@ test("automated Intelligence task transitions are owner-approval-only, cancellab
   assert.match(route, /scheduler_claim_id=CASE WHEN \?='cancelled' THEN NULL ELSE scheduler_claim_id END/);
   assert.match(route, /WHERE id=\? AND status=\?/);
   assert.match(route, /Task state changed before this update/);
+  assert.match(route, /env\.DB\.batch\(\[taskTransition,revokeGrant\]\)/);
+  assert.match(route, /status='revoked',revoked_at=\?/);
+  assert.match(route, /EXISTS \(SELECT 1 FROM intelligence_tasks WHERE id=\? AND status='cancelled'\)/);
   assert.match(route, /Automated task results can only be recorded by the execution service/);
   assert.match(route, /const approvalGate=Boolean\(existing\.action_type\)\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status===\"awaiting_approval\"/);
   assert.match(workerSource, /AND agent_claim_id=\?/);
