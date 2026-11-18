@@ -129,6 +129,12 @@ async function main() {
     return;
   }
 
+  const finalStatus = await request("/agent/v1/tasks/" + encodeURIComponent(task.id) + "/status");
+  if (finalStatus.task?.status !== "in_progress" || finalStatus.task?.agentClaimed !== true) {
+    console.log("Task ownership changed before result submission; no completion result was submitted.");
+    return;
+  }
+
   await request("/agent/v1/tasks/" + encodeURIComponent(task.id) + "/result", {
     method: "POST",
     body: JSON.stringify({ status: outcome.status, result: bounded(outcome.result, 2900) })
