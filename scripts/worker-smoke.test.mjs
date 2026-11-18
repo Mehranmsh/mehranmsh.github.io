@@ -257,15 +257,13 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.match(payload.error, /Admin authentication required/);
 });
 
-test("deployment and write-enabled import workflows are main-branch only", () => {
-  assert.match(deployWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
-  assert.match(deployWorkflowSource, /ref: main/);
-  assert.match(phrasesImportWorkflowSource, /push:\s*branches:\s*- main/);
-  assert.match(phrasesImportWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
-  assert.match(phrasesImportWorkflowSource, /ref: main/);
-  assert.match(instrumentsImportWorkflowSource, /branches:\s*\[main\]/);
-  assert.match(instrumentsImportWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
-  assert.match(instrumentsImportWorkflowSource, /ref: main/);
+test("deployment and write-enabled imports are manual-only and main-branch guarded", () => {
+  for (const workflow of [deployWorkflowSource, phrasesImportWorkflowSource, instrumentsImportWorkflowSource]) {
+    assert.match(workflow, /workflow_dispatch:/);
+    assert.doesNotMatch(workflow, /^\s*push:/m);
+    assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+    assert.match(workflow, /ref: main/);
+  }
 });
 
 test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
