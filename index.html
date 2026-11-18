@@ -1008,6 +1008,16 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelApprovalsList" class="grid"><div class="empty">No approval grants loaded.</div></div>
 </div>
 </div>
+<div class="panel intelligence-memory">
+ <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
+ <form id="intelMemoryForm" class="card" autocomplete="off">
+  <div class="field"><label for="intelMemoryCategory">Memory category</label><select id="intelMemoryCategory"><option value="company">Company knowledge</option><option value="decision">Decisions</option><option value="preference">Owner preferences</option><option value="security">Security rules</option><option value="project">Project context</option></select></div>
+  <div class="field"><label for="intelMemoryContent">Memory note</label><textarea id="intelMemoryContent" rows="3" maxlength="1000" required placeholder="A concise fact or decision Intelligence should remember..."></textarea></div>
+  <div class="hero-actions" style="margin-top:0"><button class="btn" id="intelMemorySaveBtn" type="submit">Save private note</button><span class="small-text">Up to 100 notes · 1,000 characters each</span></div>
+ </form>
+ <div id="intelMemoryStatus" class="notice" aria-live="polite">Private memory has not been loaded.</div>
+ <div id="intelMemoryList" class="grid"><div class="empty">No memory notes loaded.</div></div>
+</div>
 <div class="panel intelligence-assistant">
 <div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
 <div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
@@ -2205,6 +2215,46 @@ status.className="notice warn";
 }
 $("testMcpBtn")?.addEventListener("click",testMcpConnection);
 
+const intelligenceMemoryLabels={company:"Company",decision:"Decision",preference:"Preference",security:"Security",project:"Project"};
+async function loadIntelligenceMemory(){
+const status=$("intelMemoryStatus"),list=$("intelMemoryList");if(!status||!list)return;
+status.textContent="Loading private owner memory...";status.className="notice";
+try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.memory||[]);status.textContent=(data.memory||[]).length+" private notes loaded. These notes are included as context in Intelligence conversations.";status.className="notice success"}
+catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the administrator session is restored.</div>'}
+}
+function renderIntelligenceMemory(items){
+const list=$("intelMemoryList");if(!list)return;
+if(!items.length){list.innerHTML='<div class="empty">No saved notes yet. Add only durable facts or decisions that Intelligence should retain.</div>';return}
+list.replaceChildren();
+items.forEach(item=>{
+const card=document.createElement("div");card.className="card";
+const heading=document.createElement("div");heading.className="section-title";
+const label=document.createElement("strong");label.textContent=intelligenceMemoryLabels[item.category]||"Memory";
+const remove=document.createElement("button");remove.type="button";remove.className="btn secondary small";remove.textContent="Delete";remove.dataset.deleteIntelMemory=item.id;
+heading.append(label,remove);
+const content=document.createElement("p");content.textContent=item.content;content.style.whiteSpace="pre-wrap";
+const date=document.createElement("div");date.className="small-text";date.textContent="Updated: "+(item.updatedAt||item.createdAt||"");
+card.append(heading,content,date);list.append(card);
+});
+}
+async function saveIntelligenceMemory(event){
+event.preventDefault();const status=$("intelMemoryStatus"),button=$("intelMemorySaveBtn"),content=$("intelMemoryContent").value.trim(),category=$("intelMemoryCategory").value;
+if(content.length<3){status.textContent="Write at least 3 characters.";status.className="notice warn";return}
+button.disabled=true;
+try{await api("/intelligence/memory",{method:"POST",body:JSON.stringify({category,content})});$("intelMemoryContent").value="";status.textContent="Private note saved and added to the audit log.";status.className="notice success";await loadIntelligenceMemory()}
+catch(error){status.textContent="Could not save note: "+error.message;status.className="notice warn"}
+finally{button.disabled=false}
+}
+async function deleteIntelligenceMemory(id,button){
+if(!id||!confirm("Delete this private Intelligence memory note?"))return;
+button.disabled=true;
+try{await api("/intelligence/memory/"+encodeURIComponent(id),{method:"DELETE"});$("intelMemoryStatus").textContent="Memory note deleted and deletion recorded in the audit log.";$("intelMemoryStatus").className="notice success";await loadIntelligenceMemory()}
+catch(error){$("intelMemoryStatus").textContent="Could not delete note: "+error.message;$("intelMemoryStatus").className="notice warn";button.disabled=false}
+}
+$("intelMemoryForm")?.addEventListener("submit",saveIntelligenceMemory);
+$("refreshIntelMemoryBtn")?.addEventListener("click",loadIntelligenceMemory);
+$("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-delete-intel-memory]");if(button)deleteIntelligenceMemory(button.dataset.deleteIntelMemory,button)});
+
 async function sendIntelligenceMessage(){
 const input=$("intelQuestion"),button=$("intelSendBtn"),reply=$("intelReply"),status=$("intelChatStatus");
 const message=(input.value||"").trim();if(!message){status.textContent="Write a question first.";status.className="notice warn";return}
@@ -2234,6 +2284,7 @@ status.textContent=(data.tasks||[]).length+" recent tasks loaded. Pre-authorized
 status.className="notice success";
 await loadIntelligenceSchedulerRuns();
 await loadIntelligenceApprovals();
+await loadIntelligenceMemory();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
 status.className="notice warn";
