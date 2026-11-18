@@ -29,7 +29,7 @@ The relationship layer does not rely on title similarity, recency, importance, o
 Implemented in the validation branch:
 
 1. A dedicated `0002_intelligence_knowledge_relationships.sql` migration and matching Worker bootstrap schema define `conflicts_with`, `supersedes`, and `supports` relations.
-2. INTELLIGENCE can propose a relationship with evidence. The record is stored as `candidate`, authored by `intelligence`, and remains unconfirmed. It does not alter knowledge content, retrieval priority, archive state, permissions, or execution authority.
+2. INTELLIGENCE can propose a relationship with an exact evidence snippet from each linked record. The Worker verifies both snippets against the active owner-owned source entries before inserting a `candidate` authored by `intelligence`. It remains unconfirmed and does not alter knowledge content, retrieval priority, archive state, permissions, or execution authority.
 3. The owner can list relationships and explicitly confirm, dismiss, or resolve an actionable candidate/confirmed record. Resolution must select one of the two linked knowledge records.
 4. Both original knowledge records remain stored. The proposal author remains recorded after owner review; confirmation/resolution timestamps record the review lifecycle.
 5. Chat context includes owner-scoped candidate, confirmed, and resolved relationship metadata. Candidate relations must be labelled as unconfirmed; only owner-confirmed relations or owner-selected resolutions can settle the relationship.
