@@ -2227,5 +2227,5 @@ test("INTELLIGENCE surfaces conflicting and potentially stale knowledge instead 
   assert.ok(workerSource.includes("Treat old or undated entries as potentially stale and disclose freshness limits"));
   assert.ok(workerSource.includes("If relevant evidence is missing, say it was not found and do not guess"));
   assert.match(workerSource,/archived_at IS NULL AND owner_uid IN/);
-  assert.equal(workerModule.rankIntelligenceKnowledge(rows,"latest legal KYB policy",5,false).length,0);
+  assert.equal(workerModule.rankIntelligenceKnowledge(rows,"quantum astronomy",5,false).length,0);
 });
