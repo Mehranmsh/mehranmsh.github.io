@@ -24,11 +24,13 @@ class KnowledgeRelationshipMigrationTests(unittest.TestCase):
                 ("a1", "owner-a", "Decision A", "Use method A.", "owner-a"),
                 ("a2", "owner-a", "Decision B", "Use method B.", "owner-a"),
                 ("a3", "owner-a", "Decision C", "Method C supports A.", "owner-a"),
+                ("a4", "owner-a", "Archived", "Archived entry.", "owner-a"),
                 ("b1", "owner-b", "Private B", "Owner B only.", "owner-b"),
                 ("b2", "owner-b", "Private B2", "Owner B second entry.", "owner-b"),
                 ("s1", "system_seed", "Shared seed", "Immutable seed.", "system_seed"),
             ],
         )
+        self.db.execute("UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP WHERE id='a4'")
         self.sql = MIGRATION.read_text(encoding="utf-8")
 
     def tearDown(self):
@@ -114,6 +116,10 @@ class KnowledgeRelationshipMigrationTests(unittest.TestCase):
             self.db.execute(
                 "UPDATE intelligence_knowledge_relations SET owner_uid='owner-b' WHERE id='r1'"
             )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert(relation_id="archived", target="a4", kind="supports")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_knowledge SET owner_uid='owner-b' WHERE id='a1'")
 
     def test_supersedes_and_supports_are_directional_and_resolution_is_explicit(self):
         self.apply_migration()
@@ -122,6 +128,8 @@ class KnowledgeRelationshipMigrationTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert(relation_id="bad-resolution", status="resolved", resolved="a3")
         self.insert(relation_id="resolved", status="resolved", resolved="a2")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert(relation_id="bad-support-resolution", kind="supports", status="resolved", resolved="a1")
         row = self.db.execute(
             "SELECT relation_type,source_knowledge_id,target_knowledge_id,status,resolved_knowledge_id "
             "FROM intelligence_knowledge_relations WHERE id='resolved'"
