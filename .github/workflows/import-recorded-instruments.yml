@@ -18,12 +18,14 @@ concurrency:
 
 jobs:
   import-cc0-samples:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Check out MEHRAN MUSIC
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 1
 
       - name: Set up Python
