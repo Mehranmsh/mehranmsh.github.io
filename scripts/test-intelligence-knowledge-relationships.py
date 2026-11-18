@@ -60,12 +60,12 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
     def test_owner_can_confirm_and_resolve_without_deleting_either_record(self):
         self.insert()
         self.db.execute(
-            "UPDATE intelligence_knowledge_relationships SET status='confirmed',proposed_by='owner',confirmed_at=CURRENT_TIMESTAMP WHERE id='r1' AND owner_uid='owner-a'"
+            "UPDATE intelligence_knowledge_relationships SET status='confirmed',confirmed_at=CURRENT_TIMESTAMP WHERE id='r1' AND owner_uid='owner-a'"
         )
         self.db.execute(
             "UPDATE intelligence_knowledge_relationships SET status='resolved',resolution_knowledge_id='a2',resolved_at=CURRENT_TIMESTAMP WHERE id='r1' AND owner_uid='owner-a'"
         )
-        self.assertEqual(self.db.execute("SELECT status,resolution_knowledge_id FROM intelligence_knowledge_relationships WHERE id='r1'").fetchone(),("resolved","a2"))
+        self.assertEqual(self.db.execute("SELECT status,resolution_knowledge_id,proposed_by FROM intelligence_knowledge_relationships WHERE id='r1'").fetchone(),("resolved","a2","intelligence"))
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM intelligence_knowledge WHERE id IN ('a1','a2')").fetchone()[0],2)
 
     def test_owner_can_dismiss_candidate_without_deleting_evidence(self):
