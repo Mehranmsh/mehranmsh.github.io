@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   calculatePatchArtifactSha256,
   canonicalPatchEnvelopeBytes,
+  normalizeWorkerApprovalRecord,
   validatePatchEnvelope
 } from "./intelligence-patch-envelope.mjs";
 
@@ -13,6 +15,59 @@ const approvalId = "approval_12345678";
 const baseSha = "a".repeat(40);
 const scopeSha256 = "b".repeat(64);
 const file = { path: "docs/proposal.md", status: "added", mode: "100644", content: "# proposal\n" };
+
+
+test("normalizes the authenticated Worker issued-grant record into trusted approval context", () => {
+  const paths = ["docs/proposal.md"];
+  const workerRecord = {
+    id: "00000000-0000-4000-8000-000000000001",
+    taskId,
+    repository: "Mehranmsh/mehranmsh.github.io",
+    branch: "intelligence/patch-task_12345678",
+    baseSha,
+    scope: { paths },
+    scopeSha256: createHash("sha256").update(JSON.stringify({ paths })).digest("hex"),
+    status: "issued",
+    issuedAt: Date.parse(approvedAt) / 1000,
+    expiresAt: Date.parse(expiresAt) / 1000,
+    revokedAt: null,
+    consumedAt: null
+  };
+  const trustedApproval = normalizeWorkerApprovalRecord(workerRecord);
+  assert.ok(trustedApproval);
+  assert.equal(trustedApproval.status, "approved");
+  assert.equal(trustedApproval.approvalId, workerRecord.id);
+  assert.equal(trustedApproval.approvedAt, approvedAt);
+  assert.deepEqual(trustedApproval.allowedPaths, paths);
+
+  const { envelope } = fixture();
+  envelope.approval.approvalId = workerRecord.id;
+  envelope.approval.scopeSha256 = workerRecord.scopeSha256;
+  envelope.artifactSha256 = calculatePatchArtifactSha256(envelope);
+  assert.equal(validatePatchEnvelope(envelope, trustedApproval, new Date("2026-11-18T10:10:00.000Z")).ok, true);
+});
+
+test("rejects Worker approval records that are revoked, consumed, malformed, or not owner-issued", () => {
+  const paths = ["docs/proposal.md"];
+  const workerRecord = {
+    id: "00000000-0000-4000-8000-000000000001",
+    taskId,
+    repository: "Mehranmsh/mehranmsh.github.io",
+    branch: "intelligence/patch-task_12345678",
+    baseSha,
+    scope: { paths },
+    scopeSha256: createHash("sha256").update(JSON.stringify({ paths })).digest("hex"),
+    status: "issued",
+    issuedAt: Date.parse(approvedAt) / 1000,
+    expiresAt: Date.parse(expiresAt) / 1000,
+    revokedAt: null,
+    consumedAt: null
+  };
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, status: "revoked" }), null);
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, consumedAt: Date.parse(approvedAt) / 1000 }), null);
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, repository: "other/repo" }), null);
+  assert.equal(normalizeWorkerApprovalRecord({ ...workerRecord, scopeSha256: "c".repeat(64) }), null);
+});
 
 function fixture() {
   const trustedApproval = {
