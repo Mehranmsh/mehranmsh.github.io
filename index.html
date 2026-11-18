@@ -1018,6 +1018,11 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelMemoryStatus" class="notice" aria-live="polite">Private memory has not been loaded.</div>
  <div id="intelMemoryList" class="grid"><div class="empty">No memory notes loaded.</div></div>
 </div>
+<div class="panel intelligence-events">
+ <div class="section-title"><div><h2>Intelligence Activity Log</h2><div class="small-text">Recent owner actions, task decisions, approvals and memory changes.</div></div><button class="btn secondary small" id="refreshIntelEventsBtn" type="button">Refresh activity</button></div>
+ <div id="intelEventsStatus" class="notice" aria-live="polite">Intelligence activity has not been loaded.</div>
+ <div id="intelEventsList" class="grid"><div class="empty">No activity loaded.</div></div>
+</div>
 <div class="panel intelligence-assistant">
 <div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
 <div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
@@ -2255,6 +2260,18 @@ $("intelMemoryForm")?.addEventListener("submit",saveIntelligenceMemory);
 $("refreshIntelMemoryBtn")?.addEventListener("click",loadIntelligenceMemory);
 $("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-delete-intel-memory]");if(button)deleteIntelligenceMemory(button.dataset.deleteIntelMemory,button)});
 
+const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted"};
+async function loadIntelligenceEvents(){
+const status=$("intelEventsStatus"),list=$("intelEventsList");if(!status||!list)return;
+status.textContent="Loading private Intelligence activity...";status.className="notice";
+try{const data=await api("/intelligence/events");const events=data.events||[];list.replaceChildren();
+if(!events.length){list.innerHTML='<div class="empty">No Intelligence activity has been recorded yet.</div>'}
+else events.forEach(item=>{const card=document.createElement("div");card.className="card";const head=document.createElement("div");head.className="section-title";const title=document.createElement("strong");title.textContent=intelligenceEventLabels[item.action]||String(item.action||"Intelligence event").replaceAll("_"," ");const time=document.createElement("span");time.className="small-text";time.textContent=item.createdAt||"";head.append(title,time);const target=document.createElement("div");target.className="small-text";target.textContent=[item.targetType,item.targetId].filter(Boolean).join(" · ");const details=document.createElement("p");details.textContent=item.details||"";details.style.whiteSpace="pre-wrap";card.append(head,target,details);list.append(card)});
+status.textContent=events.length+" recent Intelligence events loaded. The log is read-only.";status.className="notice success"}
+catch(error){status.textContent="Could not load Intelligence activity: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">The activity log is unavailable until the administrator session is restored.</div>'}
+}
+$("refreshIntelEventsBtn")?.addEventListener("click",loadIntelligenceEvents);
+
 async function sendIntelligenceMessage(){
 const input=$("intelQuestion"),button=$("intelSendBtn"),reply=$("intelReply"),status=$("intelChatStatus");
 const message=(input.value||"").trim();if(!message){status.textContent="Write a question first.";status.className="notice warn";return}
@@ -2285,6 +2302,7 @@ status.className="notice success";
 await loadIntelligenceSchedulerRuns();
 await loadIntelligenceApprovals();
 await loadIntelligenceMemory();
+await loadIntelligenceEvents();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
 status.className="notice warn";
