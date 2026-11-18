@@ -23,4 +23,4 @@ jobs:
         with:
           node-version: "22"
       - name: Run patch guard tests
-        run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs
+        run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs scripts/intelligence-git-tree-guard.test.mjs
