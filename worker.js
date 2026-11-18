@@ -5143,6 +5143,86 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+async function ensureSocialAuthLimitsTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS social_auth_limits(
+      rate_key TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      window_started_at INTEGER NOT NULL,
+      blocked_until INTEGER
+    )
+  `).run();
+}
+
+async function ensureIntelligenceApprovalLedgerTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_approval_ledger(
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      owner_uid TEXT NOT NULL,
+      owner_username TEXT NOT NULL,
+      repository TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      base_sha TEXT NOT NULL,
+      scope_json TEXT NOT NULL,
+      scope_sha256 TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'issued' CHECK(status IN ('issued','revoked','consumed','expired')),
+      issued_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      consumed_at INTEGER,
+      consumed_by TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(task_id) REFERENCES intelligence_tasks(id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_task ON intelligence_approval_ledger(task_id,status,expires_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_owner ON intelligence_approval_ledger(owner_uid,issued_at DESC)").run();
+}
+
+
+// Internal-only primitive for a future isolated documentation executor.
+// No HTTP/MCP route calls this helper today.
+async function consumeIntelligenceApproval(env, input) {
+  const value = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const approvalId = typeof value.approvalId === "string" ? value.approvalId : "";
+  const taskId = typeof value.taskId === "string" ? value.taskId : "";
+  const ownerUid = typeof value.ownerUid === "string" ? value.ownerUid : "";
+  const repository = typeof value.repository === "string" ? value.repository : "";
+  const branch = typeof value.branch === "string" ? value.branch : "";
+  const baseSha = typeof value.baseSha === "string" ? value.baseSha : "";
+  const scopeSha256 = typeof value.scopeSha256 === "string" ? value.scopeSha256 : "";
+  const now = Math.floor(Date.now() / 1000);
+
+  if (!/^[0-9a-f-]{36}$/i.test(approvalId) || !taskId || taskId.length > 80 ||
+      !ownerUid || ownerUid.length > 160 ||
+      repository !== "Mehranmsh/mehranmsh.github.io" ||
+      !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+      !/^[0-9a-f]{40}$/i.test(baseSha) ||
+      !/^[0-9a-f]{64}$/i.test(scopeSha256)) {
+    return { consumed:false, reason:"invalid_binding" };
+  }
+
+  await ensureIntelligenceApprovalLedgerTable(env);
+  await env.DB.prepare(
+    "UPDATE intelligence_approval_ledger SET status='expired' WHERE id=? AND task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
+  ).bind(approvalId,taskId,ownerUid,now).run();
+
+  const transition = await env.DB.prepare(
+    "UPDATE intelligence_approval_ledger SET status='consumed',consumed_at=?,consumed_by='mehran-intelligence-documentation-executor' " +
+    "WHERE id=? AND task_id=? AND owner_uid=? AND repository=? AND branch=? AND base_sha=? AND scope_sha256=? " +
+    "AND status='issued' AND revoked_at IS NULL AND expires_at>? " +
+    "AND EXISTS (SELECT 1 FROM intelligence_tasks t WHERE t.id=intelligence_approval_ledger.task_id " +
+    "AND t.status='accepted' AND t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') " +
+    "AND t.action_type='documentation_patch_proposal')"
+  ).bind(now,approvalId,taskId,ownerUid,repository,branch,baseSha,scopeSha256,now).run();
+
+  if (Number(transition?.meta?.changes || 0) !== 1) {
+    return { consumed:false, reason:"approval_unavailable_or_task_not_eligible" };
+  }
+  return { consumed:true, approvalId, taskId, consumedAt:now };
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
@@ -5166,7 +5246,7 @@ function formatIntelligenceTask(row) {
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
-    result: row.result_text || "", createdBy: row.created_by,
+    result: row.result_text || "", agentClaimed: Boolean(row.agent_claimed_at), createdBy: row.created_by,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
@@ -5580,6 +5660,14 @@ export default {
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
+        const agentStatusMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/status$/);
+        if (agentStatusMatch && method === "GET") {
+          const id = decodeURIComponent(agentStatusMatch[1]);
+          if (!id || id.length > 80) return error("Invalid task ID.");
+          const row = await env.DB.prepare("SELECT id,status,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
+          if (!row || !["mehran_intelligence","shared"].includes(row.assigned_to)) return error("Task not found or not assigned to this agent.",404);
+          return json({success:true,task:{id:row.id,status:row.status,actionType:row.action_type || "",agentClaimed:Boolean(row.agent_claimed_at)}});
+        }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
@@ -5591,7 +5679,7 @@ export default {
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"
           ).bind(body.status || "completed",resultText,id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
@@ -6444,7 +6532,7 @@ export default {
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
             if(existing.action_type||Number(existing.requires_approval)===1||existing.status==="awaiting_approval") return rpcError(-32003,"Pending proposals and automated task approval, cancellation and execution results are controlled by the owner Task Hub and MEHRAN INTELLIGENCE service.");
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
@@ -6475,6 +6563,51 @@ export default {
           completed:Number(row.completed_count || 0), blocked:Number(row.blocked_count || 0),
           error:row.error_text || ""
         }))});
+      }
+
+      if (path === "/intelligence/approvals" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialAuthLimitsTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-approvals-read", 60, 3600, 300, admin.uid)) {
+          return error("Too many approval ledger requests. Try again later.", 429);
+        }
+        const rows = await env.DB.prepare(
+          "SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE owner_uid=? ORDER BY issued_at DESC LIMIT 50"
+        ).bind(admin.uid).all();
+        return json({success:true,approvals:(rows.results || []).map(row => {
+          let scope = null;
+          try { scope = JSON.parse(row.scope_json); } catch {}
+          return {
+            id:row.id, taskId:row.task_id, repository:row.repository, branch:row.branch,
+            baseSha:row.base_sha, scope, scopeSha256:row.scope_sha256, status:row.status,
+            issuedAt:Number(row.issued_at), expiresAt:Number(row.expires_at),
+            revokedAt:row.revoked_at===null?null:Number(row.revoked_at),
+            consumedAt:row.consumed_at===null?null:Number(row.consumed_at),
+            consumedBy:row.consumed_by || null
+          };
+        })});
+      }
+
+      const intelligenceApprovalMatch=path.match(/^\/intelligence\/approvals\/([^/]+)$/);
+      if(intelligenceApprovalMatch&&method==="DELETE"){
+        const admin=await verifyAdmin(request,env);
+        if(!admin)return error("Admin authentication required",403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialAuthLimitsTable(env);
+        if(!await checkRateLimit(env,request,"intelligence-approvals-write",20,3600,900,admin.uid))return error("Too many approval ledger changes. Try again later.",429);
+        const id=decodeURIComponent(intelligenceApprovalMatch[1]);
+        if(!id||id.length>80)return error("Invalid approval ID.");
+        const now=Math.floor(Date.now()/1000);
+        const transition=await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?"
+        ).bind(now,id,admin.uid,now).run();
+        if(Number(transition?.meta?.changes||0)!==1)return error("Approval not found, expired, already used, or no longer revocable.",409);
+        await writeAdminAudit(env,admin,"intelligence_approval_revoked","intelligence_approval",id,JSON.stringify({status:"revoked"}));
+        return json({success:true,revoked:true,id});
       }
 
       if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
@@ -6525,11 +6658,12 @@ export default {
         const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
         const result=typeof body.result==="string"?body.result:"";
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
-        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
         const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
         const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
-        const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
+        const cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"&&Number(existing.requires_approval)===0&&["mehran_intelligence","shared"].includes(existing.assigned_to)&&["repository_quality_check","service_health_report"].includes(existing.action_type)&&Boolean(existing.agent_claimed_at);
+        const cancelTransition=body.status==="cancelled"&&(["awaiting_approval","queued","accepted"].includes(existing.status)||cancelActiveAgentTransition);
         if(approvalGate){
           if(!approvalTransition&&!cancelTransition)return error("Pending or automated task status is controlled by the owner Task Hub. Only approval or cancellation is allowed.",409);
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Task results cannot be attached to an approval or cancellation transition.",409);
@@ -6539,6 +6673,8 @@ export default {
           let transition;
           if(approvalTransition){
             transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='accepted',requires_approval=0,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_approval' AND requires_approval=1").bind(id).run();
+          }else if(cancelActiveAgentTransition){
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL").bind(id).run();
           }else{
             transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')").bind(id,existing.status,Number(existing.requires_approval)).run();
           }
