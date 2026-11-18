@@ -119,9 +119,9 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
 
         worker_source = (ROOT / "worker.js").read_text(encoding="utf-8")
         helper = re.search(
-            r"async function ensureIntelligenceApprovalLedgerTable\\(env\\)\\s*\\{\\s*"
-            r"await env\\.DB\\.prepare\\(`([\\s\\S]*?)`\\)\\.run\\(\\);"
-            r"([\\s\\S]*?)\\n\\}",
+            r"async function ensureIntelligenceApprovalLedgerTable\(env\)\s*\{\s*"
+            r"await env\.DB\.prepare\(`([\s\S]*?)`\)\.run\(\);"
+            r"([\s\S]*?)\n\}",
             worker_source,
         )
         self.assertIsNotNone(helper, "Worker approval-ledger bootstrap helper must exist")
@@ -132,7 +132,7 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
             worker_db.execute("CREATE TABLE intelligence_tasks (id TEXT PRIMARY KEY)")
             worker_db.executescript(helper.group(1))
             index_sql = re.findall(
-                r'env\\.DB\\.prepare\\("(CREATE (?:UNIQUE )?INDEX IF NOT EXISTS [^"]+)"\\)\\.run\\(\\)',
+                r'env\.DB\.prepare\("(CREATE (?:UNIQUE )?INDEX IF NOT EXISTS [^"]+)"\)\.run\(\)',
                 helper.group(2),
             )
             self.assertEqual(len(index_sql), 3, "Worker helper must define all three indexes")
