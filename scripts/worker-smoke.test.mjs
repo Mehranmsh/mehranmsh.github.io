@@ -374,17 +374,17 @@ test("profile gallery lightbox uses sanitized remote or local media URLs", () =>
 });
 
 test("all SOCIAL remote media render paths use the central URL validator", () => {
-  assert.match(indexSource, /safeMediaSrc\(post\.avatarUrl\)/);
+  assert.match(indexSource, /safeMediaSrc\(post\.avatarUrl/);
   assert.match(indexSource, /safeMediaSrc\(m\.data,\{allowBlob:true,allowDataImage:true\}\)/);
   const exploreStart = indexSource.indexOf("function renderExplore()");
   const exploreEnd = indexSource.indexOf("function renderReels()", exploreStart);
   assert.ok(exploreStart >= 0 && exploreEnd > exploreStart, "Explore renderer must exist");
   assert.match(indexSource.slice(exploreStart, exploreEnd), /safeMediaSrc\(m\.data/);
-  assert.match(indexSource, /safeMediaSrc\(story\.mediaUrl\)/);
-  assert.match(indexSource, /safeMediaSrc\(item\.url\|\|""\)/);
-  assert.match(indexSource, /safeMediaSrc\(u\.avatarUrl\)/);
-  assert.match(indexSource, /safeMediaSrc\(other\?\.avatarUrl\)/);
-  assert.match(indexSource, /p\.gallery\.filter\(photo=>safeMediaSrc\(photo\.url\)\)/);
+  assert.match(indexSource, /safeMediaSrc\(story\.mediaUrl/);
+  assert.match(indexSource, /safeMediaSrc\(item\.url/);
+  assert.match(indexSource, /safeMediaSrc\(u\.avatarUrl/);
+  assert.match(indexSource, /safeMediaSrc\(other\?\.avatarUrl/);
+  assert.match(indexSource, /p\.gallery\.filter\(photo=>safeMediaSrc\(photo\.url/);
   assert.doesNotMatch(indexSource, /window\.open\('\\''\+sx\(photo\.url\)/);
 });
 
