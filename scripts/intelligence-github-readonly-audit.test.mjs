@@ -92,3 +92,9 @@ test("HTTP adapter rejects malformed commit response before dereferencing tree f
  const env={GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha};
  await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response(JSON.stringify({sha:baseSha,parents:[],commit:{}}),{headers:{"content-type":"application/json"}})),/malformed base commit/);
 });
+
+test("rejects an audit head whose first parent is not the pinned base", async () => {
+ const {input}=fixture();
+ input.headCommit.parents=["8".repeat(40),baseSha];
+ assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);
+});
