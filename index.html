@@ -1031,6 +1031,13 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelKnowledgeStatus" class="notice" aria-live="polite">Organizational knowledge has not been loaded.</div>
  <div id="intelKnowledgeList" class="grid"><div class="empty">Loading organizational knowledge...</div></div>
 </div>
+<div class="panel intelligence-relations">
+ <div class="section-title"><div><h2>Knowledge Relationship Review</h2><div class="small-text">AI may suggest links between company records. Every suggestion remains unconfirmed until you decide.</div></div><button class="btn secondary small" id="refreshIntelRelationsBtn" type="button">Refresh suggestions</button></div>
+ <div class="notice warn">Candidate suggestions are not facts or permissions. Confirm only after reviewing both source records and their exact evidence. Resolving a conflict records your choice without deleting either record.</div>
+ <div class="form-grid"><div class="field"><label for="intelRelationStatusFilter">Show relationships</label><select id="intelRelationStatusFilter"><option value="">All statuses</option><option value="candidate">Needs review</option><option value="confirmed">Confirmed</option><option value="resolved">Resolved</option><option value="dismissed">Dismissed</option></select></div></div>
+ <div id="intelRelationsStatus" class="notice" aria-live="polite">Relationship suggestions have not been loaded.</div>
+ <div id="intelRelationsList" class="grid"><div class="empty">No relationship suggestions loaded.</div></div>
+</div>
 <div class="panel intelligence-events">
  <div class="section-title"><div><h2>Intelligence Activity Log</h2><div class="small-text">Recent owner actions, task decisions, approvals and memory changes.</div></div><button class="btn secondary small" id="refreshIntelEventsBtn" type="button">Refresh activity</button></div>
  <div id="intelEventsStatus" class="notice" aria-live="polite">Intelligence activity has not been loaded.</div>
