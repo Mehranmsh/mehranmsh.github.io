@@ -7140,7 +7140,8 @@ export default {
           let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
           const seenToolCallIds=new Set();
           for(let round=0;round<2&&Array.isArray(result?.tool_calls)&&result.tool_calls.length;round++){
-            const calls=result.tool_calls.slice(0,4);
+            if(result.tool_calls.length>4)throw new Error("AI returned more than four tool calls in one round.");
+            const calls=result.tool_calls;
             // Validate the complete bounded batch before executing any member of it.
             // A malformed sibling must not allow earlier calls in the same batch to mutate state.
             const parsedCalls=calls.map(call=>parseIntelligenceToolCall(call,tools.map(tool=>tool.name),seenToolCallIds));
@@ -7152,6 +7153,7 @@ export default {
             }
             result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
           }
+          if(Array.isArray(result?.tool_calls)&&result.tool_calls.length)throw new Error("AI tool-call round limit reached.");
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
           return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:Math.min(2,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
