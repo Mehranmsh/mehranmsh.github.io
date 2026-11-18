@@ -5276,7 +5276,7 @@ async function verifyAdmin(request, env) {
   const tokenHash = await sha256(token);
   const now = Math.floor(Date.now() / 1000);
   const session = await env.DB.prepare(`
-    SELECT uid,username,expires_at FROM admin_sessions
+    SELECT uid,username,created_at,expires_at FROM admin_sessions
     WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?
     LIMIT 1
   `).bind(tokenHash, now).first();
@@ -5284,7 +5284,9 @@ async function verifyAdmin(request, env) {
   // Fail closed: the username is not a durable owner credential.
   if (!expectedOwnerUid || !session ||
       String(session.username).trim().toLowerCase() !== "mehranmsh" ||
-      String(session.uid) !== expectedOwnerUid) return null;
+      String(session.uid) !== expectedOwnerUid ||
+      !Number.isFinite(Number(session.created_at)) ||
+      Number(session.created_at) < now - 12 * 60 * 60) return null;
   return { uid: session.uid, username: session.username, expiresAt: session.expires_at };
 }
 
@@ -5776,7 +5778,7 @@ export default {
             INSERT INTO admin_sessions(id,token_hash,uid,username,created_at,expires_at)
             VALUES(?,?,?,?,?,?)
           `).bind(crypto.randomUUID(),tokenHash,piUser.uid,piUser.username,now,expiresAt).run();
-          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt,persistent:true});
+          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt});
         }
         if (path === "/admin/session" && method === "GET") {
           const admin = await verifyAdmin(request, env);
