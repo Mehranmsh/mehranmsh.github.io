@@ -91,6 +91,9 @@ on:
       - ".github/workflows/ai-singer-model-tests.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   neural-forward-test:
     runs-on: ubuntu-latest
