@@ -2525,14 +2525,26 @@ test("INTELLIGENCE relationship proposal arguments are strictly validated and ca
   assert.deepEqual(valid,{
     leftId:"knowledge-a",rightId:"knowledge-z",relationType:"conflicts_with",
     leftEvidence:"Carrier A must be used for every shipment.",
-    rightEvidence:"Carrier B is the current shipping provider."
+    rightEvidence:"Carrier B is the current shipping provider.",
+    directionFromId:null,directionToId:null
   });
+  const directed=workerModule.parseIntelligenceRelationshipProposalArgs({
+    leftId:"knowledge-z",rightId:"knowledge-a",relationType:"supersedes",
+    leftEvidence:"Carrier B is the current shipping provider.",
+    rightEvidence:"Carrier A must be used for every shipment.",
+    directionFromId:"knowledge-z",directionToId:"knowledge-a"
+  });
+  assert.equal(directed.directionFromId,"knowledge-z");
+  assert.equal(directed.directionToId,"knowledge-a");
   for(const invalid of [
     null,[],{}, {leftId:"a",rightId:"a",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
     {leftId:"a",rightId:"b",relationType:"grants_permission",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
-    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"tiny",rightEvidence:"Other evidence"},
-    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"x".repeat(301),rightEvidence:"Other evidence"},
-    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence",ownerUid:"victim"}
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"tiny",rightEvidence:"Other evidence",directionFromId:"a",directionToId:"b"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"x".repeat(301),rightEvidence:"Other evidence",directionFromId:"a",directionToId:"b"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence",ownerUid:"victim",directionFromId:"a",directionToId:"b"},
+    {leftId:"a",rightId:"b",relationType:"supersedes",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence",directionFromId:"a",directionToId:"a"},
+    {leftId:"a",rightId:"b",relationType:"conflicts_with",leftEvidence:"Evidence text",rightEvidence:"Other evidence",directionFromId:"a",directionToId:"b"}
   ]) assert.throws(()=>workerModule.parseIntelligenceRelationshipProposalArgs(invalid));
 });
 
