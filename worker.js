@@ -5741,7 +5741,11 @@ export default {
 
       if (path.startsWith("/admin/session")) {
         await ensureAdminSessionTable(env);
+        await ensureSocialAuthLimitsTable(env);
         if (path === "/admin/session" && method === "POST") {
+          if (!await checkRateLimit(env, request, "admin-session-ip", 20, 900, 900)) {
+            return error("Too many admin sign-in attempts from this network. Try again later.", 429);
+          }
           const body = await readBody(request);
           if (!body) return error("Invalid request body");
           const piUser = await fetchPiUser(body.accessToken);
@@ -5779,6 +5783,7 @@ export default {
       }
 
       if (path === "/auth" && method === "POST") {
+        await ensureSocialAuthLimitsTable(env);
         if (!await checkRateLimit(env, request, "pi-auth", 20, 900, 900)) {
           return error("Too many Pi authentication attempts. Try again later.", 429);
         }
