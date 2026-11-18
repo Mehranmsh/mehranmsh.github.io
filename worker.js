@@ -5258,7 +5258,11 @@ async function proposeIntelligenceKnowledgeRelation(env,admin,args,visibleKnowle
   const entries=await env.DB.prepare("SELECT id,owner_uid,content,archived_at FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=?").bind(sourceId,targetId,admin.uid).all();
   const byId=new Map((entries.results||[]).map(row=>[row.id,row]));
   const source=byId.get(sourceId),target=byId.get(targetId);
-  if(!source||!target||source.archived_at||target.archived_at)throw new Error("Both knowledge entries must be active and owned by the authenticated owner.");
+  if(!source||!target||source.owner_uid!==admin.uid||target.owner_uid!==admin.uid||
+      source.archived_at||target.archived_at||
+      typeof source.content!=="string"||typeof target.content!=="string") {
+    throw new Error("Both knowledge entries must be active and owned by the authenticated owner.");
+  }
   if(!source.content.includes(sourceEvidence)||!target.content.includes(targetEvidence)) {
     throw new Error("Evidence excerpts must appear exactly in their corresponding stored knowledge entries.");
   }
