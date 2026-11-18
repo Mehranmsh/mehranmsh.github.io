@@ -1,12 +1,6 @@
 name: Import Persian recorded phrase previews
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/import-persian-phrases.yml"
-      - "assets/instruments/phrases/persian/manifest.json"
   workflow_dispatch:
 
 permissions:
