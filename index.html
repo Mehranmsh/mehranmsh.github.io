@@ -2399,7 +2399,12 @@ function renderIntelligenceRelationships(items){
 }
 async function updateIntelligenceRelationship(button){
  const id=button?.dataset.relationshipId,action=button?.dataset.intelRelationshipAction;if(!id||!action)return;
- const body={action};if(action==="resolve")body.resolutionKnowledgeId=button.dataset.resolutionId;
+ const body={action};if(action==="resolve"){
+  body.resolutionKnowledgeId=button.dataset.resolutionId;
+  const chosen=(window.intelligenceKnowledgeCache||[]).find(item=>item.id===body.resolutionKnowledgeId);
+  if(!confirm("Resolve this conflict by selecting \""+(chosen?.title||"the selected entry")+"\" as the current record? The other entry will be retained as historical evidence."))return;
+ }
+ if(action==="reopen"&&!confirm("Reopen this stale resolved conflict for a fresh owner review?"))return;
  button.disabled=true;
  try{
   await api("/intelligence/knowledge/relationships/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify(body)});
