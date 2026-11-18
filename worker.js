@@ -1466,9 +1466,14 @@ async function socialCreateSupportTicket(request, env) {
 
 async function getProfileByUsername(username, viewerId, env) {
   const profile = await env.DB.prepare(`
-    SELECT id,username,display_name,bio,avatar_url,pi_username,pi_verified,created_at,account_type,business_category,business_website
-    FROM social_users
-    WHERE username=? AND is_active=1
+    SELECT u.id,u.username,u.display_name,u.bio,u.avatar_url,u.avatar_upload_id,
+      CASE WHEN u.avatar_upload_id IS NULL THEN u.avatar_url ELSE avatar.url END AS resolved_avatar_url,
+      u.pi_username,u.pi_verified,u.created_at,u.account_type,u.business_category,u.business_website
+    FROM social_users u
+    LEFT JOIN social_uploads avatar
+      ON avatar.id=u.avatar_upload_id AND avatar.user_id=u.id
+      AND avatar.status='ready' AND avatar.acl='public'
+    WHERE u.username=? AND u.is_active=1
     LIMIT 1
   `).bind(username).first();
 
@@ -1504,12 +1509,19 @@ async function getProfileByUsername(username, viewerId, env) {
   const canViewGallery = !settings?.is_private || viewerId === profile.id || Boolean(counts?.is_following);
   const galleryResult = canViewGallery
     ? await env.DB.prepare(
-        "SELECT id,photo_url,sort_order,created_at FROM social_profile_photos WHERE user_id=? ORDER BY sort_order ASC,created_at ASC"
+        `SELECT p.id,p.photo_url,p.upload_id,p.sort_order,p.created_at,
+          CASE WHEN p.upload_id IS NULL THEN p.photo_url ELSE media.url END AS resolved_photo_url
+          FROM social_profile_photos p
+          LEFT JOIN social_uploads media
+            ON media.id=p.upload_id AND media.user_id=p.user_id
+            AND media.status='ready' AND media.acl='public'
+          WHERE p.user_id=? ORDER BY p.sort_order ASC,p.created_at ASC`
       ).bind(profile.id).all()
     : { results: [] };
   const gallery = (galleryResult.results || []).map(row => ({
     id: row.id,
-    url: row.photo_url,
+    uploadId: row.upload_id || "",
+    url: validHttpsUrl(row.resolved_photo_url) ? row.resolved_photo_url : "",
     sortOrder: Number(row.sort_order || 0),
     createdAt: row.created_at
   }));
@@ -1522,7 +1534,8 @@ async function getProfileByUsername(username, viewerId, env) {
     businessCategory: profile.business_category || "",
     businessWebsite: profile.business_website || "",
     bio: profile.bio || "",
-    avatarUrl: profile.avatar_url || "",
+    avatarUrl: validHttpsUrl(profile.resolved_avatar_url) ? profile.resolved_avatar_url : "",
+    avatarUploadId: profile.avatar_upload_id || "",
     gallery,
     piUsername: profile.pi_username || "",
     piVerified: Boolean(profile.pi_verified),
@@ -1592,29 +1605,82 @@ async function socialUpdateProfile(request, env) {
 
   const displayName = cleanText(body.displayName, 60);
   const bio = cleanText(body.bio, 500);
-  const avatarUrl = String(body.avatarUrl || "").trim();
-  const galleryInput = Array.isArray(body.gallery) ? body.gallery : null;
+  const avatarUrlInput = String(body.avatarUrl || "").trim();
+  const avatarUploadId = String(body.avatarUploadId || "").trim();
+  const hasAvatarUrl = Object.prototype.hasOwnProperty.call(body, "avatarUrl");
+  const galleryItems = Array.isArray(body.galleryItems)
+    ? body.galleryItems
+    : (Array.isArray(body.gallery) ? body.gallery.map(url => ({ url })) : null);
 
-  if (avatarUrl && !validHttpsUrl(avatarUrl)) {
+  let verifiedAvatarUrl = avatarUrlInput;
+  let verifiedAvatarUploadId = null;
+  if (avatarUploadId) {
+    const avatarUpload = await env.DB.prepare(`
+      SELECT id,url,mime_type,status,acl FROM social_uploads
+      WHERE id=? AND user_id=? LIMIT 1
+    `).bind(avatarUploadId, user.id).first();
+    if (!avatarUpload || avatarUpload.status !== "ready" || avatarUpload.acl !== "public" ||
+        !validHttpsUrl(avatarUpload.url) ||
+        !String(avatarUpload.mime_type || "").toLowerCase().startsWith("image/")) {
+      return error("Avatar must be a ready image uploaded by your account.", 400);
+    }
+    verifiedAvatarUrl = avatarUpload.url;
+    verifiedAvatarUploadId = avatarUpload.id;
+  } else if (hasAvatarUrl && verifiedAvatarUrl && !validHttpsUrl(verifiedAvatarUrl)) {
     return error("Avatar must be a valid HTTPS URL");
   }
-  if (galleryInput && galleryInput.some(url => typeof url !== "string" || !validHttpsUrl(url))) {
-    return error("Every gallery photo must be a valid HTTPS URL");
+
+  const verifiedGallery = [];
+  if (galleryItems) {
+    if (galleryItems.length > 12) return error("Profile gallery is limited to 12 photos.", 400);
+    for (const item of galleryItems) {
+      const uploadId = String(item?.uploadId || "").trim();
+      const legacyUrl = String(item?.url || "").trim();
+      if (uploadId) {
+        const upload = await env.DB.prepare(`
+          SELECT id,url,mime_type,status,acl FROM social_uploads
+          WHERE id=? AND user_id=? LIMIT 1
+        `).bind(uploadId, user.id).first();
+        if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+            !validHttpsUrl(upload.url) ||
+            !String(upload.mime_type || "").toLowerCase().startsWith("image/")) {
+          return error("Every gallery upload must be a ready image owned by your account.", 400);
+        }
+        verifiedGallery.push({ uploadId: upload.id, url: upload.url });
+      } else if (legacyUrl && validHttpsUrl(legacyUrl)) {
+        // Preserve legacy HTTPS gallery URLs while new uploads move to IDs.
+        verifiedGallery.push({ uploadId: null, url: legacyUrl });
+      } else {
+        return error("Every gallery photo must have a valid upload ID or HTTPS URL.", 400);
+      }
+    }
   }
 
-  await env.DB.prepare(`
-    UPDATE social_users
-    SET display_name=?,bio=?,avatar_url=?,updated_at=CURRENT_TIMESTAMP
-    WHERE id=?
-  `).bind(displayName, bio, avatarUrl, user.id).run();
+  if (avatarUploadId || hasAvatarUrl) {
+    await env.DB.prepare(`
+      UPDATE social_users
+      SET display_name=?,bio=?,avatar_url=?,avatar_upload_id=?,updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `).bind(displayName, bio, verifiedAvatarUrl, verifiedAvatarUploadId, user.id).run();
+  } else {
+    await env.DB.prepare(`
+      UPDATE social_users
+      SET display_name=?,bio=?,updated_at=CURRENT_TIMESTAMP
+      WHERE id=?
+    `).bind(displayName, bio, user.id).run();
+  }
 
-  if (galleryInput) {
-    await env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(user.id).run();
-    for (let i=0;i<galleryInput.length;i++) {
-      await env.DB.prepare(
-        "INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order) VALUES(?,?,?,?)"
-      ).bind(crypto.randomUUID(),user.id,galleryInput[i],i).run();
+  if (galleryItems) {
+    const statements = [
+      env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(user.id)
+    ];
+    for (let i = 0; i < verifiedGallery.length; i++) {
+      const item = verifiedGallery[i];
+      statements.push(env.DB.prepare(
+        "INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order,upload_id) VALUES(?,?,?,?,?)"
+      ).bind(crypto.randomUUID(), user.id, item.url, i, item.uploadId));
     }
+    await env.DB.batch(statements);
   }
 
   const profile = await getProfileByUsername(user.username, user.id, env);
