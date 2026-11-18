@@ -16,6 +16,7 @@ function mockDb() {
       return {
         async first() {
           if (sql.includes("SELECT 1 AS test")) return { test: 1 };
+          if (sql.includes("FROM intelligence_scheduler_runs")) return null;
           throw new Error("Unexpected SQL in smoke test: " + sql);
         }
       };
@@ -41,6 +42,34 @@ test("health endpoint reports online and confirms the database binding", async (
   const payload = await response.json();
   assert.equal(payload.status, "online");
   assert.equal(payload.database, true);
+});
+
+test("health endpoint exposes only a safe scheduler heartbeat summary", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        async first() {
+          if (sql.includes("SELECT 1 AS test")) return { test: 1 };
+          if (sql.includes("FROM intelligence_scheduler_runs")) return {
+            started_at: "2026-11-18T04:00:00.000Z",
+            finished_at: "2026-11-18T04:00:02.000Z",
+            status: "completed", processed_count: 2,
+            completed_count: 2, blocked_count: 0
+          };
+          throw new Error("Unexpected SQL: " + sql);
+        }
+      };
+    }
+  };
+  const response = await request("/health", {}, { DB: db });
+  const payload = await response.json();
+  assert.equal(payload.version, "5.9");
+  assert.deepEqual(payload.scheduler, {
+    lastStartedAt: "2026-11-18T04:00:00.000Z",
+    lastFinishedAt: "2026-11-18T04:00:02.000Z",
+    lastStatus: "completed", processed: 2, completed: 2, blocked: 0
+  });
+  assert.equal("error" in payload.scheduler, false);
 });
 
 test("health endpoint remains diagnostic when database binding is absent", async () => {
