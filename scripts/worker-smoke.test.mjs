@@ -1887,7 +1887,7 @@ test("Intelligence owner approval UI is scoped, owner-session-backed, and never 
   assert.match(indexSource, /api\("\/intelligence\/approvals\/"/);
   assert.match(indexSource, /api\("\/intelligence\/approvals",\{method:"POST",body:JSON\.stringify\(\{taskId:task\.id,branch:approvalBranchForTask\(task\.id\),baseSha,paths,expiresInMinutes\}\)\}\)/);
   assert.match(indexSource, /documentation_patch_proposal.*accepted/);
-  assert.match(indexSource, /docs\\\/[A-Za-z0-9._/-]+\\\.md/);
+  assert.match(indexSource, /paths\.length<1\|\|paths\.length>5/);
   assert.match(indexSource, /window\.confirm\("Issue a "/);
   assert.match(indexSource, /window\.confirm\("Revoke this issued grant\?"/);
   assert.match(indexSource, /fetch\("https:\/\/api\.github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/commits\/main"/);
