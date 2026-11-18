@@ -55,6 +55,61 @@ function equalDigest(left, right) {
   return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
 }
 
+const WORKER_REPOSITORY = "Mehranmsh/mehranmsh.github.io";
+const WORKER_APPROVAL_ID = /^[0-9a-f-]{36}$/i;
+const WORKER_TASK_ID = /^[A-Za-z0-9_-]{8,80}$/;
+
+/**
+ * Convert the owner-scoped GET /intelligence/approvals record into the
+ * normalized trusted approval shape used by the pure envelope/tree validators.
+ * The Worker ledger's durable state is "issued"; "approved" is only the
+ * validator's normalized state after the authenticated owner route is read.
+ */
+export function normalizeWorkerApprovalRecord(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record) ||
+      record.status !== "issued" || record.revokedAt != null || record.consumedAt != null ||
+      !WORKER_APPROVAL_ID.test(record.id || "") ||
+      !WORKER_TASK_ID.test(record.taskId || "") ||
+      record.repository !== WORKER_REPOSITORY ||
+      typeof record.branch !== "string" ||
+      !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(record.branch) ||
+      !GIT_SHA.test(record.baseSha || "") ||
+      !SHA256.test(record.scopeSha256 || "")) return null;
+
+  const scope = record.scope;
+  if (!scope || typeof scope !== "object" || Array.isArray(scope) ||
+      Object.keys(scope).length !== 1 || !Array.isArray(scope.paths) ||
+      scope.paths.length < 1 || scope.paths.length > 5) return null;
+  const allowedPaths = [...scope.paths];
+  if (allowedPaths.some(path => typeof path !== "string" || !/^docs\/[A-Za-z0-9._/-]+\.md$/.test(path)) ||
+      new Set(allowedPaths).size !== allowedPaths.length) return null;
+  allowedPaths.sort();
+  const expectedScopeSha256 = createHash("sha256")
+    .update(JSON.stringify({ paths: allowedPaths }), "utf8")
+    .digest("hex");
+  if (!equalDigest(expectedScopeSha256, record.scopeSha256)) return null;
+
+  const issuedAt = Number(record.issuedAt);
+  const expiresAt = Number(record.expiresAt);
+  if (!Number.isSafeInteger(issuedAt) || issuedAt <= 0 ||
+      !Number.isSafeInteger(expiresAt) || expiresAt <= issuedAt) return null;
+
+  return {
+    status: "approved",
+    taskId: record.taskId,
+    approvalId: record.id,
+    approvedAt: new Date(issuedAt * 1000).toISOString(),
+    expiresAt: new Date(expiresAt * 1000).toISOString(),
+    scopeSha256: record.scopeSha256,
+    baseSha: record.baseSha,
+    allowedPaths,
+    revokedAt: null,
+    consumedAt: null,
+    repository: record.repository,
+    branch: record.branch
+  };
+}
+
 /**
  * Validate a patch envelope against an independently fetched trusted approval.
  * The approval object must come from the authenticated control plane, not the
