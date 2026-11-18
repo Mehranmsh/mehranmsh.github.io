@@ -36,3 +36,16 @@ The safe staged design is:
 6. Enforce owner UID checks on both ends of every relationship, reject cross-owner/system-seed mutations, and test archived, missing, duplicate, self-referential, and stale records.
 
 Before implementation, add a dedicated migration and disposable SQLite lifecycle tests. Do not run that migration against production D1 until an isolated staging database has been created and verified. This section is a design target, not an implemented feature.
+
+## Knowledge relationship implementation status
+
+The staged schema and owner-controlled Worker API are now implemented on review branches, pending CI and integration review:
+
+- `GET /intelligence/knowledge/relations` lists only the authenticated owner's relationships, with an optional validated status filter.
+- `POST /intelligence/knowledge/relations` creates a candidate only after both active knowledge records are verified as belonging to the authenticated owner and both evidence excerpts are found verbatim in their corresponding stored content.
+- `PUT /intelligence/knowledge/relations/:id` supports candidate confirmation or dismissal. A conflict can be resolved only after confirmation, and the selected ID must be one of its two endpoints.
+- Relationship mutation and audit insertion are performed in one D1 batch.
+- The Worker does not auto-create the relationship table. It returns a controlled unavailable response until the separately reviewed migration has been installed.
+- Chat context now includes only relationships that touch a knowledge entry selected by the existing bounded lexical retrieval. Candidate, confirmed and resolved states are passed separately. Candidate status is explicitly unconfirmed; only an owner-confirmed resolved conflict records an owner choice. No source knowledge record is rewritten or deleted.
+
+These endpoints are owner-operated, not autonomous model actions. The model does not yet create relationship proposals itself. CI uses smoke contracts and disposable SQLite migration tests; this is not a live Cloudflare D1 or provider integration test. Do not claim production readiness until the stacked PRs are reviewed, merged in dependency order, staged against a separate D1 database, and browser-tested.
