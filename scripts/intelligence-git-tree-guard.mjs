@@ -35,6 +35,7 @@ function normalizeTree(tree, label) {
   }
   const leaves = new Map();
   const directories = new Set();
+  const portablePaths = new Set();
   for (const entry of tree.entries) {
     if (!entry || typeof entry !== "object" || !validPath(entry.path) ||
         !GIT_SHA.test(entry.sha || "") ||
@@ -42,6 +43,11 @@ function normalizeTree(tree, label) {
         !["blob", "tree", "commit"].includes(entry.type)) {
       throw new Error(`${label} tree contains a malformed entry.`);
     }
+    const portablePath = entry.path.normalize("NFC").toLocaleLowerCase("en-US");
+    if (portablePaths.has(portablePath)) {
+      throw new Error(`${label} tree contains a case-insensitive or normalized path collision.`);
+    }
+    portablePaths.add(portablePath);
     if (entry.type === "tree") {
       if (entry.mode !== "040000" || directories.has(entry.path) || leaves.has(entry.path)) {
         throw new Error(`${label} tree contains an invalid directory entry.`);
