@@ -5216,7 +5216,7 @@ export function buildIntelligenceChatMessages({system,companyContext,ownerMemory
   ];
 }
 
-export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=true) {
+export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=false) {
  const terms=intelligenceKnowledgeTokens(query);
  const phrase=String(query||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase().trim();
  const ranked=(rows||[]).map(row=>{
