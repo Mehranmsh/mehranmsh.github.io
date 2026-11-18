@@ -2277,6 +2277,24 @@ test("INTELLIGENCE chat does not inject unrelated fallback knowledge when no evi
   assert.deepEqual(workerModule.rankIntelligenceKnowledge(unrelated,"quantum astronomy",12,false),[]);
 });
 
+test("INTELLIGENCE keeps an older conflicting decision inside the bounded top results", () => {
+  const rows = [
+    {id:"shipping-current",owner_uid:"owner-1",category:"decision",title:"Shipping policy",content:"Use Carrier B for international deliveries.",importance:"high",updated_at:"2026-11-19"},
+    {id:"shipping-older",owner_uid:"owner-1",category:"decision",title:"Shipping policy",content:"Use Carrier A for international deliveries.",importance:"low",updated_at:"2026-08-01"},
+    ...Array.from({length:11},(_,i)=>({
+      id:"shipping-reference-"+i,owner_uid:"owner-1",category:"reference",
+      title:"Shipping policy international deliveries "+i,
+      content:"Operational shipping policy reference.",importance:"high",
+      updated_at:"2026-11-"+String(18-i).padStart(2,"0")
+    }))
+  ];
+  const results=workerModule.rankIntelligenceKnowledge(rows,"shipping policy",12,false);
+  const ids=new Set(results.map(item=>item.id));
+  assert.ok(ids.has("shipping-current"));
+  assert.ok(ids.has("shipping-older"),"bounded retrieval must preserve a competing entry sharing the same decision category and title");
+  assert.equal(results.length,12);
+});
+
 test("INTELLIGENCE surfaces conflicting and potentially stale knowledge instead of silently treating recency as truth", () => {
   const rows = [
     {id:"shipping-old",owner_uid:"owner-1",category:"decision",title:"Shipping policy",content:"Use Carrier A for international deliveries.",importance:"high",updated_at:"2026-08-01"},
