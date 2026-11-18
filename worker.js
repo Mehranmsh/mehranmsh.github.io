@@ -5599,7 +5599,7 @@ export default {
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"
           ).bind(body.status || "completed",resultText,id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
