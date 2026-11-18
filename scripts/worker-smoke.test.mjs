@@ -2399,3 +2399,9 @@ test("INTELLIGENCE surfaces conflicting and potentially stale knowledge instead 
   assert.match(workerSource,/SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge/);
   assert.equal(workerModule.rankIntelligenceKnowledge(rows,"quantum astronomy",5,false).length,0);
 });
+
+test("INTELLIGENCE rejects oversized tool batches and refuses unfinished tool-call rounds", () => {
+  assert.match(workerSource,/if\(result\.tool_calls\.length>4\)throw new Error\("AI returned more than four tool calls in one round\."\)/);
+  assert.match(workerSource,/if\(Array\.isArray\(result\?\.tool_calls\)&&result\.tool_calls\.length\)throw new Error\("AI tool-call round limit reached\."\)/);
+  assert.doesNotMatch(workerSource,/const calls=result\.tool_calls\.slice\(0,4\)/);
+});
