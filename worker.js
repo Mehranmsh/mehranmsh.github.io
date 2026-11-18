@@ -114,6 +114,11 @@ async function sha256(value) {
   return toBase64Url(new Uint8Array(digest));
 }
 
+async function sha256Hex(value) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function hashPassword(password, iterations = PBKDF2_ITERATIONS) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const key = await crypto.subtle.importKey(
@@ -5143,6 +5148,87 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+async function ensureSocialAuthLimitsTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS social_auth_limits(
+      rate_key TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      window_started_at INTEGER NOT NULL,
+      blocked_until INTEGER
+    )
+  `).run();
+}
+
+async function ensureIntelligenceApprovalLedgerTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_approval_ledger(
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      owner_uid TEXT NOT NULL,
+      owner_username TEXT NOT NULL,
+      repository TEXT NOT NULL,
+      branch TEXT NOT NULL,
+      base_sha TEXT NOT NULL,
+      scope_json TEXT NOT NULL,
+      scope_sha256 TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'issued' CHECK(status IN ('issued','revoked','consumed','expired')),
+      issued_at INTEGER NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      consumed_at INTEGER,
+      consumed_by TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(task_id) REFERENCES intelligence_tasks(id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_task ON intelligence_approval_ledger(task_id,status,expires_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_owner ON intelligence_approval_ledger(owner_uid,issued_at DESC)").run();
+  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_approval_active_task ON intelligence_approval_ledger(task_id,owner_uid) WHERE status='issued'").run();
+}
+
+
+// Internal-only primitive for a future isolated documentation executor.
+// No HTTP/MCP route calls this helper today.
+async function consumeIntelligenceApproval(env, input) {
+  const value = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const approvalId = typeof value.approvalId === "string" ? value.approvalId : "";
+  const taskId = typeof value.taskId === "string" ? value.taskId : "";
+  const ownerUid = typeof value.ownerUid === "string" ? value.ownerUid : "";
+  const repository = typeof value.repository === "string" ? value.repository : "";
+  const branch = typeof value.branch === "string" ? value.branch : "";
+  const baseSha = typeof value.baseSha === "string" ? value.baseSha : "";
+  const scopeSha256 = typeof value.scopeSha256 === "string" ? value.scopeSha256 : "";
+  const now = Math.floor(Date.now() / 1000);
+
+  if (!/^[0-9a-f-]{36}$/i.test(approvalId) || !taskId || taskId.length > 80 ||
+      !ownerUid || ownerUid.length > 160 ||
+      repository !== "Mehranmsh/mehranmsh.github.io" ||
+      !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+      !/^[0-9a-f]{40}$/i.test(baseSha) ||
+      !/^[0-9a-f]{64}$/i.test(scopeSha256)) {
+    return { consumed:false, reason:"invalid_binding" };
+  }
+
+  await ensureIntelligenceApprovalLedgerTable(env);
+  await env.DB.prepare(
+    "UPDATE intelligence_approval_ledger SET status='expired' WHERE id=? AND task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
+  ).bind(approvalId,taskId,ownerUid,now).run();
+
+  const transition = await env.DB.prepare(
+    "UPDATE intelligence_approval_ledger SET status='consumed',consumed_at=?,consumed_by='mehran-intelligence-documentation-executor' " +
+    "WHERE id=? AND task_id=? AND owner_uid=? AND repository=? AND branch=? AND base_sha=? AND scope_sha256=? " +
+    "AND status='issued' AND revoked_at IS NULL AND expires_at>? " +
+    "AND EXISTS (SELECT 1 FROM intelligence_tasks t WHERE t.id=intelligence_approval_ledger.task_id " +
+    "AND t.status='accepted' AND t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') " +
+    "AND t.action_type='documentation_patch_proposal')"
+  ).bind(now,approvalId,taskId,ownerUid,repository,branch,baseSha,scopeSha256,now).run();
+
+  if (Number(transition?.meta?.changes || 0) !== 1) {
+    return { consumed:false, reason:"approval_unavailable_or_task_not_eligible" };
+  }
+  return { consumed:true, approvalId, taskId, consumedAt:now };
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
@@ -5166,7 +5252,7 @@ function formatIntelligenceTask(row) {
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
-    result: row.result_text || "", createdBy: row.created_by,
+    result: row.result_text || "", agentClaimed: Boolean(row.agent_claimed_at), createdBy: row.created_by,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
@@ -5184,11 +5270,17 @@ async function verifyAdmin(request, env) {
   const tokenHash = await sha256(token);
   const now = Math.floor(Date.now() / 1000);
   const session = await env.DB.prepare(`
-    SELECT uid,username,expires_at FROM admin_sessions
+    SELECT uid,username,created_at,expires_at FROM admin_sessions
     WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?
     LIMIT 1
   `).bind(tokenHash, now).first();
-  if (!session || String(session.username).trim().toLowerCase() !== "mehranmsh") return null;
+  const expectedOwnerUid = String(env.MEHRAN_OWNER_PI_UID || "").trim();
+  // Fail closed: the username is not a durable owner credential.
+  if (!expectedOwnerUid || !session ||
+      String(session.username).trim().toLowerCase() !== "mehranmsh" ||
+      String(session.uid) !== expectedOwnerUid ||
+      !Number.isFinite(Number(session.created_at)) ||
+      Number(session.created_at) < now - 12 * 60 * 60) return null;
   return { uid: session.uid, username: session.username, expiresAt: session.expires_at };
 }
 
@@ -5580,6 +5672,14 @@ export default {
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
+        const agentStatusMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/status$/);
+        if (agentStatusMatch && method === "GET") {
+          const id = decodeURIComponent(agentStatusMatch[1]);
+          if (!id || id.length > 80) return error("Invalid task ID.");
+          const row = await env.DB.prepare("SELECT id,status,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
+          if (!row || !["mehran_intelligence","shared"].includes(row.assigned_to)) return error("Task not found or not assigned to this agent.",404);
+          return json({success:true,task:{id:row.id,status:row.status,actionType:row.action_type || "",agentClaimed:Boolean(row.agent_claimed_at)}});
+        }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
@@ -5591,7 +5691,7 @@ export default {
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"
           ).bind(body.status || "completed",resultText,id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
@@ -5636,12 +5736,23 @@ export default {
 
       if (path.startsWith("/admin/session")) {
         await ensureAdminSessionTable(env);
+        await ensureSocialAuthLimitsTable(env);
         if (path === "/admin/session" && method === "POST") {
+          if (!await checkRateLimit(env, request, "admin-session-ip", 20, 900, 900)) {
+            return error("Too many admin sign-in attempts from this network. Try again later.", 429);
+          }
           const body = await readBody(request);
           if (!body) return error("Invalid request body");
           const piUser = await fetchPiUser(body.accessToken);
-          if (!piUser || piUser.username.trim().toLowerCase() !== "mehranmsh") {
+          if (!piUser || !piUser.uid || !piUser.username || piUser.username.trim().toLowerCase() !== "mehranmsh") {
             return error("Verified admin Pi account required", 403);
+          }
+          const expectedOwnerUid = String(env.MEHRAN_OWNER_PI_UID || "").trim();
+          if (!expectedOwnerUid) {
+            return error("Admin sign-in is temporarily unavailable: owner UID is not configured.", 503);
+          }
+          if (String(piUser.uid) !== expectedOwnerUid) {
+            return error("This Pi account is not the configured MEHRAN owner.", 403);
           }
           // Rate-limit verified admin identities rather than shared Pi Browser/IP traffic.
           if (!await checkRateLimit(env, request, "admin-session-create", 15, 900, 600, piUser.uid)) {
@@ -5650,13 +5761,13 @@ export default {
           const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
           const tokenHash = await sha256(token);
           const now = Math.floor(Date.now() / 1000);
-          const expiresAt = 4102444800;
-          await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL").bind(now).run();
+          const expiresAt = now + 12 * 60 * 60;
+          await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL OR created_at<?").bind(now,now-12*60*60).run();
           await env.DB.prepare(`
             INSERT INTO admin_sessions(id,token_hash,uid,username,created_at,expires_at)
             VALUES(?,?,?,?,?,?)
           `).bind(crypto.randomUUID(),tokenHash,piUser.uid,piUser.username,now,expiresAt).run();
-          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt,persistent:true});
+          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt});
         }
         if (path === "/admin/session" && method === "GET") {
           const admin = await verifyAdmin(request, env);
@@ -5674,6 +5785,7 @@ export default {
       }
 
       if (path === "/auth" && method === "POST") {
+        await ensureSocialAuthLimitsTable(env);
         if (!await checkRateLimit(env, request, "pi-auth", 20, 900, 900)) {
           return error("Too many Pi authentication attempts. Try again later.", 429);
         }
@@ -6372,9 +6484,9 @@ export default {
             {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics. No personal user data is returned.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_service_health",description:"Report configured service dependencies. Does not perform external health probes.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
-            {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN collaboration queue. This records work only and does not execute it.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
+            {name:"create_collaboration_task",description:"Create an internal task proposal. Every proposal is held for explicit owner approval before any work can be assigned or executed.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},},required:["title","description"],additionalProperties:false}},
             {name:"list_collaboration_tasks",description:"List recent tasks in the shared MEHRAN collaboration queue.",inputSchema:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
-            {name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}
+            {name:"update_collaboration_task",description:"Update a manual planning task only. Automated tasks must be approved or cancelled in the owner Task Hub; execution results are recorded only by the execution service.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}
           ]});
         }
         if (rpc.method === "tools/call") {
@@ -6411,17 +6523,17 @@ export default {
             return replyData(data);
           }
           if (name === "create_collaboration_task") {
-            const allowed=["title","description","assignedTo","priority","requiresApproval"];
+            const allowed=["title","description","assignedTo","priority"];
             if (Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
             const title=cleanText(args.title,120), description=cleanText(args.description,3000);
             const assignedTo=args.assignedTo||"mehran_intelligence", priority=args.priority||"normal";
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000) return rpcError(-32602,"A task title and description are required.");
-            if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
+            if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)) return rpcError(-32602,"Invalid task assignment or priority.");
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username).run();
-            await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,'awaiting_approval',1,?)").bind(id,title,description,assignedTo,priority,admin.username).run();
+            await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,requiresApproval:true,source:"mcp"}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
-            return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
+            return replyData({task:formatIntelligenceTask(row),message:"Task proposal recorded and held for explicit owner approval. No execution was performed."});
           }
           if (name === "list_collaboration_tasks") {
             const allowed=["status","assignedTo"];
@@ -6444,8 +6556,9 @@ export default {
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,result_text FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
+            if(existing.action_type||Number(existing.requires_approval)===1||existing.status==="awaiting_approval") return rpcError(-32003,"Pending proposals and automated task approval, cancellation and execution results are controlled by the owner Task Hub and MEHRAN INTELLIGENCE service.");
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
             await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(args.status,nextResult,id).run();
             await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
@@ -6476,6 +6589,135 @@ export default {
         }))});
       }
 
+      if (path === "/intelligence/approvals" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialAuthLimitsTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-approvals-issue", 5, 3600, 1800, admin.uid)) {
+          return error("Too many approval issuance requests. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body || Object.keys(body).some(key => !["taskId","branch","baseSha","paths","expiresInMinutes"].includes(key))) {
+          return error("Invalid approval request fields.");
+        }
+        const taskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
+        const branch = typeof body.branch === "string" ? body.branch.trim() : "";
+        const baseSha = typeof body.baseSha === "string" ? body.baseSha.toLowerCase() : "";
+        const expiresInMinutes = body.expiresInMinutes === undefined ? 15 : body.expiresInMinutes;
+        if (!taskId || taskId.length > 80 ||
+            !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+            !/^[0-9a-f]{40}$/.test(baseSha) ||
+            !Number.isInteger(expiresInMinutes) || expiresInMinutes < 5 || expiresInMinutes > 60 ||
+            !Array.isArray(body.paths) || body.paths.length < 1 || body.paths.length > 5) {
+          return error("Invalid task, branch, base commit, scope or expiry.");
+        }
+        const paths = [];
+        const seen = new Set();
+        for (const rawPath of body.paths) {
+          if (typeof rawPath !== "string" || rawPath.length > 200 ||
+              !/^docs\/[A-Za-z0-9._/-]+\.md$/.test(rawPath) ||
+              rawPath.includes("\\") || /[\u0000-\u001f\u007f]/.test(rawPath)) {
+            return error("Approval scope is limited to safe Markdown files under docs/.");
+          }
+          const segments = rawPath.split("/");
+          if (segments[0] !== "docs" || segments.some(segment =>
+              !segment || segment === "." || segment === ".." ||
+              /[. ]$/.test(segment) ||
+              /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(segment))) {
+            return error("Approval scope contains an unsafe path.");
+          }
+          const normalized = rawPath.normalize("NFC");
+          const collisionKey = normalized.toLowerCase();
+          if (seen.has(collisionKey)) return error("Approval scope contains duplicate or colliding paths.");
+          seen.add(collisionKey);
+          paths.push(normalized);
+        }
+        paths.sort();
+        const task = await env.DB.prepare(
+          "SELECT id,status,requires_approval,action_type,assigned_to FROM intelligence_tasks WHERE id=? LIMIT 1"
+        ).bind(taskId).first();
+        if (!task || task.status !== "accepted" || Number(task.requires_approval) !== 0 ||
+            task.action_type !== "documentation_patch_proposal" ||
+            !["mehran_intelligence","shared"].includes(task.assigned_to)) {
+          return error("Only an owner-approved documentation proposal assigned to Intelligence can receive an approval.", 409);
+        }
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='expired' WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
+        ).bind(taskId, admin.uid, now).run();
+        const existing = await env.DB.prepare(
+          "SELECT id FROM intelligence_approval_ledger WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at>? LIMIT 1"
+        ).bind(taskId, admin.uid, now).first();
+        if (existing) return error("This task already has an active approval. Revoke or wait for it to expire.", 409);
+        const scope = { version:1, paths };
+        const scopeJson = JSON.stringify(scope);
+        const scopeSha256 = await sha256Hex(scopeJson);
+        const id = crypto.randomUUID();
+        const expiresAt = now + expiresInMinutes * 60;
+        try {
+          const inserted = await env.DB.prepare(
+            "INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)"
+          ).bind(id,taskId,admin.uid,admin.username,"Mehranmsh/mehranmsh.github.io",branch,baseSha,scopeJson,scopeSha256,now,expiresAt).run();
+          if (Number(inserted?.meta?.changes || 0) !== 1) return error("Approval issuance did not complete.", 409);
+        } catch {
+          return error("An active approval already exists for this task.", 409);
+        }
+        await writeAdminAudit(env,admin,"intelligence_approval_issued","intelligence_approval",id,JSON.stringify({
+          taskId,repository:"Mehranmsh/mehranmsh.github.io",branch,baseSha,pathCount:paths.length,expiresAt
+        }));
+        return json({success:true,approval:{
+          id,taskId,repository:"Mehranmsh/mehranmsh.github.io",branch,baseSha,
+          scope,scopeSha256,status:"issued",issuedAt:now,expiresAt
+        }},201);
+      }
+
+      if (path === "/intelligence/approvals" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialAuthLimitsTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-approvals-read", 60, 3600, 300, admin.uid)) {
+          return error("Too many approval ledger requests. Try again later.", 429);
+        }
+        const rows = await env.DB.prepare(
+          "SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE owner_uid=? ORDER BY issued_at DESC LIMIT 50"
+        ).bind(admin.uid).all();
+        return json({success:true,approvals:(rows.results || []).map(row => {
+          let scope = null;
+          try { scope = JSON.parse(row.scope_json); } catch {}
+          return {
+            id:row.id, taskId:row.task_id, repository:row.repository, branch:row.branch,
+            baseSha:row.base_sha, scope, scopeSha256:row.scope_sha256, status:row.status,
+            issuedAt:Number(row.issued_at), expiresAt:Number(row.expires_at),
+            revokedAt:row.revoked_at===null?null:Number(row.revoked_at),
+            consumedAt:row.consumed_at===null?null:Number(row.consumed_at),
+            consumedBy:row.consumed_by || null
+          };
+        })});
+      }
+
+      const intelligenceApprovalMatch=path.match(/^\/intelligence\/approvals\/([^/]+)$/);
+      if(intelligenceApprovalMatch&&method==="DELETE"){
+        const admin=await verifyAdmin(request,env);
+        if(!admin)return error("Admin authentication required",403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialAuthLimitsTable(env);
+        if(!await checkRateLimit(env,request,"intelligence-approvals-write",20,3600,900,admin.uid))return error("Too many approval ledger changes. Try again later.",429);
+        const id=decodeURIComponent(intelligenceApprovalMatch[1]);
+        if(!id||id.length>80)return error("Invalid approval ID.");
+        const now=Math.floor(Date.now()/1000);
+        const transition=await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?"
+        ).bind(now,id,admin.uid,now).run();
+        if(Number(transition?.meta?.changes||0)!==1)return error("Approval not found, expired, already used, or no longer revocable.",409);
+        await writeAdminAudit(env,admin,"intelligence_approval_revoked","intelligence_approval",id,JSON.stringify({status:"revoked"}));
+        return json({success:true,revoked:true,id});
+      }
+
       if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
         const admin=await verifyAdmin(request,env);
         if(!admin)return error("Admin authentication required",403);
@@ -6499,7 +6741,7 @@ export default {
         const title=cleanText(body.title,120),description=cleanText(body.description,3000);
         const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
         const actionType=body.actionType||"";
-        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
+        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check","documentation_patch_proposal"];
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
         const preapprovedReadOnlyActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
@@ -6524,16 +6766,30 @@ export default {
         const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
         const result=typeof body.result==="string"?body.result:"";
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
-        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
-        if(existing.action_type){
-          const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
-          const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
-          if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
-          if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
+        const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
+        const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
+        const cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"&&Number(existing.requires_approval)===0&&["mehran_intelligence","shared"].includes(existing.assigned_to)&&["repository_quality_check","service_health_report"].includes(existing.action_type)&&Boolean(existing.agent_claimed_at);
+        const cancelTransition=body.status==="cancelled"&&(["awaiting_approval","queued","accepted"].includes(existing.status)||cancelActiveAgentTransition);
+        if(approvalGate){
+          if(!approvalTransition&&!cancelTransition)return error("Pending or automated task status is controlled by the owner Task Hub. Only approval or cancellation is allowed.",409);
+          if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Task results cannot be attached to an approval or cancellation transition.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
+        if(approvalGate){
+          let transition;
+          if(approvalTransition){
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='accepted',requires_approval=0,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_approval' AND requires_approval=1").bind(id).run();
+          }else if(cancelActiveAgentTransition){
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL").bind(id).run();
+          }else{
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')").bind(id,existing.status,Number(existing.requires_approval)).run();
+          }
+          if(Number(transition?.meta?.changes||0)!==1)return error("Task state changed before this approval or cancellation could be applied. Refresh and review the task again.",409);
+        }else{
+          await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
+        }
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});

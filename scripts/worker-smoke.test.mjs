@@ -5,6 +5,8 @@ import { readFile } from "node:fs/promises";
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
+const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
+const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -34,6 +36,58 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+
+
+test("MEHRAN INTELLIGENCE runner executes only fixed allowlisted commands", () => {
+  const qualityStart = agentRunnerSource.indexOf("async function runQualityChecks(signal)");
+  const qualityEnd = agentRunnerSource.indexOf("async function runServiceHealth(signal)", qualityStart);
+  assert.ok(qualityStart >= 0 && qualityEnd > qualityStart, "quality-check handler must exist");
+  const qualityHandler = agentRunnerSource.slice(qualityStart, qualityEnd);
+  assert.match(qualityHandler, /const steps = \[/);
+  assert.match(qualityHandler, /\["Python and HTML\/JavaScript quality checks", "python", \["scripts\/quality-check\.py"\]\]/);
+  assert.match(qualityHandler, /\["Worker API smoke tests", "node", \["--test", "scripts\/worker-smoke\.test\.mjs"\]\]/);
+  assert.match(qualityHandler, /\["Music Studio control-plane tests", "python", \["-m", "unittest", "discover", "-s", "engine", "-p", "test_\*\.py", "-v"\]\]/);
+  assert.match(qualityHandler, /await run\(executable, args,/);
+  assert.doesNotMatch(qualityHandler, /task\.(?:description|actionPayload|command)/);
+  assert.doesNotMatch(agentRunnerSource, /\b(?:exec|spawn|eval)\s*\(/);
+  assert.match(agentRunnerSource, /task\.actionType === "repository_quality_check"/);
+  assert.match(agentRunnerSource, /task\.actionType === "service_health_report"/);
+  assert.match(agentRunnerSource, /does not yet support action type/);
+  assert.match(agentRunnerSource, /monitorTaskStatus/);
+  assert.match(agentRunnerSource, /executionController\.abort/);
+  assert.match(agentRunnerSource, /signal\s*\}\)/);
+  assert.match(agentRunnerSource, /Task ownership could not be verified/);
+  assert.match(agentRunnerSource, /const finalStatus = await request/);
+  assert.match(agentRunnerSource, /finalStatus\.task\?\.agentClaimed !== true/);
+});
+
+
+test("MEHRAN INTELLIGENCE agent queue claims only approved read-only task types", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const end = workerSource.indexOf('const agentResultMatch = path.match', start);
+  assert.ok(start >= 0 && end > start, "agent task claim route must exist");
+  const claimRoute = workerSource.slice(start, end);
+  assert.match(claimRoute, /assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(claimRoute, /status IN \('queued','accepted'\)/);
+  assert.match(claimRoute, /requires_approval=0/);
+  assert.match(claimRoute, /action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(claimRoute, /agent_claimed_at IS NOT NULL/);
+  const statusStart = workerSource.indexOf("const agentStatusMatch");
+  const statusEnd = workerSource.indexOf("const agentResultMatch", statusStart);
+  const statusRoute = workerSource.slice(statusStart, statusEnd);
+  assert.ok(statusStart >= 0 && statusEnd > statusStart);
+  assert.match(statusRoute, /agentClaimed:Boolean\(row\.agent_claimed_at\)/);
+  assert.match(statusRoute, /assigned_to/);
+  assert.doesNotMatch(claimRoute, /repository_change|code_write|deploy|merge/i);
+});
+
+test("MEHRAN INTELLIGENCE runner exposes its service secret only on trusted main pushes", () => {
+  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
+  assert.match(agentWorkflowSource, /Checkout trusted main branch[\s\S]*?ref: main/);
+  assert.match(agentWorkflowSource, /permissions:\s*contents: read/);
+  assert.doesNotMatch(agentWorkflowSource, /pull_request:/);
+});
 
 test("health endpoint reports online and confirms the database binding", async () => {
   const response = await request("/health", {}, { DB: mockDb() });
@@ -120,7 +174,7 @@ test("admin overview rejects requests without a verified admin session", async (
         async run() { return { success: true, meta: { changes: 0 } }; },
         async all() { return { results: [] }; },
         async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) return null;
           return { total: 0 };
         }
       };
@@ -168,7 +222,10 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(workerSource, /path === "\/intelligence\/tasks"/);
   assert.match(workerSource, /intelligenceTaskMatch/);
   assert.match(route, /No external action was executed/);
-  assert.match(workerSource, /args\.requiresApproval\?'awaiting_approval':'queued'/);
+  assert.ok(route.includes("VALUES(?,?,?,?,?,'awaiting_approval',1,?)"));
+  assert.ok(route.includes("Every proposal is held for explicit owner approval"));
+  assert.ok(route.includes("if(existing.action_type||Number(existing.requires_approval)===1||existing.status===\"awaiting_approval\") return rpcError"));
+  assert.ok(!route.includes('requiresApproval:{type:"boolean"}'));
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
@@ -182,7 +239,7 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
         async run() { return { success: true, meta: { changes: 0 } }; },
         async all() { return { results: [] }; },
         async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) return null;
           return { total: 0 };
         }
       };
@@ -1389,6 +1446,12 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
   assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
+  assert.match(html, /canCancelActive=task\.status==="in_progress"/);
+  assert.match(html, /\["repository_quality_check","service_health_report"\]\.includes\(task\.actionType\)/);
+  assert.match(html, /task\.agentClaimed===true/);
+  assert.match(workerSource, /agentClaimed: Boolean\(row\.agent_claimed_at\)/);
+  assert.match(html, /Cancel running task/);
+  assert.match(html, /You can cancel this active task/);
 });
 
 
@@ -1587,10 +1650,17 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.ok(routeStart >= 0 && routeEnd > routeStart, "Intelligence task PATCH route must exist");
   const route = workerSource.slice(routeStart, routeEnd);
   assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
-  assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted"\]\.includes\(existing\.status\)/);
+  assert.match(route, /cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"/);
+  assert.match(route, /SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=\?/);
+  assert.match(route, /cancelTransition=body.status==="cancelled"/);
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
-  assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
-  assert.match(route, /requires_approval=CASE WHEN \?=\x27accepted\x27 THEN 0 ELSE requires_approval END/);
+  assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?approval or cancellation transition\.[\s\S]*?409/);
+  assert.ok(route.includes("WHERE id=? AND status='awaiting_approval' AND requires_approval=1"));
+  assert.ok(route.includes("WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')"));
+  assert.ok(route.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
+  assert.ok(workerSource.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
+  assert.ok(route.includes("transition?.meta?.changes||0"));
+  assert.match(workerSource, /existing\.action_type\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status==="awaiting_approval"/);
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
 });
 
@@ -1605,5 +1675,223 @@ test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", ()
   assert.match(policy, /\["mehran_intelligence","shared"\]\.includes\(assignedTo\)/);
   assert.match(policy, /body\.requiresApproval!==true/);
   assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+  assert.match(workerSource, /Pending or automated task status is controlled by the owner Task Hub/);
+});
+
+
+test("MEHRAN INTELLIGENCE approval ledger schema is durable but not an active executor permission", () => {
+  const start = workerSource.indexOf("async function ensureIntelligenceApprovalLedgerTable(env)");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", start);
+  assert.ok(start >= 0 && end > start, "approval ledger schema helper must exist");
+  const schema = workerSource.slice(start, end);
+  for (const field of [
+    "id TEXT PRIMARY KEY", "task_id TEXT NOT NULL", "owner_uid TEXT NOT NULL",
+    "repository TEXT NOT NULL", "branch TEXT NOT NULL", "base_sha TEXT NOT NULL",
+    "scope_json TEXT NOT NULL", "scope_sha256 TEXT NOT NULL",
+    "status TEXT NOT NULL DEFAULT 'issued'", "issued_at INTEGER NOT NULL",
+    "expires_at INTEGER NOT NULL", "revoked_at INTEGER", "consumed_at INTEGER",
+    "consumed_by TEXT"
+  ]) assert.ok(schema.includes(field), "approval ledger is missing: " + field);
+  assert.match(schema, /CHECK\(status IN \('issued','revoked','consumed','expired'\)\)/);
+  assert.match(schema, /idx_intelligence_approval_task/);
+  assert.match(schema, /idx_intelligence_approval_owner/);
+  assert.match(schema, /CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_approval_active_task/);
+  assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "GET"/);
+  assert.match(workerSource, /method==="DELETE"/);
+  assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "POST"/);
+});
+
+
+test("Intelligence approval ledger is owner-scoped and supports revocation only", async () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/approvals" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))', start);
+  assert.ok(start >= 0 && end > start, "owner-only approval ledger routes must exist");
+  const routes = workerSource.slice(start, end);
+  assert.match(routes, /verifyAdmin\(request, env\)/);
+  assert.match(routes, /ensureSocialAuthLimitsTable\(env\)/);
+  assert.doesNotMatch(routes, /ensureSocialTables\(env\)/);
+  assert.match(routes, /WHERE owner_uid=\?/);
+  assert.match(routes, /status='revoked',revoked_at=\?/);
+  assert.match(routes, /status='issued' AND expires_at>\?/);
+  assert.match(routes, /transition\?\.meta\?\.changes\|\|0\)\!==1/);
+  assert.doesNotMatch(routes, /method==="POST"/);
+
+  const state = { listedOwner: null, revokeBinds: null, audit: false };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async first() {
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) {
+            const now = Math.floor(Date.now() / 1000);
+            return { uid: "owner-uid", username: "mehranmsh", created_at: now - 60, expires_at: now + 3600 };
+          }
+          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
+          throw new Error("Unexpected approval ledger first query: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM intelligence_approval_ledger WHERE owner_uid=?")) {
+            state.listedOwner = values[0];
+            return { results: [{
+              id: "approval-1", task_id: "task-1", repository: "Mehranmsh/mehranmsh.github.io",
+              branch: "intelligence/patch-documentation01", base_sha: "a".repeat(40),
+              scope_json: '{"paths":["docs/README.md"]}', scope_sha256: "hash",
+              status: "issued", issued_at: 100, expires_at: 200,
+              revoked_at: null, consumed_at: null, consumed_by: null
+            }] };
+          }
+          return { results: [] };
+        },
+        async run() {
+          if (sql.includes("UPDATE intelligence_approval_ledger SET status='revoked'")) {
+            state.revokeBinds = values;
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("INSERT INTO admin_audit_log")) state.audit = true;
+          return { meta: { changes: 1 } };
+        }
+      };
+    }
+  };
+  const env = { DB: db, MEHRAN_OWNER_PI_UID: "owner-uid" };
+  const headers = { Authorization: "Bearer " + "x".repeat(64) };
+  const listed = await request("/intelligence/approvals", { headers }, env);
+  assert.equal(listed.status, 200);
+  const listPayload = await listed.json();
+  assert.equal(state.listedOwner, "owner-uid");
+  assert.equal(listPayload.approvals.length, 1);
+  assert.deepEqual(listPayload.approvals[0].scope, { paths: ["docs/README.md"] });
+
+  const revoked = await request("/intelligence/approvals/approval-1", { method: "DELETE", headers }, env);
+  assert.equal(revoked.status, 200);
+  assert.equal(state.revokeBinds[1], "approval-1");
+  assert.equal(state.revokeBinds[2], "owner-uid");
+  assert.equal(state.audit, true);
+  assert.deepEqual(await revoked.json(), { success: true, revoked: true, id: "approval-1" });
+});
+
+
+
+test("Intelligence approval issuance is owner-only, task-bound, short-lived, and documentation-only", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/approvals" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/intelligence/approvals" && method === "GET")', start);
+  assert.ok(start >= 0 && end > start, "owner-only approval issuance route must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /intelligence-approvals-issue/);
+  assert.match(route, /Object\.keys\(body\)\.some/);
+  assert.match(route, /Mehranmsh\/mehranmsh\.github\.io/);
+  assert.match(route, /status !== "accepted"/);
+  assert.match(route, /Number\(task\.requires_approval\) !== 0/);
+  assert.match(route, /task\.action_type !== "documentation_patch_proposal"/);
+  assert.match(route, /\["mehran_intelligence","shared"\]\.includes\(task\.assigned_to\)/);
+  assert.match(route, /expiresInMinutes < 5 \|\| expiresInMinutes > 60/);
+  assert.match(route, /body\.paths\.length < 1 \|\| body\.paths\.length > 5/);
+  assert.match(route, /docs/);
+  assert.match(route, /\.md/);
+  assert.match(route, /segments\.some/);
+  assert.match(route, /status='issued' AND expires_at>\?/);
+  assert.match(route, /UPDATE intelligence_approval_ledger SET status='expired'/);
+  assert.match(route, /An active approval already exists for this task/);
+  assert.match(route, /sha256Hex\(scopeJson\)/);
+  assert.match(route, /INSERT INTO intelligence_approval_ledger/);
+  assert.match(route, /intelligence_approval_issued/);
+  assert.doesNotMatch(route, /env\.GITHUB|fetch\(|exec\(/);
+  assert.match(workerSource, /"documentation_patch_proposal"\]/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
+});
+
+test("Intelligence approval ledger routes reject unauthenticated access", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) return null;
+          throw new Error("Unexpected unauthenticated approval query: " + sql);
+        },
+        async run() { return { meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const response = await request("/intelligence/approvals", {}, { DB: db });
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).error, "Admin authentication required");
+  const revokeResponse = await request("/intelligence/approvals/approval-1", { method: "DELETE" }, { DB: db });
+  assert.equal(revokeResponse.status, 403);
+  assert.equal((await revokeResponse.json()).error, "Admin authentication required");
+  const issueResponse = await request("/intelligence/approvals", {
+    method:"POST", body:{}
+  }, {DB:db});
+  assert.equal(issueResponse.status,403);
+  assert.equal((await issueResponse.json()).error,"Admin authentication required");
+});
+
+
+test("Intelligence approval consumption is atomic, bound, and not exposed to routes", () => {
+  const start = workerSource.indexOf("async function consumeIntelligenceApproval(env, input)");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", start);
+  assert.ok(start >= 0 && end > start, "internal approval consumption primitive must exist");
+  const helper = workerSource.slice(start, end);
+  for (const binding of [
+    "id=? AND task_id=? AND owner_uid=? AND repository=? AND branch=? AND base_sha=? AND scope_sha256=?",
+    "status='issued' AND revoked_at IS NULL AND expires_at>?",
+    "t.status='accepted' AND t.requires_approval=0",
+    "t.assigned_to IN ('mehran_intelligence','shared')",
+    "t.action_type='documentation_patch_proposal'",
+    "SET status='expired'",
+    "SET status='consumed',consumed_at=?",
+    "Number(transition?.meta?.changes || 0) !== 1"
+  ]) assert.ok(helper.includes(binding), "consumption guard missing: " + binding);
+  assert.match(helper, /repository !== "Mehranmsh\/mehranmsh\.github\.io"/);
+  assert.match(helper, /const now = Math.floor\(Date\.now\(\) \/ 1000\)/);
+  assert.doesNotMatch(helper, /value\.now/);
+  assert.ok(helper.includes('patch-[A-Za-z0-9_-]{8,64}'));
+  assert.doesNotMatch(helper, /fetch\(|fetch\s*\(/);
+  assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
+});
+
+
+test("Documentation patch proposals require owner approval and remain excluded from the current agent queue", () => {
+  const taskStart = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const taskEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', taskStart);
+  assert.ok(taskStart >= 0 && taskEnd > taskStart, "Intelligence task creation route must exist");
+  const taskRoute = workerSource.slice(taskStart, taskEnd);
+  const allowlistStart = taskRoute.indexOf("const allowedActionTypes=");
+  const allowlistEnd = taskRoute.indexOf(";", allowlistStart);
+  assert.ok(allowlistStart >= 0 && allowlistEnd > allowlistStart);
+  const allowlist = taskRoute.slice(allowlistStart, allowlistEnd);
+  assert.match(allowlist, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
+  assert.match(allowlist, /documentation_patch_proposal/);
+  assert.match(taskRoute, /const preapprovedReadOnlyActions=\["project_status_report","social_metrics_report","service_health_report","repository_quality_check"\]/);
+  assert.match(taskRoute, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
+
+  const agentStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const agentEnd = workerSource.indexOf('const agentStatusMatch', agentStart);
+  assert.ok(agentStart >= 0 && agentEnd > agentStart, "Agent task claim route must exist");
+  const agentRoute = workerSource.slice(agentStart, agentEnd);
+  assert.match(agentRoute, /action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.doesNotMatch(agentRoute, /documentation_patch_proposal|github_write|code_change/);
+});
+
+
+test("Intelligence owner approval UI is scoped, owner-session-backed, and never executes code", () => {
+  for (const id of [
+    "intelApprovalPanel","intelApprovalForm","intelApprovalTask","intelApprovalPaths",
+    "intelApprovalBaseSha","intelApprovalExpiry","loadIntelBaseShaBtn",
+    "issueIntelApprovalBtn","intelApprovalsList","refreshIntelApprovalsBtn"
+  ]) assert.ok(indexSource.includes('id="'+id+'"'), "approval UI is missing: "+id);
+  assert.match(indexSource, /api\("\/intelligence\/approvals"\)/);
+  assert.match(indexSource, /api\("\/intelligence\/approvals",\{method:"POST"/);
+  assert.match(indexSource, /api\("\/intelligence\/approvals\/"/);
+  assert.match(indexSource, /api\("\/intelligence\/approvals",\{method:"POST",body:JSON\.stringify\(\{taskId:task\.id,branch:approvalBranchForTask\(task\.id\),baseSha,paths,expiresInMinutes\}\)\}\)/);
+  assert.match(indexSource, /documentation_patch_proposal.*accepted/);
+  assert.match(indexSource, /paths\.length<1\|\|paths\.length>5/);
+  assert.match(indexSource, /window\.confirm\("Issue a "/);
+  assert.match(indexSource, /window\.confirm\("Revoke this issued grant\?/);
+  assert.match(indexSource, /fetch\("https:\/\/api\.github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/commits\/main"/);
+  assert.doesNotMatch(indexSource, /api\.github\.com[^\n]{0,200}(?:method:"POST"|method:"PUT"|method:"PATCH"|method:"DELETE")/);
+  assert.match(indexSource, /no executor can consume it and no code was changed/);
 });
