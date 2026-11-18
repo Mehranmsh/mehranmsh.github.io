@@ -24,13 +24,13 @@ Before adding embeddings, external model providers or broader tools, measure ret
 
 ## Knowledge relationships (implemented in validation branch; not production-deployed)
 
-The relationship layer does not rely on title similarity, recency, importance, or an LLM guess as proof that two statements contradict each other. It stores explicit, owner-scoped metadata between two existing knowledge IDs.
+The relationship layer does not rely on title similarity, recency, importance, or an LLM guess as proof that two statements contradict each other. It stores explicit, owner-scoped metadata between two existing knowledge IDs. `conflicts_with` is symmetric; `supersedes` and `supports` require explicit source and target IDs so their direction cannot be lost during canonical ordering.
 
 Implemented in the validation branch:
 
 1. A dedicated `0002_intelligence_knowledge_relationships.sql` migration and matching Worker bootstrap schema define `conflicts_with`, `supersedes`, and `supports` relations.
 2. INTELLIGENCE can propose a relationship with an exact evidence snippet from each linked record. The Worker verifies both snippets against the active owner-owned source entries before inserting a `candidate` authored by `intelligence`. It remains unconfirmed and does not alter knowledge content, retrieval priority, archive state, permissions, or execution authority.
-3. The owner can list relationships and explicitly confirm, dismiss, or resolve an actionable candidate/confirmed record. Resolution must select one of the two linked knowledge records.
+3. The owner can list relationships and explicitly confirm, dismiss, or resolve an actionable candidate/confirmed record. Resolution is restricted to `conflicts_with` and must select one of the two linked knowledge records. `supersedes` and `supports` preserve explicit direction from source to target.
 4. Both original knowledge records remain stored. The proposal author remains recorded after owner review; confirmation/resolution timestamps record the review lifecycle.
 5. Chat context includes owner-scoped candidate, confirmed, and resolved relationship metadata. Candidate relations must be labelled as unconfirmed; only owner-confirmed relations or owner-selected resolutions can settle the relationship.
 6. Database constraints and triggers reject self-links, duplicate links, invalid relation/status values, cross-owner links, system-seed links, and new links to archived/missing knowledge. Reads and mutations are scoped to the authenticated owner.
