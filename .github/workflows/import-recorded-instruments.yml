@@ -1,12 +1,6 @@
 name: Import recorded instrument samples
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/import-recorded-instruments.yml"
-      - "scripts/import-additional-instruments.py"
-      - "scripts/import-vocalset.py"
   workflow_dispatch:
 
 permissions:
@@ -18,12 +12,14 @@ concurrency:
 
 jobs:
   import-cc0-samples:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Check out MEHRAN MUSIC
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 1
 
       - name: Set up Python
