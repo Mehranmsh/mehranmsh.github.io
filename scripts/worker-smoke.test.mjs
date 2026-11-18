@@ -7,6 +7,8 @@ const indexSource = await readFile(new URL("../index.html", import.meta.url), "u
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
 const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
+const approvalMigrationSource = await readFile(new URL("../migrations/0001_intelligence_approval_ledger.sql", import.meta.url), "utf8");
+const approvalStagingDocSource = await readFile(new URL("../docs/INTELLIGENCE-D1-APPROVAL-STAGING.md", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -1893,4 +1895,36 @@ test("Intelligence owner approval UI is scoped, owner-session-backed, and never 
   assert.match(indexSource, /fetch\("https:\/\/api\.github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/commits\/main"/);
   assert.doesNotMatch(indexSource, /api\.github\.com[^\n]{0,200}(?:method:"POST"|method:"PUT"|method:"PATCH"|method:"DELETE")/);
   assert.match(indexSource, /no executor can consume it and no code was changed/);
+});
+
+
+test("D1 approval migration matches the Worker bootstrap schema and staging safety boundary", () => {
+  for (const column of [
+    "id TEXT PRIMARY KEY",
+    "task_id TEXT NOT NULL",
+    "owner_uid TEXT NOT NULL",
+    "owner_username TEXT NOT NULL",
+    "repository TEXT NOT NULL",
+    "branch TEXT NOT NULL",
+    "base_sha TEXT NOT NULL",
+    "scope_json TEXT NOT NULL",
+    "scope_sha256 TEXT NOT NULL",
+    "issued_at INTEGER NOT NULL",
+    "expires_at INTEGER NOT NULL",
+    "FOREIGN KEY (task_id) REFERENCES intelligence_tasks(id)"
+  ]) assert.ok(approvalMigrationSource.includes(column), "migration missing schema element: " + column);
+  for (const index of [
+    "idx_intelligence_approval_task",
+    "idx_intelligence_approval_owner",
+    "idx_intelligence_approval_active_task"
+  ]) {
+    assert.ok(approvalMigrationSource.includes(index), "migration missing index: " + index);
+    assert.ok(workerSource.includes(index), "Worker bootstrap missing matching index: " + index);
+  }
+  assert.match(approvalMigrationSource, /CHECK\s*\(status IN \('issued', 'revoked', 'consumed', 'expired'\)\)/);
+  assert.match(approvalMigrationSource, /WHERE status = 'issued'/);
+  assert.match(approvalMigrationSource, /CREATE TABLE IF NOT EXISTS intelligence_approval_ledger/);
+  assert.match(approvalStagingDocSource, /Never run this migration against `mehran-msh-db`/);
+  assert.match(approvalStagingDocSource, /No staging D1 database has been created or connected/);
+  assert.match(approvalStagingDocSource, /Do not change the production `DB` binding/);
 });
