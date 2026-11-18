@@ -1695,7 +1695,9 @@ test("MEHRAN INTELLIGENCE approval ledger schema is durable but not an active ex
   assert.match(schema, /CHECK\(status IN \('issued','revoked','consumed','expired'\)\)/);
   assert.match(schema, /idx_intelligence_approval_task/);
   assert.match(schema, /idx_intelligence_approval_owner/);
-  assert.doesNotMatch(workerSource, /\/intelligence\/approvals/);
+  assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "GET"/);
+  assert.match(workerSource, /method==="DELETE"/);
+  assert.doesNotMatch(workerSource, /path === "\/intelligence\/approvals" && method === "POST"/);
 });
 
 
