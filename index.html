@@ -1018,6 +1018,19 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelMemoryStatus" class="notice" aria-live="polite">Private memory has not been loaded.</div>
  <div id="intelMemoryList" class="grid"><div class="empty">No memory notes loaded.</div></div>
 </div>
+
+<div class="panel intelligence-knowledge">
+ <div class="section-title"><div><h2>Organizational Knowledge</h2><div class="small-text">Structured company facts, decisions, goals and procedures. Knowledge is context, never permission.</div></div><button class="btn secondary small" id="refreshIntelKnowledgeBtn" type="button">Refresh knowledge</button></div>
+ <form id="intelKnowledgeForm" class="card" autocomplete="off">
+  <input id="intelKnowledgeEditingId" type="hidden" value="">
+  <div class="grid"><div class="field"><label for="intelKnowledgeCategory">Category</label><select id="intelKnowledgeCategory"><option value="company">Company</option><option value="module">Module</option><option value="decision">Decision</option><option value="goal">Goal</option><option value="procedure">Procedure</option><option value="project">Project</option></select></div><div class="field"><label for="intelKnowledgeImportance">Importance</label><select id="intelKnowledgeImportance"><option value="high">High</option><option value="normal" selected>Normal</option><option value="low">Low</option></select></div></div>
+  <div class="field"><label for="intelKnowledgeTitle">Knowledge title</label><input id="intelKnowledgeTitle" maxlength="120" required placeholder="A clear, searchable title"></div>
+  <div class="field"><label for="intelKnowledgeContent">Knowledge / decision</label><textarea id="intelKnowledgeContent" rows="3" maxlength="5000" required placeholder="Write a verified company fact, decision, goal or procedure..."></textarea></div>
+  <div class="hero-actions"><button class="btn" id="intelKnowledgeSaveBtn" type="submit">Save knowledge</button><button class="btn secondary" id="intelKnowledgeCancelBtn" type="button" hidden>Cancel edit</button></div>
+ </form>
+ <div id="intelKnowledgeStatus" class="notice" aria-live="polite">Organizational knowledge has not been loaded.</div>
+ <div id="intelKnowledgeList" class="grid"><div class="empty">Loading organizational knowledge...</div></div>
+</div>
 <div class="panel intelligence-events">
  <div class="section-title"><div><h2>Intelligence Activity Log</h2><div class="small-text">Recent owner actions, task decisions, approvals and memory changes.</div></div><button class="btn secondary small" id="refreshIntelEventsBtn" type="button">Refresh activity</button></div>
  <div id="intelEventsStatus" class="notice" aria-live="polite">Intelligence activity has not been loaded.</div>
@@ -2259,6 +2272,52 @@ catch(error){$("intelMemoryStatus").textContent="Could not delete note: "+error.
 $("intelMemoryForm")?.addEventListener("submit",saveIntelligenceMemory);
 $("refreshIntelMemoryBtn")?.addEventListener("click",loadIntelligenceMemory);
 $("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-delete-intel-memory]");if(button)deleteIntelligenceMemory(button.dataset.deleteIntelMemory,button)});
+
+
+const intelligenceKnowledgeLabels={company:"Company",module:"Module",decision:"Decision",goal:"Goal",procedure:"Procedure",project:"Project"};
+window.intelligenceKnowledgeCache=[];
+async function loadIntelligenceKnowledge(){
+ const status=$("intelKnowledgeStatus"),list=$("intelKnowledgeList");if(!status||!list)return;
+ status.textContent="Loading organizational knowledge...";status.className="notice";
+ try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.knowledge||[]);status.textContent=(data.knowledge||[]).length+" knowledge entries loaded. Core entries are protected; owner entries can be edited or archived.";status.className="notice success"}
+ catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the administrator session is restored.</div>'}
+}
+function renderIntelligenceKnowledge(items){
+ const list=$("intelKnowledgeList");if(!list)return;window.intelligenceKnowledgeCache=Array.isArray(items)?items:[];
+ if(!items.length){list.innerHTML='<div class="empty">No organizational knowledge is available.</div>';return}
+ list.replaceChildren();
+ items.forEach(item=>{
+  const card=document.createElement("article");card.className="card";
+  const head=document.createElement("div");head.className="section-title";
+  const title=document.createElement("strong");title.textContent=item.title||intelligenceKnowledgeLabels[item.category]||"Knowledge";
+  const meta=document.createElement("span");meta.className="small-text";meta.textContent=(intelligenceKnowledgeLabels[item.category]||"Knowledge")+" · "+(item.importance||"normal")+(item.source==="system"?" · Core":" · Owner");
+  head.append(title,meta);const content=document.createElement("p");content.textContent=item.content||"";content.style.whiteSpace="pre-wrap";card.append(head,content);
+  if(item.source==="owner"){const actions=document.createElement("div");actions.className="hero-actions";const edit=document.createElement("button");edit.type="button";edit.className="btn secondary small";edit.textContent="Edit";edit.dataset.editIntelKnowledge=item.id;const archive=document.createElement("button");archive.type="button";archive.className="btn secondary small";archive.textContent="Archive";archive.dataset.archiveIntelKnowledge=item.id;actions.append(edit,archive);card.append(actions)}
+  list.append(card);
+ });
+}
+function resetIntelKnowledgeForm(){$("intelKnowledgeEditingId").value="";$("intelKnowledgeForm").reset();$("intelKnowledgeSaveBtn").textContent="Save knowledge";$("intelKnowledgeCancelBtn").hidden=true}
+async function saveIntelligenceKnowledge(event){
+ event.preventDefault();const status=$("intelKnowledgeStatus"),button=$("intelKnowledgeSaveBtn"),id=$("intelKnowledgeEditingId").value;
+ const body={category:$("intelKnowledgeCategory").value,importance:$("intelKnowledgeImportance").value,title:$("intelKnowledgeTitle").value.trim(),content:$("intelKnowledgeContent").value.trim()};
+ if(body.title.length<3||body.content.length<3){status.textContent="Enter a title and knowledge text.";status.className="notice warn";return}
+ button.disabled=true;
+ try{await api(id?"/intelligence/knowledge/"+encodeURIComponent(id):"/intelligence/knowledge",{method:id?"PUT":"POST",body:JSON.stringify(body)});resetIntelKnowledgeForm();status.textContent=id?"Knowledge updated and audit event recorded.":"Knowledge saved and audit event recorded.";status.className="notice success";await loadIntelligenceKnowledge()}
+ catch(error){status.textContent="Could not save knowledge: "+error.message;status.className="notice warn"}finally{button.disabled=false}
+}
+async function archiveIntelligenceKnowledge(id,button){
+ if(!id||!confirm("Archive this owner knowledge entry?"))return;button.disabled=true;
+ try{await api("/intelligence/knowledge/"+encodeURIComponent(id),{method:"DELETE"});$("intelKnowledgeStatus").textContent="Knowledge archived and audit event recorded.";$("intelKnowledgeStatus").className="notice success";await loadIntelligenceKnowledge()}
+ catch(error){$("intelKnowledgeStatus").textContent="Could not archive knowledge: "+error.message;$("intelKnowledgeStatus").className="notice warn";button.disabled=false}
+}
+function editIntelligenceKnowledge(id){
+ const item=window.intelligenceKnowledgeCache.find(x=>x.id===id&&x.source==="owner");if(!item)return;
+ $("intelKnowledgeEditingId").value=item.id;$("intelKnowledgeCategory").value=item.category;$("intelKnowledgeImportance").value=item.importance;$("intelKnowledgeTitle").value=item.title;$("intelKnowledgeContent").value=item.content;$("intelKnowledgeSaveBtn").textContent="Update knowledge";$("intelKnowledgeCancelBtn").hidden=false;$("intelKnowledgeForm").scrollIntoView({behavior:"smooth",block:"center"});
+}
+$("intelKnowledgeForm")?.addEventListener("submit",saveIntelligenceKnowledge);
+$("intelKnowledgeCancelBtn")?.addEventListener("click",resetIntelKnowledgeForm);
+$("refreshIntelKnowledgeBtn")?.addEventListener("click",loadIntelligenceKnowledge);
+$("intelKnowledgeList")?.addEventListener("click",event=>{const a=event.target.closest("[data-archive-intel-knowledge]"),e=event.target.closest("[data-edit-intel-knowledge]");if(a)archiveIntelligenceKnowledge(a.dataset.archiveIntelKnowledge,a);if(e)editIntelligenceKnowledge(e.dataset.editIntelKnowledge)});
 
 const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted"};
 async function loadIntelligenceEvents(){
