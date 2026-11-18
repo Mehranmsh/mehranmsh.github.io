@@ -291,6 +291,18 @@ test("SOCIAL post interactions enforce the same visibility policy", () => {
 });
 
 
+test("SOCIAL media renderer allows only same-origin HTTPS and Rapidfile CDN sources", () => {
+  const start = indexSource.indexOf("function safeMediaSrc(value,options={})");
+  const end = indexSource.indexOf("function mediaMarkup(", start);
+  assert.ok(start >= 0 && end > start, "central media URL validator must exist");
+  const validator = indexSource.slice(start, end);
+  assert.match(validator, /u\.protocol!==\"https:\"/);
+  assert.match(validator, /u\.username\|\|u\.password/);
+  assert.match(validator, /u\.origin!==location\.origin&&u\.origin!==\"https:\/\/cdn\.rapidfile\.cc\"/);
+  assert.match(validator, /options\.allowBlob/);
+  assert.match(validator, /options\.allowDataImage/);
+});
+
 test("profile gallery lightbox uses sanitized remote or local media URLs", () => {
   const start = indexSource.indexOf("window.openProfileGalleryPhoto=function(index)");
   const end = indexSource.indexOf("function updateProfilePreview()", start);
