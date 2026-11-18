@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - security/intelligence-claim-fencing-rebased-v1
     paths:
       - "index.html"
       - "music-studio.html"
@@ -15,6 +16,7 @@ on:
       - "assets/instruments/**"
       - ".github/workflows/quality-checks.yml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "index.html"
       - "music-studio.html"
