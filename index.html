@@ -1862,7 +1862,7 @@ $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
 grid.innerHTML=filtered.map(p=>{
 const m=getPostMedia(p)[0];
 if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';
-return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>';
+return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+escapeHTML(safeMediaSrc(m.data,{allowBlob:true,allowDataImage:true}))+'" muted></video>':'<img src="'+escapeHTML(safeMediaSrc(m.data,{allowBlob:true,allowDataImage:true}))+'" alt="Explore post">')+'</button></div>';
 }).join("");
 }
 $("exploreSearch").addEventListener("input",renderExplore);
