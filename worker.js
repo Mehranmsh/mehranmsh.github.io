@@ -7139,15 +7139,20 @@ export default {
           [sourceEvidence,targetEvidence] = [targetEvidence,sourceEvidence];
         }
         const id = crypto.randomUUID();
+        const auditId = crypto.randomUUID();
         try {
-          await env.DB.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,?,?,'candidate',?,?)")
-            .bind(id,admin.uid,sourceId,targetId,relationType,sourceEvidence,targetEvidence).run();
+          const results = await env.DB.batch([
+            env.DB.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,?,?,'candidate',?,?)")
+              .bind(id,admin.uid,sourceId,targetId,relationType,sourceEvidence,targetEvidence),
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=?)")
+              .bind(auditId,admin.uid,admin.username,"intelligence_knowledge_relation_proposed","intelligence_knowledge_relation",id,JSON.stringify({relationType,sourceKnowledgeId:sourceId,targetKnowledgeId:targetId}),id,admin.uid)
+          ]);
+          if (!Number(results?.[0]?.meta?.changes||0)) return error("Knowledge relationship was not created.",409);
         } catch (cause) {
           const message = String(cause?.message||"");
           if (/unique|constraint/i.test(message)) return error("This knowledge relationship already exists or violates an ownership rule.",409);
           throw cause;
         }
-        await writeAdminAudit(env,admin,"intelligence_knowledge_relation_proposed","intelligence_knowledge_relation",id,JSON.stringify({relationType,sourceKnowledgeId:sourceId,targetKnowledgeId:targetId}));
         return json({success:true,id,status:"candidate"},201);
       }
 
@@ -7166,25 +7171,34 @@ export default {
             !["confirm","dismiss","resolve"].includes(body.action)) return error("Choose confirm, dismiss or resolve.");
         const existing = await env.DB.prepare("SELECT id,relation_type,status,source_knowledge_id,target_knowledge_id FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
         if (!existing) return error("Knowledge relationship not found.",404);
-        let updated;
+        let updateStatement;
         let auditAction;
+        let nextStatus;
         if (body.action === "confirm" && existing.status === "candidate") {
-          updated = await env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='confirmed',confirmed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='candidate'").bind(id,admin.uid).run();
+          updateStatement = env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='confirmed',confirmed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='candidate'").bind(id,admin.uid);
           auditAction = "intelligence_knowledge_relation_confirmed";
+          nextStatus = "confirmed";
         } else if (body.action === "dismiss" && existing.status === "candidate") {
-          updated = await env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='dismissed',dismissed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='candidate'").bind(id,admin.uid).run();
+          updateStatement = env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='dismissed',dismissed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='candidate'").bind(id,admin.uid);
           auditAction = "intelligence_knowledge_relation_dismissed";
+          nextStatus = "dismissed";
         } else if (body.action === "resolve" && existing.status === "confirmed" && existing.relation_type === "conflicts_with") {
           const chosenId = cleanText(body.resolvedKnowledgeId,80);
           if (![existing.source_knowledge_id,existing.target_knowledge_id].includes(chosenId)) return error("Resolution must select one of the two conflicting knowledge entries.");
-          updated = await env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='resolved',resolved_knowledge_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='confirmed' AND relation_type='conflicts_with'").bind(chosenId,id,admin.uid).run();
+          updateStatement = env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='resolved',resolved_knowledge_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='confirmed' AND relation_type='conflicts_with'").bind(chosenId,id,admin.uid);
           auditAction = "intelligence_knowledge_relation_resolved";
+          nextStatus = "resolved";
         } else {
           return error("This relationship cannot make that state transition.",409);
         }
-        if (!Number(updated?.meta?.changes||0)) return error("Relationship changed or is no longer eligible for this action.",409);
-        await writeAdminAudit(env,admin,auditAction,"intelligence_knowledge_relation",id,JSON.stringify({relationType:existing.relation_type,action:body.action,resolvedKnowledgeId:body.action==="resolve"?body.resolvedKnowledgeId:null}));
-        return json({success:true,id,action:body.action});
+        const auditId = crypto.randomUUID();
+        const results = await env.DB.batch([
+          updateStatement,
+          env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=? AND status=?)")
+            .bind(auditId,admin.uid,admin.username,auditAction,"intelligence_knowledge_relation",id,JSON.stringify({relationType:existing.relation_type,action:body.action,resolvedKnowledgeId:body.action==="resolve"?body.resolvedKnowledgeId:null}),id,admin.uid,nextStatus)
+        ]);
+        if (!Number(results?.[0]?.meta?.changes||0)) return error("Relationship changed or is no longer eligible for this action.",409);
+        return json({success:true,id,action:body.action,status:nextStatus});
       }
 
       if (path === "/intelligence/chat" && method === "POST") {
