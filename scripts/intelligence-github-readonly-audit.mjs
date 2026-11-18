@@ -111,8 +111,8 @@ export async function verifyReadOnlyGitHubSnapshot({
   };
 }
 
-async function githubGet(url, token) {
-  const response = await fetch(url, {
+async function githubGet(url, token, fetchImpl = globalThis.fetch) {
+  const response = await fetchImpl(url, {
     method: "GET",
     headers: {
       Accept: "application/vnd.github+json",
@@ -124,14 +124,14 @@ async function githubGet(url, token) {
   return response.json();
 }
 
-export async function runReadOnlyAudit(env = process.env) {
+export async function runReadOnlyAudit(env = process.env, fetchImpl = globalThis.fetch, allowedPaths = ALLOWED_PATHS) {
   const repository = env.GITHUB_REPOSITORY;
   const token = env.GITHUB_TOKEN;
   const baseSha = env.MEHRAN_AUDIT_BASE_SHA;
   const headSha = env.GITHUB_SHA;
   if (!repository || !token || !SHA.test(baseSha || "") || !SHA.test(headSha || "")) throw new Error("Missing or malformed read-only audit environment.");
   const api = "https://api.github.com";
-  const get = path => githubGet(`${api}/repos/${repository}/${path}`, token);
+  const get = path => githubGet(`${api}/repos/${repository}/${path}`, token, fetchImpl);
   const [base, head] = await Promise.all([
     get(`commits/${baseSha}`),
     get(`commits/${headSha}`)
@@ -146,6 +146,7 @@ export async function runReadOnlyAudit(env = process.env) {
     baseCommit: { repository, sha: base.sha, treeSha: base.commit.tree.sha, parents: base.parents.map(p=>p.sha) },
     headCommit: { repository, sha: head.sha, treeSha: head.commit.tree.sha, parents: head.parents.map(p=>p.sha) },
     baseTree, headTree, comparison,
+    allowedPaths,
     fetchBlob: async sha => {
       const blob = await get(`git/blobs/${sha}`);
       if (blob.encoding !== "base64" || typeof blob.content !== "string") throw new Error("Unsupported GitHub blob encoding.");
