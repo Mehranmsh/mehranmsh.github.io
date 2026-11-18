@@ -5209,13 +5209,14 @@ export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=true) 
  const ranked=(rows||[]).map(row=>{
   const title=String(row.title||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
   const content=String(row.content||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
-  let score=0;
-  for(const term of terms){if(title.includes(term))score+=6;if(content.includes(term))score+=1;}
-  if(phrase.length>=4&&title.includes(phrase))score+=4;
-  if(phrase.length>=4&&content.includes(phrase))score+=2;
+  let score=0,matched=false;
+  for(const term of terms){if(title.includes(term)){score+=6;matched=true;}if(content.includes(term)){score+=1;matched=true;}}
+  if(phrase.length>=4&&title.includes(phrase)){score+=4;matched=true;}
+  if(phrase.length>=4&&content.includes(phrase)){score+=2;matched=true;}
+  if(!matched)return null;
   if(row.importance==="high")score+=2;else if(row.importance==="normal")score+=1;
   return {score,row:{id:row.id,category:row.category,title:row.title,content:String(row.content||"").slice(0,1200),importance:row.importance,source:row.owner_uid==="system_seed"?"system":"owner",updatedAt:row.updated_at||null}};
- }).filter(item=>item.score>0);
+ }).filter(Boolean);
  ranked.sort((a,b)=>b.score-a.score||((b.row.importance==="high")-(a.row.importance==="high"))||String(b.row.updatedAt||"").localeCompare(String(a.row.updatedAt||"")));
  if(!ranked.length) {
   if(!fallback)return [];
