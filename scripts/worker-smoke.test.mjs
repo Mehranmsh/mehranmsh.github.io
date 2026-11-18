@@ -25,6 +25,21 @@ const approvalModule = await import(
   "data:text/javascript;base64," + Buffer.from(approvalHelperSource).toString("base64")
 );
 const worker = workerModule.default;
+const relationProposalStart = workerSource.indexOf("async function proposeIntelligenceKnowledgeRelation(env,admin,args,visibleKnowledgeIds)");
+const relationProposalEnd = workerSource.indexOf("export async function runIntelligenceToolLoop", relationProposalStart);
+if (relationProposalStart < 0 || relationProposalEnd <= relationProposalStart) {
+  throw new Error("Intelligence knowledge relationship proposal helper source could not be isolated");
+}
+const relationProposalSource = `
+import { randomUUID } from "node:crypto";
+const crypto = { randomUUID };
+async function checkRateLimit() { return true; }
+` + workerSource.slice(relationProposalStart, relationProposalEnd) +
+  "\nexport { proposeIntelligenceKnowledgeRelation };";
+const relationProposalModule = await import(
+  "data:text/javascript;base64," + Buffer.from(relationProposalSource).toString("base64")
+);
+
 
 function mockDb() {
   return {
@@ -389,6 +404,11 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   assert.match(chat, /get_project_status/);
   assert.match(chat, /get_social_metrics/);
   assert.match(chat, /name === "search_organizational_knowledge"/);
+  assert.match(chat, /name:"propose_knowledge_relationship"/);
+  assert.match(chat, /name === "propose_knowledge_relationship"/);
+  assert.match(chat, /item\.source==="owner"\)visibleKnowledgeIds\.add\(item\.id\)/);
+  assert.match(chat, /organizationalKnowledge\.filter\(item=>item\.source==="owner"\)/);
+  assert.match(workerSource, /ownerApprovalRequired:true/);
   assert.match(chat, /parseIntelligenceKnowledgeSearchArgs\(args\)/);
   assert.match(chat, /owner_uid IN \(\?, 'system_seed'\)/);
   assert.match(chat, /rankIntelligenceKnowledge\(rows\.results\|\|\[\],query,12,false\)/);
@@ -2343,6 +2363,52 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]'));
 });
 
+
+test("INTELLIGENCE AI relationship proposals are visible-context-only, evidence-bound and candidate-only", async () => {
+  const owner="owner-123";
+  const sourceId="11111111-1111-4111-8111-111111111111";
+  const targetId="22222222-2222-4222-8222-222222222222";
+  const entries=[
+    {id:sourceId,owner_uid:owner,content:"Use Carrier A for international shipping.",archived_at:null},
+    {id:targetId,owner_uid:owner,content:"Use Carrier B for international shipping.",archived_at:null}
+  ];
+  let batchCalls=0;
+  let schemaAvailable=true;
+  let queryRows=entries;
+  let lastKnowledgeQueryBindings=[];
+  const env={DB:{
+    prepare(sql){
+      return {
+        sql,
+        bound:[],
+        bind(...args){this.bound=args;return this;},
+        async first(){if(sql.includes("sqlite_master"))return schemaAvailable?{name:"intelligence_knowledge_relations"}:null;throw new Error("Unexpected first query: "+sql);},
+        async all(){if(sql.includes("FROM intelligence_knowledge WHERE id IN")){lastKnowledgeQueryBindings=this.bound;return {results:queryRows};}throw new Error("Unexpected all query: "+sql);}
+      };
+    },
+    async batch(statements){batchCalls++;assert.equal(statements.length,2);assert.ok(statements[0].sql.includes("VALUES(?,?,?,?,?,'candidate',?,?)"));assert.equal(statements[1].bound[3],"intelligence_knowledge_relation_ai_proposed");return [{meta:{changes:1}},{meta:{changes:1}}];}
+  }};
+  const admin={uid:owner,username:"owner"};
+  const args={sourceKnowledgeId:sourceId,targetKnowledgeId:targetId,relationType:"conflicts_with",sourceEvidence:"Use Carrier A",targetEvidence:"Use Carrier B"};
+  const visible=new Set([sourceId,targetId]);
+  const result=await relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible);
+  assert.equal(result.status,"candidate");
+  assert.equal(result.ownerApprovalRequired,true);
+  assert.equal(batchCalls,1);
+  assert.deepEqual(lastKnowledgeQueryBindings,[sourceId,targetId,owner],"the D1 read must be scoped to the authenticated owner");
+
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,{...args,sourceEvidence:"invented evidence"},visible),/exactly in their corresponding stored knowledge entries/);
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,new Set([sourceId])),/retrieved into this conversation/);
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,{...args,extra:"not allowed"},visible),/complete knowledge relationship proposal/);
+  queryRows=[{...entries[0]},{...entries[1],owner_uid:"another-owner"}];
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible),/active and owned by the authenticated owner/);
+  queryRows=[{...entries[0]},{...entries[1],archived_at:"2026-11-19"}];
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible),/active and owned by the authenticated owner/);
+  queryRows=entries;
+  schemaAvailable=false;
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible),/storage is not installed/);
+  assert.equal(batchCalls,1,"invalid, cross-owner, archived or unavailable-schema proposals must not write to D1");
+});
 
 test("INTELLIGENCE knowledge relationship API is owner-only, evidence-bound and audited atomically", () => {
   assert.match(workerSource,/path === "\/intelligence\/knowledge\/relations"/);

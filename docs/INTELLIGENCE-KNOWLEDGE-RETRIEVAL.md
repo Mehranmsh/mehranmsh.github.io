@@ -49,3 +49,18 @@ The staged schema and owner-controlled Worker API are now implemented on review 
 - Chat context now includes only relationships that touch a knowledge entry selected by the existing bounded lexical retrieval. Candidate, confirmed and resolved states are passed separately. Candidate status is explicitly unconfirmed; only an owner-confirmed resolved conflict records an owner choice. No source knowledge record is rewritten or deleted.
 
 These endpoints are owner-operated, not autonomous model actions. The model does not yet create relationship proposals itself. CI uses smoke contracts and disposable SQLite migration tests; this is not a live Cloudflare D1 or provider integration test. Do not claim production readiness until the stacked PRs are reviewed, merged in dependency order, staged against a separate D1 database, and browser-tested.
+
+
+## AI-proposed knowledge relationships (review branch)
+
+The chat model may now call `propose_knowledge_relationship` when it identifies a possible connection between two knowledge entries. This is a suggestion workflow only:
+
+- Both IDs must already have been retrieved into the current conversation, either in the initial ranked knowledge context or through the read-only targeted search tool.
+- The model must submit a non-empty evidence excerpt for each entry. Each excerpt is bounded to 500 characters and must match the corresponding stored content verbatim.
+- Both entries are reloaded from D1 and must be active records owned by the authenticated owner. System-seed records and other owners' records cannot be linked by this tool.
+- The tool accepts only `conflicts_with`, `supersedes`, and `supports`. Conflict pairs are canonicalized to prevent reverse duplicates.
+- A successful call creates only a `candidate` relationship and an audit event in one D1 batch. It never confirms, dismisses, resolves, edits, archives, or deletes either knowledge entry.
+- The owner-controlled GET/PUT relationship API remains the only path to confirm, dismiss, or resolve. The model is explicitly instructed not to perform those transitions.
+- A per-owner hourly rate limit applies. If the relationship table is absent, the proposal fails closed; the chat tool does not create or migrate production schema.
+
+The smoke suite exercises valid candidate creation, exact-evidence rejection, non-visible-ID rejection, unexpected-field rejection, candidate-only SQL, audit insertion, and chat tool wiring. These are deterministic unit/source-contract checks with a mocked D1 batch, not a live Cloudflare D1 or live-model integration test.
