@@ -2567,3 +2567,109 @@ test("INTELLIGENCE relationship routes are owner-authenticated and preserve cand
   assert.match(workerSource,/status IN \('candidate','confirmed','resolved'\)/);
   assert.doesNotMatch(routes,/DELETE FROM intelligence_knowledge/);
 });
+
+function makeRelationshipRouteDb({rows=[],current=null,activeKnowledgeCount=2,changes=1}={}) {
+  const calls=[];
+  const db={
+    calls,
+    prepare(sql) {
+      let args=[];
+      return {
+        bind(...values){args=values;return this;},
+        async first() {
+          calls.push({kind:"first",sql,args});
+          if(sql.includes("FROM admin_sessions"))return {uid:"owner-1",username:"mehranmsh",created_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+3600};
+          if(sql.includes("INSERT INTO social_auth_limits"))return {attempts:1,blocked_until:null};
+          if(sql.includes("SELECT left_knowledge_id,right_knowledge_id,relation_type,status FROM intelligence_knowledge_relationships"))return current;
+          if(sql.includes("SELECT COUNT(*) AS total FROM intelligence_knowledge"))return {total:activeKnowledgeCount};
+          if(sql.includes("SELECT 1 AS active FROM intelligence_knowledge"))return {active:1};
+          return null;
+        },
+        async all() {
+          calls.push({kind:"all",sql,args});
+          if(sql.includes("FROM intelligence_knowledge_relationships r JOIN"))return {results:rows};
+          return {results:[]};
+        },
+        async run() {
+          calls.push({kind:"run",sql,args});
+          return {meta:{changes}};
+        }
+      };
+    }
+  };
+  return db;
+}
+
+test("INTELLIGENCE relationship API enforces owner authentication and owner-scoped reads", async () => {
+  const db=makeRelationshipRouteDb({rows:[{
+    id:"rel-1",left_knowledge_id:"k1",right_knowledge_id:"k2",
+    relation_type:"conflicts_with",status:"candidate",proposed_by:"intelligence",
+    evidence_json:'[{"knowledgeId":"k1","text":"Use Carrier A.","source":"owner_knowledge"}]',
+    resolution_knowledge_id:null,created_at:"2026-11-19",updated_at:"2026-11-19",
+    left_title:"Shipping A",left_updated_at:"2026-11-18",
+    right_title:"Shipping B",right_updated_at:"2026-11-19"
+  }]});
+  const token="a".repeat(48);
+  const env={DB:db,MEHRAN_OWNER_PI_UID:"owner-1"};
+  const response=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships",{
+    headers:{Authorization:"Bearer "+token}
+  }),env,{});
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.relationships.length,1);
+  assert.equal(body.relationships[0].status,"candidate");
+  assert.equal(body.relationships[0].left.title,"Shipping A");
+  const read=db.calls.find(call=>call.kind==="all"&&call.sql.includes("FROM intelligence_knowledge_relationships r JOIN"));
+  assert.equal(read.args[0],"owner-1");
+
+  const unauthenticated=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships"),{DB:makeRelationshipRouteDb(),MEHRAN_OWNER_PI_UID:"owner-1"},{});
+  assert.equal(unauthenticated.status,403);
+});
+
+test("INTELLIGENCE relationship API validates direction and writes only owner-confirmed records", async () => {
+  const db=makeRelationshipRouteDb();
+  const token="b".repeat(48);
+  const env={DB:db,MEHRAN_OWNER_PI_UID:"owner-1"};
+  const invalid=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships",{
+    method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({leftId:"k1",rightId:"k2",relationType:"supports",evidence:"owner note"})
+  }),env,{});
+  assert.equal(invalid.status,400);
+  assert.equal(db.calls.filter(call=>call.kind==="run"&&call.sql.includes("INSERT INTO intelligence_knowledge_relationships")).length,0);
+
+  const valid=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships",{
+    method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({leftId:"k1",rightId:"k2",relationType:"supports",directionFromId:"k1",directionToId:"k2",evidence:"Owner verified relation"})
+  }),env,{});
+  assert.equal(valid.status,201);
+  const insert=db.calls.find(call=>call.kind==="run"&&call.sql.includes("INSERT INTO intelligence_knowledge_relationships"));
+  assert.equal(insert.args[1],"owner-1");
+  assert.equal(insert.args[4],"supports");
+  assert.equal(insert.args[7],"k1");
+  assert.equal(insert.args[8],"k2");
+});
+
+test("INTELLIGENCE relationship API resolves only owner-confirmed conflicts", async () => {
+  const db=makeRelationshipRouteDb({current:{
+    left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"conflicts_with",status:"candidate"
+  }});
+  const token="c".repeat(48);
+  const response=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships/rel-1",{
+    method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({action:"resolve",resolutionKnowledgeId:"k2"})
+  }),{DB:db,MEHRAN_OWNER_PI_UID:"owner-1"},{});
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.status,"resolved");
+  assert.ok(db.calls.some(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")));
+
+  const supportDb=makeRelationshipRouteDb({current:{
+    left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"supports",status:"confirmed"
+  }});
+  const rejected=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships/rel-2",{
+    method:"PUT",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},
+    body:JSON.stringify({action:"resolve",resolutionKnowledgeId:"k2"})
+  }),{DB:supportDb,MEHRAN_OWNER_PI_UID:"owner-1"},{});
+  assert.equal(rejected.status,400);
+  assert.equal(supportDb.calls.filter(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")).length,0);
+});
