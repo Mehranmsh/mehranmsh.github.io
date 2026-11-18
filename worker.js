@@ -6591,6 +6591,27 @@ export default {
       }
 
       const intelligenceMemoryMatch = path.match(/^\/intelligence\/memory\/([^/]+)$/);
+      if (intelligenceMemoryMatch && method === "PUT") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceMemoryTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-memory-write", 20, 3600, 600, admin.uid)) return error("Too many memory changes. Try again later.", 429);
+        const id = decodeURIComponent(intelligenceMemoryMatch[1]);
+        if (!id || id.length > 80) return error("Invalid memory ID.");
+        const body = await readBody(request);
+        if (!body) return error("Invalid request body");
+        const category = cleanText(body.category || "company", 24).toLowerCase();
+        const title = cleanText(body.title, 120);
+        const content = cleanText(body.content, 5000);
+        const importance = cleanText(body.importance || "normal", 12).toLowerCase();
+        const categories = ["company","module","decision","goal","procedure","project"];
+        if (!categories.includes(category) || !["low","normal","high"].includes(importance) || title.length < 3 || !content || typeof body.title !== "string" || typeof body.content !== "string" || body.content.length > 5000) return error("Provide a valid memory category, title and content (maximum 5000 characters).");
+        const update = await env.DB.prepare("UPDATE intelligence_memory SET category=?,title=?,content=?,importance=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND archived_at IS NULL").bind(category,title,content,importance,id).run();
+        if (!Number(update?.meta?.changes || 0)) return error("Memory entry not found or already archived.",404);
+        await writeAdminAudit(env,admin,"intelligence_memory_updated","intelligence_memory",id,JSON.stringify({category,importance}));
+        const row = await env.DB.prepare("SELECT id,category,title,content,importance,created_by,created_at,updated_at FROM intelligence_memory WHERE id=?").bind(id).first();
+        return json({success:true,memory:row});
+      }
       if (intelligenceMemoryMatch && method === "DELETE") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
