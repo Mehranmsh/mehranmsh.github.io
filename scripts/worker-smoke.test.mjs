@@ -1685,7 +1685,8 @@ test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", ()
   assert.match(policy, /\["mehran_intelligence","shared"\]\.includes\(assignedTo\)/);
   assert.match(policy, /body\.requiresApproval!==true/);
   assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(workerSource, /Pending or automated task status is controlled by the owner Task Hub/);
+  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+  assert.match(workerSource, /const approvalGate=Boolean\(existing\.action_type\)\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status===\"awaiting_approval\"/);
 });
 
 
