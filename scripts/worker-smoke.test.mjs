@@ -212,7 +212,7 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(route, /No external action was executed/);
   assert.ok(route.includes("VALUES(?,?,?,?,?,'awaiting_approval',1,?)"));
   assert.ok(route.includes("Every proposal is held for explicit owner approval"));
-  assert.ok(route.includes("if(existing.action_type) return rpcError"));
+  assert.ok(route.includes("if(existing.action_type||Number(existing.requires_approval)===1||existing.status===\"awaiting_approval\") return rpcError"));
   assert.ok(!route.includes('requiresApproval:{type:"boolean"}'));
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
