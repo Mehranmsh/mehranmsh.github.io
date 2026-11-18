@@ -2171,6 +2171,25 @@ test("INTELLIGENCE knowledge retrieval ranks relevant titles, normalizes Persian
   assert.deepEqual(piOnly.map(item=>item.id),["pi-network"],"short query tokens must match whole tokens, not substrings inside unrelated words");
 });
 
+test("INTELLIGENCE tool-call parser rejects malformed identifiers, unknown tools, duplicate IDs and invalid arguments", () => {
+  const allowed=["get_project_status","propose_collaboration_task"],seen=new Set();
+  assert.deepEqual(workerModule.parseIntelligenceToolCall({id:"call_1",function:{name:"get_project_status",arguments:"{}"}},allowed,seen),{id:"call_1",name:"get_project_status",args:{}});
+  assert.throws(()=>workerModule.parseIntelligenceToolCall({id:"call_1",function:{name:"get_project_status",arguments:"{}"}},allowed,seen),/Duplicate/);
+  assert.throws(()=>workerModule.parseIntelligenceToolCall({id:"",function:{name:"get_project_status",arguments:"{}"}},allowed),/identifier/);
+  assert.throws(()=>workerModule.parseIntelligenceToolCall({id:"call_2",function:{name:"unknown_tool",arguments:"{}"}},allowed),/Unknown/);
+  assert.throws(()=>workerModule.parseIntelligenceToolCall({id:"call_3",function:{name:"get_project_status",arguments:"[]"}},allowed),/JSON object/);
+  assert.throws(()=>workerModule.parseIntelligenceToolCall({id:"call_4",function:{name:"get_project_status",arguments:"{broken"}},allowed),/valid JSON/);
+  assert.throws(()=>workerModule.parseIntelligenceToolCall({id:"call_5",function:{name:"get_project_status",arguments:"x".repeat(10001)}},allowed),/size limit/);
+});
+
+test("INTELLIGENCE validates every tool call in a batch before any tool execution", () => {
+  const start=workerSource.indexOf("const parsedCalls=calls.map(call=>parseIntelligenceToolCall");
+  const end=workerSource.indexOf('messages.push({role:"assistant"',start);
+  assert.ok(start>=0&&end>start,"tool-call batch must be validated before execution");
+  assert.doesNotMatch(workerSource.slice(start,end),/executeTool/);
+  assert.match(workerSource,/const seenToolCallIds=new Set\(\)/);
+});
+
 test("INTELLIGENCE retrieval treats hostile knowledge as inert text and exposes only an allowlisted record", () => {
   const hostile = {
     id:"hostile-note",
