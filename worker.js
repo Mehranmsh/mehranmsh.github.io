@@ -7089,6 +7089,104 @@ export default {
        return json({success:true,updated:true,id});
       }
 
+      if (path === "/intelligence/knowledge/relations" && ["GET","POST"].includes(method)) {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureSocialAuthLimitsTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-knowledge-relations", method === "GET" ? 60 : 20, 3600, 600, admin.uid)) {
+          return error("Too many knowledge relationship requests. Try again later.", 429);
+        }
+        // Schema is introduced by the separate staged migration. Never auto-migrate production D1 here.
+        const schema = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='intelligence_knowledge_relations'").first();
+        if (!schema) return error("Knowledge relationship storage is not installed. Apply the reviewed migration to an isolated staging database first.", 503);
+
+        if (method === "GET") {
+          const requestedStatus = new URL(request.url).searchParams.get("status") || "";
+          if (requestedStatus && !["candidate","confirmed","dismissed","resolved"].includes(requestedStatus)) {
+            return error("Invalid relationship status filter.");
+          }
+          const rows = requestedStatus
+            ? await env.DB.prepare("SELECT r.id,r.source_knowledge_id,r.target_knowledge_id,r.relation_type,r.status,r.source_evidence,r.target_evidence,r.resolved_knowledge_id,r.created_at,r.updated_at,r.confirmed_at,r.dismissed_at,s.title AS source_title,t.title AS target_title FROM intelligence_knowledge_relations r JOIN intelligence_knowledge s ON s.id=r.source_knowledge_id JOIN intelligence_knowledge t ON t.id=r.target_knowledge_id WHERE r.owner_uid=? AND r.status=? ORDER BY r.updated_at DESC LIMIT 100").bind(admin.uid, requestedStatus).all()
+            : await env.DB.prepare("SELECT r.id,r.source_knowledge_id,r.target_knowledge_id,r.relation_type,r.status,r.source_evidence,r.target_evidence,r.resolved_knowledge_id,r.created_at,r.updated_at,r.confirmed_at,r.dismissed_at,s.title AS source_title,t.title AS target_title FROM intelligence_knowledge_relations r JOIN intelligence_knowledge s ON s.id=r.source_knowledge_id JOIN intelligence_knowledge t ON t.id=r.target_knowledge_id WHERE r.owner_uid=? ORDER BY r.updated_at DESC LIMIT 100").bind(admin.uid).all();
+          return json({success:true,relations:rows.results||[]});
+        }
+
+        const body = await readBody(request);
+        const allowed = ["sourceKnowledgeId","targetKnowledgeId","relationType","sourceEvidence","targetEvidence"];
+        if (!body || Object.keys(body).some(key => !allowed.includes(key))) return error("Invalid relationship request.");
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        let sourceId = cleanText(body.sourceKnowledgeId, 80);
+        let targetId = cleanText(body.targetKnowledgeId, 80);
+        let sourceEvidence = cleanText(body.sourceEvidence, 500);
+        let targetEvidence = cleanText(body.targetEvidence, 500);
+        const relationType = cleanText(body.relationType, 32);
+        if (!uuidPattern.test(sourceId) || !uuidPattern.test(targetId) || sourceId === targetId ||
+            !["conflicts_with","supersedes","supports"].includes(relationType) ||
+            !sourceEvidence || !targetEvidence ||
+            typeof body.sourceEvidence !== "string" || typeof body.targetEvidence !== "string" ||
+            body.sourceEvidence.length > 500 || body.targetEvidence.length > 500) {
+          return error("Provide two distinct knowledge IDs, an allowed relation type and bounded evidence excerpts.");
+        }
+        const entries = await env.DB.prepare("SELECT id,owner_uid,content,archived_at FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=?").bind(sourceId,targetId,admin.uid).all();
+        const byId = new Map((entries.results||[]).map(row => [row.id,row]));
+        const source = byId.get(sourceId), target = byId.get(targetId);
+        if (!source || !target || source.archived_at || target.archived_at) return error("Both knowledge entries must be active and owned by the authenticated owner.",404);
+        if (!source.content.includes(sourceEvidence) || !target.content.includes(targetEvidence)) {
+          return error("Evidence excerpts must appear exactly in their corresponding knowledge entries.");
+        }
+        if (relationType === "conflicts_with" && sourceId > targetId) {
+          [sourceId,targetId] = [targetId,sourceId];
+          [sourceEvidence,targetEvidence] = [targetEvidence,sourceEvidence];
+        }
+        const id = crypto.randomUUID();
+        try {
+          await env.DB.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,?,?,'candidate',?,?)")
+            .bind(id,admin.uid,sourceId,targetId,relationType,sourceEvidence,targetEvidence).run();
+        } catch (cause) {
+          const message = String(cause?.message||"");
+          if (/unique|constraint/i.test(message)) return error("This knowledge relationship already exists or violates an ownership rule.",409);
+          throw cause;
+        }
+        await writeAdminAudit(env,admin,"intelligence_knowledge_relation_proposed","intelligence_knowledge_relation",id,JSON.stringify({relationType,sourceKnowledgeId:sourceId,targetKnowledgeId:targetId}));
+        return json({success:true,id,status:"candidate"},201);
+      }
+
+      const knowledgeRelationMatch = path.match(/^\\/intelligence\\/knowledge\\/relations\\/([^/]+)$/);
+      if (knowledgeRelationMatch && method === "PUT") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required",403);
+        await ensureSocialAuthLimitsTable(env);
+        if (!await checkRateLimit(env,request,"intelligence-knowledge-relations",20,3600,600,admin.uid)) return error("Too many knowledge relationship changes. Try again later.",429);
+        const schema = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='intelligence_knowledge_relations'").first();
+        if (!schema) return error("Knowledge relationship storage is not installed. Apply the reviewed migration to an isolated staging database first.",503);
+        const id = decodeURIComponent(knowledgeRelationMatch[1]);
+        if (!/^[0-9a-f-]{36}$/i.test(id)) return error("Invalid relationship ID.");
+        const body = await readBody(request);
+        if (!body || Object.keys(body).some(key => !["action","resolvedKnowledgeId"].includes(key)) ||
+            !["confirm","dismiss","resolve"].includes(body.action)) return error("Choose confirm, dismiss or resolve.");
+        const existing = await env.DB.prepare("SELECT id,relation_type,status,source_knowledge_id,target_knowledge_id FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
+        if (!existing) return error("Knowledge relationship not found.",404);
+        let updated;
+        let auditAction;
+        if (body.action === "confirm" && existing.status === "candidate") {
+          updated = await env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='confirmed',confirmed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='candidate'").bind(id,admin.uid).run();
+          auditAction = "intelligence_knowledge_relation_confirmed";
+        } else if (body.action === "dismiss" && existing.status === "candidate") {
+          updated = await env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='dismissed',dismissed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='candidate'").bind(id,admin.uid).run();
+          auditAction = "intelligence_knowledge_relation_dismissed";
+        } else if (body.action === "resolve" && existing.status === "confirmed" && existing.relation_type === "conflicts_with") {
+          const chosenId = cleanText(body.resolvedKnowledgeId,80);
+          if (![existing.source_knowledge_id,existing.target_knowledge_id].includes(chosenId)) return error("Resolution must select one of the two conflicting knowledge entries.");
+          updated = await env.DB.prepare("UPDATE intelligence_knowledge_relations SET status='resolved',resolved_knowledge_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='confirmed' AND relation_type='conflicts_with'").bind(chosenId,id,admin.uid).run();
+          auditAction = "intelligence_knowledge_relation_resolved";
+        } else {
+          return error("This relationship cannot make that state transition.",409);
+        }
+        if (!Number(updated?.meta?.changes||0)) return error("Relationship changed or is no longer eligible for this action.",409);
+        await writeAdminAudit(env,admin,auditAction,"intelligence_knowledge_relation",id,JSON.stringify({relationType:existing.relation_type,action:body.action,resolvedKnowledgeId:body.action==="resolve"?body.resolvedKnowledgeId:null}));
+        return json({success:true,id,action:body.action});
+      }
+
       if (path === "/intelligence/chat" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
