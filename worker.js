@@ -6773,7 +6773,17 @@ export default {
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        const updated=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,agent_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claimed_at END,agent_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claim_id END,scheduler_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claimed_at END,scheduler_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claim_id END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?").bind(body.status,nextResult,body.status,body.status,body.status,body.status,body.status,id,existing.status).run();
+        let updated;
+        const taskTransition=env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,agent_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claimed_at END,agent_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claim_id END,scheduler_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claimed_at END,scheduler_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claim_id END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?").bind(body.status,nextResult,body.status,body.status,body.status,body.status,body.status,id,existing.status);
+        if(body.status==="cancelled"&&existing.action_type==="documentation_patch_proposal"){
+          await ensureIntelligenceApprovalLedgerTable(env);
+          const now=Math.floor(Date.now()/1000);
+          const revokeGrant=env.DB.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at>? AND EXISTS (SELECT 1 FROM intelligence_tasks WHERE id=? AND status='cancelled')").bind(now,id,admin.uid,now,id);
+          const results=await env.DB.batch([taskTransition,revokeGrant]);
+          updated=results[0];
+        }else{
+          updated=await taskTransition.run();
+        }
         if(!Number(updated?.meta?.changes||0))return error("Task state changed before this update. Refresh and try again.",409);
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status,previousStatus:existing.status,claimsRevoked:body.status==="cancelled"}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
