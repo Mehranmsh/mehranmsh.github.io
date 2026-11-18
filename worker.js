@@ -5580,6 +5580,14 @@ export default {
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
+        const agentStatusMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/status$/);
+        if (agentStatusMatch && method === "GET") {
+          const id = decodeURIComponent(agentStatusMatch[1]);
+          if (!id || id.length > 80) return error("Invalid task ID.");
+          const row = await env.DB.prepare("SELECT id,status,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
+          if (!row || !["mehran_intelligence","shared"].includes(row.assigned_to)) return error("Task not found or not assigned to this agent.",404);
+          return json({success:true,task:{id:row.id,status:row.status,actionType:row.action_type || "",agentClaimed:Boolean(row.agent_claimed_at)}});
+        }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
@@ -6444,7 +6452,7 @@ export default {
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
             if(existing.action_type||Number(existing.requires_approval)===1||existing.status==="awaiting_approval") return rpcError(-32003,"Pending proposals and automated task approval, cancellation and execution results are controlled by the owner Task Hub and MEHRAN INTELLIGENCE service.");
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
@@ -6529,7 +6537,8 @@ export default {
         if(!existing)return error("Task not found.",404);
         const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
         const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
-        const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
+        const cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"&&Number(existing.requires_approval)===0&&["mehran_intelligence","shared"].includes(existing.assigned_to)&&["repository_quality_check","service_health_report"].includes(existing.action_type)&&Boolean(existing.agent_claimed_at);
+        const cancelTransition=body.status==="cancelled"&&(["awaiting_approval","queued","accepted"].includes(existing.status)||cancelActiveAgentTransition);
         if(approvalGate){
           if(!approvalTransition&&!cancelTransition)return error("Pending or automated task status is controlled by the owner Task Hub. Only approval or cancellation is allowed.",409);
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Task results cannot be attached to an approval or cancellation transition.",409);
@@ -6539,6 +6548,8 @@ export default {
           let transition;
           if(approvalTransition){
             transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='accepted',requires_approval=0,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_approval' AND requires_approval=1").bind(id).run();
+          }else if(cancelActiveAgentTransition){
+            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL").bind(id).run();
           }else{
             transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')").bind(id,existing.status,Number(existing.requires_approval)).run();
           }
