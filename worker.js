@@ -6854,7 +6854,7 @@ export default {
       if (path === "/intelligence/events" && method === "GET") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
-        const rows = await env.DB.prepare("SELECT id,action,target_type,target_id,details,created_at FROM admin_audit_log WHERE admin_uid=? AND (action LIKE 'intelligence_%' OR target_type IN ('intelligence_task','intelligence_approval','intelligence_knowledge','intelligence_knowledge')) ORDER BY created_at DESC LIMIT 50").bind(admin.uid).all();
+        const rows = await env.DB.prepare("SELECT id,action,target_type,target_id,details,created_at FROM admin_audit_log WHERE admin_uid=? AND (action LIKE 'intelligence_%' OR target_type IN ('intelligence_task','intelligence_approval','intelligence_memory','intelligence_knowledge')) ORDER BY created_at DESC LIMIT 50").bind(admin.uid).all();
         return json({success:true,events:(rows.results||[]).map(row=>({id:row.id,action:row.action,targetType:row.target_type,targetId:row.target_id,details:row.details,createdAt:row.created_at}))});
       }
 
@@ -6881,7 +6881,7 @@ export default {
           const auditId=crypto.randomUUID();
           const results=await env.DB.batch([
             env.DB.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content) SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM intelligence_owner_memory WHERE owner_uid=?)<100").bind(id,admin.uid,category,content,admin.uid),
-            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_created","intelligence_knowledge",id,JSON.stringify({category,characters:content.length}),id,admin.uid)
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_memory_created","intelligence_memory",id,JSON.stringify({category,characters:content.length}),id,admin.uid)
           ]);
           if(!Number(results?.[0]?.meta?.changes||0)) return error("The owner memory limit of 100 notes has been reached.", 409);
           return json({success:true,id});
@@ -6895,7 +6895,7 @@ export default {
           }
           const auditId=crypto.randomUUID();
           const results=await env.DB.batch([
-            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_deleted","intelligence_knowledge",id,"Owner deleted a memory note.",id,admin.uid),
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_memory_deleted","intelligence_memory",id,"Owner deleted a memory note.",id,admin.uid),
             env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?").bind(id,admin.uid)
           ]);
           if(!Number(results?.[1]?.meta?.changes||0))return error("Memory note not found.",404);
@@ -6908,6 +6908,7 @@ export default {
       if(path==="/intelligence/knowledge"&&["GET","POST"].includes(method)){
        const admin=await verifyAdmin(request,env);if(!admin)return error("Admin authentication required",403);
        await ensureIntelligenceKnowledgeTable(env);
+       await ensureSocialAuthLimitsTable(env);
        if(method==="GET"){
         if(!await checkRateLimit(env,request,"intelligence-knowledge-read",60,3600,300,admin.uid))return error("Too many knowledge requests. Try again later.",429);
         const rows=await env.DB.prepare("SELECT id,category,title,content,importance,created_by,created_at,updated_at,owner_uid FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
@@ -6929,6 +6930,7 @@ export default {
       if(intelligenceKnowledgeMatch&&["PUT","DELETE"].includes(method)){
        const admin=await verifyAdmin(request,env);if(!admin)return error("Admin authentication required",403);
        await ensureIntelligenceKnowledgeTable(env);
+       await ensureSocialAuthLimitsTable(env);
        if(!await checkRateLimit(env,request,"intelligence-knowledge-write",20,3600,600,admin.uid))return error("Too many knowledge changes. Try again later.",429);
        const id=decodeURIComponent(intelligenceKnowledgeMatch[1]);if(!id||id.length>80)return error("Invalid knowledge ID.");
        const auditId=crypto.randomUUID();

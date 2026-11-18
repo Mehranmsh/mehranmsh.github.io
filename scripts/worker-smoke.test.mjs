@@ -2005,6 +2005,7 @@ test("INTELLIGENCE organizational knowledge is owner-scoped, bounded, audited an
  assert.ok(workerSource.includes("owner_uid IN (?, 'system_seed')"));
  assert.ok(workerSource.includes('path === "/intelligence/knowledge"'));
  assert.ok(workerSource.includes("intelligence-knowledge-write"));
+ assert.ok(workerSource.includes("await ensureSocialAuthLimitsTable(env)"));
  assert.ok(workerSource.includes("intelligence_knowledge_created"));
  assert.ok(workerSource.includes("intelligence_knowledge_updated"));
  assert.ok(workerSource.includes("intelligence_knowledge_archived"));
