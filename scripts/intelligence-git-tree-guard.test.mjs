@@ -42,7 +42,7 @@ function fixture() {
     entries: [{ path, mode: "100644", type: "blob", sha: blobSha(content), size: Buffer.byteLength(content) }]
   };
   const input = {
-    expectedRepository: repository, baseCommit, candidateCommit,
+    expectedRepository: repository, expectedBranch: "intelligence/patch-task_12345678", candidateBranch: "intelligence/patch-task_12345678", baseCommit, candidateCommit,
     baseTree, candidateTree, envelope, trustedApproval,
     now: new Date("2026-11-18T10:10:00.000Z")
   };
@@ -156,5 +156,24 @@ test("rejects changed content sizes and expired approvals", () => {
   assert.equal(verifyIntelligenceGitTree(input).ok, false);
   input.candidateTree.entries[0].size = Buffer.byteLength(content);
   input.now = new Date(expiresAt);
+  assert.equal(verifyIntelligenceGitTree(input).ok, false);
+});
+
+test("rejects main, mismatched, or non-task-scoped candidate branches", () => {
+  for (const [expectedBranch, candidateBranch] of [
+    ["main", "main"],
+    ["intelligence/patch-task_12345678", "intelligence/patch-task_other123"],
+    ["feature/random", "feature/random"]
+  ]) {
+    const { input } = fixture();
+    input.expectedBranch = expectedBranch;
+    input.candidateBranch = candidateBranch;
+    assert.equal(verifyIntelligenceGitTree(input).ok, false);
+  }
+});
+
+test("rejects a candidate commit identical to the pinned base", () => {
+  const { input } = fixture();
+  input.candidateCommit.sha = baseSha;
   assert.equal(verifyIntelligenceGitTree(input).ok, false);
 });
