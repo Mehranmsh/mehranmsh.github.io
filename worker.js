@@ -6533,7 +6533,7 @@ export default {
         const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
         const result=typeof body.result==="string"?body.result:"";
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
-        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
         const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
         const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
