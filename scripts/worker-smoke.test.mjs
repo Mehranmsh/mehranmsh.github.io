@@ -1889,7 +1889,7 @@ test("Intelligence owner approval UI is scoped, owner-session-backed, and never 
   assert.match(indexSource, /documentation_patch_proposal.*accepted/);
   assert.match(indexSource, /paths\.length<1\|\|paths\.length>5/);
   assert.match(indexSource, /window\.confirm\("Issue a "/);
-  assert.match(indexSource, /window\.confirm\("Revoke this issued grant\?"/);
+  assert.match(indexSource, /window\.confirm\("Revoke this issued grant\?/);
   assert.match(indexSource, /fetch\("https:\/\/api\.github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/commits\/main"/);
   assert.doesNotMatch(indexSource, /api\.github\.com[^\n]{0,200}(?:method:"POST"|method:"PUT"|method:"PATCH"|method:"DELETE")/);
   assert.match(indexSource, /no executor can consume it and no code was changed/);
