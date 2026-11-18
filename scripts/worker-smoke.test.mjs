@@ -2373,14 +2373,17 @@ test("INTELLIGENCE AI relationship proposals are visible-context-only, evidence-
     {id:targetId,owner_uid:owner,content:"Use Carrier B for international shipping.",archived_at:null}
   ];
   let batchCalls=0;
+  let schemaAvailable=true;
+  let queryRows=entries;
+  let lastKnowledgeQueryBindings=[];
   const env={DB:{
     prepare(sql){
       return {
         sql,
         bound:[],
         bind(...args){this.bound=args;return this;},
-        async first(){if(sql.includes("sqlite_master"))return {name:"intelligence_knowledge_relations"};throw new Error("Unexpected first query: "+sql);},
-        async all(){if(sql.includes("FROM intelligence_knowledge WHERE id IN"))return {results:entries};throw new Error("Unexpected all query: "+sql);}
+        async first(){if(sql.includes("sqlite_master"))return schemaAvailable?{name:"intelligence_knowledge_relations"}:null;throw new Error("Unexpected first query: "+sql);},
+        async all(){if(sql.includes("FROM intelligence_knowledge WHERE id IN")){lastKnowledgeQueryBindings=this.bound;return {results:queryRows};}throw new Error("Unexpected all query: "+sql);}
       };
     },
     async batch(statements){batchCalls++;assert.equal(statements.length,2);assert.ok(statements[0].sql.includes("VALUES(?,?,?,?,?,'candidate',?,?)"));assert.equal(statements[1].bound[3],"intelligence_knowledge_relation_ai_proposed");return [{meta:{changes:1}},{meta:{changes:1}}];}
@@ -2392,11 +2395,19 @@ test("INTELLIGENCE AI relationship proposals are visible-context-only, evidence-
   assert.equal(result.status,"candidate");
   assert.equal(result.ownerApprovalRequired,true);
   assert.equal(batchCalls,1);
+  assert.deepEqual(lastKnowledgeQueryBindings,[sourceId,targetId,owner],"the D1 read must be scoped to the authenticated owner");
 
   await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,{...args,sourceEvidence:"invented evidence"},visible),/exactly in their corresponding stored knowledge entries/);
   await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,new Set([sourceId])),/retrieved into this conversation/);
   await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,{...args,extra:"not allowed"},visible),/complete knowledge relationship proposal/);
-  assert.equal(batchCalls,1,"invalid proposals must not write to D1");
+  queryRows=[{...entries[0]},{...entries[1],owner_uid:"another-owner"}];
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible),/active and owned by the authenticated owner/);
+  queryRows=[{...entries[0]},{...entries[1],archived_at:"2026-11-19"}];
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible),/active and owned by the authenticated owner/);
+  queryRows=entries;
+  schemaAvailable=false;
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible),/storage is not installed/);
+  assert.equal(batchCalls,1,"invalid, cross-owner, archived or unavailable-schema proposals must not write to D1");
 });
 
 test("INTELLIGENCE knowledge relationship API is owner-only, evidence-bound and audited atomically", () => {
