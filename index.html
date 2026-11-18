@@ -1031,6 +1031,25 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelKnowledgeStatus" class="notice" aria-live="polite">Organizational knowledge has not been loaded.</div>
  <div id="intelKnowledgeList" class="grid"><div class="empty">Loading organizational knowledge...</div></div>
 </div>
+<div class="panel intelligence-relationships">
+ <div class="section-title"><div><h2>Knowledge Relationships</h2><div class="small-text">Review AI suggestions, confirm directional links and reopen stale conflict decisions.</div></div><button class="btn secondary small" id="refreshIntelRelationshipsBtn" type="button">Refresh relationships</button></div>
+ <div class="notice">AI suggestions stay unconfirmed. If either source entry changes, the relationship becomes stale and must be reviewed again.</div>
+ <form id="intelRelationshipForm" class="card" autocomplete="off">
+  <div class="grid">
+   <div class="field"><label for="intelRelationshipLeft">First knowledge entry</label><select id="intelRelationshipLeft" required><option value="">Select an owner entry</option></select></div>
+   <div class="field"><label for="intelRelationshipRight">Second knowledge entry</label><select id="intelRelationshipRight" required><option value="">Select another owner entry</option></select></div>
+  </div>
+  <div class="field"><label for="intelRelationshipType">Relationship type</label><select id="intelRelationshipType"><option value="conflicts_with">Conflicts with · symmetric</option><option value="supersedes">Supersedes · directional</option><option value="supports">Supports · directional</option></select></div>
+  <div class="grid" id="intelRelationshipDirectionFields" hidden>
+   <div class="field"><label for="intelRelationshipFrom">Source entry</label><select id="intelRelationshipFrom"><option value="">Select source</option></select></div>
+   <div class="field"><label for="intelRelationshipTo">Target entry</label><select id="intelRelationshipTo"><option value="">Select target</option></select></div>
+  </div>
+  <div class="field"><label for="intelRelationshipEvidence">Owner note (optional)</label><textarea id="intelRelationshipEvidence" rows="2" maxlength="500" placeholder="Why are these entries related?"></textarea></div>
+  <div class="hero-actions"><button class="btn" id="intelRelationshipCreateBtn" type="submit">Add confirmed relationship</button></div>
+ </form>
+ <div id="intelRelationshipsStatus" class="notice" aria-live="polite">Knowledge relationships have not been loaded.</div>
+ <div id="intelRelationshipsList" class="grid"><div class="empty">No relationships loaded.</div></div>
+</div>
 <div class="panel intelligence-events">
  <div class="section-title"><div><h2>Intelligence Activity Log</h2><div class="small-text">Recent owner actions, task decisions, approvals and memory changes.</div></div><button class="btn secondary small" id="refreshIntelEventsBtn" type="button">Refresh activity</button></div>
  <div id="intelEventsStatus" class="notice" aria-live="polite">Intelligence activity has not been loaded.</div>
@@ -2284,6 +2303,7 @@ async function loadIntelligenceKnowledge(){
 }
 function renderIntelligenceKnowledge(items){
  const list=$("intelKnowledgeList");if(!list)return;window.intelligenceKnowledgeCache=Array.isArray(items)?items:[];
+ refreshIntelligenceRelationshipSelectors();
  if(!items.length){list.innerHTML='<div class="empty">No organizational knowledge is available.</div>';return}
  list.replaceChildren();
  items.forEach(item=>{
@@ -2302,12 +2322,12 @@ async function saveIntelligenceKnowledge(event){
  const body={category:$("intelKnowledgeCategory").value,importance:$("intelKnowledgeImportance").value,title:$("intelKnowledgeTitle").value.trim(),content:$("intelKnowledgeContent").value.trim()};
  if(body.title.length<3||body.content.length<3){status.textContent="Enter a title and knowledge text.";status.className="notice warn";return}
  button.disabled=true;
- try{await api(id?"/intelligence/knowledge/"+encodeURIComponent(id):"/intelligence/knowledge",{method:id?"PUT":"POST",body:JSON.stringify(body)});resetIntelKnowledgeForm();status.textContent=id?"Knowledge updated and audit event recorded.":"Knowledge saved and audit event recorded.";status.className="notice success";await loadIntelligenceKnowledge()}
+ try{await api(id?"/intelligence/knowledge/"+encodeURIComponent(id):"/intelligence/knowledge",{method:id?"PUT":"POST",body:JSON.stringify(body)});resetIntelKnowledgeForm();status.textContent=id?"Knowledge updated and audit event recorded.":"Knowledge saved and audit event recorded.";status.className="notice success";await loadIntelligenceKnowledge();await loadIntelligenceRelationships()}
  catch(error){status.textContent="Could not save knowledge: "+error.message;status.className="notice warn"}finally{button.disabled=false}
 }
 async function archiveIntelligenceKnowledge(id,button){
  if(!id||!confirm("Archive this owner knowledge entry?"))return;button.disabled=true;
- try{await api("/intelligence/knowledge/"+encodeURIComponent(id),{method:"DELETE"});$("intelKnowledgeStatus").textContent="Knowledge archived and audit event recorded.";$("intelKnowledgeStatus").className="notice success";await loadIntelligenceKnowledge()}
+ try{await api("/intelligence/knowledge/"+encodeURIComponent(id),{method:"DELETE"});$("intelKnowledgeStatus").textContent="Knowledge archived and audit event recorded.";$("intelKnowledgeStatus").className="notice success";await loadIntelligenceKnowledge();await loadIntelligenceRelationships()}
  catch(error){$("intelKnowledgeStatus").textContent="Could not archive knowledge: "+error.message;$("intelKnowledgeStatus").className="notice warn";button.disabled=false}
 }
 function editIntelligenceKnowledge(id){
@@ -2319,7 +2339,106 @@ $("intelKnowledgeCancelBtn")?.addEventListener("click",resetIntelKnowledgeForm);
 $("refreshIntelKnowledgeBtn")?.addEventListener("click",loadIntelligenceKnowledge);
 $("intelKnowledgeList")?.addEventListener("click",event=>{const a=event.target.closest("[data-archive-intel-knowledge]"),e=event.target.closest("[data-edit-intel-knowledge]");if(a)archiveIntelligenceKnowledge(a.dataset.archiveIntelKnowledge,a);if(e)editIntelligenceKnowledge(e.dataset.editIntelKnowledge)});
 
-const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted",intelligence_knowledge_created:"Knowledge entry saved",intelligence_knowledge_updated:"Knowledge entry updated",intelligence_knowledge_archived:"Knowledge entry archived"};
+const intelligenceRelationshipLabels={conflicts_with:"Conflicts with",supersedes:"Supersedes",supports:"Supports"};
+function refreshIntelligenceRelationshipSelectors(){
+ const ownerEntries=(window.intelligenceKnowledgeCache||[]).filter(item=>item.source==="owner"&&item.id);
+ const setOptions=(select,items,placeholder,keep=true)=>{
+  if(!select)return;const current=keep?select.value:"";select.replaceChildren();
+  const empty=document.createElement("option");empty.value="";empty.textContent=placeholder;select.append(empty);
+  items.forEach(item=>{const option=document.createElement("option");option.value=item.id;option.textContent=(item.title||"Untitled")+" · "+item.id.slice(0,8);select.append(option)});
+  if(items.some(item=>item.id===current))select.value=current;
+ };
+ setOptions($("intelRelationshipLeft"),ownerEntries,"Select an owner entry");
+ setOptions($("intelRelationshipRight"),ownerEntries.filter(item=>item.id!==$("intelRelationshipLeft")?.value),"Select another entry");
+ const left=$("intelRelationshipLeft")?.value,right=$("intelRelationshipRight")?.value;
+ const pair=ownerEntries.filter(item=>item.id===left||item.id===right);
+ setOptions($("intelRelationshipFrom"),pair,"Select source",false);
+ setOptions($("intelRelationshipTo"),pair,"Select target",false);
+ const directional=$("intelRelationshipType")?.value!=="conflicts_with";
+ if($("intelRelationshipDirectionFields"))$("intelRelationshipDirectionFields").hidden=!directional;
+}
+async function loadIntelligenceRelationships(){
+ const status=$("intelRelationshipsStatus"),list=$("intelRelationshipsList");if(!status||!list)return;
+ status.textContent="Loading owner-reviewed knowledge relationships...";status.className="notice";
+ try{
+  const data=await api("/intelligence/knowledge/relationships");
+  renderIntelligenceRelationships(data.relationships||[]);
+  status.textContent=(data.relationships||[]).length+" relationships loaded. AI suggestions remain unconfirmed until you review them.";
+  status.className="notice success";
+ }catch(error){
+  status.textContent="Could not load knowledge relationships: "+error.message;status.className="notice warn";
+  list.innerHTML='<div class="empty">Relationship review is unavailable until the administrator session is restored.</div>';
+ }
+}
+function renderIntelligenceRelationships(items){
+ const list=$("intelRelationshipsList");if(!list)return;list.replaceChildren();
+ if(!items.length){list.innerHTML='<div class="empty">No relationships yet. INTELLIGENCE may propose candidates as it reviews company knowledge.</div>';return}
+ items.forEach(item=>{
+  const card=document.createElement("article");card.className="card";
+  const head=document.createElement("div");head.className="section-title";
+  const title=document.createElement("strong");title.textContent=(item.left?.title||"Knowledge A")+" ↔ "+(item.right?.title||"Knowledge B");
+  const meta=document.createElement("span");meta.className="small-text";meta.textContent=(intelligenceRelationshipLabels[item.relationType]||item.relationType)+" · "+(item.status||"unknown").toUpperCase()+(item.stale?" · STALE":"");
+  head.append(title,meta);card.append(head);
+  if(item.directionFrom||item.directionTo){const direction=document.createElement("p");direction.className="small-text";direction.textContent=(item.directionFrom?.title||"Source")+" → "+(item.directionTo?.title||"Target");card.append(direction)}
+  if(item.stale){const warning=document.createElement("div");warning.className="notice warn";warning.textContent="One or both linked knowledge entries changed after this relationship was reviewed. Do not rely on it as current until you review it.";card.append(warning)}
+  (item.evidence||[]).slice(0,3).forEach(evidence=>{const quote=document.createElement("p");quote.className="small-text";quote.textContent="Evidence: "+(evidence.text||"");card.append(quote)});
+  const date=document.createElement("div");date.className="small-text";date.textContent="Updated: "+(item.updatedAt||item.createdAt||"Not available");card.append(date);
+  const actions=document.createElement("div");actions.className="hero-actions";
+  const addAction=(label,action,resolutionId=null)=>{
+   const button=document.createElement("button");button.type="button";button.className="btn secondary small";button.textContent=label;button.dataset.intelRelationshipAction=action;button.dataset.relationshipId=item.id;if(resolutionId)button.dataset.resolutionId=resolutionId;actions.append(button);
+  };
+  if(item.status==="candidate"){addAction("Confirm candidate","confirm");addAction("Dismiss","dismiss")}
+  else if(item.status==="confirmed"){
+   if(item.stale)addAction("Reaffirm after review","confirm");
+   else if(item.relationType==="conflicts_with"){addAction("Resolve: keep left","resolve",item.left?.id);addAction("Resolve: keep right","resolve",item.right?.id)}
+   addAction("Dismiss","dismiss");
+  }else if(item.status==="resolved"&&item.stale&&item.relationType==="conflicts_with"){addAction("Reopen stale conflict","reopen")}
+  if(actions.childElementCount)card.append(actions);
+  list.append(card);
+ });
+}
+async function updateIntelligenceRelationship(button){
+ const id=button?.dataset.relationshipId,action=button?.dataset.intelRelationshipAction;if(!id||!action)return;
+ const body={action};if(action==="resolve"){
+  body.resolutionKnowledgeId=button.dataset.resolutionId;
+  const chosen=(window.intelligenceKnowledgeCache||[]).find(item=>item.id===body.resolutionKnowledgeId);
+  if(!confirm("Resolve this conflict by selecting \""+(chosen?.title||"the selected entry")+"\" as the current record? The other entry will be retained as historical evidence."))return;
+ }
+ if(action==="reopen"&&!confirm("Reopen this stale resolved conflict for a fresh owner review?"))return;
+ button.disabled=true;
+ try{
+  await api("/intelligence/knowledge/relationships/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify(body)});
+  $("intelRelationshipsStatus").textContent="Relationship updated and owner action recorded in the audit log.";$("intelRelationshipsStatus").className="notice success";
+  await loadIntelligenceRelationships();await loadIntelligenceEvents();
+ }catch(error){
+  $("intelRelationshipsStatus").textContent="Could not update relationship: "+error.message;$("intelRelationshipsStatus").className="notice warn";button.disabled=false;
+ }
+}
+async function createIntelligenceRelationship(event){
+ event.preventDefault();const status=$("intelRelationshipsStatus"),button=$("intelRelationshipCreateBtn");
+ const leftId=$("intelRelationshipLeft").value,rightId=$("intelRelationshipRight").value,relationType=$("intelRelationshipType").value;
+ if(!leftId||!rightId||leftId===rightId){status.textContent="Choose two different owner knowledge entries.";status.className="notice warn";return}
+ const body={leftId,rightId,relationType,evidence:$("intelRelationshipEvidence").value.trim()};
+ if(relationType!=="conflicts_with"){
+  body.directionFromId=$("intelRelationshipFrom").value;body.directionToId=$("intelRelationshipTo").value;
+  if(!body.directionFromId||!body.directionToId||body.directionFromId===body.directionToId){status.textContent="Choose distinct source and target entries for this directional relationship.";status.className="notice warn";return}
+ }
+ button.disabled=true;
+ try{
+  await api("/intelligence/knowledge/relationships",{method:"POST",body:JSON.stringify(body)});
+  $("intelRelationshipEvidence").value="";status.textContent="Owner-confirmed relationship saved and audited.";status.className="notice success";
+  await loadIntelligenceRelationships();await loadIntelligenceEvents();
+ }catch(error){status.textContent="Could not save relationship: "+error.message;status.className="notice warn"}
+ finally{button.disabled=false}
+}
+$("intelRelationshipForm")?.addEventListener("submit",createIntelligenceRelationship);
+$("intelRelationshipType")?.addEventListener("change",refreshIntelligenceRelationshipSelectors);
+$("intelRelationshipLeft")?.addEventListener("change",refreshIntelligenceRelationshipSelectors);
+$("intelRelationshipRight")?.addEventListener("change",refreshIntelligenceRelationshipSelectors);
+$("refreshIntelRelationshipsBtn")?.addEventListener("click",loadIntelligenceRelationships);
+$("intelRelationshipsList")?.addEventListener("click",event=>{const button=event.target.closest("[data-intel-relationship-action]");if(button)updateIntelligenceRelationship(button)});
+
+const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted",intelligence_knowledge_created:"Knowledge entry saved",intelligence_knowledge_updated:"Knowledge entry updated",intelligence_knowledge_archived:"Knowledge entry archived",intelligence_knowledge_relationship_created:"Knowledge relationship created",intelligence_knowledge_relationship_proposed:"AI relationship proposed",intelligence_knowledge_relationship_confirm:"Relationship confirmed or reaffirmed",intelligence_knowledge_relationship_dismiss:"Relationship dismissed",intelligence_knowledge_relationship_resolve:"Conflict resolved",intelligence_knowledge_relationship_reopen:"Stale conflict reopened"};
 async function loadIntelligenceEvents(){
 const status=$("intelEventsStatus"),list=$("intelEventsList");if(!status||!list)return;
 status.textContent="Loading private Intelligence activity...";status.className="notice";
@@ -2363,6 +2482,7 @@ await loadIntelligenceApprovals();
 await loadIntelligenceMemory();
 await loadIntelligenceKnowledge();
 await loadIntelligenceEvents();
+await loadIntelligenceRelationships();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
 status.className="notice warn";
