@@ -7166,14 +7166,14 @@ export default {
        await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_created","intelligence_knowledge_relationship",id,JSON.stringify({relationType:body.relationType,leftId,rightId}));
        return json({success:true,id,status:"confirmed"},201);
       }
-      const intelligenceRelationshipMatch=path.match(/^\\/intelligence\\/knowledge\\/relationships\\/([^/]+)$/);
-      if(intelligenceRelationshipMatch&&method==="PUT"){
+      const intelligenceRelationshipPrefix="/intelligence/knowledge/relationships/";
+      if(path.startsWith(intelligenceRelationshipPrefix)&&method==="PUT"){
        const admin=await verifyAdmin(request,env);if(!admin)return error("Admin authentication required",403);
        await ensureIntelligenceKnowledgeTable(env);
        await ensureIntelligenceKnowledgeRelationshipsTable(env);
        await ensureSocialAuthLimitsTable(env);
        if(!await checkRateLimit(env,request,"intelligence-relationship-write",20,3600,600,admin.uid))return error("Too many knowledge relationship changes. Try again later.",429);
-       const id=decodeURIComponent(intelligenceRelationshipMatch[1]);if(!id||id.length>80)return error("Invalid relationship ID.");
+       const id=decodeURIComponent(path.slice(intelligenceRelationshipPrefix.length));if(!id||id.includes("/")||id.length>80)return error("Invalid relationship ID.");
        const body=await readBody(request);
        if(!body||Object.keys(body).some(k=>k!=="action"&&k!=="resolutionKnowledgeId")||!["confirm","dismiss","resolve"].includes(body.action))return error("Choose confirm, dismiss or resolve.");
        if(body.action==="resolve"&&(typeof body.resolutionKnowledgeId!=="string"||!body.resolutionKnowledgeId))return error("A chosen knowledge entry is required to resolve a conflict.");
