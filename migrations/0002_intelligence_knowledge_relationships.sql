@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS intelligence_knowledge_relationships (
   resolved_at TEXT,
   CHECK (left_knowledge_id < right_knowledge_id),
   CHECK (
-    (status = 'resolved' AND resolution_knowledge_id IN (left_knowledge_id, right_knowledge_id))
+    (status = 'resolved' AND resolution_knowledge_id IS NOT NULL AND resolution_knowledge_id IN (left_knowledge_id, right_knowledge_id))
     OR (status <> 'resolved' AND resolution_knowledge_id IS NULL)
   ),
   FOREIGN KEY (left_knowledge_id) REFERENCES intelligence_knowledge(id),
