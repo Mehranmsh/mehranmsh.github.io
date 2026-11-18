@@ -2560,6 +2560,8 @@ test("INTELLIGENCE relationship routes are owner-authenticated and preserve cand
   assert.match(routes,/resolution must select one of the two linked knowledge entries/i);
   assert.match(workerSource,/trg_intelligence_relationship_owner_insert/);
   assert.match(workerSource,/trg_intelligence_relationship_owner_update/);
+  assert.match(workerSource,/direction_from_knowledge_id/);
+  assert.match(workerSource,/direction_to_knowledge_id/);
   assert.match(workerSource,/NEW\.owner_uid='system_seed'/);
   assert.match(workerSource,/status IN \('candidate','confirmed'\)/);
   assert.match(workerSource,/status IN \('candidate','confirmed','resolved'\)/);
