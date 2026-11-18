@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS intelligence_knowledge_relationships (
   CHECK (
     (relation_type = 'conflicts_with' AND direction_from_knowledge_id IS NULL AND direction_to_knowledge_id IS NULL)
     OR (relation_type IN ('supersedes', 'supports')
+      AND direction_from_knowledge_id IS NOT NULL
+      AND direction_to_knowledge_id IS NOT NULL
       AND direction_from_knowledge_id IN (left_knowledge_id, right_knowledge_id)
       AND direction_to_knowledge_id IN (left_knowledge_id, right_knowledge_id)
       AND direction_from_knowledge_id <> direction_to_knowledge_id)
