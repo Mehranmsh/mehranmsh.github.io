@@ -184,7 +184,7 @@ export async function runReadOnlyAudit(env = process.env, fetchImpl = globalThis
   const repository = env.GITHUB_REPOSITORY;
   const token = env.GITHUB_TOKEN;
   const baseSha = env.MEHRAN_AUDIT_BASE_SHA;
-  const headSha = env.GITHUB_SHA;
+  const headSha = env.MEHRAN_AUDIT_HEAD_SHA;
   if (repository !== EXPECTED_REPOSITORY || !token || !SHA.test(baseSha || "") || !SHA.test(headSha || "")) throw new Error("Missing, untrusted, or malformed read-only audit environment.");
   const api = "https://api.github.com";
   const get = path => githubGet(`${api}/repos/${repository}/${path}`, token, fetchImpl);
