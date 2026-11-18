@@ -6552,7 +6552,8 @@ export default {
             if(!await checkRateLimit(env,request,"intelligence-task-write",30,3600,900,admin.uid)) return rpcError(-32029,"Too many task changes. Try again later.",429);
             const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
-            if(existing.action_type){
+            const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
+            if(approvalGate){
               const approvalTransition=args.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
               const cancelTransition=args.status==="cancelled"&&["awaiting_approval","queued","accepted","in_progress"].includes(existing.status);
               if(!approvalTransition&&!cancelTransition) return rpcError(-32009,"Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
@@ -6768,7 +6769,8 @@ export default {
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
         const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
-        if(existing.action_type){
+        const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
+        if(approvalGate){
           const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
           const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted","in_progress"].includes(existing.status);
           if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
