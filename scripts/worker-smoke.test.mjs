@@ -1658,6 +1658,7 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.ok(route.includes("WHERE id=? AND status='awaiting_approval' AND requires_approval=1"));
   assert.ok(route.includes("WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')"));
   assert.ok(route.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
+  assert.ok(workerSource.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
   assert.ok(route.includes("transition?.meta?.changes||0"));
   assert.match(workerSource, /existing\.action_type\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status==="awaiting_approval"/);
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
