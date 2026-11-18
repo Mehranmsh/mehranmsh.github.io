@@ -1695,6 +1695,7 @@ test("MEHRAN INTELLIGENCE approval ledger schema is durable but not an active ex
   assert.match(schema, /CHECK\(status IN \('issued','revoked','consumed','expired'\)\)/);
   assert.match(schema, /idx_intelligence_approval_task/);
   assert.match(schema, /idx_intelligence_approval_owner/);
+  assert.match(schema, /CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_approval_active_task/);
   assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "GET"/);
   assert.match(workerSource, /method==="DELETE"/);
   assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "POST"/);
@@ -1790,6 +1791,8 @@ test("Intelligence approval issuance is owner-only, task-bound, short-lived, and
   assert.match(route, /\.md/);
   assert.match(route, /segments\.some/);
   assert.match(route, /status='issued' AND expires_at>\?/);
+  assert.match(route, /UPDATE intelligence_approval_ledger SET status='expired'/);
+  assert.match(route, /An active approval already exists for this task/);
   assert.match(route, /sha256Hex\(scopeJson\)/);
   assert.match(route, /INSERT INTO intelligence_approval_ledger/);
   assert.match(route, /intelligence_approval_issued/);
