@@ -5146,6 +5146,19 @@ async function ensureIntelligenceTaskTable(env) {
 async function ensureIntelligenceMemoryTable(env) {
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS intelligence_memory(id TEXT PRIMARY KEY,category TEXT NOT NULL DEFAULT 'company',title TEXT NOT NULL,content TEXT NOT NULL,importance TEXT NOT NULL DEFAULT 'normal',created_by TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,archived_at TEXT)").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_memory_active ON intelligence_memory(archived_at,importance,updated_at DESC)").run();
+  const seeds = [
+    ["seed-company-pi-only","decision","Blockchain scope","MEHRAN MSH and its company ecosystem are intended to operate exclusively on Pi Network. Do not propose migrating company operations to another blockchain.","high"],
+    ["seed-private-development","decision","Private development first","Keep MEHRAN MSH in private development until its modules, security and user experience are stable. Do not prioritize public user acquisition or launch readiness claims before the owner approves it.","high"],
+    ["seed-central-hub","company","Central platform identity","The central dApp is named MEHRAN MSH. It is the central ecosystem hub for the company's digital projects, technology, music and robotics initiatives within the Pi Network ecosystem.","high"],
+    ["seed-company-modules","company","Company module map","Core operating modules: SECURITY, INTELLIGENCE, LOGISTICS, CUSTOMER EXPERIENCE, LABS, GOVERNANCE, DATA and ROBOT OPERATIONS. Project businesses include Mehran Music, Mehran AI, Mehran Instruments and future Mehran Robotics.","high"],
+    ["seed-intelligence-role","module","INTELLIGENCE responsibility","INTELLIGENCE is the private company operations and analysis center. It should understand company goals, modules, decisions and project status; analyze issues; coordinate approved tasks; and support SECURITY. It must not have unrestricted authority over sensitive operations.","high"],
+    ["seed-owner-approval","procedure","Owner approval boundary","Sensitive actions require explicit owner approval. INTELLIGENCE must never independently deploy code, alter accounts, move funds, access wallets or change secrets. It must distinguish proposals from completed actions and report only verified outcomes.","high"],
+    ["seed-security-priority","decision","Security before public release","Protect user data and company systems before expanding features or opening the platform to public users. Security changes must be reviewed and tested before production deployment.","high"],
+    ["seed-ui-guidelines","decision","Interface design direction","Prefer a clean, professional, uncluttered interface using a dark blue/black base with cyan or blue accents. Avoid gold styling and unnecessary decorative complexity.","normal"]
+  ];
+  for (const [id,category,title,content,importance] of seeds) {
+    await env.DB.prepare("INSERT OR IGNORE INTO intelligence_memory(id,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed").run();
+  }
 }
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
