@@ -365,7 +365,8 @@ test("MEHRAN INTELLIGENCE bounds model tool cycles and rejects unapproved tool s
   assert.match(chat,/env\.AI\.run\("@cf\/meta\/llama-3\.3-70b-instruct-fp8-fast"/);
   assert.match(chat,/tool_choice:"auto",max_tokens:900/);
   assert.match(chat,/round<2/,"tool-assisted model interaction must have a hard two-round ceiling");
-  assert.match(chat,/tool_calls\.slice\(0,4\)/,"each model response must be limited to four tool calls");
+  assert.match(chat,/if\(result\.tool_calls\.length>4\)throw new Error\("AI returned more than four tool calls in one round\."\)/,"oversized tool batches must be rejected rather than silently truncated");
+  assert.match(chat,/if\(Array\.isArray\(result\?\.tool_calls\)&&result\.tool_calls\.length\)throw new Error\("AI tool-call round limit reached\."\)/,"unfinished tool calls after the round ceiling must fail closed");
   assert.match(chat,/if \(!args \|\| typeof args !== "object" \|\| Array\.isArray\(args\)\)/);
   assert.match(chat,/throw new Error\("Tool is not available\."\)/);
   assert.match(chat,/status,requires_approval,created_by/);
