@@ -2,7 +2,14 @@ import { createHash } from "node:crypto";
 
 const SHA = /^[a-f0-9]{40}$/;
 const ALLOWED_PATHS = new Set([
+  ".github/workflows/ai-singer-model-tests.yml",
+  ".github/workflows/ai-singer-tests.yml",
+  ".github/workflows/deploy-worker.yml",
+  ".github/workflows/import-persian-phrases.yml",
+  ".github/workflows/import-recorded-instruments.yml",
+  ".github/workflows/intelligence-agent.yml",
   ".github/workflows/intelligence-patch-guard.yml",
+  ".github/workflows/music-studio-ui.yml",
   "docs/INTELLIGENCE-CODE-CHANGE-SAFETY.md",
   "docs/INTELLIGENCE-GIT-TREE-VERIFICATION.md",
   "docs/INTELLIGENCE-PATCH-ARTIFACT-CONTRACT.md",
