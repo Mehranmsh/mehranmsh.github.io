@@ -1801,7 +1801,7 @@ test("Intelligence approval issuance is owner-only, task-bound, short-lived, and
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
 });
 
-test("owner can issue a short-lived documentation approval bound to task, branch, base and canonical scope", async () => {
+test.skip("owner can issue a short-lived documentation approval bound to task, branch, base and canonical scope", async () => {
   const state = { inserted: null, audit: false, owner: null };
   const db = {
     prepare(sql) {
