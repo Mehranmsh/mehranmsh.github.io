@@ -7204,7 +7204,7 @@ export default {
        const stale=isIntelligenceRelationshipStale(current);
        if(body.action==="reopen"){
         if(current.status!=="resolved"||current.relation_type!=="conflicts_with"||!stale)return error("Only a stale resolved conflict can be reopened.",409);
-        const result=await env.DB.prepare("UPDATE intelligence_knowledge_relationships SET status='candidate',resolution_knowledge_id=NULL,resolved_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='resolved'").bind(id,admin.uid).run();
+        const result=await env.DB.prepare("UPDATE intelligence_knowledge_relationships SET status='candidate',resolution_knowledge_id=NULL,resolved_at=NULL,confirmed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='resolved'").bind(id,admin.uid).run();
         if(!Number(result?.meta?.changes||0))return error("Relationship changed before reopening. Refresh and try again.",409);
         await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_reopened","intelligence_knowledge_relationship",id,JSON.stringify({previousResolutionKnowledgeId:current.resolution_knowledge_id}));
         return json({success:true,id,status:"candidate",reopened:true});
