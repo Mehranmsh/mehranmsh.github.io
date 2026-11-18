@@ -388,6 +388,10 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   const chat = workerSource.slice(start, end);
   assert.match(chat, /get_project_status/);
   assert.match(chat, /get_social_metrics/);
+  assert.match(chat, /name === "search_organizational_knowledge"/);
+  assert.match(chat, /parseIntelligenceKnowledgeSearchArgs\(args\)/);
+  assert.match(chat, /owner_uid IN \(\?, 'system_seed'\)/);
+  assert.match(chat, /rankIntelligenceKnowledge\(rows\.results\|\|\[\],query,12,false\)/);
   assert.match(chat, /list_collaboration_tasks/);
   assert.match(chat, /propose_collaboration_task/);
   assert.match(chat, /status,requires_approval,created_by/);
@@ -2182,6 +2186,13 @@ test("INTELLIGENCE rejects malformed tool-call envelopes instead of silently ign
   assert.deepEqual(workerModule.getIntelligenceToolCalls({tool_calls:[]}),[]);
   for (const malformed of [null,undefined,[],{tool_calls:null},{tool_calls:"call_1"},{tool_calls:{}},{tool_calls:42}]) {
     assert.throws(()=>workerModule.getIntelligenceToolCalls(malformed),/invalid (response|tool-call) envelope/i);
+  }
+});
+
+test("INTELLIGENCE knowledge search arguments are strict and bounded", () => {
+  assert.deepEqual(workerModule.parseIntelligenceKnowledgeSearchArgs({query:"  Pi Network  "}),{query:"Pi Network"});
+  for(const invalid of [null,undefined,[],{}, {query:"x"}, {query:42}, {query:"Pi",extra:true}, {query:"x".repeat(301)}]) {
+    assert.throws(()=>workerModule.parseIntelligenceKnowledgeSearchArgs(invalid));
   }
 });
 
