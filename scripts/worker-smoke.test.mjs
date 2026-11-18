@@ -276,6 +276,19 @@ test("secret-bearing Intelligence runner is restricted to the trusted main branc
   assert.doesNotMatch(agentWorkflowSource, /^\s*workflow_dispatch:/m);
 });
 
+test("admin Pi sign-in rate limits network attempts before external identity lookup", () => {
+  const adminStart = workerSource.indexOf('if (path.startsWith("/admin/session"))');
+  const adminLimit = workerSource.indexOf('"admin-session-ip"', adminStart);
+  const adminLookup = workerSource.indexOf("fetchPiUser(body.accessToken)", adminStart);
+  const adminTable = workerSource.indexOf("ensureSocialAuthLimitsTable(env)", adminStart);
+  assert.ok(adminStart >= 0 && adminTable > adminStart && adminLimit > adminTable && adminLookup > adminLimit);
+  const authStart = workerSource.indexOf('if (path === "/auth" && method === "POST")');
+  const authTable = workerSource.indexOf("ensureSocialAuthLimitsTable(env)", authStart);
+  const authLimit = workerSource.indexOf('"pi-auth"', authStart);
+  const authLookup = workerSource.indexOf("fetchPiUser(body.accessToken)", authStart);
+  assert.ok(authStart >= 0 && authTable > authStart && authLimit > authTable && authLookup > authLimit);
+});
+
 test("MEHRAN Intelligence agent API is separately scoped and approval-gated", () => {
   assert.match(workerSource, /path\.startsWith\("\/agent\/v1\/"\)/);
   assert.match(workerSource, /env\.MEHRAN_AGENT_TOKEN/);
