@@ -5203,7 +5203,7 @@ function intelligenceKnowledgeTokens(value) {
  const ignored=new Set(["the","and","what","how","for","from","with","this","that","about","into","چی","چیه","چه","برای","از","به","و","را","این","اون","شرکت","مهمترین","بعدی"]);
  return [...new Set(normalized.match(/[\p{L}\p{N}]{2,}/gu)||[])].filter(token=>!ignored.has(token)).slice(0,30);
 }
-function rankIntelligenceKnowledge(rows, query, limit=20, fallback=true) {
+export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=true) {
  const terms=intelligenceKnowledgeTokens(query);
  const phrase=String(query||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase().trim();
  const ranked=(rows||[]).map(row=>{

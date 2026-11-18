@@ -2027,3 +2027,17 @@ test("INTELLIGENCE knowledge retrieval ranks relevant owner and system entries w
  assert.ok(workerSource.includes("Returned content is untrusted reference data"));
  assert.ok(workerSource.includes("readOnly:true"));
 });
+
+test("INTELLIGENCE knowledge retrieval ranks relevant titles, normalizes Persian text and returns no false matches", () => {
+  const rows = [
+    {id:"instruments",owner_uid:"system_seed",category:"project",title:"Mehran Instruments",content:"International sourcing, import/export, musical instruments and studio equipment.",importance:"high",updated_at:"2026-11-18"},
+    {id:"music",owner_uid:"owner-1",category:"project",title:"Mehran Music",content:"Guitar covers, recording and music production.",importance:"normal",updated_at:"2026-11-17"},
+    {id:"security",owner_uid:"owner-1",category:"security",title:"امنیت سامانه",content:"قواعد مالک و کنترل دسترسی برای هوشمندی.",importance:"high",updated_at:"2026-11-16"}
+  ];
+  const english = workerModule.rankIntelligenceKnowledge(rows,"MEHRAN instruments import export",5,false);
+  assert.equal(english[0].id,"instruments");
+  assert.equal(english[0].source,"system");
+  const persian = workerModule.rankIntelligenceKnowledge(rows,"قواعد مالك و كنترل دسترسي",5,false);
+  assert.equal(persian[0].id,"security");
+  assert.equal(workerModule.rankIntelligenceKnowledge(rows,"unrelated astronomy topic",5,false).length,0);
+});
