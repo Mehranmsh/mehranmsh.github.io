@@ -61,5 +61,8 @@ jobs:
       - name: Test Intelligence knowledge and memory owner isolation in disposable SQLite
         run: python scripts/test-intelligence-knowledge-isolation.py
 
+      - name: Test Intelligence knowledge relationship migration in disposable SQLite
+        run: python scripts/test-intelligence-knowledge-relations.py
+
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
