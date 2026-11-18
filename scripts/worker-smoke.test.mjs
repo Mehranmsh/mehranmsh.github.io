@@ -2175,6 +2175,10 @@ test("INTELLIGENCE relationship review UI is owner-controlled and renders untrus
   assert.ok(renderStart>=0&&renderEnd>renderStart,"relationship renderer must exist");
   const renderer=indexSource.slice(renderStart,renderEnd);
   assert.match(renderer,/\.textContent=/);
+  assert.match(renderer,/Review full source record/);
+  assert.match(renderer,/Review full target record/);
+  assert.match(renderer,/window\.intelligenceKnowledgeCache/);
+
   assert.doesNotMatch(renderer,/\.innerHTML\s*=/,"untrusted relationship titles and evidence must never enter innerHTML");
   assert.match(indexSource,/intelligence_knowledge_relation_ai_proposed:"AI relationship suggestion created"/);
 });
