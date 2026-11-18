@@ -77,3 +77,12 @@ No automatic merge, deployment, production write, database migration, wallet act
 ## Explicit limitations
 
 This document is a design contract, not an implemented verifier. The current patch guard and envelope validator do not fetch Git trees, inspect Git objects, parse GitHub diffs, compare blob bytes with a committed tree, or create branches/commits/PRs. No such capability is enabled by adding this document.
+
+
+## Isolated snapshot-verifier prototype
+
+`scripts/intelligence-git-tree-guard.mjs` now contains a pure verifier for caller-supplied commit and tree snapshots. It checks repository identity, exact single-parent ancestry, base/envelope binding, non-truncated tree metadata, tree SHA binding, duplicate and colliding paths, exact changed-path equality, add/modify status, regular-file mode, and Git blob SHA-1 derived from the exact UTF-8 envelope content. It fails closed on deletions, symlink/executable/submodule changes, malformed paths, and expired approvals.
+
+The helper does not fetch GitHub data, prove that caller-supplied snapshots are authentic, parse unified diffs, create commits/branches/PRs, or perform any write. A future trusted adapter must fetch snapshots from GitHub by immutable commit SHA, verify the repository and response completeness, independently cross-check the diff, and re-fetch before any separately approved draft-PR action. The helper's success result alone is not authorization to write.
+
+A focused Node test suite is included and wired into the read-only, secret-free branch test workflow. Do not treat the suite as passed until the workflow result for the exact latest commit is confirmed.
