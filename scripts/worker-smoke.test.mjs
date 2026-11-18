@@ -1976,7 +1976,7 @@ test("MEHRAN Intelligence owner memory is private, bounded, auditable and owner-
   assert.match(workerSource, /WHERE owner_uid=\?/);
   assert.match(workerSource, /const categories=\["company","decision","preference","security","project"\]/);
   assert.match(workerSource, /cleanText\(body\.content,1000\)/);
-  assert.match(workerSource, /total\) >= 100/);
+  assert.match(workerSource, /Number\\(count\\?\\.total\\|\\|0\\)>=100/);
   assert.match(workerSource, /intelligence_memory_created/);
   assert.match(workerSource, /intelligence_memory_deleted/);
   assert.match(workerSource, /Owner-curated persistent memory/);
