@@ -1805,7 +1805,7 @@ test("Intelligence approval consumption is atomic, bound, and not exposed to rou
     "Number(transition?.meta?.changes || 0) !== 1"
   ]) assert.ok(helper.includes(binding), "consumption guard missing: " + binding);
   assert.match(helper, /repository !== "Mehranmsh\/mehranmsh\.github\.io"/);
-  assert.match(helper, /intelligence\\/patch-\[A-Za-z0-9_-\]\{8,64\}/);
+  assert.ok(helper.includes('patch-[A-Za-z0-9_-]{8,64}'));
   assert.doesNotMatch(helper, /fetch\(|fetch\s*\(/);
   assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
 });
