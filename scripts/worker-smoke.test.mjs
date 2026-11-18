@@ -1774,6 +1774,7 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
     prepare(sql) {
       return {
         bind() { return this; },
+        async all() { return { results: [] }; },
         async first() {
           if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
           throw new Error("Unexpected unauthenticated approval query: " + sql);
