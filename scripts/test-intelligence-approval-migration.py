@@ -114,5 +114,64 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
         )
 
 
+    def test_worker_bootstrap_schema_matches_migration(self):
+        import re
+
+        worker_source = (ROOT / "worker.js").read_text(encoding="utf-8")
+        helper = re.search(
+            r"async function ensureIntelligenceApprovalLedgerTable\\(env\\)\\s*\\{\\s*"
+            r"await env\\.DB\\.prepare\\(`([\\s\\S]*?)`\\)\\.run\\(\\);"
+            r"([\\s\\S]*?)\\n\\}",
+            worker_source,
+        )
+        self.assertIsNotNone(helper, "Worker approval-ledger bootstrap helper must exist")
+
+        worker_db = sqlite3.connect(":memory:")
+        try:
+            worker_db.execute("PRAGMA foreign_keys = ON")
+            worker_db.execute("CREATE TABLE intelligence_tasks (id TEXT PRIMARY KEY)")
+            worker_db.executescript(helper.group(1))
+            index_sql = re.findall(
+                r'env\\.DB\\.prepare\\("(CREATE (?:UNIQUE )?INDEX IF NOT EXISTS [^"]+)"\\)\\.run\\(\\)',
+                helper.group(2),
+            )
+            self.assertEqual(len(index_sql), 3, "Worker helper must define all three indexes")
+            for statement in index_sql:
+                worker_db.execute(statement)
+
+            self.apply_migration()
+            table_info_migration = list(self.connection.execute(
+                "PRAGMA table_info(intelligence_approval_ledger)"
+            ))
+            table_info_worker = list(worker_db.execute(
+                "PRAGMA table_info(intelligence_approval_ledger)"
+            ))
+            self.assertEqual(table_info_worker, table_info_migration)
+
+            fk_migration = list(self.connection.execute(
+                "PRAGMA foreign_key_list(intelligence_approval_ledger)"
+            ))
+            fk_worker = list(worker_db.execute(
+                "PRAGMA foreign_key_list(intelligence_approval_ledger)"
+            ))
+            self.assertEqual(fk_worker, fk_migration)
+
+            indexes_migration = sorted(
+                (row[1], row[2], row[4])
+                for row in self.connection.execute(
+                    "PRAGMA index_list(intelligence_approval_ledger)"
+                )
+            )
+            indexes_worker = sorted(
+                (row[1], row[2], row[4])
+                for row in worker_db.execute(
+                    "PRAGMA index_list(intelligence_approval_ledger)"
+                )
+            )
+            self.assertEqual(indexes_worker, indexes_migration)
+        finally:
+            worker_db.close()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
