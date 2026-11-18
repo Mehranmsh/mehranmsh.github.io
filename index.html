@@ -994,6 +994,19 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="hero-actions" style="margin-top:12px"><button class="btn" id="intelTaskCreateBtn" type="submit">Add to shared queue</button></div>
 </form>
 <div id="intelTasksList" class="grid" aria-live="polite"><div class="empty">Loading collaboration tasks...</div></div>
+<div class="panel" id="intelApprovalPanel">
+ <div class="section-title"><div><h3>Scoped documentation approvals</h3><div class="small-text">Issue or revoke a short-lived grant for one accepted documentation proposal. This does not execute code.</div></div><button class="btn secondary small" id="refreshIntelApprovalsBtn" type="button">Refresh grants</button></div>
+ <div class="notice warn">Grants are limited to 1–5 Markdown files under docs/, one branch and one pinned base commit, for 5–60 minutes. No code executor is enabled.</div>
+ <form id="intelApprovalForm" class="card" autocomplete="off">
+  <div class="field"><label for="intelApprovalTask">Accepted documentation proposal</label><select id="intelApprovalTask" required><option value="">Select an accepted proposal</option></select></div>
+  <div class="field"><label for="intelApprovalPaths">Allowed documentation paths, one per line</label><textarea id="intelApprovalPaths" rows="4" maxlength="1000" required placeholder="docs/INTELLIGENCE-NEXT-STEPS.md"></textarea><div class="small-text">Only safe .md files inside docs/ are accepted. Maximum 5 paths.</div></div>
+  <div class="form-grid"><div class="field"><label for="intelApprovalBaseSha">Pinned base commit SHA</label><input id="intelApprovalBaseSha" maxlength="40" spellcheck="false" placeholder="40-character Git commit SHA" required></div><div class="field"><label for="intelApprovalExpiry">Grant duration</label><select id="intelApprovalExpiry"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="5">5 minutes</option><option value="60">60 minutes</option></select></div></div>
+  <div class="hero-actions" style="margin-top:0"><button class="btn secondary small" id="loadIntelBaseShaBtn" type="button">Read current main SHA</button><button class="btn" id="issueIntelApprovalBtn" type="submit">Issue scoped grant</button></div>
+  <div class="small-text" id="intelApprovalBranchPreview">The isolated branch name will be generated from the selected task.</div>
+ </form>
+ <div id="intelApprovalsStatus" class="notice" aria-live="polite">Approval ledger has not been loaded.</div>
+ <div id="intelApprovalsList" class="grid"><div class="empty">No approval grants loaded.</div></div>
+</div>
 </div>
 <div class="panel intelligence-assistant">
 <div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
@@ -2220,6 +2233,7 @@ renderIntelligenceTasks(data.tasks||[]);
 status.textContent=(data.tasks||[]).length+" recent tasks loaded. Pre-authorized read-only reports and quality checks run automatically; sensitive actions require approval.";
 status.className="notice success";
 await loadIntelligenceSchedulerRuns();
+await loadIntelligenceApprovals();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
 status.className="notice warn";
@@ -2227,6 +2241,7 @@ list.innerHTML='<div class="empty">The task queue is unavailable until the admin
 }
 }
 function renderIntelligenceTasks(tasks){
+intelligenceTaskCache=Array.isArray(tasks)?tasks:[];refreshApprovalTaskOptions();
 const list=$("intelTasksList");if(!list)return;
 if(!tasks.length){list.innerHTML='<div class="empty">No collaboration tasks yet. Add the first task above.</div>';return}
 const labels={queued:"Queued",accepted:"Accepted",in_progress:"In progress",blocked:"Blocked",awaiting_approval:"Awaiting approval",completed:"Completed",cancelled:"Cancelled"};
@@ -2298,6 +2313,71 @@ $("intelTasksList")?.addEventListener("click",event=>{
 const button=event.target.closest("[data-intel-task-status]");
 if(button)updateIntelligenceTask(button.dataset.intelTaskStatus,button.dataset.nextStatus);
 });
+let intelligenceTaskCache=[];
+let intelligenceApprovalCache=[];
+function formatApprovalTime(seconds){return seconds?new Date(Number(seconds)*1000).toLocaleString():"—"}
+function approvalBranchForTask(taskId){return "intelligence/patch-"+String(taskId||"").replace(/[^A-Za-z0-9_-]/g,"").replace(/-/g,"").slice(0,12)}
+function refreshApprovalTaskOptions(){
+ const select=$("intelApprovalTask");if(!select)return;
+ const eligible=intelligenceTaskCache.filter(t=>t.actionType==="documentation_patch_proposal"&&t.status==="accepted"&&["mehran_intelligence","shared"].includes(t.assignedTo)&&!t.requiresApproval);
+ const current=select.value;
+ select.innerHTML='<option value="">Select an accepted proposal</option>'+eligible.map(t=>'<option value="'+escapeHTML(t.id)+'">'+escapeHTML(t.title)+' · '+escapeHTML(String(t.id).slice(0,8))+'</option>').join("");
+ if(eligible.some(t=>t.id===current))select.value=current;
+ updateApprovalBranchPreview();
+}
+function updateApprovalBranchPreview(){
+ const task=intelligenceTaskCache.find(t=>t.id===$("intelApprovalTask")?.value);
+ const preview=$("intelApprovalBranchPreview");
+ if(preview)preview.textContent=task?"Isolated branch: "+approvalBranchForTask(task.id):"Select an accepted proposal to generate its isolated branch.";
+}
+async function loadIntelligenceApprovals(){
+ const status=$("intelApprovalsStatus"),list=$("intelApprovalsList");if(!status||!list)return;
+ status.textContent="Loading owner approval ledger...";status.className="notice";
+ try{const data=await api("/intelligence/approvals");intelligenceApprovalCache=data.approvals||[];renderIntelligenceApprovals();status.textContent=intelligenceApprovalCache.length+" recent grants loaded. Issued grants can be revoked until they expire or are consumed.";status.className="notice success"}
+ catch(error){status.textContent="Approval ledger unavailable: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Sign in with the authorized owner account to view approval grants.</div>'}
+}
+function renderIntelligenceApprovals(){
+ const list=$("intelApprovalsList");if(!list)return;
+ if(!intelligenceApprovalCache.length){list.innerHTML='<div class="empty">No approval grants recorded yet.</div>';return}
+ const labels={issued:"Issued",revoked:"Revoked",consumed:"Consumed",expired:"Expired"};
+ list.innerHTML=intelligenceApprovalCache.map(grant=>{
+  const paths=Array.isArray(grant.scope?.paths)?grant.scope.paths:[];
+  const active=grant.status==="issued"&&Number(grant.expiresAt)>Math.floor(Date.now()/1000);
+  return '<article class="card"><div class="eyebrow">'+escapeHTML(labels[grant.status]||grant.status)+'</div><h3>'+escapeHTML(String(grant.taskId||"").slice(0,12))+'</h3><p>'+paths.map(escapeHTML).join("<br>")+'</p><div class="small-text">Branch: '+escapeHTML(grant.branch||"—")+'</div><div class="small-text">Base: <code>'+escapeHTML(grant.baseSha||"—")+'</code></div><div class="small-text">Expires: '+escapeHTML(formatApprovalTime(grant.expiresAt))+'</div>'+(grant.consumedAt?'<div class="small-text">Consumed: '+escapeHTML(formatApprovalTime(grant.consumedAt))+'</div>':'')+(active?'<div class="hero-actions"><button class="btn danger small" type="button" data-revoke-intel-approval="'+escapeHTML(grant.id)+'">Revoke grant</button></div>':'')+'</article>';
+ }).join("");
+}
+async function readIntelligenceBaseSha(){
+ const button=$("loadIntelBaseShaBtn"),input=$("intelApprovalBaseSha"),status=$("intelApprovalsStatus");if(!button||!input)return;
+ button.disabled=true;status.textContent="Reading the public main branch commit from GitHub...";status.className="notice";
+ try{const response=await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main",{headers:{Accept:"application/vnd.github+json"}});if(!response.ok)throw new Error("GitHub returned HTTP "+response.status);const commit=await response.json();if(!/^[0-9a-f]{40}$/i.test(commit.sha||""))throw new Error("GitHub did not return a valid commit SHA");input.value=commit.sha.toLowerCase();status.textContent="Pinned base loaded from public main: "+commit.sha+". Verify it before issuing the grant.";status.className="notice success"}
+ catch(error){status.textContent="Could not read main commit: "+error.message;status.className="notice warn"}finally{button.disabled=false}
+}
+async function issueIntelligenceApproval(event){
+ event.preventDefault();
+ const form=$("intelApprovalForm"),button=$("issueIntelApprovalBtn"),status=$("intelApprovalsStatus");
+ const task=intelligenceTaskCache.find(t=>t.id===$("intelApprovalTask").value);
+ const paths=$("intelApprovalPaths").value.split(/\r?\n/).map(p=>p.trim()).filter(Boolean);
+ const baseSha=$("intelApprovalBaseSha").value.trim().toLowerCase(),expiresInMinutes=Number($("intelApprovalExpiry").value);
+ if(!task||task.actionType!=="documentation_patch_proposal"||task.status!=="accepted"||task.requiresApproval||!["mehran_intelligence","shared"].includes(task.assignedTo)){status.textContent="Choose an accepted documentation proposal assigned to MEHRAN INTELLIGENCE or Shared.";status.className="notice warn";return}
+ if(paths.length<1||paths.length>5||!paths.every(p=>/^docs\/[A-Za-z0-9._/-]+\.md$/.test(p))){status.textContent="Enter 1–5 valid Markdown paths under docs/, one per line.";status.className="notice warn";return}
+ if(!/^[0-9a-f]{40}$/.test(baseSha)){status.textContent="Enter or load a valid 40-character base commit SHA.";status.className="notice warn";return}
+ if(!window.confirm("Issue a "+expiresInMinutes+"-minute grant for "+paths.length+" documentation file(s) on branch "+approvalBranchForTask(task.id)+"? This does not execute code."))return;
+ button.disabled=true;status.textContent="Issuing the owner-scoped grant...";status.className="notice";
+ try{const data=await api("/intelligence/approvals",{method:"POST",body:JSON.stringify({taskId:task.id,branch:approvalBranchForTask(task.id),baseSha,paths,expiresInMinutes})});if(!data.success||!data.approval)throw new Error("The approval service did not confirm issuance.");status.textContent="Scoped grant issued. It is recorded in the ledger, but no executor can consume it and no code was changed.";status.className="notice success";form.reset();refreshApprovalTaskOptions();await loadIntelligenceApprovals()}
+ catch(error){status.textContent="Grant was not issued: "+error.message;status.className="notice warn"}finally{button.disabled=false}
+}
+async function revokeIntelligenceApproval(id,button){
+ const status=$("intelApprovalsStatus");if(!window.confirm("Revoke this issued grant? This cannot be undone."))return;if(button)button.disabled=true;
+ status.textContent="Revoking approval grant...";status.className="notice";
+ try{await api("/intelligence/approvals/"+encodeURIComponent(id),{method:"DELETE"});status.textContent="Grant revoked. No code execution occurred.";status.className="notice success";await loadIntelligenceApprovals()}
+ catch(error){status.textContent="Grant could not be revoked: "+error.message;status.className="notice warn";if(button)button.disabled=false}
+}
+$("intelApprovalTask")?.addEventListener("change",updateApprovalBranchPreview);
+$("intelApprovalForm")?.addEventListener("submit",issueIntelligenceApproval);
+$("loadIntelBaseShaBtn")?.addEventListener("click",readIntelligenceBaseSha);
+$("refreshIntelApprovalsBtn")?.addEventListener("click",loadIntelligenceApprovals);
+$("intelApprovalsList")?.addEventListener("click",event=>{const button=event.target.closest("[data-revoke-intel-approval]");if(button)revokeIntelligenceApproval(button.dataset.revokeIntelApproval,button)});
+
 
 async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";
