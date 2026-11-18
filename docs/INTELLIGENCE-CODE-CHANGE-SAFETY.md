@@ -44,7 +44,7 @@ Reject absolute paths, parent traversal (`..`), symlinks, submodules, binary fil
 
 Initial conservative limits:
 - Maximum 5 changed files per task
-- Maximum 200 KiB total patch
+- Maximum 180 KiB total patch
 - Maximum 40 KiB per file
 - Text files only
 - No arbitrary shell command, script, workflow, or task-payload execution
