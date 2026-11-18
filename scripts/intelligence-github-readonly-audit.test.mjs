@@ -93,8 +93,8 @@ test("HTTP adapter rejects malformed commit response before dereferencing tree f
  await assert.rejects(()=>runReadOnlyAudit(env,async()=>new Response(JSON.stringify({sha:baseSha,parents:[],commit:{}}),{headers:{"content-type":"application/json"}})),/malformed base commit/);
 });
 
-test("rejects an audit head whose first parent is not the pinned base", async () => {
+test("rejects an audit head without parent metadata", async () => {
  const {input}=fixture();
- input.headCommit.parents=["8".repeat(40),baseSha];
+ input.headCommit.parents=[];
  assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);
 });
