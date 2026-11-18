@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - intelligence/integrated-knowledge-approval-staging-v1
     paths:
       - "index.html"
       - "music-studio.html"
