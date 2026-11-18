@@ -5283,7 +5283,8 @@ function parseIntelligenceRelationshipEvidence(value) {
 }
 
 export function parseIntelligenceRelationshipProposalArgs(args) {
- if(!args||typeof args!=="object"||Array.isArray(args)||Object.keys(args).some(k=>!["leftId","rightId","relationType","leftEvidence","rightEvidence"].includes(k))||
+ const allowed=["leftId","rightId","relationType","leftEvidence","rightEvidence","directionFromId","directionToId"];
+ if(!args||typeof args!=="object"||Array.isArray(args)||Object.keys(args).some(k=>!allowed.includes(k))||
     typeof args.leftId!=="string"||typeof args.rightId!=="string"||args.leftId.length<1||args.leftId.length>80||
     args.rightId.length<1||args.rightId.length>80||args.leftId===args.rightId||
     !["conflicts_with","supersedes","supports"].includes(args.relationType)||
@@ -5292,10 +5293,23 @@ export function parseIntelligenceRelationshipProposalArgs(args) {
   throw new Error("Two distinct knowledge IDs, a valid relationship type and exact evidence snippets from both records are required.");
  }
  const [leftId,rightId]=[args.leftId,args.rightId].sort();
+ let directionFromId=null,directionToId=null;
+ if(args.relationType==="conflicts_with"){
+  if(args.directionFromId!==undefined||args.directionToId!==undefined)throw new Error("Conflicts are symmetric and cannot include a direction.");
+ } else {
+  if(typeof args.directionFromId!=="string"||typeof args.directionToId!=="string"||
+     args.directionFromId===args.directionToId||
+     ![args.leftId,args.rightId].includes(args.directionFromId)||
+     ![args.leftId,args.rightId].includes(args.directionToId)) {
+   throw new Error("Supersedes and supports relationships require a direction between the two linked entries.");
+  }
+  directionFromId=args.directionFromId;
+  directionToId=args.directionToId;
+ }
  const leftEvidence=cleanText(args.leftEvidence,300),rightEvidence=cleanText(args.rightEvidence,300);
  return args.leftId===leftId
-  ? {leftId,rightId,relationType:args.relationType,leftEvidence,rightEvidence}
-  : {leftId,rightId,relationType:args.relationType,leftEvidence:rightEvidence,rightEvidence:leftEvidence};
+  ? {leftId,rightId,relationType:args.relationType,leftEvidence,rightEvidence,directionFromId,directionToId}
+  : {leftId,rightId,relationType:args.relationType,leftEvidence:rightEvidence,rightEvidence:leftEvidence,directionFromId,directionToId};
 }
 
 export async function runIntelligenceToolLoop({runModel,messages,tools,executeTool}) {
