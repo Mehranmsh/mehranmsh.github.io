@@ -5156,9 +5156,9 @@ async function ensureIntelligenceMemoryTable(env) {
     ["seed-security-priority","decision","Security before public release","Protect user data and company systems before expanding features or opening the platform to public users. Security changes must be reviewed and tested before production deployment.","high"],
     ["seed-ui-guidelines","decision","Interface design direction","Prefer a clean, professional, uncluttered interface using a dark blue/black base with cyan or blue accents. Avoid gold styling and unnecessary decorative complexity.","normal"]
   ];
-  for (const [id,category,title,content,importance] of seeds) {
-    await env.DB.prepare("INSERT OR IGNORE INTO intelligence_memory(id,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed").run();
-  }
+  await env.DB.batch(seeds.map(([id,category,title,content,importance]) =>
+    env.DB.prepare("INSERT OR IGNORE INTO intelligence_memory(id,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed")
+  ));
 }
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
@@ -6621,8 +6621,16 @@ export default {
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first(),
           env.DB.prepare("SELECT category,title,content,importance FROM intelligence_memory WHERE archived_at IS NULL ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 40").all()
         ]);
+        let memoryChars = 0;
+        const organizationalMemory = [];
+        for (const m of (memoryRows.results || [])) {
+          const content = String(m.content || "").slice(0,1200);
+          if (memoryChars + content.length > 16000) continue;
+          memoryChars += content.length;
+          organizationalMemory.push({category:m.category,title:m.title,content,importance:m.importance});
+        }
         const companyContext = {
-          organizationalMemory: (memoryRows.results || []).map(m => ({category:m.category,title:m.title,content:String(m.content||"").slice(0,2000),importance:m.importance})),
+          organizationalMemory,
           projects: (projectRows.results || []).map(p => ({name:p.name,status:p.status,description:String(p.description||"").slice(0,500)})),
           social: {
             registeredUsers:Number(userRow?.total||0),
