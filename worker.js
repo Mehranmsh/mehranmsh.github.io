@@ -6493,7 +6493,7 @@ export default {
         const title=cleanText(body.title,120),description=cleanText(body.description,3000);
         const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
         const actionType=body.actionType||"";
-        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report"];
+        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
         const requiresApproval=Boolean(body.requiresApproval||actionType);
@@ -6561,7 +6561,7 @@ export default {
           {name:"get_project_status",description:"Read current MEHRAN project names, statuses and short descriptions. Read-only.",parameters:{type:"object",properties:{},additionalProperties:false}},
           {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics only. Never return personal user records.",parameters:{type:"object",properties:{},additionalProperties:false}},
           {name:"list_collaboration_tasks",description:"List recent MEHRAN collaboration tasks. Optional filters: status and assignedTo.",parameters:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
-          {name:"propose_collaboration_task",description:"Create an internal task proposal for MEHRAN INTELLIGENCE or shared team. This ALWAYS requires owner approval. Only the listed read-only report action types can run automatically after approval; other tasks remain proposals.",parameters:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","shared"]},priority:{type:"string",enum:["low","normal","high"]},actionType:{type:"string",enum:["project_status_report","social_metrics_report","service_health_report"]}},required:["title","description"],additionalProperties:false}}
+          {name:"propose_collaboration_task",description:"Create an internal task proposal for MEHRAN INTELLIGENCE or shared team. This ALWAYS requires owner approval. Only the listed read-only report action types can run automatically after approval; other tasks remain proposals.",parameters:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","shared"]},priority:{type:"string",enum:["low","normal","high"]},actionType:{type:"string",enum:["project_status_report","social_metrics_report","service_health_report","repository_quality_check"]}},required:["title","description"],additionalProperties:false}}
         ];
         const messages = [
           {role:"system",content:system},
@@ -6603,7 +6603,7 @@ export default {
             const title=cleanText(args.title,120),description=cleanText(args.description,3000);
             const assignedTo=args.assignedTo||"mehran_intelligence",priority=args.priority||"normal",actionType=args.actionType||"";
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000||!description)throw new Error("A valid task title and description are required.");
-            if(!["mehran_intelligence","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)||!["","project_status_report","social_metrics_report","service_health_report"].includes(actionType))throw new Error("Invalid task assignment, priority or action type.");
+            if(!["mehran_intelligence","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)||!["","project_status_report","social_metrics_report","service_health_report","repository_quality_check"].includes(actionType))throw new Error("Invalid task assignment, priority or action type.");
             const id=crypto.randomUUID();
             await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,actionType,"{}").run();
             await writeAdminAudit(env,admin,"intelligence_task_proposed","intelligence_task",id,JSON.stringify({assignedTo,priority,source:"intelligence_chat"}));
