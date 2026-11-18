@@ -5183,6 +5183,7 @@ async function ensureIntelligenceApprovalLedgerTable(env) {
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_task ON intelligence_approval_ledger(task_id,status,expires_at)").run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_owner ON intelligence_approval_ledger(owner_uid,issued_at DESC)").run();
+  await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_intelligence_approval_active_task ON intelligence_approval_ledger(task_id,owner_uid) WHERE status='issued'").run();
 }
 
 
@@ -6625,6 +6626,9 @@ export default {
           return error("Only an owner-approved documentation proposal assigned to Intelligence can receive an approval.", 409);
         }
         const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='expired' WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
+        ).bind(taskId, admin.uid, now).run();
         const existing = await env.DB.prepare(
           "SELECT id FROM intelligence_approval_ledger WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at>? LIMIT 1"
         ).bind(taskId, admin.uid, now).first();
@@ -6634,9 +6638,14 @@ export default {
         const scopeSha256 = await sha256Hex(scopeJson);
         const id = crypto.randomUUID();
         const expiresAt = now + expiresInMinutes * 60;
-        await env.DB.prepare(
-          "INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)"
-        ).bind(id,taskId,admin.uid,admin.username,"Mehranmsh/mehranmsh.github.io",branch,baseSha,scopeJson,scopeSha256,now,expiresAt).run();
+        try {
+          const inserted = await env.DB.prepare(
+            "INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)"
+          ).bind(id,taskId,admin.uid,admin.username,"Mehranmsh/mehranmsh.github.io",branch,baseSha,scopeJson,scopeSha256,now,expiresAt).run();
+          if (Number(inserted?.meta?.changes || 0) !== 1) return error("Approval issuance did not complete.", 409);
+        } catch {
+          return error("An active approval already exists for this task.", 409);
+        }
         await writeAdminAudit(env,admin,"intelligence_approval_issued","intelligence_approval",id,JSON.stringify({
           taskId,repository:"Mehranmsh/mehranmsh.github.io",branch,baseSha,pathCount:paths.length,expiresAt
         }));
