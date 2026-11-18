@@ -6536,7 +6536,7 @@ export default {
         })});
       }
 
-      const intelligenceApprovalMatch=path.match(/^\\/intelligence\\/approvals\\/([^/]+)$/);
+      const intelligenceApprovalMatch=path.match(/^\/intelligence\/approvals\/([^/]+)$/);
       if(intelligenceApprovalMatch&&method==="DELETE"){
         const admin=await verifyAdmin(request,env);
         if(!admin)return error("Admin authentication required",403);
