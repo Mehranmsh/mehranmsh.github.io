@@ -7019,7 +7019,7 @@ export default {
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first(),
-          env.DB.prepare("SELECT category,title,content,importance FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all()
+          env.DB.prepare("SELECT category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all()
         ]);
         const companyContext = {
           projects: (projectRows.results || []).map(p => ({name:p.name,status:p.status,description:String(p.description||"").slice(0,500)})),
