@@ -32,12 +32,12 @@ Implemented in the validation branch:
 2. INTELLIGENCE can propose a relationship with an exact evidence snippet from each linked record. The Worker verifies both snippets against the active owner-owned source entries before inserting a `candidate` authored by `intelligence`. It remains unconfirmed and does not alter knowledge content, retrieval priority, archive state, permissions, or execution authority.
 3. The owner can list relationships and explicitly confirm, dismiss, or resolve an actionable candidate/confirmed record. Resolution is restricted to `conflicts_with` and must select one of the two linked knowledge records. `supersedes` and `supports` preserve explicit direction from source to target.
 4. Both original knowledge records remain stored. The proposal author remains recorded after owner review; confirmation/resolution timestamps record the review lifecycle.
-5. Chat context includes owner-scoped candidate, confirmed, and resolved relationship metadata. Candidate relations must be labelled as unconfirmed; only owner-confirmed relations or owner-selected resolutions can settle the relationship.
+5. Chat context includes owner-scoped candidate, confirmed, and resolved relationship metadata. Candidate relations must be labelled as unconfirmed; only owner-confirmed relations or owner-selected resolutions can settle the relationship. If either linked knowledge entry is updated after the relationship review, the relationship is marked stale and cannot settle current truth until the owner reaffirms it. A stale resolved conflict can be explicitly reopened as a candidate; the previous resolution is preserved in the audit log.
 6. Database constraints and triggers reject self-links, duplicate links, invalid relation/status values, cross-owner links, system-seed links, and new links to archived/missing knowledge. Reads and mutations are scoped to the authenticated owner.
 
 Validation limits:
 
 - The new migration lifecycle tests run against disposable SQLite, not Cloudflare D1.
 - Worker smoke tests validate parser, source contracts and helper behavior; they do not prove live D1 trigger behavior or live AI model behavior.
-- The relationship UI has not yet been built. The current owner API is available for the private admin interface to consume.
+- The relationship UI has not yet been built. The current owner API is available for the private admin interface to consume. Worker route tests now exercise authenticated list/create/resolve/reopen behavior with a deterministic mock D1 binding.
 - No production D1 migration, Cloudflare deployment, merge, or executor activation has occurred. Apply the migration only to a dedicated staging D1 database after the owner creates and verifies that isolated environment.
