@@ -2211,3 +2211,21 @@ test("INTELLIGENCE retrieval evaluation covers Persian and English intent with b
   assert.ok(hits/cases.length>=0.8,"Top-1 retrieval accuracy should be at least 80% on the small bilingual regression set");
   assert.equal(workerModule.rankIntelligenceKnowledge(rows,"quantum astronomy",3,false).length,0);
 });
+
+
+test("INTELLIGENCE surfaces conflicting and potentially stale knowledge instead of silently treating recency as truth", () => {
+  const rows = [
+    {id:"shipping-old",owner_uid:"owner-1",category:"decision",title:"Shipping policy",content:"Use Carrier A for international deliveries.",importance:"high",updated_at:"2026-08-01"},
+    {id:"shipping-new",owner_uid:"owner-1",category:"decision",title:"Shipping policy",content:"Use Carrier B for international deliveries.",importance:"high",updated_at:"2026-11-19"}
+  ];
+  const results = workerModule.rankIntelligenceKnowledge(rows,"shipping policy",5,false);
+  assert.deepEqual(results.map(item=>item.id),["shipping-new","shipping-old"]);
+  assert.match(results[0].content,/Carrier B/);
+  assert.match(results[1].content,/Carrier A/);
+  assert.ok(results.every(item=>item.source==="owner" && item.updatedAt));
+  assert.ok(workerSource.includes("When retrieved entries conflict, do not silently choose one based only on recency or importance"));
+  assert.ok(workerSource.includes("Treat old or undated entries as potentially stale and disclose freshness limits"));
+  assert.ok(workerSource.includes("If relevant evidence is missing, say it was not found and do not guess"));
+  assert.match(workerSource,/archived_at IS NULL AND owner_uid IN/);
+  assert.equal(workerModule.rankIntelligenceKnowledge(rows,"latest legal KYB policy",5,false).length,0);
+});
