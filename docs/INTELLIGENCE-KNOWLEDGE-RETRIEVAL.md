@@ -16,7 +16,7 @@ The main chat context receives at most 12 relevant ranked entries. A separate re
 
 ## Conflict and freshness handling
 
-Retrieved entries retain their source and `updatedAt` provenance. When multiple relevant entries conflict, the assistant must surface the competing entries and timestamps rather than silently selecting the newest or highest-importance item. A current explicit owner instruction or independently verified company data may resolve the conflict; otherwise the assistant must ask the owner to confirm. Old or undated entries are potentially stale and must be described with that limitation. If targeted retrieval returns no relevant evidence, the assistant must say the information was not found instead of guessing. Archived entries are excluded from retrieval.
+Retrieved entries retain their source and `updatedAt` provenance. The current conflict-preservation safeguard recognizes competing entries only when their normalized category and title are identical; it retains a competing record in the bounded result set so the assistant can surface both versions and timestamps. It does not yet reliably detect semantic conflicts whose titles or categories differ. For conflicts it can identify, the assistant must not silently select the newest or highest-importance item. A current explicit owner instruction or independently verified company data may resolve the conflict; otherwise the assistant must ask the owner to confirm. Old or undated entries are potentially stale and must be described with that limitation. If targeted retrieval returns no relevant evidence, the assistant must say the information was not found instead of guessing. Archived entries are excluded from retrieval.
 
 ## Future evaluation
 
