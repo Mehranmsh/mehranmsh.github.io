@@ -364,10 +364,14 @@ test("MEHRAN INTELLIGENCE bounds model tool cycles and rejects unapproved tool s
   const chat=workerSource.slice(start,end);
   assert.match(chat,/env\.AI\.run\("@cf\/meta\/llama-3\.3-70b-instruct-fp8-fast"/);
   assert.match(chat,/tool_choice:"auto",max_tokens:900/);
-  assert.match(chat,/round<2/,"tool-assisted model interaction must have a hard two-round ceiling");
-  assert.match(chat,/if\(pendingToolCalls\.length>4\)throw new Error\("AI returned more than four tool calls in one round\."\)/,"oversized tool batches must be rejected rather than silently truncated");
-  assert.match(chat,/pendingToolCalls=getIntelligenceToolCalls\(result\)/,"each model response must validate its tool-call envelope");
-  assert.match(chat,/if\(pendingToolCalls\.length\)throw new Error\("AI tool-call round limit reached\."\)/,"unfinished tool calls after the round ceiling must fail closed");
+  assert.match(chat,/runIntelligenceToolLoop\(/,"chat must use the tested bounded tool-loop implementation");
+  const loopStart=workerSource.indexOf("export async function runIntelligenceToolLoop");
+  const loopEnd=workerSource.indexOf("export function parseIntelligenceToolCall",loopStart);
+  const loop=workerSource.slice(loopStart,loopEnd);
+  assert.match(loop,/toolRounds<2/,"tool-assisted model interaction must have a hard two-round ceiling");
+  assert.match(loop,/pendingToolCalls\.length>4/,"oversized tool batches must be rejected rather than silently truncated");
+  assert.match(loop,/getIntelligenceToolCalls\(result\)/,"each model response must validate its tool-call envelope");
+  assert.match(loop,/pendingToolCalls\.length\)throw new Error\("AI tool-call round limit reached\."\)/,"unfinished tool calls after the round ceiling must fail closed");
   assert.match(chat,/if \(!args \|\| typeof args !== "object" \|\| Array\.isArray\(args\)\)/);
   assert.match(chat,/throw new Error\("Tool is not available\."\)/);
   assert.match(chat,/status,requires_approval,created_by/);
@@ -2411,7 +2415,57 @@ test("INTELLIGENCE surfaces conflicting and potentially stale knowledge instead 
 });
 
 test("INTELLIGENCE rejects oversized tool batches and refuses unfinished tool-call rounds", () => {
-  assert.match(workerSource,/if\(pendingToolCalls\.length>4\)throw new Error\("AI returned more than four tool calls in one round\."\)/);
-  assert.match(workerSource,/if\(pendingToolCalls\.length\)throw new Error\("AI tool-call round limit reached\."\)/);
+  assert.match(workerSource,/pendingToolCalls\.length>4/);
+  assert.match(workerSource,/pendingToolCalls\.length\)throw new Error\("AI tool-call round limit reached\."\)/);
   assert.doesNotMatch(workerSource,/const calls=result\.tool_calls\.slice\(0,4\)/);
+});
+
+test("INTELLIGENCE tool loop executes a fully validated batch and records its round", async () => {
+  const calls=[];
+  const responses=[
+    {response:"",tool_calls:[{id:"call_a",function:{name:"read_status",arguments:"{}"}}]},
+    {response:"Status checked."}
+  ];
+  const result=await workerModule.runIntelligenceToolLoop({
+    messages:[],tools:[{name:"read_status"}],
+    runModel:async()=>responses.shift(),
+    executeTool:async(name,args)=>{calls.push({name,args});return {status:"ok"};}
+  });
+  assert.equal(result.result.response,"Status checked.");
+  assert.equal(result.toolRounds,1);
+  assert.deepEqual(calls,[{name:"read_status",args:{}}]);
+});
+
+test("INTELLIGENCE validates every sibling tool call before executing any call", async () => {
+  let executions=0,modelCalls=0;
+  await assert.rejects(workerModule.runIntelligenceToolLoop({
+    messages:[],tools:[{name:"read_status"}],
+    runModel:async()=>{modelCalls++;return {tool_calls:[
+      {id:"valid_1",function:{name:"read_status",arguments:"{}"}},
+      {id:"",function:{name:"read_status",arguments:"{}"}}
+    ]};},
+    executeTool:async()=>{executions++;return {};}
+  }),/identifier/);
+  assert.equal(modelCalls,1);
+  assert.equal(executions,0,"a malformed sibling must prevent all calls in the batch from executing");
+});
+
+test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive model responses", async () => {
+  let executions=0;
+  const tools=[{name:"read_status"}];
+  const makeCall=id=>({id,function:{name:"read_status",arguments:"{}"}});
+  await assert.rejects(workerModule.runIntelligenceToolLoop({
+    messages:[],tools,runModel:async()=>({tool_calls:"bad"}),
+    executeTool:async()=>{executions++;return {};}
+  }),/invalid tool-call envelope/);
+  await assert.rejects(workerModule.runIntelligenceToolLoop({
+    messages:[],tools,runModel:async()=>({tool_calls:[1,2,3,4,5].map(n=>makeCall("many_"+n))}),
+    executeTool:async()=>{executions++;return {};}
+  }),/more than four/);
+  let round=0;
+  await assert.rejects(workerModule.runIntelligenceToolLoop({
+    messages:[],tools,runModel:async()=>({tool_calls:[makeCall("round_"+(++round))]}),
+    executeTool:async()=>{executions++;return {};}
+  }),/round limit reached/);
+  assert.equal(executions,2,"only the two bounded rounds may execute");
 });
