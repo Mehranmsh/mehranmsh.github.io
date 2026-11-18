@@ -1787,3 +1787,25 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
   assert.equal(revokeResponse.status, 403);
   assert.equal((await revokeResponse.json()).error, "Admin authentication required");
 });
+
+
+test("Intelligence approval consumption is atomic, bound, and not exposed to routes", () => {
+  const start = workerSource.indexOf("async function consumeIntelligenceApproval(env, input)");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", start);
+  assert.ok(start >= 0 && end > start, "internal approval consumption primitive must exist");
+  const helper = workerSource.slice(start, end);
+  for (const binding of [
+    "id=? AND task_id=? AND owner_uid=? AND repository=? AND branch=? AND base_sha=? AND scope_sha256=?",
+    "status='issued' AND revoked_at IS NULL AND expires_at>?",
+    "t.status='accepted' AND t.requires_approval=0",
+    "t.assigned_to IN ('mehran_intelligence','shared')",
+    "t.action_type='documentation_patch_proposal'",
+    "SET status='expired'",
+    "SET status='consumed',consumed_at=?",
+    "Number(transition?.meta?.changes || 0) !== 1"
+  ]) assert.ok(helper.includes(binding), "consumption guard missing: " + binding);
+  assert.match(helper, /repository !== "Mehranmsh\/mehranmsh\.github\.io"/);
+  assert.match(helper, /intelligence\\/patch-\[A-Za-z0-9_-\]\{8,64\}/);
+  assert.doesNotMatch(helper, /fetch\(|fetch\s*\(/);
+  assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
+});
