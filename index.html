@@ -1776,7 +1776,7 @@ function renderProfileGallery(){
  if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+escapeHTML(safeMediaSrc(p.url||p.localUrl,{allowBlob:true,allowDataImage:true}))+'" alt="Profile gallery photo '+(i+1)+'"></button>').join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
 }
 window.removeProfileGalleryPhoto=function(index){window.socialProfileGallery.splice(index,1);renderProfileGallery()};
-window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=item.url;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(item.url,"_blank","noopener")};
+window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];const src=safeMediaSrc(item?.url||item?.localUrl,{allowBlob:true,allowDataImage:true});if(!src)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=src;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(src,"_blank","noopener")};
 function updateProfilePreview(){
 const name=$("profileDisplayName")?.value.trim()||socialUser?.displayName||socialUser?.username||"Your name";
 const bio=$("profileBio")?.value||"";
