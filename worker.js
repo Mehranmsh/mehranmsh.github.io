@@ -5268,6 +5268,24 @@ export function parseIntelligenceKnowledgeSearchArgs(args) {
   return {query};
 }
 
+function isIntelligenceRelationshipStale(row) {
+ const relationTime=Date.parse(String(row?.updated_at||""));
+ const leftTime=Date.parse(String(row?.left_updated_at||""));
+ const rightTime=Date.parse(String(row?.right_updated_at||""));
+ return !Number.isFinite(relationTime)||!Number.isFinite(leftTime)||!Number.isFinite(rightTime)||leftTime>relationTime||rightTime>relationTime;
+}
+
+function intelligenceRelationshipEvidenceMatches(evidence, rows) {
+ if(!Array.isArray(evidence)||evidence.length<2)return false;
+ const byId=new Map((rows||[]).map(row=>[row.id,row]));
+ const normalize=value=>String(value||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
+ return evidence.length>=2&&evidence.slice(0,2).every(item=>{
+  const source=byId.get(item?.knowledgeId);
+  const snippet=normalize(item?.text);
+  return !!source&&snippet.length>=5&&normalize(source.title+" "+source.content).includes(snippet);
+ });
+}
+
 function parseIntelligenceRelationshipEvidence(value) {
  try {
   const parsed=JSON.parse(value||"[]");
