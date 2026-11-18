@@ -1,6 +1,9 @@
 name: MEHRAN INTELLIGENCE Agent Runner
 
 on:
+  push:
+    paths:
+      - ".github/workflows/intelligence-agent.yml"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
