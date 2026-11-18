@@ -304,6 +304,17 @@ test("SOCIAL media renderer allows only same-origin HTTPS and Rapidfile CDN sour
   assert.match(validator, /options\.allowDataImage/);
 });
 
+test("all SOCIAL remote media render paths use the central URL validator", () => {
+  assert.match(indexSource, /safeMediaSrc\(post\.avatarUrl\)/);
+  assert.match(indexSource, /safeMediaSrc\(m\.data,\{allowBlob:true,allowDataImage:true\}\)/);
+  assert.match(indexSource, /safeMediaSrc\(story\.mediaUrl\)/);
+  assert.match(indexSource, /safeMediaSrc\(item\.url\|\|"\)/);
+  assert.match(indexSource, /safeMediaSrc\(u\.avatarUrl\)/);
+  assert.match(indexSource, /safeMediaSrc\(other\?\.avatarUrl\)/);
+  assert.match(indexSource, /p\.gallery\.filter\(photo=>safeMediaSrc\(photo\.url\)\)/);
+  assert.doesNotMatch(indexSource, /window\.open\('\\''\+sx\(photo\.url\)/);
+});
+
 test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
   assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
   assert.match(agentWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
