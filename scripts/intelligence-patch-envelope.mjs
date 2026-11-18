@@ -78,14 +78,14 @@ export function normalizeWorkerApprovalRecord(record) {
 
   const scope = record.scope;
   if (!scope || typeof scope !== "object" || Array.isArray(scope) ||
-      Object.keys(scope).length !== 1 || !Array.isArray(scope.paths) ||
+      Object.keys(scope).length !== 2 || scope.version !== 1 || !Array.isArray(scope.paths) ||
       scope.paths.length < 1 || scope.paths.length > 5) return null;
   const allowedPaths = [...scope.paths];
   if (allowedPaths.some(path => typeof path !== "string" || !/^docs\/[A-Za-z0-9._/-]+\.md$/.test(path)) ||
       new Set(allowedPaths).size !== allowedPaths.length) return null;
   allowedPaths.sort();
   const expectedScopeSha256 = createHash("sha256")
-    .update(JSON.stringify({ paths: allowedPaths }), "utf8")
+    .update(JSON.stringify({ version: 1, paths: allowedPaths }), "utf8")
     .digest("hex");
   if (!equalDigest(expectedScopeSha256, record.scopeSha256)) return null;
 
