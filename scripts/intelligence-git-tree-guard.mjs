@@ -86,7 +86,7 @@ export function verifyIntelligenceGitTree({
     return blocked("Expected repository identity is missing.");
   }
   if (typeof expectedBranch !== "string" ||
-      !/^intelligence\\/patch-[A-Za-z0-9_-]{8,64}$/.test(expectedBranch) ||
+      !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(expectedBranch) ||
       candidateBranch !== expectedBranch) {
     return blocked("Candidate branch is not the exact approved isolated patch branch.");
   }
