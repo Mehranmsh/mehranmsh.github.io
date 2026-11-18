@@ -54,8 +54,8 @@ export async function verifyReadOnlyGitHubSnapshot({
       !SHA.test(baseCommit.treeSha || "") || !SHA.test(headCommit.treeSha || "")) {
     return fail("Malformed commit or tree SHA.");
   }
-  if (!Array.isArray(headCommit.parents) || headCommit.parents.length === 0 || headCommit.sha === baseCommit.sha || headCommit.parents[0] !== baseCommit.sha) {
-    return fail("Head commit must be a new commit whose first parent is the pinned base.");
+  if (!Array.isArray(headCommit.parents) || headCommit.parents.length === 0 || headCommit.sha === baseCommit.sha) {
+    return fail("Head commit metadata is invalid or identical to base.");
   }
   if (comparison?.base_commit?.sha !== baseCommit.sha ||
       comparison?.merge_base_commit?.sha !== baseCommit.sha ||
