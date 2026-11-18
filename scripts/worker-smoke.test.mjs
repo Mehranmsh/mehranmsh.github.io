@@ -259,6 +259,8 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
 
 test("deployment and write-enabled imports are manual-only and main-branch guarded", () => {
   assert.match(deployWorkflowSource, /environment: production/);
+  assert.match(phrasesImportWorkflowSource, /environment: repository-maintenance/);
+  assert.match(instrumentsImportWorkflowSource, /environment: repository-maintenance/);
   for (const workflow of [deployWorkflowSource, phrasesImportWorkflowSource, instrumentsImportWorkflowSource]) {
     assert.match(workflow, /workflow_dispatch:/);
     assert.doesNotMatch(workflow, /^\s*push:/m);
