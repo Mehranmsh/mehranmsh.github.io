@@ -35,7 +35,7 @@ import { randomUUID } from "node:crypto";
 const crypto = { randomUUID };
 async function checkRateLimit() { return true; }
 ` + workerSource.slice(relationProposalStart, relationProposalEnd) +
-  "\\nexport { proposeIntelligenceKnowledgeRelation };";
+  "\nexport { proposeIntelligenceKnowledgeRelation };";
 const relationProposalModule = await import(
   "data:text/javascript;base64," + Buffer.from(relationProposalSource).toString("base64")
 );
