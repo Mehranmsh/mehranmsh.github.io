@@ -2572,6 +2572,10 @@ function makeRelationshipRouteDb({rows=[],current=null,activeKnowledgeCount=2,ch
   const calls=[];
   const db={
     calls,
+    async batch(statements) {
+      calls.push({kind:"batch",count:statements.length});
+      return statements.map(()=>({meta:{changes:0}}));
+    },
     prepare(sql) {
       let args=[];
       return {
