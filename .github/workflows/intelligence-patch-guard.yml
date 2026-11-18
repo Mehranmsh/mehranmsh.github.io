@@ -27,5 +27,5 @@ jobs:
       - name: Audit actual GitHub branch trees (read-only)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          MEHRAN_AUDIT_BASE_SHA: a6668d56c0dac692777fd8eb35b6d4f406c9bf8e
+          MEHRAN_AUDIT_BASE_SHA: 72fe8ce98a2242ca1a275e6bacbcf2f65e98b462
         run: node scripts/intelligence-github-readonly-audit.mjs
