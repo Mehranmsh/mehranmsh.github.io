@@ -81,7 +81,11 @@ test("MEHRAN INTELLIGENCE agent queue claims only approved read-only task types"
   const statusRoute = workerSource.slice(statusStart, statusEnd);
   assert.ok(statusStart >= 0 && statusEnd > statusStart);
   assert.match(statusRoute, /agentClaimed:Boolean\(row\.agent_claimed_at\)/);
+  assert.match(statusRoute, /agent_claim_id/);
+  assert.match(statusRoute, /claimId:row\.agent_claim_id \|\| ""/);
   assert.match(statusRoute, /assigned_to/);
+  assert.match(claimRoute, /agent_claim_id=\?/);
+  assert.match(claimRoute, /claimId:row\.agent_claim_id/);
   assert.doesNotMatch(claimRoute, /repository_change|code_write|deploy|merge/i);
 });
 
