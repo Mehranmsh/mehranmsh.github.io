@@ -111,17 +111,73 @@ export async function verifyReadOnlyGitHubSnapshot({
   };
 }
 
+const EXPECTED_REPOSITORY = "Mehranmsh/mehranmsh.github.io";
+const MAX_API_RESPONSE_BYTES = 2 * 1024 * 1024;
+const API_TIMEOUT_MS = 10_000;
+
+async function readBoundedBody(response) {
+  const declared = response.headers?.get?.("content-length");
+  if (declared !== null && declared !== undefined) {
+    const size = Number(declared);
+    if (!Number.isFinite(size) || size < 0 || size > MAX_API_RESPONSE_BYTES) {
+      throw new Error("GitHub API response exceeds the configured size limit.");
+    }
+  }
+  if (!response.body?.getReader) {
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > MAX_API_RESPONSE_BYTES) {
+      throw new Error("GitHub API response exceeds the configured size limit.");
+    }
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_API_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw new Error("GitHub API response exceeds the configured size limit.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock?.();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
 async function githubGet(url, token, fetchImpl = globalThis.fetch) {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:" || parsed.origin !== "https://api.github.com" ||
+      !parsed.pathname.startsWith(`/repos/${EXPECTED_REPOSITORY}/`) ||
+      parsed.username || parsed.password || parsed.hash) {
+    throw new Error("Read-only adapter rejected a non-allowlisted GitHub API URL.");
+  }
   const response = await fetchImpl(url, {
     method: "GET",
+    redirect: "error",
+    signal: AbortSignal.timeout(API_TIMEOUT_MS),
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
       "X-GitHub-Api-Version": "2022-11-28"
     }
   });
-  if (!response.ok) throw new Error(`GitHub read failed (${response.status}) for ${url}`);
-  return response.json();
+  if (!response.ok) throw new Error(`GitHub read failed (${response.status}).`);
+  const contentType = response.headers?.get?.("content-type") || "";
+  if (!/^application\\/json(?:\\s*;|$)/i.test(contentType)) {
+    throw new Error("GitHub API returned an unexpected content type.");
+  }
+  const body = await readBoundedBody(response);
+  try { return JSON.parse(body); }
+  catch { throw new Error("GitHub API returned invalid JSON."); }
 }
 
 export async function runReadOnlyAudit(env = process.env, fetchImpl = globalThis.fetch, allowedPaths = ALLOWED_PATHS) {
@@ -129,18 +185,31 @@ export async function runReadOnlyAudit(env = process.env, fetchImpl = globalThis
   const token = env.GITHUB_TOKEN;
   const baseSha = env.MEHRAN_AUDIT_BASE_SHA;
   const headSha = env.GITHUB_SHA;
-  if (!repository || !token || !SHA.test(baseSha || "") || !SHA.test(headSha || "")) throw new Error("Missing or malformed read-only audit environment.");
+  if (repository !== EXPECTED_REPOSITORY || !token || !SHA.test(baseSha || "") || !SHA.test(headSha || "")) throw new Error("Missing, untrusted, or malformed read-only audit environment.");
   const api = "https://api.github.com";
   const get = path => githubGet(`${api}/repos/${repository}/${path}`, token, fetchImpl);
   const [base, head] = await Promise.all([
     get(`commits/${baseSha}`),
     get(`commits/${headSha}`)
   ]);
+  for (const [label, commit] of [["base", base], ["head", head]]) {
+    if (!commit || !SHA.test(commit.sha || "") ||
+        !SHA.test(commit.commit?.tree?.sha || "") ||
+        !Array.isArray(commit.parents) ||
+        commit.parents.some(parent => !SHA.test(parent?.sha || ""))) {
+      throw new Error(`GitHub returned malformed ${label} commit metadata.`);
+    }
+  }
   const [baseTree, headTree, comparison] = await Promise.all([
     get(`git/trees/${base.commit.tree.sha}?recursive=1`),
     get(`git/trees/${head.commit.tree.sha}?recursive=1`),
     get(`compare/${baseSha}...${headSha}`)
   ]);
+  if (!baseTree || !headTree || !Array.isArray(baseTree.tree) ||
+      !Array.isArray(headTree.tree) || typeof baseTree.truncated !== "boolean" ||
+      typeof headTree.truncated !== "boolean") {
+    throw new Error("GitHub returned malformed tree metadata.");
+  }
   const result = await verifyReadOnlyGitHubSnapshot({
     repository,
     baseCommit: { repository, sha: base.sha, treeSha: base.commit.tree.sha, parents: base.parents.map(p=>p.sha) },
