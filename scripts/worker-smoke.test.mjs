@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
+const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -34,6 +35,14 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
     body: body === undefined ? undefined : JSON.stringify(body)
   }), env);
 }
+
+
+test("MEHRAN INTELLIGENCE runner exposes its service secret only on trusted main pushes", () => {
+  assert.match(agentWorkflowSource, /push:\\s*branches:\\s*- main/);
+  assert.match(agentWorkflowSource, /Checkout trusted main branch[\\s\\S]*?ref: main/);
+  assert.match(agentWorkflowSource, /permissions:\\s*contents: read/);
+  assert.doesNotMatch(agentWorkflowSource, /pull_request:/);
+});
 
 test("health endpoint reports online and confirms the database binding", async () => {
   const response = await request("/health", {}, { DB: mockDb() });
