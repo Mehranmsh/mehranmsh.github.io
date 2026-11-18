@@ -6779,6 +6779,10 @@ export default {
         if (!await checkRateLimit(env, request, "intelligence-approvals-read", 60, 3600, 300, admin.uid)) {
           return error("Too many approval ledger requests. Try again later.", 429);
         }
+        const now = Math.floor(Date.now() / 1000);
+        await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?"
+        ).bind(admin.uid,now).run();
         const rows = await env.DB.prepare(
           "SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE owner_uid=? ORDER BY issued_at DESC LIMIT 50"
         ).bind(admin.uid).all();
@@ -6807,6 +6811,9 @@ export default {
         const id=decodeURIComponent(intelligenceApprovalMatch[1]);
         if(!id||id.length>80)return error("Invalid approval ID.");
         const now=Math.floor(Date.now()/1000);
+        await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='expired' WHERE id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
+        ).bind(id,admin.uid,now).run();
         const transition=await env.DB.prepare(
           "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?"
         ).bind(now,id,admin.uid,now).run();
@@ -6878,7 +6885,7 @@ export default {
         if(body.status==="cancelled"&&existing.action_type==="documentation_patch_proposal"){
           await ensureIntelligenceApprovalLedgerTable(env);
           const now=Math.floor(Date.now()/1000);
-          const revokeGrant=env.DB.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at>? AND EXISTS (SELECT 1 FROM intelligence_tasks WHERE id=? AND status='cancelled')").bind(now,id,admin.uid,now,id);
+          const revokeGrant=env.DB.prepare("UPDATE intelligence_approval_ledger SET status=CASE WHEN expires_at>? THEN 'revoked' ELSE 'expired' END,revoked_at=CASE WHEN expires_at>? THEN ? ELSE revoked_at END WHERE task_id=? AND owner_uid=? AND status='issued' AND EXISTS (SELECT 1 FROM intelligence_tasks WHERE id=? AND status='cancelled')").bind(now,now,now,id,admin.uid,id);
           const results=await env.DB.batch([taskTransition,revokeGrant]);
           updated=results[0];
         }else{
