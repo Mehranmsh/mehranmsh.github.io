@@ -38,9 +38,9 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
 
 
 test("MEHRAN INTELLIGENCE runner exposes its service secret only on trusted main pushes", () => {
-  assert.match(agentWorkflowSource, /push:\\s*branches:\\s*- main/);
-  assert.match(agentWorkflowSource, /Checkout trusted main branch[\\s\\S]*?ref: main/);
-  assert.match(agentWorkflowSource, /permissions:\\s*contents: read/);
+  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
+  assert.match(agentWorkflowSource, /Checkout trusted main branch[\s\S]*?ref: main/);
+  assert.match(agentWorkflowSource, /permissions:\s*contents: read/);
   assert.doesNotMatch(agentWorkflowSource, /pull_request:/);
 });
 
