@@ -377,7 +377,7 @@ test("secret-bearing Intelligence runner is restricted to the trusted main branc
   assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
   assert.match(agentWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(agentWorkflowSource, /ref: main/);
-  assert.doesNotMatch(agentWorkflowSource, /^\\s*workflow_dispatch:/m);
+  assert.doesNotMatch(agentWorkflowSource, /^\s*workflow_dispatch:/m);
 });
 
 test("private SOCIAL profile gallery and posts respect privacy and blocks", () => {
