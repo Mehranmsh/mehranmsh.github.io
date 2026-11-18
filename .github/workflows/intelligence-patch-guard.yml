@@ -1,9 +1,10 @@
 name: MEHRAN INTELLIGENCE Patch Guard Tests
 
 on:
-  push:
+  pull_request:
     branches:
-      - intelligence/code-change-proposal-design
+      - intelligence/mcp-task-approval-guardrails
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -27,5 +28,5 @@ jobs:
       - name: Audit actual GitHub branch trees (read-only)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          MEHRAN_AUDIT_BASE_SHA: d0fb60f5315dcb84cc5584958a1a2eebb577a27f
+          MEHRAN_AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node scripts/intelligence-github-readonly-audit.mjs
