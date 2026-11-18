@@ -5219,6 +5219,15 @@ export function getIntelligenceToolCalls(result) {
   return result.tool_calls || [];
 }
 
+export function parseIntelligenceKnowledgeSearchArgs(args) {
+  if(!args||typeof args!=="object"||Array.isArray(args)||Object.keys(args).length!==1||typeof args.query!=="string"||args.query.length>300) {
+    throw new Error("A single query string is required.");
+  }
+  const query=cleanText(args.query,300);
+  if(query.length<2)throw new Error("Knowledge search query must contain 2 to 300 characters.");
+  return {query};
+}
+
 export async function runIntelligenceToolLoop({runModel,messages,tools,executeTool}) {
   if (typeof runModel !== "function" || typeof executeTool !== "function" ||
       !Array.isArray(messages) || !Array.isArray(tools)) {
@@ -6716,9 +6725,7 @@ export default {
             return {results:rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false),source:"owner-curated organizational knowledge",readOnly:true};
           }
           if (name === "search_organizational_knowledge") {
-            if(Object.keys(args).length!==1||typeof args.query!=="string")throw new Error("A single query string is required.");
-            const query=cleanText(args.query,300);
-            if(query.length<2||args.query.length>300)throw new Error("Knowledge search query must contain 2 to 300 characters.");
+            const {query}=parseIntelligenceKnowledgeSearchArgs(args);
             await ensureIntelligenceKnowledgeTable(env);
             const rows=await env.DB.prepare("SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
             const results=rankIntelligenceKnowledge(rows.results||[],query,12,false);
