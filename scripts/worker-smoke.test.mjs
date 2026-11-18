@@ -203,6 +203,10 @@ test("MEHRAN Intelligence agent API is separately scoped and approval-gated", ()
   assert.match(workerSource, /status IN \('queued','accepted'\)/);
   assert.match(workerSource, /status='in_progress'/);
   assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
+  assert.match(workerSource, /agent_claim_id TEXT/);
+  assert.match(workerSource, /agent_claim_id=\?/);
+  assert.match(workerSource, /AND agent_claim_id=\?/);
+  assert.match(workerSource, /body\.claimId/);
   assert.match(workerSource, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(workerSource, /agent_claimed_at=NULL/);
   assert.match(workerSource, /\["completed","blocked"\]/);
