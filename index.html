@@ -2319,7 +2319,7 @@ $("intelKnowledgeCancelBtn")?.addEventListener("click",resetIntelKnowledgeForm);
 $("refreshIntelKnowledgeBtn")?.addEventListener("click",loadIntelligenceKnowledge);
 $("intelKnowledgeList")?.addEventListener("click",event=>{const a=event.target.closest("[data-archive-intel-knowledge]"),e=event.target.closest("[data-edit-intel-knowledge]");if(a)archiveIntelligenceKnowledge(a.dataset.archiveIntelKnowledge,a);if(e)editIntelligenceKnowledge(e.dataset.editIntelKnowledge)});
 
-const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted"};
+const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted",intelligence_knowledge_created:"Knowledge entry saved",intelligence_knowledge_updated:"Knowledge entry updated",intelligence_knowledge_archived:"Knowledge entry archived"};
 async function loadIntelligenceEvents(){
 const status=$("intelEventsStatus"),list=$("intelEventsList");if(!status||!list)return;
 status.textContent="Loading private Intelligence activity...";status.className="notice";
@@ -2361,6 +2361,7 @@ status.className="notice success";
 await loadIntelligenceSchedulerRuns();
 await loadIntelligenceApprovals();
 await loadIntelligenceMemory();
+await loadIntelligenceKnowledge();
 await loadIntelligenceEvents();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
