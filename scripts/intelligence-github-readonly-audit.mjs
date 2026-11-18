@@ -172,7 +172,7 @@ async function githubGet(url, token, fetchImpl = globalThis.fetch) {
   });
   if (!response.ok) throw new Error(`GitHub read failed (${response.status}).`);
   const contentType = response.headers?.get?.("content-type") || "";
-  if (!/^application\/json(?:\s*;|$)/i.test(contentType)) {
+  if (contentType.split(";")[0].trim().toLowerCase() !== "application/json") {
     throw new Error("GitHub API returned an unexpected content type.");
   }
   const body = await readBoundedBody(response);
