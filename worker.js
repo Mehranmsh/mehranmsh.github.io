@@ -5570,7 +5570,7 @@ export default {
             "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
