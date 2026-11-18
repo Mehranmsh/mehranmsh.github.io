@@ -1,10 +1,11 @@
 name: MEHRAN MSH Quality Checks
-# Re-run smoke coverage for the collaboration Task Hub.
+# Run Worker, Intelligence, migration-schema, and local regression contracts.
 
 on:
   push:
     branches:
       - main
+      - intelligence/integrated-knowledge-approval-staging-v1
     paths:
       - "index.html"
       - "music-studio.html"
@@ -15,6 +16,7 @@ on:
       - "assets/instruments/**"
       - ".github/workflows/quality-checks.yml"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "index.html"
       - "music-studio.html"
@@ -52,6 +54,9 @@ jobs:
 
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
+
+      - name: Execute D1 migration schema contract in disposable SQLite
+        run: python scripts/test-intelligence-approval-migration.py
 
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
