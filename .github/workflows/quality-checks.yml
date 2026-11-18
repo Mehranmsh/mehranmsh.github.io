@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - intelligence/integrated-knowledge-approval-staging-v1
+      - intelligence/knowledge-relationships-v1
     paths:
       - "index.html"
       - "music-studio.html"
@@ -60,6 +61,9 @@ jobs:
 
       - name: Test Intelligence knowledge and memory owner isolation in disposable SQLite
         run: python scripts/test-intelligence-knowledge-isolation.py
+
+      - name: Test Intelligence knowledge relationship lifecycle in disposable SQLite
+        run: python scripts/test-intelligence-knowledge-relationships.py
 
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
