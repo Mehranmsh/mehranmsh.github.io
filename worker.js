@@ -6715,6 +6715,15 @@ export default {
             if (!query || query.length<2) throw new Error("Provide a knowledge search query of at least 2 characters.");
             return {results:rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false),source:"owner-curated organizational knowledge",readOnly:true};
           }
+          if (name === "search_organizational_knowledge") {
+            if(Object.keys(args).length!==1||typeof args.query!=="string")throw new Error("A single query string is required.");
+            const query=cleanText(args.query,300);
+            if(query.length<2||args.query.length>300)throw new Error("Knowledge search query must contain 2 to 300 characters.");
+            await ensureIntelligenceKnowledgeTable(env);
+            const rows=await env.DB.prepare("SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
+            const results=rankIntelligenceKnowledge(rows.results||[],query,12,false);
+            return {query,results};
+          }
           if (name === "list_collaboration_tasks") {
             const allowed=["status","assignedTo"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown filter.");
