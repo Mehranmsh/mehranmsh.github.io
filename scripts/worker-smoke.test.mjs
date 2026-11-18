@@ -40,8 +40,8 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
 
 
 test("MEHRAN INTELLIGENCE runner executes only fixed allowlisted commands", () => {
-  const qualityStart = agentRunnerSource.indexOf("async function runQualityChecks()");
-  const qualityEnd = agentRunnerSource.indexOf("async function runServiceHealth()", qualityStart);
+  const qualityStart = agentRunnerSource.indexOf("async function runQualityChecks(signal)");
+  const qualityEnd = agentRunnerSource.indexOf("async function runServiceHealth(signal)", qualityStart);
   assert.ok(qualityStart >= 0 && qualityEnd > qualityStart, "quality-check handler must exist");
   const qualityHandler = agentRunnerSource.slice(qualityStart, qualityEnd);
   assert.match(qualityHandler, /const steps = \[/);
