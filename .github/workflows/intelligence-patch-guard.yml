@@ -1,0 +1,31 @@
+name: MEHRAN INTELLIGENCE Patch Guard Tests
+
+on:
+  push:
+    branches:
+      - intelligence/code-change-proposal-design
+
+permissions:
+  contents: read
+
+jobs:
+  patch-guard-tests:
+    name: Run isolated patch guard tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run patch guard tests
+        run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs scripts/intelligence-git-tree-guard.test.mjs scripts/intelligence-github-readonly-audit.test.mjs
+      - name: Audit actual GitHub branch trees (read-only)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MEHRAN_AUDIT_BASE_SHA: d0fb60f5315dcb84cc5584958a1a2eebb577a27f
+        run: node scripts/intelligence-github-readonly-audit.mjs
