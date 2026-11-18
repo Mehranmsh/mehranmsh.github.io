@@ -5209,6 +5209,23 @@ function intelligenceKnowledgeTokens(value) {
  return [...new Set(normalized.match(/[\p{L}\p{N}]{2,}/gu)||[])].filter(token=>!ignored.has(token)).slice(0,30);
 }
 
+export function parseIntelligenceToolCall(call, allowedNames, seenIds = new Set()) {
+  const id=call?.id, name=call?.function?.name;
+  if(typeof id!=="string"||id.length<1||id.length>128||!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("Invalid tool-call identifier.");
+  if(seenIds.has(id)) throw new Error("Duplicate tool-call identifier.");
+  if(typeof name!=="string"||name.length>80||!allowedNames.includes(name)) throw new Error("Unknown or invalid tool name.");
+  const raw=call.function.arguments;
+  let args;
+  if(typeof raw==="string") {
+    if(raw.length>10000) throw new Error("Tool arguments exceed the size limit.");
+    try { args=JSON.parse(raw); } catch { throw new Error("Tool arguments are not valid JSON."); }
+  } else args=raw;
+  if(!args||typeof args!=="object"||Array.isArray(args)) throw new Error("Tool arguments must be a JSON object.");
+  if(Object.keys(args).length>12) throw new Error("Too many tool argument fields.");
+  seenIds.add(id);
+  return {id,name,args};
+}
+
 export function buildIntelligenceChatMessages({system,companyContext,ownerMemory,organizationalKnowledge,question}) {
   return [
     {role:"system",content:String(system||"")},
@@ -7121,16 +7138,17 @@ export default {
         };
         try {
           let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
+          const seenToolCallIds=new Set();
           for(let round=0;round<2&&Array.isArray(result?.tool_calls)&&result.tool_calls.length;round++){
             const calls=result.tool_calls.slice(0,4);
+            // Validate the complete bounded batch before executing any member of it.
+            // A malformed sibling must not allow earlier calls in the same batch to mutate state.
+            const parsedCalls=calls.map(call=>parseIntelligenceToolCall(call,tools.map(tool=>tool.name),seenToolCallIds));
             messages.push({role:"assistant",content:result.response||"",tool_calls:calls});
-            for(const call of calls){
-              const name=call?.function?.name;
-              let args={};
-              try{args=typeof call?.function?.arguments==="string"?JSON.parse(call.function.arguments):(call?.function?.arguments||{});}catch{args={};}
+            for(const call of parsedCalls){
               let toolResult;
-              try{toolResult=await executeTool(name,args);}catch(e){toolResult={error:String(e?.message||e).slice(0,240)};}
-              messages.push({role:"tool",tool_call_id:call.id,name,content:JSON.stringify(toolResult)});
+              try{toolResult=await executeTool(call.name,call.args);}catch(e){toolResult={error:String(e?.message||e).slice(0,240)};}
+              messages.push({role:"tool",tool_call_id:call.id,name:call.name,content:JSON.stringify(toolResult)});
             }
             result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
           }
