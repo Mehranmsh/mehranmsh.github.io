@@ -17,6 +17,8 @@ jobs:
     name: Poll and execute one approved task
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
     steps:
       - name: Checkout trusted main branch
         uses: actions/checkout@v4
@@ -29,6 +31,9 @@ jobs:
           node-version: "22"
 
       - name: Execute one allowlisted Intelligence task
-        env:
-          MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
+        if: env.MEHRAN_AGENT_TOKEN != ''
         run: node scripts/intelligence-agent.mjs
+
+      - name: Explain missing service identity
+        if: env.MEHRAN_AGENT_TOKEN == ''
+        run: echo "MEHRAN_AGENT_TOKEN repository secret is not configured; no task was claimed or executed."
