@@ -53,6 +53,8 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
             "trg_intelligence_relationship_owner_update",
             "NEW.owner_uid='system_seed'",
             "resolution_knowledge_id IS NOT NULL",
+            "direction_from_knowledge_id",
+            "direction_to_knowledge_id",
             "status IN ('candidate','confirmed','dismissed','resolved')",
         ]:
             self.assertIn(contract, worker_source)
