@@ -2487,7 +2487,7 @@ updateAuthMode();
 <script>
 let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false,socialConversationRefreshBusy=false,socialChatRefreshTick=0;
 const sx=v=>escapeHTML(String(v??""));
-async function socialUploadFile(file){
+async function socialUploadFile(file,returnReference=false){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type,visibility:"public"})});
  const id=created.file?.id,target=created.upload;
  if(!id||!target?.url||target.method!=="PUT")throw new Error("Invalid upload target");
@@ -2495,8 +2495,8 @@ async function socialUploadFile(file){
  if(!uploaded.ok)throw new Error("Upload failed "+uploaded.status);
  // The storage PUT response may be empty or non-JSON. The Worker verifies readiness server-side.
  const completed=await socialRequest("/uploads/"+encodeURIComponent(id)+"/complete",{method:"POST",body:JSON.stringify({})});
- if(completed.file?.status!=="ready"||!completed.file?.url)throw new Error("Upload could not be verified or has no public URL");
- return completed.file.url;
+ if(completed.file?.status!=="ready"||!completed.file?.url||completed.file?.id!==id)throw new Error("Upload could not be verified or has no public URL");
+ return returnReference?{id,url:completed.file.url}:completed.file.url;
 }
 async function socialUploadPrivateChatFile(file){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type||"application/octet-stream",visibility:"private"})});
@@ -2546,8 +2546,8 @@ async function socialCreateStory(){
     const caption=$e("storyCaptionInput").value.trim(),rawTags=$e("storyTagsInput").value.trim();
     const tags=rawTags.split(/[\s,]+/).filter(Boolean).map(t=>"#"+t.replace(/^#+/,"").replace(/[^\p{L}\p{N}_]/gu,"")).filter(t=>t.length>1);
     const fullCaption=[caption,tags.join(" ")].filter(Boolean).join("\n");
-    const url=await socialUploadFile(uploadFile);
-    await socialRequest("/stories",{method:"POST",body:JSON.stringify({mediaUrl:url,mediaType:isVideo?"video":"image",caption:fullCaption})});
+    const uploaded=await socialUploadFile(uploadFile,true);
+    await socialRequest("/stories",{method:"POST",body:JSON.stringify({uploadId:uploaded.id,mediaType:isVideo?"video":"image",caption:fullCaption})});
     close();await socialLoadStories();toast("Story shared for 24 hours");
    }catch(err){publish.disabled=false;publish.textContent="Share story ↗";toast(err.message||"Story upload failed");}
   });
