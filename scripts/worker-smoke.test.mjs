@@ -2364,7 +2364,7 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
     organizationalKnowledge:workerModule.rankIntelligenceKnowledge(conflictRows,"quantum astronomy",5,false),
     question:"Explain quantum astronomy."
   });
-  assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]}'));
+  assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[],"organizationalRelationships":[]}'));
 });
 
 test("INTELLIGENCE retrieval exposes only explicit safe knowledge fields", () => {
@@ -2530,7 +2530,7 @@ test("INTELLIGENCE relationship proposal arguments are strictly validated and ca
   for(const invalid of [
     null,[],{}, {leftId:"a",rightId:"a",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
     {leftId:"a",rightId:"b",relationType:"grants_permission",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
-    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"short",rightEvidence:"Other evidence"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"tiny",rightEvidence:"Other evidence"},
     {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"x".repeat(301),rightEvidence:"Other evidence"},
     {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence",ownerUid:"victim"}
   ]) assert.throws(()=>workerModule.parseIntelligenceRelationshipProposalArgs(invalid));
