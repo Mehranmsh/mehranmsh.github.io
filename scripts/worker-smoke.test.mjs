@@ -1273,6 +1273,77 @@ test("MEHRAN Intelligence scheduled runner executes only owner-approved allowlis
 });
 
 
+test("Intelligence scheduler history is private, bounded and stores execution counters", () => {
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs/);
+  assert.match(workerSource, /idx_intelligence_scheduler_runs_started/);
+  assert.match(workerSource, /path === "\/intelligence\/scheduler\/runs" && method === "GET"/);
+  const routeStart = workerSource.indexOf('path === "/intelligence/scheduler/runs"');
+  const routeEnd = workerSource.indexOf('path === "/intelligence/tasks"', routeStart);
+  const route = workerSource.slice(routeStart, routeEnd);
+  assert.ok(route.includes("verifyAdmin(request, env)"));
+  assert.ok(route.includes("safeLimit(url.searchParams.get(\"limit\"), 20, 50)"));
+  assert.ok(route.includes("ORDER BY started_at DESC LIMIT ?"));
+  assert.match(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/);
+  assert.match(workerSource, /processed_count=\?,completed_count=\?,blocked_count=\?/);
+  assert.match(workerSource, /status='failed'/);
+});
+
+test("Intelligence scheduler history endpoint rejects unauthenticated requests", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() { return null; },
+        async run() { throw new Error("Schema must not be touched before admin authentication"); }
+      };
+    }
+  };
+  const response = await request("/intelligence/scheduler/runs", {}, { DB: db });
+  assert.equal(response.status, 403);
+  const payload = await response.json();
+  assert.equal(payload.error, "Admin authentication required");
+});
+
+test("Intelligence scheduled runner records an empty successful run", async () => {
+  const state = { inserted: null, finished: null, candidateReads: 0 };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async run() {
+          if (sql.includes("INSERT INTO intelligence_scheduler_runs")) {
+            state.inserted = { id: values[0], startedAt: values[1] };
+          }
+          if (sql.includes("UPDATE intelligence_scheduler_runs SET finished_at")) {
+            state.finished = {
+              finishedAt: values[0], processed: values[1],
+              completed: values[2], blocked: values[3], id: values[4]
+            };
+          }
+          return { meta: { changes: 1 } };
+        },
+        async first() {
+          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
+            state.candidateReads++;
+            return null;
+          }
+          throw new Error("Unexpected scheduler history SQL: " + sql);
+        }
+      };
+    }
+  };
+  let scheduledPromise;
+  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
+  await scheduledPromise;
+  assert.ok(state.inserted?.id);
+  assert.ok(state.inserted?.startedAt);
+  assert.equal(state.finished?.id, state.inserted.id);
+  assert.equal(state.finished?.processed, 0);
+  assert.equal(state.finished?.completed, 0);
+  assert.equal(state.finished?.blocked, 0);
+});
+
 test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
   const html = indexSource;
   const worker = workerSource;
