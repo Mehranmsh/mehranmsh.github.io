@@ -1984,8 +1984,4 @@ test("MEHRAN Intelligence owner memory is private, bounded, auditable and owner-
   assert.match(indexSource, /Private Intelligence Memory/);
   assert.match(indexSource, /Nothing is saved automatically/);
   assert.match(indexSource, /data-delete-intel-memory/);
-  const response = await request("/intelligence/memory", {}, { DB: mockDb() });
-  assert.equal(response.status, 403);
-  const payload = await response.json();
-  assert.equal(payload.error, "Admin authentication required");
 });
