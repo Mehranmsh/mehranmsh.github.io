@@ -25,6 +25,7 @@ class KnowledgeRelationshipMigrationTests(unittest.TestCase):
                 ("a2", "owner-a", "Decision B", "Use method B.", "owner-a"),
                 ("a3", "owner-a", "Decision C", "Method C supports A.", "owner-a"),
                 ("b1", "owner-b", "Private B", "Owner B only.", "owner-b"),
+                ("b2", "owner-b", "Private B2", "Owner B second entry.", "owner-b"),
                 ("s1", "system_seed", "Shared seed", "Immutable seed.", "system_seed"),
             ],
         )
@@ -130,7 +131,7 @@ class KnowledgeRelationshipMigrationTests(unittest.TestCase):
     def test_owner_reads_only_own_confirmed_and_candidate_relations(self):
         self.apply_migration()
         self.insert()
-        self.insert(relation_id="other", owner="owner-b", source="b1", target="b1",
+        self.insert(relation_id="other", owner="owner-b", source="b1", target="b2",
                     kind="supports")
         rows = self.db.execute(
             "SELECT id FROM intelligence_knowledge_relations WHERE owner_uid=? AND status IN ('candidate','confirmed')",
