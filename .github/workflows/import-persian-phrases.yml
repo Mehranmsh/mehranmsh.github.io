@@ -1,10 +1,6 @@
 name: Import Persian recorded phrase previews
 
 on:
-  push:
-    paths:
-      - ".github/workflows/import-persian-phrases.yml"
-      - "assets/instruments/phrases/persian/manifest.json"
   workflow_dispatch:
 
 permissions:
@@ -12,11 +8,15 @@ permissions:
 
 jobs:
   import:
+    if: github.ref == 'refs/heads/main'
+    environment: repository-maintenance
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout MEHRAN MUSIC
         uses: actions/checkout@v4
+        with:
+          ref: main
       - name: Install audio tools
         run: |
           sudo apt-get update
