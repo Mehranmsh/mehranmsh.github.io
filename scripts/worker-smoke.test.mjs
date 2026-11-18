@@ -366,7 +366,8 @@ test("MEHRAN INTELLIGENCE bounds model tool cycles and rejects unapproved tool s
   assert.match(chat,/tool_choice:"auto",max_tokens:900/);
   assert.match(chat,/round<2/,"tool-assisted model interaction must have a hard two-round ceiling");
   assert.match(chat,/if\(result\.tool_calls\.length>4\)throw new Error\("AI returned more than four tool calls in one round\."\)/,"oversized tool batches must be rejected rather than silently truncated");
-  assert.match(chat,/if\(Array\.isArray\(result\?\.tool_calls\)&&result\.tool_calls\.length\)throw new Error\("AI tool-call round limit reached\."\)/,"unfinished tool calls after the round ceiling must fail closed");
+  assert.match(chat,/pendingToolCalls=getIntelligenceToolCalls\(result\)/,"each model response must validate its tool-call envelope");
+  assert.match(chat,/if\(pendingToolCalls\.length\)throw new Error\("AI tool-call round limit reached\."\)/,"unfinished tool calls after the round ceiling must fail closed");
   assert.match(chat,/if \(!args \|\| typeof args !== "object" \|\| Array\.isArray\(args\)\)/);
   assert.match(chat,/throw new Error\("Tool is not available\."\)/);
   assert.match(chat,/status,requires_approval,created_by/);
@@ -2170,6 +2171,14 @@ test("INTELLIGENCE knowledge retrieval ranks relevant titles, normalizes Persian
   assert.equal(workerModule.rankIntelligenceKnowledge(rows,"unrelated astronomy topic",5,false).length,0);
   const piOnly = workerModule.rankIntelligenceKnowledge(rows,"Pi",5,false);
   assert.deepEqual(piOnly.map(item=>item.id),["pi-network"],"short query tokens must match whole tokens, not substrings inside unrelated words");
+});
+
+test("INTELLIGENCE rejects malformed tool-call envelopes instead of silently ignoring them", () => {
+  assert.deepEqual(workerModule.getIntelligenceToolCalls({response:"ok"}),[]);
+  assert.deepEqual(workerModule.getIntelligenceToolCalls({tool_calls:[]}),[]);
+  for (const malformed of [null,undefined,[],{tool_calls:null},{tool_calls:"call_1"},{tool_calls:{}},{tool_calls:42}]) {
+    assert.throws(()=>workerModule.getIntelligenceToolCalls(malformed),/invalid (response|tool-call) envelope/i);
+  }
 });
 
 test("INTELLIGENCE tool-call parser rejects malformed identifiers, unknown tools, duplicate IDs and invalid arguments", () => {
