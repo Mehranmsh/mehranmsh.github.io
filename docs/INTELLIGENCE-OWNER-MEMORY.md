@@ -14,7 +14,7 @@ The Worker creates `intelligence_owner_memory` idempotently:
 - `content`: cleaned text, 3 to 1,000 characters
 - `created_at` and `updated_at`: database timestamps
 
-The owner is limited to 100 notes. The Worker scopes reads, writes, and deletes by the verified owner UID. The API never accepts an owner UID from the request body.
+The owner is limited to 100 notes. Creation uses a conditional SQL insert inside a D1 batch, so concurrent requests cannot exceed the limit. Create and delete operations pair the data change with a metadata-only audit insert in one D1 batch. Writes are rate-limited to 30 changes per hour per verified owner. The Worker scopes reads, writes, and deletes by the verified owner UID. The API never accepts an owner UID from the request body.
 
 ## Private API
 
@@ -25,7 +25,7 @@ All routes require a valid administrator session and fail closed when the sessio
 - `DELETE /intelligence/memory/:id`: deletes a note owned by the authenticated owner
 - `GET /intelligence/events`: returns the latest 50 Intelligence-related audit events for the authenticated owner; read-only
 
-Create and delete operations write metadata-only events to `admin_audit_log`. Note contents are deliberately excluded from audit details. The Intelligence Activity Log reads owner-scoped task, approval, and memory events from that same audit ledger.
+Create and delete operations write metadata-only events to `admin_audit_log` atomically with the data change. Note contents are deliberately excluded from audit details. The Intelligence Activity Log reads owner-scoped task, approval, and memory events from that same audit ledger.
 
 ## Use in AI conversations
 
