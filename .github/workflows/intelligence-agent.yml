@@ -2,6 +2,8 @@ name: MEHRAN INTELLIGENCE Agent Runner
 
 on:
   push:
+    branches:
+      - main
     paths:
       - "worker.js"
       - "scripts/intelligence-agent.mjs"
@@ -20,6 +22,7 @@ concurrency:
 
 jobs:
   execute-approved-task:
+    if: github.ref == 'refs/heads/main'
     name: Poll and execute one approved task
     runs-on: ubuntu-latest
     timeout-minutes: 5
