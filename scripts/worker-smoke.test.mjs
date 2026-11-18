@@ -1284,3 +1284,89 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
   assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
+
+
+
+test("MEHRAN Intelligence scheduled runner completes an approved project report and stores its result", async () => {
+  const state = { status: "accepted", requiresApproval: 0, result: "", candidateReads: 0 };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async run() {
+          if (sql.includes("SET status='in_progress'")) {
+            if (state.status !== "accepted" || state.requiresApproval !== 0) return { meta: { changes: 0 } };
+            state.status = "in_progress";
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("SET status='completed',result_text=")) {
+            state.status = "completed";
+            state.result = values[0];
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("SET status='blocked',result_text=")) {
+            state.status = "blocked";
+            state.result = values[0];
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        },
+        async first() {
+          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
+            state.candidateReads++;
+            return state.candidateReads === 1
+              ? { id: "task-project-report", action_type: "project_status_report" }
+              : null;
+          }
+          if (sql.includes("SELECT COUNT(*) AS total FROM projects")) return { total: 2 };
+          throw new Error("Unexpected scheduled report SQL: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM projects ORDER BY created_at DESC LIMIT 50")) {
+            return { results: [{ name: "MEHRAN MSH", status: "Active", description: "Central hub", updated_at: "2026-11-18 10:00:00" }] };
+          }
+          throw new Error("Unexpected scheduled report query: " + sql);
+        }
+      };
+    }
+  };
+  let scheduledPromise;
+  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
+  assert.ok(scheduledPromise, "scheduled runner must register its background task");
+  await scheduledPromise;
+  assert.equal(state.status, "completed");
+  const report = JSON.parse(state.result);
+  assert.equal(report.type, "project_status_report");
+  assert.equal(report.projects.length, 1);
+  assert.equal(report.projects[0].name, "MEHRAN MSH");
+});
+
+test("MEHRAN Intelligence scheduled runner does not claim tasks that still require approval", async () => {
+  const state = { status: "accepted", requiresApproval: 1, candidateReads: 0, claimed: false };
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async run() {
+          if (sql.includes("SET status='in_progress'")) state.claimed = true;
+          return { meta: { changes: state.claimed ? 1 : 0 } };
+        },
+        async first() {
+          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
+            state.candidateReads++;
+            return state.candidateReads === 1
+              ? { id: "unapproved-task", action_type: "project_status_report" }
+              : null;
+          }
+          throw new Error("Unexpected unapproved-task SQL: " + sql);
+        },
+        async all() { return { results: [] }; }
+      };
+    }
+  };
+  let scheduledPromise;
+  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
+  await scheduledPromise;
+  assert.equal(state.claimed, false);
+});
