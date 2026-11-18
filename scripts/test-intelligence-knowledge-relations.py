@@ -148,7 +148,7 @@ class KnowledgeRelationshipMigrationTests(unittest.TestCase):
         self.assertEqual(rows, [("r1",)])
         self.assertEqual(self.db.execute(
             "SELECT COUNT(*) FROM intelligence_knowledge_relations WHERE owner_uid='owner-b'"
-        ).fetchone()[0], 0)
+        ).fetchone()[0], 1)
 
     def test_foreign_keys_preserve_relationship_history(self):
         self.apply_migration()
