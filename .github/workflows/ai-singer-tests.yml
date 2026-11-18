@@ -11,6 +11,9 @@ on:
       - "ai-singer/**"
       - ".github/workflows/ai-singer-tests.yml"
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
