@@ -2008,7 +2008,7 @@ test("SOCIAL media upload identity migration is additive and preserves legacy UR
   assert.match(workerSource, /media_url TEXT NOT NULL/);
   assert.doesNotMatch(workerSource, /DROP COLUMN (?:avatar_url|photo_url|media_url)/i);
   const migrationStart = workerSource.indexOf("const ensureColumn = async");
-  const migrationEnd = workerSource.indexOf("function cleanUsername()", migrationStart);
+  const migrationEnd = workerSource.indexOf("function cleanUsername(", migrationStart);
   assert.ok(migrationStart >= 0 && migrationEnd > migrationStart, "schema upgrade block must be identifiable");
   const migrationBlock = workerSource.slice(migrationStart, migrationEnd);
   assert.doesNotMatch(migrationBlock, /DELETE FROM social_(?:users|profile_photos|stories)/i);
