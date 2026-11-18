@@ -1296,7 +1296,7 @@ test("MEHRAN Intelligence scheduled runner executes only owner-approved allowlis
   assert.match(workerSource, /SET status='blocked',result_text=/);
   assert.match(workerSource, /for \(let n = 0; n < 5; n\+\+\)/);
   assert.match(workerSource, /actionType:\s*row\.action_type/);
-  assert.match(workerSource, /actionType:\{type:"string",enum:\["project_status_report","social_metrics_report","service_health_report"\]\}/);
+  assert.match(workerSource, /actionType:\{type:"string",enum:\["project_status_report","social_metrics_report","service_health_report","repository_quality_check"\]\}/);
   assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_type/);
   assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_payload/);
 });
