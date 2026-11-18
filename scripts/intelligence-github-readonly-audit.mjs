@@ -11,7 +11,9 @@ const ALLOWED_PATHS = new Set([
   "scripts/intelligence-patch-envelope.mjs",
   "scripts/intelligence-patch-envelope.test.mjs",
   "scripts/intelligence-patch-guard.mjs",
-  "scripts/intelligence-patch-guard.test.mjs"
+  "scripts/intelligence-patch-guard.test.mjs",
+  "scripts/intelligence-github-readonly-audit.mjs",
+  "scripts/intelligence-github-readonly-audit.test.mjs"
 ]);
 
 function fail(reason) { return { ok: false, reason }; }
