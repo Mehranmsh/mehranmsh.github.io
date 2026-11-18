@@ -407,6 +407,7 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   assert.match(chat, /name:"propose_knowledge_relationship"/);
   assert.match(chat, /name === "propose_knowledge_relationship"/);
   assert.match(chat, /item\.source==="owner"\)visibleKnowledgeIds\.add\(item\.id\)/);
+  assert.match(chat, /organizationalKnowledge\.filter\(item=>item\.source==="owner"\)/);
   assert.match(workerSource, /ownerApprovalRequired:true/);
   assert.match(chat, /parseIntelligenceKnowledgeSearchArgs\(args\)/);
   assert.match(chat, /owner_uid IN \(\?, 'system_seed'\)/);
