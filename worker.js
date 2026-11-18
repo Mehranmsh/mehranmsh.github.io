@@ -7196,17 +7196,28 @@ export default {
        if(!await checkRateLimit(env,request,"intelligence-relationship-write",20,3600,600,admin.uid))return error("Too many knowledge relationship changes. Try again later.",429);
        const id=decodeURIComponent(path.slice(intelligenceRelationshipPrefix.length));if(!id||id.includes("/")||id.length>80)return error("Invalid relationship ID.");
        const body=await readBody(request);
-       if(!body||Object.keys(body).some(k=>k!=="action"&&k!=="resolutionKnowledgeId")||!["confirm","dismiss","resolve"].includes(body.action))return error("Choose confirm, dismiss or resolve.");
+       if(!body||Object.keys(body).some(k=>k!=="action"&&k!=="resolutionKnowledgeId")||!["confirm","dismiss","resolve","reopen"].includes(body.action))return error("Choose confirm, dismiss, resolve or reopen.");
        if(body.action==="resolve"&&(typeof body.resolutionKnowledgeId!=="string"||!body.resolutionKnowledgeId))return error("A chosen knowledge entry is required to resolve a conflict.");
        if(body.action!=="resolve"&&body.resolutionKnowledgeId!==undefined)return error("Resolution is only valid for the resolve action.");
-       const current=await env.DB.prepare("SELECT left_knowledge_id,right_knowledge_id,relation_type,status FROM intelligence_knowledge_relationships WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
-       if(!current||!["candidate","confirmed"].includes(current.status))return error("Relationship not found or no longer actionable.",404);
-       if(body.action==="confirm"&&current.status!=="candidate")return error("Only an unconfirmed candidate can be confirmed.",409);
-       if(body.action==="confirm"){
-        const active=await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(current.left_knowledge_id,current.right_knowledge_id,admin.uid).first();
-        if(Number(active?.total||0)!==2)return error("Both linked knowledge entries must remain active before confirming this candidate.",409);
+       const current=await env.DB.prepare("SELECT r.left_knowledge_id,r.right_knowledge_id,r.relation_type,r.status,r.evidence_json,r.resolution_knowledge_id,r.updated_at,l.updated_at AS left_updated_at,rr.updated_at AS right_updated_at FROM intelligence_knowledge_relationships r JOIN intelligence_knowledge l ON l.id=r.left_knowledge_id JOIN intelligence_knowledge rr ON rr.id=r.right_knowledge_id WHERE r.id=? AND r.owner_uid=? AND l.owner_uid=? AND rr.owner_uid=?").bind(id,admin.uid,admin.uid,admin.uid).first();
+       if(!current)return error("Relationship not found.",404);
+       const stale=isIntelligenceRelationshipStale(current);
+       if(body.action==="reopen"){
+        if(current.status!=="resolved"||current.relation_type!=="conflicts_with"||!stale)return error("Only a stale resolved conflict can be reopened.",409);
+        const result=await env.DB.prepare("UPDATE intelligence_knowledge_relationships SET status='candidate',resolution_knowledge_id=NULL,resolved_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND status='resolved'").bind(id,admin.uid).run();
+        if(!Number(result?.meta?.changes||0))return error("Relationship changed before reopening. Refresh and try again.",409);
+        await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_reopened","intelligence_knowledge_relationship",id,JSON.stringify({previousResolutionKnowledgeId:current.resolution_knowledge_id}));
+        return json({success:true,id,status:"candidate",reopened:true});
        }
-       if(body.action==="resolve"&&current.relation_type!=="conflicts_with")return error("Only a confirmed conflict can be resolved.");
+       if(!["candidate","confirmed"].includes(current.status))return error("Relationship not found or no longer actionable.",404);
+       if(body.action==="confirm"){
+        if(current.status==="confirmed"&&!stale)return error("This relationship is already current and confirmed.",409);
+        const sourceRows=await env.DB.prepare("SELECT id,title,content FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(current.left_knowledge_id,current.right_knowledge_id,admin.uid).all();
+        if((sourceRows.results||[]).length!==2)return error("Both linked knowledge entries must remain active before confirmation.",409);
+        if(current.status==="candidate"&&!intelligenceRelationshipEvidenceMatches(parseIntelligenceRelationshipEvidence(current.evidence_json),sourceRows.results||[]))return error("Candidate evidence no longer matches both current knowledge entries. Dismiss it or create a new proposal.",409);
+       }
+       if(body.action==="resolve"&&current.relation_type!=="conflicts_with")return error("Only a conflict relationship can be resolved.");
+       if(body.action==="resolve"&&(current.status!=="confirmed"||stale))return error("Confirm or reaffirm the conflict before resolving it.",409);
        if(body.action==="resolve"&&![current.left_knowledge_id,current.right_knowledge_id].includes(body.resolutionKnowledgeId))return error("Resolution must select one of the two linked knowledge entries.");
        if(body.action==="resolve"){
         const chosen=await env.DB.prepare("SELECT 1 AS active FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(body.resolutionKnowledgeId,admin.uid).first();
@@ -7216,7 +7227,7 @@ export default {
        const resolution=body.action==="resolve"?body.resolutionKnowledgeId:null;
        const result=await env.DB.prepare("UPDATE intelligence_knowledge_relationships SET status=?,updated_at=CURRENT_TIMESTAMP,confirmed_at=CASE WHEN ?='confirmed' THEN CURRENT_TIMESTAMP ELSE confirmed_at END,dismissed_at=CASE WHEN ?='dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE resolved_at END,resolution_knowledge_id=? WHERE id=? AND owner_uid=? AND status IN ('candidate','confirmed')").bind(status,status,status,status,resolution,id,admin.uid).run();
        if(!Number(result?.meta?.changes||0))return error("Relationship changed before this action. Refresh and try again.",409);
-       await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_"+body.action,"intelligence_knowledge_relationship",id,JSON.stringify({action:body.action,resolutionKnowledgeId:resolution}));
+       await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_"+body.action,"intelligence_knowledge_relationship",id,JSON.stringify({action:body.action,resolutionKnowledgeId:resolution,staleAtReview:stale}));
        return json({success:true,id,status});
       }
       const intelligenceKnowledgeMatch=path.match(/^\/intelligence\/knowledge\/([^/]+)$/);
