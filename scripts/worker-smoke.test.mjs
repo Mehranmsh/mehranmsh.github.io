@@ -1677,3 +1677,23 @@ test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", ()
   assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
   assert.match(workerSource, /Pending or automated task status is controlled by the owner Task Hub/);
 });
+
+
+test("MEHRAN INTELLIGENCE approval ledger schema is durable but not an active executor permission", () => {
+  const start = workerSource.indexOf("async function ensureIntelligenceApprovalLedgerTable(env)");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", start);
+  assert.ok(start >= 0 && end > start, "approval ledger schema helper must exist");
+  const schema = workerSource.slice(start, end);
+  for (const field of [
+    "id TEXT PRIMARY KEY", "task_id TEXT NOT NULL", "owner_uid TEXT NOT NULL",
+    "repository TEXT NOT NULL", "branch TEXT NOT NULL", "base_sha TEXT NOT NULL",
+    "scope_json TEXT NOT NULL", "scope_sha256 TEXT NOT NULL",
+    "status TEXT NOT NULL DEFAULT 'issued'", "issued_at INTEGER NOT NULL",
+    "expires_at INTEGER NOT NULL", "revoked_at INTEGER", "consumed_at INTEGER",
+    "consumed_by TEXT"
+  ]) assert.ok(schema.includes(field), "approval ledger is missing: " + field);
+  assert.match(schema, /CHECK\(status IN \('issued','revoked','consumed','expired'\)\)/);
+  assert.match(schema, /idx_intelligence_approval_task/);
+  assert.match(schema, /idx_intelligence_approval_owner/);
+  assert.doesNotMatch(workerSource, /\/intelligence\/approvals/);
+});
