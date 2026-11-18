@@ -5762,7 +5762,7 @@ export default {
           const tokenHash = await sha256(token);
           const now = Math.floor(Date.now() / 1000);
           const expiresAt = now + 12 * 60 * 60;
-          await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL").bind(now).run();
+          await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL OR created_at<?").bind(now,now-12*60*60).run();
           await env.DB.prepare(`
             INSERT INTO admin_sessions(id,token_hash,uid,username,created_at,expires_at)
             VALUES(?,?,?,?,?,?)
