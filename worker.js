@@ -7199,7 +7199,7 @@ export default {
        if(!body||Object.keys(body).some(k=>k!=="action"&&k!=="resolutionKnowledgeId")||!["confirm","dismiss","resolve","reopen"].includes(body.action))return error("Choose confirm, dismiss, resolve or reopen.");
        if(body.action==="resolve"&&(typeof body.resolutionKnowledgeId!=="string"||!body.resolutionKnowledgeId))return error("A chosen knowledge entry is required to resolve a conflict.");
        if(body.action!=="resolve"&&body.resolutionKnowledgeId!==undefined)return error("Resolution is only valid for the resolve action.");
-       const current=await env.DB.prepare("SELECT r.left_knowledge_id,r.right_knowledge_id,r.relation_type,r.status,r.evidence_json,r.resolution_knowledge_id,r.updated_at,l.updated_at AS left_updated_at,rr.updated_at AS right_updated_at FROM intelligence_knowledge_relationships r JOIN intelligence_knowledge l ON l.id=r.left_knowledge_id JOIN intelligence_knowledge rr ON rr.id=r.right_knowledge_id WHERE r.id=? AND r.owner_uid=? AND l.owner_uid=? AND rr.owner_uid=?").bind(id,admin.uid,admin.uid,admin.uid).first();
+       const current=await env.DB.prepare("SELECT r.left_knowledge_id,r.right_knowledge_id,r.relation_type,r.status,r.proposed_by,r.evidence_json,r.resolution_knowledge_id,r.updated_at,l.updated_at AS left_updated_at,rr.updated_at AS right_updated_at FROM intelligence_knowledge_relationships r JOIN intelligence_knowledge l ON l.id=r.left_knowledge_id JOIN intelligence_knowledge rr ON rr.id=r.right_knowledge_id WHERE r.id=? AND r.owner_uid=? AND l.owner_uid=? AND rr.owner_uid=?").bind(id,admin.uid,admin.uid,admin.uid).first();
        if(!current)return error("Relationship not found.",404);
        const stale=isIntelligenceRelationshipStale(current);
        if(body.action==="reopen"){
@@ -7214,7 +7214,7 @@ export default {
         if(current.status==="confirmed"&&!stale)return error("This relationship is already current and confirmed.",409);
         const sourceRows=await env.DB.prepare("SELECT id,title,content FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(current.left_knowledge_id,current.right_knowledge_id,admin.uid).all();
         if((sourceRows.results||[]).length!==2)return error("Both linked knowledge entries must remain active before confirmation.",409);
-        if(current.status==="candidate"&&!intelligenceRelationshipEvidenceMatches(parseIntelligenceRelationshipEvidence(current.evidence_json),sourceRows.results||[]))return error("Candidate evidence no longer matches both current knowledge entries. Dismiss it or create a new proposal.",409);
+        if(current.status==="candidate"&&current.proposed_by==="intelligence"&&!intelligenceRelationshipEvidenceMatches(parseIntelligenceRelationshipEvidence(current.evidence_json),sourceRows.results||[]))return error("Candidate evidence no longer matches both current knowledge entries. Dismiss it or create a new proposal.",409);
        }
        if(body.action==="resolve"&&current.relation_type!=="conflicts_with")return error("Only a conflict relationship can be resolved.");
        if(body.action==="resolve"&&(current.status!=="confirmed"||stale))return error("Confirm or reaffirm the conflict before resolving it.",409);
