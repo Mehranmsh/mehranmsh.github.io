@@ -85,7 +85,11 @@ export function validatePatchEnvelope(envelope, trustedApproval, now = new Date(
   }
   if (!trustedApproval || typeof trustedApproval !== "object" ||
       trustedApproval.status !== "approved" ||
-      !Array.isArray(trustedApproval.allowedPaths)) {
+      trustedApproval.revokedAt != null ||
+      trustedApproval.consumedAt != null ||
+      !Array.isArray(trustedApproval.allowedPaths) ||
+      trustedApproval.allowedPaths.length === 0 ||
+      trustedApproval.allowedPaths.some(path => typeof path !== "string")) {
     return fail("No active trusted owner approval was supplied.");
   }
   if (trustedApproval.taskId !== envelope.taskId ||
