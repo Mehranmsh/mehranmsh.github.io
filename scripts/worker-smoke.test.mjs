@@ -1377,7 +1377,7 @@ test("Intelligence scheduled runner records an empty successful run", async () =
 test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
   const html = indexSource;
   const worker = workerSource;
-  for (const action of ["project_status_report", "social_metrics_report", "service_health_report"]) {
+  for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
     assert.ok(html.includes(action), `Task Hub exposes ${action}`);
     assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
   }
