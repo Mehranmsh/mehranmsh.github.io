@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
@@ -10,9 +13,16 @@ const deployWorkflowSource = await readFile(new URL("../.github/workflows/deploy
 const phrasesImportWorkflowSource = await readFile(new URL("../.github/workflows/import-persian-phrases.yml", import.meta.url), "utf8");
 const instrumentsImportWorkflowSource = await readFile(new URL("../.github/workflows/import-recorded-instruments.yml", import.meta.url), "utf8");
 const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
-const workerModule = await import(
-  "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
-);
+// Import from a temporary .mjs file instead of a data URL. The Worker source is large,
+ // and data URL specifiers can exceed Node's URL-length limits as the Worker grows.
+const workerModulePath = join(tmpdir(), `mehran-worker-smoke-${process.pid}.mjs`);
+await writeFile(workerModulePath, workerSource, "utf8");
+let workerModule;
+try {
+  workerModule = await import(pathToFileURL(workerModulePath).href);
+} finally {
+  await unlink(workerModulePath).catch(() => {});
+}
 // Import the exact private helper source in isolation; do not expose it as a Worker RPC method.
 const approvalHelperStart = workerSource.indexOf("async function ensureIntelligenceApprovalLedgerTable(env)");
 const approvalHelperEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", approvalHelperStart);
