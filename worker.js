@@ -5258,7 +5258,7 @@ function formatIntelligenceTask(row) {
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
-    result: row.result_text || "", agentClaimed: Boolean(row.agent_claimed_at), createdBy: row.created_by,
+    result: row.result_text || "", agentClaimed: Boolean(row.agent_claimed_at), schedulerClaimed: Boolean(row.scheduler_claimed_at), createdBy: row.created_by,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
