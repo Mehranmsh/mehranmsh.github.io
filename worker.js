@@ -5175,6 +5175,43 @@ async function ensureIntelligenceKnowledgeTable(env) {
  if(!pending){pending=createIntelligenceKnowledgeSchema(db);intelligenceKnowledgeInit.set(db,pending);pending.catch(()=>{if(intelligenceKnowledgeInit.get(db)===pending)intelligenceKnowledgeInit.delete(db);});}
  return pending;
 }
+const intelligenceKnowledgeRelationshipsInit = new WeakMap();
+async function ensureIntelligenceKnowledgeRelationshipsTable(env) {
+ const db=env.DB;let pending=intelligenceKnowledgeRelationshipsInit.get(db);
+ if(!pending){pending=createIntelligenceKnowledgeRelationshipsSchema(db);intelligenceKnowledgeRelationshipsInit.set(db,pending);pending.catch(()=>{if(intelligenceKnowledgeRelationshipsInit.get(db)===pending)intelligenceKnowledgeRelationshipsInit.delete(db);});}
+ return pending;
+}
+async function createIntelligenceKnowledgeRelationshipsSchema(db) {
+ await db.prepare(`CREATE TABLE IF NOT EXISTS intelligence_knowledge_relationships(
+  id TEXT PRIMARY KEY,owner_uid TEXT NOT NULL,left_knowledge_id TEXT NOT NULL,right_knowledge_id TEXT NOT NULL,
+  relation_type TEXT NOT NULL CHECK(relation_type IN ('conflicts_with','supersedes','supports')),
+  status TEXT NOT NULL DEFAULT 'candidate' CHECK(status IN ('candidate','confirmed','dismissed','resolved')),
+  proposed_by TEXT NOT NULL CHECK(proposed_by IN ('owner','intelligence')),
+  evidence_json TEXT NOT NULL DEFAULT '[]',resolution_knowledge_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  confirmed_at TEXT,dismissed_at TEXT,resolved_at TEXT,
+  CHECK(left_knowledge_id<right_knowledge_id),
+  CHECK((status='resolved' AND resolution_knowledge_id IN(left_knowledge_id,right_knowledge_id)) OR (status<>'resolved' AND resolution_knowledge_id IS NULL)),
+  FOREIGN KEY(left_knowledge_id) REFERENCES intelligence_knowledge(id),
+  FOREIGN KEY(right_knowledge_id) REFERENCES intelligence_knowledge(id),
+  FOREIGN KEY(resolution_knowledge_id) REFERENCES intelligence_knowledge(id),
+  UNIQUE(owner_uid,left_knowledge_id,right_knowledge_id,relation_type)
+ )`).run();
+ await db.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_knowledge_relationship_owner_status ON intelligence_knowledge_relationships(owner_uid,status,updated_at DESC)").run();
+ await db.prepare(`CREATE TRIGGER IF NOT EXISTS trg_intelligence_relationship_owner_insert
+ BEFORE INSERT ON intelligence_knowledge_relationships BEGIN
+  SELECT CASE WHEN NEW.owner_uid='system_seed' THEN RAISE(ABORT,'system knowledge relationships are immutable') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=NEW.left_knowledge_id AND owner_uid=NEW.owner_uid AND archived_at IS NULL) THEN RAISE(ABORT,'left knowledge must be active and owned by relationship owner') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=NEW.right_knowledge_id AND owner_uid=NEW.owner_uid AND archived_at IS NULL) THEN RAISE(ABORT,'right knowledge must be active and owned by relationship owner') END;
+ END`).run();
+ await db.prepare(`CREATE TRIGGER IF NOT EXISTS trg_intelligence_relationship_owner_update
+ BEFORE UPDATE ON intelligence_knowledge_relationships BEGIN
+  SELECT CASE WHEN NEW.owner_uid='system_seed' THEN RAISE(ABORT,'system knowledge relationships are immutable') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=NEW.left_knowledge_id AND owner_uid=NEW.owner_uid) THEN RAISE(ABORT,'left knowledge must be owned by relationship owner') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=NEW.right_knowledge_id AND owner_uid=NEW.owner_uid) THEN RAISE(ABORT,'right knowledge must be owned by relationship owner') END;
+ END`).run();
+}
+
 async function createIntelligenceKnowledgeSchema(db) {
  await db.prepare("CREATE TABLE IF NOT EXISTS intelligence_knowledge(id TEXT PRIMARY KEY,owner_uid TEXT NOT NULL,category TEXT NOT NULL DEFAULT 'company',title TEXT NOT NULL,content TEXT NOT NULL,importance TEXT NOT NULL DEFAULT 'normal',created_by TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,archived_at TEXT)").run();
  await db.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_knowledge_owner_active ON intelligence_knowledge(owner_uid,archived_at,importance,updated_at DESC)").run();
@@ -7061,6 +7098,49 @@ export default {
        ]);
        if(!Number(results?.[0]?.meta?.changes||0))return error("The owner knowledge limit of 500 active entries has been reached.",409);
        return json({success:true,id},201);
+      }
+      if (path === "/intelligence/knowledge/relationships" && ["GET","POST"].includes(method)) {
+       const admin=await verifyAdmin(request,env);if(!admin)return error("Admin authentication required",403);
+       await ensureIntelligenceKnowledgeTable(env);
+       await ensureIntelligenceKnowledgeRelationshipsTable(env);
+       await ensureSocialAuthLimitsTable(env);
+       if(!await checkRateLimit(env,request,method==="GET"?"intelligence-relationship-read":"intelligence-relationship-write",method==="GET"?60:20,3600,600,admin.uid))return error("Too many knowledge relationship requests. Try again later.",429);
+       if(method==="GET"){
+        const rows=await env.DB.prepare("SELECT r.id,r.left_knowledge_id,r.right_knowledge_id,r.relation_type,r.status,r.proposed_by,r.evidence_json,r.resolution_knowledge_id,r.created_at,r.updated_at,r.confirmed_at,r.dismissed_at,r.resolved_at,l.title AS left_title,l.updated_at AS left_updated_at,rr.title AS right_title,rr.updated_at AS right_updated_at FROM intelligence_knowledge_relationships r JOIN intelligence_knowledge l ON l.id=r.left_knowledge_id JOIN intelligence_knowledge rr ON rr.id=r.right_knowledge_id WHERE r.owner_uid=? ORDER BY CASE r.status WHEN 'candidate' THEN 0 WHEN 'confirmed' THEN 1 WHEN 'resolved' THEN 2 ELSE 3 END,r.updated_at DESC LIMIT 100").bind(admin.uid).all();
+        return json({success:true,relationships:(rows.results||[]).map(row=>({id:row.id,left:{id:row.left_knowledge_id,title:row.left_title,updatedAt:row.left_updated_at},right:{id:row.right_knowledge_id,title:row.right_title,updatedAt:row.right_updated_at},relationType:row.relation_type,status:row.status,proposedBy:row.proposed_by,evidence:JSON.parse(row.evidence_json||"[]"),resolutionKnowledgeId:row.resolution_knowledge_id,createdAt:row.created_at,updatedAt:row.updated_at,confirmedAt:row.confirmed_at,dismissedAt:row.dismissed_at,resolvedAt:row.resolved_at}))});
+       }
+       const body=await readBody(request);
+       if(!body||Object.keys(body).some(k=>!["leftId","rightId","relationType","evidence"].includes(k))||typeof body.leftId!=="string"||typeof body.rightId!=="string"||body.leftId===body.rightId||!["conflicts_with","supersedes","supports"].includes(body.relationType))return error("Provide two different owner knowledge IDs and a valid relationship type.");
+       const [leftId,rightId]=[body.leftId,body.rightId].sort();
+       const evidence=typeof body.evidence==="string"?cleanText(body.evidence,500):"";
+       if(body.evidence!==undefined&&typeof body.evidence!=="string")return error("Evidence must be plain text.");
+       const id=crypto.randomUUID();
+       const result=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json,confirmed_at) SELECT ?,?,?,?,?, 'confirmed','owner',?,CURRENT_TIMESTAMP WHERE (SELECT COUNT(*) FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL)=2").bind(id,admin.uid,leftId,rightId,body.relationType,JSON.stringify(evidence?[{text:evidence,source:"owner"}]:[]),leftId,rightId,admin.uid).run();
+       if(!Number(result?.meta?.changes||0))return error("Both knowledge entries must exist, be active and belong to this owner.",404);
+       await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_created","intelligence_knowledge_relationship",id,JSON.stringify({relationType:body.relationType,leftId,rightId}));
+       return json({success:true,id,status:"confirmed"},201);
+      }
+      const intelligenceRelationshipMatch=path.match(/^\\/intelligence\\/knowledge\\/relationships\\/([^/]+)$/);
+      if(intelligenceRelationshipMatch&&method==="PUT"){
+       const admin=await verifyAdmin(request,env);if(!admin)return error("Admin authentication required",403);
+       await ensureIntelligenceKnowledgeTable(env);
+       await ensureIntelligenceKnowledgeRelationshipsTable(env);
+       await ensureSocialAuthLimitsTable(env);
+       if(!await checkRateLimit(env,request,"intelligence-relationship-write",20,3600,600,admin.uid))return error("Too many knowledge relationship changes. Try again later.",429);
+       const id=decodeURIComponent(intelligenceRelationshipMatch[1]);if(!id||id.length>80)return error("Invalid relationship ID.");
+       const body=await readBody(request);
+       if(!body||Object.keys(body).some(k=>k!=="action"&&k!=="resolutionKnowledgeId")||!["confirm","dismiss","resolve"].includes(body.action))return error("Choose confirm, dismiss or resolve.");
+       if(body.action==="resolve"&&(typeof body.resolutionKnowledgeId!=="string"||!body.resolutionKnowledgeId))return error("A chosen knowledge entry is required to resolve a conflict.");
+       if(body.action!=="resolve"&&body.resolutionKnowledgeId!==undefined)return error("Resolution is only valid for the resolve action.");
+       const current=await env.DB.prepare("SELECT left_knowledge_id,right_knowledge_id,status FROM intelligence_knowledge_relationships WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
+       if(!current||!["candidate","confirmed"].includes(current.status))return error("Relationship not found or no longer actionable.",404);
+       if(body.action==="resolve"&&![current.left_knowledge_id,current.right_knowledge_id].includes(body.resolutionKnowledgeId))return error("Resolution must select one of the two linked knowledge entries.");
+       const status=body.action==="confirm"?"confirmed":body.action==="dismiss"?"dismissed":"resolved";
+       const resolution=body.action==="resolve"?body.resolutionKnowledgeId:null;
+       const result=await env.DB.prepare("UPDATE intelligence_knowledge_relationships SET status=?,updated_at=CURRENT_TIMESTAMP,proposed_by='owner',confirmed_at=CASE WHEN ?='confirmed' THEN CURRENT_TIMESTAMP ELSE confirmed_at END,dismissed_at=CASE WHEN ?='dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE resolved_at END,resolution_knowledge_id=? WHERE id=? AND owner_uid=? AND status IN ('candidate','confirmed')").bind(status,status,status,status,resolution,id,admin.uid).run();
+       if(!Number(result?.meta?.changes||0))return error("Relationship changed before this action. Refresh and try again.",409);
+       await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_"+body.action,"intelligence_knowledge_relationship",id,JSON.stringify({action:body.action,resolutionKnowledgeId:resolution}));
+       return json({success:true,id,status});
       }
       const intelligenceKnowledgeMatch=path.match(/^\/intelligence\/knowledge\/([^/]+)$/);
       if(intelligenceKnowledgeMatch&&["PUT","DELETE"].includes(method)){
