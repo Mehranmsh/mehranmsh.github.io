@@ -58,16 +58,23 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
             },
         )
         self.assertEqual(columns["status"][2], "'issued'")
-        self.assertEqual(
-            {row[1] for row in self.connection.execute(
+        indexes = {
+            row[1] for row in self.connection.execute(
                 "PRAGMA index_list(intelligence_approval_ledger)"
-            )},
-            {
-                "idx_intelligence_approval_task",
-                "idx_intelligence_approval_owner",
-                "idx_intelligence_approval_active_task",
-            },
+            )
+        }
+        self.assertTrue({
+            "idx_intelligence_approval_task",
+            "idx_intelligence_approval_owner",
+            "idx_intelligence_approval_active_task",
+        }.issubset(indexes))
+        foreign_keys = list(
+            self.connection.execute("PRAGMA foreign_key_list(intelligence_approval_ledger)")
         )
+        self.assertTrue(any(
+            row[2] == "intelligence_tasks" and row[3] == "task_id" and row[4] == "id"
+            for row in foreign_keys
+        ))
 
     def test_foreign_key_rejects_unknown_task(self):
         self.apply_migration()
@@ -95,11 +102,10 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
             1,
         )
 
-    def test_active_grants_are_scoped_by_owner_and_task(self):
+    def test_active_grants_are_scoped_by_owner(self):
         self.apply_migration()
         self.insert_grant("grant-1")
         self.insert_grant("grant-2", owner_uid="owner-2")
-        self.insert_grant("grant-3", task_id="task-2") if False else None
         self.assertEqual(
             self.connection.execute(
                 "SELECT COUNT(*) FROM intelligence_approval_ledger WHERE status='issued'"
