@@ -2322,12 +2322,12 @@ async function saveIntelligenceKnowledge(event){
  const body={category:$("intelKnowledgeCategory").value,importance:$("intelKnowledgeImportance").value,title:$("intelKnowledgeTitle").value.trim(),content:$("intelKnowledgeContent").value.trim()};
  if(body.title.length<3||body.content.length<3){status.textContent="Enter a title and knowledge text.";status.className="notice warn";return}
  button.disabled=true;
- try{await api(id?"/intelligence/knowledge/"+encodeURIComponent(id):"/intelligence/knowledge",{method:id?"PUT":"POST",body:JSON.stringify(body)});resetIntelKnowledgeForm();status.textContent=id?"Knowledge updated and audit event recorded.":"Knowledge saved and audit event recorded.";status.className="notice success";await loadIntelligenceKnowledge()}
+ try{await api(id?"/intelligence/knowledge/"+encodeURIComponent(id):"/intelligence/knowledge",{method:id?"PUT":"POST",body:JSON.stringify(body)});resetIntelKnowledgeForm();status.textContent=id?"Knowledge updated and audit event recorded.":"Knowledge saved and audit event recorded.";status.className="notice success";await loadIntelligenceKnowledge();await loadIntelligenceRelationships()}
  catch(error){status.textContent="Could not save knowledge: "+error.message;status.className="notice warn"}finally{button.disabled=false}
 }
 async function archiveIntelligenceKnowledge(id,button){
  if(!id||!confirm("Archive this owner knowledge entry?"))return;button.disabled=true;
- try{await api("/intelligence/knowledge/"+encodeURIComponent(id),{method:"DELETE"});$("intelKnowledgeStatus").textContent="Knowledge archived and audit event recorded.";$("intelKnowledgeStatus").className="notice success";await loadIntelligenceKnowledge()}
+ try{await api("/intelligence/knowledge/"+encodeURIComponent(id),{method:"DELETE"});$("intelKnowledgeStatus").textContent="Knowledge archived and audit event recorded.";$("intelKnowledgeStatus").className="notice success";await loadIntelligenceKnowledge();await loadIntelligenceRelationships()}
  catch(error){$("intelKnowledgeStatus").textContent="Could not archive knowledge: "+error.message;$("intelKnowledgeStatus").className="notice warn";button.disabled=false}
 }
 function editIntelligenceKnowledge(id){
