@@ -2186,3 +2186,28 @@ test("INTELLIGENCE isolates persistent memory and organizational knowledge by au
   assert.match(workerSource,/WHERE id=\? AND owner_uid=\?/);
   assert.ok(workerSource.includes("If a note conflicts with current explicit owner instructions or verified company data, follow the current instruction or verified data and explain the conflict."));
 });
+
+test("INTELLIGENCE retrieval evaluation covers Persian and English intent with bounded top results", () => {
+  const rows = [
+    {id:"music-fa",owner_uid:"owner-1",category:"project",title:"تولید موسیقی و گیتار",content:"ضبط، تنظیم، کاور گیتار و تولید موسیقی",importance:"high",updated_at:"2026-11-19"},
+    {id:"instruments-en",owner_uid:"system_seed",category:"project",title:"Mehran Instruments",content:"International sourcing, import export, musical instruments and studio equipment",importance:"high",updated_at:"2026-11-18"},
+    {id:"robotics-fa",owner_uid:"owner-1",category:"project",title:"رباتیک و هوش مصنوعی",content:"طراحی ربات انسان‌نما و سامانه‌های هوشمند",importance:"normal",updated_at:"2026-11-17"},
+    {id:"logistics-en",owner_uid:"owner-1",category:"module",title:"Logistics operations",content:"Shipping inventory and delivery tracking",importance:"normal",updated_at:"2026-11-16"},
+    {id:"pi-scope",owner_uid:"system_seed",category:"decision",title:"Pi Network only",content:"Company blockchain scope is exclusively Pi Network",importance:"high",updated_at:"2026-11-15"}
+  ];
+  const cases = [
+    {query:"ضبط و تنظیم گیتار",expected:"music-fa"},
+    {query:"رباتیک انسان نما",expected:"robotics-fa"},
+    {query:"import export studio equipment",expected:"instruments-en"},
+    {query:"shipping delivery tracking",expected:"logistics-en"},
+    {query:"Pi Network",expected:"pi-scope"}
+  ];
+  let hits=0;
+  for (const item of cases) {
+    const results=workerModule.rankIntelligenceKnowledge(rows,item.query,3,false);
+    assert.ok(results.length>0,"Expected a retrieval result for: "+item.query);
+    if(results[0].id===item.expected)hits++;
+  }
+  assert.ok(hits/cases.length>=0.8,"Top-1 retrieval accuracy should be at least 80% on the small bilingual regression set");
+  assert.equal(workerModule.rankIntelligenceKnowledge(rows,"quantum astronomy",3,false).length,0);
+});
