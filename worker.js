@@ -5169,6 +5169,49 @@ async function ensureIntelligenceApprovalLedgerTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_approval_owner ON intelligence_approval_ledger(owner_uid,issued_at DESC)").run();
 }
 
+
+// Internal-only primitive for a future isolated documentation executor.
+// No HTTP/MCP route calls this helper today.
+async function consumeIntelligenceApproval(env, input) {
+  const value = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const approvalId = typeof value.approvalId === "string" ? value.approvalId : "";
+  const taskId = typeof value.taskId === "string" ? value.taskId : "";
+  const ownerUid = typeof value.ownerUid === "string" ? value.ownerUid : "";
+  const repository = typeof value.repository === "string" ? value.repository : "";
+  const branch = typeof value.branch === "string" ? value.branch : "";
+  const baseSha = typeof value.baseSha === "string" ? value.baseSha : "";
+  const scopeSha256 = typeof value.scopeSha256 === "string" ? value.scopeSha256 : "";
+  const now = Number.isSafeInteger(value.now) && value.now > 0 ? value.now : Math.floor(Date.now() / 1000);
+
+  if (!/^[0-9a-f-]{36}$/i.test(approvalId) || !taskId || taskId.length > 80 ||
+      !ownerUid || ownerUid.length > 160 ||
+      repository !== "Mehranmsh/mehranmsh.github.io" ||
+      !/^intelligence\\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+      !/^[0-9a-f]{40}$/i.test(baseSha) ||
+      !/^[0-9a-f]{64}$/i.test(scopeSha256)) {
+    return { consumed:false, reason:"invalid_binding" };
+  }
+
+  await ensureIntelligenceApprovalLedgerTable(env);
+  await env.DB.prepare(
+    "UPDATE intelligence_approval_ledger SET status='expired' WHERE id=? AND task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?"
+  ).bind(approvalId,taskId,ownerUid,now).run();
+
+  const transition = await env.DB.prepare(
+    "UPDATE intelligence_approval_ledger SET status='consumed',consumed_at=?,consumed_by='mehran-intelligence-documentation-executor' " +
+    "WHERE id=? AND task_id=? AND owner_uid=? AND repository=? AND branch=? AND base_sha=? AND scope_sha256=? " +
+    "AND status='issued' AND revoked_at IS NULL AND expires_at>? " +
+    "AND EXISTS (SELECT 1 FROM intelligence_tasks t WHERE t.id=intelligence_approval_ledger.task_id " +
+    "AND t.status='accepted' AND t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') " +
+    "AND t.action_type='documentation_patch_proposal')"
+  ).bind(now,approvalId,taskId,ownerUid,repository,branch,baseSha,scopeSha256,now).run();
+
+  if (Number(transition?.meta?.changes || 0) !== 1) {
+    return { consumed:false, reason:"approval_unavailable_or_task_not_eligible" };
+  }
+  return { consumed:true, approvalId, taskId, consumedAt:now };
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
