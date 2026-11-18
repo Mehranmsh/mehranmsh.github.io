@@ -54,6 +54,10 @@ test("MEHRAN INTELLIGENCE runner executes only fixed allowlisted commands", () =
   assert.match(agentRunnerSource, /task\.actionType === "repository_quality_check"/);
   assert.match(agentRunnerSource, /task\.actionType === "service_health_report"/);
   assert.match(agentRunnerSource, /does not yet support action type/);
+  assert.match(agentRunnerSource, /monitorTaskStatus/);
+  assert.match(agentRunnerSource, /executionController\.abort/);
+  assert.match(agentRunnerSource, /signal\s*\}\)/);
+  assert.match(agentRunnerSource, /Task ownership could not be verified/);
 });
 
 
@@ -67,6 +71,12 @@ test("MEHRAN INTELLIGENCE agent queue claims only approved read-only task types"
   assert.match(claimRoute, /requires_approval=0/);
   assert.match(claimRoute, /action_type IN \('repository_quality_check','service_health_report'\)/);
   assert.match(claimRoute, /agent_claimed_at IS NOT NULL/);
+  const statusStart = workerSource.indexOf("const agentStatusMatch");
+  const statusEnd = workerSource.indexOf("const agentResultMatch", statusStart);
+  const statusRoute = workerSource.slice(statusStart, statusEnd);
+  assert.ok(statusStart >= 0 && statusEnd > statusStart);
+  assert.match(statusRoute, /agentClaimed:Boolean\(row\.agent_claimed_at\)/);
+  assert.match(statusRoute, /assigned_to/);
   assert.doesNotMatch(claimRoute, /repository_change|code_write|deploy|merge/i);
 });
 
@@ -1632,11 +1642,13 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.ok(routeStart >= 0 && routeEnd > routeStart, "Intelligence task PATCH route must exist");
   const route = workerSource.slice(routeStart, routeEnd);
   assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
-  assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted"\]\.includes\(existing\.status\)/);
+  assert.match(route, /cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"/);
+  assert.match(route, /cancelTransition=body.status==="cancelled"/);
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
   assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?approval or cancellation transition\.[\s\S]*?409/);
   assert.ok(route.includes("WHERE id=? AND status='awaiting_approval' AND requires_approval=1"));
   assert.ok(route.includes("WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')"));
+  assert.ok(route.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
   assert.ok(route.includes("transition?.meta?.changes||0"));
   assert.match(workerSource, /existing\.action_type\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status==="awaiting_approval"/);
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
