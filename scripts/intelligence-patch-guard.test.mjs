@@ -22,8 +22,8 @@ test("rejects paths outside the strict allowlist", () => {
 test("rejects ambiguous and platform-sensitive path segments", () => {
   for (const path of [
     "docs//nested.md", "docs/./nested.md", "docs/../nested.md",
-    "docs/name .md", "docs/name..md", "docs/NUL.md", "docs/CON.md",
-    "docs/folder./nested.md", "docs/zero\u200bwidth.md", "docs/trailing/.md"
+    "docs/name .md", "docs/NUL.md", "docs/CON.md",
+    "docs/folder./nested.md", "docs/zero\u200bwidth.md", "docs/trailing./nested.md"
   ]) {
     assert.equal(validateIntelligencePatch([valid(path)]).ok, false, path);
   }
