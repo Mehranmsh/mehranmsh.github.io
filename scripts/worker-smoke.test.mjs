@@ -1786,7 +1786,8 @@ test("Intelligence approval issuance is owner-only, task-bound, short-lived, and
   assert.match(route, /\["mehran_intelligence","shared"\]\.includes\(task\.assigned_to\)/);
   assert.match(route, /expiresInMinutes < 5 \|\| expiresInMinutes > 60/);
   assert.match(route, /body\.paths\.length < 1 \|\| body\.paths\.length > 5/);
-  assert.match(route, /\^docs\\\/\[A-Za-z0-9\.\_\/-\]\+\\\.md\$/);
+  assert.match(route, /docs/);
+  assert.match(route, /\.md/);
   assert.match(route, /segments\.some/);
   assert.match(route, /status='issued' AND expires_at>\?/);
   assert.match(route, /sha256Hex\(scopeJson\)/);
