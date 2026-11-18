@@ -1827,7 +1827,7 @@ renderAvatar("sideAvatar");
 renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
-function safeMediaSrc(value,options={}){const raw=String(value??"").trim();if(!raw)return "";if(options.allowDataImage&&/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(raw))return raw;if(options.allowBlob&&raw.startsWith("blob:")){try{const u=new URL(raw);if(u.origin===location.origin)return u.href;}catch{}return "";}try{const u=new URL(raw,location.origin);if(u.protocol!=="https:"||u.username||u.password)return "";return u.href;}catch{return ""}}
+function safeMediaSrc(value,options={}){const raw=String(value??"").trim();if(!raw)return "";if(options.allowDataImage&&/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(raw))return raw;if(options.allowBlob&&raw.startsWith("blob:")){try{const u=new URL(raw);if(u.origin===location.origin)return u.href;}catch{}return "";}try{const u=new URL(raw,location.origin);if(u.protocol!=="https:"||u.username||u.password)return "";if(u.origin!==location.origin&&u.origin!=="https://cdn.rapidfile.cc")return "";return u.href;}catch{return ""}}
 function mediaMarkup(item){const src=safeMediaSrc(item?.data,{allowBlob:true,allowDataImage:true});if(!src)return '<div class="media-unavailable">Media unavailable</div>';const safe=escapeHTML(src);if(item.type==="video")return '<video src="'+safe+'" controls playsinline preload="metadata"></video>';return '<img src="'+safe+'" alt="Post media">'}
 function renderFeed(){
 const list=$("feedList");if(!list)return;
