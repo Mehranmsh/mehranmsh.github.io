@@ -2363,6 +2363,31 @@ test("INTELLIGENCE knowledge relationship API is owner-only, evidence-bound and 
   assert.match(workerSource,/intelligence_knowledge_relation_resolved/);
 });
 
+
+test("INTELLIGENCE chat distinguishes candidate, confirmed and resolved owner knowledge relationships", () => {
+  const relations = [
+    {id:"candidate-1",relationType:"conflicts_with",status:"candidate",sourceTitle:"Policy A",targetTitle:"Policy B",sourceEvidence:"Carrier A",targetEvidence:"Carrier B",resolvedKnowledgeId:null},
+    {id:"confirmed-1",relationType:"supports",status:"confirmed",sourceTitle:"Policy C",targetTitle:"Policy A",sourceEvidence:"Supports A",targetEvidence:"Carrier A",resolvedKnowledgeId:null},
+    {id:"resolved-1",relationType:"conflicts_with",status:"resolved",sourceTitle:"Policy A",targetTitle:"Policy B",sourceEvidence:"Carrier A",targetEvidence:"Carrier B",resolvedKnowledgeId:"policy-a"}
+  ];
+  const messages = workerModule.buildIntelligenceChatMessages({
+    system:"Do not infer truth from suggestions.",
+    companyContext:{},
+    ownerMemory:[],
+    organizationalKnowledge:[{id:"policy-a",title:"Policy A",content:"Carrier A"}],
+    knowledgeRelations:relations,
+    question:"What is the shipping policy?"
+  });
+  assert.ok(messages[1].content.includes('"status":"candidate"'));
+  assert.ok(messages[1].content.includes('"status":"confirmed"'));
+  assert.ok(messages[1].content.includes('"status":"resolved"'));
+  assert.ok(messages[1].content.includes('"resolvedKnowledgeId":"policy-a"'));
+  assert.ok(workerSource.includes("r.owner_uid=? AND r.status IN ('candidate','confirmed','resolved')"));
+  assert.ok(workerSource.includes("selectedSet.has(row.source_knowledge_id)||selectedSet.has(row.target_knowledge_id)"));
+  assert.ok(workerSource.includes("Treat candidate relations only as unconfirmed suggestions"));
+  assert.ok(workerSource.includes("a resolved conflicts_with relation records the owner's explicit selected knowledge ID"));
+});
+
 test("INTELLIGENCE retrieval exposes only explicit safe knowledge fields", () => {
   const rows=[{
     id:"safe-1",owner_uid:"private-owner-uid",category:"decision",title:"Pi-only architecture",
