@@ -2158,6 +2158,31 @@ test("INTELLIGENCE organizational knowledge is owner-scoped, bounded, audited an
  assert.ok(indexSource.includes("await loadIntelligenceKnowledge()"));
 });
 
+test("INTELLIGENCE relationship review UI is owner-controlled and renders untrusted evidence as text", () => {
+  for (const id of ["intelRelationsStatus","intelRelationsList","intelRelationStatusFilter","refreshIntelRelationsBtn"]) {
+    assert.ok(indexSource.includes('id="'+id+'"'), "Missing relationship review control: "+id);
+  }
+  assert.match(indexSource,/api\("\/intelligence\/knowledge\/relations"/);
+  assert.match(indexSource,/data\.relations\|\|\[\]/);
+  assert.match(indexSource,/dataset\.intelRelationAction="confirm"/);
+  assert.match(indexSource,/dataset\.intelRelationAction="dismiss"/);
+  assert.match(indexSource,/dataset\.intelRelationAction="resolve"/);
+  assert.match(indexSource,/resolvedKnowledgeId=resolvedKnowledgeId/);
+  assert.match(indexSource,/Neither source record will be deleted/);
+  assert.match(indexSource,/await loadIntelligenceRelations\(\)/);
+  const renderStart=indexSource.indexOf("function renderIntelligenceRelations(items)");
+  const renderEnd=indexSource.indexOf("async function updateIntelligenceRelation",renderStart);
+  assert.ok(renderStart>=0&&renderEnd>renderStart,"relationship renderer must exist");
+  const renderer=indexSource.slice(renderStart,renderEnd);
+  assert.match(renderer,/\.textContent=/);
+  assert.match(renderer,/Review full source record/);
+  assert.match(renderer,/Review full target record/);
+  assert.match(renderer,/window\.intelligenceKnowledgeCache/);
+
+  assert.doesNotMatch(renderer,/\.innerHTML\s*=/,"untrusted relationship titles and evidence must never enter innerHTML");
+  assert.match(indexSource,/intelligence_knowledge_relation_ai_proposed:"AI relationship suggestion created"/);
+});
+
 test("MEHRAN INTELLIGENCE retains the full-ecosystem mandate and owner authority map", () => {
  for (const key of [
   "seed-intelligence-full-ecosystem",
