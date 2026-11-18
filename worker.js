@@ -4617,7 +4617,7 @@ async function socialAssistantChat(request, env) {
     "SELECT role,content FROM social_ai_messages WHERE user_id=? AND conversation_id=? ORDER BY created_at DESC, rowid DESC LIMIT 19"
   ).bind(user.id, conversationId).all();
   const input = (recent.results || []).reverse().map(row => ({ role: row.role, content: row.content }));
-  const storedContent=(content||"Please analyze the attached image(s).")+(attachmentItems.length?"\n[Attached image(s): "+attachmentItems.map(x=>cleanText(x.name||"image",120)).join(", ")+"]":"");
+  const storedContent=(content||"Please analyze the attached image(s).")+(attachmentItems.length?"\\n[Attached image(s): "+attachmentItems.map(x=>cleanText(x.name||"image",120)).join(", ")+"]":"");
   input.push({ role: "user", content: storedContent });
   let answer, provider, model, lastError;
   for (const candidate of candidates) {
