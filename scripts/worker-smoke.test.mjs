@@ -1861,7 +1861,10 @@ test("approval issuance rejects unsafe paths and unauthenticated callers before 
           if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
           throw new Error("Unauthenticated caller must not reach database work: "+sql);
         },
-        async run() { writes++; return {meta:{changes:1}}; }
+        async run() {
+          if (sql.includes("INSERT INTO intelligence_approval_ledger") || sql.includes("INSERT INTO admin_audit_log")) writes++;
+          return {meta:{changes:1}};
+        }
       };
     }
   };
