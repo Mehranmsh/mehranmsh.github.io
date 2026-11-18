@@ -1918,7 +1918,7 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
 });
 
 
-test("Intelligence approval consumption executes the real helper and is one-time", async () => {
+test("Intelligence approval consumption executes the real helper and enforces binding, eligibility, expiry, and one-time use", async () => {
   const start = workerSource.indexOf("async function consumeIntelligenceApproval(env, input)");
   const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", start);
   assert.ok(start >= 0 && end > start, "internal approval consumption primitive must exist");
@@ -1947,33 +1947,77 @@ test("Intelligence approval consumption executes the real helper and is one-time
     branch:"intelligence/patch-safe-docs-001",
     baseSha:"a".repeat(40), scopeSha256:"b".repeat(64)
   };
-  let ledgerStatus="issued";
-  let transitionCalls=0;
-  const env={DB:{prepare(sql){return {
-    bind(...values){this.values=values;return this;},
-    async run(){
-      if (sql.includes("UPDATE intelligence_approval_ledger SET status='expired'")) return {meta:{changes:0}};
-      if (sql.includes("UPDATE intelligence_approval_ledger SET status='consumed'")) {
-        transitionCalls++;
-        if (ledgerStatus!=="issued") return {meta:{changes:0}};
-        ledgerStatus="consumed";
-        return {meta:{changes:1}};
+  const makeEnv = (overrides = {}) => {
+    const state = {
+      status:"issued", revokedAt:null, expiresAt:Math.floor(Date.now()/1000)+600,
+      taskStatus:"accepted", requiresApproval:0, assignedTo:"mehran_intelligence",
+      actionType:"documentation_patch_proposal", ownerUid:input.ownerUid,
+      repository:input.repository, branch:input.branch, baseSha:input.baseSha,
+      scopeSha256:input.scopeSha256, ...overrides
+    };
+    let transitionCalls=0;
+    const env={DB:{prepare(sql){return {
+      bind(...values){this.values=values;return this;},
+      async run(){
+        if(sql.includes("UPDATE intelligence_approval_ledger SET status='expired'")){
+          assert.deepEqual(this.values.slice(0,3),[input.approvalId,input.taskId,input.ownerUid]);
+          if(state.status==="issued" && state.expiresAt<=this.values[3]) state.status="expired";
+          return {meta:{changes:state.status==="expired"?1:0}};
+        }
+        if(sql.includes("UPDATE intelligence_approval_ledger SET status='consumed'")){
+          transitionCalls++;
+          assert.deepEqual(this.values.slice(1,8),[
+            input.approvalId,input.taskId,input.ownerUid,input.repository,
+            input.branch,input.baseSha,input.scopeSha256
+          ]);
+          const eligible=state.status==="issued" && state.revokedAt===null &&
+            state.expiresAt>this.values[8] && state.ownerUid===this.values[3] &&
+            state.repository===this.values[4] && state.branch===this.values[5] &&
+            state.baseSha===this.values[6] && state.scopeSha256===this.values[7] &&
+            state.taskStatus==="accepted" && state.requiresApproval===0 &&
+            ["mehran_intelligence","shared"].includes(state.assignedTo) &&
+            state.actionType==="documentation_patch_proposal";
+          if(eligible){state.status="consumed";return {meta:{changes:1}};}
+          return {meta:{changes:0}};
+        }
+        return {meta:{changes:0}};
       }
-      return {meta:{changes:0}};
-    }
-  };}}};
-  const first=await approvalModule.consumeIntelligenceApproval(env,input);
+    };}}};
+    return {env,state,getTransitionCalls:()=>transitionCalls};
+  };
+
+  const valid=makeEnv();
+  const first=await approvalModule.consumeIntelligenceApproval(valid.env,input);
   assert.equal(first.consumed,true);
-  assert.equal(ledgerStatus,"consumed");
-  const replay=await approvalModule.consumeIntelligenceApproval(env,input);
+  assert.equal(valid.state.status,"consumed");
+  const replay=await approvalModule.consumeIntelligenceApproval(valid.env,input);
   assert.equal(replay.consumed,false);
   assert.equal(replay.reason,"approval_unavailable_or_task_not_eligible");
-  assert.equal(transitionCalls,2);
-  const mismatch=await approvalModule.consumeIntelligenceApproval(env,{...input,repository:"attacker/repo"});
-  assert.equal(mismatch.consumed,false);
-  assert.equal(mismatch.reason,"invalid_binding");
-});
+  assert.equal(valid.getTransitionCalls(),2);
 
+  const rejectedCases=[
+    ["expired",{expiresAt:Math.floor(Date.now()/1000)-10}],
+    ["revoked",{revokedAt:Math.floor(Date.now()/1000)}],
+    ["wrong owner",{ownerUid:"another-owner"}],
+    ["wrong repository",{repository:"attacker/repo"}],
+    ["wrong branch",{branch:"intelligence/patch-another-branch"}],
+    ["wrong base SHA",{baseSha:"c".repeat(40)}],
+    ["wrong scope hash",{scopeSha256:"d".repeat(64)}],
+    ["cancelled task",{taskStatus:"cancelled"}],
+    ["approval still required",{requiresApproval:1}],
+    ["wrong assignee",{assignedTo:"untrusted-agent"}],
+    ["wrong action",{actionType:"github_write"}]
+  ];
+  for(const [label,overrides] of rejectedCases){
+    const candidate=makeEnv(overrides);
+    const result=await approvalModule.consumeIntelligenceApproval(candidate.env,input);
+    assert.equal(result.consumed,false,label+" must be rejected");
+    assert.notEqual(candidate.state.status,"consumed",label+" must not consume the grant");
+  }
+  const malformed=await approvalModule.consumeIntelligenceApproval(valid.env,{...input,repository:"attacker/repo"});
+  assert.equal(malformed.consumed,false);
+  assert.equal(malformed.reason,"invalid_binding");
+});
 
 test("Documentation patch proposals require owner approval and remain excluded from the current agent queue", () => {
   const taskStart = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
