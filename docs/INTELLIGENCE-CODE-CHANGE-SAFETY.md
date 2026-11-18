@@ -118,3 +118,15 @@ Cancellation must be checked before patch generation, before GitHub writes, and 
 ## Current implementation boundary
 
 This document and validator do not enable code changes. The current runner remains limited to the existing allowlisted read-only repository quality and service health tasks. Any implementation of Stages 2 or 3 requires a separate reviewed change and explicit owner approval.
+
+
+## Current Task Hub approval guardrails
+
+The stacked approval-guardrails change in PR #5 adds these controls to the existing task workflow:
+
+- MCP-created tasks are always inserted as `awaiting_approval` with `requires_approval=1`. The MCP schema cannot set an approval flag.
+- MCP task updates reject any task that is still awaiting approval or has `requires_approval=1`, including manual proposals with no `action_type`. The model cannot approve its own pending proposal through the update tool.
+- Owner approval and cancellation of pending or automated tasks use conditional SQL updates bound to the previously observed status and approval flag. The Worker checks D1's affected-row count and returns a conflict if another state transition won the race.
+- The agent claim route continues to require `requires_approval=0`, an eligible queue status, an allowed assignee, and a fixed read-only action type.
+
+These controls close the current self-approval and stale-transition gaps. They do **not** yet implement a separate immutable approval ledger with a one-time approval ID, scope digest, expiry, revocation record, and atomic consumption. The pure patch-envelope validator can reject a trusted approval object marked revoked or consumed, but it does not create or consume that record. A future code-change executor must not be enabled until that control-plane ledger exists and is independently tested.
