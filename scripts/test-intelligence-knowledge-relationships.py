@@ -44,6 +44,19 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
             (ident,owner,min(left,right),max(left,right),relation,status,proposed_by,evidence,resolution),
         )
 
+    def test_worker_bootstrap_contains_relationship_table_and_owner_guards(self):
+        worker_source = (Path(__file__).resolve().parents[1] / "worker.js").read_text(encoding="utf-8")
+        for contract in [
+            "CREATE TABLE IF NOT EXISTS intelligence_knowledge_relationships",
+            "idx_intelligence_knowledge_relationship_owner_status",
+            "trg_intelligence_relationship_owner_insert",
+            "trg_intelligence_relationship_owner_update",
+            "NEW.owner_uid='system_seed'",
+            "resolution_knowledge_id IS NOT NULL",
+            "status IN ('candidate','confirmed','dismissed','resolved')",
+        ]:
+            self.assertIn(contract, worker_source)
+
     def test_migration_is_idempotent(self):
         self.db.executescript(self.sql)
         self.assertIsNotNone(self.db.execute(
