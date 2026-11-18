@@ -1988,3 +1988,24 @@ test("D1 approval migration matches the Worker bootstrap schema and staging safe
   assert.match(approvalStagingDocSource, /No staging D1 database has been created or connected/);
   assert.match(approvalStagingDocSource, /Do not change the production `DB` binding/);
 });
+
+
+test("SOCIAL media upload identity migration is additive and preserves legacy URL fields", () => {
+  for (const migration of [
+    'ensureColumn("social_users", "avatar_upload_id", "TEXT")',
+    'ensureColumn("social_profile_photos", "upload_id", "TEXT")',
+    'ensureColumn("social_stories", "upload_id", "TEXT")'
+  ]) assert.ok(workerSource.includes(migration), "missing additive media migration: " + migration);
+
+  for (const index of [
+    "idx_social_users_avatar_upload",
+    "idx_social_profile_photos_upload",
+    "idx_social_stories_upload"
+  ]) assert.ok(workerSource.includes(index), "missing media upload lookup index: " + index);
+
+  assert.match(workerSource, /avatar_url TEXT NOT NULL DEFAULT ''/);
+  assert.match(workerSource, /photo_url TEXT NOT NULL/);
+  assert.match(workerSource, /media_url TEXT NOT NULL/);
+  assert.doesNotMatch(workerSource, /DROP COLUMN (?:avatar_url|photo_url|media_url)/i);
+  assert.doesNotMatch(workerSource, /DELETE FROM social_(?:users|profile_photos|stories)/i);
+});
