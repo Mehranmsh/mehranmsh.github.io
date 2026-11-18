@@ -5186,7 +5186,7 @@ async function consumeIntelligenceApproval(env, input) {
   if (!/^[0-9a-f-]{36}$/i.test(approvalId) || !taskId || taskId.length > 80 ||
       !ownerUid || ownerUid.length > 160 ||
       repository !== "Mehranmsh/mehranmsh.github.io" ||
-      !/^intelligence\\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+      !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
       !/^[0-9a-f]{40}$/i.test(baseSha) ||
       !/^[0-9a-f]{64}$/i.test(scopeSha256)) {
     return { consumed:false, reason:"invalid_binding" };
