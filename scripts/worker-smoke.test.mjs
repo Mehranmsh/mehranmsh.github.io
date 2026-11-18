@@ -13,6 +13,16 @@ const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
+const approvalHelperStart = workerSource.indexOf("async function ensureIntelligenceApprovalLedgerTable(env)");
+const approvalHelperEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", approvalHelperStart);
+if (approvalHelperStart < 0 || approvalHelperEnd <= approvalHelperStart) {
+  throw new Error("Intelligence approval helper source could not be isolated");
+}
+const approvalHelperSource = workerSource.slice(approvalHelperStart, approvalHelperEnd) +
+  "\\nexport { consumeIntelligenceApproval };";
+const approvalModule = await import(
+  "data:text/javascript;base64," + Buffer.from(approvalHelperSource).toString("base64")
+);
 const worker = workerModule.default;
 
 function mockDb() {
@@ -1951,14 +1961,14 @@ test("Intelligence approval consumption executes the real helper and is one-time
       return {meta:{changes:0}};
     }
   };}}};
-  const first=await workerModule.consumeIntelligenceApproval(env,input);
+  const first=await approvalModule.consumeIntelligenceApproval(env,input);
   assert.equal(first.consumed,true);
   assert.equal(ledgerStatus,"consumed");
-  const replay=await workerModule.consumeIntelligenceApproval(env,input);
+  const replay=await approvalModule.consumeIntelligenceApproval(env,input);
   assert.equal(replay.consumed,false);
   assert.equal(replay.reason,"approval_unavailable_or_task_not_eligible");
   assert.equal(transitionCalls,2);
-  const mismatch=await workerModule.consumeIntelligenceApproval(env,{...input,repository:"attacker/repo"});
+  const mismatch=await approvalModule.consumeIntelligenceApproval(env,{...input,repository:"attacker/repo"});
   assert.equal(mismatch.consumed,false);
   assert.equal(mismatch.reason,"invalid_binding");
 });
