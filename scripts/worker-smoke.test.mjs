@@ -199,6 +199,7 @@ test("MEHRAN Intelligence agent API is separately scoped and approval-gated", ()
   assert.match(workerSource, /env\.MEHRAN_AGENT_TOKEN/);
   assert.match(workerSource, /requires_approval=0/);
   assert.match(workerSource, /assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
   assert.match(workerSource, /status IN \('queued','accepted'\)/);
   assert.match(workerSource, /status='in_progress'/);
   assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
