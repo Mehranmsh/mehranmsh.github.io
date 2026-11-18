@@ -2450,6 +2450,20 @@ test("INTELLIGENCE validates every sibling tool call before executing any call",
   assert.equal(executions,0,"a malformed sibling must prevent all calls in the batch from executing");
 });
 
+test("INTELLIGENCE rejects reused tool-call IDs across separate model rounds", async () => {
+  let round=0,executions=0;
+  const reused={id:"same_call",function:{name:"read_status",arguments:"{}"}};
+  await assert.rejects(workerModule.runIntelligenceToolLoop({
+    messages:[],tools:[{name:"read_status"}],
+    runModel:async()=>({tool_calls:[reused]}),
+    executeTool:async()=>{executions++;return {ok:true};}
+  }).then(async result=>result),/Duplicate/).catch(async error=>{
+    if(error?.message==="Duplicate tool-call identifier.")throw error;
+    throw error;
+  });
+  assert.equal(executions,1,"the repeated call must be rejected before a second execution");
+});
+
 test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive model responses", async () => {
   let executions=0;
   const tools=[{name:"read_status"}];
