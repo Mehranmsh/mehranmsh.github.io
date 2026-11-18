@@ -13,12 +13,27 @@ function fail(errors) {
   return { ok: false, errors, fileCount: 0, totalBytes: 0 };
 }
 
+function hasUnpairedSurrogate(value) {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(i + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      i++;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Validate a proposed set of text-file changes before it can become a patch
  * artifact. This function does not write files, execute code, or call GitHub.
  *
- * Input entries: { path, content, status?, mode? }
- * Only new/modified Markdown files under docs/ are accepted in this pilot.
+ * Input entries: { path, content, status, mode }
+ * Both status and mode are mandatory. Only added/modified regular Markdown
+ * files under docs/ are accepted in this pilot.
  */
 export function validateIntelligencePatch(files) {
   if (!Array.isArray(files)) return fail(["Patch files must be an array."]);
@@ -41,7 +56,20 @@ export function validateIntelligencePatch(files) {
       continue;
     }
 
-    if (path.startsWith("/") || path.includes("\\") || path.split("/").some(part => part === "." || part === "..") || /[\u0000-\u001f]/.test(path)) {
+    const segments = path.split("/");
+    const hasUnsafeSegment = segments.some(part =>
+      part.length === 0 ||
+      part === "." ||
+      part === ".." ||
+      /[. ]$/.test(part) ||
+      /^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/i.test(part)
+    );
+    if (
+      path.startsWith("/") ||
+      path.includes("\\") ||
+      hasUnsafeSegment ||
+      /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u.test(path)
+    ) {
       errors.push(`Unsafe path rejected: ${path.slice(0, 120)}`);
       continue;
     }
@@ -55,16 +83,16 @@ export function validateIntelligencePatch(files) {
     }
     seen.add(path);
 
-    if (file.status !== undefined && !["added", "modified"].includes(file.status)) {
-      errors.push(`Unsupported change status for ${path}.`);
+    if (!["added", "modified"].includes(file.status)) {
+      errors.push(`Missing or unsupported change status for ${path}.`);
       continue;
     }
-    if (file.mode !== undefined && file.mode !== "100644") {
-      errors.push(`Unsupported file mode for ${path}.`);
+    if (file.mode !== "100644") {
+      errors.push(`Missing or unsupported regular-file mode for ${path}.`);
       continue;
     }
-    if (typeof file.content !== "string") {
-      errors.push(`Only UTF-8 text content is accepted for ${path}.`);
+    if (typeof file.content !== "string" || hasUnpairedSurrogate(file.content)) {
+      errors.push(`Only valid UTF-8 text content is accepted for ${path}.`);
       continue;
     }
 
