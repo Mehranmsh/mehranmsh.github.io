@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { verifyReadOnlyGitHubSnapshot } from "./intelligence-github-readonly-audit.mjs";
+import { runReadOnlyAudit, verifyReadOnlyGitHubSnapshot } from "./intelligence-github-readonly-audit.mjs";
 
 const repository = "owner/repo";
 const baseSha = "a".repeat(40), headSha = "b".repeat(40);
@@ -31,3 +31,36 @@ test("rejects oversized or missing comparison response",async()=>{const {input}=
 test("rejects duplicate tree paths",async()=>{const {input}=fixture();input.headTree.tree.push({...input.headTree.tree[0]});assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
 
 test("rejects comparison responses bound to different base or head commits",async()=>{for(const field of ["base_commit","commits"]){const {input}=fixture();if(field==="base_commit")input.comparison.base_commit.sha="8".repeat(40);else input.comparison.commits[0].sha="8".repeat(40);assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);}});
+
+test("HTTP adapter performs only authenticated GET requests and verifies real API-shaped responses",async()=>{
+ const baseSha="1".repeat(40),headSha="2".repeat(40),baseTreeSha="3".repeat(40),headTreeSha="4".repeat(40);
+ const filePath="docs/approved.md",bytes=Buffer.from("# live audit\\n");
+ const sha=createHash("sha1").update(Buffer.concat([Buffer.from(`blob ${bytes.length}\\0`),bytes])).digest("hex");
+ const requests=[];
+ const responses=new Map([
+  [`/repos/${repository}/commits/${baseSha}`,{sha:baseSha,parents:[{sha:"9".repeat(40)}],commit:{tree:{sha:baseTreeSha}}}],
+  [`/repos/${repository}/commits/${headSha}`,{sha:headSha,parents:[{sha:baseSha}],commit:{tree:{sha:headTreeSha}}}],
+  [`/repos/${repository}/git/trees/${baseTreeSha}`,{sha:baseTreeSha,truncated:false,tree:[]}],
+  [`/repos/${repository}/git/trees/${headTreeSha}`,{sha:headTreeSha,truncated:false,tree:[{path:filePath,mode:"100644",type:"blob",sha,size:bytes.length}]}],
+  [`/repos/${repository}/compare/${baseSha}...${headSha}`,{too_large:false,base_commit:{sha:baseSha},merge_base_commit:{sha:baseSha},commits:[{sha:headSha}],files:[{filename:filePath,status:"added"}]}],
+  [`/repos/${repository}/git/blobs/${sha}`,{encoding:"base64",content:bytes.toString("base64")}]
+ ]);
+ const fakeFetch=async(url,options)=>{
+  requests.push({url:String(url),method:options.method,authorization:options.headers.Authorization});
+  const pathname=new URL(url).pathname;
+  const key=pathname;
+  if(!responses.has(key))return {ok:false,status:404,json:async()=>({})};
+  return {ok:true,status:200,json:async()=>responses.get(key)};
+ };
+ const result=await runReadOnlyAudit({
+  GITHUB_REPOSITORY:repository,GITHUB_TOKEN:"test-token",
+  MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha
+ },fakeFetch,new Set([filePath]));
+ assert.equal(result.changedFiles.length,1);
+ assert.equal(requests.length,6);
+ assert.ok(requests.every(r=>r.method==="GET"));
+ assert.ok(requests.every(r=>r.authorization==="Bearer test-token"));
+});
+test("HTTP adapter refuses to start without a token or immutable SHAs",async()=>{
+ await assert.rejects(()=>runReadOnlyAudit({GITHUB_REPOSITORY:repository,MEHRAN_AUDIT_BASE_SHA:baseSha,GITHUB_SHA:headSha},async()=>{}),/Missing or malformed/);
+});
