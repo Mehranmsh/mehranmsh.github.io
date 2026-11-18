@@ -23,8 +23,9 @@ All routes require a valid administrator session and fail closed when the sessio
 - `GET /intelligence/memory`: returns up to 50 notes for the authenticated owner
 - `POST /intelligence/memory`: creates one note from `category` and `content`
 - `DELETE /intelligence/memory/:id`: deletes a note owned by the authenticated owner
+- `GET /intelligence/events`: returns the latest 50 Intelligence-related audit events for the authenticated owner; read-only
 
-Create and delete operations write metadata-only events to `admin_audit_log`. Note contents are deliberately excluded from audit details.
+Create and delete operations write metadata-only events to `admin_audit_log`. Note contents are deliberately excluded from audit details. The Intelligence Activity Log reads owner-scoped task, approval, and memory events from that same audit ledger.
 
 ## Use in AI conversations
 
