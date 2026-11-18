@@ -2016,6 +2016,19 @@ test("INTELLIGENCE organizational knowledge is owner-scoped, bounded, audited an
  assert.ok(indexSource.includes("await loadIntelligenceKnowledge()"));
 });
 
+test("MEHRAN INTELLIGENCE retains the full-ecosystem mandate and owner authority map", () => {
+ for (const key of [
+  "seed-intelligence-full-ecosystem",
+  "seed-long-running-task-ownership",
+  "seed-organizational-authority-map",
+  "seed-intelligence-initial-functions",
+  "seed-security-release-gates"
+ ]) assert.ok(workerSource.includes(key), "Missing core Intelligence knowledge seed: "+key);
+ assert.match(workerSource, /not only SOCIAL or Studio/);
+ assert.match(workerSource, /escalate only decisions that genuinely require owner authority/);
+ assert.match(workerSource, /MEHRAN ROBOTICS is responsible for physical hardware and robotics/);
+});
+
 test("INTELLIGENCE knowledge retrieval ranks relevant owner and system entries without granting permissions", () => {
  assert.ok(workerSource.includes("function intelligenceKnowledgeTokens"));
  assert.ok(workerSource.includes("function rankIntelligenceKnowledge"));
