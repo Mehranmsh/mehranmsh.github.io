@@ -2343,6 +2343,26 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]}'));
 });
 
+
+test("INTELLIGENCE knowledge relationship API is owner-only, evidence-bound and audited atomically", () => {
+  assert.match(workerSource,/path === "\/intelligence\/knowledge\/relations"/);
+  assert.match(workerSource,/verifyAdmin\(request, env\)/);
+  assert.match(workerSource,/WHERE owner_uid=\? ORDER BY r\.updated_at DESC LIMIT 100/);
+  assert.match(workerSource,/source\.content\.includes\(sourceEvidence\)/);
+  assert.match(workerSource,/target\.content\.includes\(targetEvidence\)/);
+  assert.match(workerSource,/status:"candidate"/);
+  assert.match(workerSource,/Apply the reviewed migration to an isolated staging database first/);
+  assert.match(workerSource,/UPDATE intelligence_knowledge_relations SET status='confirmed'/);
+  assert.match(workerSource,/UPDATE intelligence_knowledge_relations SET status='dismissed'/);
+  assert.match(workerSource,/status='resolved',resolved_knowledge_id=\?/);
+  assert.match(workerSource,/Resolution must select one of the two conflicting knowledge entries/);
+  assert.match(workerSource,/await env\.DB\.batch\(\[/);
+  assert.match(workerSource,/intelligence_knowledge_relation_proposed/);
+  assert.match(workerSource,/intelligence_knowledge_relation_confirmed/);
+  assert.match(workerSource,/intelligence_knowledge_relation_dismissed/);
+  assert.match(workerSource,/intelligence_knowledge_relation_resolved/);
+});
+
 test("INTELLIGENCE retrieval exposes only explicit safe knowledge fields", () => {
   const rows=[{
     id:"safe-1",owner_uid:"private-owner-uid",category:"decision",title:"Pi-only architecture",
