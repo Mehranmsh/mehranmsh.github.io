@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 1 schema foundation only. This change creates a D1 table and indexes. It does not issue approvals, consume approvals, create patches, write to GitHub, or enable a code-change executor. No caller can treat a row in this table as permission until owner-only issue/revoke routes and an atomic, task-bound consumption protocol are implemented and tested.
+Stage 1 foundation. The D1 table and indexes are present, along with owner-authenticated read and revoke routes. Approval issuance and consumption are deliberately not implemented. The ledger does not create patches, write to GitHub, or enable a code-change executor. A row in this table is not permission to execute anything.
 
 ## Record binding
 
@@ -38,4 +38,4 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 
 ## Current limitation
 
-Only the D1 schema and indexes are added in this stage. The ledger is not yet an operational authorization mechanism. Existing read-only tasks continue to use their separate pre-authorization policy. The code-change executor remains disabled.
+The D1 schema, owner-scoped read endpoint (`GET /intelligence/approvals`), and conditional revocation endpoint (`DELETE /intelligence/approvals/:id`) are present. There is intentionally no issue endpoint and no consume endpoint. Therefore no approval can currently be created through this API, and the ledger is not an operational authorization mechanism. Existing read-only tasks continue to use their separate pre-authorization policy. The code-change executor remains disabled.
