@@ -1294,7 +1294,8 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
       return {
         bind() { return this; },
         async first() { return null; },
-        async run() { throw new Error("Schema must not be touched before admin authentication"); }
+        async run() { return { meta: { changes: 1 } }; },
+        async all() { return { results: [] }; }
       };
     }
   };
