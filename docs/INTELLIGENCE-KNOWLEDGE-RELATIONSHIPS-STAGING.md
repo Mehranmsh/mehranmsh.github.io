@@ -35,8 +35,10 @@ Use a staging admin session and disposable knowledge records belonging to the st
 4. INTELLIGENCE proposals must quote an exact snippet from each active owner-owned source entry. A missing, archived, cross-owner, system-seed, or modified source must prevent insertion.
 5. New INTELLIGENCE proposals must be stored as `candidate`, with `proposed_by='intelligence'`. They must not change either knowledge entry.
 6. Owner confirm, dismiss, and conflict resolve actions must be owner-scoped and audited. Resolve must choose one of the two active linked records and must be rejected for `supports` and `supersedes`.
-7. Verify a second owner cannot read, confirm, dismiss, or resolve the first owner's relationships.
-8. Verify both original knowledge records remain present after confirmation, dismissal, and resolution.
+7. Update either source knowledge entry after a relationship is confirmed/resolved. The API and chat context must mark that relationship stale. Reaffirming a stale confirmed relation must require owner action; a stale resolved conflict can only be reopened by the owner, and the previous resolution must remain in the audit log.
+8. A candidate whose exact evidence no longer matches both current knowledge entries must not be confirmable.
+9. Verify a second owner cannot read, confirm, dismiss, or resolve the first owner's relationships.
+10. Verify both original knowledge records remain present after confirmation, dismissal, and resolution.
 
 ## Exit criteria
 
