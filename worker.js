@@ -6588,7 +6588,7 @@ export default {
         const baseSha = typeof body.baseSha === "string" ? body.baseSha.toLowerCase() : "";
         const expiresInMinutes = body.expiresInMinutes === undefined ? 15 : body.expiresInMinutes;
         if (!taskId || taskId.length > 80 ||
-            !/^intelligence\\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
+            !/^intelligence\/patch-[A-Za-z0-9_-]{8,64}$/.test(branch) ||
             !/^[0-9a-f]{40}$/.test(baseSha) ||
             !Number.isInteger(expiresInMinutes) || expiresInMinutes < 5 || expiresInMinutes > 60 ||
             !Array.isArray(body.paths) || body.paths.length < 1 || body.paths.length > 5) {
@@ -6598,15 +6598,15 @@ export default {
         const seen = new Set();
         for (const rawPath of body.paths) {
           if (typeof rawPath !== "string" || rawPath.length > 200 ||
-              !/^docs\\/[A-Za-z0-9._/-]+\\.md$/.test(rawPath) ||
-              rawPath.includes("\\\\") || /[\\u0000-\\u001f\\u007f]/.test(rawPath)) {
+              !/^docs\/[A-Za-z0-9._/-]+\.md$/.test(rawPath) ||
+              rawPath.includes("\\") || /[\u0000-\u001f\u007f]/.test(rawPath)) {
             return error("Approval scope is limited to safe Markdown files under docs/.");
           }
           const segments = rawPath.split("/");
           if (segments[0] !== "docs" || segments.some(segment =>
               !segment || segment === "." || segment === ".." ||
               /[. ]$/.test(segment) ||
-              /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\.|$)/i.test(segment))) {
+              /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(segment))) {
             return error("Approval scope contains an unsafe path.");
           }
           const normalized = rawPath.normalize("NFC");
