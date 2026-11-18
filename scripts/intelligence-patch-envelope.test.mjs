@@ -101,3 +101,16 @@ test("rejects unrecognized fields inside individual file entries", () => {
   envelope.artifactSha256 = calculatePatchArtifactSha256(envelope);
   assert.equal(validatePatchEnvelope(envelope, trustedApproval, new Date("2026-11-18T10:10:00Z")).ok, false);
 });
+
+test("rejects approvals marked revoked or already consumed", () => {
+  const { envelope, trustedApproval } = fixture();
+  const now = new Date("2026-11-18T10:10:00.000Z");
+  assert.equal(validatePatchEnvelope(envelope, { ...trustedApproval, revokedAt: "2026-11-18T10:05:00.000Z" }, now).ok, false);
+  assert.equal(validatePatchEnvelope(envelope, { ...trustedApproval, consumedAt: "2026-11-18T10:05:00.000Z" }, now).ok, false);
+});
+test("rejects malformed or empty trusted allowlists", () => {
+  const { envelope, trustedApproval } = fixture();
+  const now = new Date("2026-11-18T10:10:00.000Z");
+  assert.equal(validatePatchEnvelope(envelope, { ...trustedApproval, allowedPaths: [] }, now).ok, false);
+  assert.equal(validatePatchEnvelope(envelope, { ...trustedApproval, allowedPaths: [null] }, now).ok, false);
+});
