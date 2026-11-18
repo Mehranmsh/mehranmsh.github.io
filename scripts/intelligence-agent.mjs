@@ -90,7 +90,7 @@ async function main() {
 
   await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
     method: "POST",
-    body: JSON.stringify({ status: outcome.status, result: bounded(outcome.result, 2900) })
+    body: JSON.stringify({ status: outcome.status, result: bounded(outcome.result, 2900), claimId: task.claimId })
   });
   console.log(`Task ${task.id} finished with status: ${outcome.status}`);
 }
