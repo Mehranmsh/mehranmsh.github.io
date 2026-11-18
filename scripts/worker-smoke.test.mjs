@@ -225,9 +225,8 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.ok(route.includes("VALUES(?,?,?,?,?,'awaiting_approval',1,?)"));
   assert.ok(route.includes("Every proposal is held for explicit owner approval"));
   assert.match(route,/const approvalGate=Boolean\(existing\.action_type\)\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status===\"awaiting_approval\"/);
-  assert.match(route,/approvalTransition=args\.status===\"accepted\"&&existing\.status===\"awaiting_approval\"/);
-  assert.match(route,/cancelTransition=args\.status===\"cancelled\"&&\[\"awaiting_approval\",\"queued\",\"accepted\",\"in_progress\"\]\.includes\(existing\.status\)/);
-  assert.match(route,/scheduler_claim_id=CASE WHEN \?=\x27cancelled\x27 THEN NULL ELSE scheduler_claim_id END/);
+  assert.match(route,/existing\.action_type\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status===\"awaiting_approval\"/);
+  assert.match(route,/Automated task approval, cancellation and execution results are controlled by the owner Task Hub/);
   assert.match(route,/intelligence-task-write/);
   assert.match(route,/WHERE id=\? AND status=\?/);
   assert.ok(!route.includes('requiresApproval:{type:"boolean"}'));
