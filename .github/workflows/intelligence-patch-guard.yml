@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - intelligence/mcp-task-approval-guardrails
+      - security/intelligence-integrated-claim-fencing-2026-11-18
     types: [opened, synchronize, reopened]
 
 permissions:
