@@ -7153,12 +7153,12 @@ export default {
         return json({success:true,relationships:(rows.results||[]).map(row=>({id:row.id,left:{id:row.left_knowledge_id,title:row.left_title,updatedAt:row.left_updated_at},right:{id:row.right_knowledge_id,title:row.right_title,updatedAt:row.right_updated_at},relationType:row.relation_type,status:row.status,proposedBy:row.proposed_by,evidence:parseIntelligenceRelationshipEvidence(row.evidence_json),resolutionKnowledgeId:row.resolution_knowledge_id,createdAt:row.created_at,updatedAt:row.updated_at,confirmedAt:row.confirmed_at,dismissedAt:row.dismissed_at,resolvedAt:row.resolved_at}))});
        }
        const body=await readBody(request);
-       if(!body||Object.keys(body).some(k=>!["leftId","rightId","relationType","evidence"].includes(k))||typeof body.leftId!=="string"||typeof body.rightId!=="string"||body.leftId===body.rightId||!["conflicts_with","supersedes","supports"].includes(body.relationType))return error("Provide two different owner knowledge IDs and a valid relationship type.");
+       if(!body||Object.keys(body).some(k=>!["leftId","rightId","relationType","evidence"].includes(k))||typeof body.leftId!=="string"||body.leftId.length>80||typeof body.rightId!=="string"||body.rightId.length>80||body.leftId===body.rightId||!["conflicts_with","supersedes","supports"].includes(body.relationType))return error("Provide two different owner knowledge IDs and a valid relationship type.");
        const [leftId,rightId]=[body.leftId,body.rightId].sort();
        const evidence=typeof body.evidence==="string"?cleanText(body.evidence,500):"";
-       if(body.evidence!==undefined&&typeof body.evidence!=="string")return error("Evidence must be plain text.");
+       if(body.evidence!==undefined&&(typeof body.evidence!=="string"||body.evidence.length>500))return error("Evidence must be plain text of at most 500 characters.");
        const id=crypto.randomUUID();
-       const result=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json,confirmed_at) SELECT ?,?,?,?,?, 'confirmed','owner',?,CURRENT_TIMESTAMP WHERE (SELECT COUNT(*) FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL)=2").bind(id,admin.uid,leftId,rightId,body.relationType,JSON.stringify(evidence?[{text:evidence,source:"owner"}]:[]),leftId,rightId,admin.uid).run();
+       const result=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json,confirmed_at) SELECT ?,?,?,?,?, 'confirmed','owner',?,CURRENT_TIMESTAMP WHERE (SELECT COUNT(*) FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL)=2 AND (SELECT COUNT(*) FROM intelligence_knowledge_relationships WHERE owner_uid=? AND status IN ('candidate','confirmed'))<200").bind(id,admin.uid,leftId,rightId,body.relationType,JSON.stringify(evidence?[{text:evidence,source:"owner"}]:[]),leftId,rightId,admin.uid,admin.uid).run();
        if(!Number(result?.meta?.changes||0))return error("Both knowledge entries must exist, be active and belong to this owner.",404);
        await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_created","intelligence_knowledge_relationship",id,JSON.stringify({relationType:body.relationType,leftId,rightId}));
        return json({success:true,id,status:"confirmed"},201);
@@ -7178,6 +7178,10 @@ export default {
        const current=await env.DB.prepare("SELECT left_knowledge_id,right_knowledge_id,status FROM intelligence_knowledge_relationships WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
        if(!current||!["candidate","confirmed"].includes(current.status))return error("Relationship not found or no longer actionable.",404);
        if(body.action==="resolve"&&![current.left_knowledge_id,current.right_knowledge_id].includes(body.resolutionKnowledgeId))return error("Resolution must select one of the two linked knowledge entries.");
+       if(body.action==="resolve"){
+        const chosen=await env.DB.prepare("SELECT 1 AS active FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(body.resolutionKnowledgeId,admin.uid).first();
+        if(!chosen)return error("The selected resolution entry must still be active and owned by you.");
+       }
        const status=body.action==="confirm"?"confirmed":body.action==="dismiss"?"dismissed":"resolved";
        const resolution=body.action==="resolve"?body.resolutionKnowledgeId:null;
        const result=await env.DB.prepare("UPDATE intelligence_knowledge_relationships SET status=?,updated_at=CURRENT_TIMESTAMP,confirmed_at=CASE WHEN ?='confirmed' THEN CURRENT_TIMESTAMP ELSE confirmed_at END,dismissed_at=CASE WHEN ?='dismissed' THEN CURRENT_TIMESTAMP ELSE dismissed_at END,resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE resolved_at END,resolution_knowledge_id=? WHERE id=? AND owner_uid=? AND status IN ('candidate','confirmed')").bind(status,status,status,status,resolution,id,admin.uid).run();
