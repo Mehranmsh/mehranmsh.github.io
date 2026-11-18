@@ -1579,3 +1579,17 @@ test("MEHRAN Intelligence scheduled runner records database health checks", asyn
   assert.equal(report.database, "healthy");
   assert.equal(report.projectRecords, 4);
 });
+
+test("automated Intelligence task transitions are owner-approval-only and execution results cannot be forged", () => {
+  const routeStart = workerSource.indexOf('if(intelligenceTaskMatch&&method==="PATCH")');
+  const routeEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart, "Intelligence task PATCH route must exist");
+  const route = workerSource.slice(routeStart, routeEnd);
+  assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
+  assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted"\]\.includes\(existing\.status\)/);
+  assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
+  assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
+  assert.match(route, /requires_approval=CASE WHEN \?=\x27accepted\x27 THEN 0 ELSE requires_approval END/);
+  assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
+});
+
