@@ -224,7 +224,12 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(route, /No external action was executed/);
   assert.ok(route.includes("VALUES(?,?,?,?,?,'awaiting_approval',1,?)"));
   assert.ok(route.includes("Every proposal is held for explicit owner approval"));
-  assert.ok(route.includes("if(existing.action_type||Number(existing.requires_approval)===1||existing.status===\"awaiting_approval\") return rpcError"));
+  assert.match(route,/if\(existing\.action_type\)\{/);
+  assert.match(route,/approvalTransition=args\.status===\"accepted\"&&existing\.status===\"awaiting_approval\"/);
+  assert.match(route,/cancelTransition=args\.status===\"cancelled\"&&\[\"awaiting_approval\",\"queued\",\"accepted\",\"in_progress\"\]\.includes\(existing\.status\)/);
+  assert.match(route,/scheduler_claim_id=CASE WHEN \?=\x27cancelled\x27 THEN NULL ELSE scheduler_claim_id END/);
+  assert.match(route,/intelligence-task-write/);
+  assert.match(route,/WHERE id=\? AND status=\?/);
   assert.ok(!route.includes('requiresApproval:{type:"boolean"}'));
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
@@ -260,6 +265,11 @@ test("MEHRAN Intelligence agent API is separately scoped and approval-gated", ()
   assert.match(workerSource, /status IN \('queued','accepted'\)/);
   assert.match(workerSource, /status='in_progress'/);
   assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
+  assert.match(workerSource, /agent_claim_id TEXT/);
+  assert.match(workerSource, /agent_claim_id=\?/);
+  assert.match(workerSource, /AND agent_claim_id=\?/);
+  assert.match(workerSource, /body\.claimId/);
+  assert.match(workerSource, /claimId:row\.agent_claim_id/);
   assert.match(workerSource, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(workerSource, /agent_claimed_at=NULL/);
   assert.match(workerSource, /\["completed","blocked"\]/);
@@ -1374,6 +1384,10 @@ test("Intelligence scheduler history is private, bounded and stores execution co
   assert.ok(route.includes("safeLimit(url.searchParams.get(\"limit\"), 20, 50)"));
   assert.ok(route.includes("ORDER BY started_at DESC LIMIT ?"));
   assert.match(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/);
+  assert.match(workerSource, /scheduler_claim_id TEXT/);
+  assert.match(workerSource, /scheduler_claim_id=\?/);
+  assert.match(workerSource, /AND scheduler_claim_id=\?/);
+  assert.match(workerSource, /scheduler_claimed_at IS NOT NULL AND datetime\(scheduler_claimed_at\) < datetime\('now','-30 minutes'\)/);
   assert.match(workerSource, /processed_count=\?,completed_count=\?,blocked_count=\?/);
   assert.match(workerSource, /status='failed'/);
 });
@@ -1644,27 +1658,22 @@ test("MEHRAN Intelligence scheduled runner records database health checks", asyn
   assert.equal(report.projectRecords, 4);
 });
 
-test("automated Intelligence task transitions are owner-approval-only and execution results cannot be forged", () => {
+test("automated Intelligence task transitions are owner-approval-only, cancellable and claim-fenced", () => {
   const routeStart = workerSource.indexOf('if(intelligenceTaskMatch&&method==="PATCH")');
   const routeEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', routeStart);
   assert.ok(routeStart >= 0 && routeEnd > routeStart, "Intelligence task PATCH route must exist");
   const route = workerSource.slice(routeStart, routeEnd);
   assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
-  assert.match(route, /cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"/);
-  assert.match(route, /SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=\?/);
-  assert.match(route, /cancelTransition=body.status==="cancelled"/);
-  assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
-  assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?approval or cancellation transition\.[\s\S]*?409/);
-  assert.ok(route.includes("WHERE id=? AND status='awaiting_approval' AND requires_approval=1"));
-  assert.ok(route.includes("WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')"));
-  assert.ok(route.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
-  assert.ok(workerSource.includes("WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"));
-  assert.ok(route.includes("transition?.meta?.changes||0"));
-  assert.match(workerSource, /existing\.action_type\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status==="awaiting_approval"/);
+  assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted","in_progress"\]\.includes\(existing\.status\)/);
+  assert.match(route, /agent_claim_id=CASE WHEN \?='cancelled' THEN NULL ELSE agent_claim_id END/);
+  assert.match(route, /scheduler_claim_id=CASE WHEN \?='cancelled' THEN NULL ELSE scheduler_claim_id END/);
+  assert.match(route, /WHERE id=\? AND status=\?/);
+  assert.match(route, /Task state changed before this update/);
+  assert.match(route, /Automated task results can only be recorded by the execution service/);
+  assert.match(workerSource, /AND agent_claim_id=\?/);
+  assert.match(workerSource, /AND scheduler_claim_id=\?/);
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
 });
-
-
 
 test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
   const start = workerSource.indexOf('const preapprovedReadOnlyActions=');
