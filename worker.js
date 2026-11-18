@@ -5270,13 +5270,17 @@ async function verifyAdmin(request, env) {
   const tokenHash = await sha256(token);
   const now = Math.floor(Date.now() / 1000);
   const session = await env.DB.prepare(`
-    SELECT uid,username,expires_at FROM admin_sessions
+    SELECT uid,username,created_at,expires_at FROM admin_sessions
     WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?
     LIMIT 1
   `).bind(tokenHash, now).first();
   const expectedOwnerUid = String(env.MEHRAN_OWNER_PI_UID || "").trim();
-  if (!session || String(session.username).trim().toLowerCase() !== "mehranmsh" ||
-      (expectedOwnerUid && String(session.uid) !== expectedOwnerUid)) return null;
+  // Fail closed: the username is not a durable owner credential.
+  if (!expectedOwnerUid || !session ||
+      String(session.username).trim().toLowerCase() !== "mehranmsh" ||
+      String(session.uid) !== expectedOwnerUid ||
+      !Number.isFinite(Number(session.created_at)) ||
+      Number(session.created_at) < now - 12 * 60 * 60) return null;
   return { uid: session.uid, username: session.username, expiresAt: session.expires_at };
 }
 
@@ -5744,7 +5748,10 @@ export default {
             return error("Verified admin Pi account required", 403);
           }
           const expectedOwnerUid = String(env.MEHRAN_OWNER_PI_UID || "").trim();
-          if (expectedOwnerUid && String(piUser.uid) !== expectedOwnerUid) {
+          if (!expectedOwnerUid) {
+            return error("Admin sign-in is temporarily unavailable: owner UID is not configured.", 503);
+          }
+          if (String(piUser.uid) !== expectedOwnerUid) {
             return error("This Pi account is not the configured MEHRAN owner.", 403);
           }
           // Rate-limit verified admin identities rather than shared Pi Browser/IP traffic.
@@ -5754,13 +5761,13 @@ export default {
           const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
           const tokenHash = await sha256(token);
           const now = Math.floor(Date.now() / 1000);
-          const expiresAt = 4102444800;
+          const expiresAt = now + 12 * 60 * 60;
           await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL").bind(now).run();
           await env.DB.prepare(`
             INSERT INTO admin_sessions(id,token_hash,uid,username,created_at,expires_at)
             VALUES(?,?,?,?,?,?)
           `).bind(crypto.randomUUID(),tokenHash,piUser.uid,piUser.username,now,expiresAt).run();
-          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt,persistent:true});
+          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt});
         }
         if (path === "/admin/session" && method === "GET") {
           const admin = await verifyAdmin(request, env);
