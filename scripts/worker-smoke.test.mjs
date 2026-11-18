@@ -381,7 +381,7 @@ test("all SOCIAL remote media render paths use the central URL validator", () =>
   assert.ok(exploreStart >= 0 && exploreEnd > exploreStart, "Explore renderer must exist");
   assert.match(indexSource.slice(exploreStart, exploreEnd), /safeMediaSrc\(m\.data/);
   assert.match(indexSource, /safeMediaSrc\(story\.mediaUrl\)/);
-  assert.match(indexSource, /safeMediaSrc\\(item\\.url\\|\\|""\\)/);
+  assert.match(indexSource, /safeMediaSrc\(item\.url\|\|""\)/);
   assert.match(indexSource, /safeMediaSrc\(u\.avatarUrl\)/);
   assert.match(indexSource, /safeMediaSrc\(other\?\.avatarUrl\)/);
   assert.match(indexSource, /p\.gallery\.filter\(photo=>safeMediaSrc\(photo\.url\)\)/);
