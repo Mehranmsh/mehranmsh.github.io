@@ -5141,6 +5141,23 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+async function ensureIntelligenceSchedulerRunsTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
+      id TEXT PRIMARY KEY,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      status TEXT NOT NULL DEFAULT 'running',
+      processed_count INTEGER NOT NULL DEFAULT 0,
+      completed_count INTEGER NOT NULL DEFAULT 0,
+      blocked_count INTEGER NOT NULL DEFAULT 0,
+      error_text TEXT NOT NULL DEFAULT ''
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_scheduler_runs_started ON intelligence_scheduler_runs(started_at DESC)").run();
+}
+
+
 function formatIntelligenceTask(row) {
   return {
     id: row.id, title: row.title, description: row.description || "",
@@ -5418,42 +5435,77 @@ export default {
   async scheduled(controller, env, ctx) {
     const run = async () => {
       if (!env.DB) return;
-      await ensureIntelligenceTaskTable(env);
-      for (let n = 0; n < 5; n++) {
-        const candidate = await env.DB.prepare(
-          "SELECT id,action_type FROM intelligence_tasks WHERE status='accepted' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
-        ).first();
-        if (!candidate) break;
-        const claimed = await env.DB.prepare(
-          "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
-        ).bind(candidate.id).run();
-        if (!Number(claimed?.meta?.changes || 0)) continue;
-        try {
-          let report;
-          if (candidate.action_type === "project_status_report") {
-            const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
-            report = { type: candidate.action_type, generatedAt: new Date().toISOString(), projects: (rows.results || []).map(x => ({ name:x.name, status:x.status, description:String(x.description || "").slice(0,300), updatedAt:x.updated_at || null })) };
-          } else if (candidate.action_type === "social_metrics_report") {
-            const rows = await Promise.all([
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
-              env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
-            ]);
-            report = { type:candidate.action_type, generatedAt:new Date().toISOString(), registeredUsers:Number(rows[0]?.total || 0), activeUsers:Number(rows[1]?.total || 0), posts:Number(rows[2]?.total || 0), openReports:Number(rows[3]?.total || 0) };
-          } else if (candidate.action_type === "service_health_report") {
-            await env.DB.prepare("SELECT 1 AS healthy").first();
-            const projects = await env.DB.prepare("SELECT COUNT(*) AS total FROM projects").first();
-            report = { type:candidate.action_type, generatedAt:new Date().toISOString(), database:"healthy", projectRecords:Number(projects?.total || 0) };
-          } else {
-            throw new Error("Unsupported action type.");
+      const runId = crypto.randomUUID();
+      const startedAt = new Date().toISOString();
+      let processed = 0;
+      let completed = 0;
+      let blocked = 0;
+      let runRecordCreated = false;
+      try {
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceSchedulerRunsTable(env);
+        await env.DB.prepare(
+          "INSERT INTO intelligence_scheduler_runs(id,started_at,status) VALUES(?,?,'running')"
+        ).bind(runId,startedAt).run();
+        runRecordCreated = true;
+
+        for (let n = 0; n < 5; n++) {
+          const candidate = await env.DB.prepare(
+            "SELECT id,action_type FROM intelligence_tasks WHERE status='accepted' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+          ).first();
+          if (!candidate) break;
+          const claimed = await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
+          ).bind(candidate.id).run();
+          if (!Number(claimed?.meta?.changes || 0)) continue;
+          processed++;
+          try {
+            let report;
+            if (candidate.action_type === "project_status_report") {
+              const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
+              report = { type: candidate.action_type, generatedAt: new Date().toISOString(), projects: (rows.results || []).map(x => ({ name:x.name, status:x.status, description:String(x.description || "").slice(0,300), updatedAt:x.updated_at || null })) };
+            } else if (candidate.action_type === "social_metrics_report") {
+              const rows = await Promise.all([
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_users").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
+                env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
+              ]);
+              report = { type:candidate.action_type, generatedAt:new Date().toISOString(), registeredUsers:Number(rows[0]?.total || 0), activeUsers:Number(rows[1]?.total || 0), posts:Number(rows[2]?.total || 0), openReports:Number(rows[3]?.total || 0) };
+            } else if (candidate.action_type === "service_health_report") {
+              await env.DB.prepare("SELECT 1 AS healthy").first();
+              const projects = await env.DB.prepare("SELECT COUNT(*) AS total FROM projects").first();
+              report = { type:candidate.action_type, generatedAt:new Date().toISOString(), database:"healthy", projectRecords:Number(projects?.total || 0) };
+            } else {
+              throw new Error("Unsupported action type.");
+            }
+            const resultText = JSON.stringify(report).slice(0,3000);
+            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+            completed++;
+          } catch (err) {
+            const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
+            await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+            blocked++;
           }
-          const resultText = JSON.stringify(report).slice(0,3000);
-          await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-        } catch (err) {
-          const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-          await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
         }
+
+        if (runRecordCreated) {
+          await env.DB.prepare(
+            "UPDATE intelligence_scheduler_runs SET finished_at=?,status='completed',processed_count=?,completed_count=?,blocked_count=?,error_text='' WHERE id=?"
+          ).bind(new Date().toISOString(),processed,completed,blocked,runId).run();
+        }
+      } catch (err) {
+        const errorText = String(err?.message || err || "Unknown scheduler error").slice(0,1000);
+        if (runRecordCreated) {
+          try {
+            await env.DB.prepare(
+              "UPDATE intelligence_scheduler_runs SET finished_at=?,status='failed',processed_count=?,completed_count=?,blocked_count=?,error_text=? WHERE id=?"
+            ).bind(new Date().toISOString(),processed,completed,blocked,errorText,runId).run();
+          } catch (logError) {
+            console.error("INTELLIGENCE_SCHEDULER_LOG_FAILURE",String(logError?.message || logError).slice(0,300));
+          }
+        }
+        console.error("INTELLIGENCE_SCHEDULER_RUN_FAILURE",errorText);
       }
     };
     ctx.waitUntil(run());
@@ -6380,6 +6432,25 @@ export default {
           return rpcError(-32602,"Unknown tool.");
         }
         return rpcError(-32601,"Method not found.");
+      }
+
+      if (path === "/intelligence/scheduler/runs" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceSchedulerRunsTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-scheduler-runs-read", 60, 3600, 300, admin.uid)) {
+          return error("Too many scheduler history requests. Try again later.", 429);
+        }
+        const limit = safeLimit(url.searchParams.get("limit"), 20, 50);
+        const rows = await env.DB.prepare(
+          "SELECT id,started_at,finished_at,status,processed_count,completed_count,blocked_count,error_text FROM intelligence_scheduler_runs ORDER BY started_at DESC LIMIT ?"
+        ).bind(limit).all();
+        return json({success:true,runs:(rows.results || []).map(row => ({
+          id:row.id, startedAt:row.started_at, finishedAt:row.finished_at,
+          status:row.status, processed:Number(row.processed_count || 0),
+          completed:Number(row.completed_count || 0), blocked:Number(row.blocked_count || 0),
+          error:row.error_text || ""
+        }))});
       }
 
       if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
