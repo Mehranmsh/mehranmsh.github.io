@@ -49,6 +49,15 @@ function fixture() {
   return { input, baseCommit, candidateCommit, baseTree, candidateTree, envelope, trustedApproval };
 }
 
+
+test("accepts the exact owner-approved isolated branch even when its suffix is not the full task ID", () => {
+  const { input } = fixture();
+  input.expectedBranch = "intelligence/patch-task12345678";
+  input.candidateBranch = input.expectedBranch;
+  input.trustedApproval.branch = input.expectedBranch;
+  assert.equal(verifyIntelligenceGitTree(input).ok, true);
+});
+
 test("accepts an exact added Markdown blob on a single-parent candidate commit", () => {
   const { input } = fixture();
   const result = verifyIntelligenceGitTree(input);
