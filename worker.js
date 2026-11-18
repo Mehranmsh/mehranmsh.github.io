@@ -5132,12 +5132,14 @@ async function ensureIntelligenceTaskTable(env) {
       created_by TEXT NOT NULL,
       action_type TEXT NOT NULL DEFAULT '',
       action_payload TEXT NOT NULL DEFAULT '{}',
+      agent_claimed_at TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_type TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claimed_at TEXT").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
@@ -5563,12 +5565,16 @@ export default {
         if (mismatch !== 0) return error("Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         if (path === "/agent/v1/tasks/next" && method === "GET") {
+          // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
+          await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
+          ).run();
           const candidate = await env.DB.prepare(
             "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
@@ -5585,7 +5591,7 @@ export default {
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
           ).bind(body.status || "completed",resultText,id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
