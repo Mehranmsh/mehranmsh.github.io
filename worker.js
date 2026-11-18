@@ -5209,6 +5209,16 @@ function intelligenceKnowledgeTokens(value) {
  return [...new Set(normalized.match(/[\p{L}\p{N}]{2,}/gu)||[])].filter(token=>!ignored.has(token)).slice(0,30);
 }
 
+export function getIntelligenceToolCalls(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    throw new Error("AI returned an invalid response envelope.");
+  }
+  if (Object.prototype.hasOwnProperty.call(result, "tool_calls") && !Array.isArray(result.tool_calls)) {
+    throw new Error("AI returned an invalid tool-call envelope.");
+  }
+  return result.tool_calls || [];
+}
+
 export function parseIntelligenceToolCall(call, allowedNames, seenIds = new Set()) {
   const id=call?.id, name=call?.function?.name;
   if(typeof id!=="string"||id.length<1||id.length>128||!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("Invalid tool-call identifier.");
@@ -7138,10 +7148,11 @@ export default {
         };
         try {
           let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
+          let pendingToolCalls=getIntelligenceToolCalls(result);
           const seenToolCallIds=new Set();
-          for(let round=0;round<2&&Array.isArray(result?.tool_calls)&&result.tool_calls.length;round++){
-            if(result.tool_calls.length>4)throw new Error("AI returned more than four tool calls in one round.");
-            const calls=result.tool_calls;
+          for(let round=0;round<2&&pendingToolCalls.length;round++){
+            if(pendingToolCalls.length>4)throw new Error("AI returned more than four tool calls in one round.");
+            const calls=pendingToolCalls;
             // Validate the complete bounded batch before executing any member of it.
             // A malformed sibling must not allow earlier calls in the same batch to mutate state.
             const parsedCalls=calls.map(call=>parseIntelligenceToolCall(call,tools.map(tool=>tool.name),seenToolCallIds));
@@ -7152,8 +7163,9 @@ export default {
               messages.push({role:"tool",tool_call_id:call.id,name:call.name,content:JSON.stringify(toolResult)});
             }
             result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
+            pendingToolCalls=getIntelligenceToolCalls(result);
           }
-          if(Array.isArray(result?.tool_calls)&&result.tool_calls.length)throw new Error("AI tool-call round limit reached.");
+          if(pendingToolCalls.length)throw new Error("AI tool-call round limit reached.");
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
           return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:Math.min(2,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
