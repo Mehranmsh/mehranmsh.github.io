@@ -6779,9 +6779,6 @@ export default {
             if (!query || query.length<2) throw new Error("Provide a knowledge search query of at least 2 characters.");
             return {results:rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false),source:"owner-curated organizational knowledge",readOnly:true};
           }
-          if (name === "propose_knowledge_relationship") {
-            return await proposeIntelligenceKnowledgeRelation(env,admin,args,visibleKnowledgeIds);
-          }
           if (name === "list_collaboration_tasks") {
             const allowed=["status","assignedTo"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown filter.");
@@ -7348,6 +7345,9 @@ export default {
             const results=rankIntelligenceKnowledge(rows.results||[],query,12,false);
             for(const item of results)visibleKnowledgeIds.add(item.id);
             return {query,results};
+          }
+          if (name === "propose_knowledge_relationship") {
+            return await proposeIntelligenceKnowledgeRelation(env,admin,args,visibleKnowledgeIds);
           }
           if (name === "list_collaboration_tasks") {
             if (Object.keys(args).some(k=>!["status","assignedTo"].includes(k))) throw new Error("Unknown task filter.");
