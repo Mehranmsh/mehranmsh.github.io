@@ -20,13 +20,14 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 
 ## Required protocol before activation
 
-1. Owner-only issue route: verify the admin session, target task, repository identity, branch naming policy, pinned base SHA, path allowlist, scope size, and expiry. Reject any model-supplied approval state.
+1. Owner-only issue route (not implemented): verify the admin session, target task, repository identity, branch naming policy, pinned base SHA, path allowlist, scope size, and expiry. Reject any model-supplied approval state.
 2. Canonicalize scope deterministically, hash it with SHA-256, and store the exact canonical JSON and digest.
-3. Owner-only revoke route: conditional update from issued to revoked, only before consumption.
-4. Future executor: obtain approval context from the trusted Worker database, never from model output or a task description.
-5. Immediately before any write, atomically consume with a single conditional SQL UPDATE requiring matching approval ID, task ID, owner, repository, branch, base SHA, scope digest, status='issued', no revocation, and expires_at > current time. Require exactly one changed row. A zero-row result is a hard stop.
-6. Re-fetch and re-verify the repository base, branch, exact changed paths, patch bytes, and diff immediately before the write. Never reuse a consumed approval.
-7. Audit issue, revoke, failed consumption, and successful consumption without logging secrets or patch contents.
+3. Owner-only read route (implemented): list only records whose owner UID matches the authenticated admin, with a bounded result set.
+4. Owner-only revoke route (implemented): conditional update from issued to revoked, bound to the authenticated owner UID and a non-expired record. A zero-row result is a hard stop.
+5. Future executor: obtain approval context from the trusted Worker database, never from model output or a task description.
+6. Immediately before any write, atomically consume with a single conditional SQL UPDATE requiring matching approval ID, task ID, owner, repository, branch, base SHA, scope digest, status='issued', no revocation, and expires_at > current time. Require exactly one changed row. A zero-row result is a hard stop.
+7. Re-fetch and re-verify the repository base, branch, exact changed paths, patch bytes, and diff immediately before the write. Never reuse a consumed approval.
+8. Audit issue, revoke, failed consumption, and successful consumption without logging secrets or patch contents.
 
 ## Non-negotiable boundaries
 
