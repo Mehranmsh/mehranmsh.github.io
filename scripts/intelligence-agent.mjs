@@ -36,7 +36,7 @@ async function monitorTaskStatus(taskId, executionController, monitorSignal, sta
       const signal = AbortSignal.any([monitorSignal, AbortSignal.timeout(7000)]);
       const response = await request("/agent/v1/tasks/" + encodeURIComponent(taskId) + "/status", { signal });
       consecutiveFailures = 0;
-      if (response.task?.status !== "in_progress" || response.task?.agentClaimed !== true) {
+      if (response.task?.status !== "in_progress" || response.task?.agentClaimed !== true || response.task?.claimId !== state.claimId) {
         state.reason = "Task cancelled by owner or execution claim was revoked.";
         executionController.abort(new Error(state.reason));
         return;
@@ -100,10 +100,11 @@ async function main() {
     return;
   }
 
+  if (typeof task.claimId !== "string" || !/^[0-9a-f-]{36}$/i.test(task.claimId)) throw new Error("Task claim identity is missing or invalid.");
   console.log("Claimed task " + bounded(task.id, 80) + ": " + bounded(task.title, 160));
   const executionController = new AbortController();
   const monitorController = new AbortController();
-  const monitorState = { reason: "" };
+  const monitorState = { reason: "", claimId: task.claimId };
   const monitor = monitorTaskStatus(task.id, executionController, monitorController.signal, monitorState);
   let outcome;
   try {
@@ -130,14 +131,14 @@ async function main() {
   }
 
   const finalStatus = await request("/agent/v1/tasks/" + encodeURIComponent(task.id) + "/status");
-  if (finalStatus.task?.status !== "in_progress" || finalStatus.task?.agentClaimed !== true) {
+  if (finalStatus.task?.status !== "in_progress" || finalStatus.task?.agentClaimed !== true || finalStatus.task?.claimId !== task.claimId) {
     console.log("Task ownership changed before result submission; no completion result was submitted.");
     return;
   }
 
   await request("/agent/v1/tasks/" + encodeURIComponent(task.id) + "/result", {
     method: "POST",
-    body: JSON.stringify({ status: outcome.status, result: bounded(outcome.result, 2900) })
+    body: JSON.stringify({ status: outcome.status, result: bounded(outcome.result, 2900), claimId: task.claimId })
   });
   console.log("Task " + task.id + " finished with status: " + outcome.status);
 }
