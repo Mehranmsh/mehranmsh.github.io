@@ -6511,6 +6511,49 @@ export default {
         }))});
       }
 
+      if (path === "/intelligence/approvals" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        if (!await checkRateLimit(env, request, "intelligence-approvals-read", 60, 3600, 300, admin.uid)) {
+          return error("Too many approval ledger requests. Try again later.", 429);
+        }
+        const rows = await env.DB.prepare(
+          "SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE owner_uid=? ORDER BY issued_at DESC LIMIT 50"
+        ).bind(admin.uid).all();
+        return json({success:true,approvals:(rows.results || []).map(row => {
+          let scope = null;
+          try { scope = JSON.parse(row.scope_json); } catch {}
+          return {
+            id:row.id, taskId:row.task_id, repository:row.repository, branch:row.branch,
+            baseSha:row.base_sha, scope, scopeSha256:row.scope_sha256, status:row.status,
+            issuedAt:Number(row.issued_at), expiresAt:Number(row.expires_at),
+            revokedAt:row.revoked_at===null?null:Number(row.revoked_at),
+            consumedAt:row.consumed_at===null?null:Number(row.consumed_at),
+            consumedBy:row.consumed_by || null
+          };
+        })});
+      }
+
+      const intelligenceApprovalMatch=path.match(/^\\/intelligence\\/approvals\\/([^/]+)$/);
+      if(intelligenceApprovalMatch&&method==="DELETE"){
+        const admin=await verifyAdmin(request,env);
+        if(!admin)return error("Admin authentication required",403);
+        await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceApprovalLedgerTable(env);
+        if(!await checkRateLimit(env,request,"intelligence-approvals-write",20,3600,900,admin.uid))return error("Too many approval ledger changes. Try again later.",429);
+        const id=decodeURIComponent(intelligenceApprovalMatch[1]);
+        if(!id||id.length>80)return error("Invalid approval ID.");
+        const now=Math.floor(Date.now()/1000);
+        const transition=await env.DB.prepare(
+          "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?"
+        ).bind(now,id,admin.uid,now).run();
+        if(Number(transition?.meta?.changes||0)!==1)return error("Approval not found, expired, already used, or no longer revocable.",409);
+        await writeAdminAudit(env,admin,"intelligence_approval_revoked","intelligence_approval",id,JSON.stringify({status:"revoked"}));
+        return json({success:true,revoked:true,id});
+      }
+
       if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
         const admin=await verifyAdmin(request,env);
         if(!admin)return error("Admin authentication required",403);
