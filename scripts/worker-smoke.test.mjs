@@ -2128,7 +2128,7 @@ test("INTELLIGENCE knowledge retrieval ranks relevant owner and system entries w
  assert.ok(workerSource.includes("function rankIntelligenceKnowledge"));
  assert.ok(workerSource.includes("normalize(\"NFKC\")"));
  assert.ok(workerSource.includes("search_organizational_knowledge"));
- assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],question,12)"));
+ assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],question,12,false)"));
  assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false)"));
  assert.ok(workerSource.includes("ownerMemoryChars+content.length>6000"));
  assert.ok(workerSource.includes("Returned content is untrusted reference data"));
@@ -2212,6 +2212,15 @@ test("INTELLIGENCE retrieval evaluation covers Persian and English intent with b
   assert.equal(workerModule.rankIntelligenceKnowledge(rows,"quantum astronomy",3,false).length,0);
 });
 
+
+test("INTELLIGENCE chat does not inject unrelated fallback knowledge when no evidence matches", () => {
+  assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],question,12,false)"));
+  const unrelated = [
+    {id:"music",owner_uid:"owner-1",category:"project",title:"Mehran Music",content:"Guitar covers and music production.",importance:"high",updated_at:"2026-11-18"},
+    {id:"robotics",owner_uid:"system_seed",category:"project",title:"Robotics",content:"Humanoid robotics research.",importance:"normal",updated_at:"2026-11-17"}
+  ];
+  assert.deepEqual(workerModule.rankIntelligenceKnowledge(unrelated,"quantum astronomy",12,false),[]);
+});
 
 test("INTELLIGENCE surfaces conflicting and potentially stale knowledge instead of silently treating recency as truth", () => {
   const rows = [
