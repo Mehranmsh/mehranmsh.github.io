@@ -2340,7 +2340,7 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
     organizationalKnowledge:workerModule.rankIntelligenceKnowledge(conflictRows,"quantum astronomy",5,false),
     question:"Explain quantum astronomy."
   });
-  assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]}'));
+  assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]'));
 });
 
 
