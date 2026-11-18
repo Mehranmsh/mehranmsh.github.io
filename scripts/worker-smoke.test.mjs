@@ -1370,3 +1370,107 @@ test("MEHRAN Intelligence scheduled runner does not claim tasks that still requi
   await scheduledPromise;
   assert.equal(state.claimed, false);
 });
+
+
+test("MEHRAN Intelligence scheduled runner stores SOCIAL metrics without exposing user data", async () => {
+  const state = { status: "accepted", result: "", candidateReads: 0 };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async run() {
+          if (sql.includes("SET status='in_progress'")) {
+            if (state.status !== "accepted") return { meta: { changes: 0 } };
+            state.status = "in_progress";
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("SET status='completed',result_text=")) {
+            state.status = "completed";
+            state.result = values[0];
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("SET status='blocked',result_text=")) {
+            state.status = "blocked";
+            state.result = values[0];
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        },
+        async first() {
+          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
+            state.candidateReads++;
+            return state.candidateReads === 1
+              ? { id: "task-social-metrics", action_type: "social_metrics_report" }
+              : null;
+          }
+          if (sql.includes("COUNT(*) AS total FROM social_users WHERE is_active=1")) return { total: 7 };
+          if (sql.includes("COUNT(*) AS total FROM social_users")) return { total: 9 };
+          if (sql.includes("COUNT(*) AS total FROM social_posts")) return { total: 23 };
+          if (sql.includes("COUNT(*) AS total FROM social_reports WHERE status='open'")) return { total: 2 };
+          throw new Error("Unexpected SOCIAL metrics SQL: " + sql);
+        }
+      };
+    }
+  };
+  let scheduledPromise;
+  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
+  await scheduledPromise;
+  assert.equal(state.status, "completed");
+  const report = JSON.parse(state.result);
+  assert.equal(report.type, "social_metrics_report");
+  assert.equal(report.registeredUsers, 9);
+  assert.equal(report.activeUsers, 7);
+  assert.equal(report.posts, 23);
+  assert.equal(report.openReports, 2);
+  assert.equal(Object.hasOwn(report, "users"), false, "report must not include user-level records");
+});
+
+test("MEHRAN Intelligence scheduled runner records database health checks", async () => {
+  const state = { status: "accepted", result: "", candidateReads: 0 };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async run() {
+          if (sql.includes("SET status='in_progress'")) {
+            if (state.status !== "accepted") return { meta: { changes: 0 } };
+            state.status = "in_progress";
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("SET status='completed',result_text=")) {
+            state.status = "completed";
+            state.result = values[0];
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("SET status='blocked',result_text=")) {
+            state.status = "blocked";
+            state.result = values[0];
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        },
+        async first() {
+          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
+            state.candidateReads++;
+            return state.candidateReads === 1
+              ? { id: "task-service-health", action_type: "service_health_report" }
+              : null;
+          }
+          if (sql.includes("SELECT 1 AS healthy")) return { healthy: 1 };
+          if (sql.includes("SELECT COUNT(*) AS total FROM projects")) return { total: 4 };
+          throw new Error("Unexpected service health SQL: " + sql);
+        }
+      };
+    }
+  };
+  let scheduledPromise;
+  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
+  await scheduledPromise;
+  assert.equal(state.status, "completed");
+  const report = JSON.parse(state.result);
+  assert.equal(report.type, "service_health_report");
+  assert.equal(report.database, "healthy");
+  assert.equal(report.projectRecords, 4);
+});
