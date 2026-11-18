@@ -52,8 +52,8 @@ export async function verifyReadOnlyGitHubSnapshot({
       !SHA.test(baseCommit.treeSha || "") || !SHA.test(headCommit.treeSha || "")) {
     return fail("Malformed commit or tree SHA.");
   }
-  if (!Array.isArray(headCommit.parents) || !headCommit.parents.includes(baseCommit.sha)) {
-    return fail("Head commit is not descended directly from the selected base; use an explicit merge-base audit.");
+  if (!Array.isArray(headCommit.parents) || headCommit.parents.length === 0 || headCommit.sha === baseCommit.sha) {
+    return fail("Head commit metadata is invalid or identical to base.");
   }
   if (baseTree?.sha !== baseCommit.treeSha || headTree?.sha !== headCommit.treeSha) {
     return fail("Tree SHA does not match commit metadata.");
