@@ -2139,7 +2139,9 @@ test("INTELLIGENCE knowledge retrieval ranks relevant titles, normalizes Persian
   const rows = [
     {id:"instruments",owner_uid:"system_seed",category:"project",title:"Mehran Instruments",content:"International sourcing, import/export, musical instruments and studio equipment.",importance:"high",updated_at:"2026-11-18"},
     {id:"music",owner_uid:"owner-1",category:"project",title:"Mehran Music",content:"Guitar covers, recording and music production.",importance:"normal",updated_at:"2026-11-17"},
-    {id:"security",owner_uid:"owner-1",category:"security",title:"امنیت سامانه",content:"قواعد مالک و کنترل دسترسی برای هوشمندی.",importance:"high",updated_at:"2026-11-16"}
+    {id:"security",owner_uid:"owner-1",category:"security",title:"امنیت سامانه",content:"قواعد مالک و کنترل دسترسی برای هوشمندی.",importance:"high",updated_at:"2026-11-16"},
+    {id:"shipping",owner_uid:"owner-1",category:"logistics",title:"Shipping operations",content:"International shipping and logistics.",importance:"normal",updated_at:"2026-11-15"},
+    {id:"pi-network",owner_uid:"system_seed",category:"decision",title:"Pi Network scope",content:"MEHRAN MSH operates exclusively on Pi Network.",importance:"high",updated_at:"2026-11-14"}
   ];
   const english = workerModule.rankIntelligenceKnowledge(rows,"MEHRAN instruments import export",5,false);
   assert.equal(english[0].id,"instruments");
@@ -2147,4 +2149,6 @@ test("INTELLIGENCE knowledge retrieval ranks relevant titles, normalizes Persian
   const persian = workerModule.rankIntelligenceKnowledge(rows,"قواعد مالك و كنترل دسترسي",5,false);
   assert.equal(persian[0].id,"security");
   assert.equal(workerModule.rankIntelligenceKnowledge(rows,"unrelated astronomy topic",5,false).length,0);
+  const piOnly = workerModule.rankIntelligenceKnowledge(rows,"Pi",5,false);
+  assert.deepEqual(piOnly.map(item=>item.id),["pi-network"],"short query tokens must match whole tokens, not substrings inside unrelated words");
 });
