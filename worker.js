@@ -6844,19 +6844,32 @@ export default {
           const category=String(body.category||"company");
           const content=typeof body.content==="string"?cleanText(body.content,1000):"";
           if(!categories.includes(category)||!content||content.length<3) return error("Choose a valid category and enter 3–1000 characters.");
-          const count=await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_owner_memory WHERE owner_uid=?").bind(admin.uid).first();
-          if(Number(count?.total||0)>=100) return error("The owner memory limit of 100 notes has been reached.");
+          await ensureSocialAuthLimitsTable(env);
+          if (!await checkRateLimit(env, request, "intelligence-memory-write", 30, 3600, 900, admin.uid)) {
+            return error("Too many Intelligence memory changes. Try again later.", 429);
+          }
           const id=crypto.randomUUID();
-          await env.DB.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content) VALUES(?,?,?,?)").bind(id,admin.uid,category,content).run();
-          await writeAdminAudit(env,admin,"intelligence_memory_created","intelligence_memory",id,JSON.stringify({category,characters:content.length}));
+          const auditId=crypto.randomUUID();
+          const results=await env.DB.batch([
+            env.DB.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content) SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM intelligence_owner_memory WHERE owner_uid=?)<100").bind(id,admin.uid,category,content,admin.uid),
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_memory_created","intelligence_memory",id,JSON.stringify({category,characters:content.length}),id,admin.uid)
+          ]);
+          if(!Number(results?.[0]?.meta?.changes||0)) return error("The owner memory limit of 100 notes has been reached.", 409);
           return json({success:true,id});
         }
         const memoryDeleteMatch=path.match(/^\/intelligence\/memory\/([^/]+)$/);
         if(memoryDeleteMatch&&method==="DELETE"){
           const id=decodeURIComponent(memoryDeleteMatch[1]);
-          const result=await env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?").bind(id,admin.uid).run();
-          if(!Number(result?.meta?.changes||0))return error("Memory note not found.",404);
-          await writeAdminAudit(env,admin,"intelligence_memory_deleted","intelligence_memory",id,"Owner deleted a memory note.");
+          await ensureSocialAuthLimitsTable(env);
+          if (!await checkRateLimit(env, request, "intelligence-memory-write", 30, 3600, 900, admin.uid)) {
+            return error("Too many Intelligence memory changes. Try again later.", 429);
+          }
+          const auditId=crypto.randomUUID();
+          const results=await env.DB.batch([
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_memory_deleted","intelligence_memory",id,"Owner deleted a memory note.",id,admin.uid),
+            env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?").bind(id,admin.uid)
+          ]);
+          if(!Number(results?.[1]?.meta?.changes||0))return error("Memory note not found.",404);
           return json({success:true,deleted:true,id});
         }
         return error("Not found",404);
