@@ -2248,6 +2248,18 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]}'));
 });
 
+test("INTELLIGENCE retrieval enforces result-count and content-size bounds", () => {
+  const rows = Array.from({length:35},(_,i)=>({
+    id:"bounded-"+i,owner_uid:"owner-1",category:"note",
+    title:"Security policy "+i,content:"security ".repeat(200),
+    importance:"normal",updated_at:"2026-11-19"
+  }));
+  const results=workerModule.rankIntelligenceKnowledge(rows,"security policy",100);
+  assert.equal(results.length,30,"retrieval must never exceed the hard 30-entry cap");
+  assert.ok(results.every(item=>item.content.length===1200),"each returned content item must be truncated to 1200 characters");
+  assert.equal(workerModule.rankIntelligenceKnowledge(rows,"security policy",0).length,1,"zero/invalid limits must clamp safely to one result");
+});
+
 test("INTELLIGENCE knowledge retrieval fails closed by default", () => {
   const unrelated = [
     {id:"music",owner_uid:"owner-1",category:"project",title:"Mehran Music",content:"Guitar covers and music production.",importance:"high",updated_at:"2026-11-18"},
