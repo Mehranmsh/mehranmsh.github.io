@@ -7,7 +7,7 @@ const repository = "owner/repo";
 const baseSha = "a".repeat(40), headSha = "b".repeat(40);
 const baseTreeSha = "c".repeat(40), headTreeSha = "d".repeat(40);
 const path = "docs/approved.md", content = Buffer.from("# approved\n");
-const blobSha = createHash("sha1").update(Buffer.concat([Buffer.from(`blob ${content.length}\\0`),content])).digest("hex");
+const blobSha = createHash("sha1").update(Buffer.concat([Buffer.from(`blob ${content.length}\0`),content])).digest("hex");
 function fixture() {
   const baseCommit={repository,sha:baseSha,treeSha:baseTreeSha,parents:["9".repeat(40)]};
   const headCommit={repository,sha:headSha,treeSha:headTreeSha,parents:[baseSha]};
@@ -18,7 +18,7 @@ function fixture() {
   return {input};
 }
 test("accepts a complete read-only tree and compare snapshot with byte-verified blob",async()=>{
- const {input}=fixture();const r=await verifyReadOnlyGitHubSnapshot(input);assert.equal(r.ok,true);assert.equal(r.changedFiles.length,1);
+ const {input}=fixture();const r=await verifyReadOnlyGitHubSnapshot(input);assert.equal(r.ok,true,r.reason);assert.equal(r.changedFiles.length,1);
 });
 test("rejects a truncated tree",async()=>{const {input}=fixture();input.headTree.truncated=true;assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
 test("rejects mismatched compare file list",async()=>{const {input}=fixture();input.comparison.files=[];assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
