@@ -2326,7 +2326,81 @@ $("intelKnowledgeCancelBtn")?.addEventListener("click",resetIntelKnowledgeForm);
 $("refreshIntelKnowledgeBtn")?.addEventListener("click",loadIntelligenceKnowledge);
 $("intelKnowledgeList")?.addEventListener("click",event=>{const a=event.target.closest("[data-archive-intel-knowledge]"),e=event.target.closest("[data-edit-intel-knowledge]");if(a)archiveIntelligenceKnowledge(a.dataset.archiveIntelKnowledge,a);if(e)editIntelligenceKnowledge(e.dataset.editIntelKnowledge)});
 
-const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted",intelligence_knowledge_created:"Knowledge entry saved",intelligence_knowledge_updated:"Knowledge entry updated",intelligence_knowledge_archived:"Knowledge entry archived"};
+const intelligenceRelationLabels={conflicts_with:"Potential conflict",supersedes:"May replace",supports:"Supports"};
+const intelligenceRelationStatusLabels={candidate:"Needs owner review",confirmed:"Owner confirmed",dismissed:"Dismissed",resolved:"Owner resolved"};
+async function loadIntelligenceRelations(){
+ const status=$("intelRelationsStatus"),list=$("intelRelationsList");if(!status||!list)return;
+ status.textContent="Loading owner-scoped knowledge relationships...";status.className="notice";
+ const filter=$("intelRelationStatusFilter")?.value||"";
+ try{
+  const data=await api("/intelligence/knowledge/relations"+(filter?"?status="+encodeURIComponent(filter):""));
+  renderIntelligenceRelations(data.relations||[]);
+  const count=(data.relations||[]).length;
+  status.textContent=count+" relationship"+(count===1?"":"s")+" loaded. Only your records are shown.";
+  status.className="notice success";
+ }catch(error){
+  status.textContent="Could not load knowledge relationships: "+error.message;
+  status.className="notice warn";
+  list.replaceChildren();
+  const empty=document.createElement("div");empty.className="empty";empty.textContent="Relationship storage may not yet be installed in this environment, or your administrator session has expired.";list.append(empty);
+ }
+}
+function renderIntelligenceRelations(items){
+ const list=$("intelRelationsList");if(!list)return;
+ list.replaceChildren();
+ if(!Array.isArray(items)||!items.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No relationships match this filter. AI suggestions will appear here when available.";list.append(empty);return}
+ items.forEach(item=>{
+  const card=document.createElement("article");card.className="card";
+  const head=document.createElement("div");head.className="section-title";
+  const title=document.createElement("strong");title.textContent=intelligenceRelationLabels[item.relation_type]||item.relation_type||"Knowledge relationship";
+  const status=document.createElement("span");status.className="small-text";status.textContent=intelligenceRelationStatusLabels[item.status]||item.status||"Unknown";
+  head.append(title,status);card.append(head);
+  const source=document.createElement("h3");source.textContent=item.source_title||"Source knowledge";
+  const sourceEvidence=document.createElement("p");sourceEvidence.textContent="Evidence: "+(item.source_evidence||"");sourceEvidence.style.whiteSpace="pre-wrap";
+  const target=document.createElement("h3");target.textContent=item.target_title||"Target knowledge";
+  const targetEvidence=document.createElement("p");targetEvidence.textContent="Evidence: "+(item.target_evidence||"");targetEvidence.style.whiteSpace="pre-wrap";
+  card.append(source,sourceEvidence,target,targetEvidence);
+  const meta=document.createElement("div");meta.className="small-text";meta.textContent="Updated: "+(item.updated_at||"Not available");card.append(meta);
+  const actions=document.createElement("div");actions.className="hero-actions";
+  if(item.status==="candidate"){
+   const confirmButton=document.createElement("button");confirmButton.type="button";confirmButton.className="btn small";confirmButton.textContent="Confirm relationship";confirmButton.dataset.intelRelationAction="confirm";confirmButton.dataset.relationId=item.id;
+   const dismissButton=document.createElement("button");dismissButton.type="button";dismissButton.className="btn secondary small";dismissButton.textContent="Dismiss suggestion";dismissButton.dataset.intelRelationAction="dismiss";dismissButton.dataset.relationId=item.id;
+   actions.append(confirmButton,dismissButton);
+  }else if(item.status==="confirmed"&&item.relation_type==="conflicts_with"){
+   const chooseSource=document.createElement("button");chooseSource.type="button";chooseSource.className="btn secondary small";chooseSource.textContent="Resolve: keep source";chooseSource.dataset.intelRelationAction="resolve";chooseSource.dataset.relationId=item.id;chooseSource.dataset.resolvedKnowledgeId=item.source_knowledge_id;
+   const chooseTarget=document.createElement("button");chooseTarget.type="button";chooseTarget.className="btn secondary small";chooseTarget.textContent="Resolve: keep target";chooseTarget.dataset.intelRelationAction="resolve";chooseTarget.dataset.relationId=item.id;chooseTarget.dataset.resolvedKnowledgeId=item.target_knowledge_id;
+   actions.append(chooseSource,chooseTarget);
+  }
+  if(actions.childElementCount)card.append(actions);
+  if(item.status==="resolved"&&item.resolved_knowledge_id){const resolution=document.createElement("div");resolution.className="notice success";resolution.textContent="Owner-selected record: "+(item.resolved_knowledge_id===item.source_knowledge_id?(item.source_title||"Source"):(item.target_title||"Target"));card.append(resolution)}
+  list.append(card);
+ });
+}
+async function updateIntelligenceRelation(button){
+ const id=button.dataset.relationId,action=button.dataset.intelRelationAction;
+ if(!id||!["confirm","dismiss","resolve"].includes(action))return;
+ const resolvedKnowledgeId=button.dataset.resolvedKnowledgeId||"";
+ const prompts={confirm:"Confirm this relationship based on the evidence shown?",dismiss:"Dismiss this AI suggestion?",resolve:"Record this as your selected knowledge entry for the conflict? Neither source record will be deleted."};
+ if(!confirm(prompts[action]))return;
+ const card=button.closest(".card");const buttons=card?.querySelectorAll("button")||[];buttons.forEach(b=>b.disabled=true);
+ const status=$("intelRelationsStatus");
+ try{
+  const body={action};if(action==="resolve")body.resolvedKnowledgeId=resolvedKnowledgeId;
+  await api("/intelligence/knowledge/relations/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify(body)});
+  status.textContent=action==="confirm"?"Relationship confirmed by owner.":action==="dismiss"?"Suggestion dismissed.":"Conflict resolution recorded. Both source records remain unchanged.";
+  status.className="notice success";
+  await loadIntelligenceRelations();
+  await loadIntelligenceEvents();
+ }catch(error){
+  status.textContent="Could not update relationship: "+error.message;status.className="notice warn";
+  buttons.forEach(b=>b.disabled=false);
+ }
+}
+$("refreshIntelRelationsBtn")?.addEventListener("click",loadIntelligenceRelations);
+$("intelRelationStatusFilter")?.addEventListener("change",loadIntelligenceRelations);
+$("intelRelationsList")?.addEventListener("click",event=>{const button=event.target.closest("[data-intel-relation-action]");if(button)updateIntelligenceRelation(button)});
+
+const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted",intelligence_knowledge_created:"Knowledge entry saved",intelligence_knowledge_updated:"Knowledge entry updated",intelligence_knowledge_archived:"Knowledge entry archived",intelligence_knowledge_relation_ai_proposed:"AI relationship suggestion created",intelligence_knowledge_relation_proposed:"Relationship suggestion created",intelligence_knowledge_relation_confirmed:"Knowledge relationship confirmed",intelligence_knowledge_relation_dismissed:"Knowledge relationship dismissed",intelligence_knowledge_relation_resolved:"Knowledge conflict resolved"};
 async function loadIntelligenceEvents(){
 const status=$("intelEventsStatus"),list=$("intelEventsList");if(!status||!list)return;
 status.textContent="Loading private Intelligence activity...";status.className="notice";
@@ -2369,6 +2443,7 @@ await loadIntelligenceSchedulerRuns();
 await loadIntelligenceApprovals();
 await loadIntelligenceMemory();
 await loadIntelligenceKnowledge();
+await loadIntelligenceRelations();
 await loadIntelligenceEvents();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
