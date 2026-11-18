@@ -1926,7 +1926,7 @@ test("Intelligence approval consumption executes the real helper and is one-time
   assert.ok(helper.includes("const now = Math.floor(Date.now() / 1000)"));
   assert.equal(helper.includes("value.now"), false);
   assert.ok(helper.includes('patch-[A-Za-z0-9_-]{8,64}'));
-  assert.equal(/fetch\\(|fetch\\s*\\(/.test(helper), false);
+  assert.equal(helper.includes("fetch(") || helper.includes("fetch ("), false);
   assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
 
   const input = {
