@@ -1697,7 +1697,7 @@ test("MEHRAN INTELLIGENCE approval ledger schema is durable but not an active ex
   assert.match(schema, /idx_intelligence_approval_owner/);
   assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "GET"/);
   assert.match(workerSource, /method==="DELETE"/);
-  assert.doesNotMatch(workerSource, /path === "\/intelligence\/approvals" && method === "POST"/);
+  assert.match(workerSource, /path === "\/intelligence\/approvals" && method === "POST"/);
 });
 
 
@@ -1767,6 +1767,34 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
   assert.equal(state.revokeBinds[2], "owner-uid");
   assert.equal(state.audit, true);
   assert.deepEqual(await revoked.json(), { success: true, revoked: true, id: "approval-1" });
+});
+
+
+
+test("Intelligence approval issuance is owner-only, task-bound, short-lived, and documentation-only", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/approvals" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/intelligence/approvals" && method === "GET")', start);
+  assert.ok(start >= 0 && end > start, "owner-only approval issuance route must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /intelligence-approvals-issue/);
+  assert.match(route, /Object\.keys\(body\)\.some/);
+  assert.match(route, /Mehranmsh\/mehranmsh\.github\.io/);
+  assert.match(route, /status !== "accepted"/);
+  assert.match(route, /Number\(task\.requires_approval\) !== 0/);
+  assert.match(route, /task\.action_type !== "documentation_patch_proposal"/);
+  assert.match(route, /\["mehran_intelligence","shared"\]\.includes\(task\.assigned_to\)/);
+  assert.match(route, /expiresInMinutes < 5 \|\| expiresInMinutes > 60/);
+  assert.match(route, /body\.paths\.length < 1 \|\| body\.paths\.length > 5/);
+  assert.match(route, /\^docs\\\/\[A-Za-z0-9\.\_\/-\]\+\\\.md\$/);
+  assert.match(route, /segments\.some/);
+  assert.match(route, /status='issued' AND expires_at>\?/);
+  assert.match(route, /sha256Hex\(scopeJson\)/);
+  assert.match(route, /INSERT INTO intelligence_approval_ledger/);
+  assert.match(route, /intelligence_approval_issued/);
+  assert.doesNotMatch(route, /env\.GITHUB|fetch\(|exec\(/);
+  assert.match(workerSource, /"documentation_patch_proposal"\]/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
 });
 
 test("Intelligence approval ledger routes reject unauthenticated access", async () => {
