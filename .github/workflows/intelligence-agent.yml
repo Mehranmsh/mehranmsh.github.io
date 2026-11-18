@@ -1,0 +1,34 @@
+name: MEHRAN INTELLIGENCE Agent Runner
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mehran-intelligence-agent
+  cancel-in-progress: false
+
+jobs:
+  execute-approved-task:
+    name: Poll and execute one approved task
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Execute one allowlisted Intelligence task
+        env:
+          MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
+        run: node scripts/intelligence-agent.mjs
