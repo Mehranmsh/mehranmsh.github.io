@@ -5191,7 +5191,7 @@ async function createIntelligenceKnowledgeRelationshipsSchema(db) {
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   confirmed_at TEXT,dismissed_at TEXT,resolved_at TEXT,
   CHECK(left_knowledge_id<right_knowledge_id),
-  CHECK((relation_type='conflicts_with' AND direction_from_knowledge_id IS NULL AND direction_to_knowledge_id IS NULL) OR (relation_type IN('supersedes','supports') AND direction_from_knowledge_id IN(left_knowledge_id,right_knowledge_id) AND direction_to_knowledge_id IN(left_knowledge_id,right_knowledge_id) AND direction_from_knowledge_id<>direction_to_knowledge_id)),
+  CHECK((relation_type='conflicts_with' AND direction_from_knowledge_id IS NULL AND direction_to_knowledge_id IS NULL) OR (relation_type IN('supersedes','supports') AND direction_from_knowledge_id IS NOT NULL AND direction_to_knowledge_id IS NOT NULL AND direction_from_knowledge_id IN(left_knowledge_id,right_knowledge_id) AND direction_to_knowledge_id IN(left_knowledge_id,right_knowledge_id) AND direction_from_knowledge_id<>direction_to_knowledge_id)),
   CHECK((status='resolved' AND relation_type='conflicts_with' AND resolution_knowledge_id IS NOT NULL AND resolution_knowledge_id IN(left_knowledge_id,right_knowledge_id)) OR (status<>'resolved' AND resolution_knowledge_id IS NULL)),
   FOREIGN KEY(left_knowledge_id) REFERENCES intelligence_knowledge(id),
   FOREIGN KEY(right_knowledge_id) REFERENCES intelligence_knowledge(id),
