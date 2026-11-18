@@ -1634,7 +1634,7 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
   assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted"\]\.includes\(existing\.status\)/);
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
-  assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
+  assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?approval or cancellation transition\.[\s\S]*?409/);
   assert.ok(route.includes("WHERE id=? AND status='awaiting_approval' AND requires_approval=1"));
   assert.ok(route.includes("WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')"));
   assert.ok(route.includes("transition?.meta?.changes||0"));
