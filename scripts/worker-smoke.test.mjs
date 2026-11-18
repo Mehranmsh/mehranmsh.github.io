@@ -2751,3 +2751,15 @@ test("INTELLIGENCE confirms a candidate only when both exact evidence snippets r
   assert.equal((await response.json()).status,"confirmed");
   assert.ok(db.calls.some(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")));
 });
+
+test("Private Intelligence dashboard exposes owner relationship review without rendering source text as HTML", () => {
+  assert.ok(indexSource.includes('id="intelRelationshipForm"'));
+  assert.ok(indexSource.includes('id="intelRelationshipsList"'));
+  assert.ok(indexSource.includes('api("/intelligence/knowledge/relationships")'));
+  assert.ok(indexSource.includes('function renderIntelligenceRelationships(items)'));
+  assert.ok(indexSource.includes('title.textContent=(item.left?.title||"Knowledge A")'));
+  assert.ok(indexSource.includes('quote.textContent="Evidence: "+(evidence.text||"")'));
+  assert.ok(indexSource.includes('Reaffirm after review'));
+  assert.ok(indexSource.includes('Reopen stale conflict'));
+  assert.ok(indexSource.includes('data-intel-relationship-action'));
+});
