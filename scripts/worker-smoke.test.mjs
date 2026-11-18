@@ -405,9 +405,9 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   assert.match(chat, /list_collaboration_tasks/);
   assert.match(chat, /propose_collaboration_task/);
   assert.match(chat, /name === "propose_knowledge_relationship"/);
-  assert.match(chat, /parseIntelligenceRelationshipProposalArgs\\(args\\)/);
-  assert.match(chat, /normalizeEvidence\\(leftSource\\.title\\s*\\+\\s*" " \\+\\s*leftSource\\.content\\)/);
-  assert.match(chat, /normalizeEvidence\\(rightSource\\.title\\s*\\+\\s*" " \\+\\s*rightSource\\.content\\)/);
+  assert.ok(chat.includes("parseIntelligenceRelationshipProposalArgs(args)"));
+  assert.ok(chat.includes('normalizeEvidence(leftSource.title+" "+leftSource.content)'));
+  assert.ok(chat.includes('normalizeEvidence(rightSource.title+" "+rightSource.content)'));
   assert.match(chat, /status,proposed_by,evidence_json/);
   assert.match(chat, /'candidate','intelligence'/);
   assert.match(chat, /status,requires_approval,created_by/);
