@@ -224,7 +224,7 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(route, /No external action was executed/);
   assert.ok(route.includes("VALUES(?,?,?,?,?,'awaiting_approval',1,?)"));
   assert.ok(route.includes("Every proposal is held for explicit owner approval"));
-  assert.match(route,/if\(existing\.action_type\)\{/);
+  assert.match(route,/const approvalGate=Boolean\(existing\.action_type\)\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status===\"awaiting_approval\"/);
   assert.match(route,/approvalTransition=args\.status===\"accepted\"&&existing\.status===\"awaiting_approval\"/);
   assert.match(route,/cancelTransition=args\.status===\"cancelled\"&&\[\"awaiting_approval\",\"queued\",\"accepted\",\"in_progress\"\]\.includes\(existing\.status\)/);
   assert.match(route,/scheduler_claim_id=CASE WHEN \?=\x27cancelled\x27 THEN NULL ELSE scheduler_claim_id END/);
@@ -1670,6 +1670,7 @@ test("automated Intelligence task transitions are owner-approval-only, cancellab
   assert.match(route, /WHERE id=\? AND status=\?/);
   assert.match(route, /Task state changed before this update/);
   assert.match(route, /Automated task results can only be recorded by the execution service/);
+  assert.match(route, /const approvalGate=Boolean\(existing\.action_type\)\|\|Number\(existing\.requires_approval\)===1\|\|existing\.status===\"awaiting_approval\"/);
   assert.match(workerSource, /AND agent_claim_id=\?/);
   assert.match(workerSource, /AND scheduler_claim_id=\?/);
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
