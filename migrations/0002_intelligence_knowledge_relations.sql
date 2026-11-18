@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS intelligence_knowledge_relations (
   FOREIGN KEY (target_knowledge_id) REFERENCES intelligence_knowledge(id) ON DELETE RESTRICT,
   FOREIGN KEY (resolved_knowledge_id) REFERENCES intelligence_knowledge(id) ON DELETE RESTRICT,
   CHECK (source_knowledge_id <> target_knowledge_id),
+  CHECK (status <> 'resolved' OR relation_type = 'conflicts_with'),
   CHECK (relation_type <> 'conflicts_with' OR source_knowledge_id < target_knowledge_id),
   CHECK (
     (status = 'resolved' AND resolved_knowledge_id IN (source_knowledge_id, target_knowledge_id))
@@ -46,6 +47,8 @@ BEGIN
     WHERE s.id = NEW.source_knowledge_id
       AND s.owner_uid = NEW.owner_uid
       AND t.owner_uid = NEW.owner_uid
+      AND s.archived_at IS NULL
+      AND t.archived_at IS NULL
       AND NEW.owner_uid <> 'system_seed'
   ) THEN RAISE(ABORT, 'knowledge relationship owner mismatch') END;
 END;
@@ -60,6 +63,18 @@ BEGIN
     WHERE s.id = NEW.source_knowledge_id
       AND s.owner_uid = NEW.owner_uid
       AND t.owner_uid = NEW.owner_uid
+      AND s.archived_at IS NULL
+      AND t.archived_at IS NULL
       AND NEW.owner_uid <> 'system_seed'
   ) THEN RAISE(ABORT, 'knowledge relationship owner mismatch') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_knowledge_owner_immutable_with_relations
+BEFORE UPDATE OF owner_uid ON intelligence_knowledge
+WHEN EXISTS (
+  SELECT 1 FROM intelligence_knowledge_relations r
+  WHERE r.source_knowledge_id = OLD.id OR r.target_knowledge_id = OLD.id
+)
+BEGIN
+  SELECT RAISE(ABORT, 'knowledge owner cannot change while relationships exist');
 END;
