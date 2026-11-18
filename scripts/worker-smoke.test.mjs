@@ -1595,7 +1595,11 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.ok(routeStart >= 0 && routeEnd > routeStart, "Intelligence task PATCH route must exist");
   const route = workerSource.slice(routeStart, routeEnd);
   assert.match(route, /approvalTransition=body\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
-  assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted"\]\.includes\(existing\.status\)/);
+  assert.match(route, /cancelTransition=body\.status==="cancelled"&&\["awaiting_approval","queued","accepted","in_progress"\]\.includes\(existing\.status\)/);
+  assert.match(route, /agent_claim_id=CASE WHEN \?='cancelled' THEN NULL ELSE agent_claim_id END/);
+  assert.match(route, /scheduler_claim_id=CASE WHEN \?='cancelled' THEN NULL ELSE scheduler_claim_id END/);
+  assert.match(route, /WHERE id=\? AND status=\?/);
+  assert.match(route, /Task state changed before this update/);
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
   assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
   assert.match(route, /requires_approval=CASE WHEN \?=\x27accepted\x27 THEN 0 ELSE requires_approval END/);
