@@ -292,6 +292,7 @@ test("admin sessions fail closed without the immutable Pi owner UID and expire w
   assert.match(login, /!expectedOwnerUid/);
   assert.match(login, /String\(piUser\.uid\)\s*!==\s*expectedOwnerUid/);
   assert.match(login, /const expiresAt = now \+ 12 \* 60 \* 60/);
+  assert.match(login, /created_at<\?/);
   assert.doesNotMatch(login, /4102444800/);
 });
 
