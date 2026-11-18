@@ -42,6 +42,7 @@ export function validateIntelligencePatch(files) {
 
   const errors = [];
   const seen = new Set();
+  const portablePaths = new Set();
   let totalBytes = 0;
 
   for (const file of files) {
@@ -81,6 +82,12 @@ export function validateIntelligencePatch(files) {
       errors.push(`Duplicate path rejected: ${path}`);
       continue;
     }
+    const portablePath = path.normalize("NFC").toLocaleLowerCase("en-US");
+    if (portablePaths.has(portablePath)) {
+      errors.push(`Case-insensitive or Unicode-normalized path collision rejected: ${path}`);
+      continue;
+    }
+    portablePaths.add(portablePath);
     seen.add(path);
 
     if (!["added", "modified"].includes(file.status)) {
