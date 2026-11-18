@@ -6516,6 +6516,7 @@ export default {
         if (!admin) return error("Admin authentication required", 403);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialTables(env);
         if (!await checkRateLimit(env, request, "intelligence-approvals-read", 60, 3600, 300, admin.uid)) {
           return error("Too many approval ledger requests. Try again later.", 429);
         }
@@ -6542,6 +6543,7 @@ export default {
         if(!admin)return error("Admin authentication required",403);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceApprovalLedgerTable(env);
+        await ensureSocialTables(env);
         if(!await checkRateLimit(env,request,"intelligence-approvals-write",20,3600,900,admin.uid))return error("Too many approval ledger changes. Try again later.",429);
         const id=decodeURIComponent(intelligenceApprovalMatch[1]);
         if(!id||id.length>80)return error("Invalid approval ID.");
