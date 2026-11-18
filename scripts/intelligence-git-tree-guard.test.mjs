@@ -177,3 +177,20 @@ test("rejects a candidate commit identical to the pinned base", () => {
   input.candidateCommit.sha = baseSha;
   assert.equal(verifyIntelligenceGitTree(input).ok, false);
 });
+
+test("rejects case-insensitive and normalized path collisions in Git trees", () => {
+  for (const entries of [
+    [
+      { path: "docs/Guide.md", mode: "100644", type: "blob", sha: blobSha(content) },
+      { path: "docs/guide.md", mode: "100644", type: "blob", sha: blobSha(content) }
+    ],
+    [
+      { path: "docs/é.md", mode: "100644", type: "blob", sha: blobSha(content) },
+      { path: "docs/é.md", mode: "100644", type: "blob", sha: blobSha(content) }
+    ]
+  ]) {
+    const { input } = fixture();
+    input.candidateTree.entries = entries;
+    assert.equal(verifyIntelligenceGitTree(input).ok, false);
+  }
+});
