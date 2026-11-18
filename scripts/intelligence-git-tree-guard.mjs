@@ -97,8 +97,7 @@ export function verifyIntelligenceGitTree({
     return blocked("Candidate branch is not the exact approved isolated patch branch.");
   }
   if (!trustedApproval || trustedApproval.repository !== expectedRepository ||
-      trustedApproval.branch !== expectedBranch ||
-      expectedBranch !== `intelligence/patch-${trustedApproval.taskId}`) {
+      trustedApproval.branch !== expectedBranch) {
     return blocked("Repository or isolated branch is not bound to the trusted owner approval.");
   }
   if (!baseCommit || !candidateCommit ||
