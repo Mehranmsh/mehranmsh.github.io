@@ -6724,13 +6724,6 @@ export default {
             if (!query || query.length<2) throw new Error("Provide a knowledge search query of at least 2 characters.");
             return {results:rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false),source:"owner-curated organizational knowledge",readOnly:true};
           }
-          if (name === "search_organizational_knowledge") {
-            const {query}=parseIntelligenceKnowledgeSearchArgs(args);
-            await ensureIntelligenceKnowledgeTable(env);
-            const rows=await env.DB.prepare("SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
-            const results=rankIntelligenceKnowledge(rows.results||[],query,12,false);
-            return {query,results};
-          }
           if (name === "list_collaboration_tasks") {
             const allowed=["status","assignedTo"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown filter.");
@@ -7165,6 +7158,13 @@ export default {
               env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first()
             ]);
             return {registeredUsers:Number(rows[0]?.total||0),activeUsers:Number(rows[1]?.total||0),posts:Number(rows[2]?.total||0),openReports:Number(rows[3]?.total||0)};
+          }
+          if (name === "search_organizational_knowledge") {
+            const {query}=parseIntelligenceKnowledgeSearchArgs(args);
+            await ensureIntelligenceKnowledgeTable(env);
+            const rows=await env.DB.prepare("SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
+            const results=rankIntelligenceKnowledge(rows.results||[],query,12,false);
+            return {query,results};
           }
           if (name === "list_collaboration_tasks") {
             if (Object.keys(args).some(k=>!["status","assignedTo"].includes(k))) throw new Error("Unknown task filter.");
