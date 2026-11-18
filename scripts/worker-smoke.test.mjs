@@ -1321,6 +1321,10 @@ test("Intelligence scheduler history is private, bounded and stores execution co
   assert.ok(route.includes("safeLimit(url.searchParams.get(\"limit\"), 20, 50)"));
   assert.ok(route.includes("ORDER BY started_at DESC LIMIT ?"));
   assert.match(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/);
+  assert.match(workerSource, /scheduler_claim_id TEXT/);
+  assert.match(workerSource, /scheduler_claim_id=\?/);
+  assert.match(workerSource, /AND scheduler_claim_id=\?/);
+  assert.match(workerSource, /scheduler_claimed_at IS NOT NULL AND datetime\(scheduler_claimed_at\) < datetime\('now','-30 minutes'\)/);
   assert.match(workerSource, /processed_count=\?,completed_count=\?,blocked_count=\?/);
   assert.match(workerSource, /status='failed'/);
 });
