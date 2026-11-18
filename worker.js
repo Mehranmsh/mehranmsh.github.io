@@ -5255,7 +5255,7 @@ export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=false)
  }
  const rankIndex=new Map(ranked.map((item,index)=>[String(item.row.id),index]));
  selected.sort((a,b)=>(rankIndex.get(String(a.row.id))??0)-(rankIndex.get(String(b.row.id))??0));
- return selected.map(item=>({...item.row,relevance:item.score}));
+ return selected.map(item=>({id:item.row.id,category:item.row.category,title:item.row.title,content:String(item.row.content||"").slice(0,1200),importance:item.row.importance,source:item.row.owner_uid==="system_seed"?"system":"owner",updatedAt:item.row.updated_at||null,relevance:item.score}));
 }
 
 async function ensureSocialAuthLimitsTable(env) {
