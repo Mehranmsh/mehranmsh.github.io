@@ -5181,7 +5181,7 @@ async function consumeIntelligenceApproval(env, input) {
   const branch = typeof value.branch === "string" ? value.branch : "";
   const baseSha = typeof value.baseSha === "string" ? value.baseSha : "";
   const scopeSha256 = typeof value.scopeSha256 === "string" ? value.scopeSha256 : "";
-  const now = Number.isSafeInteger(value.now) && value.now > 0 ? value.now : Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000);
 
   if (!/^[0-9a-f-]{36}$/i.test(approvalId) || !taskId || taskId.length > 80 ||
       !ownerUid || ownerUid.length > 160 ||
