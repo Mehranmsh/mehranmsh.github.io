@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
+const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -301,6 +302,12 @@ test("SOCIAL media renderer allows only same-origin HTTPS and Rapidfile CDN sour
   assert.match(validator, /u\.origin!==location\.origin&&u\.origin!==\"https:\/\/cdn\.rapidfile\.cc\"/);
   assert.match(validator, /options\.allowBlob/);
   assert.match(validator, /options\.allowDataImage/);
+});
+
+test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
+  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
+  assert.match(agentWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(agentWorkflowSource, /ref: main/);
 });
 
 test("profile gallery lightbox uses sanitized remote or local media URLs", () => {
