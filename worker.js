@@ -5143,6 +5143,17 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+async function ensureSocialAuthLimitsTable(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS social_auth_limits(
+      rate_key TEXT PRIMARY KEY,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      window_started_at INTEGER NOT NULL,
+      blocked_until INTEGER
+    )
+  `).run();
+}
+
 async function ensureIntelligenceApprovalLedgerTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_approval_ledger(
@@ -6559,7 +6570,7 @@ export default {
         if (!admin) return error("Admin authentication required", 403);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceApprovalLedgerTable(env);
-        await ensureSocialTables(env);
+        await ensureSocialAuthLimitsTable(env);
         if (!await checkRateLimit(env, request, "intelligence-approvals-read", 60, 3600, 300, admin.uid)) {
           return error("Too many approval ledger requests. Try again later.", 429);
         }
@@ -6586,7 +6597,7 @@ export default {
         if(!admin)return error("Admin authentication required",403);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceApprovalLedgerTable(env);
-        await ensureSocialTables(env);
+        await ensureSocialAuthLimitsTable(env);
         if(!await checkRateLimit(env,request,"intelligence-approvals-write",20,3600,900,admin.uid))return error("Too many approval ledger changes. Try again later.",429);
         const id=decodeURIComponent(intelligenceApprovalMatch[1]);
         if(!id||id.length>80)return error("Invalid approval ID.");
