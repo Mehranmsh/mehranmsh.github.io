@@ -64,3 +64,17 @@ The chat model may now call `propose_knowledge_relationship` when it identifies 
 - A per-owner hourly rate limit applies. If the relationship table is absent, the proposal fails closed; the chat tool does not create or migrate production schema.
 
 The smoke suite exercises valid candidate creation, exact-evidence rejection, non-visible-ID rejection, unexpected-field rejection, candidate-only SQL, audit insertion, and chat tool wiring. These are deterministic unit/source-contract checks with a mocked D1 batch, not a live Cloudflare D1 or live-model integration test.
+
+
+## Owner review interface (review branch)
+
+The private Intelligence workspace includes an owner-only relationship review panel backed by the authenticated relationship API:
+
+- Lists only the current owner's relationships and supports filtering by candidate, confirmed, dismissed, or resolved status.
+- Displays both knowledge titles and the exact evidence excerpts associated with the relationship.
+- Candidate rows expose explicit owner actions to confirm or dismiss.
+- Confirmed `conflicts_with` rows expose explicit resolution actions to select either source record. The selected ID is recorded; neither source record is deleted, archived, or rewritten.
+- UI renders relationship titles, statuses and evidence with DOM text nodes rather than injecting database/model text through `innerHTML`.
+- Every state-changing action asks for browser confirmation, calls the owner-authenticated PUT API, and refreshes the relationship list and activity log.
+
+The interface does not create a relationship by itself and does not grant the model any owner decision capability. If the relationship migration is absent, the API fails closed and the panel displays an unavailable-state message.
