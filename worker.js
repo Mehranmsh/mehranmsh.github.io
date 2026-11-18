@@ -755,6 +755,14 @@ async function createSocialTables(db) {
   await ensureColumn("social_messages", "edited_at", "TEXT");
   await ensureColumn("social_messages", "deleted_at", "TEXT");
   await ensureColumn("social_messages", "created_at", "TEXT NOT NULL DEFAULT ''");
+  // Additive media identity columns. Legacy URL fields remain intact during
+  // migration so existing profile images and stories are not discarded.
+  await ensureColumn("social_users", "avatar_upload_id", "TEXT");
+  await ensureColumn("social_profile_photos", "upload_id", "TEXT");
+  await ensureColumn("social_stories", "upload_id", "TEXT");
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_social_users_avatar_upload ON social_users(avatar_upload_id) WHERE avatar_upload_id IS NOT NULL").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_social_profile_photos_upload ON social_profile_photos(upload_id) WHERE upload_id IS NOT NULL").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_social_stories_upload ON social_stories(upload_id) WHERE upload_id IS NOT NULL").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_social_messages_unread ON social_messages(conversation_id,sender_id,deleted_at)").run();
   await db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_social_users_firebase_uid ON social_users(firebase_uid)").run();
   try { await db.prepare("ALTER TABLE social_reports ADD COLUMN status TEXT NOT NULL DEFAULT 'open'").run(); } catch {}
