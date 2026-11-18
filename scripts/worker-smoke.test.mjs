@@ -2180,7 +2180,7 @@ test("INTELLIGENCE retrieval treats hostile knowledge as inert text and exposes 
 
 test("INTELLIGENCE isolates persistent memory and organizational knowledge by authenticated owner", () => {
   assert.match(workerSource,/SELECT category,content,updated_at FROM intelligence_owner_memory WHERE owner_uid=\? ORDER BY updated_at DESC LIMIT 30/);
-  assert.match(workerSource,/SELECT category,title,content,importance FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN \(\?, 'system_seed'\)/);
+  assert.match(workerSource,/SELECT category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN \(\?, 'system_seed'\)/);
   assert.match(workerSource,/\.bind\(admin\.uid\)\.all\(\)/);
   assert.match(workerSource,/owner_uid IN \(\?, 'system_seed'\)/);
   assert.match(workerSource,/WHERE id=\? AND owner_uid=\?/);
