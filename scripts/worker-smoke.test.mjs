@@ -1814,3 +1814,24 @@ test("Intelligence approval consumption is atomic, bound, and not exposed to rou
   assert.doesNotMatch(helper, /fetch\(|fetch\s*\(/);
   assert.doesNotMatch(workerSource.slice(workerSource.indexOf('if (path === "/intelligence/approvals"'), workerSource.indexOf('if (path === "/intelligence/tasks"')), /consumeIntelligenceApproval/);
 });
+
+
+test("Documentation patch approvals remain dormant and cannot enter the current task queue", () => {
+  const taskStart = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const taskEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', taskStart);
+  assert.ok(taskStart >= 0 && taskEnd > taskStart, "Intelligence task creation route must exist");
+  const taskRoute = workerSource.slice(taskStart, taskEnd);
+  const allowlistStart = taskRoute.indexOf("const allowedActionTypes=");
+  const allowlistEnd = taskRoute.indexOf(";", allowlistStart);
+  assert.ok(allowlistStart >= 0 && allowlistEnd > allowlistStart);
+  const allowlist = taskRoute.slice(allowlistStart, allowlistEnd);
+  assert.match(allowlist, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
+  assert.doesNotMatch(allowlist, /documentation_patch_proposal|code_change|github_write/);
+
+  const agentStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const agentEnd = workerSource.indexOf('const agentStatusMatch', agentStart);
+  assert.ok(agentStart >= 0 && agentEnd > agentStart, "Agent task claim route must exist");
+  const agentRoute = workerSource.slice(agentStart, agentEnd);
+  assert.match(agentRoute, /action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.doesNotMatch(agentRoute, /documentation_patch_proposal|github_write|code_change/);
+});
