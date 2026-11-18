@@ -1785,12 +1785,11 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
   assert.match(routes, /WHERE owner_uid=\?/);
   assert.match(routes, /status='revoked',revoked_at=\?/);
   assert.match(routes, /status='issued' AND expires_at>\?/);
-  assert.match(routes, /SET status='expired' WHERE owner_uid=\? AND status='issued' AND expires_at<=\?/);
-  assert.match(routes, /SET status='expired' WHERE id=\? AND owner_uid=\? AND status='issued' AND expires_at<=\?/);
+  assert.match(routes, /CASE WHEN status='issued' AND expires_at<=\? THEN 'expired' ELSE status END AS status/);
   assert.match(routes, /transition\?\.meta\?\.changes\|\|0\)\!==1/);
   assert.doesNotMatch(routes, /method==="POST"/);
 
-  const state = { listedOwner: null, revokeBinds: null, audit: false, expiryBinds: [] };
+  const state = { listedOwner: null, revokeBinds: null, audit: false, listBinds: null };
   const db = {
     prepare(sql) {
       let values = [];
@@ -1806,7 +1805,8 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
         },
         async all() {
           if (sql.includes("FROM intelligence_approval_ledger WHERE owner_uid=?")) {
-            state.listedOwner = values[0];
+            state.listBinds = values;
+            state.listedOwner = values[1];
             return { results: [{
               id: "approval-1", task_id: "task-1", repository: "Mehranmsh/mehranmsh.github.io",
               branch: "intelligence/patch-documentation01", base_sha: "a".repeat(40),
@@ -1818,10 +1818,6 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
           return { results: [] };
         },
         async run() {
-          if (sql.includes("UPDATE intelligence_approval_ledger SET status='expired'")) {
-            state.expiryBinds.push({ sql, values });
-            return { meta: { changes: 1 } };
-          }
           if (sql.includes("UPDATE intelligence_approval_ledger SET status='revoked'")) {
             state.revokeBinds = values;
             return { meta: { changes: 1 } };
@@ -1840,8 +1836,8 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
   assert.equal(state.listedOwner, "owner-uid");
   assert.equal(listPayload.approvals.length, 1);
   assert.deepEqual(listPayload.approvals[0].scope, { paths: ["docs/README.md"] });
-  assert.equal(state.expiryBinds.length, 1, "owner listing must normalize elapsed grants");
-  assert.equal(state.expiryBinds[0].values[0], "owner-uid");
+  assert.equal(state.listBinds[1], "owner-uid");
+  assert.equal(typeof state.listBinds[0], "number", "owner listing must evaluate expiry against server time");
 
   const revoked = await request("/intelligence/approvals/approval-1", { method: "DELETE", headers }, env);
   assert.equal(revoked.status, 200);
