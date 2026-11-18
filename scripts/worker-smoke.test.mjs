@@ -254,6 +254,12 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.match(payload.error, /Admin authentication required/);
 });
 
+test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
+  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
+  assert.match(agentWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(agentWorkflowSource, /ref: main/);
+});
+
 test("MEHRAN Intelligence agent API is separately scoped and approval-gated", () => {
   assert.match(workerSource, /path\.startsWith\("\/agent\/v1\/"\)/);
   assert.match(workerSource, /env\.MEHRAN_AGENT_TOKEN/);
