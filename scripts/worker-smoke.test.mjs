@@ -1985,3 +1985,14 @@ test("MEHRAN Intelligence owner memory is private, bounded, auditable and owner-
   assert.match(indexSource, /Nothing is saved automatically/);
   assert.match(indexSource, /data-delete-intel-memory/);
 });
+
+
+test("MEHRAN Intelligence activity feed is owner-scoped, read-only and bounded", () => {
+  assert.match(workerSource, /path === "\/intelligence\/events" && method === "GET"/);
+  assert.match(workerSource, /FROM admin_audit_log WHERE admin_uid=\?/);
+  assert.match(workerSource, /ORDER BY created_at DESC LIMIT 50/);
+  assert.match(workerSource, /action LIKE 'intelligence_%'/);
+  assert.match(indexSource, /Intelligence Activity Log/);
+  assert.match(indexSource, /api\("\/intelligence\/events"\)/);
+  assert.match(indexSource, /refreshIntelEventsBtn/);
+});
