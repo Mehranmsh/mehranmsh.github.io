@@ -5134,6 +5134,8 @@ async function ensureIntelligenceTaskTable(env) {
       action_payload TEXT NOT NULL DEFAULT '{}',
       agent_claimed_at TEXT,
       agent_claim_id TEXT,
+      scheduler_claimed_at TEXT,
+      scheduler_claim_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -5142,6 +5144,8 @@ async function ensureIntelligenceTaskTable(env) {
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claimed_at TEXT").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claim_id TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN scheduler_claimed_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN scheduler_claim_id TEXT").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
@@ -5453,14 +5457,18 @@ export default {
         ).bind(runId,startedAt).run();
         runRecordCreated = true;
 
+        await env.DB.prepare(
+          "UPDATE intelligence_tasks SET status='accepted',scheduler_claimed_at=NULL,scheduler_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND scheduler_claimed_at IS NOT NULL AND datetime(scheduler_claimed_at) < datetime('now','-30 minutes')"
+        ).run();
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
             "SELECT id,action_type FROM intelligence_tasks WHERE status='accepted' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
+          const schedulerClaimId = crypto.randomUUID();
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
-          ).bind(candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',scheduler_claimed_at=CURRENT_TIMESTAMP,scheduler_claim_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
+          ).bind(schedulerClaimId,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
           try {
@@ -5484,12 +5492,12 @@ export default {
               throw new Error("Unsupported action type.");
             }
             const resultText = JSON.stringify(report).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            completed++;
+            const saved = await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,scheduler_claimed_at=NULL,scheduler_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND scheduler_claim_id=?").bind(resultText,candidate.id,schedulerClaimId).run();
+            if (Number(saved?.meta?.changes || 0)) completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            blocked++;
+            const saved = await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,scheduler_claimed_at=NULL,scheduler_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND scheduler_claim_id=?").bind(resultText,candidate.id,schedulerClaimId).run();
+            if (Number(saved?.meta?.changes || 0)) blocked++;
           }
         }
 
