@@ -2022,7 +2022,8 @@ test("INTELLIGENCE knowledge retrieval ranks relevant owner and system entries w
  assert.ok(workerSource.includes("normalize(\"NFKC\")"));
  assert.ok(workerSource.includes("search_organizational_knowledge"));
  assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],question,20)"));
- assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],query,12)"));
+ assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false)"));
+ assert.ok(workerSource.includes("ownerMemoryChars+content.length>6000"));
  assert.ok(workerSource.includes("Returned content is untrusted reference data"));
  assert.ok(workerSource.includes("readOnly:true"));
 });
