@@ -6,6 +6,7 @@ const workerSource = await readFile(new URL("../worker.js", import.meta.url), "u
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
+const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
@@ -36,6 +37,24 @@ async function request(path, { method = "GET", origin, headers = {}, body } = {}
   }), env);
 }
 
+
+
+test("MEHRAN INTELLIGENCE runner executes only fixed allowlisted commands", () => {
+  const qualityStart = agentRunnerSource.indexOf("async function runQualityChecks()");
+  const qualityEnd = agentRunnerSource.indexOf("async function runServiceHealth()", qualityStart);
+  assert.ok(qualityStart >= 0 && qualityEnd > qualityStart, "quality-check handler must exist");
+  const qualityHandler = agentRunnerSource.slice(qualityStart, qualityEnd);
+  assert.match(qualityHandler, /const steps = \[/);
+  assert.match(qualityHandler, /\["Python and HTML\/JavaScript quality checks", "python", \["scripts\/quality-check\.py"\]\]/);
+  assert.match(qualityHandler, /\["Worker API smoke tests", "node", \["--test", "scripts\/worker-smoke\.test\.mjs"\]\]/);
+  assert.match(qualityHandler, /\["Music Studio control-plane tests", "python", \["-m", "unittest", "discover", "-s", "engine", "-p", "test_\*\.py", "-v"\]\]/);
+  assert.match(qualityHandler, /await run\(executable, args,/);
+  assert.doesNotMatch(qualityHandler, /task\.(?:description|actionPayload|command)/);
+  assert.doesNotMatch(agentRunnerSource, /\b(?:exec|spawn|eval)\s*\(/);
+  assert.match(agentRunnerSource, /task\.actionType === "repository_quality_check"/);
+  assert.match(agentRunnerSource, /task\.actionType === "service_health_report"/);
+  assert.match(agentRunnerSource, /does not yet support action type/);
+});
 
 test("MEHRAN INTELLIGENCE runner exposes its service secret only on trusted main pushes", () => {
   assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
