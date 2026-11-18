@@ -1783,4 +1783,7 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
   const response = await request("/intelligence/approvals", {}, { DB: db });
   assert.equal(response.status, 403);
   assert.equal((await response.json()).error, "Admin authentication required");
+  const revokeResponse = await request("/intelligence/approvals/approval-1", { method: "DELETE" }, { DB: db });
+  assert.equal(revokeResponse.status, 403);
+  assert.equal((await revokeResponse.json()).error, "Admin authentication required");
 });
