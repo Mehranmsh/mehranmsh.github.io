@@ -5219,6 +5219,38 @@ export function getIntelligenceToolCalls(result) {
   return result.tool_calls || [];
 }
 
+export async function runIntelligenceToolLoop({runModel,messages,tools,executeTool}) {
+  if (typeof runModel !== "function" || typeof executeTool !== "function" ||
+      !Array.isArray(messages) || !Array.isArray(tools)) {
+    throw new Error("Invalid Intelligence tool-loop configuration.");
+  }
+  const allowedNames=tools.map(tool=>tool?.name);
+  if (allowedNames.some(name=>typeof name!=="string"||!name) ||
+      new Set(allowedNames).size!==allowedNames.length) {
+    throw new Error("Invalid Intelligence tool definitions.");
+  }
+  const seenToolCallIds=new Set();
+  let result=await runModel(messages);
+  let pendingToolCalls=getIntelligenceToolCalls(result);
+  let toolRounds=0;
+  for(;toolRounds<2&&pendingToolCalls.length;toolRounds++){
+    if(pendingToolCalls.length>4)throw new Error("AI returned more than four tool calls in one round.");
+    const calls=pendingToolCalls;
+    const parsedCalls=calls.map(call=>parseIntelligenceToolCall(call,allowedNames,seenToolCallIds));
+    messages.push({role:"assistant",content:result.response||"",tool_calls:calls});
+    for(const call of parsedCalls){
+      let toolResult;
+      try{toolResult=await executeTool(call.name,call.args);}
+      catch(e){toolResult={error:String(e?.message||e).slice(0,240)};}
+      messages.push({role:"tool",tool_call_id:call.id,name:call.name,content:JSON.stringify(toolResult)});
+    }
+    result=await runModel(messages);
+    pendingToolCalls=getIntelligenceToolCalls(result);
+  }
+  if(pendingToolCalls.length)throw new Error("AI tool-call round limit reached.");
+  return {result,toolRounds};
+}
+
 export function parseIntelligenceToolCall(call, allowedNames, seenIds = new Set()) {
   const id=call?.id, name=call?.function?.name;
   if(typeof id!=="string"||id.length<1||id.length>128||!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("Invalid tool-call identifier.");
@@ -7147,28 +7179,14 @@ export default {
           throw new Error("Tool is not available.");
         };
         try {
-          let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
-          let pendingToolCalls=getIntelligenceToolCalls(result);
-          const seenToolCallIds=new Set();
-          for(let round=0;round<2&&pendingToolCalls.length;round++){
-            if(pendingToolCalls.length>4)throw new Error("AI returned more than four tool calls in one round.");
-            const calls=pendingToolCalls;
-            // Validate the complete bounded batch before executing any member of it.
-            // A malformed sibling must not allow earlier calls in the same batch to mutate state.
-            const parsedCalls=calls.map(call=>parseIntelligenceToolCall(call,tools.map(tool=>tool.name),seenToolCallIds));
-            messages.push({role:"assistant",content:result.response||"",tool_calls:calls});
-            for(const call of parsedCalls){
-              let toolResult;
-              try{toolResult=await executeTool(call.name,call.args);}catch(e){toolResult={error:String(e?.message||e).slice(0,240)};}
-              messages.push({role:"tool",tool_call_id:call.id,name:call.name,content:JSON.stringify(toolResult)});
-            }
-            result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
-            pendingToolCalls=getIntelligenceToolCalls(result);
-          }
-          if(pendingToolCalls.length)throw new Error("AI tool-call round limit reached.");
+          const loop=await runIntelligenceToolLoop({
+            runModel:conversation=>env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages:conversation,tools,tool_choice:"auto",max_tokens:900}),
+            messages,tools,executeTool
+          });
+          const result=loop.result;
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
-          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:Math.min(2,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
+          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:loop.toolRounds}});
         } catch(e) {
           console.error("MEHRAN INTELLIGENCE AI error:",String(e?.message||e).slice(0,300));
           return error("MEHRAN INTELLIGENCE could not complete its tool-assisted response.",502);
