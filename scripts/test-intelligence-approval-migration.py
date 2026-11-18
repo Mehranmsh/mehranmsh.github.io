@@ -152,6 +152,24 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
             ).rowcount
 
         self.assertEqual(consume(scope_sha256="0" * 64), 0)
+        self.assertEqual(consume(owner_uid="other-owner"), 0)
+        self.assertEqual(consume(repository="attacker/other-repo"), 0)
+        self.assertEqual(consume(branch="intelligence/patch-anotherbranch"), 0)
+        self.assertEqual(consume(base_sha="c" * 40), 0)
+        self.connection.execute(
+            "UPDATE intelligence_tasks SET status='cancelled' WHERE id='task-1'"
+        )
+        self.assertEqual(consume(), 0, "cancelled tasks must not consume grants")
+        self.connection.execute(
+            "UPDATE intelligence_tasks SET status='accepted' WHERE id='task-1'"
+        )
+        self.connection.execute(
+            "UPDATE intelligence_tasks SET requires_approval=1 WHERE id='task-1'"
+        )
+        self.assertEqual(consume(), 0, "approval-gated tasks must not use this pre-authorized path")
+        self.connection.execute(
+            "UPDATE intelligence_tasks SET requires_approval=0 WHERE id='task-1'"
+        )
         self.assertEqual(consume(), 1)
         self.assertEqual(consume(), 0, "a consumed grant must not be replayable")
         row = self.connection.execute(
