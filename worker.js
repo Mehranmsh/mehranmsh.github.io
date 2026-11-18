@@ -5176,8 +5176,8 @@ async function ensureIntelligenceKnowledgeTable(env) {
  return pending;
 }
 async function createIntelligenceKnowledgeSchema(db) {
- await db.prepare("CREATE TABLE IF NOT EXISTS intelligence_memory(id TEXT PRIMARY KEY,owner_uid TEXT NOT NULL,category TEXT NOT NULL DEFAULT 'company',title TEXT NOT NULL,content TEXT NOT NULL,importance TEXT NOT NULL DEFAULT 'normal',created_by TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,archived_at TEXT)").run();
- await db.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_memory_owner_active ON intelligence_memory(owner_uid,archived_at,importance,updated_at DESC)").run();
+ await db.prepare("CREATE TABLE IF NOT EXISTS intelligence_knowledge(id TEXT PRIMARY KEY,owner_uid TEXT NOT NULL,category TEXT NOT NULL DEFAULT 'company',title TEXT NOT NULL,content TEXT NOT NULL,importance TEXT NOT NULL DEFAULT 'normal',created_by TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,archived_at TEXT)").run();
+ await db.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_knowledge_owner_active ON intelligence_knowledge(owner_uid,archived_at,importance,updated_at DESC)").run();
  const seeds=[
  ["seed-company-pi-only","decision","Blockchain scope","MEHRAN MSH and its company ecosystem operate exclusively on Pi Network. Do not propose migrating company operations to another blockchain.","high"],
  ["seed-private-development","decision","Private development first","Keep MEHRAN MSH in private development until modules, security and user experience are stable. Do not prioritize public user acquisition before owner approval.","high"],
@@ -5194,7 +5194,7 @@ async function createIntelligenceKnowledgeSchema(db) {
  ["seed-social-product","module","SOCIAL product direction","SOCIAL combines Instagram-style profiles, posts, photos, videos, stories and discovery with Telegram-style chats, groups and channels. Registration uses email, username and password with optional Pi linking. No paid SMS verification. Keep private during development.","high"],
  ["seed-admin-boundaries","procedure","Administrator boundaries","The owner retains final authority. INTELLIGENCE may analyze, read authorized data, prepare plans and propose tasks. It must not independently change accounts, permissions, credentials, secrets, deployments, financial assets or wallet operations.","high"]
  ];
- await db.batch(seeds.map(([id,category,title,content,importance])=>db.prepare("INSERT OR IGNORE INTO intelligence_memory(id,owner_uid,category,title,content,importance,created_by) VALUES(?,'system_seed',?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed")));
+ await db.batch(seeds.map(([id,category,title,content,importance])=>db.prepare("INSERT OR IGNORE INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by) VALUES(?,'system_seed',?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed")));
 }
 
 async function ensureSocialAuthLimitsTable(env) {
@@ -6854,7 +6854,7 @@ export default {
       if (path === "/intelligence/events" && method === "GET") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
-        const rows = await env.DB.prepare("SELECT id,action,target_type,target_id,details,created_at FROM admin_audit_log WHERE admin_uid=? AND (action LIKE 'intelligence_%' OR target_type IN ('intelligence_task','intelligence_approval','intelligence_memory','intelligence_knowledge')) ORDER BY created_at DESC LIMIT 50").bind(admin.uid).all();
+        const rows = await env.DB.prepare("SELECT id,action,target_type,target_id,details,created_at FROM admin_audit_log WHERE admin_uid=? AND (action LIKE 'intelligence_%' OR target_type IN ('intelligence_task','intelligence_approval','intelligence_knowledge','intelligence_knowledge')) ORDER BY created_at DESC LIMIT 50").bind(admin.uid).all();
         return json({success:true,events:(rows.results||[]).map(row=>({id:row.id,action:row.action,targetType:row.target_type,targetId:row.target_id,details:row.details,createdAt:row.created_at}))});
       }
 
@@ -6881,7 +6881,7 @@ export default {
           const auditId=crypto.randomUUID();
           const results=await env.DB.batch([
             env.DB.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content) SELECT ?,?,?,? WHERE (SELECT COUNT(*) FROM intelligence_owner_memory WHERE owner_uid=?)<100").bind(id,admin.uid,category,content,admin.uid),
-            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_memory_created","intelligence_memory",id,JSON.stringify({category,characters:content.length}),id,admin.uid)
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_created","intelligence_knowledge",id,JSON.stringify({category,characters:content.length}),id,admin.uid)
           ]);
           if(!Number(results?.[0]?.meta?.changes||0)) return error("The owner memory limit of 100 notes has been reached.", 409);
           return json({success:true,id});
@@ -6895,7 +6895,7 @@ export default {
           }
           const auditId=crypto.randomUUID();
           const results=await env.DB.batch([
-            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_memory_deleted","intelligence_memory",id,"Owner deleted a memory note.",id,admin.uid),
+            env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_deleted","intelligence_knowledge",id,"Owner deleted a memory note.",id,admin.uid),
             env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?").bind(id,admin.uid)
           ]);
           if(!Number(results?.[1]?.meta?.changes||0))return error("Memory note not found.",404);
@@ -6910,7 +6910,7 @@ export default {
        await ensureIntelligenceKnowledgeTable(env);
        if(method==="GET"){
         if(!await checkRateLimit(env,request,"intelligence-knowledge-read",60,3600,300,admin.uid))return error("Too many knowledge requests. Try again later.",429);
-        const rows=await env.DB.prepare("SELECT id,category,title,content,importance,created_by,created_at,updated_at,owner_uid FROM intelligence_memory WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
+        const rows=await env.DB.prepare("SELECT id,category,title,content,importance,created_by,created_at,updated_at,owner_uid FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
         return json({success:true,knowledge:(rows.results||[]).map(row=>({id:row.id,category:row.category,title:row.title,content:row.content,importance:row.importance,source:row.owner_uid==='system_seed'?'system':'owner',createdAt:row.created_at,updatedAt:row.updated_at}))});
        }
        if(!await checkRateLimit(env,request,"intelligence-knowledge-write",20,3600,600,admin.uid))return error("Too many knowledge changes. Try again later.",429);
@@ -6919,8 +6919,8 @@ export default {
        if(!["company","module","decision","goal","procedure","project"].includes(category)||!["low","normal","high"].includes(importance)||title.length<3||!content||typeof body.title!=="string"||typeof body.content!=="string"||body.content.length>5000)return error("Provide a valid category, title and content (maximum 5,000 characters).");
        const id=crypto.randomUUID(),auditId=crypto.randomUUID();
        const results=await env.DB.batch([
-        env.DB.prepare("INSERT INTO intelligence_memory(id,owner_uid,category,title,content,importance,created_by) SELECT ?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM intelligence_memory WHERE owner_uid=? AND archived_at IS NULL)<500").bind(id,admin.uid,category,title,content,importance,admin.username,admin.uid),
-        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_memory WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_created","intelligence_knowledge",id,JSON.stringify({category,importance,characters:content.length}),id,admin.uid)
+        env.DB.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by) SELECT ?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM intelligence_knowledge WHERE owner_uid=? AND archived_at IS NULL)<500").bind(id,admin.uid,category,title,content,importance,admin.username,admin.uid),
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=?)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_created","intelligence_knowledge",id,JSON.stringify({category,importance,characters:content.length}),id,admin.uid)
        ]);
        if(!Number(results?.[0]?.meta?.changes||0))return error("The owner knowledge limit of 500 active entries has been reached.",409);
        return json({success:true,id},201);
@@ -6934,8 +6934,8 @@ export default {
        const auditId=crypto.randomUUID();
        if(method==="DELETE"){
         const results=await env.DB.batch([
-         env.DB.prepare("UPDATE intelligence_memory SET archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(id,admin.uid),
-         env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_memory WHERE id=? AND owner_uid=? AND archived_at IS NOT NULL)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_archived","intelligence_knowledge",id,"Owner archived an organizational knowledge entry.",id,admin.uid)
+         env.DB.prepare("UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(id,admin.uid),
+         env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NOT NULL)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_archived","intelligence_knowledge",id,"Owner archived an organizational knowledge entry.",id,admin.uid)
         ]);
         if(!Number(results?.[0]?.meta?.changes||0))return error("Knowledge entry not found or cannot be archived.",404);
         return json({success:true,archived:true,id});
@@ -6944,8 +6944,8 @@ export default {
        const category=cleanText(body.category||"company",24).toLowerCase(),title=cleanText(body.title,120),content=cleanText(body.content,5000),importance=cleanText(body.importance||"normal",12).toLowerCase();
        if(!["company","module","decision","goal","procedure","project"].includes(category)||!["low","normal","high"].includes(importance)||title.length<3||!content||typeof body.title!=="string"||typeof body.content!=="string"||body.content.length>5000)return error("Provide a valid category, title and content (maximum 5,000 characters).");
        const results=await env.DB.batch([
-        env.DB.prepare("UPDATE intelligence_memory SET category=?,title=?,content=?,importance=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(category,title,content,importance,id,admin.uid),
-        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_memory WHERE id=? AND owner_uid=? AND archived_at IS NULL)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_updated","intelligence_knowledge",id,JSON.stringify({category,importance}),id,admin.uid)
+        env.DB.prepare("UPDATE intelligence_knowledge SET category=?,title=?,content=?,importance=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(category,title,content,importance,id,admin.uid),
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL)").bind(auditId,admin.uid,admin.username,"intelligence_knowledge_updated","intelligence_knowledge",id,JSON.stringify({category,importance}),id,admin.uid)
        ]);
        if(!Number(results?.[0]?.meta?.changes||0))return error("Knowledge entry not found or cannot be edited.",404);
        return json({success:true,updated:true,id});
@@ -6975,7 +6975,7 @@ export default {
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_users WHERE is_active=1").first(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first(),
-          env.DB.prepare("SELECT category,title,content,importance FROM intelligence_memory WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all()
+          env.DB.prepare("SELECT category,title,content,importance FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all()
         ]);
         const companyContext = {
           projects: (projectRows.results || []).map(p => ({name:p.name,status:p.status,description:String(p.description||"").slice(0,500)})),
