@@ -1031,6 +1031,25 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelKnowledgeStatus" class="notice" aria-live="polite">Organizational knowledge has not been loaded.</div>
  <div id="intelKnowledgeList" class="grid"><div class="empty">Loading organizational knowledge...</div></div>
 </div>
+<div class="panel intelligence-relationships">
+ <div class="section-title"><div><h2>Knowledge Relationships</h2><div class="small-text">Review AI suggestions, confirm directional links and reopen stale conflict decisions.</div></div><button class="btn secondary small" id="refreshIntelRelationshipsBtn" type="button">Refresh relationships</button></div>
+ <div class="notice">AI suggestions stay unconfirmed. If either source entry changes, the relationship becomes stale and must be reviewed again.</div>
+ <form id="intelRelationshipForm" class="card" autocomplete="off">
+  <div class="grid">
+   <div class="field"><label for="intelRelationshipLeft">First knowledge entry</label><select id="intelRelationshipLeft" required><option value="">Select an owner entry</option></select></div>
+   <div class="field"><label for="intelRelationshipRight">Second knowledge entry</label><select id="intelRelationshipRight" required><option value="">Select another owner entry</option></select></div>
+  </div>
+  <div class="field"><label for="intelRelationshipType">Relationship type</label><select id="intelRelationshipType"><option value="conflicts_with">Conflicts with · symmetric</option><option value="supersedes">Supersedes · directional</option><option value="supports">Supports · directional</option></select></div>
+  <div class="grid" id="intelRelationshipDirectionFields" hidden>
+   <div class="field"><label for="intelRelationshipFrom">Source entry</label><select id="intelRelationshipFrom"><option value="">Select source</option></select></div>
+   <div class="field"><label for="intelRelationshipTo">Target entry</label><select id="intelRelationshipTo"><option value="">Select target</option></select></div>
+  </div>
+  <div class="field"><label for="intelRelationshipEvidence">Owner note (optional)</label><textarea id="intelRelationshipEvidence" rows="2" maxlength="500" placeholder="Why are these entries related?"></textarea></div>
+  <div class="hero-actions"><button class="btn" id="intelRelationshipCreateBtn" type="submit">Add confirmed relationship</button></div>
+ </form>
+ <div id="intelRelationshipsStatus" class="notice" aria-live="polite">Knowledge relationships have not been loaded.</div>
+ <div id="intelRelationshipsList" class="grid"><div class="empty">No relationships loaded.</div></div>
+</div>
 <div class="panel intelligence-events">
  <div class="section-title"><div><h2>Intelligence Activity Log</h2><div class="small-text">Recent owner actions, task decisions, approvals and memory changes.</div></div><button class="btn secondary small" id="refreshIntelEventsBtn" type="button">Refresh activity</button></div>
  <div id="intelEventsStatus" class="notice" aria-live="polite">Intelligence activity has not been loaded.</div>
