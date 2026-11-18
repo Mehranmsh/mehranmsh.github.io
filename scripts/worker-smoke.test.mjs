@@ -6,6 +6,9 @@ const workerSource = await readFile(new URL("../worker.js", import.meta.url), "u
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
+const deployWorkflowSource = await readFile(new URL("../.github/workflows/deploy-worker.yml", import.meta.url), "utf8");
+const phrasesImportWorkflowSource = await readFile(new URL("../.github/workflows/import-persian-phrases.yml", import.meta.url), "utf8");
+const instrumentsImportWorkflowSource = await readFile(new URL("../.github/workflows/import-recorded-instruments.yml", import.meta.url), "utf8");
 const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
 const approvalMigrationSource = await readFile(new URL("../migrations/0001_intelligence_approval_ledger.sql", import.meta.url), "utf8");
 const approvalStagingDocSource = await readFile(new URL("../docs/INTELLIGENCE-D1-APPROVAL-STAGING.md", import.meta.url), "utf8");
@@ -349,6 +352,63 @@ test("SOCIAL post interactions enforce the same visibility policy", () => {
   assert.equal((search.match(/SELECT blocker_id FROM social_blocks WHERE blocked_id=\?/g) || []).length, 2);
 });
 
+
+test("SOCIAL media renderer allows only same-origin HTTPS and Rapidfile CDN sources", () => {
+  const start = indexSource.indexOf("function safeMediaSrc(value,options={})");
+  const end = indexSource.indexOf("function mediaMarkup(", start);
+  assert.ok(start >= 0 && end > start, "central media URL validator must exist");
+  const validator = indexSource.slice(start, end);
+  assert.match(validator, /u\.protocol!==\"https:\"/);
+  assert.match(validator, /u\.username\|\|u\.password/);
+  assert.match(validator, /u\.origin!==location\.origin&&u\.origin!==\"https:\/\/cdn\.rapidfile\.cc\"/);
+  assert.match(validator, /options\.allowBlob/);
+  assert.match(validator, /options\.allowDataImage/);
+});
+
+test("profile gallery lightbox uses sanitized remote or local media URLs", () => {
+  const start = indexSource.indexOf("window.openProfileGalleryPhoto=function(index)");
+  const end = indexSource.indexOf("function updateProfilePreview()", start);
+  assert.ok(start >= 0 && end > start, "profile gallery lightbox handler must exist");
+  const handler = indexSource.slice(start, end);
+  assert.match(handler, /safeMediaSrc\(item\?\.url\|\|item\?\.localUrl/);
+  assert.match(handler, /img\.src=src/);
+  assert.match(handler, /window\.open\(src/);
+  assert.doesNotMatch(handler, /if\(!item\?\.url\)/);
+});
+
+test("all SOCIAL remote media render paths use the central URL validator", () => {
+  assert.match(indexSource, /safeMediaSrc\(post\.avatarUrl/);
+  assert.match(indexSource, /safeMediaSrc\(m\.data,\{allowBlob:true,allowDataImage:true\}\)/);
+  const exploreStart = indexSource.indexOf("function renderExplore()");
+  const exploreEnd = indexSource.indexOf("function renderReels()", exploreStart);
+  assert.ok(exploreStart >= 0 && exploreEnd > exploreStart, "Explore renderer must exist");
+  assert.match(indexSource.slice(exploreStart, exploreEnd), /safeMediaSrc\(m\.data/);
+  assert.match(indexSource, /safeMediaSrc\(story\.mediaUrl/);
+  assert.match(indexSource, /safeMediaSrc\(item\.url/);
+  assert.match(indexSource, /safeMediaSrc\(u\.avatarUrl/);
+  assert.match(indexSource, /safeMediaSrc\(other\.avatarUrl/);
+  assert.match(indexSource, /p\.gallery\.filter\(photo=>safeMediaSrc\(photo\.url/);
+  assert.doesNotMatch(indexSource, /window\.open\('\\''\+sx\(photo\.url\)/);
+});
+
+test("deployment and write-enabled imports are manual-only and protected by environments", () => {
+  assert.match(deployWorkflowSource, /environment: production/);
+  for (const workflow of [deployWorkflowSource, phrasesImportWorkflowSource, instrumentsImportWorkflowSource]) {
+    assert.match(workflow, /workflow_dispatch:/);
+    assert.doesNotMatch(workflow, /^\s*push:/m);
+    assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+    assert.match(workflow, /ref: main/);
+  }
+  assert.match(phrasesImportWorkflowSource, /environment: repository-maintenance/);
+  assert.match(instrumentsImportWorkflowSource, /environment: repository-maintenance/);
+});
+
+test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
+  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
+  assert.match(agentWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(agentWorkflowSource, /ref: main/);
+  assert.doesNotMatch(agentWorkflowSource, /^\s*workflow_dispatch:/m);
+});
 
 test("private SOCIAL profile gallery and posts respect privacy and blocks", () => {
   const profileStart = workerSource.indexOf("async function getProfileByUsername");
