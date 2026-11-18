@@ -1988,3 +1988,85 @@ test("D1 approval migration matches the Worker bootstrap schema and staging safe
   assert.match(approvalStagingDocSource, /No staging D1 database has been created or connected/);
   assert.match(approvalStagingDocSource, /Do not change the production `DB` binding/);
 });
+
+
+test("SOCIAL media upload identity migration is additive and preserves legacy URL fields", () => {
+  for (const migration of [
+    'ensureColumn("social_users", "avatar_upload_id", "TEXT")',
+    'ensureColumn("social_profile_photos", "upload_id", "TEXT")',
+    'ensureColumn("social_stories", "upload_id", "TEXT")'
+  ]) assert.ok(workerSource.includes(migration), "missing additive media migration: " + migration);
+
+  for (const index of [
+    "idx_social_users_avatar_upload",
+    "idx_social_profile_photos_upload",
+    "idx_social_stories_upload"
+  ]) assert.ok(workerSource.includes(index), "missing media upload lookup index: " + index);
+
+  assert.match(workerSource, /avatar_url TEXT NOT NULL DEFAULT ''/);
+  assert.match(workerSource, /photo_url TEXT NOT NULL/);
+  assert.match(workerSource, /media_url TEXT NOT NULL/);
+  assert.doesNotMatch(workerSource, /DROP COLUMN (?:avatar_url|photo_url|media_url)/i);
+  const migrationStart = workerSource.indexOf("const ensureColumn = async");
+  const migrationEnd = workerSource.indexOf("function cleanUsername(", migrationStart);
+  assert.ok(migrationStart >= 0 && migrationEnd > migrationStart, "schema upgrade block must be identifiable");
+  const migrationBlock = workerSource.slice(migrationStart, migrationEnd);
+  assert.doesNotMatch(migrationBlock, /DELETE FROM social_(?:users|profile_photos|stories)/i);
+});
+
+
+test("SOCIAL story publishing and reads are bound to verified upload IDs", () => {
+  const createStart = workerSource.indexOf("async function socialCreateStory(");
+  const createEnd = workerSource.indexOf("\nasync function ", createStart + 10);
+  assert.ok(createStart >= 0 && createEnd > createStart, "story create route must exist");
+  const createRoute = workerSource.slice(createStart, createEnd);
+  assert.match(createRoute, /WHERE id=\? AND user_id=\? LIMIT 1/);
+  assert.match(createRoute, /upload\.status !== "ready"/);
+  assert.match(createRoute, /upload\.acl !== "public"/);
+  assert.match(createRoute, /upload\.mime_type/);
+  assert.match(createRoute, /INSERT INTO social_stories\([^)]*upload_id\)/);
+
+  const readStart = workerSource.indexOf("async function socialStories(");
+  const readEnd = workerSource.indexOf("\nasync function ", readStart + 10);
+  assert.ok(readStart >= 0 && readEnd > readStart, "story read route must exist");
+  const readRoute = workerSource.slice(readStart, readEnd);
+  assert.match(readRoute, /LEFT JOIN social_uploads up/);
+  assert.match(readRoute, /up\.id=s\.upload_id AND up\.user_id=s\.user_id/);
+  assert.match(readRoute, /up\.status='ready' AND up\.acl='public'/);
+  assert.match(readRoute, /validHttpsUrl\(row\.resolved_media_url\)/);
+
+  assert.match(indexSource, /async function socialUploadFile\(file,returnReference=false\)/);
+  assert.match(indexSource, /return returnReference\?\{id,url:completed\.file\.url\}:completed\.file\.url/);
+  assert.match(indexSource, /const uploaded=await socialUploadFile\(uploadFile,true\)/);
+  assert.match(indexSource, /JSON\.stringify\(\{uploadId:uploaded\.id,mediaType:/);
+});
+
+
+test("SOCIAL profile avatar and gallery writes are owned upload-ID references", () => {
+  const updateStart = workerSource.indexOf("async function socialUpdateProfile(");
+  const updateEnd = workerSource.indexOf("\nasync function ", updateStart + 10);
+  assert.ok(updateStart >= 0 && updateEnd > updateStart, "profile update route must exist");
+  const updateRoute = workerSource.slice(updateStart, updateEnd);
+  assert.match(updateRoute, /WHERE id=\? AND user_id=\? LIMIT 1/);
+  assert.match(updateRoute, /avatarUpload\.status !== "ready"/);
+  assert.match(updateRoute, /avatarUpload\.acl !== "public"/);
+  assert.match(updateRoute, /verifiedAvatarUploadId/);
+  assert.match(updateRoute, /galleryItems/);
+  assert.match(updateRoute, /upload\.status !== "ready"/);
+  assert.match(updateRoute, /upload\.acl !== "public"/);
+  assert.match(updateRoute, /INSERT INTO social_profile_photos\([^)]*upload_id\)/);
+  assert.match(updateRoute, /await env\.DB\.batch\(statements\)/);
+
+  const profileStart = workerSource.indexOf("async function getProfileByUsername(");
+  const profileEnd = workerSource.indexOf("\nasync function ", profileStart + 10);
+  assert.ok(profileStart >= 0 && profileEnd > profileStart, "profile read helper must exist");
+  const profileRead = workerSource.slice(profileStart, profileEnd);
+  assert.match(profileRead, /avatar\.id=u\.avatar_upload_id AND avatar\.user_id=u\.id/);
+  assert.match(profileRead, /media\.id=p\.upload_id AND media\.user_id=p\.user_id/);
+  assert.match(profileRead, /media\.status='ready' AND media\.acl='public'/);
+  assert.match(profileRead, /validHttpsUrl\(row\.resolved_photo_url\)/);
+
+  assert.match(indexSource, /galleryItems:\[\]/);
+  assert.match(indexSource, /profilePayload\.avatarUploadId/);
+  assert.match(indexSource, /profilePayload\.galleryItems\.push\(\{uploadId:/);
+});
