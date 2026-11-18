@@ -7181,6 +7181,10 @@ export default {
        const current=await env.DB.prepare("SELECT left_knowledge_id,right_knowledge_id,relation_type,status FROM intelligence_knowledge_relationships WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
        if(!current||!["candidate","confirmed"].includes(current.status))return error("Relationship not found or no longer actionable.",404);
        if(body.action==="confirm"&&current.status!=="candidate")return error("Only an unconfirmed candidate can be confirmed.",409);
+       if(body.action==="confirm"){
+        const active=await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(current.left_knowledge_id,current.right_knowledge_id,admin.uid).first();
+        if(Number(active?.total||0)!==2)return error("Both linked knowledge entries must remain active before confirming this candidate.",409);
+       }
        if(body.action==="resolve"&&current.relation_type!=="conflicts_with")return error("Only a confirmed conflict can be resolved.");
        if(body.action==="resolve"&&![current.left_knowledge_id,current.right_knowledge_id].includes(body.resolutionKnowledgeId))return error("Resolution must select one of the two linked knowledge entries.");
        if(body.action==="resolve"){
@@ -7247,7 +7251,7 @@ export default {
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_posts").first(),
           env.DB.prepare("SELECT COUNT(*) AS total FROM social_reports WHERE status='open'").first(),
           env.DB.prepare("SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all(),
-          env.DB.prepare("SELECT r.id,r.left_knowledge_id,r.right_knowledge_id,r.relation_type,r.status,r.evidence_json,r.resolution_knowledge_id,r.updated_at,l.title AS left_title,l.updated_at AS left_updated_at,rr.title AS right_title,rr.updated_at AS right_updated_at FROM intelligence_knowledge_relationships r JOIN intelligence_knowledge l ON l.id=r.left_knowledge_id JOIN intelligence_knowledge rr ON rr.id=r.right_knowledge_id WHERE r.owner_uid=? AND r.status IN ('candidate','confirmed','resolved') ORDER BY r.updated_at DESC LIMIT 100").bind(admin.uid).all()
+          env.DB.prepare("SELECT r.id,r.left_knowledge_id,r.right_knowledge_id,r.relation_type,r.status,r.evidence_json,r.resolution_knowledge_id,r.updated_at,l.title AS left_title,l.updated_at AS left_updated_at,rr.title AS right_title,rr.updated_at AS right_updated_at FROM intelligence_knowledge_relationships r JOIN intelligence_knowledge l ON l.id=r.left_knowledge_id JOIN intelligence_knowledge rr ON rr.id=r.right_knowledge_id WHERE r.owner_uid=? AND r.status IN ('candidate','confirmed','resolved') ORDER BY r.updated_at DESC LIMIT 20").bind(admin.uid).all()
         ]);
         const companyContext = {
           projects: (projectRows.results || []).map(p => ({name:p.name,status:p.status,description:String(p.description||"").slice(0,500)})),
