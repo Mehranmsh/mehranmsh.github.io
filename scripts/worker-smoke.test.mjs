@@ -56,6 +56,20 @@ test("MEHRAN INTELLIGENCE runner executes only fixed allowlisted commands", () =
   assert.match(agentRunnerSource, /does not yet support action type/);
 });
 
+
+test("MEHRAN INTELLIGENCE agent queue claims only approved read-only task types", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const end = workerSource.indexOf('const agentResultMatch = path.match', start);
+  assert.ok(start >= 0 && end > start, "agent task claim route must exist");
+  const claimRoute = workerSource.slice(start, end);
+  assert.match(claimRoute, /assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(claimRoute, /status IN \('queued','accepted'\)/);
+  assert.match(claimRoute, /requires_approval=0/);
+  assert.match(claimRoute, /action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(claimRoute, /agent_claimed_at IS NOT NULL/);
+  assert.doesNotMatch(claimRoute, /repository_change|code_write|deploy|merge/i);
+});
+
 test("MEHRAN INTELLIGENCE runner exposes its service secret only on trusted main pushes", () => {
   assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
   assert.match(agentWorkflowSource, /Checkout trusted main branch[\s\S]*?ref: main/);
