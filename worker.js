@@ -6791,22 +6791,6 @@ export default {
             if (!query || query.length<2) throw new Error("Provide a knowledge search query of at least 2 characters.");
             return {results:rankIntelligenceKnowledge(knowledgeRows.results||[],query,12,false),source:"owner-curated organizational knowledge",readOnly:true};
           }
-          if (name === "propose_knowledge_relationship") {
-            const proposal=parseIntelligenceRelationshipProposalArgs(args);
-            await ensureIntelligenceKnowledgeTable(env);
-            await ensureIntelligenceKnowledgeRelationshipsTable(env);
-            const sourceRows=await env.DB.prepare("SELECT id,title,content FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(proposal.leftId,proposal.rightId,admin.uid).all();
-            const byId=new Map((sourceRows.results||[]).map(row=>[row.id,row]));
-            const leftSource=byId.get(proposal.leftId),rightSource=byId.get(proposal.rightId);
-            const normalizeEvidence=value=>String(value||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
-            if(!leftSource||!rightSource||!normalizeEvidence(leftSource.title+" "+leftSource.content).includes(normalizeEvidence(proposal.leftEvidence))||!normalizeEvidence(rightSource.title+" "+rightSource.content).includes(normalizeEvidence(proposal.rightEvidence)))throw new Error("Evidence must quote text that exists in each linked knowledge entry.");
-            const id=crypto.randomUUID();
-            const evidence=[{knowledgeId:proposal.leftId,text:proposal.leftEvidence,source:"owner_knowledge"},{knowledgeId:proposal.rightId,text:proposal.rightEvidence,source:"owner_knowledge"}];
-            const inserted=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json) SELECT ?,?,?,?,?,'candidate','intelligence',? WHERE (SELECT COUNT(*) FROM intelligence_knowledge_relationships WHERE owner_uid=? AND status IN ('candidate','confirmed'))<200 AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?) AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?)").bind(id,admin.uid,proposal.leftId,proposal.rightId,proposal.relationType,JSON.stringify(evidence),admin.uid,proposal.leftId,admin.uid,leftSource.title,leftSource.content,proposal.rightId,admin.uid,rightSource.title,rightSource.content).run();
-            if(!Number(inserted?.meta?.changes||0))throw new Error("The owner relationship limit has been reached.");
-            await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_proposed","intelligence_knowledge_relationship",id,JSON.stringify({relationType:proposal.relationType,leftId:proposal.leftId,rightId:proposal.rightId}));
-            return {id,status:"candidate",message:"Unconfirmed relationship candidate created. Owner review is required; no knowledge entry was changed."};
-          }
           if (name === "list_collaboration_tasks") {
             const allowed=["status","assignedTo"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown filter.");
@@ -7305,6 +7289,22 @@ export default {
             const rows=await env.DB.prepare("SELECT id,owner_uid,category,title,content,importance,updated_at FROM intelligence_knowledge WHERE archived_at IS NULL AND owner_uid IN (?, 'system_seed') ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,updated_at DESC LIMIT 100").bind(admin.uid).all();
             const results=rankIntelligenceKnowledge(rows.results||[],query,12,false);
             return {query,results};
+          }
+          if (name === "propose_knowledge_relationship") {
+            const proposal=parseIntelligenceRelationshipProposalArgs(args);
+            await ensureIntelligenceKnowledgeTable(env);
+            await ensureIntelligenceKnowledgeRelationshipsTable(env);
+            const sourceRows=await env.DB.prepare("SELECT id,title,content FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(proposal.leftId,proposal.rightId,admin.uid).all();
+            const byId=new Map((sourceRows.results||[]).map(row=>[row.id,row]));
+            const leftSource=byId.get(proposal.leftId),rightSource=byId.get(proposal.rightId);
+            const normalizeEvidence=value=>String(value||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
+            if(!leftSource||!rightSource||!normalizeEvidence(leftSource.title+" "+leftSource.content).includes(normalizeEvidence(proposal.leftEvidence))||!normalizeEvidence(rightSource.title+" "+rightSource.content).includes(normalizeEvidence(proposal.rightEvidence)))throw new Error("Evidence must quote text that exists in each linked knowledge entry.");
+            const id=crypto.randomUUID();
+            const evidence=[{knowledgeId:proposal.leftId,text:proposal.leftEvidence,source:"owner_knowledge"},{knowledgeId:proposal.rightId,text:proposal.rightEvidence,source:"owner_knowledge"}];
+            const inserted=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json) SELECT ?,?,?,?,?,'candidate','intelligence',? WHERE (SELECT COUNT(*) FROM intelligence_knowledge_relationships WHERE owner_uid=? AND status IN ('candidate','confirmed'))<200 AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?) AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?)").bind(id,admin.uid,proposal.leftId,proposal.rightId,proposal.relationType,JSON.stringify(evidence),admin.uid,proposal.leftId,admin.uid,leftSource.title,leftSource.content,proposal.rightId,admin.uid,rightSource.title,rightSource.content).run();
+            if(!Number(inserted?.meta?.changes||0))throw new Error("The owner relationship limit has been reached.");
+            await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_proposed","intelligence_knowledge_relationship",id,JSON.stringify({relationType:proposal.relationType,leftId:proposal.leftId,rightId:proposal.rightId}));
+            return {id,status:"candidate",message:"Unconfirmed relationship candidate created. Owner review is required; no knowledge entry was changed."};
           }
           if (name === "list_collaboration_tasks") {
             if (Object.keys(args).some(k=>!["status","assignedTo"].includes(k))) throw new Error("Unknown task filter.");
