@@ -23,4 +23,10 @@ jobs:
         with:
           node-version: "22"
       - name: Run patch guard tests
-        run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs scripts/intelligence-git-tree-guard.test.mjs
+        run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs scripts/intelligence-git-tree-guard.test.mjs scripts/intelligence-github-readonly-audit.test.mjs
+      - name: Audit actual GitHub branch trees (read-only)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MEHRAN_AUDIT_BASE_REF: intelligence/mcp-task-approval-guardrails
+          MEHRAN_AUDIT_HEAD_REF: ${{ github.ref_name }}
+        run: node scripts/intelligence-github-readonly-audit.mjs
