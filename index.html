@@ -1770,26 +1770,26 @@ function currentUsername(){return socialUser?.username||socialUser?.displayName|
 function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
 function renderAvatar(id){
 const el=$(id);if(!el)return;
-if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
+if(localProfile.photo){const src=safeMediaSrc(localProfile.photo,{allowBlob:true,allowDataImage:true});if(src)el.innerHTML='<img src="'+escapeHTML(src)+'" alt="Profile">';else el.textContent=profileInitial();}
 else el.textContent=profileInitial();
 }
 window.socialProfileGallery=[];
-function profileAvatarMarkup(url,fallback){return url?'<img src="'+sx(url)+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
+function profileAvatarMarkup(url,fallback){const src=safeMediaSrc(url,{allowBlob:true,allowDataImage:true});return src?'<img src="'+escapeHTML(src)+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
 function renderProfilePosts(){
 const panel=$("profilePostsPanel");if(!panel)return;
 const mine=posts.filter(p=>String(p.author||"").toLowerCase()===String(socialUser?.username||"").toLowerCase());
 $("profileHeroPosts").textContent=profileData?.counts?.posts??mine.length;
 if(!mine.length){panel.innerHTML='<div class="profile-empty-posts">Your story is waiting for its first post. Share a thought, a photo or a moment with the community.<br><br><button class="btn" onclick="openCreate()">＋ Create your first post</button></div>';return}
-panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class="profile-post-tile">'+(media?'<div class="profile-post-media">'+(media.type==="video"?'<video src="'+sx(media.data)+'" controls playsinline></video>':'<img src="'+sx(media.data)+'" alt="Post">')+'</div>':'')+'<p>'+sx(p.text||"")+'</p><small>'+sx(p.date||"")+' · '+Number(p.likesCount||0)+' likes</small></article>'}).join("");
+panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class="profile-post-tile">'+(media?'<div class="profile-post-media">'+(media.type==="video"?'<video src="'+escapeHTML(safeMediaSrc(media.data,{allowBlob:true,allowDataImage:true}))+'" controls playsinline></video>':'<img src="'+escapeHTML(safeMediaSrc(media.data,{allowBlob:true,allowDataImage:true}))+'" alt="Post">')+'</div>':'')+'<p>'+sx(p.text||"")+'</p><small>'+sx(p.date||"")+' · '+Number(p.likesCount||0)+' likes</small></article>'}).join("");
 }
 function renderProfileGallery(){
  const editor=$("profileGalleryEditor"),publicGrid=$("profileGalleryPublic");
  const items=Array.isArray(window.socialProfileGallery)?window.socialProfileGallery:[];
- if(editor)editor.innerHTML=items.length?items.map((p,i)=>'<div class="profile-gallery-thumb"><img src="'+sx(p.url)+'" alt="Gallery photo '+(i+1)+'"><button type="button" aria-label="Remove photo" onclick="removeProfileGalleryPhoto('+i+')">×</button><span>'+(i===0?'Photo 1':'Photo '+(i+1))+'</span></div>').join(''):'<div class="profile-gallery-empty">Your gallery is empty. Add a few moments that tell your story.</div>';
- if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+sx(p.url)+'" alt="Profile gallery photo '+(i+1)+'"></button>').join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
+ if(editor)editor.innerHTML=items.length?items.map((p,i)=>'<div class="profile-gallery-thumb"><img src="'+escapeHTML(safeMediaSrc(p.url||p.localUrl,{allowBlob:true,allowDataImage:true}))+'" alt="Gallery photo '+(i+1)+'"><button type="button" aria-label="Remove photo" onclick="removeProfileGalleryPhoto('+i+')">×</button><span>'+(i===0?'Photo 1':'Photo '+(i+1))+'</span></div>').join(''):'<div class="profile-gallery-empty">Your gallery is empty. Add a few moments that tell your story.</div>';
+ if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+escapeHTML(safeMediaSrc(p.url||p.localUrl,{allowBlob:true,allowDataImage:true}))+'" alt="Profile gallery photo '+(i+1)+'"></button>').join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
 }
 window.removeProfileGalleryPhoto=function(index){window.socialProfileGallery.splice(index,1);renderProfileGallery()};
-window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=item.url;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(item.url,"_blank","noopener")};
+window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];const src=safeMediaSrc(item?.url||item?.localUrl,{allowBlob:true,allowDataImage:true});if(!src)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=src;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(src,"_blank","noopener")};
 function updateProfilePreview(){
 const name=$("profileDisplayName")?.value.trim()||socialUser?.displayName||socialUser?.username||"Your name";
 const bio=$("profileBio")?.value||"";
@@ -1840,7 +1840,8 @@ renderAvatar("sideAvatar");
 renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
-function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
+function safeMediaSrc(value,options={}){const raw=String(value??"").trim();if(!raw)return "";if(options.allowDataImage&&/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(raw))return raw;if(options.allowBlob&&raw.startsWith("blob:")){try{const u=new URL(raw);if(u.origin===location.origin)return u.href;}catch{}return "";}try{const u=new URL(raw,location.origin);if(u.protocol!=="https:"||u.username||u.password)return "";if(u.origin!==location.origin&&u.origin!=="https://cdn.rapidfile.cc")return "";return u.href;}catch{return ""}}
+function mediaMarkup(item){const src=safeMediaSrc(item?.data,{allowBlob:true,allowDataImage:true});if(!src)return '<div class="media-unavailable">Media unavailable</div>';const safe=escapeHTML(src);if(item.type==="video")return '<video src="'+safe+'" controls playsinline preload="metadata"></video>';return '<img src="'+safe+'" alt="Post media">'}
 function renderFeed(){
 const list=$("feedList");if(!list)return;
 $("feedCount").textContent=posts.length+" posts";
@@ -1871,7 +1872,7 @@ const videos=posts.filter(p=>getPostMedia(p).some(m=>m.type==="video"));
 if(!videos.length){box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';return}
 box.innerHTML=videos.map(p=>{
 const m=getPostMedia(p).find(x=>x.type==="video");
-return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+m.data+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
+return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+escapeHTML(safeMediaSrc(m.data,{allowBlob:true,allowDataImage:true}))+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
 }).join("");
 }
 window.changePostMedia=function(id,delta){
@@ -1943,7 +1944,7 @@ const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readA
 draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name,file});
 }catch{toast("Could not read "+file.name)}
 }
-$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'" alt="Preview">').join("");
+$("uploadPreview").innerHTML=draftFiles.map(m=>{const src=escapeHTML(safeMediaSrc(m.data,{allowBlob:true,allowDataImage:true}));return m.type==="video"?'<video src="'+src+'" controls></video>':'<img src="'+src+'" alt="Preview">'}).join("");
 $("postFileStatus").textContent=draftFiles.length?draftFiles.length+" ready to share · "+draftFiles.map(m=>m.name).join(", "):"No supported files selected. Try an image or video under 700 KB each.";$("postFileStatus").classList.toggle("has-files",draftFiles.length>0);
 });
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
@@ -3762,7 +3763,7 @@ $("openProfileEditor")?.addEventListener("click",()=>{$("profileEditor").classLi
 $("closeProfileEditor")?.addEventListener("click",()=>$("profileEditor").classList.add("hidden"));
 $("profileDisplayName")?.addEventListener("input",updateProfilePreview);
 $("profileBio")?.addEventListener("input",updateProfilePreview);
-$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No new profile photo selected";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>5*1024*1024){e.target.value="";$("profileFileStatus").textContent="Choose an image under 5 MB.";return;}$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");try{const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+data+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
+$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No new profile photo selected";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>5*1024*1024){e.target.value="";$("profileFileStatus").textContent="Choose an image under 5 MB.";return;}$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");try{const data=await readImage(file,700*1024);const safePreview=safeMediaSrc(data,{allowDataImage:true});$("profilePreviewAvatar").innerHTML=safePreview?'<img src="'+escapeHTML(safePreview)+'" alt="Preview">':"";}catch(err){$("profileMessage").textContent=err.message;}});
 $("profileGalleryInput")?.addEventListener("change",e=>{const files=Array.from(e.target.files||[]);for(const file of files){if(!file.type.startsWith("image/")||file.size>5*1024*1024){$("profileMessage").textContent="Each gallery image must be an image under 5 MB.";continue;}window.socialProfileGallery.push({file,name:file.name,localUrl:URL.createObjectURL(file)});}renderProfileGallery();e.target.value="";});
 $("profileShareBtn")?.addEventListener("click",async()=>{const url=location.origin+location.pathname+"#social-profile";try{if(navigator.share)await navigator.share({title:"SOCIAL profile",url});else{await navigator.clipboard.writeText(url);toast("Profile link copied");}}catch(e){}});
 document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.addEventListener("click",()=>{profileTab=btn.dataset.profileTab;document.querySelectorAll("[data-profile-tab]").forEach(b=>b.classList.toggle("active",b===btn));$("profilePostsPanel").classList.toggle("hidden",profileTab!=="posts");$("profileAboutPanel").classList.toggle("hidden",profileTab!=="about");}));
