@@ -1,5 +1,5 @@
 name: MEHRAN MSH Quality Checks
-# Re-run smoke coverage for the collaboration Task Hub.
+# Run Worker, Intelligence, migration-schema, and local regression contracts.
 
 on:
   push:
