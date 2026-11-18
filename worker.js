@@ -5330,6 +5330,24 @@ export function parseIntelligenceRelationshipProposalArgs(args) {
   : {leftId,rightId,relationType:args.relationType,leftEvidence:rightEvidence,rightEvidence:leftEvidence,directionFromId,directionToId};
 }
 
+export async function createIntelligenceKnowledgeRelationshipCandidate(env, admin, args) {
+ if(!admin||typeof admin.uid!=="string"||!admin.uid||admin.uid==="system_seed")throw new Error("Authenticated owner identity is required.");
+ const proposal=parseIntelligenceRelationshipProposalArgs(args);
+ await ensureIntelligenceKnowledgeTable(env);
+ await ensureIntelligenceKnowledgeRelationshipsTable(env);
+ const sourceRows=await env.DB.prepare("SELECT id,title,content FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(proposal.leftId,proposal.rightId,admin.uid).all();
+ const byId=new Map((sourceRows.results||[]).map(row=>[row.id,row]));
+ const leftSource=byId.get(proposal.leftId),rightSource=byId.get(proposal.rightId);
+ const normalizeEvidence=value=>String(value||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
+ if(!leftSource||!rightSource||!normalizeEvidence(leftSource.title+" "+leftSource.content).includes(normalizeEvidence(proposal.leftEvidence))||!normalizeEvidence(rightSource.title+" "+rightSource.content).includes(normalizeEvidence(proposal.rightEvidence)))throw new Error("Evidence must quote text that exists in each linked knowledge entry.");
+ const id=crypto.randomUUID();
+ const evidence=[{knowledgeId:proposal.leftId,text:proposal.leftEvidence,source:"owner_knowledge"},{knowledgeId:proposal.rightId,text:proposal.rightEvidence,source:"owner_knowledge"}];
+ const inserted=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json,direction_from_knowledge_id,direction_to_knowledge_id) SELECT ?,?,?,?,?,'candidate','intelligence',?,?,? WHERE (SELECT COUNT(*) FROM intelligence_knowledge_relationships WHERE owner_uid=? AND status IN ('candidate','confirmed'))<200 AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?) AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?)").bind(id,admin.uid,proposal.leftId,proposal.rightId,proposal.relationType,JSON.stringify(evidence),proposal.directionFromId,proposal.directionToId,admin.uid,proposal.leftId,admin.uid,leftSource.title,leftSource.content,proposal.rightId,admin.uid,rightSource.title,rightSource.content).run();
+ if(!Number(inserted?.meta?.changes||0))throw new Error("The owner relationship limit was reached or source knowledge changed before the proposal was stored.");
+ await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_proposed","intelligence_knowledge_relationship",id,JSON.stringify({relationType:proposal.relationType,leftId:proposal.leftId,rightId:proposal.rightId,directionFromId:proposal.directionFromId,directionToId:proposal.directionToId}));
+ return {id,status:"candidate",message:"Unconfirmed relationship candidate created. Owner review is required; no knowledge entry was changed."};
+}
+
 export async function runIntelligenceToolLoop({runModel,messages,tools,executeTool}) {
   if (typeof runModel !== "function" || typeof executeTool !== "function" ||
       !Array.isArray(messages) || !Array.isArray(tools)) {
@@ -7339,20 +7357,7 @@ export default {
             return {query,results};
           }
           if (name === "propose_knowledge_relationship") {
-            const proposal=parseIntelligenceRelationshipProposalArgs(args);
-            await ensureIntelligenceKnowledgeTable(env);
-            await ensureIntelligenceKnowledgeRelationshipsTable(env);
-            const sourceRows=await env.DB.prepare("SELECT id,title,content FROM intelligence_knowledge WHERE id IN (?,?) AND owner_uid=? AND archived_at IS NULL").bind(proposal.leftId,proposal.rightId,admin.uid).all();
-            const byId=new Map((sourceRows.results||[]).map(row=>[row.id,row]));
-            const leftSource=byId.get(proposal.leftId),rightSource=byId.get(proposal.rightId);
-            const normalizeEvidence=value=>String(value||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
-            if(!leftSource||!rightSource||!normalizeEvidence(leftSource.title+" "+leftSource.content).includes(normalizeEvidence(proposal.leftEvidence))||!normalizeEvidence(rightSource.title+" "+rightSource.content).includes(normalizeEvidence(proposal.rightEvidence)))throw new Error("Evidence must quote text that exists in each linked knowledge entry.");
-            const id=crypto.randomUUID();
-            const evidence=[{knowledgeId:proposal.leftId,text:proposal.leftEvidence,source:"owner_knowledge"},{knowledgeId:proposal.rightId,text:proposal.rightEvidence,source:"owner_knowledge"}];
-            const inserted=await env.DB.prepare("INSERT INTO intelligence_knowledge_relationships(id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,proposed_by,evidence_json,direction_from_knowledge_id,direction_to_knowledge_id) SELECT ?,?,?,?,?,'candidate','intelligence',?,?,? WHERE (SELECT COUNT(*) FROM intelligence_knowledge_relationships WHERE owner_uid=? AND status IN ('candidate','confirmed'))<200 AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?) AND EXISTS(SELECT 1 FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL AND title=? AND content=?)").bind(id,admin.uid,proposal.leftId,proposal.rightId,proposal.relationType,JSON.stringify(evidence),proposal.directionFromId,proposal.directionToId,admin.uid,proposal.leftId,admin.uid,leftSource.title,leftSource.content,proposal.rightId,admin.uid,rightSource.title,rightSource.content).run();
-            if(!Number(inserted?.meta?.changes||0))throw new Error("The owner relationship limit has been reached.");
-            await writeAdminAudit(env,admin,"intelligence_knowledge_relationship_proposed","intelligence_knowledge_relationship",id,JSON.stringify({relationType:proposal.relationType,leftId:proposal.leftId,rightId:proposal.rightId}));
-            return {id,status:"candidate",message:"Unconfirmed relationship candidate created. Owner review is required; no knowledge entry was changed."};
+            return await createIntelligenceKnowledgeRelationshipCandidate(env,admin,args);
           }
           if (name === "list_collaboration_tasks") {
             if (Object.keys(args).some(k=>!["status","assignedTo"].includes(k))) throw new Error("Unknown task filter.");
