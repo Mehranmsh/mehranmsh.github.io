@@ -20,7 +20,7 @@ function blobSha(text) {
 }
 function fixture() {
   const trustedApproval = {
-    status: "approved", taskId: "task_12345678", approvalId: "approval_12345678",
+    status: "approved", repository, branch: "intelligence/patch-task_12345678", taskId: "task_12345678", approvalId: "approval_12345678",
     approvedAt, expiresAt, scopeSha256: "b".repeat(64), baseSha, allowedPaths: [path]
   };
   const envelope = {
@@ -193,4 +193,14 @@ test("rejects case-insensitive and normalized path collisions in Git trees", () 
     input.candidateTree.entries = entries;
     assert.equal(verifyIntelligenceGitTree(input).ok, false);
   }
+});
+
+test("rejects a branch or repository not bound to the trusted approval", () => {
+  const { input } = fixture();
+  input.expectedBranch = "intelligence/patch-attacker123";
+  input.candidateBranch = input.expectedBranch;
+  assert.equal(verifyIntelligenceGitTree(input).ok, false);
+  const second = fixture();
+  second.input.trustedApproval.repository = "attacker/repo";
+  assert.equal(verifyIntelligenceGitTree(second.input).ok, false);
 });
