@@ -14,7 +14,15 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
         self.connection = sqlite3.connect(":memory:")
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute(
-            "CREATE TABLE intelligence_tasks (id TEXT PRIMARY KEY)"
+            """
+            CREATE TABLE intelligence_tasks (
+                id TEXT PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'accepted',
+                requires_approval INTEGER NOT NULL DEFAULT 0,
+                assigned_to TEXT NOT NULL DEFAULT 'mehran_intelligence',
+                action_type TEXT NOT NULL DEFAULT 'documentation_patch_proposal'
+            )
+            """
         )
         self.connection.execute(
             "INSERT INTO intelligence_tasks(id) VALUES ('task-1')"
@@ -114,6 +122,82 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
         )
 
 
+    def test_approval_consumption_is_bound_and_one_time(self):
+        self.apply_migration()
+        self.insert_grant("grant-consume")
+        now = 150
+
+        def consume(approval_id="grant-consume", task_id="task-1", owner_uid="owner-1",
+                    repository="Mehranmsh/mehranmsh.github.io",
+                    branch="intelligence/patch-testbranch", base_sha="a" * 40,
+                    scope_sha256="b" * 64):
+            return self.connection.execute(
+                """
+                UPDATE intelligence_approval_ledger
+                SET status='consumed', consumed_at=?,
+                    consumed_by='mehran-intelligence-documentation-executor'
+                WHERE id=? AND task_id=? AND owner_uid=? AND repository=?
+                  AND branch=? AND base_sha=? AND scope_sha256=?
+                  AND status='issued' AND revoked_at IS NULL AND expires_at>?
+                  AND EXISTS (
+                    SELECT 1 FROM intelligence_tasks t
+                    WHERE t.id=intelligence_approval_ledger.task_id
+                      AND t.status='accepted' AND t.requires_approval=0
+                      AND t.assigned_to IN ('mehran_intelligence','shared')
+                      AND t.action_type='documentation_patch_proposal'
+                  )
+                """,
+                (now, approval_id, task_id, owner_uid, repository, branch,
+                 base_sha, scope_sha256, now),
+            ).rowcount
+
+        self.assertEqual(consume(scope_sha256="0" * 64), 0)
+        self.assertEqual(consume(), 1)
+        self.assertEqual(consume(), 0, "a consumed grant must not be replayable")
+        row = self.connection.execute(
+            "SELECT status, consumed_at FROM intelligence_approval_ledger WHERE id='grant-consume'"
+        ).fetchone()
+        self.assertEqual(row, ("consumed", now))
+
+    def test_expired_grant_cannot_be_consumed(self):
+        self.apply_migration()
+        self.insert_grant("grant-expired")
+        now = 200
+        self.connection.execute(
+            """
+            UPDATE intelligence_approval_ledger SET status='expired'
+            WHERE id=? AND status='issued' AND expires_at<=?
+            """,
+            ("grant-expired", now),
+        )
+        changed = self.connection.execute(
+            """
+            UPDATE intelligence_approval_ledger SET status='consumed', consumed_at=?
+            WHERE id=? AND status='issued' AND expires_at>?
+            """,
+            (now, "grant-expired", now),
+        ).rowcount
+        self.assertEqual(changed, 0)
+        self.assertEqual(
+            self.connection.execute(
+                "SELECT status FROM intelligence_approval_ledger WHERE id='grant-expired'"
+            ).fetchone()[0],
+            "expired",
+        )
+
+    def test_revoked_grant_cannot_be_consumed(self):
+        self.apply_migration()
+        self.insert_grant("grant-revoked")
+        self.connection.execute(
+            "UPDATE intelligence_approval_ledger SET status='revoked', revoked_at=150 WHERE id=?",
+            ("grant-revoked",),
+        )
+        changed = self.connection.execute(
+            "UPDATE intelligence_approval_ledger SET status='consumed' WHERE id=? AND status='issued'",
+            ("grant-revoked",),
+        ).rowcount
+        self.assertEqual(changed, 0)
+
     def test_worker_bootstrap_schema_matches_migration(self):
         import re
 
@@ -129,7 +213,17 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
         worker_db = sqlite3.connect(":memory:")
         try:
             worker_db.execute("PRAGMA foreign_keys = ON")
-            worker_db.execute("CREATE TABLE intelligence_tasks (id TEXT PRIMARY KEY)")
+            worker_db.execute(
+                """
+                CREATE TABLE intelligence_tasks (
+                    id TEXT PRIMARY KEY,
+                    status TEXT NOT NULL DEFAULT 'accepted',
+                    requires_approval INTEGER NOT NULL DEFAULT 0,
+                    assigned_to TEXT NOT NULL DEFAULT 'mehran_intelligence',
+                    action_type TEXT NOT NULL DEFAULT 'documentation_patch_proposal'
+                )
+                """
+            )
             worker_db.executescript(helper.group(1))
             index_sql = re.findall(
                 r'env\.DB\.prepare\("(CREATE (?:UNIQUE )?INDEX IF NOT EXISTS [^"]+)"\)\.run\(\)',
