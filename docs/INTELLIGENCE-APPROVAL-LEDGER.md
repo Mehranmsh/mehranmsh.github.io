@@ -22,7 +22,7 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 
 - Owner-only read route: `GET /intelligence/approvals`, scoped to the authenticated owner UID and limited to 50 records.
 - Owner-only revoke route: `DELETE /intelligence/approvals/:id`, conditional on the owner UID, `status='issued'`, and a future expiry. A zero-row transition returns HTTP 409.
-- Internal-only `consumeIntelligenceApproval` primitive: validates the fixed repository, isolated branch pattern, commit SHA, scope digest, task ID, and owner UID. It marks expired records and then attempts one conditional SQL update that binds approval ID, task, owner, repository, branch, base SHA, scope digest, issued state, revocation state, and expiry. It requires an accepted, unblocked `documentation_patch_proposal` task assigned to Intelligence or Shared. Exactly one changed row is required.
+- Internal-only `consumeIntelligenceApproval` primitive: validates the fixed repository, isolated branch pattern, commit SHA, scope digest, task ID, and owner UID. It uses the Worker server clock, marks expired records, and then attempts one conditional SQL update that binds approval ID, task, owner, repository, branch, base SHA, scope digest, issued state, revocation state, and expiry. It requires an accepted, unblocked `documentation_patch_proposal` task assigned to Intelligence or Shared. Exactly one changed row is required.
 - The consume primitive has no HTTP or MCP caller and is not reachable from the current agent runner. It is preparatory code, not an active execution capability.
 
 ## Remaining protocol before activation
