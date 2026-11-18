@@ -35,13 +35,13 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
 
     def insert(self, *, ident="r1", owner="owner-a", left="a1", right="a2",
                relation="conflicts_with", status="candidate", proposed_by="intelligence",
-               evidence="[]", resolution=None):
+               evidence="[]", direction_from=None, direction_to=None, resolution=None):
         self.db.execute(
             """INSERT INTO intelligence_knowledge_relationships
             (id,owner_uid,left_knowledge_id,right_knowledge_id,relation_type,status,
-             proposed_by,evidence_json,resolution_knowledge_id)
-            VALUES(?,?,?,?,?,?,?,?,?)""",
-            (ident,owner,min(left,right),max(left,right),relation,status,proposed_by,evidence,resolution),
+             proposed_by,evidence_json,direction_from_knowledge_id,direction_to_knowledge_id,resolution_knowledge_id)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+            (ident,owner,min(left,right),max(left,right),relation,status,proposed_by,evidence,direction_from,direction_to,resolution),
         )
 
     def test_worker_bootstrap_contains_relationship_table_and_owner_guards(self):
@@ -108,6 +108,14 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert(ident="duplicate")
 
+    def test_directional_relations_record_source_and_target(self):
+        self.insert(ident="supersedes",relation="supersedes",direction_from="a2",direction_to="a1")
+        self.insert(ident="supports",relation="supports",direction_from="a1",direction_to="a2")
+        rows = self.db.execute(
+            "SELECT relation_type,direction_from_knowledge_id,direction_to_knowledge_id FROM intelligence_knowledge_relationships ORDER BY relation_type"
+        ).fetchall()
+        self.assertEqual(rows,[("supports","a1","a2"),("supersedes","a2","a1")])
+
     def test_invalid_relation_status_and_resolution_are_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert(ident="bad-relation",relation="grants_permission")
@@ -117,6 +125,14 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
             self.insert(ident="bad-resolution",status="resolved")
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert(ident="bad-resolution-target",status="resolved",resolution="b1")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert(ident="direction-missing",relation="supersedes")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert(ident="direction-self",relation="supports",direction_from="a1",direction_to="a1")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert(ident="direction-nonmember",relation="supports",direction_from="a1",direction_to="b1")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert(ident="resolve-non-conflict",relation="supports",status="resolved",direction_from="a1",direction_to="a2",resolution="a2")
 
     def test_old_knowledge_is_preserved_as_historical_evidence(self):
         self.insert()
