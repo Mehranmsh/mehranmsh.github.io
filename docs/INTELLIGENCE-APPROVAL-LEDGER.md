@@ -2,7 +2,7 @@
 
 ## Status
 
-Stage 1 foundation. The D1 table and indexes are present, along with owner-authenticated read and revoke routes. Approval issuance and consumption are deliberately not implemented. The ledger does not create patches, write to GitHub, or enable a code-change executor. A row in this table is not permission to execute anything.
+Stage 1 issuance foundation. The D1 table and indexes are present, along with owner-authenticated read, issue, and revoke routes plus an internal-only atomic consume primitive. Issuance records a narrowly scoped, short-lived owner grant only for an already owner-approved documentation proposal. The ledger does not create patches, write to GitHub, or enable a code-change executor. A row in this table is not permission to execute anything.
 
 ## Record binding
 
@@ -20,6 +20,7 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 
 ## Implemented foundation
 
+- Owner-only issue route: `POST /intelligence/approvals`. It accepts only task ID, isolated branch, pinned base SHA, Markdown path list, and bounded expiry. It derives owner UID/username from the authenticated admin session, hardcodes the repository, canonicalizes and hashes scope, limits scope to 1-5 safe `docs/*.md` paths, rejects active duplicate grants, and audits issuance.
 - Owner-only read route: `GET /intelligence/approvals`, scoped to the authenticated owner UID and limited to 50 records.
 - Owner-only revoke route: `DELETE /intelligence/approvals/:id`, conditional on the owner UID, `status='issued'`, and a future expiry. A zero-row transition returns HTTP 409.
 - Internal-only `consumeIntelligenceApproval` primitive: validates the fixed repository, isolated branch pattern, commit SHA, scope digest, task ID, and owner UID. It uses the Worker server clock, marks expired records, and then attempts one conditional SQL update that binds approval ID, task, owner, repository, branch, base SHA, scope digest, issued state, revocation state, and expiry. It requires an accepted, unblocked `documentation_patch_proposal` task assigned to Intelligence or Shared. Exactly one changed row is required.
@@ -27,9 +28,9 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 
 ## Remaining protocol before activation
 
-1. Owner-only issue route (not implemented): verify the admin session, target task, repository identity, branch naming policy, pinned base SHA, path allowlist, scope size, and expiry. Reject any model-supplied approval state.
-2. Canonicalize scope deterministically, hash it with SHA-256, and store the exact canonical JSON and digest.
-3. Future executor: obtain approval context from the trusted Worker database, never from model output or a task description.
+1. The issuance route is implemented, but there is no UI integration yet. An owner must first approve the proposal task in Task Hub, then call the owner-only issuance route with its exact scope.
+2. The scope is canonicalized deterministically and hashed with SHA-256; the exact canonical JSON and digest are stored.
+3. A future executor must obtain approval context from the trusted Worker database, never from model output or a task description.
 4. Re-fetch and re-verify the repository base, branch, exact changed paths, patch bytes, and diff immediately before any GitHub write. Never reuse a consumed approval.
 5. Audit issue, revoke, failed consumption, and successful consumption without logging secrets or patch contents.
 
@@ -43,4 +44,4 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 
 ## Current limitation
 
-The D1 schema, owner-scoped read endpoint, conditional revocation endpoint, and an internal-only atomic consume primitive are present. There is intentionally no issue endpoint and no caller for the consume primitive. Therefore no approval can currently be created or consumed through the API, and the ledger is not an operational authorization mechanism. Existing read-only tasks continue to use their separate pre-authorization policy. The code-change executor remains disabled.
+The D1 schema, owner-scoped read/issue/revoke endpoints, and an internal-only atomic consume primitive are present. An issued grant can be created through the owner-authenticated API, but no HTTP/MCP/agent route calls the consume primitive. Therefore the grant is not yet an operational execution authorization mechanism. The documentation proposal task type is intentionally excluded from the agent queue. Existing read-only tasks continue to use their separate pre-authorization policy. The code-change executor remains disabled.
