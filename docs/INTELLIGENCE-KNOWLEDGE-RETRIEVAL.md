@@ -22,17 +22,22 @@ Retrieved entries retain their source and `updatedAt` provenance. The current co
 
 Before adding embeddings, external model providers or broader tools, measure retrieval precision and recall on owner-approved Persian and English evaluation questions. Include tests for conflicting/stale entries, prompt injection, missing knowledge and owner isolation. Any future vector index must remain inside the approved Pi Network company architecture and must not become an execution authority.
 
-## Next conflict-management phase (design only)
+## Knowledge relationships (implemented in validation branch; not production-deployed)
 
-The next conflict improvement must not rely on title similarity, recency, importance, or an LLM guess as proof that two statements contradict each other. The current schema has no durable relationship field, so semantic conflict detection is not yet implemented.
+The relationship layer does not rely on title similarity, recency, importance, or an LLM guess as proof that two statements contradict each other. It stores explicit, owner-scoped metadata between two existing knowledge IDs.
 
-The safe staged design is:
+Implemented in the validation branch:
 
-1. Keep the existing lexical retrieval path read-only and fail-closed.
-2. Add an owner-scoped knowledge-relationship record with a narrowly defined relation type such as `conflicts_with`, `supersedes`, or `supports`. A relationship must point to existing knowledge IDs and must never grant permissions.
-3. Let INTELLIGENCE propose candidate relationships with evidence snippets and source timestamps. Candidate relationships remain unconfirmed and cannot change retrieval priority or archive either entry.
-4. Require the owner to confirm, dismiss, or resolve a conflict. A resolution must identify the chosen knowledge record and retain the losing/older record and audit history; it must not silently delete information.
-5. In chat, surface confirmed conflicts and unresolved candidate conflicts separately. Only owner-confirmed resolution metadata or independently verified current company data may settle a conflict.
-6. Enforce owner UID checks on both ends of every relationship, reject cross-owner/system-seed mutations, and test archived, missing, duplicate, self-referential, and stale records.
+1. A dedicated `0002_intelligence_knowledge_relationships.sql` migration and matching Worker bootstrap schema define `conflicts_with`, `supersedes`, and `supports` relations.
+2. INTELLIGENCE can propose a relationship with evidence. The record is stored as `candidate`, authored by `intelligence`, and remains unconfirmed. It does not alter knowledge content, retrieval priority, archive state, permissions, or execution authority.
+3. The owner can list relationships and explicitly confirm, dismiss, or resolve an actionable candidate/confirmed record. Resolution must select one of the two linked knowledge records.
+4. Both original knowledge records remain stored. The proposal author remains recorded after owner review; confirmation/resolution timestamps record the review lifecycle.
+5. Chat context includes owner-scoped candidate, confirmed, and resolved relationship metadata. Candidate relations must be labelled as unconfirmed; only owner-confirmed relations or owner-selected resolutions can settle the relationship.
+6. Database constraints and triggers reject self-links, duplicate links, invalid relation/status values, cross-owner links, system-seed links, and new links to archived/missing knowledge. Reads and mutations are scoped to the authenticated owner.
 
-Before implementation, add a dedicated migration and disposable SQLite lifecycle tests. Do not run that migration against production D1 until an isolated staging database has been created and verified. This section is a design target, not an implemented feature.
+Validation limits:
+
+- The new migration lifecycle tests run against disposable SQLite, not Cloudflare D1.
+- Worker smoke tests validate parser, source contracts and helper behavior; they do not prove live D1 trigger behavior or live AI model behavior.
+- The relationship UI has not yet been built. The current owner API is available for the private admin interface to consume.
+- No production D1 migration, Cloudflare deployment, merge, or executor activation has occurred. Apply the migration only to a dedicated staging D1 database after the owner creates and verifies that isolated environment.
