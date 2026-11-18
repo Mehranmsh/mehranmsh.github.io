@@ -1,0 +1,26 @@
+name: MEHRAN INTELLIGENCE Patch Guard Tests
+
+on:
+  push:
+    branches:
+      - intelligence/code-change-proposal-design
+
+permissions:
+  contents: read
+
+jobs:
+  patch-guard-tests:
+    name: Run isolated patch guard tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run patch guard tests
+        run: node --test scripts/intelligence-patch-guard.test.mjs
