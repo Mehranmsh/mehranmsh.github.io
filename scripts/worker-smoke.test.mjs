@@ -2645,8 +2645,8 @@ test("INTELLIGENCE relationship API validates direction and writes only owner-co
   const insert=db.calls.find(call=>call.kind==="run"&&call.sql.includes("INSERT INTO intelligence_knowledge_relationships"));
   assert.equal(insert.args[1],"owner-1");
   assert.equal(insert.args[4],"supports");
-  assert.equal(insert.args[7],"k1");
-  assert.equal(insert.args[8],"k2");
+  assert.equal(insert.args[6],"k1");
+  assert.equal(insert.args[7],"k2");
 });
 
 test("INTELLIGENCE relationship API resolves only owner-confirmed conflicts", async () => {
