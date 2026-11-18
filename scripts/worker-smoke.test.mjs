@@ -1810,8 +1810,8 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
             return { results: [{
               id: "approval-1", task_id: "task-1", repository: "Mehranmsh/mehranmsh.github.io",
               branch: "intelligence/patch-documentation01", base_sha: "a".repeat(40),
-              scope_json: '{"paths":["docs/README.md"]}', scope_sha256: "hash",
-              status: "issued", issued_at: 100, expires_at: 200,
+              scope_json: '{"version":1,"paths":["docs/README.md"]}', scope_sha256: "hash",
+              status: 200 <= values[0] ? "expired" : "issued", issued_at: 100, expires_at: 200,
               revoked_at: null, consumed_at: null, consumed_by: null
             }] };
           }
@@ -1835,7 +1835,8 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
   const listPayload = await listed.json();
   assert.equal(state.listedOwner, "owner-uid");
   assert.equal(listPayload.approvals.length, 1);
-  assert.deepEqual(listPayload.approvals[0].scope, { paths: ["docs/README.md"] });
+  assert.deepEqual(listPayload.approvals[0].scope, { version: 1, paths: ["docs/README.md"] });
+  assert.equal(listPayload.approvals[0].status, "expired", "elapsed issued grants must be displayed as expired");
   assert.equal(state.listBinds[1], "owner-uid");
   assert.equal(typeof state.listBinds[0], "number", "owner listing must evaluate expiry against server time");
 
