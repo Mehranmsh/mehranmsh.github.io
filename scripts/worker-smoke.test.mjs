@@ -13,6 +13,7 @@ const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
+// Import the exact private helper source in isolation; do not expose it as a Worker RPC method.
 const approvalHelperStart = workerSource.indexOf("async function ensureIntelligenceApprovalLedgerTable(env)");
 const approvalHelperEnd = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable(env)", approvalHelperStart);
 if (approvalHelperStart < 0 || approvalHelperEnd <= approvalHelperStart) {
