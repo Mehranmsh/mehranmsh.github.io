@@ -5215,8 +5215,8 @@ export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=true) 
   const title=String(row.title||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
   const content=String(row.content||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase();
   let score=0,matched=false;
-  const titleTokens=new Set(title.match(/[\\p{L}\\p{N}]{2,}/gu)||[]);
-  const contentTokens=new Set(content.match(/[\\p{L}\\p{N}]{2,}/gu)||[]);
+  const titleTokens=new Set(title.match(/[\p{L}\p{N}]{2,}/gu)||[]);
+  const contentTokens=new Set(content.match(/[\p{L}\p{N}]{2,}/gu)||[]);
   for(const term of terms){if(titleTokens.has(term)){score+=6;matched=true;}if(contentTokens.has(term)){score+=1;matched=true;}}
   if(phrase.length>=4&&title.includes(phrase)){score+=4;matched=true;}
   if(phrase.length>=4&&content.includes(phrase)){score+=2;matched=true;}
