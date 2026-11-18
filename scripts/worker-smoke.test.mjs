@@ -1697,3 +1697,88 @@ test("MEHRAN INTELLIGENCE approval ledger schema is durable but not an active ex
   assert.match(schema, /idx_intelligence_approval_owner/);
   assert.doesNotMatch(workerSource, /\/intelligence\/approvals/);
 });
+
+
+test("Intelligence approval ledger is owner-scoped and supports revocation only", async () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/approvals" && method === "GET")');
+  const end = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))', start);
+  assert.ok(start >= 0 && end > start, "owner-only approval ledger routes must exist");
+  const routes = workerSource.slice(start, end);
+  assert.match(routes, /verifyAdmin\(request, env\)/);
+  assert.match(routes, /WHERE owner_uid=\?/);
+  assert.match(routes, /status='revoked',revoked_at=\?/);
+  assert.match(routes, /status='issued' AND expires_at>\?/);
+  assert.match(routes, /transition\?\.meta\?\.changes\|\|0\)\!==1/);
+  assert.doesNotMatch(routes, /method==="POST"/);
+
+  const state = { listedOwner: null, revokeBinds: null, audit: false };
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
+            return { uid: "owner-uid", username: "mehranmsh", expires_at: 4102444800 };
+          }
+          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
+          throw new Error("Unexpected approval ledger first query: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM intelligence_approval_ledger WHERE owner_uid=?")) {
+            state.listedOwner = values[0];
+            return { results: [{
+              id: "approval-1", task_id: "task-1", repository: "Mehranmsh/mehranmsh.github.io",
+              branch: "intelligence/patch-documentation01", base_sha: "a".repeat(40),
+              scope_json: '{"paths":["docs/README.md"]}', scope_sha256: "hash",
+              status: "issued", issued_at: 100, expires_at: 200,
+              revoked_at: null, consumed_at: null, consumed_by: null
+            }] };
+          }
+          return { results: [] };
+        },
+        async run() {
+          if (sql.includes("UPDATE intelligence_approval_ledger SET status='revoked'")) {
+            state.revokeBinds = values;
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("INSERT INTO admin_audit_log")) state.audit = true;
+          return { meta: { changes: 1 } };
+        }
+      };
+    }
+  };
+  const env = { DB: db };
+  const headers = { Authorization: "Bearer " + "x".repeat(64) };
+  const listed = await request("/intelligence/approvals", { headers }, env);
+  assert.equal(listed.status, 200);
+  const listPayload = await listed.json();
+  assert.equal(state.listedOwner, "owner-uid");
+  assert.equal(listPayload.approvals.length, 1);
+  assert.deepEqual(listPayload.approvals[0].scope, { paths: ["docs/README.md"] });
+
+  const revoked = await request("/intelligence/approvals/approval-1", { method: "DELETE", headers }, env);
+  assert.equal(revoked.status, 200);
+  assert.equal(state.revokeBinds[1], "approval-1");
+  assert.equal(state.revokeBinds[2], "owner-uid");
+  assert.equal(state.audit, true);
+  assert.deepEqual(await revoked.json(), { success: true, revoked: true, id: "approval-1" });
+});
+
+test("Intelligence approval ledger routes reject unauthenticated access", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          throw new Error("Unexpected unauthenticated approval query: " + sql);
+        },
+        async run() { return { meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const response = await request("/intelligence/approvals", {}, { DB: db });
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).error, "Admin authentication required");
+});
