@@ -2763,3 +2763,42 @@ test("Private Intelligence dashboard exposes owner relationship review without r
   assert.ok(indexSource.includes('Reopen stale conflict'));
   assert.ok(indexSource.includes('data-intel-relationship-action'));
 });
+
+test("INTELLIGENCE candidate proposal helper stores only source-verified owner evidence", async () => {
+  const db=makeRelationshipRouteDb({sourceRows:[
+    {id:"k1",title:"Shipping A",content:"Carrier A is required."},
+    {id:"k2",title:"Shipping B",content:"Carrier B is required."}
+  ]});
+  const result=await workerModule.createIntelligenceKnowledgeRelationshipCandidate({DB:db},{uid:"owner-1",username:"mehranmsh"},{
+    leftId:"k1",rightId:"k2",relationType:"conflicts_with",
+    leftEvidence:"Carrier A is required.",rightEvidence:"Carrier B is required."
+  });
+  assert.equal(result.status,"candidate");
+  const insert=db.calls.find(call=>call.kind==="run"&&call.sql.includes("INSERT INTO intelligence_knowledge_relationships"));
+  assert.equal(insert.args[1],"owner-1");
+  const evidence=JSON.parse(insert.args[5]);
+  assert.deepEqual(evidence.map(item=>item.knowledgeId),["k1","k2"]);
+  assert.ok(db.calls.some(call=>call.kind==="run"&&call.sql.includes("INSERT INTO admin_audit_log")));
+});
+
+test("INTELLIGENCE candidate proposal helper rejects fabricated or changed source evidence", async () => {
+  const args={leftId:"k1",rightId:"k2",relationType:"conflicts_with",leftEvidence:"Carrier A is required.",rightEvidence:"Carrier B is required."};
+  const fabricated=makeRelationshipRouteDb({sourceRows:[
+    {id:"k1",title:"Shipping A",content:"Carrier A is required."},
+    {id:"k2",title:"Shipping B",content:"Carrier C is required."}
+  ]});
+  await assert.rejects(workerModule.createIntelligenceKnowledgeRelationshipCandidate({DB:fabricated},{uid:"owner-1",username:"mehranmsh"},args),/Evidence must quote text/);
+  assert.equal(fabricated.calls.filter(call=>call.kind==="run"&&call.sql.includes("INSERT INTO intelligence_knowledge_relationships")).length,0);
+
+  const changed=makeRelationshipRouteDb({sourceRows:[
+    {id:"k1",title:"Shipping A",content:"Carrier A is required."},
+    {id:"k2",title:"Shipping B",content:"Carrier B is required."}
+  ],changes:0});
+  await assert.rejects(workerModule.createIntelligenceKnowledgeRelationshipCandidate({DB:changed},{uid:"owner-1",username:"mehranmsh"},args),/source knowledge changed/);
+});
+
+test("INTELLIGENCE candidate proposal helper refuses system-seed ownership", async () => {
+  const db=makeRelationshipRouteDb();
+  await assert.rejects(workerModule.createIntelligenceKnowledgeRelationshipCandidate({DB:db},{uid:"system_seed"},{}),/Authenticated owner identity/);
+  assert.equal(db.calls.length,0);
+});
