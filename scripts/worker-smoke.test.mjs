@@ -1845,7 +1845,7 @@ test("Intelligence approval consumption is atomic, bound, and not exposed to rou
 });
 
 
-test("Documentation patch approvals remain dormant and cannot enter the current task queue", () => {
+test("Documentation patch proposals require owner approval and remain excluded from the current agent queue", () => {
   const taskStart = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
   const taskEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', taskStart);
   assert.ok(taskStart >= 0 && taskEnd > taskStart, "Intelligence task creation route must exist");
@@ -1855,7 +1855,9 @@ test("Documentation patch approvals remain dormant and cannot enter the current 
   assert.ok(allowlistStart >= 0 && allowlistEnd > allowlistStart);
   const allowlist = taskRoute.slice(allowlistStart, allowlistEnd);
   assert.match(allowlist, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
-  assert.doesNotMatch(allowlist, /documentation_patch_proposal|code_change|github_write/);
+  assert.match(allowlist, /documentation_patch_proposal/);
+  assert.match(taskRoute, /const preapprovedReadOnlyActions=\["project_status_report","social_metrics_report","service_health_report","repository_quality_check"\]/);
+  assert.match(taskRoute, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
 
   const agentStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentEnd = workerSource.indexOf('const agentStatusMatch', agentStart);
