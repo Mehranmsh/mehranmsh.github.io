@@ -2611,7 +2611,7 @@ test("INTELLIGENCE relationship API enforces owner authentication and owner-scop
     relation_type:"conflicts_with",status:"candidate",proposed_by:"intelligence",
     evidence_json:'[{"knowledgeId":"k1","text":"Use Carrier A.","source":"owner_knowledge"}]',
     resolution_knowledge_id:null,created_at:"2026-11-19",updated_at:"2026-11-19",
-    left_title:"Shipping A",left_updated_at:"2026-11-18",
+    left_title:"Shipping A",left_updated_at:"2026-11-20",
     right_title:"Shipping B",right_updated_at:"2026-11-19"
   }]});
   const token="a".repeat(48);
@@ -2624,6 +2624,7 @@ test("INTELLIGENCE relationship API enforces owner authentication and owner-scop
   assert.equal(body.relationships.length,1);
   assert.equal(body.relationships[0].status,"candidate");
   assert.equal(body.relationships[0].left.title,"Shipping A");
+  assert.equal(body.relationships[0].stale,true);
   const read=db.calls.find(call=>call.kind==="all"&&call.sql.includes("FROM intelligence_knowledge_relationships r JOIN"));
   assert.equal(read.args[0],"owner-1");
 
@@ -2678,4 +2679,25 @@ test("INTELLIGENCE relationship API resolves only owner-confirmed conflicts", as
   }),{DB:supportDb,MEHRAN_OWNER_PI_UID:"owner-1"},{});
   assert.equal(rejected.status,400);
   assert.equal(supportDb.calls.filter(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")).length,0);
+});
+
+test("INTELLIGENCE can reopen a stale resolved conflict without deleting its history", async () => {
+  const db=makeRelationshipRouteDb({current:{
+    left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"conflicts_with",status:"resolved",
+    resolution_knowledge_id:"k2",evidence_json:"[]",updated_at:"2026-11-18 00:00:00",
+    left_updated_at:"2026-11-19 00:00:00",right_updated_at:"2026-11-18 00:00:00"
+  }});
+  const response=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships/rel-stale",{
+    method:"PUT",headers:{Authorization:"Bearer "+"d".repeat(48),"Content-Type":"application/json"},
+    body:JSON.stringify({action:"reopen"})
+  }),{DB:db,MEHRAN_OWNER_PI_UID:"owner-1"},{});
+  assert.equal(response.status,200);
+  const body=await response.json();
+  assert.equal(body.status,"candidate");
+  assert.equal(body.reopened,true);
+  const update=db.calls.find(call=>call.kind==="run"&&call.sql.includes("SET status='candidate'"));
+  assert.ok(update);
+  const audit=db.calls.find(call=>call.kind==="run"&&call.sql.includes("INSERT INTO admin_audit_log"));
+  assert.ok(audit);
+  assert.equal(audit.args[3],"intelligence_knowledge_relationship_reopened");
 });
