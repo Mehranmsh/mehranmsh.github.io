@@ -116,7 +116,7 @@ class IntelligenceKnowledgeRelationshipMigrationTests(unittest.TestCase):
         rows = self.db.execute(
             "SELECT relation_type,direction_from_knowledge_id,direction_to_knowledge_id FROM intelligence_knowledge_relationships ORDER BY relation_type"
         ).fetchall()
-        self.assertEqual(rows,[("supports","a1","a2"),("supersedes","a2","a1")])
+        self.assertEqual(rows,[("supersedes","a2","a1"),("supports","a1","a2")])
 
     def test_invalid_relation_status_and_resolution_are_rejected(self):
         with self.assertRaises(sqlite3.IntegrityError):
