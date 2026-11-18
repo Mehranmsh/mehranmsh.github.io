@@ -2040,3 +2040,33 @@ test("SOCIAL story publishing and reads are bound to verified upload IDs", () =>
   assert.match(indexSource, /const uploaded=await socialUploadFile\(uploadFile,true\)/);
   assert.match(indexSource, /JSON\.stringify\(\{uploadId:uploaded\.id,mediaType:/);
 });
+
+
+test("SOCIAL profile avatar and gallery writes are owned upload-ID references", () => {
+  const updateStart = workerSource.indexOf("async function socialUpdateProfile(");
+  const updateEnd = workerSource.indexOf("\nasync function ", updateStart + 10);
+  assert.ok(updateStart >= 0 && updateEnd > updateStart, "profile update route must exist");
+  const updateRoute = workerSource.slice(updateStart, updateEnd);
+  assert.match(updateRoute, /WHERE id=\? AND user_id=\? LIMIT 1/);
+  assert.match(updateRoute, /avatarUpload\.status !== "ready"/);
+  assert.match(updateRoute, /avatarUpload\.acl !== "public"/);
+  assert.match(updateRoute, /verifiedAvatarUploadId/);
+  assert.match(updateRoute, /galleryItems/);
+  assert.match(updateRoute, /upload\.status !== "ready"/);
+  assert.match(updateRoute, /upload\.acl !== "public"/);
+  assert.match(updateRoute, /INSERT INTO social_profile_photos\([^)]*upload_id\)/);
+  assert.match(updateRoute, /await env\.DB\.batch\(statements\)/);
+
+  const profileStart = workerSource.indexOf("async function getProfileByUsername(");
+  const profileEnd = workerSource.indexOf("\nasync function ", profileStart + 10);
+  assert.ok(profileStart >= 0 && profileEnd > profileStart, "profile read helper must exist");
+  const profileRead = workerSource.slice(profileStart, profileEnd);
+  assert.match(profileRead, /avatar\.id=u\.avatar_upload_id AND avatar\.user_id=u\.id/);
+  assert.match(profileRead, /media\.id=p\.upload_id AND media\.user_id=p\.user_id/);
+  assert.match(profileRead, /media\.status='ready' AND media\.acl='public'/);
+  assert.match(profileRead, /validHttpsUrl\(row\.resolved_photo_url\)/);
+
+  assert.match(indexSource, /galleryItems:\[\]/);
+  assert.match(indexSource, /profilePayload\.avatarUploadId/);
+  assert.match(indexSource, /profilePayload\.galleryItems\.push\(\{uploadId:/);
+});
