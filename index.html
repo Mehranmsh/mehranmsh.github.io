@@ -1838,7 +1838,7 @@ const liked=!!post.liked||(post.likes||[]).includes(currentUsername());
 const identityLabel=socialAccountTypeLabel(post.accountType);const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(typeof c.author==="string"?c.author:(c.author?.displayName||c.author?.username||"Member"))+'</strong>'+(socialAccountTypeLabel(c.accountType||c.author?.accountType)?'<small style="color:#78dfff;font-weight:700;margin-left:6px">'+socialAccountTypeLabel(c.accountType||c.author?.accountType)+'</small>':'')+': '+socialRenderCustomEmoji(c.text||c.content||"")+'</div>').join("");
 const media=getPostMedia(post),first=media[0];let mediaHTML="";
 if(first)mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
-return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl?'<img src="'+sx(post.avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
+return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl&&safeMediaSrc(post.avatarUrl)?'<img src="'+escapeHTML(safeMediaSrc(post.avatarUrl))+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
 }).join("");
 }
 function renderExplore(){
@@ -1849,7 +1849,7 @@ $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
 grid.innerHTML=filtered.map(p=>{
 const m=getPostMedia(p)[0];
 if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';
-return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>';
+return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+escapeHTML(safeMediaSrc(m.data,{allowBlob:true,allowDataImage:true}))+'" muted></video>':'<img src="'+escapeHTML(safeMediaSrc(m.data,{allowBlob:true,allowDataImage:true}))+'" alt="Explore post">')+'</button></div>';
 }).join("");
 }
 $("exploreSearch").addEventListener("input",renderExplore);
@@ -2444,8 +2444,8 @@ async function socialCreateStory(){
   editor.querySelectorAll("[data-editor-close]").forEach(b=>b.addEventListener("click",close));
   const media=$e("storyEditMedia"),layer=$e("storyStickerLayer");
   const fileUrl=URL.createObjectURL(file);if(!isVideo)imageObject=fileUrl;
-  if(isVideo){media.innerHTML='<video src="'+fileUrl+'" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>';$e("storyFilterTools").style.display="none";$e("storyStickerTools").style.display="none";$e("storyVideoNote").style.display="block";}
-  else{media.innerHTML='<img id="storyEditImage" src="'+fileUrl+'" alt="Story preview" style="width:100%;height:100%;object-fit:contain;filter:none">';}
+  const safeFileUrl=safeMediaSrc(fileUrl,{allowBlob:true});if(!safeFileUrl){close();toast("The local media preview could not be validated.");return;}if(isVideo){media.innerHTML='<video src="'+escapeHTML(safeFileUrl)+'" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>';$e("storyFilterTools").style.display="none";$e("storyStickerTools").style.display="none";$e("storyVideoNote").style.display="block";}
+  else{media.innerHTML='<img id="storyEditImage" src="'+escapeHTML(safeFileUrl)+'" alt="Story preview" style="width:100%;height:100%;object-fit:contain;filter:none">';}
   const filterById=id=>filters.find(x=>x.id===id)?.css||"none";
   const paintLayer=()=>{layer.innerHTML=stickers.map((x,i)=>'<div style="position:absolute;left:50%;top:'+(28+i*13)+'%;transform:translate(-50%,-50%);max-width:90%;padding:5px 10px;border-radius:10px;background:#07101a66;color:white;font-size:'+(x.length>8?22:36)+'px;font-weight:800;text-shadow:0 2px 8px #000;text-align:center;white-space:pre-wrap">'+sx(x)+'</div>').join("");};
   editor.querySelectorAll("[data-story-filter]").forEach(btn=>btn.addEventListener("click",()=>{selectedFilter=btn.dataset.storyFilter;const img=$e("storyEditImage");if(img)img.style.filter=filterById(selectedFilter);editor.querySelectorAll("[data-story-filter]").forEach(x=>x.style.background=x===btn?"#17415a":"#17263a");}));
@@ -2512,7 +2512,7 @@ async function socialOpenStory(id){
   document.getElementById("socialStoryAvatar").textContent=(story.author?.username||"S").slice(0,1).toUpperCase();
   document.getElementById("socialStoryCaption").textContent=story.caption||"";
   document.getElementById("socialStoryProgress").style.background="linear-gradient(90deg,#32d9ff "+Math.round((index+1)/Math.max(1,(socialStoriesCache||[]).length)*100)+"%,#ffffff30 0)";
-  media.innerHTML=story.mediaType==="video"?'<video src="'+sx(story.mediaUrl)+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+sx(story.mediaUrl)+'" alt="Story" style="width:100%;height:100%;object-fit:contain">';
+  const storyMediaUrl=safeMediaSrc(story.mediaUrl);media.innerHTML=storyMediaUrl?(story.mediaType==="video"?'<video src="'+escapeHTML(storyMediaUrl)+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+escapeHTML(storyMediaUrl)+'" alt="Story" style="width:100%;height:100%;object-fit:contain">'):'<div class="media-unavailable">Story media unavailable</div>';
   try{await socialRequest("/stories/"+encodeURIComponent(story.id)+"/view",{method:"POST"});}catch(err){console.warn("Story view could not be recorded",err);}
   document.body.style.overflow="hidden";
  }
@@ -2549,7 +2549,7 @@ function socialRenderContacts(){
  const box=$("contactsResults");if(!box)return;
  const q=($("contactsSearchInput")?.value||"").trim().toLowerCase();
  const users=socialContactsCache.filter(u=>(u.username||"").toLowerCase().includes(q)||(u.displayName||"").toLowerCase().includes(q));
- box.innerHTML=users.map(u=>'<button type="button" class="social-result" data-contact-user="'+sx(u.username)+'" style="display:flex;width:100%;align-items:center;gap:12px;text-align:left;margin:8px 0;padding:12px"><span class="avatar">'+(u.avatarUrl?'<img src="'+sx(u.avatarUrl)+'" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover">':sx((u.displayName||u.username||"?").slice(0,1).toUpperCase()))+'</span><span style="flex:1"><strong>'+sx(u.displayName||u.username)+'</strong><span class="small-text" style="display:block">@'+sx(u.username)+'</span></span><span class="small-text">Chat ›</span></button>').join("")||'<div class="empty">'+(socialContactsCache.length?"No contacts match this filter.":"No contacts yet. Follow people or let people follow you to see them here.")+'</div>';
+ box.innerHTML=users.map(u=>'<button type="button" class="social-result" data-contact-user="'+sx(u.username)+'" style="display:flex;width:100%;align-items:center;gap:12px;text-align:left;margin:8px 0;padding:12px"><span class="avatar">'+(u.avatarUrl&&safeMediaSrc(u.avatarUrl)?'<img src="'+escapeHTML(safeMediaSrc(u.avatarUrl))+'" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover">':sx((u.displayName||u.username||"?").slice(0,1).toUpperCase()))+'</span><span style="flex:1"><strong>'+sx(u.displayName||u.username)+'</strong><span class="small-text" style="display:block">@'+sx(u.username)+'</span></span><span class="small-text">Chat ›</span></button>').join("")||'<div class="empty">'+(socialContactsCache.length?"No contacts match this filter.":"No contacts yet. Follow people or let people follow you to see them here.")+'</div>';
 }
 async function socialLoadContacts(){
  const box=$("contactsResults");if(!box)return;
@@ -2576,7 +2576,7 @@ function socialRenderConversationRows(){
  list.innerHTML=rows.map(c=>{
   const other=(c.members||[]).find(x=>x.username!==currentUsername())||(c.members||[])[0];
   const title=c.title||other?.displayName||other?.username||(c.type==="group"?"Group":"Direct message");
-  const avatar=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
+  const avatar=other?.avatarUrl&&safeMediaSrc(other.avatarUrl)?'<img src="'+escapeHTML(safeMediaSrc(other.avatarUrl))+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
   const preview=c.lastMessage|| (c.type==="group"?"Group conversation":"No messages yet");
   const stamp=c.lastMessageAt?new Date(c.lastMessageAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";
   const unread=Number(c.unreadCount||0);const identityLabel=socialAccountTypeLabel(other?.accountType);
@@ -2784,7 +2784,7 @@ async function socialOpenConversation(id){
  $("chatTitle").textContent=c?.title||other?.displayName||other?.username||"Conversation";
  const inbox=$("chatInboxView"),thread=$("chatThreadView"),avatar=$("chatThreadAvatar");
  if(inbox)inbox.classList.add("hidden");if(thread)thread.classList.remove("hidden");
- if(avatar)avatar.innerHTML=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
+ if(avatar)avatar.innerHTML=other?.avatarUrl&&safeMediaSrc(other.avatarUrl)?'<img src="'+escapeHTML(safeMediaSrc(other.avatarUrl))+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
  const status=$("chatThreadStatus");if(status){const presence=other?.lastSeenAt?socialPresenceLabel(other.lastSeenAt):"SOCIAL chat";status.textContent=c?.type==="group"?"Group conversation":presence;}
  socialRenderGroupManagement(c);
  ["chatInput","sendChatBtn","voiceChatBtn","chatAttachBtn","chatEmojiBtn"].forEach(key=>{const el=$(key);if(el)el.disabled=false;});
@@ -2940,7 +2940,7 @@ function socialRenderChatMessage(m){
  const receipt=isMine&&readers.length?(active?.type==="group"?" · Seen by "+readers.length:" · Seen"):"";
  const media=(m.media||[]).map(item=>{
   if(item.unavailable)return '<span class="small-text">Attachment unavailable. It may have expired or been removed.</span>';
-  const url=sx(item.url||"");const type=String(item.type||"").toLowerCase();
+  const safeUrl=safeMediaSrc(item.url||"");if(!safeUrl)return '<span class="small-text">Attachment unavailable. Its media address was rejected.</span>';const url=escapeHTML(safeUrl);const type=String(item.type||"").toLowerCase();
   if(window.socialExtendedSettingsCache?.chat?.autoDownload===false){
    const label=type.startsWith("image")?"View image":type.startsWith("video")?"Open video":(type.startsWith("audio")||type.includes("voice"))?"Play voice message":"Open attachment";
    return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text" style="display:inline-block;margin-top:8px">⬇ '+label+'</a>';
