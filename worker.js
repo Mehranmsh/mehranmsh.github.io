@@ -5138,6 +5138,9 @@ async function ensureIntelligenceTaskTable(env) {
       action_type TEXT NOT NULL DEFAULT '',
       action_payload TEXT NOT NULL DEFAULT '{}',
       agent_claimed_at TEXT,
+      agent_claim_id TEXT,
+      scheduler_claimed_at TEXT,
+      scheduler_claim_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -5145,6 +5148,9 @@ async function ensureIntelligenceTaskTable(env) {
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_type TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claimed_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claim_id TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN scheduler_claimed_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN scheduler_claim_id TEXT").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
@@ -5537,14 +5543,18 @@ export default {
         ).bind(runId,startedAt).run();
         runRecordCreated = true;
 
+        await env.DB.prepare(
+          "UPDATE intelligence_tasks SET status='accepted',scheduler_claimed_at=NULL,scheduler_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND scheduler_claimed_at IS NOT NULL AND datetime(scheduler_claimed_at) < datetime('now','-30 minutes')"
+        ).run();
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
             "SELECT id,action_type FROM intelligence_tasks WHERE status='accepted' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
+          const schedulerClaimId = crypto.randomUUID();
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
-          ).bind(candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',scheduler_claimed_at=CURRENT_TIMESTAMP,scheduler_claim_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
+          ).bind(schedulerClaimId,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
           try {
@@ -5568,12 +5578,12 @@ export default {
               throw new Error("Unsupported action type.");
             }
             const resultText = JSON.stringify(report).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            completed++;
+            const saved = await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,scheduler_claimed_at=NULL,scheduler_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND scheduler_claim_id=?").bind(resultText,candidate.id,schedulerClaimId).run();
+            if (Number(saved?.meta?.changes || 0)) completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            blocked++;
+            const saved = await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,scheduler_claimed_at=NULL,scheduler_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND scheduler_claim_id=?").bind(resultText,candidate.id,schedulerClaimId).run();
+            if (Number(saved?.meta?.changes || 0)) blocked++;
           }
         }
 
@@ -5653,40 +5663,41 @@ export default {
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,agent_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
           ).run();
           const candidate = await env.DB.prepare(
             "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
+          const claimId = crypto.randomUUID();
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
-          ).bind(candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
+          ).bind(claimId,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
-          return json({success:true,task:row?formatIntelligenceTask(row):null});
+          return json({success:true,task:row?{...formatIntelligenceTask(row),claimId:row.agent_claim_id}:null});
         }
         const agentStatusMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/status$/);
         if (agentStatusMatch && method === "GET") {
           const id = decodeURIComponent(agentStatusMatch[1]);
           if (!id || id.length > 80) return error("Invalid task ID.");
-          const row = await env.DB.prepare("SELECT id,status,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
+          const row = await env.DB.prepare("SELECT id,status,action_type,assigned_to,agent_claimed_at,agent_claim_id FROM intelligence_tasks WHERE id=?").bind(id).first();
           if (!row || !["mehran_intelligence","shared"].includes(row.assigned_to)) return error("Task not found or not assigned to this agent.",404);
-          return json({success:true,task:{id:row.id,status:row.status,actionType:row.action_type || "",agentClaimed:Boolean(row.agent_claimed_at)}});
+          return json({success:true,task:{id:row.id,status:row.status,actionType:row.action_type || "",agentClaimed:Boolean(row.agent_claimed_at),claimId:row.agent_claim_id || ""}});
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
           if (!id || id.length > 80) return error("Invalid task ID.");
           const body = await readBody(request);
-          if (!body || typeof body.result !== "string" || body.result.length > 3000 || !["completed","blocked"].includes(body.status || "completed")) {
-            return error("A bounded result and valid terminal status are required.");
+          if (!body || typeof body.result !== "string" || body.result.length > 3000 || typeof body.claimId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.claimId) || !["completed","blocked"].includes(body.status || "completed")) {
+            return error("A bounded result, valid claim ID and terminal status are required.");
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL"
-          ).bind(body.status || "completed",resultText,id).run();
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,agent_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claim_id=?"
+          ).bind(body.status || "completed",resultText,id,body.claimId).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
@@ -6538,12 +6549,19 @@ export default {
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
+            if(!await checkRateLimit(env,request,"intelligence-task-write",30,3600,900,admin.uid)) return rpcError(-32029,"Too many task changes. Try again later.",429);
+            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
-            if(existing.action_type||Number(existing.requires_approval)===1||existing.status==="awaiting_approval") return rpcError(-32003,"Pending proposals and automated task approval, cancellation and execution results are controlled by the owner Task Hub and MEHRAN INTELLIGENCE service.");
-            const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(args.status,nextResult,id).run();
-            await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
+            if(existing.action_type){
+              const approvalTransition=args.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
+              const cancelTransition=args.status==="cancelled"&&["awaiting_approval","queued","accepted","in_progress"].includes(existing.status);
+              if(!approvalTransition&&!cancelTransition) return rpcError(-32009,"Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
+              if(Object.prototype.hasOwnProperty.call(args,"result")) return rpcError(-32009,"Automated task results can only be recorded by the execution service.",409);
+            }
+            const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?cleanText(result,3000):(existing.result_text||"");
+            const updated=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,agent_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claimed_at END,agent_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claim_id END,scheduler_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claimed_at END,scheduler_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claim_id END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?").bind(args.status,nextResult,args.status,args.status,args.status,args.status,args.status,id,existing.status).run();
+            if(!Number(updated?.meta?.changes||0)) return rpcError(-32009,"Task state changed before this update. Refresh and try again.",409);
+            await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status,previousStatus:existing.status,claimsRevoked:args.status==="cancelled"}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task record updated. No external action was executed."});
           }
@@ -6748,31 +6766,18 @@ export default {
         const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
         const result=typeof body.result==="string"?body.result:"";
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
-        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type,assigned_to,agent_claimed_at FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
-        const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
-        const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
-        const cancelActiveAgentTransition=body.status==="cancelled"&&existing.status==="in_progress"&&Number(existing.requires_approval)===0&&["mehran_intelligence","shared"].includes(existing.assigned_to)&&["repository_quality_check","service_health_report"].includes(existing.action_type)&&Boolean(existing.agent_claimed_at);
-        const cancelTransition=body.status==="cancelled"&&(["awaiting_approval","queued","accepted"].includes(existing.status)||cancelActiveAgentTransition);
-        if(approvalGate){
-          if(!approvalTransition&&!cancelTransition)return error("Pending or automated task status is controlled by the owner Task Hub. Only approval or cancellation is allowed.",409);
-          if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Task results cannot be attached to an approval or cancellation transition.",409);
+        if(existing.action_type){
+          const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
+          const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted","in_progress"].includes(existing.status);
+          if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
+          if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        if(approvalGate){
-          let transition;
-          if(approvalTransition){
-            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='accepted',requires_approval=0,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_approval' AND requires_approval=1").bind(id).run();
-          }else if(cancelActiveAgentTransition){
-            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND agent_claimed_at IS NOT NULL").bind(id).run();
-          }else{
-            transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='cancelled',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=? AND status IN ('awaiting_approval','queued','accepted')").bind(id,existing.status,Number(existing.requires_approval)).run();
-          }
-          if(Number(transition?.meta?.changes||0)!==1)return error("Task state changed before this approval or cancellation could be applied. Refresh and review the task again.",409);
-        }else{
-          await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
-        }
-        await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
+        const updated=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,agent_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claimed_at END,agent_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE agent_claim_id END,scheduler_claimed_at=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claimed_at END,scheduler_claim_id=CASE WHEN ?='cancelled' THEN NULL ELSE scheduler_claim_id END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?").bind(body.status,nextResult,body.status,body.status,body.status,body.status,body.status,id,existing.status).run();
+        if(!Number(updated?.meta?.changes||0))return error("Task state changed before this update. Refresh and try again.",409);
+        await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status,previousStatus:existing.status,claimsRevoked:body.status==="cancelled"}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});
       }
