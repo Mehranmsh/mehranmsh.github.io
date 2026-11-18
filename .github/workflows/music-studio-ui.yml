@@ -13,6 +13,9 @@ on:
       - "ai-singer/tests/test_studio_midi_parser.js"
       - ".github/workflows/music-studio-ui.yml"
 
+permissions:
+  contents: read
+
 jobs:
   studio-ui:
     runs-on: ubuntu-latest
