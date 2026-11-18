@@ -1801,107 +1801,6 @@ test("Intelligence approval issuance is owner-only, task-bound, short-lived, and
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
 });
 
-test.skip("owner can issue a short-lived documentation approval bound to task, branch, base and canonical scope", async () => {
-  const state = { inserted: null, audit: false, owner: null };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
-            return { uid:"owner-uid", username:"mehranmsh", expires_at:4102444800 };
-          }
-          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts:1, blocked_until:null };
-          if (sql.includes("SELECT id,status,requires_approval,action_type,assigned_to FROM intelligence_tasks")) {
-            return { id:"task-123", status:"accepted", requires_approval:0,
-              action_type:"documentation_patch_proposal", assigned_to:"mehran_intelligence" };
-          }
-          if (sql.includes("SELECT id FROM intelligence_approval_ledger")) {
-            state.owner = values[1];
-            return null;
-          }
-          throw new Error("Unexpected approval issuance query: " + sql);
-        },
-        async run() {
-          if (sql.includes("INSERT INTO intelligence_approval_ledger")) state.inserted = values;
-          if (sql.includes("INSERT INTO admin_audit_log")) state.audit = true;
-          return { meta:{changes:1} };
-        }
-      };
-    }
-  };
-  const headers = { Authorization:"Bearer " + "x".repeat(64) };
-  const response = await request("/intelligence/approvals", {
-    method:"POST", headers,
-    body:{ taskId:"task-123", branch:"intelligence/patch-docsPilot01",
-      baseSha:"a".repeat(40), paths:["docs/Z.md","docs/A.md"] }
-  }, { DB:db });
-  assert.equal(response.status,201);
-  const payload = await response.json();
-  assert.equal(payload.success,true);
-  assert.deepEqual(payload.approval.scope,{version:1,paths:["docs/A.md","docs/Z.md"]});
-  assert.equal(payload.approval.repository,"Mehranmsh/mehranmsh.github.io");
-  assert.match(payload.approval.scopeSha256,/^[0-9a-f]{64}$/);
-  assert.equal(payload.approval.expiresAt-payload.approval.issuedAt,900);
-  assert.equal(state.owner,"owner-uid");
-  assert.equal(state.inserted[2],"owner-uid");
-  assert.equal(state.inserted[3],"mehranmsh");
-  assert.equal(state.inserted[4],"Mehranmsh/mehranmsh.github.io");
-  assert.equal(state.audit,true);
-});
-
-test.skip("approval issuance rejects unsafe paths and unauthenticated callers before writing", async () => {
-  let writes=0;
-  const db = {
-    prepare(sql) {
-      return {
-        bind() { return this; },
-        async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
-          throw new Error("Unauthenticated caller must not reach database work: "+sql);
-        },
-        async run() {
-          if (sql.includes("INSERT INTO intelligence_approval_ledger") || sql.includes("INSERT INTO admin_audit_log")) writes++;
-          return {meta:{changes:1}};
-        }
-      };
-    }
-  };
-  const unauth = await request("/intelligence/approvals", {
-    method:"POST", body:{taskId:"task-123",branch:"intelligence/patch-docsPilot01",
-      baseSha:"a".repeat(40),paths:["docs/README.md"]}
-  }, {DB:db});
-  assert.equal(unauth.status,403);
-  assert.equal(writes,0);
-
-  const safeDb = {
-    prepare(sql) {
-      return {
-        bind() { return this; },
-        async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
-            return {uid:"owner-uid",username:"mehranmsh",expires_at:4102444800};
-          }
-          if (sql.includes("RETURNING attempts,blocked_until")) return {attempts:1,blocked_until:null};
-          throw new Error("Unsafe path must be rejected before task lookup: "+sql);
-        },
-        async run() {
-          if (sql.includes("INSERT INTO intelligence_approval_ledger") || sql.includes("INSERT INTO admin_audit_log")) writes++;
-          return {meta:{changes:1}};
-        }
-      };
-    }
-  };
-  const unsafe = await request("/intelligence/approvals", {
-    method:"POST", headers:{Authorization:"Bearer "+"x".repeat(64)},
-    body:{taskId:"task-123",branch:"intelligence/patch-docsPilot01",
-      baseSha:"a".repeat(40),paths:["docs/../worker.js"]}
-  }, {DB:safeDb});
-  assert.equal(unsafe.status,400);
-  assert.equal(writes,0);
-});
-
 test("Intelligence approval ledger routes reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
@@ -1922,6 +1821,11 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
   const revokeResponse = await request("/intelligence/approvals/approval-1", { method: "DELETE" }, { DB: db });
   assert.equal(revokeResponse.status, 403);
   assert.equal((await revokeResponse.json()).error, "Admin authentication required");
+  const issueResponse = await request("/intelligence/approvals", {
+    method:"POST", body:{}
+  }, {DB:db});
+  assert.equal(issueResponse.status,403);
+  assert.equal((await issueResponse.json()).error,"Admin authentication required");
 });
 
 
