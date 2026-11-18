@@ -483,6 +483,7 @@ test("conversation list exposes per-member unread counts without counting own or
   assert.match(handler, /unread\.sender_id<>\?/);
   assert.match(handler, /unread\.deleted_at IS NULL/);
   assert.ok(handler.includes("unread.rowid>COALESCE(cm.last_read_message_rowid"));
+  assert.match(handler, /unreadCount: Math\.max\(0, Number\(row\.unread_count \|\| 0\)\)/);
   assert.match(handler, /\.bind\(user\.id, user\.id, user\.id, user\.id\)\.all\(\)/);
 });
 
