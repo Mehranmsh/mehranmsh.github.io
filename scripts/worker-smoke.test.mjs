@@ -2704,3 +2704,25 @@ test("INTELLIGENCE can reopen a stale resolved conflict without deleting its his
   assert.ok(audit);
   assert.equal(audit.args[3],"intelligence_knowledge_relationship_reopened");
 });
+
+test("INTELLIGENCE cannot confirm a candidate after its evidence disappears from current knowledge", async () => {
+  const current={
+    left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"conflicts_with",
+    status:"candidate",proposed_by:"intelligence",
+    evidence_json:JSON.stringify([
+      {knowledgeId:"k1",text:"Carrier A is required.",source:"owner_knowledge"},
+      {knowledgeId:"k2",text:"Carrier B is required.",source:"owner_knowledge"}
+    ]),
+    updated_at:"2026-11-19 00:00:00",left_updated_at:"2026-11-19 00:00:00",right_updated_at:"2026-11-19 00:00:00"
+  };
+  const db=makeRelationshipRouteDb({current,sourceRows:[
+    {id:"k1",title:"Shipping A",content:"Carrier A is required."},
+    {id:"k2",title:"Shipping B",content:"Carrier B is now optional."}
+  ]});
+  const response=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships/rel-candidate",{
+    method:"PUT",headers:{Authorization:"Bearer "+"e".repeat(48),"Content-Type":"application/json"},
+    body:JSON.stringify({action:"confirm"})
+  }),{DB:db,MEHRAN_OWNER_PI_UID:"owner-1"},{});
+  assert.equal(response.status,409);
+  assert.equal(db.calls.filter(call=>call.kind==="run"&&call.sql.includes("UPDATE intelligence_knowledge_relationships")).length,0);
+});
