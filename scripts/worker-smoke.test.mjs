@@ -2568,7 +2568,7 @@ test("INTELLIGENCE relationship routes are owner-authenticated and preserve cand
   assert.doesNotMatch(routes,/DELETE FROM intelligence_knowledge/);
 });
 
-function makeRelationshipRouteDb({rows=[],current=null,activeKnowledgeCount=2,changes=1}={}) {
+function makeRelationshipRouteDb({rows=[],current=null,sourceRows=[],activeKnowledgeCount=2,changes=1}={}) {
   const calls=[];
   const db={
     calls,
@@ -2584,7 +2584,7 @@ function makeRelationshipRouteDb({rows=[],current=null,activeKnowledgeCount=2,ch
           calls.push({kind:"first",sql,args});
           if(sql.includes("FROM admin_sessions"))return {uid:"owner-1",username:"mehranmsh",created_at:Math.floor(Date.now()/1000),expires_at:Math.floor(Date.now()/1000)+3600};
           if(sql.includes("INSERT INTO social_auth_limits"))return {attempts:1,blocked_until:null};
-          if(sql.includes("SELECT left_knowledge_id,right_knowledge_id,relation_type,status FROM intelligence_knowledge_relationships"))return current;
+          if(sql.includes("FROM intelligence_knowledge_relationships r JOIN"))return current;
           if(sql.includes("SELECT COUNT(*) AS total FROM intelligence_knowledge"))return {total:activeKnowledgeCount};
           if(sql.includes("SELECT 1 AS active FROM intelligence_knowledge"))return {active:1};
           return null;
@@ -2592,6 +2592,7 @@ function makeRelationshipRouteDb({rows=[],current=null,activeKnowledgeCount=2,ch
         async all() {
           calls.push({kind:"all",sql,args});
           if(sql.includes("FROM intelligence_knowledge_relationships r JOIN"))return {results:rows};
+          if(sql.includes("FROM intelligence_knowledge WHERE id IN (?,?)"))return {results:sourceRows};
           return {results:[]};
         },
         async run() {
@@ -2655,7 +2656,8 @@ test("INTELLIGENCE relationship API validates direction and writes only owner-co
 
 test("INTELLIGENCE relationship API resolves only owner-confirmed conflicts", async () => {
   const db=makeRelationshipRouteDb({current:{
-    left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"conflicts_with",status:"candidate"
+    left_knowledge_id:"k1",right_knowledge_id:"k2",relation_type:"conflicts_with",status:"confirmed",
+    evidence_json:"[]",updated_at:"2026-11-19 00:00:00",left_updated_at:"2026-11-19 00:00:00",right_updated_at:"2026-11-19 00:00:00"
   }});
   const token="c".repeat(48);
   const response=await workerModule.default.fetch(new Request("https://mehranmsh.github.io/intelligence/knowledge/relationships/rel-1",{
