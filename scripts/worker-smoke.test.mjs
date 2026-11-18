@@ -2376,12 +2376,13 @@ test("INTELLIGENCE AI relationship proposals are visible-context-only, evidence-
     prepare(sql){
       return {
         sql,
-        bind(){return this;},
+        bound:[],
+        bind(...args){this.bound=args;return this;},
         async first(){if(sql.includes("sqlite_master"))return {name:"intelligence_knowledge_relations"};throw new Error("Unexpected first query: "+sql);},
         async all(){if(sql.includes("FROM intelligence_knowledge WHERE id IN"))return {results:entries};throw new Error("Unexpected all query: "+sql);}
       };
     },
-    async batch(statements){batchCalls++;assert.equal(statements.length,2);assert.match(statements[0].sql,/VALUES\\(.*'candidate'/);assert.match(statements[1].sql,/intelligence_knowledge_relation_ai_proposed/);return [{meta:{changes:1}},{meta:{changes:1}}];}
+    async batch(statements){batchCalls++;assert.equal(statements.length,2);assert.match(statements[0].sql,/VALUES\\(.*'candidate'/);assert.equal(statements[1].bound[3],"intelligence_knowledge_relation_ai_proposed");return [{meta:{changes:1}},{meta:{changes:1}}];}
   }};
   const admin={uid:owner,username:"owner"};
   const args={sourceKnowledgeId:sourceId,targetKnowledgeId:targetId,relationType:"conflicts_with",sourceEvidence:"Use Carrier A",targetEvidence:"Use Carrier B"};
