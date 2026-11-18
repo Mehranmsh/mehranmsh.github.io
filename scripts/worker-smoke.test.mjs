@@ -6,6 +6,9 @@ const workerSource = await readFile(new URL("../worker.js", import.meta.url), "u
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
+const deployWorkflowSource = await readFile(new URL("../.github/workflows/deploy-worker.yml", import.meta.url), "utf8");
+const phrasesImportWorkflowSource = await readFile(new URL("../.github/workflows/import-persian-phrases.yml", import.meta.url), "utf8");
+const instrumentsImportWorkflowSource = await readFile(new URL("../.github/workflows/import-recorded-instruments.yml", import.meta.url), "utf8");
 const agentRunnerSource = await readFile(new URL("../scripts/intelligence-agent.mjs", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
@@ -252,6 +255,17 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.equal(response.status, 403);
   const payload = await response.json();
   assert.match(payload.error, /Admin authentication required/);
+});
+
+test("deployment and write-enabled import workflows are main-branch only", () => {
+  assert.match(deployWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(deployWorkflowSource, /ref: main/);
+  assert.match(phrasesImportWorkflowSource, /push:\s*branches:\s*- main/);
+  assert.match(phrasesImportWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(phrasesImportWorkflowSource, /ref: main/);
+  assert.match(instrumentsImportWorkflowSource, /branches:\s*\[main\]/);
+  assert.match(instrumentsImportWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(instrumentsImportWorkflowSource, /ref: main/);
 });
 
 test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
