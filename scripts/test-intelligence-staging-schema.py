@@ -54,7 +54,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                     id,task_id,owner_uid,owner_username,repository,branch,
                     base_sha,scope_json,scope_sha256,status,expires_at
                 ) VALUES('grant-x','missing','owner','owner','repo','branch',
-                         'sha','{}','hash','active','2099-01-01T00:00:00Z')
+                         'sha','{}','hash','issued',1,4102444800)
             """)
 
 if __name__ == "__main__":
