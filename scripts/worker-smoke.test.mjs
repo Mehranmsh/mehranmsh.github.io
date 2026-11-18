@@ -2164,9 +2164,9 @@ test("INTELLIGENCE relationship review UI is owner-controlled and renders untrus
   }
   assert.match(indexSource,/api\("\/intelligence\/knowledge\/relations"/);
   assert.match(indexSource,/data\.relations\|\|\[\]/);
-  assert.match(indexSource,/data\.intelRelationAction="confirm"/);
-  assert.match(indexSource,/data\.intelRelationAction="dismiss"/);
-  assert.match(indexSource,/data\.intelRelationAction="resolve"/);
+  assert.match(indexSource,/dataset\.intelRelationAction="confirm"/);
+  assert.match(indexSource,/dataset\.intelRelationAction="dismiss"/);
+  assert.match(indexSource,/dataset\.intelRelationAction="resolve"/);
   assert.match(indexSource,/resolvedKnowledgeId=resolvedKnowledgeId/);
   assert.match(indexSource,/Neither source record will be deleted/);
   assert.match(indexSource,/await loadIntelligenceRelations\(\)/);
