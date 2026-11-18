@@ -25,8 +25,16 @@ jobs:
           node-version: "22"
       - name: Run patch guard tests
         run: node --test scripts/intelligence-patch-guard.test.mjs scripts/intelligence-patch-envelope.test.mjs scripts/intelligence-git-tree-guard.test.mjs scripts/intelligence-github-readonly-audit.test.mjs
+      - name: Resolve current PR base branch to an immutable commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${BASE_REF}" --jq '.object.sha')"
+          [[ "${BASE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          echo "MEHRAN_AUDIT_BASE_SHA=${BASE_SHA}" >> "${GITHUB_ENV}"
       - name: Audit actual GitHub branch trees (read-only)
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          MEHRAN_AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node scripts/intelligence-github-readonly-audit.mjs
