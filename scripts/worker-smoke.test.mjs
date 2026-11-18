@@ -25,6 +25,21 @@ const approvalModule = await import(
   "data:text/javascript;base64," + Buffer.from(approvalHelperSource).toString("base64")
 );
 const worker = workerModule.default;
+const relationProposalStart = workerSource.indexOf("async function proposeIntelligenceKnowledgeRelation(env,admin,args,visibleKnowledgeIds)");
+const relationProposalEnd = workerSource.indexOf("export async function runIntelligenceToolLoop", relationProposalStart);
+if (relationProposalStart < 0 || relationProposalEnd <= relationProposalStart) {
+  throw new Error("Intelligence knowledge relationship proposal helper source could not be isolated");
+}
+const relationProposalSource = `
+import { randomUUID } from "node:crypto";
+const crypto = { randomUUID };
+async function checkRateLimit() { return true; }
+` + workerSource.slice(relationProposalStart, relationProposalEnd) +
+  "\\nexport { proposeIntelligenceKnowledgeRelation };";
+const relationProposalModule = await import(
+  "data:text/javascript;base64," + Buffer.from(relationProposalSource).toString("base64")
+);
+
 
 function mockDb() {
   return {
@@ -2343,6 +2358,39 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]'));
 });
 
+
+test("INTELLIGENCE AI relationship proposals are visible-context-only, evidence-bound and candidate-only", async () => {
+  const owner="owner-123";
+  const sourceId="11111111-1111-4111-8111-111111111111";
+  const targetId="22222222-2222-4222-8222-222222222222";
+  const entries=[
+    {id:sourceId,owner_uid:owner,content:"Use Carrier A for international shipping.",archived_at:null},
+    {id:targetId,owner_uid:owner,content:"Use Carrier B for international shipping.",archived_at:null}
+  ];
+  let batchCalls=0;
+  const env={DB:{
+    prepare(sql){
+      return {
+        bind(){return this;},
+        async first(){if(sql.includes("sqlite_master"))return {name:"intelligence_knowledge_relations"};throw new Error("Unexpected first query: "+sql);},
+        async all(){if(sql.includes("FROM intelligence_knowledge WHERE id IN"))return {results:entries};throw new Error("Unexpected all query: "+sql);}
+      };
+    },
+    async batch(statements){batchCalls++;assert.equal(statements.length,2);assert.ok(statements[0].sql?.includes("candidate")||true);return [{meta:{changes:1}},{meta:{changes:1}}];}
+  }};
+  const admin={uid:owner,username:"owner"};
+  const args={sourceKnowledgeId:sourceId,targetKnowledgeId:targetId,relationType:"conflicts_with",sourceEvidence:"Use Carrier A",targetEvidence:"Use Carrier B"};
+  const visible=new Set([sourceId,targetId]);
+  const result=await relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,visible);
+  assert.equal(result.status,"candidate");
+  assert.equal(result.ownerApprovalRequired,true);
+  assert.equal(batchCalls,1);
+
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,{...args,sourceEvidence:"invented evidence"},visible),/exactly in their corresponding stored knowledge entries/);
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,args,new Set([sourceId])),/retrieved into this conversation/);
+  await assert.rejects(()=>relationProposalModule.proposeIntelligenceKnowledgeRelation(env,admin,{...args,extra:"not allowed"},visible),/complete knowledge relationship proposal/);
+  assert.equal(batchCalls,1,"invalid proposals must not write to D1");
+});
 
 test("INTELLIGENCE knowledge relationship API is owner-only, evidence-bound and audited atomically", () => {
   assert.match(workerSource,/path === "\/intelligence\/knowledge\/relations"/);
