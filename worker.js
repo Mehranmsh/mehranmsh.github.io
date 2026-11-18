@@ -5133,6 +5133,7 @@ async function ensureIntelligenceTaskTable(env) {
       action_type TEXT NOT NULL DEFAULT '',
       action_payload TEXT NOT NULL DEFAULT '{}',
       agent_claimed_at TEXT,
+      agent_claim_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -5140,6 +5141,7 @@ async function ensureIntelligenceTaskTable(env) {
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_type TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claimed_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claim_id TEXT").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
@@ -5567,32 +5569,33 @@ export default {
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,agent_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
           ).run();
           const candidate = await env.DB.prepare(
             "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
+          const claimId = crypto.randomUUID();
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
-          ).bind(candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
+          ).bind(claimId,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
-          return json({success:true,task:row?formatIntelligenceTask(row):null});
+          return json({success:true,task:row?{...formatIntelligenceTask(row),claimId:row.agent_claim_id}:null});
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
           if (!id || id.length > 80) return error("Invalid task ID.");
           const body = await readBody(request);
-          if (!body || typeof body.result !== "string" || body.result.length > 3000 || !["completed","blocked"].includes(body.status || "completed")) {
-            return error("A bounded result and valid terminal status are required.");
+          if (!body || typeof body.result !== "string" || body.result.length > 3000 || typeof body.claimId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.claimId) || !["completed","blocked"].includes(body.status || "completed")) {
+            return error("A bounded result, valid claim ID and terminal status are required.");
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared')"
-          ).bind(body.status || "completed",resultText,id).run();
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,agent_claim_id=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND assigned_to IN ('mehran_intelligence','shared') AND agent_claim_id=?"
+          ).bind(body.status || "completed",resultText,id,body.claimId).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
