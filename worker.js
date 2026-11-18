@@ -5143,9 +5143,23 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+const intelligenceMemoryInit = new WeakMap();
 async function ensureIntelligenceMemoryTable(env) {
-  await env.DB.prepare("CREATE TABLE IF NOT EXISTS intelligence_memory(id TEXT PRIMARY KEY,category TEXT NOT NULL DEFAULT 'company',title TEXT NOT NULL,content TEXT NOT NULL,importance TEXT NOT NULL DEFAULT 'normal',created_by TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,archived_at TEXT)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_memory_active ON intelligence_memory(archived_at,importance,updated_at DESC)").run();
+  const db = env.DB;
+  let pending = intelligenceMemoryInit.get(db);
+  if (!pending) {
+    pending = createIntelligenceMemorySchema(db);
+    intelligenceMemoryInit.set(db, pending);
+    pending.catch(() => {
+      if (intelligenceMemoryInit.get(db) === pending) intelligenceMemoryInit.delete(db);
+    });
+  }
+  return pending;
+}
+
+async function createIntelligenceMemorySchema(db) {
+  await db.prepare("CREATE TABLE IF NOT EXISTS intelligence_memory(id TEXT PRIMARY KEY,category TEXT NOT NULL DEFAULT 'company',title TEXT NOT NULL,content TEXT NOT NULL,importance TEXT NOT NULL DEFAULT 'normal',created_by TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,archived_at TEXT)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_memory_active ON intelligence_memory(archived_at,importance,updated_at DESC)").run();
   const seeds = [
     ["seed-company-pi-only","decision","Blockchain scope","MEHRAN MSH and its company ecosystem are intended to operate exclusively on Pi Network. Do not propose migrating company operations to another blockchain.","high"],
     ["seed-private-development","decision","Private development first","Keep MEHRAN MSH in private development until its modules, security and user experience are stable. Do not prioritize public user acquisition or launch readiness claims before the owner approves it.","high"],
@@ -5162,8 +5176,8 @@ async function ensureIntelligenceMemoryTable(env) {
     ["seed-social-product","module","SOCIAL product direction","SOCIAL is intended to combine Instagram-style profiles, posts, photos, videos, stories and discovery with Telegram-style chats, groups and channels. Registration should support email, username and password, with optional Pi identity linking. Do not introduce paid SMS verification. Keep the platform private during development until its security and experience are ready.","high"],
     ["seed-admin-boundaries","procedure","Administrator and sensitive-action boundaries","The owner retains final authority over company administration. INTELLIGENCE may analyze, read authorized company data, prepare plans and propose tasks. It must not independently change accounts, permissions, credentials, secrets, deployments, financial assets or wallet operations.","high"]
   ];
-  await env.DB.batch(seeds.map(([id,category,title,content,importance]) =>
-    env.DB.prepare("INSERT OR IGNORE INTO intelligence_memory(id,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed")
+  await db.batch(seeds.map(([id,category,title,content,importance]) =>
+    db.prepare("INSERT OR IGNORE INTO intelligence_memory(id,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?)").bind(id,category,title,content,importance,"system_seed")
   ));
 }
 async function ensureIntelligenceSchedulerRunsTable(env) {
