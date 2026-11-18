@@ -5274,7 +5274,9 @@ async function verifyAdmin(request, env) {
     WHERE token_hash=? AND revoked_at IS NULL AND expires_at>?
     LIMIT 1
   `).bind(tokenHash, now).first();
-  if (!session || String(session.username).trim().toLowerCase() !== "mehranmsh") return null;
+  const expectedOwnerUid = String(env.MEHRAN_OWNER_PI_UID || "").trim();
+  if (!session || String(session.username).trim().toLowerCase() !== "mehranmsh" ||
+      (expectedOwnerUid && String(session.uid) !== expectedOwnerUid)) return null;
   return { uid: session.uid, username: session.username, expiresAt: session.expires_at };
 }
 
@@ -5738,8 +5740,12 @@ export default {
           const body = await readBody(request);
           if (!body) return error("Invalid request body");
           const piUser = await fetchPiUser(body.accessToken);
-          if (!piUser || piUser.username.trim().toLowerCase() !== "mehranmsh") {
+          if (!piUser || !piUser.uid || !piUser.username || piUser.username.trim().toLowerCase() !== "mehranmsh") {
             return error("Verified admin Pi account required", 403);
+          }
+          const expectedOwnerUid = String(env.MEHRAN_OWNER_PI_UID || "").trim();
+          if (expectedOwnerUid && String(piUser.uid) !== expectedOwnerUid) {
+            return error("This Pi account is not the configured MEHRAN owner.", 403);
           }
           // Rate-limit verified admin identities rather than shared Pi Browser/IP traffic.
           if (!await checkRateLimit(env, request, "admin-session-create", 15, 900, 600, piUser.uid)) {
