@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Exercise the exact owner-scoped Intelligence knowledge and memory SELECTs in disposable SQLite."""
+import re
 import sqlite3
 import unittest
+from pathlib import Path
 
 
 KNOWLEDGE_SQL = """SELECT id,owner_uid,category,title,content,importance,updated_at
@@ -48,6 +50,12 @@ class IntelligenceKnowledgeIsolationTests(unittest.TestCase):
 
     def tearDown(self):
         self.db.close()
+
+    def test_sql_contract_matches_worker_source(self):
+        worker_source = (Path(__file__).resolve().parents[1] / "worker.js").read_text(encoding="utf-8")
+        normalized_source = re.sub(r"\\s+", " ", worker_source)
+        self.assertIn(re.sub(r"\\s+", " ", KNOWLEDGE_SQL), normalized_source)
+        self.assertIn(re.sub(r"\\s+", " ", MEMORY_SQL), normalized_source)
 
     def test_knowledge_returns_only_authenticated_owner_and_system_seed(self):
         rows = self.db.execute(KNOWLEDGE_SQL, ("owner-a",)).fetchall()
