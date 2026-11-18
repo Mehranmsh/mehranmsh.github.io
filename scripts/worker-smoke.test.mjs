@@ -1886,7 +1886,10 @@ test("approval issuance rejects unsafe paths and unauthenticated callers before 
           if (sql.includes("RETURNING attempts,blocked_until")) return {attempts:1,blocked_until:null};
           throw new Error("Unsafe path must be rejected before task lookup: "+sql);
         },
-        async run() { writes++; return {meta:{changes:1}}; }
+        async run() {
+          if (sql.includes("INSERT INTO intelligence_approval_ledger") || sql.includes("INSERT INTO admin_audit_log")) writes++;
+          return {meta:{changes:1}};
+        }
       };
     }
   };
