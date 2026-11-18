@@ -18,7 +18,7 @@ function fixture() {
   return {input};
 }
 test("accepts a complete read-only tree and compare snapshot with byte-verified blob",async()=>{
- const {input}=fixture();const r=await verifyReadOnlyGitHubSnapshot(input);assert.equal(r.ok,true,r.reason);assert.equal(r.changedFiles.length,1);
+ const {input}=fixture();const r=await verifyReadOnlyGitHubSnapshot(input);console.log("READONLY_AUDIT_FIXTURE_RESULT",r);assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.changedFiles.length,1);
 });
 test("rejects a truncated tree",async()=>{const {input}=fixture();input.headTree.truncated=true;assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
 test("rejects mismatched compare file list",async()=>{const {input}=fixture();input.comparison.files=[];assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
