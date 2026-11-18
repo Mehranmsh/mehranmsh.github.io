@@ -1593,3 +1593,16 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
 });
 
+
+
+test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
+  const start = workerSource.indexOf('const preapprovedReadOnlyActions=');
+  const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
+  assert.ok(start >= 0 && end > start, "task creation must define the read-only pre-approval policy");
+  const policy = workerSource.slice(start, end);
+  assert.match(policy, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
+  assert.match(policy, /\["mehran_intelligence","shared"\]\.includes\(assignedTo\)/);
+  assert.match(policy, /body\.requiresApproval!==true/);
+  assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
+  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+});
