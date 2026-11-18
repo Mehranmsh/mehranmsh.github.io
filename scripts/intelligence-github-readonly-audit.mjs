@@ -57,6 +57,12 @@ export async function verifyReadOnlyGitHubSnapshot({
   if (!Array.isArray(headCommit.parents) || headCommit.parents.length === 0 || headCommit.sha === baseCommit.sha) {
     return fail("Head commit metadata is invalid or identical to base.");
   }
+  if (comparison?.base_commit?.sha !== baseCommit.sha ||
+      comparison?.merge_base_commit?.sha !== baseCommit.sha ||
+      !Array.isArray(comparison?.commits) ||
+      comparison.commits.at(-1)?.sha !== headCommit.sha) {
+    return fail("GitHub comparison is not bound to the exact base, merge-base, and head commits.");
+  }
   if (baseTree?.sha !== baseCommit.treeSha || headTree?.sha !== headCommit.treeSha) {
     return fail("Tree SHA does not match commit metadata.");
   }
@@ -121,19 +127,19 @@ async function githubGet(url, token) {
 export async function runReadOnlyAudit(env = process.env) {
   const repository = env.GITHUB_REPOSITORY;
   const token = env.GITHUB_TOKEN;
-  const baseRef = env.MEHRAN_AUDIT_BASE_REF;
-  const headRef = env.MEHRAN_AUDIT_HEAD_REF;
-  if (!repository || !token || !baseRef || !headRef) throw new Error("Missing read-only audit environment.");
+  const baseSha = env.MEHRAN_AUDIT_BASE_SHA;
+  const headSha = env.GITHUB_SHA;
+  if (!repository || !token || !SHA.test(baseSha || "") || !SHA.test(headSha || "")) throw new Error("Missing or malformed read-only audit environment.");
   const api = "https://api.github.com";
   const get = path => githubGet(`${api}/repos/${repository}/${path}`, token);
   const [base, head] = await Promise.all([
-    get(`commits/${encodeURIComponent(baseRef)}`),
-    get(`commits/${encodeURIComponent(headRef)}`)
+    get(`commits/${baseSha}`),
+    get(`commits/${headSha}`)
   ]);
   const [baseTree, headTree, comparison] = await Promise.all([
     get(`git/trees/${base.commit.tree.sha}?recursive=1`),
     get(`git/trees/${head.commit.tree.sha}?recursive=1`),
-    get(`compare/${encodeURIComponent(baseRef)}...${encodeURIComponent(headRef)}`)
+    get(`compare/${baseSha}...${headSha}`)
   ]);
   const result = await verifyReadOnlyGitHubSnapshot({
     repository,
