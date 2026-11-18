@@ -1448,6 +1448,8 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
   assert.match(html, /actionTypes\[task\.actionType\]/);
   assert.match(html, /canCancelActive=task\.status==="in_progress"/);
   assert.match(html, /\["repository_quality_check","service_health_report"\]\.includes\(task\.actionType\)/);
+  assert.match(html, /task\.agentClaimed===true/);
+  assert.match(workerSource, /agentClaimed: Boolean\(row\.agent_claimed_at\)/);
   assert.match(html, /Cancel running task/);
   assert.match(html, /You can cancel this active task/);
 });
