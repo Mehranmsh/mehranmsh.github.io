@@ -5274,6 +5274,9 @@ function parseIntelligenceRelationshipEvidence(value) {
    text:cleanText(item?.text,500),
    source:cleanText(item?.source,40)||"unknown"
   })).filter(item=>item.text);
+ } catch {
+  return [];
+ }
 }
 
 export function parseIntelligenceRelationshipProposalArgs(args) {
