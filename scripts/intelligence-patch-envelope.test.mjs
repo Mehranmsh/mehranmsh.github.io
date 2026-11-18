@@ -94,3 +94,10 @@ test("rejects duplicate file paths", () => {
   envelope.artifactSha256 = calculatePatchArtifactSha256(envelope);
   assert.equal(validatePatchEnvelope(envelope, trustedApproval, new Date("2026-11-18T10:10:00Z")).ok, false);
 });
+
+test("rejects unrecognized fields inside individual file entries", () => {
+  const { envelope, trustedApproval } = fixture();
+  envelope.files[0].unexpected = "not part of protocol";
+  envelope.artifactSha256 = calculatePatchArtifactSha256(envelope);
+  assert.equal(validatePatchEnvelope(envelope, trustedApproval, new Date("2026-11-18T10:10:00Z")).ok, false);
+});
