@@ -6822,6 +6822,13 @@ export default {
         return json({success:true,task:formatIntelligenceTask(row)});
       }
 
+      if (path === "/intelligence/events" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const rows = await env.DB.prepare("SELECT id,action,target_type,target_id,details,created_at FROM admin_audit_log WHERE admin_uid=? AND (action LIKE 'intelligence_%' OR target_type IN ('intelligence_task','intelligence_approval','intelligence_memory')) ORDER BY created_at DESC LIMIT 50").bind(admin.uid).all();
+        return json({success:true,events:(rows.results||[]).map(row=>({id:row.id,action:row.action,targetType:row.target_type,targetId:row.target_id,details:row.details,createdAt:row.created_at}))});
+      }
+
       if (path.startsWith("/intelligence/memory")) {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
