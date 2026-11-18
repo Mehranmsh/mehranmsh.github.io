@@ -108,7 +108,10 @@ export function validatePatchEnvelope(envelope, trustedApproval, now = new Date(
   const allowed = new Set(trustedApproval.allowedPaths);
   const seen = new Set();
   for (const file of envelope.files) {
-    if (!file || typeof file.path !== "string" || !allowed.has(file.path)) {
+    if (!exactKeys(file, ["path", "status", "mode", "content"])) {
+      return fail("Patch file entry schema mismatch.");
+    }
+    if (typeof file.path !== "string" || !allowed.has(file.path)) {
       return fail("Patch contains a path outside the exact approved path set.");
     }
     if (seen.has(file.path)) return fail("Patch contains duplicate paths.");
