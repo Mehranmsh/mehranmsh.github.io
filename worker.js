@@ -2633,7 +2633,9 @@ async function socialStories(request, env) {
   ).bind(now).run();
 
   const result = await env.DB.prepare(`
-    SELECT s.id,s.user_id,s.media_url,s.media_type,s.caption,s.created_at,s.expires_at,
+    SELECT s.id,s.user_id,
+      CASE WHEN s.upload_id IS NULL THEN s.media_url ELSE up.url END AS resolved_media_url,
+      s.upload_id,s.media_type,s.caption,s.created_at,s.expires_at,
       u.username,u.display_name,u.avatar_url,u.account_type,
       EXISTS(
         SELECT 1 FROM social_story_views v
@@ -2641,6 +2643,9 @@ async function socialStories(request, env) {
       ) AS viewed
     FROM social_stories s
     JOIN social_users u ON u.id=s.user_id
+    LEFT JOIN social_uploads up
+      ON up.id=s.upload_id AND up.user_id=s.user_id
+      AND up.status='ready' AND up.acl='public'
     WHERE s.expires_at>?
       AND (
         s.user_id=?
@@ -2660,7 +2665,7 @@ async function socialStories(request, env) {
     success: true,
     stories: (result.results || []).map(row => ({
       id: row.id,
-      mediaUrl: row.media_url,
+      mediaUrl: validHttpsUrl(row.resolved_media_url) ? row.resolved_media_url : "",
       mediaType: row.media_type,
       caption: row.caption,
       createdAt: row.created_at,
@@ -2683,37 +2688,47 @@ async function socialCreateStory(request, env) {
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
 
-  const mediaUrl = String(body.mediaUrl || "").trim();
+  const requestedUploadId = String(body.uploadId || "").trim();
+  const requestedMediaUrl = String(body.mediaUrl || "").trim();
   const mediaType = String(body.mediaType || "").toLowerCase();
 
-  if (!validHttpsUrl(mediaUrl)) return error("Invalid media URL");
   if (!["image", "video"].includes(mediaType)) return error("Invalid story media type");
+  if (!requestedUploadId && !validHttpsUrl(requestedMediaUrl)) return error("Invalid media URL");
 
-  // Stories must reference a ready public upload owned by the publisher.
-  // This prevents arbitrary external URLs and cross-account media injection.
-  const upload = await env.DB.prepare(`
-    SELECT id,url,mime_type,status,acl FROM social_uploads
-    WHERE user_id=? AND url=? LIMIT 1
-  `).bind(user.id, mediaUrl).first();
+  // Prefer the immutable upload ID. URL lookup remains only for older clients
+  // and still has to resolve to a ready public upload owned by this publisher.
+  const upload = requestedUploadId
+    ? await env.DB.prepare(`
+        SELECT id,url,mime_type,status,acl FROM social_uploads
+        WHERE id=? AND user_id=? LIMIT 1
+      `).bind(requestedUploadId, user.id).first()
+    : await env.DB.prepare(`
+        SELECT id,url,mime_type,status,acl FROM social_uploads
+        WHERE user_id=? AND url=? LIMIT 1
+      `).bind(user.id, requestedMediaUrl).first();
   const expectedMime = mediaType === "video" ? "video/" : "image/";
   if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
-      !validHttpsUrl(upload.url) || !String(upload.mime_type || "").toLowerCase().startsWith(expectedMime)) {
+      !validHttpsUrl(upload.url) ||
+      (requestedMediaUrl && upload.url !== requestedMediaUrl) ||
+      !String(upload.mime_type || "").toLowerCase().startsWith(expectedMime)) {
     return error("Story media must be a ready image or video uploaded by your account.", 400);
   }
+  const mediaUrl = upload.url;
 
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   await env.DB.prepare(`
-    INSERT INTO social_stories(id,user_id,media_url,media_type,caption,expires_at)
-    VALUES(?,?,?,?,?,?)
+    INSERT INTO social_stories(id,user_id,media_url,media_type,caption,expires_at,upload_id)
+    VALUES(?,?,?,?,?,?,?)
   `).bind(
     id,
     user.id,
     mediaUrl,
     mediaType,
     cleanText(body.caption, 500),
-    expiresAt
+    expiresAt,
+    upload.id
   ).run();
 
   return json({
