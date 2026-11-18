@@ -2237,7 +2237,7 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(messages[1].content.includes("2026-08-01"));
   assert.ok(messages[1].content.includes("2026-11-19"));
   assert.ok(messages[1].content.includes("What is the current shipping policy?"));
-  assert.ok(!messages[1].includes("[object Object]"));
+  assert.ok(!messages[1].content.includes("[object Object]"));
   const noEvidence = workerModule.buildIntelligenceChatMessages({
     system:"system",
     companyContext:{},
