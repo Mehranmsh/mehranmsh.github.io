@@ -406,6 +406,8 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   assert.match(chat, /propose_collaboration_task/);
   assert.match(chat, /name === "propose_knowledge_relationship"/);
   assert.match(chat, /parseIntelligenceRelationshipProposalArgs\\(args\\)/);
+  assert.match(chat, /normalizeEvidence\\(leftSource\\.title\\s*\\+\\s*" " \\+\\s*leftSource\\.content\\)/);
+  assert.match(chat, /normalizeEvidence\\(rightSource\\.title\\s*\\+\\s*" " \\+\\s*rightSource\\.content\\)/);
   assert.match(chat, /status,proposed_by,evidence_json/);
   assert.match(chat, /'candidate','intelligence'/);
   assert.match(chat, /status,requires_approval,created_by/);
@@ -2339,6 +2341,7 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
     companyContext:{projects:[{name:"MEHRAN MSH",status:"private"}]},
     ownerMemory:[{category:"note",content:hostile,updatedAt:"2026-11-19"}],
     organizationalKnowledge:workerModule.rankIntelligenceKnowledge(conflictRows,"shipping policy",5,false),
+    organizationalRelationships:[{id:"rel-1",status:"candidate",relationType:"conflicts_with",left:{title:"Shipping policy A"},right:{title:"Shipping policy B"},evidence:[{text:"Use Carrier A.",source:"owner_knowledge"}]}],
     question:"What is the current shipping policy?"
   });
   assert.equal(messages.length,2);
@@ -2348,6 +2351,8 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(messages[1].content.includes(hostile));
   assert.ok(messages[1].content.includes("Carrier A."));
   assert.ok(messages[1].content.includes("Carrier B."));
+  assert.ok(messages[1].content.includes('"status":"candidate"'));
+  assert.ok(messages[1].content.includes('"relationType":"conflicts_with"'));
   assert.ok(messages[1].content.includes("2026-08-01"));
   assert.ok(messages[1].content.includes("2026-11-19"));
   assert.ok(messages[1].content.includes("What is the current shipping policy?"));
