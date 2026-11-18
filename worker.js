@@ -7115,8 +7115,8 @@ export default {
         const allowed = ["sourceKnowledgeId","targetKnowledgeId","relationType","sourceEvidence","targetEvidence"];
         if (!body || Object.keys(body).some(key => !allowed.includes(key))) return error("Invalid relationship request.");
         const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        let sourceId = cleanText(body.sourceKnowledgeId, 80);
-        let targetId = cleanText(body.targetKnowledgeId, 80);
+        let sourceId = cleanText(body.sourceKnowledgeId, 80).toLowerCase();
+        let targetId = cleanText(body.targetKnowledgeId, 80).toLowerCase();
         let sourceEvidence = cleanText(body.sourceEvidence, 500);
         let targetEvidence = cleanText(body.targetEvidence, 500);
         const relationType = cleanText(body.relationType, 32);
