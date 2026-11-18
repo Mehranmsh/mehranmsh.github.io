@@ -276,18 +276,21 @@ test("secret-bearing Intelligence runner is restricted to the trusted main branc
   assert.doesNotMatch(agentWorkflowSource, /^\s*workflow_dispatch:/m);
 });
 
-test("admin sessions enforce the configured immutable Pi owner UID when present", () => {
+test("admin sessions fail closed without the immutable Pi owner UID and expire within 12 hours", () => {
   const verifyStart = workerSource.indexOf("async function verifyAdmin");
   const verifyEnd = workerSource.indexOf("function normalizeStatus", verifyStart);
   assert.ok(verifyStart >= 0 && verifyEnd > verifyStart);
   const verify = workerSource.slice(verifyStart, verifyEnd);
   assert.match(verify, /MEHRAN_OWNER_PI_UID/);
+  assert.match(verify, /!expectedOwnerUid/);
   assert.match(verify, /String\(session\.uid\)\s*!==\s*expectedOwnerUid/);
   const loginStart = workerSource.indexOf('if (path.startsWith("/admin/session"))');
   const loginEnd = workerSource.indexOf('if (path === "/auth" && method === "POST")', loginStart);
   const login = workerSource.slice(loginStart, loginEnd);
+  assert.match(login, /!expectedOwnerUid/);
   assert.match(login, /String\(piUser\.uid\)\s*!==\s*expectedOwnerUid/);
-  assert.match(login, /!piUser\.uid/);
+  assert.match(login, /const expiresAt = now \+ 12 \* 60 \* 60/);
+  assert.doesNotMatch(login, /4102444800/);
 });
 
 test("admin Pi sign-in rate limits network attempts before external identity lookup", () => {
