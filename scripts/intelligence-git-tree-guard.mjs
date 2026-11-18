@@ -72,6 +72,8 @@ function normalizeTree(tree, label) {
  */
 export function verifyIntelligenceGitTree({
   expectedRepository,
+  expectedBranch,
+  candidateBranch,
   baseCommit,
   candidateCommit,
   baseTree,
@@ -83,6 +85,11 @@ export function verifyIntelligenceGitTree({
   if (typeof expectedRepository !== "string" || !expectedRepository.includes("/")) {
     return blocked("Expected repository identity is missing.");
   }
+  if (typeof expectedBranch !== "string" ||
+      !/^intelligence\\/patch-[A-Za-z0-9_-]{8,64}$/.test(expectedBranch) ||
+      candidateBranch !== expectedBranch) {
+    return blocked("Candidate branch is not the exact approved isolated patch branch.");
+  }
   if (!baseCommit || !candidateCommit ||
       baseCommit.repository !== expectedRepository ||
       candidateCommit.repository !== expectedRepository) {
@@ -93,6 +100,9 @@ export function verifyIntelligenceGitTree({
       !GIT_SHA.test(baseCommit.treeSha || "") ||
       !GIT_SHA.test(candidateCommit.treeSha || "")) {
     return blocked("Commit or tree SHA is malformed.");
+  }
+  if (candidateCommit.sha === baseCommit.sha) {
+    return blocked("Candidate commit must differ from the pinned base commit.");
   }
   if (baseCommit.sha !== envelope?.baseSha) {
     return blocked("Pinned base commit does not match the patch envelope.");
