@@ -6527,14 +6527,15 @@ export default {
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
         const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
-        if(existing.action_type){
-          const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
-          const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
-          if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
-          if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
+        const approvalGate=Boolean(existing.action_type)||Number(existing.requires_approval)===1||existing.status==="awaiting_approval";
+        const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
+        const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
+        if(approvalGate){
+          if(!approvalTransition&&!cancelTransition)return error("Pending or automated task status is controlled by the owner Task Hub. Only approval or cancellation is allowed.",409);
+          if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Task results cannot be attached to an approval or cancellation transition.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        if(existing.action_type){
+        if(approvalGate){
           let transition;
           if(approvalTransition){
             transition=await env.DB.prepare("UPDATE intelligence_tasks SET status='accepted',requires_approval=0,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_approval' AND requires_approval=1").bind(id).run();
