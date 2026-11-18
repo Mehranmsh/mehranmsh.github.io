@@ -1,5 +1,5 @@
 const MAX_FILES = 5;
-const MAX_TOTAL_BYTES = 200 * 1024;
+const MAX_TOTAL_BYTES = 180 * 1024;
 const MAX_FILE_BYTES = 40 * 1024;
 const ALLOWED_PATH = /^docs\/[A-Za-z0-9._/-]+\.md$/;
 const SECRET_PATTERNS = [
@@ -80,7 +80,7 @@ export function validateIntelligencePatch(files) {
     }
   }
 
-  if (totalBytes > MAX_TOTAL_BYTES) errors.push("Patch exceeds the 200 KiB total-content limit.");
+  if (totalBytes > MAX_TOTAL_BYTES) errors.push("Patch exceeds the 180 KiB total-content limit.");
   return {
     ok: errors.length === 0,
     errors,
