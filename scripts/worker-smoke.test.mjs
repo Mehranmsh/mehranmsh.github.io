@@ -383,7 +383,7 @@ test("all SOCIAL remote media render paths use the central URL validator", () =>
   assert.match(indexSource, /safeMediaSrc\(story\.mediaUrl/);
   assert.match(indexSource, /safeMediaSrc\(item\.url/);
   assert.match(indexSource, /safeMediaSrc\(u\.avatarUrl/);
-  assert.match(indexSource, /safeMediaSrc\(other\?\.avatarUrl/);
+  assert.match(indexSource, /safeMediaSrc\(other\.avatarUrl/);
   assert.match(indexSource, /p\.gallery\.filter\(photo=>safeMediaSrc\(photo\.url/);
   assert.doesNotMatch(indexSource, /window\.open\('\\''\+sx\(photo\.url\)/);
 });
