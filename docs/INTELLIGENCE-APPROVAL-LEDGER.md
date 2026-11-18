@@ -25,14 +25,16 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 - Owner-only revoke route: `DELETE /intelligence/approvals/:id`, conditional on the owner UID, `status='issued'`, and a future expiry. A zero-row transition returns HTTP 409.
 - Internal-only `consumeIntelligenceApproval` primitive: validates the fixed repository, isolated branch pattern, commit SHA, scope digest, task ID, and owner UID. It uses the Worker server clock, marks expired records, and then attempts one conditional SQL update that binds approval ID, task, owner, repository, branch, base SHA, scope digest, issued state, revocation state, and expiry. It requires an accepted, unblocked `documentation_patch_proposal` task assigned to Intelligence or Shared. Exactly one changed row is required.
 - The consume primitive has no HTTP or MCP caller and is not reachable from the current agent runner. It is preparatory code, not an active execution capability.
+- The private Intelligence Task Hub UI can select an accepted documentation proposal, collect the allowed paths, pin a base commit, choose a 5-60 minute expiry, issue a grant, list the owner's recent grants, and revoke an active grant. The UI uses the existing authenticated Worker API for ledger actions; its optional base-SHA helper performs only a public GitHub GET request.
 
 ## Remaining protocol before activation
 
-1. The issuance route is implemented, but there is no UI integration yet. An owner must first approve the proposal task in Task Hub, then call the owner-only issuance route with its exact scope.
+1. The owner must first approve the documentation proposal task in Task Hub. The scoped-grant panel then issues a short-lived grant for the exact paths, branch, and pinned base commit.
 2. The scope is canonicalized deterministically and hashed with SHA-256; the exact canonical JSON and digest are stored.
 3. A future executor must obtain approval context from the trusted Worker database, never from model output or a task description.
 4. Re-fetch and re-verify the repository base, branch, exact changed paths, patch bytes, and diff immediately before any GitHub write. Never reuse a consumed approval.
 5. Audit issue, revoke, failed consumption, and successful consumption without logging secrets or patch contents.
+6. Before production use, exercise issue/list/revoke/expiry against a non-production D1 database and verify database foreign-key behavior.
 
 ## Non-negotiable boundaries
 
@@ -40,8 +42,8 @@ The D1 schema stores these fields in `intelligence_approval_ledger`. Foreign-key
 - A task's `requires_approval` flag is not a substitute for a ledger record.
 - No arbitrary shell commands, direct writes to main, merge, deployment, wallet/payment actions, or user-data migrations.
 - Initial code-change scope remains documentation-only Markdown under the strict allowlist.
-- Separate owner review is required before enabling approval issuance, one-time consumption, or any executor.
+- Separate owner review is required before enabling one-time consumption or any executor. The existing issuance UI and routes remain inert with respect to code execution.
 
 ## Current limitation
 
-The D1 schema, owner-scoped read/issue/revoke endpoints, and an internal-only atomic consume primitive are present. An issued grant can be created through the owner-authenticated API, but no HTTP/MCP/agent route calls the consume primitive. Therefore the grant is not yet an operational execution authorization mechanism. The documentation proposal task type is intentionally excluded from the agent queue. Existing read-only tasks continue to use their separate pre-authorization policy. The code-change executor remains disabled.
+The D1 schema, owner-scoped read/issue/revoke endpoints, a private Task Hub issuance/revocation UI, and an internal-only atomic consume primitive are present. The UI and routes have passed repository CI static/smoke checks, but issuance has not yet been exercised against the live production D1 database. No HTTP/MCP/agent route calls the consume primitive. Therefore the grant is not yet an operational execution authorization mechanism. The documentation proposal task type is intentionally excluded from the agent queue. Existing read-only tasks continue to use their separate pre-authorization policy. The code-change executor remains disabled.
