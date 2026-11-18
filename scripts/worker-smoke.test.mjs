@@ -177,7 +177,7 @@ test("admin overview rejects requests without a verified admin session", async (
         async run() { return { success: true, meta: { changes: 0 } }; },
         async all() { return { results: [] }; },
         async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) return null;
           return { total: 0 };
         }
       };
@@ -245,7 +245,7 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
         async run() { return { success: true, meta: { changes: 0 } }; },
         async all() { return { results: [] }; },
         async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) return null;
           return { total: 0 };
         }
       };
@@ -1790,8 +1790,9 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
       return {
         bind(...args) { values = args; return this; },
         async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) {
-            return { uid: "owner-uid", username: "mehranmsh", expires_at: 4102444800 };
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) {
+            const now = Math.floor(Date.now() / 1000);
+            return { uid: "owner-uid", username: "mehranmsh", created_at: now - 60, expires_at: now + 3600 };
           }
           if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
           throw new Error("Unexpected approval ledger first query: " + sql);
@@ -1820,7 +1821,7 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
       };
     }
   };
-  const env = { DB: db };
+  const env = { DB: db, MEHRAN_OWNER_PI_UID: "owner-uid" };
   const headers = { Authorization: "Bearer " + "x".repeat(64) };
   const listed = await request("/intelligence/approvals", { headers }, env);
   assert.equal(listed.status, 200);
@@ -1875,7 +1876,7 @@ test("Intelligence approval ledger routes reject unauthenticated access", async 
         bind() { return this; },
         async all() { return { results: [] }; },
         async first() {
-          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          if (sql.includes("SELECT uid,username,created_at,expires_at FROM admin_sessions")) return null;
           throw new Error("Unexpected unauthenticated approval query: " + sql);
         },
         async run() { return { meta: { changes: 1 } }; }
