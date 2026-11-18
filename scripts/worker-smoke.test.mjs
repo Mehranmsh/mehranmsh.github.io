@@ -1707,6 +1707,8 @@ test("Intelligence approval ledger is owner-scoped and supports revocation only"
   assert.ok(start >= 0 && end > start, "owner-only approval ledger routes must exist");
   const routes = workerSource.slice(start, end);
   assert.match(routes, /verifyAdmin\(request, env\)/);
+  assert.match(routes, /ensureSocialAuthLimitsTable\(env\)/);
+  assert.doesNotMatch(routes, /ensureSocialTables\(env\)/);
   assert.match(routes, /WHERE owner_uid=\?/);
   assert.match(routes, /status='revoked',revoked_at=\?/);
   assert.match(routes, /status='issued' AND expires_at>\?/);
