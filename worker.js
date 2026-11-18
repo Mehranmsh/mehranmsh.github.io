@@ -5596,18 +5596,35 @@ export default {
 
       if (path === "/health" && method === "GET") {
         let database = false;
+        let scheduler = null;
         try {
           if (env.DB) {
             await env.DB.prepare("SELECT 1 AS test").first();
             database = true;
+            try {
+              const latest = await env.DB.prepare(
+                "SELECT started_at,finished_at,status,processed_count,completed_count,blocked_count FROM intelligence_scheduler_runs ORDER BY started_at DESC LIMIT 1"
+              ).first();
+              if (latest) scheduler = {
+                lastStartedAt: latest.started_at || null,
+                lastFinishedAt: latest.finished_at || null,
+                lastStatus: latest.status || "unknown",
+                processed: Number(latest.processed_count || 0),
+                completed: Number(latest.completed_count || 0),
+                blocked: Number(latest.blocked_count || 0)
+              };
+            } catch {
+              // Scheduler history may not exist yet on a fresh database.
+            }
           }
         } catch {}
 
         return json({
           status: "online",
           service: "MEHRAN MSH AUTH",
-          version: "5.8",
-          database
+          version: "5.9",
+          database,
+          scheduler
         });
       }
 
