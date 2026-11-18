@@ -19,7 +19,7 @@ if (approvalHelperStart < 0 || approvalHelperEnd <= approvalHelperStart) {
   throw new Error("Intelligence approval helper source could not be isolated");
 }
 const approvalHelperSource = workerSource.slice(approvalHelperStart, approvalHelperEnd) +
-  "\\nexport { consumeIntelligenceApproval };";
+  "\nexport { consumeIntelligenceApproval };";
 const approvalModule = await import(
   "data:text/javascript;base64," + Buffer.from(approvalHelperSource).toString("base64")
 );
