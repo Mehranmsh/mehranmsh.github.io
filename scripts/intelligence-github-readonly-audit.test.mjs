@@ -13,7 +13,7 @@ function fixture() {
   const headCommit={repository,sha:headSha,treeSha:headTreeSha,parents:[baseSha]};
   const baseTree={sha:baseTreeSha,truncated:false,tree:[]};
   const headTree={sha:headTreeSha,truncated:false,tree:[{path,mode:"100644",type:"blob",sha:blobSha,size:content.length}]};
-  const comparison={too_large:false,files:[{filename:path,status:"added"}]};
+  const comparison={too_large:false,base_commit:{sha:baseSha},merge_base_commit:{sha:baseSha},commits:[{sha:headSha}],files:[{filename:path,status:"added"}]};
   const input={repository,baseCommit,headCommit,baseTree,headTree,comparison,allowedPaths:new Set([path]),fetchBlob:async()=>({bytes:content})};
   return {input};
 }
@@ -26,6 +26,8 @@ test("rejects undeclared extra paths",async()=>{const {input}=fixture();input.al
 test("rejects deleted files",async()=>{const {input}=fixture();input.baseTree.tree=[{path,mode:"100644",type:"blob",sha:blobSha,size:content.length}];input.headTree.tree=[];input.comparison.files=[{filename:path,status:"removed"}];assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
 test("rejects symlink and executable file modes",async()=>{for(const mode of ["120000","100755"]){const {input}=fixture();input.headTree.tree[0].mode=mode;assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);}});
 test("rejects blob byte mismatch",async()=>{const {input}=fixture();input.fetchBlob=async()=>({bytes:Buffer.from("tampered")});assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
-test("rejects repository mismatch and non-descendant head",async()=>{const {input}=fixture();input.headCommit.repository="other/repo";assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);const f=fixture();f.input.headCommit.parents=["8".repeat(40)];assert.equal((await verifyReadOnlyGitHubSnapshot(f.input)).ok,false);});
+test("rejects repository mismatch and incorrect merge-base binding",async()=>{const {input}=fixture();input.headCommit.repository="other/repo";assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);const f=fixture();f.input.comparison.merge_base_commit.sha="8".repeat(40);assert.equal((await verifyReadOnlyGitHubSnapshot(f.input)).ok,false);});
 test("rejects oversized or missing comparison response",async()=>{const {input}=fixture();input.comparison.too_large=true;assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
 test("rejects duplicate tree paths",async()=>{const {input}=fixture();input.headTree.tree.push({...input.headTree.tree[0]});assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);});
+
+test("rejects comparison responses bound to different base or head commits",async()=>{for(const field of ["base_commit","commits"]){const {input}=fixture();if(field==="base_commit")input.comparison.base_commit.sha="8".repeat(40);else input.comparison.commits[0].sha="8".repeat(40);assert.equal((await verifyReadOnlyGitHubSnapshot(input)).ok,false);}});
