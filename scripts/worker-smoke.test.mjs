@@ -58,6 +58,8 @@ test("MEHRAN INTELLIGENCE runner executes only fixed allowlisted commands", () =
   assert.match(agentRunnerSource, /executionController\.abort/);
   assert.match(agentRunnerSource, /signal\s*\}\)/);
   assert.match(agentRunnerSource, /Task ownership could not be verified/);
+  assert.match(agentRunnerSource, /const finalStatus = await request/);
+  assert.match(agentRunnerSource, /finalStatus\.task\?\.agentClaimed !== true/);
 });
 
 
