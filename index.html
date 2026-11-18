@@ -2359,8 +2359,13 @@ function renderIntelligenceRelations(items){
   const sourceEvidence=document.createElement("p");sourceEvidence.textContent="Evidence: "+(item.source_evidence||"");sourceEvidence.style.whiteSpace="pre-wrap";
   const target=document.createElement("h3");target.textContent=item.target_title||"Target knowledge";
   const targetEvidence=document.createElement("p");targetEvidence.textContent="Evidence: "+(item.target_evidence||"");targetEvidence.style.whiteSpace="pre-wrap";
-  card.append(source,sourceEvidence,target,targetEvidence);
-  const meta=document.createElement("div");meta.className="small-text";meta.textContent="Updated: "+(item.updated_at||"Not available");card.append(meta);
+  card.append(source,sourceEvidence);
+  const sourceRecord=(window.intelligenceKnowledgeCache||[]).find(entry=>entry.id===item.source_knowledge_id);
+  if(sourceRecord){const details=document.createElement("details");const summary=document.createElement("summary");summary.textContent="Review full source record";const full=document.createElement("p");full.textContent=sourceRecord.content||"";full.style.whiteSpace="pre-wrap";details.append(summary,full);card.append(details)}
+  card.append(target,targetEvidence);
+  const targetRecord=(window.intelligenceKnowledgeCache||[]).find(entry=>entry.id===item.target_knowledge_id);
+  if(targetRecord){const details=document.createElement("details");const summary=document.createElement("summary");summary.textContent="Review full target record";const full=document.createElement("p");full.textContent=targetRecord.content||"";full.style.whiteSpace="pre-wrap";details.append(summary,full);card.append(details)}
+  const meta=document.createElement("div");meta.className="small-text";meta.textContent="Relationship updated: "+(item.updated_at||"Not available")+(sourceRecord?.updated_at?" · Source updated: "+sourceRecord.updated_at:"")+(targetRecord?.updated_at?" · Target updated: "+targetRecord.updated_at:"");card.append(meta);
   const actions=document.createElement("div");actions.className="hero-actions";
   if(item.status==="candidate"){
    const confirmButton=document.createElement("button");confirmButton.type="button";confirmButton.className="btn small";confirmButton.textContent="Confirm relationship";confirmButton.dataset.intelRelationAction="confirm";confirmButton.dataset.relationId=item.id;
