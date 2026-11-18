@@ -19,10 +19,29 @@ test("rejects paths outside the strict allowlist", () => {
   }
 });
 
+test("rejects ambiguous and platform-sensitive path segments", () => {
+  for (const path of [
+    "docs//nested.md", "docs/./nested.md", "docs/../nested.md",
+    "docs/name .md", "docs/name..md", "docs/NUL.md", "docs/CON.md",
+    "docs/folder./nested.md", "docs/zero\u200bwidth.md", "docs/trailing/.md"
+  ]) {
+    assert.equal(validateIntelligencePatch([valid(path)]).ok, false, path);
+  }
+});
+
+test("requires explicit status and regular-file mode metadata", () => {
+  const { status, ...withoutStatus } = valid();
+  const { mode, ...withoutMode } = valid();
+  assert.equal(validateIntelligencePatch([withoutStatus]).ok, false);
+  assert.equal(validateIntelligencePatch([withoutMode]).ok, false);
+  assert.equal(validateIntelligencePatch([{ ...valid(), mode: "120000" }]).ok, false);
+  assert.equal(validateIntelligencePatch([{ ...valid(), mode: "160000" }]).ok, false);
+});
+
 test("rejects duplicate paths and unsupported file operations", () => {
   assert.equal(validateIntelligencePatch([valid(), valid()]).ok, false);
   assert.equal(validateIntelligencePatch([{ ...valid(), status: "deleted" }]).ok, false);
-  assert.equal(validateIntelligencePatch([{ ...valid(), mode: "120000" }]).ok, false);
+  assert.equal(validateIntelligencePatch([{ ...valid(), status: "renamed" }]).ok, false);
 });
 
 test("enforces file count and per-file size limits", () => {
@@ -42,8 +61,9 @@ test("rejects likely credential material and binary content", () => {
   assert.equal(validateIntelligencePatch([valid("docs/binary.md", "abc\u0000def")]).ok, false);
 });
 
-test("rejects malformed entries and non-text content", () => {
+test("rejects malformed entries, non-text values, and invalid Unicode", () => {
   assert.equal(validateIntelligencePatch(null).ok, false);
   assert.equal(validateIntelligencePatch([null]).ok, false);
-  assert.equal(validateIntelligencePatch([{ path: "docs/a.md", content: new Uint8Array([1, 2]) }]).ok, false);
+  assert.equal(validateIntelligencePatch([{ path: "docs/a.md", content: new Uint8Array([1, 2]), status: "added", mode: "100644" }]).ok, false);
+  assert.equal(validateIntelligencePatch([valid("docs/a.md", "\ud800")]).ok, false);
 });
