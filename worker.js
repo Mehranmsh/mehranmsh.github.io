@@ -5247,7 +5247,7 @@ export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=false)
   if(phrase.length>=4&&content.includes(phrase)){score+=2;matched=true;}
   if(!matched)return null;
   if(row.importance==="high")score+=2;else if(row.importance==="normal")score+=1;
-  return {score,row:{id:row.id,category:row.category,title:row.title,content:String(row.content||"").slice(0,1200),importance:row.importance,source:row.owner_uid==="system_seed"?"system":"owner",updatedAt:row.updated_at||null}};
+  return {score,row:{id:row.id,category:row.category,title:row.title,content:String(row.content||"").slice(0,1200),importance:row.importance,owner_uid:row.owner_uid,updatedAt:row.updated_at||null}};
  }).filter(Boolean);
  ranked.sort((a,b)=>b.score-a.score||((b.row.importance==="high")-(a.row.importance==="high"))||String(b.row.updatedAt||"").localeCompare(String(a.row.updatedAt||"")));
  if(!ranked.length) {
