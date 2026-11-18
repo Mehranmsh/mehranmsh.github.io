@@ -2248,6 +2248,14 @@ test("INTELLIGENCE chat uses the production message builder and keeps retrieved 
   assert.ok(noEvidence[1].content.includes('"organizationalKnowledge":[]}'));
 });
 
+test("INTELLIGENCE knowledge retrieval fails closed by default", () => {
+  const unrelated = [
+    {id:"music",owner_uid:"owner-1",category:"project",title:"Mehran Music",content:"Guitar covers and music production.",importance:"high",updated_at:"2026-11-18"},
+    {id:"robotics",owner_uid:"system_seed",category:"project",title:"Robotics",content:"Humanoid robotics research.",importance:"normal",updated_at:"2026-11-17"}
+  ];
+  assert.deepEqual(workerModule.rankIntelligenceKnowledge(unrelated,"quantum astronomy"),[]);
+});
+
 test("INTELLIGENCE chat does not inject unrelated fallback knowledge when no evidence matches", () => {
   assert.ok(workerSource.includes("rankIntelligenceKnowledge(knowledgeRows.results||[],question,12,false)"));
   const unrelated = [
