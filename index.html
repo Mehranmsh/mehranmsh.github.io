@@ -2233,7 +2233,7 @@ const labels={queued:"Queued",accepted:"Accepted",in_progress:"In progress",bloc
 const actionTypes={project_status_report:"Project status report",social_metrics_report:"SOCIAL metrics report",service_health_report:"Service health report",repository_quality_check:"Repository quality checks"};
 list.innerHTML=tasks.map(task=>{
 const status=labels[task.status]||task.status;
-const canCancelActive=task.status==="in_progress"&&["repository_quality_check","service_health_report"].includes(task.actionType)&&["mehran_intelligence","shared"].includes(task.assignedTo);
+const canCancelActive=task.status==="in_progress"&&task.agentClaimed===true&&["repository_quality_check","service_health_report"].includes(task.actionType)&&["mehran_intelligence","shared"].includes(task.assignedTo);
 const next=task.status==="awaiting_approval"?"accepted":(["queued","accepted"].includes(task.status)||canCancelActive?"cancelled":null);
 const actionLabel=task.status==="awaiting_approval"?"Approve task":canCancelActive?"Cancel running task":next==="cancelled"?"Cancel queued task":"";
 const action=next?'<button class="btn '+(next==="cancelled"?'danger':'secondary')+' small" type="button" data-intel-task-status="'+escapeHTML(task.id)+'" data-next-status="'+next+'">'+actionLabel+'</button>':"";
