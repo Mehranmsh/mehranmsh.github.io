@@ -53,9 +53,9 @@ class IntelligenceKnowledgeIsolationTests(unittest.TestCase):
 
     def test_sql_contract_matches_worker_source(self):
         worker_source = (Path(__file__).resolve().parents[1] / "worker.js").read_text(encoding="utf-8")
-        normalized_source = re.sub(r"\\s+", " ", worker_source)
-        self.assertIn(re.sub(r"\\s+", " ", KNOWLEDGE_SQL), normalized_source)
-        self.assertIn(re.sub(r"\\s+", " ", MEMORY_SQL), normalized_source)
+        normalized_source = re.sub(r"\s+", " ", worker_source)
+        self.assertIn(re.sub(r"\s+", " ", KNOWLEDGE_SQL), normalized_source)
+        self.assertIn(re.sub(r"\s+", " ", MEMORY_SQL), normalized_source)
 
     def test_knowledge_returns_only_authenticated_owner_and_system_seed(self):
         rows = self.db.execute(KNOWLEDGE_SQL, ("owner-a",)).fetchall()
