@@ -2504,18 +2504,20 @@ test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive 
 test("INTELLIGENCE relationship proposal arguments are strictly validated and canonically ordered", () => {
   const valid=workerModule.parseIntelligenceRelationshipProposalArgs({
     leftId:"knowledge-z",rightId:"knowledge-a",relationType:"conflicts_with",
-    evidence:"The two active records state different delivery policies."
+    leftEvidence:"Carrier B is the current shipping provider.",
+    rightEvidence:"Carrier A must be used for every shipment."
   });
   assert.deepEqual(valid,{
     leftId:"knowledge-a",rightId:"knowledge-z",relationType:"conflicts_with",
-    evidence:"The two active records state different delivery policies."
+    leftEvidence:"Carrier A must be used for every shipment.",
+    rightEvidence:"Carrier B is the current shipping provider."
   });
   for(const invalid of [
-    null,[],{}, {leftId:"a",rightId:"a",relationType:"supports",evidence:"Evidence text"},
-    {leftId:"a",rightId:"b",relationType:"grants_permission",evidence:"Evidence text"},
-    {leftId:"a",rightId:"b",relationType:"supports",evidence:"short"},
-    {leftId:"a",rightId:"b",relationType:"supports",evidence:"x".repeat(501)},
-    {leftId:"a",rightId:"b",relationType:"supports",evidence:"Evidence text",ownerUid:"victim"}
+    null,[],{}, {leftId:"a",rightId:"a",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
+    {leftId:"a",rightId:"b",relationType:"grants_permission",leftEvidence:"Evidence text",rightEvidence:"Other evidence"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"short",rightEvidence:"Other evidence"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"x".repeat(301),rightEvidence:"Other evidence"},
+    {leftId:"a",rightId:"b",relationType:"supports",leftEvidence:"Evidence text",rightEvidence:"Other evidence",ownerUid:"victim"}
   ]) assert.throws(()=>workerModule.parseIntelligenceRelationshipProposalArgs(invalid));
 });
 
