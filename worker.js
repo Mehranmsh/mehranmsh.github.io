@@ -5237,7 +5237,25 @@ export function rankIntelligenceKnowledge(rows, query, limit=20, fallback=false)
   if(!fallback)return [];
   return (rows||[]).slice(0,Math.min(8,limit)).map(row=>({id:row.id,category:row.category,title:row.title,content:String(row.content||"").slice(0,1200),importance:row.importance,source:row.owner_uid==="system_seed"?"system":"owner",updatedAt:row.updated_at||null}));
  }
- return ranked.slice(0,Math.max(1,Math.min(30,limit))).map(item=>({...item.row,relevance:item.score}));
+ const resultLimit=Math.max(1,Math.min(30,Number.isFinite(Number(limit))?Math.floor(Number(limit)):20));
+ const selected=ranked.slice(0,resultLimit);
+ const selectedIds=new Set(selected.map(item=>String(item.row.id)));
+ const conflictKey=item=>String(item.row.category||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase().trim()+"|"+String(item.row.title||"").normalize("NFKC").replace(/[ي]/g,"ی").replace(/[ك]/g,"ک").toLowerCase().trim();
+ for(const item of [...selected]){
+  const key=conflictKey(item);
+  if(!key||key==="|")continue;
+  const sibling=ranked.find(candidate=>conflictKey(candidate)===key&&!selectedIds.has(String(candidate.row.id)));
+  if(!sibling)continue;
+  let replaceIndex=selected.length-1;
+  while(replaceIndex>=0&&conflictKey(selected[replaceIndex])===key)replaceIndex--;
+  if(replaceIndex<0)continue;
+  selectedIds.delete(String(selected[replaceIndex].row.id));
+  selected[replaceIndex]=sibling;
+  selectedIds.add(String(sibling.row.id));
+ }
+ const rankIndex=new Map(ranked.map((item,index)=>[String(item.row.id),index]));
+ selected.sort((a,b)=>(rankIndex.get(String(a.row.id))??0)-(rankIndex.get(String(b.row.id))??0));
+ return selected.map(item=>({...item.row,relevance:item.score}));
 }
 
 async function ensureSocialAuthLimitsTable(env) {
