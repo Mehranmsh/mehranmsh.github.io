@@ -2168,7 +2168,7 @@ message.textContent="Company data could not be loaded: "+error.message+". Sign i
 message.className="notice warn";
 $("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks()}
+}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelligenceMemory()}
 }
 async function loadIntelligenceMemory(){
 const status=$("intelMemoryStatus"),list=$("intelMemoryList");if(!status||!list)return;
@@ -2233,7 +2233,6 @@ finally{button.disabled=false}
 $("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
 $("intelQuestion")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendIntelligenceMessage()}});
 $("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
-loadIntelligenceMemory();
 
 async function loadIntelligenceTasks(){
 const status=$("intelTasksStatus"),list=$("intelTasksList");
