@@ -39,5 +39,5 @@ Validation limits:
 
 - The new migration lifecycle tests run against disposable SQLite, not Cloudflare D1.
 - Worker smoke tests validate parser, source contracts and helper behavior; they do not prove live D1 trigger behavior or live AI model behavior.
-- The relationship UI has not yet been built. The current owner API is available for the private admin interface to consume. Worker route tests now exercise authenticated list/create/resolve/reopen behavior with a deterministic mock D1 binding.
+- The private Intelligence dashboard now includes an owner review panel to list, create, confirm, dismiss, resolve and reopen relationships. The panel is inside the authenticated admin workspace, not a public surface. Worker route tests exercise authenticated list/create/confirm/dismiss/resolve/reopen behavior with a deterministic mock D1 binding, and smoke tests cover the dashboard contract.
 - No production D1 migration, Cloudflare deployment, merge, or executor activation has occurred. Apply the migration only to a dedicated staging D1 database after the owner creates and verifies that isolated environment.
