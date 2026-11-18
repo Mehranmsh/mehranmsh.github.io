@@ -13,6 +13,7 @@ concurrency:
 jobs:
   import-cc0-samples:
     if: github.ref == 'refs/heads/main'
+    environment: repository-maintenance
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
