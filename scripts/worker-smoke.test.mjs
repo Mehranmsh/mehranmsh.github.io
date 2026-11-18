@@ -291,6 +291,17 @@ test("SOCIAL post interactions enforce the same visibility policy", () => {
 });
 
 
+test("profile gallery lightbox uses sanitized remote or local media URLs", () => {
+  const start = indexSource.indexOf("window.openProfileGalleryPhoto=function(index)");
+  const end = indexSource.indexOf("function updateProfilePreview()", start);
+  assert.ok(start >= 0 && end > start, "profile gallery lightbox handler must exist");
+  const handler = indexSource.slice(start, end);
+  assert.match(handler, /safeMediaSrc\(item\?\.url\|\|item\?\.localUrl/);
+  assert.match(handler, /img\.src=src/);
+  assert.match(handler, /window\.open\(src/);
+  assert.doesNotMatch(handler, /if\(!item\?\.url\)/);
+});
+
 test("private SOCIAL profile gallery and posts respect privacy and blocks", () => {
   const profileStart = workerSource.indexOf("async function getProfileByUsername");
   const profileEnd = workerSource.indexOf("\nasync function ", profileStart + 20);
