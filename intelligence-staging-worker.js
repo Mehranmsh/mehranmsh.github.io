@@ -787,6 +787,7 @@ async function handle(request, env) {
   const ownerReviewMatch = path.match(/^\\/intelligence\\/findings\\/([0-9a-f-]{36})\\/reviews$/i);
   if (ownerReviewMatch && method === "POST") {
     const findingId = ownerReviewMatch[1];
+    if (!uuid(findingId)) return fail("Invalid finding ID.");
     const body = await readJson(request);
     if (!body || Object.keys(body).some(key => !["outcome", "reason"].includes(key)) ||
         !OWNER_EVIDENCE_REVIEW_OUTCOMES.includes(body.outcome) ||
