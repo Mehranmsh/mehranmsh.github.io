@@ -77,6 +77,26 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertNotIn("admin_audit_log", found)
         self.assertNotIn("social_users", found)
 
+    def test_runtime_tables_enforce_session_rate_and_memory_bounds(self):
+        self.apply_chain()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_staging_sessions
+                (id,token_hash,owner_uid,created_at,expires_at)
+                VALUES('bad-session','bad-hash','owner-a',200,100)
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_staging_rate_limits
+                (rate_key,window_started_at,request_count)
+                VALUES('bad-rate',100,0)
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(id,owner_uid,category,content)
+                VALUES('bad-memory','owner-a','general','')
+            """)
+
     def test_audit_insert_requires_a_successful_state_change(self):
         self.apply_chain()
         self.db.execute("""
