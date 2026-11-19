@@ -619,7 +619,6 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'LIMIT 501',
             'buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 })',
             'scope: "authenticated_owner_staging_only"',
-            'assessment: "cross_finding_evidence_metadata_patterns_only"',
             'isContradictionVerdict: false',
             'evidenceContentVerified: false',
             'sourceReachabilityChecked: false',
@@ -632,6 +631,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertNotIn(forbidden, route)
         helper = ROOT / "intelligence-evidence-correlation.mjs"
         self.assertTrue(helper.exists())
+        self.assertIn('assessment: "cross_finding_evidence_metadata_patterns_only"', helper.read_text())
 
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
