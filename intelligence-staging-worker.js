@@ -208,10 +208,11 @@ async function handle(request, env) {
     const tokenHash = await digest(bearer(request));
     const row = await env.DB.prepare("SELECT id FROM intelligence_staging_sessions WHERE token_hash=? AND owner_uid=? AND revoked_at IS NULL").bind(tokenHash, owner.uid).first();
     if (!row) return fail("Session not found.", 404);
+    const revokedAt = Math.floor(Date.now() / 1000);
     try {
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_staging_sessions SET revoked_at=? WHERE id=? AND owner_uid=? AND revoked_at IS NULL")
-          .bind(Math.floor(Date.now() / 1000), row.id, owner.uid),
+          .bind(revokedAt, row.id, owner.uid),
         env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE EXISTS (
