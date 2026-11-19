@@ -61,6 +61,9 @@ jobs:
       - name: Test complete Intelligence staging migration chain in disposable SQLite
         run: python scripts/test-intelligence-staging-schema.py
 
+      - name: Test isolated Intelligence staging Worker security contract
+        run: python scripts/test-intelligence-staging-worker.py
+
       - name: Test Intelligence knowledge and memory owner isolation in disposable SQLite
         run: python scripts/test-intelligence-knowledge-isolation.py
 
