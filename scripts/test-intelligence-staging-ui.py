@@ -195,7 +195,7 @@ for marker in [
     'findingsElement("h3","",item.title||"Untitled finding")',
     'findingsElement("p","",item.description||"No description recorded.")',
     'findingsElement("p","small",item.recommendation?',
-    'card.append(top,title,module,description,evidence,recommendation,reason,dates)',
+    'card.append(top,title,module,description,evidence,recommendation,reason,dates,actions)',
     'Execution enabled: false.',
     'Assessment: "+String(data.assessment)',
 ]:
