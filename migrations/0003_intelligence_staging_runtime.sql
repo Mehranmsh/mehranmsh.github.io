@@ -73,3 +73,17 @@ BEGIN
     'approval', NEW.id, '{}', CAST(strftime('%s','now') AS INTEGER)
   );
 END;
+
+-- Relationship evidence must remain stable. Corrected facts are new knowledge
+-- records linked by a relation, never in-place edits to cited source content.
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_knowledge_content_immutable_with_relations
+BEFORE UPDATE OF content ON intelligence_knowledge
+WHEN OLD.content <> NEW.content
+  AND EXISTS (
+    SELECT 1 FROM intelligence_knowledge_relations r
+    WHERE r.owner_uid = OLD.owner_uid
+      AND (r.source_knowledge_id = OLD.id OR r.target_knowledge_id = OLD.id)
+  )
+BEGIN
+  SELECT RAISE(ABORT, 'knowledge content is evidence-linked and immutable');
+END;
