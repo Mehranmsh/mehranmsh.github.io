@@ -416,6 +416,71 @@ async function handle(request, env) {
     return response({ success: true, id }, 201);
   }
 
+  const evaluationMatch = path.match(/^\/intelligence\/knowledge\/([0-9a-f-]{36})\/evaluation$/i);
+  if (evaluationMatch && method === "GET") {
+    const id = evaluationMatch[1];
+    const knowledge = await env.DB.prepare(`
+      SELECT id, title, source_type, observed_at, confidence_score,
+             verification_status, archived_at, created_at, updated_at
+      FROM intelligence_knowledge
+      WHERE id = ? AND owner_uid = ?
+      LIMIT 1
+    `).bind(id, owner.uid).first();
+    if (!knowledge) return fail("Knowledge record not found.", 404);
+    const relationRows = await env.DB.prepare(`
+      SELECT relation_type, status, resolved_knowledge_id
+      FROM intelligence_knowledge_relations
+      WHERE owner_uid = ?
+        AND (source_knowledge_id = ? OR target_knowledge_id = ?)
+      ORDER BY updated_at DESC
+      LIMIT 100
+    `).bind(owner.uid, id, id).all();
+    const relations = relationRows.results || [];
+    const confirmedConflicts = relations.filter(item =>
+      item.relation_type === "conflicts_with" && item.status === "confirmed"
+    );
+    const unresolvedConflicts = confirmedConflicts.filter(item => item.status !== "resolved");
+    const signals = {
+      archived: !!knowledge.archived_at,
+      ownerReviewed: knowledge.verification_status !== "unreviewed",
+      disputed: knowledge.verification_status === "disputed",
+      ownerVerified: knowledge.verification_status === "owner_verified",
+      hasCandidateRelations: relations.some(item => item.status === "candidate"),
+      hasConfirmedConflicts: confirmedConflicts.length > 0,
+      hasUnresolvedConflicts: unresolvedConflicts.length > 0,
+      supportsCount: relations.filter(item => item.relation_type === "supports" && item.status === "confirmed").length,
+      supersedesCount: relations.filter(item => item.relation_type === "supersedes" && item.status === "confirmed").length
+    };
+    let reviewState = "needs_review";
+    if (signals.disputed) reviewState = "disputed";
+    else if (signals.hasUnresolvedConflicts) reviewState = "conflict_unresolved";
+    else if (signals.ownerVerified && !signals.archived) reviewState = "owner_verified";
+    else if (signals.archived) reviewState = "archived";
+    return response({
+      success: true,
+      evaluation: {
+        knowledge: {
+          id: knowledge.id,
+          title: knowledge.title,
+          sourceType: knowledge.source_type,
+          observedAt: knowledge.observed_at,
+          recordedConfidenceScore: knowledge.confidence_score,
+          verificationStatus: knowledge.verification_status,
+          archivedAt: knowledge.archived_at
+        },
+        reviewState,
+        signals,
+        relationCount: relations.length,
+        assessment: "deterministic_metadata_only",
+        limitations: [
+          "A source locator does not prove that a source was read or is accurate.",
+          "The recorded confidence score is not independently validated.",
+          "No external source retrieval, semantic fact-checking, or autonomous truth selection is performed."
+        ]
+      }
+    });
+  }
+
   const knowledgeMatch = path.match(/^\/intelligence\/knowledge\/([0-9a-f-]{36})$/i);
   if (knowledgeMatch && method === "PUT") {
     const id = knowledgeMatch[1];
