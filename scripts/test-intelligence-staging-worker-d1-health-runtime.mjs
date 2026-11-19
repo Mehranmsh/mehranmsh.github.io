@@ -1417,3 +1417,88 @@ async function testKnowledgeRelationLifecycleAndAuditAtomicity() {
 }
 
 await testKnowledgeRelationLifecycleAndAuditAtomicity();
+
+
+async function testApprovalRevocationAuditAtomicityAndOwnerIsolation() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const foreignUid = "different-owner-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const taskId = "abababab-abab-4bab-8bab-abababababab";
+  const approvalId = "bcbcbcbc-bcbc-4cbc-8cbc-bcbcbcbcbcbc";
+  const foreignApprovalId = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-approval-revoke-atomicity", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare("INSERT INTO intelligence_tasks(id,title,created_by) VALUES(?,?,?)")
+      .bind(taskId, "Approval revocation atomicity", ownerUid).run();
+    for (const [id, owner] of [[approvalId, ownerUid], [foreignApprovalId, foreignUid]]) {
+      await db.prepare(`
+        INSERT INTO intelligence_approval_ledger
+          (id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at)
+        VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)
+      `).bind(id, taskId, owner, "mehranmsh", "Mehranmsh/mehranmsh.github.io",
+        "main", "a".repeat(40), '{"paths":["docs/"]}', "scope-hash-" + owner, now, now + 1800).run();
+    }
+    const headers = { Authorization: "Bearer " + token };
+    const foreignRevoke = await mf.dispatchFetch(`http://localhost/intelligence/approvals/${foreignApprovalId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(foreignRevoke.status, 409, "an owner must not revoke another owner's approval");
+    const foreignRow = await db.prepare("SELECT status FROM intelligence_approval_ledger WHERE id=?")
+      .bind(foreignApprovalId).first();
+    assert.equal(foreignRow.status, "issued");
+
+    await db.prepare(
+      "CREATE TRIGGER reject_approval_revoke_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='approval_revoked' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedRevoke = await mf.dispatchFetch(`http://localhost/intelligence/approvals/${approvalId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(failedRevoke.status, 503);
+    let row = await db.prepare("SELECT status,revoked_at FROM intelligence_approval_ledger WHERE id=?")
+      .bind(approvalId).first();
+    assert.equal(row.status, "issued", "revocation must roll back when audit insertion fails");
+    assert.equal(row.revoked_at, null);
+    const noAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='approval_revoked' AND target_id=?"
+    ).bind(ownerUid, approvalId).first();
+    assert.equal(Number(noAudit.count), 0);
+    await db.prepare("DROP TRIGGER reject_approval_revoke_audit").run();
+
+    const revoked = await mf.dispatchFetch(`http://localhost/intelligence/approvals/${approvalId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(revoked.status, 200);
+    row = await db.prepare("SELECT status,revoked_at FROM intelligence_approval_ledger WHERE id=?")
+      .bind(approvalId).first();
+    assert.equal(row.status, "revoked");
+    assert.ok(row.revoked_at);
+    const repeated = await mf.dispatchFetch(`http://localhost/intelligence/approvals/${approvalId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(repeated.status, 409, "a revoked approval cannot be revoked twice");
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='approval_revoked' AND target_id=?"
+    ).bind(ownerUid, approvalId).first();
+    assert.equal(Number(audit.count), 1, "successful revocation must create exactly one audit record");
+
+    const wrongOwnerTask = await mf.dispatchFetch("http://localhost/intelligence/approvals", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        taskId: "dededede-dede-4ede-8ede-dededededede",
+        repository: "Mehranmsh/mehranmsh.github.io", branch: "main",
+        baseSha: "b".repeat(40), scope: { paths: ["docs/"] }, expiresInSeconds: 300,
+      }),
+    });
+    assert.equal(wrongOwnerTask.status, 404, "approval issuance must require a task owned by the session owner");
+    console.log("PASS: approval revocation is owner-scoped, one-time, and audit-atomic");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testApprovalRevocationAuditAtomicityAndOwnerIsolation();
