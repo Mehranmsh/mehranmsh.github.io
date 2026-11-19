@@ -17,7 +17,7 @@ function collect(rows,keyOf,type,maxGroups){
  const out=[];
  for(const [key,references] of map){if(references.length<2)continue;out.push({candidateType:type,candidateKey:key,findingCount:new Set(references.map(x=>x.findingId)).size,referenceCount:references.length,referencesTruncated:references.length>20,references:references.slice(0,20)});}
  out.sort((a,b)=>a.candidateType.localeCompare(b.candidateType)||b.findingCount-a.findingCount||a.candidateKey.localeCompare(b.candidateKey));
- return out.slice(0,maxGroups);
+ return out;
 }
 export function buildEvidenceConsistency(inputRows,options={}){
  if(!Array.isArray(inputRows))throw new TypeError("Consistency input must be an array.");
