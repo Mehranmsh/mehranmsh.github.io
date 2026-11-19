@@ -816,26 +816,36 @@ async function handle(request, env) {
         LIMIT 501
       `).bind(owner.uid, owner.uid).all();
       const analysis = buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 });
-      const keyBytes = new Uint8Array(await crypto.subtle.digest(
-        "SHA-256", new TextEncoder().encode(review.correlation_type === "shared_digest"
-          ? "digest:" + String(snapshot.references[0]?.contentDigest || "")
-          : review.correlation_type === "shared_source_reference"
-            ? "source:" + String(snapshot.references[0]?.sourceRef || "")
-            : "variance:" + String(snapshot.references[0]?.sourceRef || ""))
-      ));
-      const group = (analysis.returnedCorrelationGroups || []).find(item => item.correlationType === review.correlation_type &&
-        item.references?.some(ref => snapshot.references.some(old => old.evidenceId === ref.evidenceId)));
-      if (!group || group.referencesTruncated || Number(group.referenceCount) > 20) {
+      let group = null;
+      for (const candidate of analysis.returnedCorrelationGroups || []) {
+        if (candidate.correlationType !== review.correlation_type) continue;
+        const bytes = new Uint8Array(await crypto.subtle.digest(
+          "SHA-256", new TextEncoder().encode(String(candidate.correlationKey || ""))
+        ));
+        const hash = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+        if (hash === review.correlation_key_sha256) { group = candidate; break; }
+      }
+      if (analysis.evidenceReferenceScanLimitReached || analysis.correlationGroupLimitReached) {
         return response({
           success: true, reviewId, comparisonAvailable: false,
-          reason: "Current correlation group is absent, truncated, or exceeds the complete comparison limit.",
+          reason: "Current analysis reached a scan or group limit; no complete drift comparison is claimed.",
           previousReferenceCount: Number(review.reference_count),
-          currentReferenceCount: null, coverageComplete: analysis.coverageComplete,
+          currentReferenceCount: null, coverageComplete: false,
           isRelationshipVerdict: false, evidenceContentVerified: false,
           checkPassed: false, executionEnabled: false, operationPerformed: false
         });
       }
-      const drift = buildEvidenceCorrelationReviewDrift(snapshot, group.references);
+      if (group && (group.referencesTruncated || Number(group.referenceCount) > 20)) {
+        return response({
+          success: true, reviewId, comparisonAvailable: false,
+          reason: "Current correlation group exceeds the complete comparison limit.",
+          previousReferenceCount: Number(review.reference_count),
+          currentReferenceCount: Number(group.referenceCount), coverageComplete: analysis.coverageComplete,
+          isRelationshipVerdict: false, evidenceContentVerified: false,
+          checkPassed: false, executionEnabled: false, operationPerformed: false
+        });
+      }
+      const drift = buildEvidenceCorrelationReviewDrift(snapshot, group?.references || []);
       return response({
         success: true, scope: "authenticated_owner_staging_only", reviewId,
         comparisonAvailable: true, coverageComplete: analysis.coverageComplete,
