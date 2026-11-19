@@ -152,3 +152,9 @@ assert 'loadCompanyModules()' in page
 
 # Company module registry contract
 assert 'request("/intelligence/company/modules")' in page
+
+# Company assessment blueprint contract
+assert 'companyAssessmentPlanPanel' in page
+assert 'loadCompanyAssessmentBlueprint' in page
+assert 'assessment-template?moduleId=' in page
+assert 'data-assess-module' in page
