@@ -2242,3 +2242,64 @@ async function testConcurrentSessionRevocationIsSingleAndAudited() {
 }
 
 await testConcurrentSessionRevocationIsSingleAndAudited();
+
+
+async function testSessionExpiryBoundaryIsFailClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const boundaryToken = randomBytes(32).toString("base64url");
+  const expiredToken = randomBytes(32).toString("base64url");
+  const activeToken = randomBytes(32).toString("base64url");
+  try {
+    for (const [id, token, expiresAt] of [
+      ["session-expiry-equality-001", boundaryToken, now],
+      ["session-expired-before-request-001", expiredToken, now - 1],
+      ["session-active-after-boundary-001", activeToken, now + 3600],
+    ]) {
+      await db.prepare(
+        "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+      ).bind(id, tokenHash(token), ownerUid, now - 60, expiresAt).run();
+    }
+
+    for (const token of [boundaryToken, expiredToken]) {
+      const headers = { Authorization: `Bearer ${token}` };
+      const read = await mf.dispatchFetch("http://localhost/session", { headers });
+      assert.equal(read.status, 401,
+        "a session expiring at or before the current second must be rejected");
+      const revoke = await mf.dispatchFetch("http://localhost/session", {
+        method: "DELETE", headers,
+      });
+      assert.equal(revoke.status, 401,
+        "an expired session must not be revocable as an active session");
+    }
+
+    const active = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: `Bearer ${activeToken}` },
+    });
+    assert.equal(active.status, 200,
+      "a session with a future expiry must remain valid");
+
+    const rows = await db.prepare(
+      "SELECT id,revoked_at FROM intelligence_staging_sessions WHERE id IN (?,?,?) ORDER BY id"
+    ).bind(
+      "session-expiry-equality-001",
+      "session-expired-before-request-001",
+      "session-active-after-boundary-001"
+    ).all();
+    assert.equal(rows.results.length, 3);
+    assert.ok(rows.results.every(row => row.revoked_at === null),
+      "expiry rejection must not mutate revocation state");
+
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_revoked'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(audit.count), 0,
+      "rejected expired-session revocations must not create audit events");
+    console.log("PASS: session expiry equality and past-expiry boundaries fail closed without mutation");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testSessionExpiryBoundaryIsFailClosed();
