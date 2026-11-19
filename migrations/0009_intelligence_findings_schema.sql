@@ -62,6 +62,41 @@ CREATE TABLE IF NOT EXISTS intelligence_finding_evidence (
 CREATE INDEX IF NOT EXISTS idx_intelligence_finding_evidence_owner_finding
   ON intelligence_finding_evidence(owner_uid, finding_id, created_at);
 
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_finding_no_initial_sufficient_evidence
+BEFORE INSERT ON intelligence_findings
+WHEN NEW.evidence_state = 'sufficient'
+BEGIN
+  SELECT RAISE(ABORT, 'evidence sufficiency must be established after evidence references are attached');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_finding_sufficient_requires_evidence
+BEFORE UPDATE OF evidence_state ON intelligence_findings
+WHEN NEW.evidence_state = 'sufficient'
+ AND (SELECT COUNT(*) FROM intelligence_finding_evidence
+      WHERE finding_id = NEW.id AND owner_uid = NEW.owner_uid) = 0
+BEGIN
+  SELECT RAISE(ABORT, 'sufficient evidence state requires at least one attached evidence reference');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_finding_resolved_requires_evidence
+BEFORE INSERT ON intelligence_findings
+WHEN NEW.status IN ('mitigated','resolved')
+BEGIN
+  SELECT RAISE(ABORT, 'mitigated or resolved findings require a later evidence-backed transition');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_finding_transition_requires_sufficient_evidence
+BEFORE UPDATE OF status ON intelligence_findings
+WHEN NEW.status IN ('mitigated','resolved')
+ AND (
+   NEW.evidence_state <> 'sufficient'
+   OR (SELECT COUNT(*) FROM intelligence_finding_evidence
+       WHERE finding_id = NEW.id AND owner_uid = NEW.owner_uid) = 0
+ )
+BEGIN
+  SELECT RAISE(ABORT, 'mitigated or resolved status requires sufficient attached evidence');
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_intelligence_finding_identity_immutable
 BEFORE UPDATE OF id, owner_uid, module_id, check_id, blueprint_version, created_at, created_by
 ON intelligence_findings
