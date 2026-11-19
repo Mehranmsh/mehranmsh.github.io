@@ -2803,7 +2803,7 @@ async function loadIntelPriorityActionReviewHistory(actionKey,container){
    const heading=document.createElement("strong");heading.textContent=String(item.outcome||"review");
    const date=document.createElement("small");date.textContent=item.reviewedAt?new Date(Number(item.reviewedAt)*1000).toLocaleString():"Date unavailable";
    const reason=document.createElement("p");reason.textContent=String(item.reason||"No reason supplied.");
-   const meta=document.createElement("small");meta.textContent="Reviewer: "+String(item.reviewerUid||"owner")+" · Snapshot SHA-256: "+String(item.snapshotSha256||"unavailable");
+   const meta=document.createElement("small");meta.textContent="Reviewer: Owner · Snapshot SHA-256: "+String(item.snapshotSha256||"unavailable");
    entry.append(heading,date,reason,meta);container.append(entry);
   }
  }catch(error){container.textContent="Review history unavailable: "+error.message;}
