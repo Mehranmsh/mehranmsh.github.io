@@ -764,7 +764,7 @@ async function handle(request, env) {
     const rawLimit = url.searchParams.get("limit") || "50";
     const limit = Number(rawLimit);
     if (keyHash && !/^[0-9a-f]{64}$/.test(keyHash)) return fail("Invalid correlation key hash.");
-    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^(?:[1-9]\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Correlation review history limit must be an integer from 1 to 100.");
     }
     try {
@@ -792,7 +792,7 @@ async function handle(request, env) {
     if (!body || Object.keys(body).some(key => !["correlationType", "correlationKey", "outcome", "reason"].includes(key)) ||
         !EVIDENCE_CORRELATION_TYPES.includes(body.correlationType) ||
         typeof body.correlationKey !== "string" || body.correlationKey.length < 1 || body.correlationKey.length > 200 ||
-        /[\\u0000-\\u001f\\u007f]/.test(body.correlationKey) ||
+        /[\u0000-\u001f\u007f]/.test(body.correlationKey) ||
         !EVIDENCE_CORRELATION_REVIEW_OUTCOMES.includes(body.outcome) ||
         typeof body.reason !== "string" || body.reason.length > 1000 ||
         !clean(body.reason, 1000) || clean(body.reason, 1000).length !== body.reason.trim().length) {
