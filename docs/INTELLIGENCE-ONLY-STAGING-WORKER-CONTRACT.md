@@ -28,6 +28,7 @@ Migration `0003_intelligence_staging_runtime.sql` adds:
 - `intelligence_staging_audit`
 - `intelligence_staging_rate_limits`
 - `intelligence_owner_memory`
+- `trg_intelligence_knowledge_content_immutable_with_relations`, which prevents in-place edits to evidence-linked knowledge; corrected facts must be new records with explicit relationships.
 
 It is committed but has not been applied to Cloudflare. Apply it only after confirming the staging database ID and target.
 
