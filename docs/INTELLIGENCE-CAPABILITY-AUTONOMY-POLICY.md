@@ -76,3 +76,6 @@ The isolated staging Worker exposes the policy through two authenticated, owner-
 - `POST /intelligence/capabilities/evaluate` accepts only a `capability` identifier. The Worker constructs owner authentication, session validity, owner ID, and staging scope from its already-verified server session. Client-supplied trust assertions or approval objects are rejected.
 
 This route is deliberately assessment-only. It passes no approval record, so approval-tier mutations remain `approval_required`; it does not read or consume the approval ledger, perform the requested operation, create tasks, or enable execution. Forbidden and unknown capabilities remain denied. This is not a live authorization gate for mutation endpoints.
+
+
+Capability evaluation is written to the staging audit ledger before a successful response is returned. The audit event records only the capability identifier, decision, reason, and assessment-only marker; it never records bearer tokens or Pi access tokens. If the audit write fails, the endpoint returns `503` and does not report a successful assessment.
