@@ -515,7 +515,7 @@ for marker in [
 ]:
     assert marker in page, f"Evidence Intelligence overview missing required behavior or safety marker: {marker}"
 
-overview_function = page.split("async function loadEvidenceIntelligenceOverview()", 1)[1].split("function evidenceOverviewCard(", 1)[0]
+overview_function = page.split("async function loadEvidenceIntelligenceOverview()", 1)[1].split("async function loadEvidenceDecisionSupport()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in overview_function, f"Evidence Intelligence overview must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in overview_function and '.append(' in overview_function
