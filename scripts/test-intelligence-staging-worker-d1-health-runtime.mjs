@@ -1317,3 +1317,103 @@ async function testOwnerMemoryTransitionLifecycleAndAuditAtomicity() {
 }
 
 await testOwnerMemoryTransitionLifecycleAndAuditAtomicity();
+
+
+async function testKnowledgeRelationLifecycleAndAuditAtomicity() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const sourceId = "90000000-0000-4000-8000-000000000001";
+  const targetId = "90000000-0000-4000-8000-000000000002";
+  const foreignId = "90000000-0000-4000-8000-000000000003";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-knowledge-relation-lifecycle", tokenHash(token), ownerUid, now, now + 3600).run();
+    for (const [id, owner, title, content] of [
+      [sourceId, ownerUid, "Source record", "Evidence phrase alpha"],
+      [targetId, ownerUid, "Target record", "Evidence phrase beta"],
+      [foreignId, "different-owner-uid", "Foreign record", "Foreign evidence phrase"],
+    ]) {
+      await db.prepare(
+        "INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)"
+      ).bind(id, owner, title, content, owner).run();
+    }
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    const create = (source, target, sourceEvidence, targetEvidence, relationType = "supports") =>
+      mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
+        method: "POST", headers,
+        body: JSON.stringify({ sourceId: source, targetId: target, sourceEvidence, targetEvidence, relationType }),
+      });
+
+    const crossOwner = await create(sourceId, foreignId, "Evidence phrase alpha", "Foreign evidence phrase");
+    assert.equal(crossOwner.status, 404, "a relation must not reference another owner's knowledge");
+    const wrongEvidence = await create(sourceId, targetId, "not present in source", "Evidence phrase beta");
+    assert.equal(wrongEvidence.status, 404, "relation evidence must match the exact source content");
+
+    const proposed = await create(sourceId, targetId, "Evidence phrase alpha", "Evidence phrase beta");
+    assert.equal(proposed.status, 201);
+    const proposedBody = await proposed.json();
+    assert.equal(proposedBody.status, "candidate");
+    const proposalAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='knowledge_relation_proposed' AND target_id=?"
+    ).bind(ownerUid, proposedBody.id).first();
+    assert.equal(Number(proposalAudit.count), 1);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_relation_confirm_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='knowledge_relation_confirmed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedConfirm = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${proposedBody.id}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(failedConfirm.status, 503);
+    let relation = await db.prepare(
+      "SELECT status FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=?"
+    ).bind(proposedBody.id, ownerUid).first();
+    assert.equal(relation.status, "candidate", "failed audit must roll back confirmation");
+    await db.prepare("DROP TRIGGER reject_relation_confirm_audit").run();
+
+    const confirmed = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${proposedBody.id}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(confirmed.status, 200);
+    relation = await db.prepare("SELECT status FROM intelligence_knowledge_relations WHERE id=?")
+      .bind(proposedBody.id).first();
+    assert.equal(relation.status, "confirmed");
+
+    const foreignMutation = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${proposedBody.id}`, {
+      method: "PUT",
+      headers: { Authorization: "Bearer " + randomBytes(32).toString("base64url"), "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "dismiss" }),
+    });
+    assert.equal(foreignMutation.status, 401);
+
+    const conflict = await create(sourceId, targetId, "Evidence phrase alpha", "Evidence phrase beta", "conflicts_with");
+    assert.equal(conflict.status, 201);
+    const conflictBody = await conflict.json();
+    const dismiss = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${conflictBody.id}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "dismiss" }),
+    });
+    assert.equal(dismiss.status, 200);
+    assert.equal((await dismiss.json()).status, "dismissed");
+    const invalidResolve = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${conflictBody.id}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "resolve", resolvedKnowledgeId: sourceId }),
+    });
+    assert.equal(invalidResolve.status, 409, "dismissed conflicts cannot be resolved");
+
+    const auditRows = await db.prepare(
+      "SELECT action, COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND target_type='knowledge_relation' GROUP BY action"
+    ).bind(ownerUid).all();
+    const auditCounts = Object.fromEntries((auditRows.results || []).map(row => [row.action, Number(row.count)]));
+    assert.equal(auditCounts.knowledge_relation_proposed, 2);
+    assert.equal(auditCounts.knowledge_relation_confirmed, 1);
+    assert.equal(auditCounts.knowledge_relation_dismissed, 1);
+    assert.equal(auditCounts.knowledge_relation_resolved || 0, 0);
+    console.log("PASS: knowledge relations enforce same-owner evidence, state transitions, and atomic audit");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testKnowledgeRelationLifecycleAndAuditAtomicity();
