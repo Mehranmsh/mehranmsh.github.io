@@ -3294,3 +3294,80 @@ async function testOwnerEvidenceSnapshotDriftRuntime() {
 }
 await testOwnerEvidenceSnapshotDriftRuntime();
 
+
+async function testOwnerEvidenceCorrelationRuntime() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const otherUid = "correlation-other-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}`, Origin: "https://mehranmsh.github.io" };
+  const findings = [
+    ["40000000-0000-4000-8000-000000000001", ownerUid],
+    ["40000000-0000-4000-8000-000000000002", ownerUid],
+    ["40000000-0000-4000-8000-000000000003", ownerUid],
+    ["40000000-0000-4000-8000-000000000004", otherUid]
+  ];
+  const evidence = [
+    ["50000000-0000-4000-8000-000000000001", findings[0][0], ownerUid, "doc:shared", "a".repeat(64)],
+    ["50000000-0000-4000-8000-000000000002", findings[1][0], ownerUid, "doc:shared", "b".repeat(64)],
+    ["50000000-0000-4000-8000-000000000003", findings[2][0], ownerUid, "doc:separate", "a".repeat(64)],
+    ["50000000-0000-4000-8000-000000000004", findings[3][0], otherUid, "doc:shared", "a".repeat(64)]
+  ];
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("evidence-correlation-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    for (const [id, uid] of findings) {
+      await db.prepare(`INSERT INTO intelligence_findings
+        (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+         evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(id, uid, "social", "privacy", "v1", "high", "open",
+          "Correlation test finding", "Isolated owner-scoped correlation runtime fixture", "missing",
+          null, null, null, now, now, uid).run();
+    }
+    for (const [id, findingId, uid, sourceRef, contentDigest] of evidence) {
+      await db.prepare(`INSERT INTO intelligence_finding_evidence
+        (id,finding_id,owner_uid,kind,source_ref,content_digest,observed_at,note,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?)`)
+        .bind(id, findingId, uid, "document", sourceRef, contentDigest, now,
+          "Correlation metadata fixture", now).run();
+    }
+    const auditBefore = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    const response = await mf.dispatchFetch("http://localhost/intelligence/findings/evidence-correlations", { headers });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.scope, "authenticated_owner_staging_only");
+    assert.equal(data.evidenceReferencesScanned, 3, "other-owner evidence must not enter correlation analysis");
+    assert.equal(data.coverageComplete, true);
+    assert.equal(data.isContradictionVerdict, false);
+    assert.equal(data.evidenceContentVerified, false);
+    assert.equal(data.checkPassed, false);
+    assert.equal(data.executionEnabled, false);
+    assert.equal(data.operationPerformed, false);
+    assert.ok(data.returnedCorrelationGroups.some(group =>
+      group.correlationType === "source_reference_digest_variance_candidate" && group.findingCount === 2
+    ));
+    assert.ok(data.returnedCorrelationGroups.some(group =>
+      group.correlationType === "shared_digest" && group.findingCount === 2
+    ));
+    const filtered = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations?module=security", { headers });
+    assert.equal(filtered.status, 200);
+    assert.equal((await filtered.json()).evidenceReferencesScanned, 0);
+    const unsupported = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations?ownerUid=spoof", { headers });
+    assert.equal(unsupported.status, 400);
+    const unauthenticated = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations",
+      { headers: { Origin: "https://mehranmsh.github.io" } });
+    assert.equal(unauthenticated.status, 401);
+    const auditAfter = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(auditAfter.count), Number(auditBefore.count), "read-only correlation must not mutate audit state");
+    console.log("PASS: evidence correlation is owner-isolated, bounded, metadata-only, and read-only on D1 runtime");
+  } finally {
+    await mf.dispose();
+  }
+}
+await testOwnerEvidenceCorrelationRuntime();
+

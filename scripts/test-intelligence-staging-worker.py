@@ -96,9 +96,6 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'reviewer_uid, outcome, reason',
             'reviewId, findingId, owner.uid, owner.uid, body.outcome',
             'historyIsAppendOnly: true',
-            'evidenceContentVerified: false',
-            'checkPassed: false',
-            'executionEnabled: false',
             'operationPerformed: true',
         ]:
             self.assertIn(fragment, post_route)
@@ -109,10 +106,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         for fragment in [
             'historyIsAppendOnly: true',
             'evidenceContentVerified: false',
-            'sourceReachabilityChecked: false',
             'checkPassed: false',
             'executionEnabled: false',
-            'operationPerformed: false',
         ]:
             self.assertIn(fragment, self.owner_review_module)
 
@@ -608,6 +603,34 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertNotIn(forbidden, route)
         helper = ROOT / "intelligence-evidence-drift.mjs"
         self.assertTrue(helper.exists())
+
+    def test_evidence_correlation_api_is_owner_scoped_bounded_and_read_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-correlations" && method === "GET")')
+        for fragment in [
+            'new Set(["module"])',
+            'e.owner_uid = ? AND f.owner_uid = ?',
+            'f.id = e.finding_id AND f.owner_uid = e.owner_uid',
+            'ORDER BY e.id ASC',
+            'LIMIT 501',
+            'buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 })',
+            'scope: "authenticated_owner_staging_only"',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+        helper = ROOT / "intelligence-evidence-correlation.mjs"
+        self.assertTrue(helper.exists())
+        helper_source = helper.read_text()
+        for fragment in [
+            'assessment: "cross_finding_evidence_metadata_patterns_only"',
+            'isContradictionVerdict: false',
+            'evidenceContentVerified: false',
+            'sourceReachabilityChecked: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, helper_source)
 
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)

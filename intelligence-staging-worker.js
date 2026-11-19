@@ -8,6 +8,7 @@ import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
 import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs";
 import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEvidenceReviewHistory } from "./intelligence-owner-evidence-review.mjs";
 import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
+import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -752,6 +753,43 @@ async function handle(request, env) {
     }
   }
 
+
+  if (path === "/intelligence/findings/evidence-correlations" && method === "GET") {
+    const allowedParams = new Set(["module"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported evidence correlation filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    const modules = new Set([
+      "music", "ai", "social", "instruments", "robotics", "security",
+      "intelligence", "logistics", "customer-experience", "labs",
+      "governance", "data", "robot-operations"
+    ]);
+    if (moduleId && !modules.has(moduleId)) return fail("Unknown evidence correlation module filter.");
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
+               e.source_ref, e.content_digest
+        FROM intelligence_finding_evidence e
+        INNER JOIN intelligence_findings f
+          ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
+        WHERE e.owner_uid = ? AND f.owner_uid = ?
+          AND (? = '' OR f.module_id = ?)
+        ORDER BY e.id ASC
+        LIMIT 501
+      `).bind(owner.uid, owner.uid, moduleId, moduleId).all();
+      const analysis = buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 });
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        scope: "authenticated_owner_staging_only",
+        filter: { module: moduleId || null },
+        ...analysis
+      });
+    } catch {
+      return fail("Evidence correlation analysis is unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
 
   if (path === "/intelligence/findings/evidence-drift" && method === "GET") {
     const allowedParams = new Set(["findingId"]);
