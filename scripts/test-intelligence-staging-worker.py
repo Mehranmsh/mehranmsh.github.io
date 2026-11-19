@@ -183,6 +183,17 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(fragment, helper)
         self.assertIn('No external source retrieval, semantic fact-checking, or autonomous conflict resolution is performed.', self.source)
 
+    def test_knowledge_get_is_owner_scoped_and_paginates_with_bounded_offset(self):
+        for fragment in [
+            'const rawOffset = url.searchParams.get("offset") || "0";',
+            'Number.isSafeInteger(offset)',
+            'offset > 10000',
+            'ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?',
+            'hasMore: scanned.length > limit',
+            'nextOffset: offset + items.length',
+        ]:
+            self.assertIn(fragment, self.source)
+
     def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
         for fragment in [
             "source_type, source_ref, observed_at, confidence_score, verification_status",
