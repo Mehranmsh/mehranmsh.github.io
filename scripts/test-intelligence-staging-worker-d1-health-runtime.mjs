@@ -3423,6 +3423,9 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       "http://localhost/intelligence/findings/evidence-correlations/reviews",
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201);
+    const afterDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeAudit.count) + 1,
+      "decision insert must append exactly one audit event");
     const result = await created.json();
     assert.equal(result.outcome, "related");
     assert.equal(result.reviewerUid, ownerUid);
@@ -3723,9 +3726,6 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
     const afterFinding = await db.prepare("SELECT status,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).first();
     assert.deepEqual(afterFinding, beforeFinding, "owner decision must not change finding state");
-    const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1, "decision insert must append exactly one audit event");
-
     await assert.rejects(
       db.prepare("UPDATE intelligence_evidence_decision_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
       /append-only/i
