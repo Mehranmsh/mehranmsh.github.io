@@ -5,10 +5,12 @@
 CREATE TABLE IF NOT EXISTS intelligence_staging_sessions (
   id TEXT PRIMARY KEY,
   token_hash TEXT NOT NULL UNIQUE,
-  owner_uid TEXT NOT NULL,
+  owner_uid TEXT NOT NULL CHECK(length(owner_uid) > 0),
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL,
-  revoked_at INTEGER
+  revoked_at INTEGER,
+  CHECK(expires_at > created_at),
+  CHECK(revoked_at IS NULL OR revoked_at >= created_at)
 );
 CREATE INDEX IF NOT EXISTS idx_intelligence_staging_sessions_owner
   ON intelligence_staging_sessions(owner_uid, expires_at);
@@ -28,8 +30,9 @@ CREATE INDEX IF NOT EXISTS idx_intelligence_staging_audit_owner
 CREATE TABLE IF NOT EXISTS intelligence_staging_rate_limits (
   rate_key TEXT PRIMARY KEY,
   window_started_at INTEGER NOT NULL,
-  request_count INTEGER NOT NULL DEFAULT 0,
-  blocked_until INTEGER
+  request_count INTEGER NOT NULL DEFAULT 0 CHECK(request_count > 0),
+  blocked_until INTEGER,
+  CHECK(blocked_until IS NULL OR blocked_until >= window_started_at)
 );
 CREATE INDEX IF NOT EXISTS idx_intelligence_staging_rate_limits_window
   ON intelligence_staging_rate_limits(window_started_at);
@@ -37,8 +40,8 @@ CREATE INDEX IF NOT EXISTS idx_intelligence_staging_rate_limits_window
 CREATE TABLE IF NOT EXISTS intelligence_owner_memory (
   id TEXT PRIMARY KEY,
   owner_uid TEXT NOT NULL,
-  category TEXT NOT NULL DEFAULT 'general',
-  content TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general' CHECK(length(category) BETWEEN 1 AND 40),
+  content TEXT NOT NULL CHECK(length(content) BETWEEN 1 AND 4000),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
