@@ -95,7 +95,36 @@ async function testSessionVerificationAndRevocation() {
     });
     assert.equal(foreignOwner.status, 401);
 
-    console.log("PASS: staging sessions enforce owner binding, expiry, revocation, and audit");
+    const futureToken = randomBytes(32).toString("base64url");
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("session-future-created-001", tokenHash(futureToken), ownerUid, now + 60, now + 3600).run();
+    const futureCreated = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: "Bearer " + futureToken },
+    });
+    assert.equal(futureCreated.status, 401, "sessions created in the future must be rejected");
+
+    const staleToken = randomBytes(32).toString("base64url");
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("session-stale-created-001", tokenHash(staleToken), ownerUid, now - 43201, now + 60).run();
+    const staleCreated = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: "Bearer " + staleToken },
+    });
+    assert.equal(staleCreated.status, 401, "sessions older than the maximum lifetime must be rejected");
+
+    const longLifetimeToken = randomBytes(32).toString("base64url");
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("session-overlong-lifetime-001", tokenHash(longLifetimeToken), ownerUid, now, now + 43201).run();
+    const overlongLifetime = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: "Bearer " + longLifetimeToken },
+    });
+    assert.equal(overlongLifetime.status, 401, "session expiry must never exceed the configured lifetime");
+
+    const storedHash = await db.prepare("SELECT token_hash FROM intelligence_staging_sessions WHERE id=?")
+      .bind("session-valid-0001").first();
+    assert.equal(storedHash.token_hash, tokenDigest);
+    assert.notEqual(storedHash.token_hash, token, "the raw bearer token must never be stored");
+
+    console.log("PASS: staging sessions enforce owner binding, expiry, revocation, audit, and strict timestamp bounds");
   } finally {
     await mf.dispose();
   }
