@@ -8,6 +8,7 @@ on:
       - intelligence/integrated-knowledge-approval-staging-v1
     paths:
       - "index.html"
+      - "intelligence-staging.html"
       - "music-studio.html"
       - "worker.js"
       - "intelligence-staging-worker.js"
