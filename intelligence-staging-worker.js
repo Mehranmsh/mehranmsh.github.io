@@ -377,6 +377,92 @@ async function handle(request, env) {
     return response({ success: true, state, items: rows.results || [] });
   }
 
+  if (path === "/intelligence/knowledge/evaluations" && method === "GET") {
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));
+    const state = clean(url.searchParams.get("state") || "active", 16);
+    if (!["active","archived","all"].includes(state)) return fail("Invalid knowledge state.");
+    const rows = await env.DB.prepare(`
+      WITH relation_edges AS (
+        SELECT source_knowledge_id AS knowledge_id, relation_type, status
+        FROM intelligence_knowledge_relations
+        WHERE owner_uid = ?
+        UNION ALL
+        SELECT target_knowledge_id AS knowledge_id, relation_type, status
+        FROM intelligence_knowledge_relations
+        WHERE owner_uid = ?
+      ),
+      relation_stats AS (
+        SELECT knowledge_id,
+          COUNT(*) AS relation_count,
+          SUM(CASE WHEN status = 'candidate' THEN 1 ELSE 0 END) AS candidate_relation_count,
+          SUM(CASE WHEN relation_type = 'conflicts_with' AND status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_conflict_count,
+          SUM(CASE WHEN relation_type = 'conflicts_with' AND status IN ('candidate','confirmed') THEN 1 ELSE 0 END) AS unresolved_conflict_count,
+          SUM(CASE WHEN relation_type = 'supports' AND status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_support_count,
+          SUM(CASE WHEN relation_type = 'supersedes' AND status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_supersedes_count
+        FROM relation_edges
+        GROUP BY knowledge_id
+      )
+      SELECT k.id, k.title, k.source_type, k.observed_at, k.confidence_score,
+             k.verification_status, k.archived_at, k.created_at, k.updated_at,
+             COALESCE(s.relation_count, 0) AS relation_count,
+             COALESCE(s.candidate_relation_count, 0) AS candidate_relation_count,
+             COALESCE(s.confirmed_conflict_count, 0) AS confirmed_conflict_count,
+             COALESCE(s.unresolved_conflict_count, 0) AS unresolved_conflict_count,
+             COALESCE(s.confirmed_support_count, 0) AS confirmed_support_count,
+             COALESCE(s.confirmed_supersedes_count, 0) AS confirmed_supersedes_count
+      FROM intelligence_knowledge k
+      LEFT JOIN relation_stats s ON s.knowledge_id = k.id
+      WHERE k.owner_uid = ?
+        AND (? = 'all' OR (? = 'archived' AND k.archived_at IS NOT NULL) OR (? = 'active' AND k.archived_at IS NULL))
+      ORDER BY k.updated_at DESC
+      LIMIT ?
+    `).bind(owner.uid, owner.uid, owner.uid, state, state, state, limit).all();
+    const items = (rows.results || []).map(item => {
+      const disputed = item.verification_status === "disputed";
+      const ownerVerified = item.verification_status === "owner_verified";
+      const archived = !!item.archived_at;
+      const hasUnresolvedConflicts = Number(item.unresolved_conflict_count) > 0;
+      let reviewState = "needs_review";
+      if (disputed) reviewState = "disputed";
+      else if (hasUnresolvedConflicts) reviewState = "conflict_unresolved";
+      else if (ownerVerified && !archived) reviewState = "owner_verified";
+      else if (archived) reviewState = "archived";
+      return {
+        id: item.id,
+        title: item.title,
+        sourceType: item.source_type,
+        observedAt: item.observed_at,
+        recordedConfidenceScore: item.confidence_score,
+        verificationStatus: item.verification_status,
+        archivedAt: item.archived_at,
+        reviewState,
+        signals: {
+          archived,
+          ownerReviewed: item.verification_status !== "unreviewed",
+          disputed,
+          ownerVerified,
+          hasCandidateRelations: Number(item.candidate_relation_count) > 0,
+          hasConfirmedConflicts: Number(item.confirmed_conflict_count) > 0,
+          hasUnresolvedConflicts,
+          supportsCount: Number(item.confirmed_support_count),
+          supersedesCount: Number(item.confirmed_supersedes_count)
+        },
+        relationCount: Number(item.relation_count),
+        assessment: "deterministic_metadata_only"
+      };
+    });
+    return response({
+      success: true,
+      state,
+      items,
+      limitations: [
+        "A source locator does not prove that a source was read or is accurate.",
+        "Recorded confidence scores are not independently validated.",
+        "No external source retrieval, semantic fact-checking, or autonomous truth selection is performed."
+      ]
+    });
+  }
+
   if (path === "/intelligence/knowledge" && method === "POST") {
     const body = await readJson(request);
     if (!body || Object.keys(body).some(key => !["category","title","content","importance","sourceType","sourceRef","observedAt","confidenceScore"].includes(key))) return fail("Invalid knowledge payload.");
