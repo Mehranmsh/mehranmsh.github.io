@@ -784,7 +784,7 @@ async function handle(request, env) {
     }
   }
 
-  const ownerReviewMatch = path.match(/^\\/intelligence\\/findings\\/([0-9a-f-]{36})\\/reviews$/i);
+  const ownerReviewMatch = path.match(/^\/intelligence\/findings\/([0-9a-f-]{36})\/reviews$/i);
   if (ownerReviewMatch && method === "POST") {
     const findingId = ownerReviewMatch[1];
     if (!uuid(findingId)) return fail("Invalid finding ID.");
