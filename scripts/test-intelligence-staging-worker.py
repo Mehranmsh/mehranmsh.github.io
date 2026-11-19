@@ -138,7 +138,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
           const unknown = buildRemediationPlan({id:'f-2',module_id:'not-a-module',check_id:'not-a-check',severity:'unrated'});
           assert.equal(unknown.moduleId, 'intelligence');
           assert.equal(unknown.steps.length, 6);
-          assert.ok(unknown.limitations.some(x => /not verified repository paths/i.test(x)));
+          assert.ok(unknown.limitations.some(x => /not verified file paths/i.test(x)));
         """
         result = subprocess.run(["node", "--input-type=module", "-e", script],
                                 cwd=ROOT, capture_output=True, text=True, check=False)
