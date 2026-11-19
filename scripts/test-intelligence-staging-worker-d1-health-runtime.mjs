@@ -1058,10 +1058,12 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
   const env = {
     DB: db,
     MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
-    PI_IDENTITY: { fetch: async (request) => {
+    PI_IDENTITY: { fetch: async (input, init = {}) => {
       piCalls += 1;
-      assert.equal(new URL(request.url).href, "https://api.minepi.com/v2/me");
-      assert.equal(request.headers.get("Authorization"), "Bearer valid-access-token-123");
+      const requestUrl = typeof input === "string" ? input : input.url;
+      const requestHeaders = new Headers(init.headers || (typeof input === "string" ? undefined : input.headers));
+      assert.equal(new URL(requestUrl).href, "https://api.minepi.com/v2/me");
+      assert.equal(requestHeaders.get("Authorization"), "Bearer valid-access-token-123");
       return new Response(JSON.stringify(identity), {
         status: 200, headers: { "Content-Type": "application/json" },
       });
