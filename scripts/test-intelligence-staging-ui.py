@@ -174,7 +174,7 @@ for marker in [
     'params.set("module",moduleId)',
     'params.set("severity",severity)',
     'params.set("status",status)',
-    'params.set("limit","25")',
+    'new URLSearchParams({limit:"25",offset:String(findingsOffset)})',
     'findingsOffset=Number(data.nextOffset',
     'findingsHasMore=!!data.hasMore',
     'findingsElement("h3","",item.title||"Untitled finding")',
