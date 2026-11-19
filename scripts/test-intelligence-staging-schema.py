@@ -138,6 +138,44 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 VALUES('bad-memory','owner-a','general','')
             """)
 
+    def test_knowledge_archive_preserves_relationship_history_and_owner_scope(self):
+        self.apply_chain()
+        self.db.executemany("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES(?,?,?,?,?)
+        """, [
+            ('knowledge-a','owner-a','A','Evidence A','owner'),
+            ('knowledge-b','owner-a','B','Evidence B','owner'),
+        ])
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge_relations(
+                id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,
+                status,source_evidence,target_evidence
+            ) VALUES('relation-a','owner-a','knowledge-a','knowledge-b',
+                     'supports','candidate','Evidence A','Evidence B')
+        """)
+        self.db.execute("""
+            UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP
+            WHERE id='knowledge-a' AND owner_uid='owner-b' AND archived_at IS NULL
+        """)
+        self.assertIsNone(self.db.execute(
+            "SELECT archived_at FROM intelligence_knowledge WHERE id='knowledge-a'"
+        ).fetchone()[0])
+        self.db.execute("""
+            UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP
+            WHERE id='knowledge-a' AND owner_uid='owner-a' AND archived_at IS NULL
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_knowledge_relations WHERE id='relation-a'"
+        ).fetchone()[0], 1)
+        self.db.execute("""
+            UPDATE intelligence_knowledge SET archived_at=NULL
+            WHERE id='knowledge-a' AND owner_uid='owner-a' AND archived_at IS NOT NULL
+        """)
+        self.assertIsNone(self.db.execute(
+            "SELECT archived_at FROM intelligence_knowledge WHERE id='knowledge-a'"
+        ).fetchone()[0])
+
     def test_memory_delete_audit_requires_owner_match_and_existing_row(self):
         self.apply_chain()
         self.db.execute("""
