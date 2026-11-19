@@ -2198,3 +2198,47 @@ async function testPiSessionCreationRateLimitBoundaries() {
   }
 }
 await testPiSessionCreationRateLimitBoundaries();
+
+
+async function testConcurrentSessionRevocationIsSingleAndAudited() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-revoke-race-0001", tokenHash(token), ownerUid, now, now + 3600).run();
+
+    const responses = await Promise.all([
+      mf.dispatchFetch("http://localhost/session", { method: "DELETE", headers }),
+      mf.dispatchFetch("http://localhost/session", { method: "DELETE", headers }),
+    ]);
+    const statuses = responses.map(response => response.status);
+    assert.equal(statuses.filter(status => status === 200).length, 1,
+      "exactly one concurrent revocation may succeed");
+    assert.equal(statuses.every(status => [200, 401, 409].includes(status)), true,
+      "the competing revocation must be rejected without a server error");
+
+    const session = await db.prepare(
+      "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
+    ).bind("session-revoke-race-0001").first();
+    assert.ok(session?.revoked_at, "the session must end in the revoked state");
+
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_revoked' AND target_id=?"
+    ).bind(ownerUid, "session-revoke-race-0001").first();
+    assert.equal(Number(audit.count), 1,
+      "concurrent revocation must create exactly one matching audit event");
+
+    const replay = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(replay.status, 401,
+      "the bearer token must remain unusable after the concurrent revocation race");
+    console.log("PASS: concurrent session revocation is single-winner, terminal, and audit-exact");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testConcurrentSessionRevocationIsSingleAndAudited();
