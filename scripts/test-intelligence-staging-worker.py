@@ -918,7 +918,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('authenticated_owner_staging_only', renderer)
         self.assertNotIn("innerHTML", renderer)
         self.assertNotIn("insertAdjacentHTML", renderer)
-        self.assertNotIn('method:"POST"', renderer)
+        self.assertIn('method:"POST"', renderer)
+        self.assertIn('"/intelligence/findings/priority-action-reviews"', renderer)
+        self.assertIn('id="intelPriorityActionReviewPanel"', panel)
+        self.assertIn('id="intelPriorityActionReviewHistory"', panel)
+        self.assertIn("loadIntelPriorityActionReviews", renderer)
+        self.assertNotIn("innerHTML", renderer)
+        self.assertNotIn("insertAdjacentHTML", renderer)
         self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
 
     def test_priority_action_review_is_owner_scoped_append_only_and_stale_safe(self):
