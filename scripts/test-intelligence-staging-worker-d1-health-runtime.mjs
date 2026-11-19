@@ -1984,3 +1984,68 @@ async function testSessionRateLimitWindowResetsAfterExpiry() {
 }
 
 await testSessionRateLimitWindowResetsAfterExpiry();
+
+
+
+async function testPiSessionCreationRateLimitBoundaries() {
+  const { mf, db } = await createWorker(migrations.length);
+  const calls = [];
+  const ownerUid = "staging-owner-test-uid";
+  const env = {
+    DB: db,
+    MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
+    PI_IDENTITY: { fetch: async (input, init = {}) => {
+      calls.push({
+        url: typeof input === "string" ? input : input.url,
+        authorization: new Headers(init.headers || (typeof input === "string" ? undefined : input.headers)).get("Authorization"),
+      });
+      return new Response(JSON.stringify({ uid: ownerUid, username: "mehranmsh" }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    } },
+  };
+  const postSession = ip => stagingWorker.fetch(new Request("http://localhost/session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "CF-Connecting-IP": ip,
+    },
+    body: JSON.stringify({ accessToken: "valid-pi-access-token-123" }),
+  }), env);
+
+  try {
+    for (let index = 0; index < 30; index += 1) {
+      const response = await postSession("192.0.2.10");
+      assert.equal(response.status, 201, `IP authentication request ${index + 1} should be allowed: ${await response.clone().text()}`);
+    }
+    const ipBlocked = await postSession("192.0.2.10");
+    assert.equal(ipBlocked.status, 429, "the 31st authentication attempt from one IP must be blocked");
+    assert.equal(calls.length, 30, "IP rate limiting must run before the upstream Pi identity request");
+
+    const afterIpLimit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_sessions").first();
+    assert.equal(Number(afterIpLimit.count), 30, "blocked IP attempt must not create a session");
+
+    for (let index = 0; index < 30; index += 1) {
+      const response = await postSession(`198.51.100.${index + 1}`);
+      assert.equal(response.status, 429, "owner session-creation limit must block attempts after its threshold");
+    }
+    assert.equal(calls.length, 60, "owner-level limit is checked after successful Pi identity verification");
+
+    const ownerBlocked = await postSession("203.0.113.77");
+    assert.equal(ownerBlocked.status, 429, "the owner-level session creation limit must reject the next verified attempt");
+    assert.equal(calls.length, 61, "the owner-level limit must be checked only after Pi identity verification");
+
+    for (const call of calls) {
+      assert.equal(call.url, "https://api.minepi.com/v2/me");
+      assert.equal(call.authorization, "Bearer valid-pi-access-token-123");
+    }
+    const finalSessions = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_sessions").first();
+    const auditCount = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE action='session_created'").first();
+    assert.equal(Number(finalSessions.count), 30, "rate-limited attempts must never create extra sessions");
+    assert.equal(Number(auditCount.count), 30, "rate-limited attempts must never emit extra session-created audit events");
+    console.log("PASS: Pi session creation enforces per-IP and per-owner rate limits before creating sessions");
+  } finally {
+    await mf.dispose();
+  }
+}
+await testPiSessionCreationRateLimitBoundaries();
