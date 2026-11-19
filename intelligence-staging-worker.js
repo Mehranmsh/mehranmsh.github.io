@@ -394,6 +394,46 @@ async function handle(request, env) {
     return response({ success: true, id }, 201);
   }
 
+  const knowledgeMatch = path.match(/^\/intelligence\/knowledge\/([0-9a-f-]{36})$/i);
+  if (knowledgeMatch && method === "PUT") {
+    const id = knowledgeMatch[1];
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => !["action","category","title","content","importance"].includes(key))) return fail("Invalid knowledge payload.");
+    const action = body.action || "update";
+    if (!["update","archive","restore"].includes(action)) return fail("Invalid knowledge action.");
+    let statement, auditAction, details = {};
+    if (action === "archive") {
+      if (Object.keys(body).some(key => key !== "action")) return fail("Archive accepts only an action.");
+      statement = env.DB.prepare("UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(id, owner.uid);
+      auditAction = "knowledge_archived";
+    } else if (action === "restore") {
+      if (Object.keys(body).some(key => key !== "action")) return fail("Restore accepts only an action.");
+      statement = env.DB.prepare("UPDATE intelligence_knowledge SET archived_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NOT NULL").bind(id, owner.uid);
+      auditAction = "knowledge_restored";
+    } else {
+      if (body.content !== undefined && (typeof body.content !== "string" || body.content.length > 12000)) return fail("Knowledge content must be a string of at most 12000 characters.");
+      const existing = await env.DB.prepare("SELECT id,content,archived_at FROM intelligence_knowledge WHERE id=? AND owner_uid=?").bind(id, owner.uid).first();
+      if (!existing || existing.archived_at) return fail("Active knowledge record not found.", 404);
+      if (body.content !== undefined && body.content !== existing.content) {
+        const linked = await env.DB.prepare("SELECT 1 AS found FROM intelligence_knowledge_relations WHERE owner_uid=? AND (source_knowledge_id=? OR target_knowledge_id=?) LIMIT 1").bind(owner.uid, id, id).first();
+        if (linked) return fail("Content is evidence-linked. Create a corrected record and relate it instead.", 409);
+      }
+      const title = body.title === undefined ? null : clean(body.title, 160);
+      const category = body.category === undefined ? null : clean(body.category, 40);
+      const content = body.content === undefined ? null : clean(body.content, 12000);
+      const importance = body.importance === undefined ? null : clean(body.importance, 16);
+      if ((body.title !== undefined && !title) || (body.category !== undefined && !category) || (body.content !== undefined && !content) || (body.importance !== undefined && !["high","normal","low"].includes(importance))) return fail("Invalid knowledge fields.");
+      if (![body.title,body.category,body.content,body.importance].some(value => value !== undefined)) return fail("At least one knowledge field is required.");
+      statement = env.DB.prepare("UPDATE intelligence_knowledge SET title=COALESCE(?,title),category=COALESCE(?,category),content=COALESCE(?,content),importance=COALESCE(?,importance),updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(title, category, content, importance, id, owner.uid);
+      auditAction = "knowledge_updated";
+      details = { fields: ["title","category","content","importance"].filter(key => body[key] !== undefined) };
+    }
+    try {
+      const results = await env.DB.batch([statement, env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) SELECT ?,?,?,?,?,?,? WHERE changes() = 1").bind(randomId(), owner.uid, auditAction, "knowledge", id, JSON.stringify(details), Math.floor(Date.now()/1000))]);
+      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Knowledge record not found or already in requested state.", 404);
+    } catch { return fail("Knowledge mutation failed.", 503); }
+    return response({ success: true, id, action, updated: action === "update", archived: action === "archive", restored: action === "restore" });
+  }
   if (path === "/intelligence/knowledge/relations" && method === "GET") {
     const status = clean(url.searchParams.get("status"), 20);
     if (status && !["candidate","confirmed","dismissed","resolved"].includes(status)) return fail("Invalid relationship status.");
