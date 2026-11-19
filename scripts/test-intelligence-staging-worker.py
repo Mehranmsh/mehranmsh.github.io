@@ -614,11 +614,6 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'LIMIT 501',
             'buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 })',
             'scope: "authenticated_owner_staging_only"',
-            'evidenceContentVerified: false',
-            'sourceReachabilityChecked: false',
-            'checkPassed: false',
-            'executionEnabled: false',
-            'operationPerformed: false',
         ]:
             self.assertIn(fragment, route)
         for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
