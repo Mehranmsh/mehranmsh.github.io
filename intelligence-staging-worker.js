@@ -92,6 +92,7 @@ export async function fetchPiUser(accessToken) {
   try {
     const result = await fetch(PI_ME_URL, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      redirect: "error",
       signal: controller.signal
     });
     if (!result.ok || !/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(result.headers.get("Content-Type") || "")) return null;
