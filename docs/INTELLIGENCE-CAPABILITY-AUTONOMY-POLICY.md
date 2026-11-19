@@ -79,3 +79,10 @@ This route is deliberately assessment-only. It passes no approval record, so app
 
 
 Capability evaluation is written to the staging audit ledger before a successful response is returned. The audit event records only the capability identifier, decision, reason, and assessment-only marker; it never records bearer tokens or Pi access tokens. If the audit write fails, the endpoint returns `503` and does not report a successful assessment.
+## Dedicated capability approval ledger
+
+Capability approvals are stored in the separate `intelligence_capability_approvals` table. The existing `intelligence_approval_ledger` represents task/repository/branch approvals and must not be reused as a capability grant. The dedicated table limits grants to the four approval-tier capabilities and `owner_staging`, enforces bounded expiry and one-way terminal states, and emits audit events for revoke, consume, and expire transitions.
+
+The isolated staging Worker exposes owner-authenticated routes to list, issue, and revoke these capability approvals. The assessment route accepts only a capability identifier and optional approval record ID; it loads the record from D1 with an owner-scoped query and constructs the trust object server-side. It does not accept a client-supplied approval object.
+
+**Important:** assessment is not execution authorization. The route does not consume the approval or perform the operation. A future mutating operation must atomically validate and consume its one-time approval with the operation and audit record, and must receive a separate security review and explicit owner authorization. The current runtime remains executor-free and `EXECUTION_ENABLED = false`.
