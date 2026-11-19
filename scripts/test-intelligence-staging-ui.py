@@ -426,3 +426,31 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in gap_function, f"Gap/test strategy UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in gap_function and '.append(' in gap_function
 assert "loadGapTestStrategy()" in refresh_block, "Gap/test strategy must load after owner authentication."
+
+
+# Evidence consistency dashboard: owner-only read-only candidate display and safe DOM.
+for marker in [
+    'id="evidenceConsistencyPanel"',
+    'id="refreshEvidenceConsistencyBtn"',
+    'id="evidenceConsistencyModule"',
+    'id="evidenceConsistencySummary"',
+    'id="evidenceConsistencyList"',
+    'async function loadEvidenceConsistency()',
+    '/intelligence/findings/evidence-consistency',
+    'data.returnedCandidates',
+    'data.missingDigestCount',
+    'data.coverageComplete',
+    'data.isConflictVerdict',
+    'data.isContradictionVerdict',
+    'data.evidenceContentVerified',
+    'refreshEvidenceConsistencyBtn',
+    'loadEvidenceConsistency);',
+    'Patterns are review candidates, not conflict or contradiction findings.',
+]:
+    assert marker in page, f"Evidence consistency dashboard missing safety or behavior marker: {marker}"
+
+consistency_function = page.split("async function loadEvidenceConsistency()", 1)[1].split("let selectedOwnerReviewFindingId", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in consistency_function, f"Evidence consistency UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in consistency_function and '.append(' in consistency_function
+assert "loadEvidenceConsistency()" in refresh_block, "Evidence consistency must load after owner authentication."
