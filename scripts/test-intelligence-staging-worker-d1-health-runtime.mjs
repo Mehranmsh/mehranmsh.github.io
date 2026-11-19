@@ -2358,3 +2358,65 @@ async function testUntrustedOriginCannotReadOrRevokeOwnerSession() {
 }
 
 await testUntrustedOriginCannotReadOrRevokeOwnerSession();
+
+async function testSpoofedOriginsCannotReadOrRevokeOwnerSession() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const sessionId = "session-origin-spoofing-001";
+  const untrustedOrigins = [
+    "null",
+    "https://mehranmsh.github.io.attacker.example",
+    "http://mehranmsh.github.io",
+    "https://attacker.example",
+  ];
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind(sessionId, tokenHash(token), ownerUid, now, now + 3600).run();
+
+    for (const origin of untrustedOrigins) {
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Origin: origin,
+      };
+      const read = await mf.dispatchFetch("http://localhost/session", { headers });
+      assert.equal(read.status, 403,
+        `spoofed or opaque Origin ${origin} must not read the owner session`);
+
+      const revoke = await mf.dispatchFetch("http://localhost/session", {
+        method: "DELETE",
+        headers,
+      });
+      assert.equal(revoke.status, 403,
+        `spoofed or opaque Origin ${origin} must not revoke the owner session`);
+    }
+
+    const session = await db.prepare(
+      "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
+    ).bind(sessionId).first();
+    assert.equal(session.revoked_at, null,
+      "rejected spoofed origins must leave the owner session active");
+
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_revoked' AND target_id=?"
+    ).bind(ownerUid, sessionId).first();
+    assert.equal(Number(audit.count), 0,
+      "rejected spoofed origins must not create session-revocation audit events");
+
+    const trustedRead = await mf.dispatchFetch("http://localhost/session", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Origin: "https://mehranmsh.github.io",
+      },
+    });
+    assert.equal(trustedRead.status, 200,
+      "the exact configured application origin must remain allowed");
+    console.log("PASS: opaque and lookalike origins cannot read or revoke owner sessions");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testSpoofedOriginsCannotReadOrRevokeOwnerSession();
