@@ -3683,7 +3683,7 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
       /retained/i
     );
 
-    await db.prepare("UPDATE intelligence_findings SET severity='medium' WHERE id=? AND owner_uid=?")
+    await db.prepare("UPDATE intelligence_findings SET severity='medium', status_reason='Changed severity to validate stale decision snapshot rejection.' WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).run();
     const stale = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
