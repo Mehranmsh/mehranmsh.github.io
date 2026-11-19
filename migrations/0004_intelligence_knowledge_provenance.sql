@@ -26,6 +26,7 @@ CREATE TRIGGER IF NOT EXISTS trg_intelligence_knowledge_provenance_guard_insert
 BEFORE INSERT ON intelligence_knowledge
 WHEN (NEW.source_type = 'external_url' AND (
        substr(lower(NEW.source_ref),1,8) <> 'https://'
+       OR length(NEW.source_ref) <= 8
        OR instr(substr(NEW.source_ref,9), '@') > 0
      ))
   OR (NEW.source_type <> 'external_url' AND length(NEW.source_ref) > 1000)
