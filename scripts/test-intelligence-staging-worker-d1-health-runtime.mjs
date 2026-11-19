@@ -502,3 +502,112 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
 
 await testOwnerMemoryAuditIsolationAndProvenance();
 await testKnowledgeOwnershipEvidenceAndAuditAtomicity();
+async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-capability-lifecycle-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const invalid = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "arbitrary.shell", expiresInSeconds: 300 }),
+    });
+    assert.equal(invalid.status, 400);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_issue_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_approval_issued' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const auditFailure = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
+    });
+    assert.equal(auditFailure.status, 503);
+    const rolledBack = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(rolledBack.count), 0);
+    await db.prepare("DROP TRIGGER reject_capability_issue_audit").run();
+
+    const issued = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
+    });
+    assert.equal(issued.status, 201);
+    const issuedBody = await issued.json();
+    assert.equal(issuedBody.executionEnabled, false);
+    assert.equal(issuedBody.status, "issued");
+
+    const assessment = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.create", approvalId: issuedBody.id }),
+    });
+    assert.equal(assessment.status, 200);
+    const assessmentBody = await assessment.json();
+    assert.equal(assessmentBody.operationPerformed, false);
+    assert.equal(assessmentBody.approvalConsumed, false);
+    assert.equal(assessmentBody.assessmentOnly, true);
+    assert.equal(assessmentBody.auditRecorded, true);
+
+    const approvalRow = await db.prepare(
+      "SELECT owner_uid,status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(issuedBody.id).first();
+    assert.equal(approvalRow.owner_uid, ownerUid);
+    assert.equal(approvalRow.status, "issued");
+    assert.equal(approvalRow.consumed_at, null);
+    assert.equal(approvalRow.consumed_by, null);
+
+    const foreignAssessment = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.create", approvalId: "33333333-3333-4333-8333-333333333333" }),
+    });
+    assert.equal(foreignAssessment.status, 200);
+    const foreignBody = await foreignAssessment.json();
+    assert.equal(foreignBody.operationPerformed, false);
+    assert.equal(foreignBody.approvalConsumed, false);
+
+    const revoked = await mf.dispatchFetch(`http://localhost/intelligence/capability-approvals/${issuedBody.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(revoked.status, 200);
+    const afterRevoke = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.create", approvalId: issuedBody.id }),
+    });
+    assert.equal(afterRevoke.status, 200);
+    const afterRevokeBody = await afterRevoke.json();
+    assert.equal(afterRevokeBody.operationPerformed, false);
+    assert.equal(afterRevokeBody.approvalConsumed, false);
+    const revokedRow = await db.prepare(
+      "SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(issuedBody.id).first();
+    assert.equal(revokedRow.status, "revoked");
+    assert.notEqual(revokedRow.revoked_at, null);
+
+    const auditRows = await db.prepare(
+      "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE owner_uid=? AND target_id=? ORDER BY created_at"
+    ).bind(ownerUid, issuedBody.id).all();
+    assert.ok(auditRows.results.some(row => row.action === "capability_approval_issued"));
+    assert.ok(auditRows.results.some(row => row.action === "capability_assessed"));
+    assert.ok(auditRows.results.some(row => row.action === "capability_approval_revoked"));
+    console.log("PASS: capability approvals are owner-bound, audited, revocable, and assessment-only");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCapabilityApprovalLifecycleIsAssessmentOnly();
