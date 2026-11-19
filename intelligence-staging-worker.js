@@ -342,6 +342,90 @@ async function handle(request, env) {
     }
   }
 
+  if (path === "/intelligence/company/assessment-template" && method === "GET") {
+    const moduleId = url.searchParams.get("moduleId") || "";
+    const templates = {
+      music: ["ownership_and_access", "service_health", "content_integrity", "user_experience"],
+      ai: ["model_and_provider_configuration", "data_privacy", "access_control", "service_health"],
+      social: ["authentication", "authorization", "privacy", "upload_security", "abuse_controls"],
+      instruments: ["catalog_integrity", "supplier_workflows", "payments_and_orders", "logistics"],
+      robotics: ["device_identity", "safety_boundaries", "update_integrity", "operator_access"],
+      security: ["authentication", "authorization", "auditability", "secret_handling", "recovery"],
+      intelligence: ["owner_isolation", "knowledge_quality", "approval_boundaries", "assessment_integrity", "observability"],
+      logistics: ["workflow_integrity", "tracking", "supplier_access", "exception_handling"],
+      "customer-experience": ["privacy", "response_quality", "case_access", "service_continuity"],
+      labs: ["experiment_isolation", "data_handling", "reproducibility", "release_gates"],
+      governance: ["policy_versioning", "approval_integrity", "audit_trails", "separation_of_duties"],
+      data: ["data_classification", "retention", "backup_recovery", "owner_isolation"],
+      "robot-operations": ["device_authentication", "command_authorization", "safety_interlocks", "event_audit"]
+    };
+    const descriptions = {
+      ownership_and_access: ["Ownership and access", "Confirm the responsible owner, authentication boundary, and least-privilege roles.", "Documented ownership, role matrix, and negative authorization tests."],
+      service_health: ["Service health", "Check availability, dependency failures, and error handling.", "Recent health results, uptime evidence, and representative failure tests."],
+      content_integrity: ["Content integrity", "Check validation, integrity controls, and safe rendering of untrusted content.", "Input validation tests, integrity checks, and rendering safety tests."],
+      user_experience: ["User experience", "Review critical user journeys and accessible failure states.", "Reproducible journey checks and documented usability findings."],
+      model_and_provider_configuration: ["Model and provider configuration", "Verify provider configuration, model boundaries, and failure behavior.", "Redacted configuration inventory and provider failure tests."],
+      data_privacy: ["Data privacy", "Check data minimization, retention, and exposure boundaries.", "Data-flow map, retention policy, and privacy tests."],
+      access_control: ["Access control", "Verify authorization for each protected operation.", "Role matrix and positive/negative access-control tests."],
+      authentication: ["Authentication", "Verify identity proof, session lifecycle, and rejection of invalid credentials.", "Authentication flow tests, session expiry and revocation evidence."],
+      authorization: ["Authorization", "Verify each identity can access only permitted resources and actions.", "Cross-owner isolation tests and role/permission matrix."],
+      privacy: ["Privacy", "Check private data visibility, consent, and disclosure boundaries.", "Privacy settings, access tests, and data-flow documentation."],
+      upload_security: ["Upload security", "Check file type, size, storage isolation, malware handling, and retrieval authorization.", "Upload validation tests, storage policy, and unauthorized retrieval tests."],
+      abuse_controls: ["Abuse controls", "Review rate limits, reporting, moderation, and spam resistance.", "Rate-limit tests, abuse workflows, and moderation policy."],
+      catalog_integrity: ["Catalog integrity", "Check product identity, pricing consistency, and change history.", "Catalog validation rules and sample reconciliation."],
+      supplier_workflows: ["Supplier workflows", "Check supplier identity, access, and approval boundaries.", "Supplier onboarding controls and access tests."],
+      payments_and_orders: ["Payments and orders", "Review order state transitions, payment reconciliation, and duplicate handling.", "Test transactions, idempotency evidence, and reconciliation records."],
+      logistics: ["Logistics", "Review shipment state, handoffs, and exception handling.", "Tracking lifecycle tests and exception records."],
+      device_identity: ["Device identity", "Verify unique device identity and enrollment controls.", "Device enrollment tests and credential lifecycle evidence."],
+      safety_boundaries: ["Safety boundaries", "Verify physical safety interlocks and fail-safe behavior.", "Hazard analysis, interlock tests, and operator procedures."],
+      update_integrity: ["Update integrity", "Check signed updates, rollback behavior, and version provenance.", "Update signature verification and rollback tests."],
+      operator_access: ["Operator access", "Verify authorized operator roles and command boundaries.", "Operator role matrix and denied-command tests."],
+      auditability: ["Auditability", "Check completeness, integrity, and access to security audit records.", "Representative audit trails and tamper-resistance tests."],
+      secret_handling: ["Secret handling", "Check secret storage, redaction, rotation, and exposure prevention.", "Secret-management policy and redaction/rotation tests; never include secret values."],
+      recovery: ["Recovery", "Check backup restoration and incident recovery procedures.", "Restore-test results and recovery runbooks."],
+      owner_isolation: ["Owner isolation", "Verify tenant/owner scoping across reads, writes, and search.", "Cross-owner negative tests and database query review."],
+      knowledge_quality: ["Knowledge quality", "Review provenance, confidence, freshness, and conflict handling.", "Source references, review records, and conflict-resolution tests."],
+      approval_boundaries: ["Approval boundaries", "Verify sensitive actions require valid, scoped, unexpired owner approval.", "Approval lifecycle tests and denied-action evidence."],
+      assessment_integrity: ["Assessment integrity", "Ensure findings are evidence-backed and unknowns are not reported as passes.", "Evidence-linked findings, reproducible checks, and explicit unknown states."],
+      observability: ["Observability", "Check useful operational events without leaking secrets or personal data.", "Redacted logs, alert tests, and event coverage."],
+      workflow_integrity: ["Workflow integrity", "Check state transitions, duplicate handling, and recovery from partial failure.", "State-machine tests and retry/idempotency evidence."],
+      tracking: ["Tracking", "Verify status accuracy, event ordering, and traceability.", "Trace samples and event-order tests."],
+      supplier_access: ["Supplier access", "Check external party permissions and separation between suppliers.", "Supplier access matrix and cross-supplier isolation tests."],
+      exception_handling: ["Exception handling", "Review failed handoffs, retries, and escalation paths.", "Failure-injection tests and escalation records."],
+      response_quality: ["Response quality", "Review response accuracy, consistency, and escalation of uncertain cases.", "Sampled quality review and escalation tests."],
+      case_access: ["Case access", "Verify only authorized users can access customer cases.", "Case-level authorization tests and audit evidence."],
+      service_continuity: ["Service continuity", "Review degraded-mode behavior and recovery objectives.", "Continuity plan and recovery exercise results."],
+      experiment_isolation: ["Experiment isolation", "Ensure experiments cannot affect production resources.", "Environment boundaries and isolation tests."],
+      data_handling: ["Data handling", "Review collection, access, retention, and disposal of experiment data.", "Data inventory and lifecycle tests."],
+      reproducibility: ["Reproducibility", "Check whether experiments can be repeated and independently verified.", "Versioned inputs, procedure, and repeat-run results."],
+      release_gates: ["Release gates", "Verify required review and test gates before release.", "Release checklist and blocked-release tests."],
+      policy_versioning: ["Policy versioning", "Check policy ownership, change history, and effective versions.", "Version history and approval records."],
+      approval_integrity: ["Approval integrity", "Verify approvals bind to exact actions and cannot be reused or altered.", "Scope-binding, expiry, revocation, and replay tests."],
+      audit_trails: ["Audit trails", "Check traceability of sensitive decisions and state transitions.", "Correlated audit events and integrity tests."],
+      separation_of_duties: ["Separation of duties", "Ensure request, approval, and execution responsibilities are appropriately separated.", "Role design and negative separation-of-duties tests."],
+      data_classification: ["Data classification", "Check classification labels and handling rules.", "Data classification inventory and policy tests."],
+      retention: ["Retention", "Verify retention periods and deletion/archival behavior.", "Retention policy and lifecycle tests."],
+      backup_recovery: ["Backup and recovery", "Check backup integrity and restoration capability.", "Backup verification and restore-test evidence."],
+      device_authentication: ["Device authentication", "Verify devices authenticate before exchanging data or receiving commands.", "Device authentication and replay-resistance tests."],
+      command_authorization: ["Command authorization", "Ensure device commands are authenticated, scoped, and authorized.", "Command permission matrix and denied-command tests."],
+      safety_interlocks: ["Safety interlocks", "Verify independent safety controls block unsafe operations.", "Interlock test records and fail-safe validation."],
+      event_audit: ["Event audit", "Check device and operator events are traceable and tamper-evident.", "Event samples, integrity controls, and access tests."]
+    };
+    if (!Object.prototype.hasOwnProperty.call(templates, moduleId)) {
+      return response({ success: false, error: "Unknown company module." }, 404);
+    }
+    const checks = templates[moduleId].map(id => {
+      const item = descriptions[id];
+      return { id, title: item[0], objective: item[1], evidenceRequired: item[2], status: "not_run" };
+    });
+    return response({
+      success: true, moduleId, source: "versioned_assessment_blueprint",
+      assessmentStatus: "not_started", checks,
+      rules: ["A check cannot pass without recorded evidence.", "Missing evidence remains unknown, never passed.", "Findings are recommendations only; no changes are executed."],
+      executionEnabled: false
+    });
+  }
+
   if (path === "/intelligence/company/modules" && method === "GET") {
     const modules = [
       { id: "music", name: "Mehran Music", area: "product", lifecycle: "registered", purpose: "Music creation, artist presence, audio projects, and music services.", checks: ["ownership_and_access", "service_health", "content_integrity", "user_experience"] },
