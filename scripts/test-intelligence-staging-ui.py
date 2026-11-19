@@ -302,3 +302,31 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
 assert 'findingsElement(' in dependency_function and '.append(' in dependency_function
 assert "loadDependencyImpact()" in refresh_block, "Dependency impact must load automatically after owner authentication."
 assert 'graphCompleteness' in page and 'unverified' in page
+
+
+# Gap analysis and test strategy dashboard: owner-only GET, no pass inference, no execution.
+for marker in [
+    'id="gapTestStrategyPanel"',
+    'id="refreshGapTestStrategyBtn"',
+    'id="gapTestStrategyModule"',
+    'id="gapTestStrategySafetyNotice"',
+    'id="gapTestStrategySummary"',
+    'id="gapTestStrategyList"',
+    'async function loadGapTestStrategy()',
+    '/intelligence/company/gap-test-strategy?module=',
+    'check.evidenceState',
+    'check.recommendedTests',
+    'check.interpretation',
+    'data.testsExecuted',
+    'data.executionEnabled',
+    'No recorded finding does not mean a check passed',
+    'loadGapTestStrategy()',
+    'refreshGapTestStrategyBtn',
+]:
+    assert marker in page, f"Gap/test strategy dashboard missing required safety behavior: {marker}"
+
+gap_function = page.split("async function loadGapTestStrategy()", 1)[1].split("async function loadDependencyImpact()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in gap_function, f"Gap/test strategy UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in gap_function and '.append(' in gap_function
+assert "loadGapTestStrategy()" in refresh_block, "Gap/test strategy must load after owner authentication."
