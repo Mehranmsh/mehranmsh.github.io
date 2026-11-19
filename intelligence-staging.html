@@ -452,56 +452,68 @@ function evidenceOverviewCard(title,lines,target,statusText){
  card.append(button);return card;
 }
 async function loadEvidenceIntelligenceOverview(){
- const button=$("refreshEvidenceIntelligenceOverviewBtn");button.disabled=true;
- const cards=$("evidenceIntelligenceOverviewCards");cards.replaceChildren();
- message("evidenceIntelligenceOverviewSummary","Loading bounded evidence metadata summaries...");
- try{
-  const moduleId=$("evidenceIntelligenceOverviewModule").value;
-  const suffix=moduleId?"?module="+encodeURIComponent(moduleId):"";
-  const results=await Promise.allSettled([
-   request("/intelligence/findings/evidence-review"+suffix),
-   request("/intelligence/findings/evidence-correlations"+suffix),
-   request("/intelligence/findings/evidence-consistency"+suffix)
-  ]);
-  const labels=["Metadata review","Cross-finding correlations","Consistency candidates"];
-  const targets=["evidenceMetadataReviewPanel","evidenceCorrelationPanel","evidenceConsistencyPanel"];
-  let ready=0;
-  if(results[0].status==="fulfilled"){
-   const data=results[0].value,summary=data.summary||{};
-   cards.append(evidenceOverviewCard(labels[0],[
-    "Findings in bounded review: "+Number(summary.findingsReviewed||0),
-    "No evidence references: "+Number(summary.withoutEvidenceReferences||0),
-    "Incomplete metadata: "+Number(summary.withIncompleteMetadata||0),
-    "Recorded but unverified: "+Number(summary.withMetadataRecordedButUnverified||0),
-    "Repeated digest references: "+Number(summary.duplicateDigestReferences||0)
-   ],targets[0],"Review limit: up to 100 findings · Evidence validity: "+String(data.evidenceValidity||"unverified")));
-   ready++;
-  }else cards.append(findingsElement("article","card",labels[0]+" unavailable: "+String(results[0].reason?.message||"request failed")));
-  if(results[1].status==="fulfilled"){
-   const data=results[1].value;
-   cards.append(evidenceOverviewCard(labels[1],[
-    "Candidate groups: "+Number(data.totalCorrelationGroups||0),
-    "Evidence references scanned: "+Number(data.evidenceReferencesScanned||0),
-    "Coverage complete: "+String(data.coverageComplete),
-    "Groups truncated: "+String(data.correlationGroupsTruncated)
-   ],targets[1],"Contradiction verdict: "+String(data.isContradictionVerdict)+" · Content verified: "+String(data.evidenceContentVerified)));
-   ready++;
-  }else cards.append(findingsElement("article","card",labels[1]+" unavailable: "+String(results[1].reason?.message||"request failed")));
-  if(results[2].status==="fulfilled"){
-   const data=results[2].value;
-   cards.append(evidenceOverviewCard(labels[2],[
-    "Candidate groups: "+Number(data.totalCandidateGroups||0),
-    "Evidence references scanned: "+Number(data.evidenceReferencesScanned||0),
-    "References without digest: "+Number(data.missingDigestCount||0),
-    "Coverage complete: "+String(data.coverageComplete),
-    "Candidate groups truncated: "+String(data.candidatesTruncated)
-   ],targets[2],"Conflict verdict: "+String(data.isConflictVerdict)+" · Content verified: "+String(data.evidenceContentVerified)));
-   ready++;
-  }else cards.append(findingsElement("article","card",labels[2]+" unavailable: "+String(results[2].reason?.message||"request failed")));
-  message("evidenceIntelligenceOverviewSummary","Module: "+String(moduleId||"all")+" · Sources available: "+ready+"/3 · Each engine uses its own bounded dataset; counts are not a combined total. "+(ready===3?"All three metadata summaries loaded.":"Some sources could not be loaded; see the individual cards."),"good");
- }catch(error){message("evidenceIntelligenceOverviewSummary",error.message,"bad")}
- finally{button.disabled=false}
-}
+  const button=$("refreshEvidenceIntelligenceOverviewBtn");button.disabled=true;
+  const cards=$("evidenceIntelligenceOverviewCards");cards.replaceChildren();
+  message("evidenceIntelligenceOverviewSummary","Loading bounded evidence and decision-support summaries...");
+  try{
+   const moduleId=$("evidenceIntelligenceOverviewModule").value;
+   const suffix=moduleId?"?module="+encodeURIComponent(moduleId):"";
+   const results=await Promise.allSettled([
+    request("/intelligence/findings/evidence-review"+suffix),
+    request("/intelligence/findings/evidence-correlations"+suffix),
+    request("/intelligence/findings/evidence-consistency"+suffix),
+    request("/intelligence/findings/evidence-decision-support"+suffix)
+   ]);
+   const labels=["Metadata review","Cross-finding correlations","Consistency candidates","Owner decision support"];
+   const targets=["evidenceMetadataReviewPanel","evidenceCorrelationPanel","evidenceConsistencyPanel","evidenceDecisionSupportPanel"];
+   let ready=0;
+   if(results[0].status==="fulfilled"){
+    const data=results[0].value,summary=data.summary||{};
+    cards.append(evidenceOverviewCard(labels[0],[
+     "Findings in bounded review: "+Number(summary.findingsReviewed||0),
+     "No evidence references: "+Number(summary.withoutEvidenceReferences||0),
+     "Incomplete metadata: "+Number(summary.withIncompleteMetadata||0),
+     "Recorded but unverified: "+Number(summary.withMetadataRecordedButUnverified||0),
+     "Repeated digest references: "+Number(summary.duplicateDigestReferences||0)
+    ],targets[0],"Review limit: up to 100 findings · Evidence validity: "+String(data.evidenceValidity||"unverified")));
+    ready++;
+   }else cards.append(findingsElement("article","card",labels[0]+" unavailable: "+String(results[0].reason?.message||"request failed")));
+   if(results[1].status==="fulfilled"){
+    const data=results[1].value;
+    cards.append(evidenceOverviewCard(labels[1],[
+     "Candidate groups: "+Number(data.totalCorrelationGroups||0),
+     "Evidence references scanned: "+Number(data.evidenceReferencesScanned||0),
+     "Coverage complete: "+String(data.coverageComplete),
+     "Groups truncated: "+String(data.correlationGroupsTruncated)
+    ],targets[1],"Contradiction verdict: "+String(data.isContradictionVerdict)+" · Content verified: "+String(data.evidenceContentVerified)));
+    ready++;
+   }else cards.append(findingsElement("article","card",labels[1]+" unavailable: "+String(results[1].reason?.message||"request failed")));
+   if(results[2].status==="fulfilled"){
+    const data=results[2].value;
+    cards.append(evidenceOverviewCard(labels[2],[
+     "Candidate groups: "+Number(data.totalCandidateGroups||0),
+     "Evidence references scanned: "+Number(data.evidenceReferencesScanned||0),
+     "References without digest: "+Number(data.missingDigestCount||0),
+     "Coverage complete: "+String(data.coverageComplete),
+     "Candidate groups truncated: "+String(data.candidatesTruncated)
+    ],targets[2],"Conflict verdict: "+String(data.isConflictVerdict)+" · Content verified: "+String(data.evidenceContentVerified)));
+    ready++;
+   }else cards.append(findingsElement("article","card",labels[2]+" unavailable: "+String(results[2].reason?.message||"request failed")));
+   if(results[3].status==="fulfilled"){
+    const data=results[3].value,summary=data.summary||{},coverage=data.coverage||{};
+    cards.append(evidenceOverviewCard(labels[3],[
+     "Recommendations: "+Number(summary.recommendationCount||0),
+     "High priority: "+Number(summary.highPriority||0),
+     "Already reviewed: "+Number(summary.alreadyReviewed||0),
+     "Findings reviewed: "+Number(coverage.findingsReviewed||0),
+     "Evidence references scanned: "+Number(coverage.evidenceReferencesScanned||0)
+    ],targets[3],"Owner decisions only · Decision made automatically: "+String(data.decisionMade)+" · Check passed: "+String(data.checkPassed)+" · Execution enabled: "+String(data.executionEnabled)));
+    ready++;
+   }else cards.append(findingsElement("article","card",labels[3]+" unavailable: "+String(results[3].reason?.message||"request failed")));
+   message("evidenceIntelligenceOverviewSummary","Module: "+String(moduleId||"all")+" · Sources available: "+ready+"/4 · Each engine uses its own bounded dataset; counts are not a combined total. "+(ready===4?"All four evidence and decision summaries loaded.":"Some sources could not be loaded; see the individual cards."),"good");
+  }catch(error){message("evidenceIntelligenceOverviewSummary",error.message,"bad")}
+  finally{button.disabled=false}
+ }
 async function loadEvidenceDecisionSupport(){
  const button=$("refreshEvidenceDecisionSupportBtn");button.disabled=true;
  const list=$("evidenceDecisionSupportList");list.replaceChildren();
