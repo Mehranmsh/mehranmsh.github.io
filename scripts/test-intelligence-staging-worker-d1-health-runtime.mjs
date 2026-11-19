@@ -1759,3 +1759,96 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
 }
 
 await testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsumes();
+
+
+async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const validId = "56565656-5656-4565-8565-565656565656";
+  const expiredId = "67676767-6767-4676-8676-676767676767";
+  const revokedId = "78787878-7878-4787-8787-787878787878";
+  const unknownId = "89898989-8989-4898-8989-898989898989";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-capability-assessment-failure-safety", tokenHash(token), ownerUid, now, now + 3600).run();
+
+    await db.prepare(
+      "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+    ).bind(validId, ownerUid, "memory.delete", now, now + 600).run();
+    await db.prepare(
+      "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+    ).bind(expiredId, ownerUid, "memory.delete", now - 3600, now - 1).run();
+    await db.prepare(
+      "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+    ).bind(revokedId, ownerUid, "memory.delete", now, now + 600).run();
+    await db.prepare(
+      "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id=?"
+    ).bind(now, revokedId).run();
+
+    const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_assessment_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_assessed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+
+    const auditFailure = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.delete", approvalId: validId }),
+    });
+    assert.equal(auditFailure.status, 503, "assessment must fail closed when its audit cannot be written");
+    const unchangedAfterFailure = await db.prepare(
+      "SELECT status,revoked_at,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(validId).first();
+    assert.equal(unchangedAfterFailure.status, "issued");
+    assert.equal(unchangedAfterFailure.revoked_at, null);
+    assert.equal(unchangedAfterFailure.consumed_at, null);
+    assert.equal(unchangedAfterFailure.consumed_by, null);
+    const failedAuditCount = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='capability_assessed'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(failedAuditCount.count), 0);
+    await db.prepare("DROP TRIGGER reject_capability_assessment_audit").run();
+
+    const evaluate = approvalId => mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.delete", approvalId }),
+    });
+    const unknown = await evaluate(unknownId);
+    assert.equal(unknown.status, 200);
+    assert.equal((await unknown.json()).assessment.decision, "assessment_only_approval_required",
+      "unknown approval IDs must not be treated as valid approvals");
+
+    const expired = await evaluate(expiredId);
+    assert.equal(expired.status, 200);
+    assert.equal((await expired.json()).assessment.decision, "assessment_only_denied",
+      "expired approval records must be denied");
+
+    const revoked = await evaluate(revokedId);
+    assert.equal(revoked.status, 200);
+    assert.equal((await revoked.json()).assessment.decision, "assessment_only_denied",
+      "revoked approval records must be denied");
+
+    const finalValid = await db.prepare(
+      "SELECT status,revoked_at,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(validId).first();
+    assert.equal(finalValid.status, "issued");
+    assert.equal(finalValid.revoked_at, null);
+    assert.equal(finalValid.consumed_at, null);
+    assert.equal(finalValid.consumed_by, null);
+
+    const auditCount = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='capability_assessed'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(auditCount.count), 3,
+      "only the three successfully audited assessments must create audit records");
+    console.log("PASS: capability assessment fails closed on audit outage and denies unknown, expired, and revoked approvals without changing approval state");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCapabilityAssessmentFailureAndApprovalStateSafety();
