@@ -9,7 +9,7 @@ const SOURCE_TYPES = new Set([
 export function buildEvidenceDecisionReviewSnapshot(recommendation) {
   if (!recommendation || !SOURCE_TYPES.has(recommendation.sourceType) ||
       typeof recommendation.sourceId !== "string" || !recommendation.sourceId ||
-      recommendation.sourceId.length > 200) {
+      recommendation.sourceId.length > 300) {
     throw new TypeError("A current, valid recommendation is required.");
   }
   const snapshot = {
