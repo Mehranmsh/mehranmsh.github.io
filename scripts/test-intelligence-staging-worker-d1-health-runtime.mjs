@@ -615,3 +615,111 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
 }
 
 await testCapabilityApprovalLifecycleIsAssessmentOnly();
+
+async function testOwnerSensitiveMutationAuditAndIsolation() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-sensitive-mutations-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const memoryId = "44444444-4444-4444-8444-444444444444";
+    await db.prepare(
+      "INSERT INTO intelligence_owner_memory(id,owner_uid,category,content,memory_kind,source_type) VALUES(?,?,?,?,?,?)"
+    ).bind(memoryId, ownerUid, "test", "Owner-only memory", "general", "owner_input").run();
+    const foreignMemoryId = "55555555-5555-4555-8555-555555555555";
+    await db.prepare(
+      "INSERT INTO intelligence_owner_memory(id,owner_uid,category,content,memory_kind,source_type) VALUES(?,?,?,?,?,?)"
+    ).bind(foreignMemoryId, "different-owner-uid", "test", "Foreign memory", "general", "owner_input").run();
+
+    const foreignDelete = await mf.dispatchFetch(`http://localhost/intelligence/memory/${foreignMemoryId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(foreignDelete.status, 404);
+    const foreignStillExists = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
+      .bind(foreignMemoryId).first();
+    assert.ok(foreignStillExists);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_memory_delete_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_deleted' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const deleteAuditFailure = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(deleteAuditFailure.status, 503);
+    const memoryAfterFailure = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
+      .bind(memoryId).first();
+    assert.ok(memoryAfterFailure, "memory deletion must roll back if audit insertion fails");
+    await db.prepare("DROP TRIGGER reject_memory_delete_audit").run();
+
+    const deleted = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
+      method: "DELETE", headers,
+    });
+    assert.equal(deleted.status, 200);
+    const deletedRow = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
+      .bind(memoryId).first();
+    assert.equal(deletedRow, null);
+    const deleteAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='owner_memory_deleted' AND target_id=?"
+    ).bind(ownerUid, memoryId).first();
+    assert.equal(Number(deleteAudit.count), 1);
+
+    const knowledgeId = "66666666-6666-4666-8666-666666666666";
+    await db.prepare(
+      "INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)"
+    ).bind(knowledgeId, ownerUid, "Review target", "Reviewable content", "pi-owner").run();
+    const foreignKnowledgeId = "77777777-7777-4777-8777-777777777777";
+    await db.prepare(
+      "INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)"
+    ).bind(foreignKnowledgeId, "different-owner-uid", "Foreign target", "Private content", "different-owner-uid").run();
+
+    const foreignReview = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/${foreignKnowledgeId}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "verify" }),
+    });
+    assert.equal(foreignReview.status, 404);
+    const foreignKnowledge = await db.prepare("SELECT verification_status FROM intelligence_knowledge WHERE id=?")
+      .bind(foreignKnowledgeId).first();
+    assert.equal(foreignKnowledge.verification_status, "unreviewed");
+
+    await db.prepare(
+      "CREATE TRIGGER reject_knowledge_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='knowledge_owner_verified' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const reviewAuditFailure = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/${knowledgeId}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "verify" }),
+    });
+    assert.equal(reviewAuditFailure.status, 503);
+    const knowledgeAfterFailure = await db.prepare("SELECT verification_status FROM intelligence_knowledge WHERE id=?")
+      .bind(knowledgeId).first();
+    assert.equal(knowledgeAfterFailure.verification_status, "unreviewed");
+    await db.prepare("DROP TRIGGER reject_knowledge_review_audit").run();
+
+    const reviewed = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/${knowledgeId}`, {
+      method: "PUT", headers, body: JSON.stringify({ action: "verify" }),
+    });
+    assert.equal(reviewed.status, 200);
+    const verified = await db.prepare("SELECT verification_status FROM intelligence_knowledge WHERE id=?")
+      .bind(knowledgeId).first();
+    assert.equal(verified.verification_status, "owner_verified");
+    const reviewAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='knowledge_owner_verified' AND target_id=?"
+    ).bind(ownerUid, knowledgeId).first();
+    assert.equal(Number(reviewAudit.count), 1);
+
+    const unauthenticated = await mf.dispatchFetch(`http://localhost/intelligence/memory/${foreignMemoryId}`, {
+      method: "DELETE",
+    });
+    assert.equal(unauthenticated.status, 401);
+    console.log("PASS: sensitive owner mutations enforce owner isolation and atomic audit on delete/review");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testOwnerSensitiveMutationAuditAndIsolation();
