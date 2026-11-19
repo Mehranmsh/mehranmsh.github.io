@@ -54,12 +54,13 @@ The disposable SQLite test implements this pattern using `intelligence_staging_a
 
 `scripts/test-intelligence-capability-approval-atomic-consumption.py` applies the full staging migration chain to disposable SQLite and verifies:
 
-- only one of two competing uses can consume the same grant;
+- only one of two sequential uses can consume the same grant;
+- two simultaneous SQLite contenders produce exactly one committed operation and one consumed-grant audit event;
 - wrong owner, wrong capability, expired, and revoked grants fail closed;
 - a failed protected mutation rolls back consumption and trigger-generated audit;
 - a successful operation and the consumed state commit together.
 
-These are local SQLite contract tests. They do not prove a live Cloudflare D1 deployment, network-level concurrency behavior, or a production executor. Those require a separate staging-only integration test and security review.
+The simultaneous contender test uses local SQLite file locking and is not a Cloudflare D1 concurrency test. These local contract tests do not prove a live D1 deployment or production executor. A staging-only D1 integration test and separate security review remain necessary.
 
 ## Explicit non-goals
 
