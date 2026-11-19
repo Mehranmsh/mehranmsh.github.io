@@ -81,6 +81,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
 
+    def test_expired_approval_is_transitioned_before_replacement(self):
+        self.assertIn("UPDATE intelligence_approval_ledger SET status='expired'", self.source)
+        self.assertIn("status='issued' AND expires_at<=?", self.source)
+        self.assertIn('scopeJson.length > 4096', self.source)
+        self.assertIn('Object.keys(body.scope).length === 0', self.source)
+        self.assertIn('approval_expired', (ROOT / "migrations" / "0003_intelligence_staging_runtime.sql").read_text(encoding="utf-8"))
+
     def test_strict_json_media_type_and_session_time_bounds(self):
         self.assertIn('type.split(";")[0].trim().toLowerCase() !== "application/json"', self.source)
         self.assertIn('!Number.isSafeInteger(createdAt)', self.source)
