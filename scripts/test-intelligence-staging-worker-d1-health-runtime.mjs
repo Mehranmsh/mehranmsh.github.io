@@ -101,7 +101,38 @@ async function testSessionVerificationAndRevocation() {
   }
 }
 
-async function testCompleteSchemaReportsHealthy() {
+
+async function testSessionReadRateLimit() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-rate-limit-01", tokenHash(token), ownerUid, now, now + 3600).run();
+
+    const headers = { Authorization: `Bearer ${token}` };
+    for (let index = 0; index < 30; index += 1) {
+      const response = await mf.dispatchFetch("http://localhost/session", { headers });
+      assert.equal(response.status, 200, `request ${index + 1} should be allowed`);
+    }
+    const blocked = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(blocked.status, 429);
+    assert.deepEqual(await blocked.json(), {
+      success: false,
+      error: "Rate limit exceeded."
+    });
+    const row = await db.prepare(
+      "SELECT request_count FROM intelligence_staging_rate_limits WHERE rate_key=?"
+    ).bind(tokenHash(`${ownerUid}:session-read`)).first();
+    assert.equal(Number(row.request_count), 31);
+    console.log("PASS: staging session read rate limit blocks request 31 and records counter");
+  } finally {
+    await mf.dispose();
+  }
+}
+\nasync function testCompleteSchemaReportsHealthy() {
   const { mf, db } = await createWorker(migrations.length);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
@@ -137,4 +168,4 @@ async function testMissingCapabilityLedgerFailsClosed() {
 
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
-await testSessionVerificationAndRevocation();
+await testSessionVerificationAndRevocation();\nawait testSessionReadRateLimit();
