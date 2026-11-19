@@ -785,6 +785,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         start = self.index_html.index("function renderIntelDecisionIntegritySummary(")
         end = self.index_html.index("async function loadProjects()", start)
         panel_code = self.index_html[start:end]
+        review_start = self.index_html.index("async function loadIntelPriorityActionReviews(")
+        review_end = self.index_html.index('$("refreshIntelPriorityActionReviewsBtn")', review_start)
+        panel_code = panel_code.replace(self.index_html[review_start:review_end], "")
         for fragment in [
             "document.createElement(",
             "textContent",
@@ -841,6 +844,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         start = self.index_html.index("function renderIntelCompanyReadiness(")
         end = self.index_html.index("async function loadProjects()", start)
         panel_code = self.index_html[start:end]
+        review_start = self.index_html.index("async function loadIntelPriorityActionReviews(")
+        review_end = self.index_html.index('$("refreshIntelPriorityActionReviewsBtn")', review_start)
+        panel_code = panel_code.replace(self.index_html[review_start:review_end], "")
         for endpoint in [
             "/intelligence/company/assessment-coverage",
             "/intelligence/findings/priorities?limit=100",
@@ -918,7 +924,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('authenticated_owner_staging_only', renderer)
         self.assertNotIn("innerHTML", renderer)
         self.assertNotIn("insertAdjacentHTML", renderer)
-        self.assertNotIn('method:"POST"', renderer)
+        self.assertIn('method:"POST"', renderer)
+        self.assertIn('"/intelligence/findings/priority-action-reviews"', renderer)
+        self.assertIn('id="intelPriorityActionReviewPanel"', panel)
+        self.assertIn('id="intelPriorityActionReviewHistory"', panel)
+        self.assertIn("loadIntelPriorityActionReviews", renderer)
+        self.assertNotIn("innerHTML", renderer)
+        self.assertNotIn("insertAdjacentHTML", renderer)
         self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
 
     def test_priority_action_review_is_owner_scoped_append_only_and_stale_safe(self):

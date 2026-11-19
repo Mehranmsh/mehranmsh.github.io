@@ -1032,6 +1032,13 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelPriorityActionPlanSummary" class="grid intelligence-stats" aria-live="polite"></div>
  <div id="intelPriorityActionPlanList" class="grid"><div class="empty">Refresh to load the owner-scoped advisory action plan.</div></div>
  <div class="notice warn">This is deterministic triage, not a risk verdict or certification. Evidence metadata does not prove evidence contents or correctness. No task, approval, owner decision, finding update, or company operation is created here. Execution remains disabled.</div>
+ <div class="panel" id="intelPriorityActionReviewPanel">
+  <div class="section-title"><div><h3>Owner Action Reviews</h3><div class="small-text">Record your own decision about a current advisory action. This does not authorize or execute remediation.</div></div><button class="btn secondary small" id="refreshIntelPriorityActionReviewsBtn" type="button">Refresh reviews</button></div>
+  <div id="intelPriorityActionReviewStatus" class="notice" aria-live="polite">No owner action reviews loaded.</div>
+  <div id="intelPriorityActionReviewSummary" class="grid intelligence-stats" aria-live="polite"></div>
+  <div id="intelPriorityActionReviewHistory" class="grid"><div class="empty">Refresh reviews to inspect the append-only owner decision history.</div></div>
+  <div class="notice warn">Review records are owner-authored metadata. Snapshot integrity checks do not verify source contents, factual correctness, or the truth of a decision.</div>
+ </div>
 </div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
@@ -2753,9 +2760,27 @@ function renderIntelPriorityActionPlan(data){
   card.append(heading,meta,status,reason,recommendation,evidence);
   intelAppendTextList(card,"Suggested steps",action.suggestedSteps);
   intelAppendTextList(card,"Validation to perform",action.requiredValidation);
+  const reviewBox=document.createElement("div");reviewBox.className="card";
+  const reviewTitle=document.createElement("strong");reviewTitle.textContent="Record owner review";
+  const outcomeLabel=document.createElement("label");outcomeLabel.textContent="Your decision";
+  const outcome=document.createElement("select");outcome.className="input";
+  for(const [value,label] of [["accepted","Accepted for planning"],["rejected","Rejected"],["needs_more_info","Need more information"]]){const option=document.createElement("option");option.value=value;option.textContent=label;outcome.append(option)}
+  const reasonLabel=document.createElement("label");reasonLabel.textContent="Reason (required, max 1,000 characters)";
+  const reviewReason=document.createElement("textarea");reviewReason.rows=2;reviewReason.maxLength=1000;reviewReason.required=true;reviewReason.placeholder="Explain why you chose this outcome...";
+  const reviewStatus=document.createElement("div");reviewStatus.className="small-text";reviewStatus.setAttribute("aria-live","polite");
+  const save=document.createElement("button");save.type="button";save.className="btn secondary small";save.textContent="Save owner review";
+  save.addEventListener("click",async()=>{
+   const note=reviewReason.value.trim();if(!note){reviewStatus.textContent="A reason is required.";return}
+   if(!/^[0-9a-f]{64}$/.test(String(action.actionKey||""))){reviewStatus.textContent="This action has no valid review key. Refresh the action plan.";return}
+   save.disabled=true;reviewStatus.textContent="Verifying the current action and recording your review...";
+   try{await api("/intelligence/findings/priority-action-reviews",{method:"POST",body:JSON.stringify({actionKey:action.actionKey,moduleId:action.moduleId,outcome:outcome.value,reason:note})});reviewStatus.textContent="Owner review recorded. No finding, company state, or remediation action was changed.";reviewReason.value="";await loadIntelPriorityActionReviews(action.actionKey)}
+   catch(error){reviewStatus.textContent=error.status===409?"This action changed or is no longer current. Refresh the action plan before reviewing.":"Review not recorded: "+error.message}
+   finally{save.disabled=false}
+  });
+  reviewBox.append(reviewTitle,outcomeLabel,outcome,reasonLabel,reviewReason,save,reviewStatus);
   const approval=document.createElement("div");approval.className="notice warn";
-  approval.textContent="Owner approval required. This panel records no decision and cannot execute the recommendation.";
-  card.append(approval);list.append(card);
+  approval.textContent="Owner review is a recorded decision only. It does not approve execution, change a finding, or mark remediation complete.";
+  card.append(approval,reviewBox);list.append(card);
  }
 }
 async function loadIntelPriorityActionPlan(){
@@ -2790,6 +2815,25 @@ async function loadIntelPriorityActionPlan(){
   if(list){list.replaceChildren();const empty=document.createElement("div");empty.className="empty";empty.textContent="Sign in with the authorized owner account and confirm the staging findings schema is available.";list.append(empty)}
  }finally{if(button)button.disabled=false}
 }
+async function loadIntelPriorityActionReviews(actionKey=""){
+ const status=$("intelPriorityActionReviewStatus"),summary=$("intelPriorityActionReviewSummary"),history=$("intelPriorityActionReviewHistory");
+ if(!status||!summary||!history)return;
+ status.textContent="Loading owner-scoped review history and snapshot integrity...";status.className="notice";
+ try{
+  const suffix=actionKey?"?actionKey="+encodeURIComponent(actionKey)+"&limit=50":"?limit=50";
+  const [data,integrity]=await Promise.all([api("/intelligence/findings/priority-action-reviews"+suffix),api("/intelligence/findings/priority-action-reviews/integrity?limit=50")]);
+  if(data.scope!=="authenticated_owner_staging_only"||integrity.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+  summary.replaceChildren();history.replaceChildren();
+  const metrics=[["Reviews loaded",data.items?.length??0],["Integrity matches",integrity.summary?.integrityMatches??0],["Snapshot mismatches",(integrity.summary?.snapshotHashMismatches??0)+(integrity.summary?.snapshotIdentityMismatches??0)+(integrity.summary?.invalidSnapshotJson??0)+(integrity.summary?.reviewerOwnerMismatches??0)]];
+  for(const [label,value] of metrics){const card=document.createElement("div");card.className="stat-card";const name=document.createElement("div");name.className="small-text";name.textContent=label;const number=document.createElement("strong");number.textContent=String(value);card.append(name,number);summary.append(card)}
+  const items=Array.isArray(data.items)?data.items:[];
+  if(!items.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No owner reviews are recorded for this filter.";history.append(empty)}
+  for(const item of items){const card=document.createElement("article");card.className="card";const title=document.createElement("h4");title.textContent=String(item.moduleId||"Module")+" · "+String(item.checkId||"Check");const outcome=document.createElement("div");outcome.className="notice";outcome.textContent="Outcome: "+String(item.outcome)+" · Reviewed: "+new Date(Number(item.reviewedAt)*1000).toLocaleString();const reason=document.createElement("p");reason.textContent=String(item.reason||"");const meta=document.createElement("div");meta.className="small-text";meta.textContent="Finding: "+String(item.findingId)+" · Snapshot SHA-256: "+String(item.snapshotSha256||"");card.append(title,outcome,reason,meta);history.append(card)}
+  const mismatch=Number(integrity.summary?.snapshotHashMismatches||0)+Number(integrity.summary?.snapshotIdentityMismatches||0)+Number(integrity.summary?.invalidSnapshotJson||0)+Number(integrity.summary?.reviewerOwnerMismatches||0);
+  status.textContent=items.length+" owner review records loaded. "+(integrity.summary?.integrityMatches??0)+" snapshot metadata checks match; "+mismatch+" mismatch or invalid records. "+(integrity.truncated?"History is bounded and may be truncated.":"");status.className=mismatch===0?"notice success":"notice warn";
+ }catch(error){status.textContent="Owner review history unavailable: "+error.message;status.className="notice warn";summary.replaceChildren();history.replaceChildren();const empty=document.createElement("div");empty.className="empty";empty.textContent="Confirm owner sign-in and that staging migration 0013 is available.";history.append(empty)}
+}
+$("refreshIntelPriorityActionReviewsBtn")?.addEventListener("click",()=>loadIntelPriorityActionReviews());
 $("refreshIntelPriorityActionPlanBtn")?.addEventListener("click",loadIntelPriorityActionPlan);
 $("intelPriorityActionModule")?.addEventListener("change",loadIntelPriorityActionPlan);
 $("intelPriorityActionLimit")?.addEventListener("change",loadIntelPriorityActionPlan);
