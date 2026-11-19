@@ -48,8 +48,19 @@
   <div class="row"><button id="memoryPrev" class="secondary" type="button" disabled>Previous</button><span id="memoryPage" class="small muted">Page 1</span><button id="memoryNext" class="secondary" type="button" disabled>Next</button></div>
   <div id="memoryStatus" class="notice">Memory not loaded.</div><div id="memoryList" class="grid"></div>
  </section>
+ <section class="panel" id="capabilityApprovalPanel">
+  <div class="row"><div><h2>Capability approvals</h2><div class="muted small">Owner-issued, short-lived staging approvals. These records only support assessment and never execute operations.</div></div><button id="refreshCapabilityApprovalsBtn" class="secondary" type="button">Refresh approvals</button></div>
+  <div class="notice warn">Assessment only. A valid approval does not authorize execution here. No data mutation, deletion, external action, or approval consumption is performed by this panel.</div>
+  <form id="capabilityApprovalForm">
+   <div class="grid"><div><label for="capabilityApprovalCapability">Capability</label><select id="capabilityApprovalCapability"><option value="knowledge.create">Create knowledge</option><option value="memory.create">Create private memory</option><option value="knowledge.review">Change knowledge review state</option><option value="memory.delete">Delete private memory</option></select></div><div><label for="capabilityApprovalLifetime">Approval lifetime</label><select id="capabilityApprovalLifetime"><option value="300">5 minutes</option><option value="600" selected>10 minutes</option><option value="1800">30 minutes</option><option value="3600">60 minutes</option></select></div></div>
+   <div class="actions"><button id="issueCapabilityApprovalBtn" type="submit">Issue owner approval</button></div>
+  </form>
+  <div id="capabilityApprovalStatus" class="notice">Approvals not loaded.</div>
+  <div id="capabilityApprovalList" class="grid"></div>
+  <div id="capabilityAssessmentStatus" class="notice" aria-live="polite">No capability assessment performed.</div>
+ </section>
 </div>
-<footer>Staging only. No production data, secrets, approvals or sessions are shared. The executor, scheduler and autonomous actions are disabled.</footer>
+<footer>Staging only. No production data, secrets, approvals or sessions are shared. The executor, scheduler and autonomous actions are disabled.</footer> No production data, secrets, approvals or sessions are shared. The executor, scheduler and autonomous actions are disabled.</footer>
 </main>
 <script>
 "use strict";
@@ -94,8 +105,48 @@ let memorySourceOffset=0,memorySourceHasMore=false;
 async function loadMemorySourceOptions(direction=0){if(direction<0)memorySourceOffset=Math.max(0,memorySourceOffset-100);else if(direction>0){if(!memorySourceHasMore)return;memorySourceOffset+=100}const select=$("memorySourceRef");const current=select.value;const prev=$("memorySourcePrev"),next=$("memorySourceNext");prev.disabled=true;next.disabled=true;select.replaceChildren();const empty=document.createElement("option");empty.value="";empty.textContent="Choose a knowledge record";select.append(empty);try{const data=await request("/intelligence/knowledge?state=all&limit=100&offset="+memorySourceOffset);for(const item of data.items||[]){const option=document.createElement("option");option.value=item.id;option.textContent=String(item.title||"Untitled")+" · "+String(item.id).slice(0,8);select.append(option)}memorySourceHasMore=!!data.hasMore;prev.disabled=memorySourceOffset===0;next.disabled=!memorySourceHasMore;$("memorySourcePage").textContent="Records "+(data.items.length?memorySourceOffset+1:0)+"–"+(memorySourceOffset+(data.items||[]).length)+(memorySourceHasMore?" · more available":" · last page");if([...select.options].some(option=>option.value===current))select.value=current}catch(error){memorySourceHasMore=false;prev.disabled=memorySourceOffset===0;next.disabled=true;message("memoryStatus","Could not load linked knowledge records: "+error.message,"warn")}}
 function updateMemorySourceControl(){const linked=$("memorySourceType").value==="knowledge_record";$("memorySourceRef").disabled=!linked;$("memorySourceRef").required=linked}
 async function saveMemory(event){event.preventDefault();const button=$("saveMemoryBtn");button.disabled=true;const sourceType=$("memorySourceType").value;const rawConfidence=$("memoryConfidence").value;try{const body={category:$("memoryCategory").value,content:$("memoryContent").value.trim(),memoryKind:$("memoryKind").value,sourceType};if(sourceType==="knowledge_record")body.sourceRef=$("memorySourceRef").value.trim();if(rawConfidence!=="")body.confidenceScore=Number(rawConfidence);await request("/intelligence/memory",{method:"POST",body});$("memoryForm").reset();await loadMemory()}catch(error){message("memoryStatus",error.message,"bad")}finally{button.disabled=false}}
-async function refreshAll(){await Promise.all([loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions()]);updateMemorySourceControl()}
-$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+async function loadCapabilityApprovals(){
+ message("capabilityApprovalStatus","Loading owner-scoped capability approvals...");
+ try{
+  const data=await request("/intelligence/capability-approvals");
+  $("capabilityApprovalList").replaceChildren();
+  for(const item of data.items||[]){
+   const card=document.createElement("article");card.className="card";
+   const title=document.createElement("h3");title.textContent=item.capability;
+   const meta=document.createElement("div");meta.className="small muted";
+   meta.textContent="Status: "+item.status+" · Scope: "+item.scope+" · Expires: "+new Date(Number(item.expires_at)*1000).toLocaleString();
+   const actions=document.createElement("div");actions.className="actions";
+   const assess=document.createElement("button");assess.type="button";assess.className="secondary";assess.textContent="Assess only";
+   assess.addEventListener("click",()=>assessCapability(item.capability,item.id));
+   actions.append(assess);
+   if(item.status==="issued"){
+    const revoke=document.createElement("button");revoke.type="button";revoke.className="danger";revoke.textContent="Revoke";
+    revoke.addEventListener("click",async()=>{if(!confirm("Revoke this capability approval?"))return;revoke.disabled=true;try{await request("/intelligence/capability-approvals/"+encodeURIComponent(item.id),{method:"DELETE"});await loadCapabilityApprovals()}catch(error){message("capabilityApprovalStatus",error.message,"bad")}finally{revoke.disabled=false}});
+    actions.append(revoke);
+   }
+   card.append(title,meta,actions);$("capabilityApprovalList").append(card);
+  }
+  message("capabilityApprovalStatus",(data.items||[]).length+" approval records loaded. Executor enabled: "+String(data.executionEnabled),"good");
+ }catch(error){message("capabilityApprovalStatus",error.message,"bad")}
+}
+async function issueCapabilityApproval(event){
+ event.preventDefault();const button=$("issueCapabilityApprovalBtn");button.disabled=true;
+ try{
+  const result=await request("/intelligence/capability-approvals",{method:"POST",body:{capability:$("capabilityApprovalCapability").value,expiresInSeconds:Number($("capabilityApprovalLifetime").value)}});
+  message("capabilityApprovalStatus","Approval issued: "+result.id+" · "+result.capability+" · expires "+new Date(result.expiresAt*1000).toLocaleString()+". This grant is assessment-only; no operation was executed.","good");
+  await loadCapabilityApprovals();
+ }catch(error){message("capabilityApprovalStatus",error.message,"bad")}finally{button.disabled=false}
+}
+async function assessCapability(capability,approvalId){
+ message("capabilityAssessmentStatus","Checking owner-scoped approval from D1. No operation will be performed.");
+ try{
+  const result=await request("/intelligence/capabilities/evaluate",{method:"POST",body:{capability,approvalId}});
+  const assessment=result.assessment||{};
+  message("capabilityAssessmentStatus","Decision: "+assessment.decision+" · Reason: "+assessment.reason+" · Assessment only: "+String(result.assessmentOnly)+" · Operation performed: "+String(result.operationPerformed)+" · Approval consumed: "+String(result.approvalConsumed)+" · Execution enabled: "+String(assessment.executionEnabled),"good");
+ }catch(error){message("capabilityAssessmentStatus",error.message,"bad")}
+}
+async function refreshAll(){await Promise.all([loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
+$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>
