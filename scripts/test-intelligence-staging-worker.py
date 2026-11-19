@@ -900,6 +900,25 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         for forbidden in ["INSERT INTO", "UPDATE ", "DELETE ", "fetch("]:
             self.assertNotIn(forbidden, self.priority_action_plan_module)
 
+    def test_priority_action_plan_dashboard_uses_safe_owner_scoped_rendering(self):
+        panel_start = self.index_html.index('id="intelPriorityActionPlanPanel"')
+        panel_end = self.index_html.index('<div class="panel intelligence-memory">', panel_start)
+        panel = self.index_html[panel_start:panel_end]
+        self.assertIn('id="intelPriorityActionModule"', panel)
+        self.assertIn('id="intelPriorityActionPlanList"', panel)
+        self.assertIn('Owner review is required', panel)
+        function_start = self.index_html.index("function renderIntelPriorityActionPlan(data)")
+        function_end = self.index_html.index('async function loadIntelCompanyReadiness()', function_start)
+        renderer = self.index_html[function_start:function_end]
+        self.assertIn('createElement("article")', renderer)
+        self.assertIn("textContent", renderer)
+        self.assertIn('"/intelligence/findings/priority-action-plan"', renderer)
+        self.assertIn('authenticated_owner_staging_only', renderer)
+        self.assertNotIn("innerHTML", renderer)
+        self.assertNotIn("insertAdjacentHTML", renderer)
+        self.assertNotIn('method:"POST"', renderer)
+        self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
