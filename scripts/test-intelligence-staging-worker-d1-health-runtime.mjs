@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fetchPiUser } from "../intelligence-staging-worker.js";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
@@ -46,6 +47,52 @@ function tokenHash(token) {
   return createHash("sha256").update(token).digest("base64url");
 }
 
+async function testPiIdentityResponseValidation() {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  try {
+    globalThis.fetch = async (url, options) => {
+      calls.push({ url, authorization: options.headers.Authorization, accept: options.headers.Accept });
+      return new Response(JSON.stringify({ uid: "staging-owner-test-uid", username: "mehranmsh" }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    };
+    assert.deepEqual(await fetchPiUser("valid-access-token-123"), { uid: "staging-owner-test-uid", username: "mehranmsh" });
+    assert.equal(calls[0].url, "https://api.minepi.com/v2/me");
+    assert.equal(calls[0].authorization, "Bearer valid-access-token-123");
+    assert.equal(calls[0].accept, "application/json");
+
+    globalThis.fetch = async () => new Response("<html>not json</html>", {
+      status: 200, headers: { "Content-Type": "text/html" },
+    });
+    assert.equal(await fetchPiUser("valid-access-token-123"), null, "non-JSON identity response must be rejected");
+
+    globalThis.fetch = async () => new Response("{broken", {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+    assert.equal(await fetchPiUser("valid-access-token-123"), null, "malformed JSON must be rejected");
+
+    globalThis.fetch = async () => new Response("x".repeat(8193), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+    assert.equal(await fetchPiUser("valid-access-token-123"), null, "oversized identity response must be rejected");
+
+    globalThis.fetch = async () => new Response(JSON.stringify({ uid: "u", username: "x".repeat(101) }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+    assert.equal(await fetchPiUser("valid-access-token-123"), null, "oversized username must be rejected");
+
+    globalThis.fetch = async () => new Response("upstream unavailable", { status: 503 });
+    assert.equal(await fetchPiUser("valid-access-token-123"), null, "Pi API errors must fail closed");
+
+    globalThis.fetch = async () => { throw new Error("network details must not escape"); };
+    assert.equal(await fetchPiUser("valid-access-token-123"), null, "network failures must fail closed");
+    assert.equal(await fetchPiUser("short"), null, "invalid token length must avoid the upstream request");
+    console.log("PASS: Pi identity verification bounds response size and rejects malformed, oversized, non-JSON, and failed upstream responses");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
 async function testSessionVerificationAndRevocation() {
   const { mf, db } = await createWorker(migrations.length);
   const ownerUid = "staging-owner-test-uid";
@@ -318,6 +365,7 @@ async function testJsonBodyLimitsAndContentType() {
 
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
+await testPiIdentityResponseValidation();
 await testSessionVerificationAndRevocation();
 await testPiSessionCreationRejectsUntrustedClientClaims();
 await testSessionReadRateLimit();
