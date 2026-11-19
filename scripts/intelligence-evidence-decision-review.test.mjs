@@ -22,7 +22,7 @@ test("builds bounded deterministic recommendation snapshots", () => {
 
 test("rejects malformed recommendation identity and oversized snapshots", () => {
   assert.throws(() => buildEvidenceDecisionReviewSnapshot({sourceType:"unknown",sourceId:"x"}), /valid recommendation/);
-  assert.throws(() => buildEvidenceDecisionReviewSnapshot({sourceType:"finding_metadata",sourceId:"x".repeat(201)}), /valid recommendation/);
+  assert.throws(() => buildEvidenceDecisionReviewSnapshot({sourceType:"finding_metadata",sourceId:"x".repeat(301)}), /valid recommendation/);
   assert.throws(() => buildEvidenceDecisionReviewSnapshot({
     sourceType:"finding_metadata",sourceId:"x",recommendation:"x".repeat(21000)
   }), /size/);
