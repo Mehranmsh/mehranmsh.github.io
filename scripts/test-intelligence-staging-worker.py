@@ -269,6 +269,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
         self.assertIn('"database_name": "mehran-msh-intelligence-staging"', self.config)
         self.assertIn('"database_id": "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID"', self.config)
+        self.assertIn("migrations 0000-0007", self.config)
         self.assertNotIn('"mehran-msh-db"', self.config)
         self.assertNotIn('"ai":', self.config)
         self.assertNotRegex(self.config, r'"crons"\s*:')
