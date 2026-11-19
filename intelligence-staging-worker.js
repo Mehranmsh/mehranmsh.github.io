@@ -303,6 +303,45 @@ async function handle(request, env) {
   if (!owner) return fail("Authentication required.", 401);
   if (!await rateLimit(env.DB, owner.uid, `${method}:${path.split("/").slice(1,3).join("/")}`)) return fail("Rate limit exceeded.", 429);
 
+  if (path === "/intelligence/overview" && method === "GET") {
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      const row = await env.DB.prepare(`
+        SELECT
+          (SELECT COUNT(*) FROM intelligence_knowledge WHERE owner_uid=? AND archived_at IS NULL) AS active_knowledge_count,
+          (SELECT COUNT(*) FROM intelligence_knowledge WHERE owner_uid=? AND archived_at IS NOT NULL) AS archived_knowledge_count,
+          (SELECT COUNT(*) FROM intelligence_knowledge WHERE owner_uid=? AND verification_status IN ('unreviewed','disputed') AND archived_at IS NULL) AS knowledge_needs_review_count,
+          (SELECT COUNT(*) FROM intelligence_knowledge WHERE owner_uid=? AND verification_status='disputed' AND archived_at IS NULL) AS disputed_knowledge_count,
+          (SELECT COUNT(*) FROM intelligence_knowledge_relations WHERE owner_uid=? AND relation_type='conflicts_with' AND status IN ('candidate','confirmed')) AS unresolved_conflict_count,
+          (SELECT COUNT(*) FROM intelligence_knowledge_relations WHERE owner_uid=? AND status='candidate') AS candidate_relation_count,
+          (SELECT COUNT(*) FROM intelligence_owner_memory WHERE owner_uid=? AND archived_at IS NULL) AS active_memory_count,
+          (SELECT COUNT(*) FROM intelligence_owner_memory WHERE owner_uid=? AND review_status IN ('unreviewed','disputed') AND archived_at IS NULL) AS memory_needs_review_count,
+          (SELECT COUNT(*) FROM intelligence_tasks WHERE created_by=? AND status IN ('queued','accepted')) AS queued_task_count,
+          (SELECT COUNT(*) FROM intelligence_tasks WHERE created_by=? AND status='in_progress') AS in_progress_task_count,
+          (SELECT COUNT(*) FROM intelligence_capability_approvals WHERE owner_uid=? AND status='issued' AND expires_at>?) AS active_approval_count,
+          (SELECT COUNT(*) FROM intelligence_capability_approvals WHERE owner_uid=? AND (status='expired' OR (status='issued' AND expires_at<=?))) AS expired_approval_count
+      `).bind(owner.uid, owner.uid, owner.uid, owner.uid, owner.uid, owner.uid,
+        owner.uid, owner.uid, owner.uid, owner.uid, owner.uid, now, owner.uid, now).first();
+      if (!row) return fail("Intelligence overview is unavailable.", 503);
+      const counts = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value) || 0]));
+      return response({
+        success: true,
+        generatedAt: new Date().toISOString(),
+        scope: "authenticated_owner_staging_only",
+        assessment: "operational_counts_only",
+        executionEnabled: false,
+        counts,
+        limitations: [
+          "Counts describe only this owner's isolated staging records.",
+          "These metrics do not certify company security, correctness, or production health.",
+          "No task, approval, knowledge, or memory state is changed by this overview."
+        ]
+      });
+    } catch {
+      return fail("Intelligence overview could not be safely loaded.", 503);
+    }
+  }
+
   if (path === "/intelligence/capabilities" && method === "GET") {
     return response({
       success: true,

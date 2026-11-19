@@ -2980,3 +2980,70 @@ async function testOwnerScopedKnowledgeSearch() {
 
 await testOwnerScopedKnowledgeSearch();
 
+
+async function testOwnerScopedIntelligenceOverview() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const foreignUid = "another-owner-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}`, Origin: "https://mehranmsh.github.io" };
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("overview-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.batch([
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,verification_status) VALUES(?,?,?,?,?,?,?,?)")
+        .bind("overview-knowledge-active", ownerUid, "decision", "Owner decision", "Current owner knowledge.", "high", "test", "unreviewed"),
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,verification_status) VALUES(?,?,?,?,?,?,?,?)")
+        .bind("overview-knowledge-disputed", ownerUid, "decision", "Disputed decision", "Needs owner review.", "normal", "test", "disputed"),
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,archived_at) VALUES(?,?,?,?,?,?,?,?)")
+        .bind("overview-knowledge-archived", ownerUid, "procedure", "Archived note", "Old note.", "low", "test", "2026-01-01"),
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?,?)")
+        .bind("overview-knowledge-foreign", foreignUid, "decision", "Foreign note", "Must not count.", "high", "test"),
+      db.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,?,?,?,?,?)")
+        .bind("overview-relation-candidate", ownerUid, "overview-knowledge-active", "overview-knowledge-disputed", "conflicts_with", "candidate", "Current owner knowledge.", "Needs owner review."),
+      db.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content,memory_kind,source_type,review_status) VALUES(?,?,?,?,?,?,?)")
+        .bind("overview-memory", ownerUid, "company", "Private owner memory.", "general", "owner_input", "unreviewed"),
+      db.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content,memory_kind,source_type,review_status) VALUES(?,?,?,?,?,?,?)")
+        .bind("overview-memory-foreign", foreignUid, "company", "Foreign memory.", "general", "owner_input", "unreviewed"),
+      db.prepare("INSERT INTO intelligence_tasks(id,title,description,created_by,status) VALUES(?,?,?,?,?)")
+        .bind("overview-task", "Owner task", "", ownerUid, "queued"),
+      db.prepare("INSERT INTO intelligence_tasks(id,title,description,created_by,status) VALUES(?,?,?,?,?)")
+        .bind("overview-task-foreign", "Foreign task", "", foreignUid, "queued"),
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?)")
+        .bind("overview-approval", ownerUid, "memory.create", "owner_staging", "issued", now, now + 300),
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?)")
+        .bind("overview-approval-foreign", foreignUid, "memory.create", "owner_staging", "issued", now, now + 300)
+    ]);
+    const response = await mf.dispatchFetch("http://localhost/intelligence/overview", { headers });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.scope, "authenticated_owner_staging_only");
+    assert.equal(data.assessment, "operational_counts_only");
+    assert.equal(data.executionEnabled, false);
+    assert.deepEqual(data.counts, {
+      active_knowledge_count: 2,
+      archived_knowledge_count: 1,
+      knowledge_needs_review_count: 2,
+      disputed_knowledge_count: 1,
+      unresolved_conflict_count: 1,
+      candidate_relation_count: 1,
+      active_memory_count: 1,
+      memory_needs_review_count: 1,
+      queued_task_count: 1,
+      in_progress_task_count: 0,
+      active_approval_count: 1,
+      expired_approval_count: 0
+    });
+    assert.ok(data.limitations.length >= 3);
+    const unauthenticated = await mf.dispatchFetch("http://localhost/intelligence/overview", {
+      headers: { Origin: "https://mehranmsh.github.io" }
+    });
+    assert.equal(unauthenticated.status, 401, "overview must require an authenticated owner session");
+    console.log("PASS: Intelligence overview reports bounded owner-only operational counts without executing or mutating operations");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testOwnerScopedIntelligenceOverview();
