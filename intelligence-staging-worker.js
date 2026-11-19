@@ -898,7 +898,7 @@ async function handle(request, env) {
         LIMIT 501
       `).bind(owner.uid, owner.uid, moduleId, moduleId).all();
       const reviews = await env.DB.prepare(`
-        SELECT correlation_key_sha256, outcome, reference_count, reviewed_at
+        SELECT correlation_key_sha256 AS correlationKeySha256, outcome, reference_count AS referenceCount, reviewed_at
         FROM intelligence_evidence_correlation_reviews
         WHERE owner_uid = ?
         ORDER BY reviewed_at DESC, id DESC
