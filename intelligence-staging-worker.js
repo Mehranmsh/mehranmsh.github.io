@@ -3,6 +3,7 @@ import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-
 import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
 import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";
 import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
+import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-dependency-impact.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -650,6 +651,27 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Finding priorities are unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/company/dependency-impact" && method === "GET") {
+    const allowedParams = new Set(["module"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported dependency impact filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    if (!COMPANY_MODULES.includes(moduleId)) return fail("A valid company module is required.");
+    try {
+      const analysis = analyzeDependencyImpact(moduleId);
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        scope: "authenticated_owner_staging_only",
+        assessment: "provisional_declared_dependency_impact_only",
+        ...analysis
+      });
+    } catch {
+      return fail("Dependency impact analysis is unavailable.", 503);
     }
   }
 

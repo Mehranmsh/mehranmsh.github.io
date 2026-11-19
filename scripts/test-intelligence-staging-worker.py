@@ -445,6 +445,49 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertEqual(route.count("checks: ["), 13)
         self.assertIn("blueprintVersion: 1", route)
 
+    def test_dependency_impact_catalog_is_bounded_explicit_and_non_executing(self):
+        route_start = self.source.index('if (path === "/intelligence/company/dependency-impact" && method === "GET")')
+        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
+        route = self.source[route_start:route_end]
+        for fragment in [
+            'new Set(["module"])',
+            'COMPANY_MODULES.includes(moduleId)',
+            'analyzeDependencyImpact(moduleId)',
+            'scope: "authenticated_owner_staging_only"',
+            'assessment: "provisional_declared_dependency_impact_only"',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+        helper = ROOT / "intelligence-dependency-impact.mjs"
+        self.assertTrue(helper.exists())
+        script = """
+          import assert from "node:assert/strict";
+          import { analyzeDependencyImpact, COMPANY_MODULES, MODULE_DEPENDENCIES } from "./intelligence-dependency-impact.mjs";
+          assert.equal(COMPANY_MODULES.length, 13);
+          assert.equal(new Set(COMPANY_MODULES).size, 13);
+          assert.ok(MODULE_DEPENDENCIES.length >= 25);
+          const social = analyzeDependencyImpact("social");
+          assert.ok(social.directDependencies.includes("security"));
+          assert.ok(social.directDependencies.includes("data"));
+          const security = analyzeDependencyImpact("security");
+          assert.ok(security.affectedModules.some(item => item.moduleId === "social"));
+          assert.ok(security.affectedModules.some(item => item.moduleId === "music"));
+          const robot = analyzeDependencyImpact("robotics");
+          assert.ok(robot.affectedModules.some(item => item.moduleId === "robot-operations"));
+          assert.equal(security.isRuntimeDependencyProof, false);
+          assert.equal(security.isImpactVerdict, false);
+          assert.equal(security.executionEnabled, false);
+          assert.equal(security.operationPerformed, false);
+          assert.equal(security.graphCompleteness, "unverified");
+          assert.throws(() => analyzeDependencyImpact("unknown"), /Unknown company module/);
+          for (const result of [social, security, robot]) {
+            assert.equal(new Set(result.affectedModules.map(item => item.moduleId)).size, result.affectedModules.length);
+            assert.ok(result.affectedModules.every(item => item.depth >= 1));
+          }
+        """
+        subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, check=True)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)

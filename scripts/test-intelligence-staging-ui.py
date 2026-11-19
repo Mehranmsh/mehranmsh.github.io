@@ -273,3 +273,32 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in planner_function, f"Remediation planner UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in planner_function and 'document.createElement("details")' in planner_function
 assert "loadRemediationPlans()" in refresh_block, "Remediation plans must load automatically after owner authentication."
+
+
+# Dependency impact dashboard contract: authenticated, read-only, and explicitly provisional.
+for marker in [
+    'id="dependencyImpactPanel"',
+    'id="refreshDependencyImpactBtn"',
+    'id="dependencyImpactModule"',
+    'id="dependencyImpactSafetyNotice"',
+    'id="dependencyImpactSummary"',
+    'id="dependencyImpactList"',
+    'async function loadDependencyImpact()',
+    '/intelligence/company/dependency-impact?module=',
+    'data.directDependencies',
+    'data.transitiveDependencies',
+    'data.affectedModules',
+    'data.graphCompleteness',
+    'data.isRuntimeDependencyProof',
+    'data.isImpactVerdict',
+    'loadDependencyImpact()',
+    'refreshDependencyImpactBtn',
+]:
+    assert marker in page, f"Dependency impact dashboard missing safety or behavior marker: {marker}"
+
+dependency_function = page.split("async function loadDependencyImpact()", 1)[1].split("async function loadOverview()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in dependency_function, f"Dependency impact UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in dependency_function and '.append(' in dependency_function
+assert "loadDependencyImpact()" in refresh_block, "Dependency impact must load automatically after owner authentication."
+assert 'graphCompleteness' in page and 'unverified' in page
