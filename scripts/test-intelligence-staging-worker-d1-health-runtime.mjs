@@ -1939,3 +1939,48 @@ async function testCapabilityApprovalRevocationOwnerAndExpiryBoundaries() {
 }
 
 await testCapabilityApprovalRevocationOwnerAndExpiryBoundaries();
+
+
+async function testSessionRateLimitWindowResetsAfterExpiry() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const rateKey = tokenHash(`${ownerUid}:session-read`);
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-rate-window-reset-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(
+      "INSERT INTO intelligence_staging_rate_limits(rate_key,window_started_at,request_count,blocked_until) VALUES(?,?,?,NULL)"
+    ).bind(rateKey, now, 30).run();
+
+    const headers = { Authorization: `Bearer ${token}` };
+    const blocked = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(blocked.status, 429, "request 31 in an active window must be blocked");
+    const blockedRow = await db.prepare(
+      "SELECT request_count,window_started_at FROM intelligence_staging_rate_limits WHERE rate_key=?"
+    ).bind(rateKey).first();
+    assert.equal(Number(blockedRow.request_count), 31);
+
+    await db.prepare(
+      "UPDATE intelligence_staging_rate_limits SET window_started_at=?,request_count=31 WHERE rate_key=?"
+    ).bind(now - 61, rateKey).run();
+
+    const afterWindow = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(afterWindow.status, 200,
+      "a request after the rate-limit window expires must be allowed");
+    const resetRow = await db.prepare(
+      "SELECT request_count,window_started_at FROM intelligence_staging_rate_limits WHERE rate_key=?"
+    ).bind(rateKey).first();
+    assert.equal(Number(resetRow.request_count), 1,
+      "the expired window must reset the request counter atomically");
+    assert.ok(Number(resetRow.window_started_at) >= now,
+      "the new window must begin at the current request time");
+    console.log("PASS: staging session rate limit blocks at the threshold and recovers after its window expires");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testSessionRateLimitWindowResetsAfterExpiry();
