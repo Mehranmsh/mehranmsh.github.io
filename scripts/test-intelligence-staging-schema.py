@@ -77,6 +77,42 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertNotIn("admin_audit_log", found)
         self.assertNotIn("social_users", found)
 
+    def test_audit_insert_requires_a_successful_state_change(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_staging_sessions
+            (id,token_hash,owner_uid,created_at,expires_at)
+            VALUES('audit-session','audit-hash','owner-a',100,200)
+        """)
+        self.db.execute("""
+            UPDATE intelligence_staging_sessions
+            SET revoked_at=150
+            WHERE id='audit-session' AND owner_uid='owner-a' AND revoked_at IS NULL
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_staging_audit
+            (id,owner_uid,action,target_type,target_id,details_json,created_at)
+            SELECT 'audit-1','owner-a','session_revoked','session','audit-session','{}',150
+            WHERE changes() = 1
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0], 1)
+        self.db.execute("""
+            UPDATE intelligence_staging_sessions
+            SET revoked_at=151
+            WHERE id='audit-session' AND owner_uid='owner-a' AND revoked_at IS NULL
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_staging_audit
+            (id,owner_uid,action,target_type,target_id,details_json,created_at)
+            SELECT 'audit-2','owner-a','session_revoked','session','audit-session','{}',151
+            WHERE changes() = 1
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0], 1)
+
     def test_session_token_hash_is_unique_and_revocation_is_scoped(self):
         self.apply_chain()
         self.db.execute("""
