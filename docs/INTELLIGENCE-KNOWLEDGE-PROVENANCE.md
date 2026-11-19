@@ -36,6 +36,19 @@ The staging Worker exposes owner-scoped, read-only `GET /intelligence/knowledge/
 
 The response separately reports candidate relationships, confirmed conflicts, unresolved conflicts, confirmed supports, and confirmed supersessions. It does not calculate a composite truth score, silently resolve conflicts, or treat a confidence field as a probability. This is deterministic metadata triage only, not semantic verification or an AI fact-checker. The endpoint reads no external URLs and creates no side effects.
 
+## Deterministic owner review queue
+
+The staging Worker exposes owner-scoped, read-only `GET /intelligence/knowledge/review-queue`. It scans at most the 500 most recently updated owner records, excludes archived records by default, and returns at most 100 review items. Set `includeArchived=true` to include archived records. The queue is a triage aid and uses fixed, explainable rules:
+
+- Priority 100 (critical): owner-disputed records.
+- Priority 90 (critical): records with candidate or confirmed unresolved conflict relationships.
+- Priority 75 (high): source observation dates older than 180 days.
+- Priority 65 (medium): missing observation date or missing source reference for non-owner-input records.
+- Priority 55 (medium): candidate relationships awaiting owner review.
+- Priority 45 (normal): records not explicitly owner-verified.
+
+The highest applicable priority is used; reasons are returned separately. Items are sorted by priority descending, then oldest observation first. A record can have multiple reasons. Owner-verified records can still appear when another review signal exists. The queue does not treat confidence as truth probability, fetch external sources, or resolve conflicts. Missing dates are reported as incomplete evidence, not automatically labelled stale.
+
 ## Security and privacy constraints
 
 - Every read and mutation remains scoped to the authenticated staging owner.
