@@ -422,6 +422,10 @@ async function handle(request, env) {
     const body = await readJson(request);
     if (!body || Object.keys(body).some(key => !["category", "content", "action"].includes(key))) return fail("Invalid memory update.");
     const action = clean(body.action, 20);
+    if (Object.prototype.hasOwnProperty.call(body, "action") &&
+        !["confirm", "dispute", "unverify", "archive", "restore"].includes(action)) {
+      return fail("Unsupported memory action.");
+    }
     const now = new Date().toISOString();
     if (action) {
       const transitions = {
