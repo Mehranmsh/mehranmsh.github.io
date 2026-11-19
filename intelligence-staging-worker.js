@@ -484,8 +484,11 @@ async function handle(request, env) {
     const scopeJson = JSON.stringify(body.scope);
     const scopeHash = await digest(scopeJson);
     const id = randomId();
+    if (scopeJson.length > 4096 || Object.keys(body.scope).length === 0) return fail("Approval scope must be a non-empty object within 4 KB.");
     try {
       await env.DB.batch([
+        env.DB.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?")
+          .bind(body.taskId, owner.uid, now),
         env.DB.prepare("INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)")
           .bind(id, body.taskId, owner.uid, "mehranmsh", body.repository, body.branch, body.baseSha, scopeJson, scopeHash, now, now + expiresIn),
         audit(env.DB, owner.uid, "approval_issued", "approval", id, { taskId: body.taskId, repository: body.repository, branch: body.branch, scopeHash })
