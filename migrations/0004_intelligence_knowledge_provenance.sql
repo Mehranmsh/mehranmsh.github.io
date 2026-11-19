@@ -39,7 +39,7 @@ BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_intelligence_knowledge_provenance_guard_update
-BEFORE UPDATE OF source_type, source_ref, observed_at, confidence_score, verification_status
+BEFORE UPDATE OF source_type, source_ref, observed_at, confidence_score
 ON intelligence_knowledge
 WHEN (NEW.source_type = 'external_url' AND (
        substr(lower(NEW.source_ref),1,8) <> 'https://'
