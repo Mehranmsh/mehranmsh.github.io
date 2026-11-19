@@ -26,7 +26,7 @@ Each knowledge record should carry:
 
 ## Deterministic knowledge evaluation endpoint
 
-The staging Worker exposes owner-scoped, read-only `GET /intelligence/knowledge/:id/evaluation`. It derives a review state from stored metadata and owner-controlled relationships:
+The staging Worker exposes owner-scoped, read-only `GET /intelligence/knowledge/:id/evaluation`. It also exposes `GET /intelligence/knowledge/evaluations` for a bounded batch (up to 100 records), using owner-scoped relation aggregation so a dashboard does not need one request per record. It derives a review state from stored metadata and owner-controlled relationships:
 
 - `needs_review`: no owner verification or stronger blocking signal is present.
 - `owner_verified`: explicitly verified by the owner and not archived.
