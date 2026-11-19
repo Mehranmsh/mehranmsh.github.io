@@ -246,6 +246,21 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 ) VALUES('mem-bad-score','owner-a','project','Bad score',
                          'goal','owner_input',NULL,101)
             """)
+        # The database enforces source semantics even if a future caller bypasses the Worker.
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,source_type,source_ref
+                ) VALUES('mem-owner-ref','owner-a','project','Mislabelled source',
+                         'owner_input','mem-source-a')
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,source_type,source_ref
+                ) VALUES('mem-missing-ref','owner-a','project','Missing source',
+                         'knowledge_record',NULL)
+            """)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("""
                 UPDATE intelligence_owner_memory SET source_ref='mem-source-b'
