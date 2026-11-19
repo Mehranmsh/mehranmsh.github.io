@@ -944,6 +944,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             '"/intelligence/findings/priority-action-reviews?actionKey="',
             '"/intelligence/findings/priority-action-reviews/integrity?limit=100"',
             'authenticated_owner_staging_only',
+            "Boolean(data.truncated)",
+            "older records were not included",
+            "integrityProblems===0&&!incompleteScan",
             'textContent'
         ]:
             self.assertIn(fragment, ui)
