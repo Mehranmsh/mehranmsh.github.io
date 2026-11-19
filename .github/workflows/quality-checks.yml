@@ -78,6 +78,9 @@ jobs:
       - name: Test Intelligence owner evidence review ledger
         run: node --test scripts/intelligence-owner-evidence-review.test.mjs
 
+      - name: Test Intelligence evidence snapshot drift classification
+        run: node --test scripts/intelligence-evidence-drift.test.mjs
+
       - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs
 
