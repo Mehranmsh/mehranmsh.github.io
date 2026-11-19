@@ -1180,3 +1180,74 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
   }
 }
 await testPiSessionIssuanceEndToEndAndIpRateLimit();
+
+
+async function testEveryProtectedRouteRequiresOwnerSession() {
+  const { mf, db } = await createWorker(migrations.length);
+  const protectedRoutes = [
+    ["GET", "/intelligence/capabilities"],
+    ["GET", "/intelligence/capability-approvals"],
+    ["POST", "/intelligence/capability-approvals"],
+    ["DELETE", "/intelligence/capability-approvals/11111111-1111-4111-8111-111111111111"],
+    ["POST", "/intelligence/capabilities/evaluate"],
+    ["GET", "/intelligence/tasks"],
+    ["POST", "/intelligence/tasks"],
+    ["GET", "/intelligence/memory"],
+    ["POST", "/intelligence/memory"],
+    ["GET", "/intelligence/memory/review-queue"],
+    ["PUT", "/intelligence/memory/22222222-2222-4222-8222-222222222222"],
+    ["DELETE", "/intelligence/memory/22222222-2222-4222-8222-222222222222"],
+    ["GET", "/intelligence/knowledge/review-queue"],
+    ["GET", "/intelligence/knowledge"],
+    ["GET", "/intelligence/knowledge/evaluations"],
+    ["POST", "/intelligence/knowledge"],
+    ["PUT", "/intelligence/knowledge/33333333-3333-4333-8333-333333333333"],
+    ["GET", "/intelligence/knowledge/relations"],
+    ["POST", "/intelligence/knowledge/relations"],
+    ["PUT", "/intelligence/knowledge/relations/44444444-4444-4444-8444-444444444444"],
+    ["GET", "/intelligence/knowledge/55555555-5555-4555-8555-555555555555/evaluation"],
+    ["GET", "/intelligence/approvals"],
+    ["POST", "/intelligence/approvals"],
+    ["DELETE", "/intelligence/approvals/66666666-6666-4666-8666-666666666666"],
+  ];
+
+  try {
+    for (const [method, path] of protectedRoutes) {
+      const response = await stagingWorker.fetch(new Request("http://localhost" + path, {
+        method,
+        headers: method === "GET" || method === "DELETE"
+          ? {}
+          : { "Content-Type": "application/json" },
+        body: method === "POST" || method === "PUT" ? "{}" : undefined,
+      }), {
+        DB: db,
+        MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: "staging-owner-test-uid",
+      });
+      assert.equal(response.status, 401, `${method} ${path} must reject requests without an owner session`);
+    }
+
+    const protectedTables = [
+      "intelligence_staging_sessions",
+      "intelligence_staging_audit",
+      "intelligence_staging_rate_limits",
+      "intelligence_tasks",
+      "intelligence_owner_memory",
+      "intelligence_knowledge",
+      "intelligence_knowledge_relations",
+      "intelligence_approval_ledger",
+      "intelligence_capability_approvals",
+    ];
+    for (const table of protectedTables) {
+      const row = await db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).first();
+      assert.equal(Number(row.count), 0, `unauthenticated requests must not mutate ${table}`);
+    }
+
+    const health = await stagingWorker.fetch(new Request("http://localhost/health"), { DB: db });
+    assert.equal(health.status, 200, "the read-only staging health endpoint remains intentionally public");
+    console.log(`PASS: all ${protectedRoutes.length} protected route/method combinations reject missing owner sessions before database writes`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testEveryProtectedRouteRequiresOwnerSession();
