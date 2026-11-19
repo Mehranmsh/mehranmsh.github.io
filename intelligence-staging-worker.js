@@ -268,27 +268,119 @@ async function handle(request, env) {
     });
   }
 
+  if (path === "/intelligence/capability-approvals" && method === "GET") {
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      await env.DB.prepare("UPDATE intelligence_capability_approvals SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?")
+        .bind(owner.uid, now).run();
+      const rows = await env.DB.prepare(`
+        SELECT id,capability,scope,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by
+        FROM intelligence_capability_approvals
+        WHERE owner_uid=?
+        ORDER BY issued_at DESC LIMIT 100
+      `).bind(owner.uid).all();
+      return response({ success: true, items: rows.results || [], executionEnabled: false });
+    } catch {
+      return fail("Capability approvals could not be safely loaded.", 503);
+    }
+  }
+
+  if (path === "/intelligence/capability-approvals" && method === "POST") {
+    const body = await readJson(request);
+    const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review", "memory.delete"]);
+    if (!body || Object.keys(body).some(key => !["capability", "expiresInSeconds"].includes(key)) ||
+        typeof body.capability !== "string" || !allowed.has(body.capability)) {
+      return fail("A known approval-tier capability is required.");
+    }
+    const lifetime = parseApprovalLifetime(body.expiresInSeconds);
+    if (!lifetime.valid) return fail("Approval expiry must be an integer number of seconds between 60 and 3600.");
+    const now = Math.floor(Date.now() / 1000);
+    const id = randomId();
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`
+          INSERT INTO intelligence_capability_approvals
+            (id,owner_uid,capability,scope,status,issued_at,expires_at)
+          VALUES(?,?,?,'owner_staging','issued',?,?)
+        `).bind(id, owner.uid, body.capability, now, now + lifetime.seconds),
+        audit(env.DB, owner.uid, "capability_approval_issued", "capability_approval", id, {
+          capability: body.capability,
+          scope: "owner_staging",
+          expiresAt: now + lifetime.seconds
+        })
+      ]);
+    } catch {
+      return fail("Capability approval could not be safely issued.", 503);
+    }
+    return response({
+      success: true, id, capability: body.capability, scope: "owner_staging",
+      status: "issued", expiresAt: now + lifetime.seconds, executionEnabled: false
+    }, 201);
+  }
+
+  const capabilityApprovalMatch = path.match(/^\\/intelligence\\/capability-approvals\\/([0-9a-f-]{36})$/i);
+  if (capabilityApprovalMatch && method === "DELETE") {
+    const id = capabilityApprovalMatch[1];
+    const now = Math.floor(Date.now() / 1000);
+    try {
+      const result = await env.DB.prepare(`
+        UPDATE intelligence_capability_approvals
+        SET status='revoked',revoked_at=?
+        WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?
+      `).bind(now, id, owner.uid, now).run();
+      if (!Number(result?.meta?.changes || 0)) return fail("Capability approval not found or no longer revocable.", 409);
+      return response({ success: true, id, status: "revoked", executionEnabled: false });
+    } catch {
+      return fail("Capability approval revocation failed safely.", 503);
+    }
+  }
+
   if (path === "/intelligence/capabilities/evaluate" && method === "POST") {
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => key !== "capability") ||
-        typeof body.capability !== "string" || body.capability.length > 80) {
-      return fail("A single known capability identifier is required.");
+    if (!body || Object.keys(body).some(key => !["capability", "approvalId"].includes(key)) ||
+        typeof body.capability !== "string" || body.capability.length > 80 ||
+        (Object.hasOwn(body, "approvalId") && !uuid(body.approvalId))) {
+      return fail("A capability identifier and optional valid approval ID are required.");
     }
-    // Build all trust assertions from the verified server session.
-    // Never accept owner/session/scope/approval assertions from the client.
+    let approval = null;
+    if (Object.hasOwn(body, "approvalId")) {
+      const row = await env.DB.prepare(`
+        SELECT owner_uid,capability,scope,status,expires_at,revoked_at,consumed_at,consumed_by
+        FROM intelligence_capability_approvals
+        WHERE id=? AND owner_uid=?
+        LIMIT 1
+      `).bind(body.approvalId, owner.uid).first();
+      if (row) {
+        approval = {
+          serverVerified: true,
+          ownerId: row.owner_uid,
+          capability: row.capability,
+          scope: row.scope,
+          status: row.status,
+          expiresAt: Number(row.expires_at),
+          revoked: row.revoked_at !== null,
+          revokedAt: row.revoked_at,
+          consumedAt: row.consumed_at,
+          consumedBy: row.consumed_by
+        };
+      }
+    }
+    // Approval data is loaded from D1 by this Worker, never trusted from the client.
+    // This endpoint only assesses eligibility; it never consumes approval or performs an operation.
     const assessment = evaluateCapabilityRequest({
       capability: body.capability,
       ownerAuthenticated: true,
       sessionValid: true,
       ownerId: owner.uid,
       scope: "owner_staging",
-      approval: null
+      approval
     });
     try {
       await env.DB.batch([
         audit(env.DB, owner.uid, "capability_assessed", "capability", body.capability, {
           decision: assessment.decision,
           reason: assessment.reason,
+          approvalPresented: Boolean(body.approvalId),
           assessmentOnly: true
         })
       ]);
@@ -299,6 +391,7 @@ async function handle(request, env) {
       success: true,
       assessment: { ...assessment, executionEnabled: false },
       operationPerformed: false,
+      approvalConsumed: false,
       assessmentOnly: true,
       auditRecorded: true
     });
