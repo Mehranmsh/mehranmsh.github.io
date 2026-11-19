@@ -271,14 +271,14 @@ async function handle(request, env) {
   if (path === "/intelligence/capability-approvals" && method === "GET") {
     const now = Math.floor(Date.now() / 1000);
     try {
-      await env.DB.prepare("UPDATE intelligence_capability_approvals SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?")
-        .bind(owner.uid, now).run();
       const rows = await env.DB.prepare(`
-        SELECT id,capability,scope,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by
+        SELECT id,capability,scope,
+               CASE WHEN status='issued' AND expires_at<=? THEN 'expired' ELSE status END AS status,
+               issued_at,expires_at,revoked_at,consumed_at,consumed_by
         FROM intelligence_capability_approvals
         WHERE owner_uid=?
         ORDER BY issued_at DESC LIMIT 100
-      `).bind(owner.uid).all();
+      `).bind(now, owner.uid).all();
       return response({ success: true, items: rows.results || [], executionEnabled: false });
     } catch {
       return fail("Capability approvals could not be safely loaded.", 503);
