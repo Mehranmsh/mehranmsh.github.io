@@ -519,7 +519,8 @@ async function testOwnerEvidenceReviewLedgerAPI() {
     await mf.dispose();
   }
 }
-\nasync function testOriginAndSecurityHeaders() {
+
+async function testOriginAndSecurityHeaders() {
   const { mf } = await createWorker(migrations.length);
   try {
     const rejected = await mf.dispatchFetch("http://localhost/health", {
