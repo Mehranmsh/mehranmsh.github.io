@@ -17,6 +17,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0008_intelligence_capability_approval_ledger.sql",
     ROOT / "migrations" / "0009_intelligence_findings_schema.sql",
     ROOT / "migrations" / "0010_intelligence_finding_review_ledger.sql",
+    ROOT / "migrations" / "0011_intelligence_evidence_correlation_reviews.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -53,6 +54,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "intelligence_findings",
             "intelligence_finding_evidence",
             "intelligence_finding_reviews",
+            "intelligence_evidence_correlation_reviews",
         }.issubset(tables))
         memory_columns = {row[1] for row in self.db.execute("PRAGMA table_info(intelligence_owner_memory)")}
         self.assertTrue({"memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"}.issubset(memory_columns))
