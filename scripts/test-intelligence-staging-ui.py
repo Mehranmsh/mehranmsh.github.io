@@ -290,6 +290,32 @@ assert 'findingsElement(' in planner_function and 'document.createElement("detai
 assert "loadRemediationPlans()" in refresh_block, "Remediation plans must load automatically after owner authentication."
 
 
+# Evidence decision support dashboard contract: private owner prompts only.
+for marker in [
+    'id="evidenceDecisionSupportPanel"',
+    'id="refreshEvidenceDecisionSupportBtn"',
+    'id="evidenceDecisionSupportModule"',
+    'id="evidenceDecisionSupportSummary"',
+    'id="evidenceDecisionSupportList"',
+    'async function loadEvidenceDecisionSupport()',
+    'request("/intelligence/findings/evidence-decision-support"+suffix)',
+    'item.recommendation',
+    'item.priorOwnerOutcome',
+    'data.decisionMade',
+    'data.executionEnabled',
+    'loadEvidenceDecisionSupport()',
+    'refreshEvidenceDecisionSupportBtn',
+    'Owner decision required: ',
+]:
+    assert marker in page, f"Evidence decision support dashboard missing safety or behavior marker: {marker}"
+
+decision_function = page.split("async function loadEvidenceDecisionSupport()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in decision_function, f"Evidence decision support UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in decision_function and '.append(' in decision_function
+assert "loadEvidenceDecisionSupport()" in refresh_block, "Decision support must load after owner authentication."
+
+
 # Dependency impact dashboard contract: authenticated, read-only, and explicitly provisional.
 for marker in [
     'id="dependencyImpactPanel"',
