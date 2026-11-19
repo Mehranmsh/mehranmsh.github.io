@@ -896,8 +896,9 @@ async function handle(request, env) {
 
   if (path === "/intelligence/findings/priority-action-reviews" && method === "POST") {
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => !["actionKey", "outcome", "reason"].includes(key)) ||
+    if (!body || Object.keys(body).some(key => !["actionKey", "moduleId", "outcome", "reason"].includes(key)) ||
         typeof body.actionKey !== "string" || !/^[0-9a-f]{64}$/.test(body.actionKey) ||
+        typeof body.moduleId !== "string" || !COMPANY_MODULES.includes(body.moduleId) ||
         !PRIORITY_ACTION_REVIEW_OUTCOMES.includes(body.outcome) ||
         typeof body.reason !== "string" || body.reason.length > 1000 ||
         !clean(body.reason, 1000) || clean(body.reason, 1000).length !== body.reason.trim().length) {
@@ -917,11 +918,11 @@ async function handle(request, env) {
         FROM intelligence_findings f
         LEFT JOIN intelligence_finding_evidence e
           ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
-        WHERE f.owner_uid = ?
+        WHERE f.owner_uid = ? AND f.module_id = ?
         GROUP BY f.id
         ORDER BY f.updated_at DESC, f.id DESC
         LIMIT 500
-      `).bind(owner.uid).all();
+      `).bind(owner.uid, body.moduleId).all();
       const rows = result.results || [];
       if (rows.length >= 500) {
         return fail("The current candidate set may be truncated. Narrow the action-plan filter before reviewing.", 409);
