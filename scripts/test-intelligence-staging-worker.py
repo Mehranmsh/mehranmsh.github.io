@@ -92,6 +92,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'owner_memory_disputed',
             'owner_memory_archived',
             'owner_memory_restored',
+            'hasOwnProperty.call(body, "action")',
+            '!["confirm", "dispute", "unverify", "archive", "restore"].includes(action)',
             'sourceType === "knowledge_record" && !uuid(sourceRef)',
             'reviewStatus: "unreviewed"',
             'assessment: "owner_review_state_only"',
