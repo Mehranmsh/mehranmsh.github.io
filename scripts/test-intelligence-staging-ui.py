@@ -221,3 +221,29 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in coverage_function, f"Assessment coverage must remain read-only and avoid HTML injection: {forbidden}"
 assert 'createElement' in coverage_function and 'findingsElement(' in coverage_function
 assert "loadAssessmentCoverage()" in refresh_block, "Coverage must load automatically after owner authentication."
+
+
+# Finding priority dashboard contract: read-only deterministic metadata triage.
+for marker in [
+    'id="findingPriorityPanel"',
+    'id="refreshFindingPrioritiesBtn"',
+    'id="findingPrioritySafetyNotice"',
+    'id="findingPrioritySummary"',
+    'id="findingPriorityList"',
+    'async function loadFindingPriorities()',
+    'request("/intelligence/findings/priorities?limit=25")',
+    'item.priorityScore',
+    'item.priorityBand',
+    'item.priorityReasons',
+    'data.candidateSetBounded',
+    'deterministic_metadata_v1',
+    'loadFindingPriorities()',
+    'refreshFindingPrioritiesBtn',
+]:
+    assert marker in page, f"Finding priority dashboard missing safety or behavior marker: {marker}"
+
+priority_function = page.split("async function loadFindingPriorities()", 1)[1].split("async function loadOverview()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in priority_function, f"Finding priority UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in priority_function and '.append(card)' in priority_function
+assert "loadFindingPriorities()" in refresh_block, "Priority triage must load automatically after owner authentication."
