@@ -343,7 +343,7 @@ async function handle(request, env) {
     return response({ success: true, id });
   }
 
-  const memoryDeleteMatch = path.match(/^\\/intelligence\\/memory\\/([0-9a-f-]{36})$/i);
+  const memoryDeleteMatch = path.match(/^\/intelligence\/memory\/([0-9a-f-]{36})$/i);
   if (memoryDeleteMatch && method === "DELETE") {
     const id = memoryDeleteMatch[1];
     try {
