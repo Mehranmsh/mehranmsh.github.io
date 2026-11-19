@@ -47,6 +47,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('INSERT INTO intelligence_staging_audit', self.source)
         self.assertIn('WHERE EXISTS (', self.source)
         self.assertIn('knowledge_relation_', self.source)
+        self.assertIn('{ confirm: "knowledge_relation_confirmed", dismiss: "knowledge_relation_dismissed", resolve: "knowledge_relation_resolved" }', self.source)
         self.assertIn('approval_revoked', self.source)
 
     def test_no_executor_scheduler_or_production_binding(self):
