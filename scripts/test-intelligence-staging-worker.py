@@ -792,7 +792,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('key:"gap",label:"Module test strategy"', self.index_html)
         self.assertIn('Seven bounded GET reports per refresh', self.index_html)
         self.assertIn('INTEL_COMPANY_MODULES', self.index_html)
-        self.assertIn('No recorded finding (not a pass)', self.index_html)
+        self.assertIn('with no recorded finding (not a pass)', self.index_html)
         self.assertIn('not a readiness certification, security verdict, or health score', self.index_html)
         start = self.index_html.index('const INTEL_COMPANY_MODULES=')
         end = self.index_html.index('async function loadProjects()', start)
