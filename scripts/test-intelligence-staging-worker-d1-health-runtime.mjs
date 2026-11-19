@@ -2647,3 +2647,86 @@ async function testOriginSerializationEdgeCasesFailClosed() {
 }
 
 await testOriginSerializationEdgeCasesFailClosed();
+
+
+async function testMissingOriginDoesNotBypassAuthentication() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const sessionId = "session-origin-absent-auth-001";
+  const resourceId = "33333333-3333-4333-8333-333333333333";
+  const protectedRequests = [
+    ["GET", "/session"],
+    ["GET", "/intelligence/capabilities"],
+    ["GET", "/intelligence/capability-approvals"],
+    ["POST", "/intelligence/capability-approvals"],
+    ["POST", "/intelligence/capabilities/evaluate"],
+    ["GET", "/intelligence/tasks"],
+    ["POST", "/intelligence/tasks"],
+    ["GET", "/intelligence/memory"],
+    ["POST", "/intelligence/memory"],
+    ["GET", "/intelligence/memory/review-queue"],
+    ["PUT", `/intelligence/memory/${resourceId}`],
+    ["DELETE", `/intelligence/memory/${resourceId}`],
+    ["GET", "/intelligence/knowledge"],
+    ["POST", "/intelligence/knowledge"],
+    ["GET", "/intelligence/knowledge/relations"],
+    ["POST", "/intelligence/knowledge/relations"],
+    ["GET", "/intelligence/approvals"],
+    ["POST", "/intelligence/approvals"],
+    ["DELETE", `/intelligence/approvals/${resourceId}`],
+  ];
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind(sessionId, tokenHash(token), ownerUid, now, now + 3600).run();
+
+    const tables = await db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'intelligence_%' ORDER BY name"
+    ).all();
+    const snapshot = async () => {
+      const rows = [];
+      for (const { name } of tables.results || []) {
+        const safeName = String(name).replace(/"/g, '""');
+        const result = await db.prepare(`SELECT * FROM "${safeName}" ORDER BY rowid`).all();
+        rows.push([name, result.results || []]);
+      }
+      return rows;
+    };
+    const before = await snapshot();
+
+    for (const [method, path] of protectedRequests) {
+      const headers = {};
+      const init = { method, headers };
+      if (["POST", "PUT"].includes(method)) {
+        headers["Content-Type"] = "application/json";
+        init.body = JSON.stringify({});
+      }
+      const response = await mf.dispatchFetch(`http://localhost${path}`, init);
+      assert.equal(response.status, 401,
+        `missing Origin must not bypass authentication for ${method} ${path}`);
+    }
+
+    const after = await snapshot();
+    assert.deepEqual(after, before,
+      "unauthenticated requests without Origin must not mutate any Intelligence staging table");
+
+    const authenticated = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(authenticated.status, 200,
+      "a valid bearer session from a non-browser client without Origin must remain usable");
+
+    const session = await db.prepare(
+      "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
+    ).bind(sessionId).first();
+    assert.equal(session.revoked_at, null,
+      "missing-Origin authentication checks must not revoke the session");
+    console.log(`PASS: missing-Origin requests cannot bypass auth across ${protectedRequests.length} protected routes; valid bearer access remains available`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testMissingOriginDoesNotBypassAuthentication();
