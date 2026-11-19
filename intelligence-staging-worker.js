@@ -462,6 +462,9 @@ async function handle(request, env) {
   }
 
   if (path === "/intelligence/approvals" && method === "GET") {
+    const now = Math.floor(Date.now() / 1000);
+    await env.DB.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?")
+      .bind(owner.uid, now).run();
     const rows = await env.DB.prepare(`
       SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,
              issued_at,expires_at,revoked_at,consumed_at,consumed_by
