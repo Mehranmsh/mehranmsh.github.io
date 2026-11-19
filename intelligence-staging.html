@@ -21,6 +21,12 @@
  <div id="authStatus" class="notice" aria-live="polite">No staging session.</div>
 </section>
 <div id="workspace" class="hidden">
+ <section class="panel" id="companyAssessmentPlanPanel">
+  <h2>Assessment blueprint</h2>
+  <div class="muted small">Evidence requirements for the selected module. This creates no finding and runs no scan.</div>
+  <div id="companyAssessmentPlanStatus" class="notice" aria-live="polite">Choose a module's assessment blueprint.</div>
+  <div id="companyAssessmentPlanList" class="grid"></div>
+ </section>
  <section class="panel" id="companyModuleRegistryPanel">
   <div class="row"><div><h2>Company module registry</h2><div class="muted small">Owner-declared MEHRAN MSH architecture. Registry only, not a live security or deployment scan.</div></div><button id="refreshCompanyModulesBtn" class="secondary" type="button">Refresh registry</button></div>
   <div id="companyModulesStatus" class="notice" aria-live="polite">Company registry not loaded.</div>
@@ -218,6 +224,22 @@ async function loadOverview(){
   message("overviewStatus","Updated "+time+". Staging-only operational counts; no actions were executed.","good");
  }catch(error){message("overviewStatus",error.message,"bad")}
 }
+async function loadCompanyAssessmentBlueprint(moduleId){
+ message("companyAssessmentPlanStatus","Loading evidence checklist for "+moduleId+"...");
+ $("companyAssessmentPlanList").replaceChildren();
+ try{
+  const data=await request("/intelligence/company/assessment-template?moduleId="+encodeURIComponent(moduleId));
+  for(const item of data.checks||[]){
+   const card=document.createElement("article");card.className="card";
+   const heading=document.createElement("strong");heading.textContent=String(item.title||item.id);
+   const objective=document.createElement("p");objective.textContent=String(item.objective||"");
+   const evidence=document.createElement("div");evidence.className="small muted";evidence.textContent="Evidence required: "+String(item.evidenceRequired||"");
+   const status=document.createElement("div");status.className="small muted";status.textContent="Status: "+String(item.status||"not_run");
+   card.append(heading,objective,evidence,status);$("companyAssessmentPlanList").append(card);
+  }
+  message("companyAssessmentPlanStatus",String(data.checks?.length||0)+" checks in blueprint. No checks have run; missing evidence remains unknown.","good");
+ }catch(error){message("companyAssessmentPlanStatus",error.message,"bad")}
+}
 async function loadCompanyModules(){
  message("companyModulesStatus","Loading owner-declared company module registry...");
  $("companyModulesList").replaceChildren();
@@ -229,13 +251,14 @@ async function loadCompanyModules(){
    const meta=document.createElement("div");meta.className="small muted";meta.textContent=String(item.area||"")+" · "+String(item.lifecycle||"")+" · "+String(item.readiness||"");
    const purpose=document.createElement("p");purpose.textContent=String(item.purpose||"");
    const checks=document.createElement("div");checks.className="small muted";checks.textContent="Assessment checks: "+(Array.isArray(item.checks)?item.checks.join(", "):"not defined");
-   card.append(heading,meta,purpose,checks);$("companyModulesList").append(card);
+   const assess=document.createElement("button");assess.type="button";assess.className="secondary";assess.textContent="View assessment blueprint";assess.dataset.assessModule=String(item.id||"");
+   card.append(heading,meta,purpose,checks,assess);$("companyModulesList").append(card);
   }
   message("companyModulesStatus",String(data.modules?.length||0)+" modules registered. Readiness remains not assessed until evidence-based checks run.","good");
  }catch(error){message("companyModulesStatus",error.message,"bad")}
 }
 async function refreshAll(){await Promise.all([loadCompanyModules(),loadOverview(),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
-$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>
