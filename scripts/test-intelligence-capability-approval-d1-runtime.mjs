@@ -38,7 +38,8 @@ async function createDatabase() {
   const db = await mf.getD1Database("DB");
   for (const name of migrationNames) {
     const sql = await readFile(new URL(`migrations/${name}.sql`, ROOT), "utf8");
-    await db.exec(sql);
+    // The baseline file may contain only SQL comments; D1 exec rejects empty scripts.
+    if (sql.replace(/^\\s*--.*$/gm, "").trim()) await db.exec(sql);
   }
   await db.exec(`
     CREATE TABLE protected_operations (
