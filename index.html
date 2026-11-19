@@ -2708,29 +2708,46 @@ async function loadIntelCompanyReadiness(){
  if(button)button.disabled=true;
  status.textContent="Loading owner-scoped assessment sources independently...";
  status.className="notice";
- const sources=[
+ const fixed=[
   {key:"coverage",label:"Assessment coverage",path:"/intelligence/company/assessment-coverage",note:"Inventory and recorded findings only; no check is passed by absence."},
   {key:"priorities",label:"Finding priorities",path:"/intelligence/findings/priorities?limit=100",note:"Deterministic metadata triage, not a risk verdict."},
   {key:"remediation",label:"Remediation plans",path:"/intelligence/findings/remediation-plans?limit=100",note:"Advisory suggestions only; no task or change is created."},
-  {key:"dependencies",label:"Dependency and impact",path:"/intelligence/company/dependency-impact",note:"Dependency relationships remain provisional unless independently verified."},
-  {key:"gaps",label:"Gap and test strategy",path:"/intelligence/company/gap-test-strategy",note:"Unrecorded tests are not assumed failed or missing."},
   {key:"decisions",label:"Evidence decision support",path:"/intelligence/findings/evidence-decision-support",note:"Recommendations are not owner decisions or factual verdicts."},
   {key:"integrity",label:"Decision snapshot integrity",path:"/intelligence/findings/evidence-decision-reviews/integrity?limit=100",note:"Checks stored snapshot metadata bytes and ownership only."}
  ];
  try{
+  const moduleData=await api("/intelligence/company/modules");
+  const modules=Array.isArray(moduleData.modules)?moduleData.modules:[];
+  const moduleSources=modules.flatMap(module=>[
+   {key:"dependencies",module:module.id,label:"Dependency impact · "+module.name,path:"/intelligence/company/dependency-impact?module="+encodeURIComponent(module.id),note:"Provisional declared dependency analysis for this module, not runtime proof."},
+   {key:"gaps",module:module.id,label:"Gap and test strategy · "+module.name,path:"/intelligence/company/gap-test-strategy?module="+encodeURIComponent(module.id),note:"Blueprint-based test recommendations; unrecorded tests are not assumed failed."}
+  ]);
+  const sources=[...fixed,...moduleSources];
   const settled=await Promise.allSettled(sources.map(source=>api(source.path)));
-  const results=settled.map((result,index)=>{
+  const outcomes=settled.map((result,index)=>{
    const source=sources[index];
    if(result.status!=="fulfilled")return {...source,ok:false,error:result.reason?.message||"Request failed"};
    const data=result.value||{};
    if(data.scope&&data.scope!=="authenticated_owner_staging_only")return {...source,ok:false,error:"Unexpected response scope"};
    if(data.success===false)return {...source,ok:false,error:data.error||"Source reported failure"};
-   return {...source,ok:true,detail:intelReadinessDetail(source.key,data)};
+   return {...source,ok:true,data,detail:intelReadinessDetail(source.key,data)};
   });
-  renderIntelCompanyReadiness(results);
-  const available=results.filter(item=>item.ok).length;
-  status.textContent=available+" of "+results.length+" assessment sources responded. Each source is shown independently; unavailable data is not interpreted as a pass.";
-  status.className=available===results.length?"notice success":"notice warn";
+  const grouped=fixed.map(source=>{
+   const item=outcomes.find(x=>x.key===source.key);
+   return item||{...source,ok:false,error:"No result"};
+  });
+  for(const key of ["dependencies","gaps"]){
+   const items=outcomes.filter(x=>x.key===key);
+   const ok=items.filter(x=>x.ok);
+   grouped.push({key,label:key==="dependencies"?"Dependency and impact":"Gap and test strategy",ok:items.length>0&&ok.length===items.length,
+    detail:ok.length+" / "+items.length+" modules responded",
+    error:items.length===0?"No company modules were returned":(items.length-ok.length)+" module requests unavailable",
+    note:key==="dependencies"?"Module-level dependency maps are provisional and are not runtime dependency proof.":"Module-level gap/test strategies are advisory; no recorded test is not a failed test."});
+  }
+  renderIntelCompanyReadiness(grouped);
+  const available=grouped.filter(item=>item.ok).length;
+  status.textContent=available+" of "+grouped.length+" assessment categories fully available. Module-level results are aggregated across "+modules.length+" declared modules; partial failures remain visible.";
+  status.className=available===grouped.length?"notice success":"notice warn";
  }catch(error){
   status.textContent="Company assessment overview unavailable: "+error.message;
   status.className="notice warn";
