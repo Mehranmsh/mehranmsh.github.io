@@ -841,8 +841,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             "/intelligence/company/assessment-coverage",
             "/intelligence/findings/priorities?limit=100",
             "/intelligence/findings/remediation-plans?limit=100",
-            "/intelligence/company/dependency-impact",
-            "/intelligence/company/gap-test-strategy",
+            "/intelligence/company/modules",
+            "/intelligence/company/dependency-impact?module=",
+            "/intelligence/company/gap-test-strategy?module=",
             "/intelligence/findings/evidence-decision-support",
             "/intelligence/findings/evidence-decision-reviews/integrity?limit=100",
         ]:
