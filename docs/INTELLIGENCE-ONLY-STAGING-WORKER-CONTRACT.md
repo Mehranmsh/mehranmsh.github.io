@@ -50,3 +50,12 @@ Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revoca
 ## Current status
 
 The isolated Worker source and static safety tests are committed to PR33. The staging Wrangler config, live D1 migration 0003, Cloudflare binding, live Pi verification, and deployment are not done. The staging database ID is still required before the binding can be safely finalized.
+
+
+## Owner memory routes
+
+- `GET /intelligence/memory`: list only the authenticated owner's records.
+- `POST /intelligence/memory`: create a bounded memory record.
+- `PUT /intelligence/memory/:id`: update only an owner-owned record.
+
+Memory writes are audited atomically with the data mutation. No cross-owner or system-seed memory mutation route is exposed.
