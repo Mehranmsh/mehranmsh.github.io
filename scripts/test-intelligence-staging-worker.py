@@ -585,6 +585,30 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         """
         subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, check=True)
 
+    def test_evidence_drift_api_is_owner_scoped_bounded_and_read_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-drift" && method === "GET")')
+        for fragment in [
+            'new Set(["findingId"])',
+            'WHERE id = ? AND owner_uid = ? LIMIT 1',
+            '.bind(findingId, owner.uid).first()',
+            'WHERE finding_id = ? AND owner_uid = ?',
+            'ORDER BY reviewed_at DESC, id DESC',
+            'latestReview.evidence_snapshot_sha256',
+            'buildEvidenceDrift(baseline, evidenceRows.results || [])',
+            'assessment: "metadata_snapshot_drift_only"',
+            'evidenceContentVerified: false',
+            'sourceReachabilityChecked: false',
+            'checkPassed: false',
+            'isRiskVerdict: false',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+        helper = ROOT / "intelligence-evidence-drift.mjs"
+        self.assertTrue(helper.exists())
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
