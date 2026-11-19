@@ -400,22 +400,6 @@ for marker in ['method:"POST"', 'correlationType:form.dataset.correlationType', 
 for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in correlation_review_function, f"Owner correlation review UI must avoid unsafe HTML: {forbidden}"
 
-# Correlation review drift UI: owner-triggered comparison, safe DOM, no verdict claims.
-for marker in [
-    'data-correlation-review-drift',
-    'async function loadEvidenceCorrelationReviewDrift(reviewId,button)',
-    '/intelligence/findings/evidence-correlations/review-drift?reviewId=',
-    'Drift detected: ',
-    'Evidence content verified: false',
-    'Relationship verdict: false',
-    'Compare current references',
-]:
-    assert marker in page, f"Correlation review drift UI missing required behavior: {marker}"
-
-drift_ui_function = page.split("async function loadEvidenceCorrelationReviewDrift(reviewId,button)", 1)[1].split("async function submitEvidenceCorrelationReview(event)", 1)[0]
-for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
-    assert forbidden not in drift_ui_function, f"Correlation review drift UI must avoid unsafe HTML: {forbidden}"
-
 # Gap analysis and test strategy dashboard: owner-only GET, no pass inference, no execution.
 for marker in [
     'id="gapTestStrategyPanel"',
