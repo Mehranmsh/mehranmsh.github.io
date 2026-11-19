@@ -33,7 +33,7 @@ test("mutations require a server-verified owner approval", () => {
 
 test("approval must match owner, capability, scope and expiry", () => {
   const request = { ...base, capability: "memory.delete" };
-  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", expiresAt: 2000, revoked: false };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
   assert.equal(evaluateCapabilityRequest({ ...request, approval: good }, 1000).decision, "eligible_after_owner_approval");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, ownerId: "other" } }, 1000).decision, "deny");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: 1000 } }, 1000).reason, "approval_invalid_expired_or_out_of_scope");
@@ -42,7 +42,7 @@ test("approval must match owner, capability, scope and expiry", () => {
 
 test("approval metadata must be explicit safe integers and an explicit active state", () => {
   const request = { ...base, capability: "memory.delete" };
-  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", expiresAt: 2000, revoked: false };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, revoked: undefined } }, 1000).decision, "deny");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: 2000.5 } }, 1000).decision, "deny");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: Number.MAX_SAFE_INTEGER + 1 } }, 1000).decision, "deny");
@@ -56,4 +56,21 @@ test("policy inventory keeps execution and privilege escalation forbidden", () =
   assert.equal(items["task.execute"].tier, "forbidden");
   assert.equal(items["credential.read"].tier, "forbidden");
   assert.equal(items["permission.escalate"].tier, "forbidden");
+});
+
+test("approval must still be issued and have no terminal ledger metadata", () => {
+  const request = { ...base, capability: "memory.delete" };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
+  for (const approval of [
+    { ...good, status: "revoked" },
+    { ...good, status: "expired" },
+    { ...good, status: "consumed" },
+    { ...good, status: undefined },
+    { ...good, revokedAt: 1500 },
+    { ...good, consumedAt: 1500, consumedBy: "executor" },
+    { ...good, consumedBy: "executor" }
+  ]) {
+    assert.equal(evaluateCapabilityRequest({ ...request, approval }, 1000).decision, "deny");
+  }
+  assert.equal(evaluateCapabilityRequest({ ...request, approval: good }, 1000).decision, "eligible_after_owner_approval");
 });

@@ -42,7 +42,7 @@ Every future executor must independently enforce:
 2. Exact capability allowlist match. Unknown capabilities are denied.
 3. Exact resource scope. Staging authority never implies production authority.
 4. Approval ledger lookup on the server, not a client-supplied `approved: true` flag.
-5. Approval owner, capability, scope, expiry, and revocation checks.
+5. Approval owner, capability, scope, expiry, revocation, and active ledger-state checks (`status = issued`, no terminal timestamps or consumer).
 6. Least-privilege credentials limited to the one approved operation.
 7. Bounded inputs, idempotency where possible, audit before/after, and fail-closed error handling.
 8. No self-approval, no privilege escalation, and no modification of the policy by the agent itself.
