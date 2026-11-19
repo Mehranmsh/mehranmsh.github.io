@@ -37,6 +37,18 @@
   <div id="overviewStatus" class="notice" aria-live="polite">Overview not loaded.</div>
   <div id="overviewMetrics" class="grid" aria-live="polite"></div>
  </section>
+ <section class="panel" id="findingsPanel">
+  <div class="row"><div><h2>Recorded findings</h2><div class="muted small">Owner-only findings from evidence-based assessments. Records only, not a live scan or security certification.</div></div><button id="refreshFindingsBtn" class="secondary" type="button">Refresh findings</button></div>
+  <div class="grid">
+   <div><label for="findingsModuleFilter">Company module</label><select id="findingsModuleFilter"><option value="">All modules</option><option value="music">Music</option><option value="ai">AI</option><option value="social">Social</option><option value="instruments">Instruments</option><option value="robotics">Robotics</option><option value="security">Security</option><option value="intelligence">Intelligence</option><option value="logistics">Logistics</option><option value="customer-experience">Customer Experience</option><option value="labs">Labs</option><option value="governance">Governance</option><option value="data">Data</option><option value="robot-operations">Robot Operations</option></select></div>
+   <div><label for="findingsSeverityFilter">Severity</label><select id="findingsSeverityFilter"><option value="">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Info</option><option value="unrated">Unrated</option></select></div>
+   <div><label for="findingsStatusFilter">Status</label><select id="findingsStatusFilter"><option value="">All statuses</option><option value="open">Open</option><option value="accepted">Accepted</option><option value="mitigated">Mitigated</option><option value="resolved">Resolved</option><option value="false_positive">False positive</option></select></div>
+  </div>
+  <div class="notice warn" id="findingsSafetyNotice">Read-only view. Evidence counts indicate attached references only, not validated evidence or a passed check. Execution enabled: false.</div>
+  <div id="findingsStatus" class="notice" aria-live="polite">Findings have not been loaded.</div>
+  <div id="findingsList" class="grid" aria-live="polite"></div>
+  <div class="actions"><button id="loadMoreFindingsBtn" class="secondary" type="button" disabled>Load more</button></div>
+ </section>
  <section class="panel">
   <div class="row"><div><h2>Knowledge review queue</h2><div class="muted small">Deterministic metadata triage, not an automated fact-checker.</div></div><button id="refreshQueueBtn" class="secondary">Refresh queue</button></div>
   <div id="queueStatus" class="notice">Queue not loaded.</div><div id="queueList" class="grid"></div>
@@ -195,6 +207,55 @@ async function assessCapability(capability,approvalId){
   message("capabilityAssessmentStatus","Decision: "+assessment.decision+" · Reason: "+assessment.reason+" · Assessment only: "+String(result.assessmentOnly)+" · Operation performed: "+String(result.operationPerformed)+" · Approval consumed: "+String(result.approvalConsumed)+" · Execution enabled: "+String(assessment.executionEnabled),"good");
  }catch(error){message("capabilityAssessmentStatus",error.message,"bad")}
 }
+let findingsOffset=0,findingsHasMore=false,findingsLoading=false;
+function findingsElement(tag,className,text){
+ const el=document.createElement(tag);
+ if(className)el.className=className;
+ if(text!==undefined)el.textContent=String(text);
+ return el;
+}
+async function loadFindings(reset=true){
+ if(findingsLoading)return;
+ if(reset)findingsOffset=0;
+ findingsLoading=true;
+ const refresh=$("refreshFindingsBtn"),more=$("loadMoreFindingsBtn");
+ refresh.disabled=true;more.disabled=true;
+ message("findingsStatus","Loading owner-scoped recorded findings...");
+ try{
+  const params=new URLSearchParams({limit:"25",offset:String(findingsOffset)});
+  const moduleId=$("findingsModuleFilter").value,severity=$("findingsSeverityFilter").value,status=$("findingsStatusFilter").value;
+  if(moduleId)params.set("module",moduleId);
+  if(severity)params.set("severity",severity);
+  if(status)params.set("status",status);
+  const data=await request("/intelligence/findings?"+params.toString());
+  if(reset)$("findingsList").replaceChildren();
+  for(const item of data.items||[]){
+   const card=findingsElement("article","card");
+   const top=findingsElement("div","row");
+   top.append(findingsElement("span","tag",String(item.severity||"unrated").toUpperCase()));
+   top.append(findingsElement("span","small muted",String(item.status||"open").replaceAll("_"," ")));
+   const title=findingsElement("h3","",item.title||"Untitled finding");
+   const module=findingsElement("div","small muted","Module: "+String(item.module_id||"unknown")+" · Check: "+String(item.check_id||"unknown")+" · Blueprint: "+String(item.blueprint_version||"unknown"));
+   const description=findingsElement("p","",item.description||"No description recorded.");
+   const evidence=findingsElement("div","small muted","Evidence references: "+Number(item.evidence_count||0)+" · Evidence state: "+String(item.evidence_state||"unknown"));
+   const recommendation=findingsElement("p","small",item.recommendation?"Recommendation: "+item.recommendation:"No recommendation recorded.");
+   const reason=findingsElement("div","small muted",item.status_reason?"Status reason: "+item.status_reason:"No status reason recorded.");
+   const dates=findingsElement("div","small muted","Updated: "+String(item.updated_at||"unknown")+(item.review_due_at?" · Review due: "+item.review_due_at:""));
+   card.append(top,title,module,description,evidence,recommendation,reason,dates);
+   $("findingsList").append(card);
+  }
+  findingsHasMore=!!data.hasMore;
+  findingsOffset=Number(data.nextOffset??(findingsOffset+(data.items||[]).length));
+  more.disabled=!findingsHasMore;
+  const count=(data.items||[]).length;
+  message("findingsStatus",count+" findings loaded. Scope: "+String(data.scope)+" · Assessment: "+String(data.assessment)+" · Execution enabled: "+String(data.executionEnabled)+". "+(data.limitations||[]).join(" "),"good");
+ }catch(error){
+  message("findingsStatus",error.message,"bad");
+ }finally{
+  findingsLoading=false;refresh.disabled=false;
+  more.disabled=!findingsHasMore||findingsLoading;
+ }
+}
 async function loadOverview(){
  message("overviewStatus","Loading owner-only staging metrics...");
  $("overviewMetrics").replaceChildren();
@@ -257,8 +318,8 @@ async function loadCompanyModules(){
   message("companyModulesStatus",String(data.modules?.length||0)+" modules registered. Readiness remains not assessed until evidence-based checks run.","good");
  }catch(error){message("companyModulesStatus",error.message,"bad")}
 }
-async function refreshAll(){await Promise.all([loadCompanyModules(),loadOverview(),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
-$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+async function refreshAll(){await Promise.all([loadCompanyModules(),loadOverview(),loadFindings(true),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
+$("refreshFindingsBtn").addEventListener("click",()=>loadFindings(true));$("loadMoreFindingsBtn").addEventListener("click",()=>loadFindings(false));["findingsModuleFilter","findingsSeverityFilter","findingsStatusFilter"].forEach(id=>$(id).addEventListener("change",()=>loadFindings(true)));$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>

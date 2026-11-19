@@ -158,3 +158,40 @@ assert 'companyAssessmentPlanPanel' in page
 assert 'loadCompanyAssessmentBlueprint' in page
 assert 'assessment-template?moduleId=' in page
 assert 'data-assess-module' in page
+
+
+# Findings dashboard contract: authenticated GET only, bounded filters, safe text rendering.
+for marker in [
+    'id="findingsPanel"',
+    'id="findingsModuleFilter"',
+    'id="findingsSeverityFilter"',
+    'id="findingsStatusFilter"',
+    'id="refreshFindingsBtn"',
+    'id="loadMoreFindingsBtn"',
+    'id="findingsSafetyNotice"',
+    'async function loadFindings(reset=true)',
+    'request("/intelligence/findings?"+params.toString())',
+    'params.set("module",moduleId)',
+    'params.set("severity",severity)',
+    'params.set("status",status)',
+    'new URLSearchParams({limit:"25",offset:String(findingsOffset)})',
+    'findingsOffset=Number(data.nextOffset',
+    'findingsHasMore=!!data.hasMore',
+    'findingsElement("h3","",item.title||"Untitled finding")',
+    'findingsElement("p","",item.description||"No description recorded.")',
+    'findingsElement("p","small",item.recommendation?',
+    'card.append(top,title,module,description,evidence,recommendation,reason,dates)',
+    'Execution enabled: false.',
+    'Assessment: "+String(data.assessment)',
+]:
+    assert marker in page, f"Findings dashboard missing required safe/read-only behavior: {marker}"
+
+findings_function = page.split("async function loadFindings(reset=true)", 1)[1].split("async function loadOverview()", 1)[0]
+assert 'method:"GET"' not in findings_function or 'request("/intelligence/findings?' in findings_function
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in findings_function, f"Findings dashboard must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsList' in findings_function and '.append(card)' in findings_function
+assert 'textContent' in page or 'findingsElement' in page
+
+refresh_block = page.split("async function refreshAll(){", 1)[1].split("}", 1)[0]
+assert "loadFindings(true)" in refresh_block, "Findings must load automatically after owner authentication."
