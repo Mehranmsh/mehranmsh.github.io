@@ -2877,3 +2877,59 @@ async function testCorsPreflightRequestHeaderAllowlist() {
 }
 
 await testCorsPreflightRequestHeaderAllowlist();
+
+
+async function testCorsPreflightMethodAllowlist() {
+  const { mf } = await createWorker(migrations.length);
+  const paths = [
+    "/intelligence/capabilities",
+    "/intelligence/capability-approvals",
+    "/intelligence/capabilities/evaluate",
+    "/intelligence/tasks",
+    "/intelligence/memory",
+    "/intelligence/memory/review-queue",
+    "/intelligence/knowledge",
+    "/intelligence/knowledge/review-queue",
+    "/intelligence/knowledge/evaluations",
+    "/intelligence/knowledge/relations",
+    "/intelligence/approvals",
+  ];
+  const expectedMethods = "GET, POST, PUT, DELETE, OPTIONS";
+  const disallowedMethods = ["PATCH", "TRACE", "CONNECT"];
+  try {
+    for (const path of paths) {
+      const allowed = await mf.dispatchFetch(`http://localhost${path}`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://mehranmsh.github.io",
+          "Access-Control-Request-Method": "POST",
+        },
+      });
+      assert.equal(allowed.status, 200,
+        `trusted preflight must succeed for an allowed method at ${path}`);
+      assert.equal(allowed.headers.get("Access-Control-Allow-Methods"), expectedMethods,
+        "preflight must advertise the fixed method allowlist, not a client-provided value");
+      for (const method of disallowedMethods) {
+        const rejectedByPolicy = await mf.dispatchFetch(`http://localhost${path}`, {
+          method: "OPTIONS",
+          headers: {
+            Origin: "https://mehranmsh.github.io",
+            "Access-Control-Request-Method": method,
+          },
+        });
+        assert.equal(rejectedByPolicy.status, 200,
+          `preflight response remains deterministic for requested method ${method} at ${path}`);
+        const advertised = rejectedByPolicy.headers.get("Access-Control-Allow-Methods") || "";
+        assert.equal(advertised, expectedMethods,
+          "disallowed requested methods must never be reflected or added to the CORS method allowlist");
+        assert.doesNotMatch(advertised, new RegExp(`(?:^|,\\s*)${method}(?:\\s*,|$)`, "i"),
+          `CORS allowlist must not authorize ${method}`);
+      }
+    }
+    console.log(`PASS: CORS preflight advertises only the fixed method allowlist across ${paths.length} protected route families`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCorsPreflightMethodAllowlist();
