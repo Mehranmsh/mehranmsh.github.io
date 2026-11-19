@@ -716,7 +716,7 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
       headers,
       body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
     });
-    assert.equal(issued.status, 201);
+    assert.equal(issued.status, 201, `session issuance failed: ${await issued.clone().text()}; Pi identity calls: ${piCalls}`);
     const issuedBody = await issued.json();
     assert.equal(issuedBody.executionEnabled, false);
     assert.equal(issuedBody.status, "issued");
@@ -1055,14 +1055,14 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
   let piCalls = 0;
   let identity = { uid: "staging-owner-test-uid", username: "mehranmsh" };
   const serviceBindings = {
-    PI_IDENTITY: async (request) => {
+    PI_IDENTITY: { fetch: async (request) => {
       piCalls += 1;
       assert.equal(new URL(request.url).href, "https://api.minepi.com/v2/me");
       assert.equal(request.headers.get("Authorization"), "Bearer valid-access-token-123");
       return new Response(JSON.stringify(identity), {
         status: 200, headers: { "Content-Type": "application/json" },
       });
-    },
+    } },
   };
   const { mf, db } = await createWorker(migrations.length, serviceBindings);
   const ownerUid = "staging-owner-test-uid";
@@ -1133,12 +1133,12 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
 
   let rateLimitPiCalls = 0;
   const rateLimitedBindings = {
-    PI_IDENTITY: async () => {
+    PI_IDENTITY: { fetch: async () => {
       rateLimitPiCalls += 1;
       return new Response(JSON.stringify({ uid: "staging-owner-test-uid", username: "mehranmsh" }), {
         status: 200, headers: { "Content-Type": "application/json" },
       });
-    },
+    } },
   };
   const rateLimited = await createWorker(migrations.length, rateLimitedBindings);
   try {
