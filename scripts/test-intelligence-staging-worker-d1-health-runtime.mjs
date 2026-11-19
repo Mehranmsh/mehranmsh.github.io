@@ -124,6 +124,29 @@ async function testSessionVerificationAndRevocation() {
     assert.equal(accepted.status, 200);
     assert.deepEqual(await accepted.json(), { success: true, ownerUid });
 
+    const invalidAuthorizationHeaders = [
+      undefined,
+      "",
+      "Basic " + token,
+      "Bearer",
+      "Bearer ",
+      "Bearer " + "x".repeat(39),
+      "Bearer " + "x".repeat(201),
+    ];
+    for (const authorization of invalidAuthorizationHeaders) {
+      const invalidHeaders = authorization === undefined ? {} : { Authorization: authorization };
+      const invalid = await mf.dispatchFetch("http://localhost/session", { headers: invalidHeaders });
+      assert.equal(invalid.status, 401, "missing, unsupported, empty, undersized, and oversized bearer credentials must be rejected");
+    }
+    const sessionCountAfterInvalidHeaders = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_sessions WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    const sessionAuditAfterInvalidHeaders = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_created'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(sessionCountAfterInvalidHeaders.count), 1, "invalid authorization headers must not alter session rows");
+    assert.equal(Number(sessionAuditAfterInvalidHeaders.count), 0, "invalid authorization headers must not create audit events");
+
     await db.prepare(
       "CREATE TRIGGER reject_session_revoke_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='session_revoked' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
     ).run();
