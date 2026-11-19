@@ -85,12 +85,12 @@ function clean(value, max = 2000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-export async function fetchPiUser(accessToken) {
+export async function fetchPiUser(accessToken, fetchImpl = fetch) {
   if (typeof accessToken !== "string" || accessToken.length < 10 || accessToken.length > 4096) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
-    const result = await fetch(PI_ME_URL, {
+    const result = await fetchImpl(PI_ME_URL, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       redirect: "error",
       signal: controller.signal
@@ -228,7 +228,8 @@ async function handle(request, env) {
     if (!ownerUid) return fail("Staging owner identity is not configured.", 503);
     const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
     if (!await rateLimit(env.DB, `ip:${clientIp}`, "session-auth")) return fail("Authentication rate limit exceeded.", 429);
-    const piUser = await fetchPiUser(body.accessToken);
+    const piFetch = env.PI_IDENTITY?.fetch ? env.PI_IDENTITY.fetch.bind(env.PI_IDENTITY) : fetch;
+    const piUser = await fetchPiUser(body.accessToken, piFetch);
     if (!piUser || piUser.uid !== ownerUid || piUser.username.toLowerCase() !== "mehranmsh") return fail("Pi owner verification failed.", 403);
     if (!await rateLimit(env.DB, ownerUid, "session-create")) return fail("Rate limit exceeded.", 429);
     const tokenBytes = crypto.getRandomValues(new Uint8Array(32));

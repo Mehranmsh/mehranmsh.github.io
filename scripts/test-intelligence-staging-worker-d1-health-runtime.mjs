@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { fetchPiUser } from "../intelligence-staging-worker.js";
+import stagingWorker, { fetchPiUser } from "../intelligence-staging-worker.js";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
@@ -1048,3 +1048,135 @@ async function testKnowledgeRelationReadsAreOwnerScoped() {
 }
 
 await testKnowledgeRelationReadsAreOwnerScoped();
+
+
+async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
+  let piCalls = 0;
+  let identity = { uid: "staging-owner-test-uid", username: "mehranmsh" };
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const env = {
+    DB: db,
+    MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
+    PI_IDENTITY: { fetch: async (input, init = {}) => {
+      piCalls += 1;
+      const requestUrl = typeof input === "string" ? input : input.url;
+      const requestHeaders = new Headers(init.headers || (typeof input === "string" ? undefined : input.headers));
+      assert.equal(new URL(requestUrl).href, "https://api.minepi.com/v2/me");
+      assert.equal(requestHeaders.get("Authorization"), "Bearer valid-access-token-123");
+      return new Response(JSON.stringify(identity), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    } },
+  };
+  const dispatch = (url, init = {}) => stagingWorker.fetch(new Request(url, init), env);
+  try {
+    const issue = () => dispatch("http://localhost/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.27",
+      },
+      body: JSON.stringify({ accessToken: "valid-access-token-123" }),
+    });
+
+    const issued = await issue();
+    assert.equal(issued.status, 201, `session issuance failed: ${await issued.clone().text()}; Pi identity calls: ${piCalls}`);
+    const issuedBody = await issued.json();
+    assert.equal(issuedBody.success, true);
+    assert.equal(typeof issuedBody.token, "string");
+    assert.equal(issuedBody.token.length, 43);
+    assert.equal(issuedBody.expiresAt > Math.floor(Date.now() / 1000), true);
+
+    const session = await db.prepare(
+      "SELECT id,token_hash,owner_uid,created_at,expires_at FROM intelligence_staging_sessions WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.ok(session);
+    assert.equal(session.token_hash, tokenHash(issuedBody.token));
+    assert.notEqual(session.token_hash, issuedBody.token, "only the hash of the issued bearer token may be stored");
+    assert.equal(session.owner_uid, ownerUid);
+
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_created' AND target_id=?"
+    ).bind(ownerUid, session.id).first();
+    assert.equal(Number(audit.count), 1, "session issuance must create exactly one matching audit row");
+
+    const authenticated = await dispatch("http://localhost/session", {
+      headers: { Authorization: "Bearer " + issuedBody.token },
+    });
+    assert.equal(authenticated.status, 200);
+    assert.deepEqual(await authenticated.json(), { success: true, ownerUid });
+
+    await db.prepare(
+      "CREATE TRIGGER reject_session_create_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='session_created' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const auditFailure = await issue();
+    assert.equal(auditFailure.status, 503);
+    const sessionCountAfterFailure = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_sessions WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    const auditCountAfterFailure = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_created'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(sessionCountAfterFailure.count), 1, "session row must roll back when its audit insert fails");
+    assert.equal(Number(auditCountAfterFailure.count), 1, "failed issuance must not leave a success audit");
+    await db.prepare("DROP TRIGGER reject_session_create_audit").run();
+
+    identity = { uid: "different-owner-uid", username: "mehranmsh" };
+    const foreignIdentity = await issue();
+    assert.equal(foreignIdentity.status, 403, "a valid Pi account with a different UID must not receive an owner session");
+    const sessionCountAfterForeign = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_sessions WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(sessionCountAfterForeign.count), 1);
+    assert.equal(piCalls, 3);
+    console.log("PASS: Pi owner session issuance verifies identity, stores only token hashes, audits atomically, and authenticates the issued session");
+  } finally {
+    await mf.dispose();
+  }
+
+  let rateLimitPiCalls = 0;
+  const rateLimited = await createWorker(migrations.length);
+  const rateLimitEnv = {
+    DB: rateLimited.db,
+    MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
+    PI_IDENTITY: { fetch: async () => {
+      rateLimitPiCalls += 1;
+      return new Response(JSON.stringify({ uid: ownerUid, username: "mehranmsh" }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    } },
+  };
+  const rateLimitDispatch = (url, init = {}) => stagingWorker.fetch(new Request(url, init), rateLimitEnv);
+  try {
+    for (let index = 0; index < 30; index += 1) {
+      const allowed = await rateLimitDispatch("http://localhost/session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "198.51.100.28",
+        },
+        body: JSON.stringify({ accessToken: "valid-access-token-123" }),
+      });
+      assert.equal(allowed.status, 201, "the first 30 authentication attempts should be allowed");
+    }
+    const blocked = await rateLimitDispatch("http://localhost/session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "198.51.100.28",
+      },
+      body: JSON.stringify({ accessToken: "valid-access-token-123" }),
+    });
+    assert.equal(blocked.status, 429);
+    assert.deepEqual(await blocked.json(), {
+      success: false,
+      error: "Authentication rate limit exceeded.",
+    });
+    assert.equal(rateLimitPiCalls, 30, "blocked IP attempts must not reach the Pi identity API");
+    console.log("PASS: session authentication IP rate limit blocks request 31 before contacting Pi");
+  } finally {
+    await rateLimited.mf.dispose();
+  }
+}
+await testPiSessionIssuanceEndToEndAndIpRateLimit();
