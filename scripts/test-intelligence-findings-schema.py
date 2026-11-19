@@ -74,6 +74,46 @@ class FindingsSchemaTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.insert_finding(id="finding-c", evidence_state="sufficient", status="pass")
 
+    def test_sufficient_evidence_and_resolution_require_attached_references(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert_finding(evidence_state="sufficient")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.insert_finding(status="resolved", status_reason="Claimed resolved")
+        self.insert_finding()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_findings
+                SET evidence_state='sufficient',updated_at=110
+                WHERE id='finding-a' AND owner_uid='owner-a'
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_findings
+                SET status='resolved',status_reason='No evidence',updated_at=110
+                WHERE id='finding-a' AND owner_uid='owner-a'
+            """)
+        self.db.execute("""
+            INSERT INTO intelligence_finding_evidence
+            (id,finding_id,owner_uid,kind,source_ref,note,created_at)
+            VALUES('evidence-a','finding-a','owner-a','test_run','ci-run-321','Reviewed test result',111)
+        """)
+        self.db.execute("""
+            UPDATE intelligence_findings
+            SET evidence_state='sufficient',updated_at=112
+            WHERE id='finding-a' AND owner_uid='owner-a'
+        """)
+        self.db.execute("""
+            UPDATE intelligence_findings
+            SET status='resolved',status_reason='Owner reviewed current evidence',
+                updated_at=113
+            WHERE id='finding-a' AND owner_uid='owner-a'
+        """)
+        row = self.db.execute("""
+            SELECT evidence_state,status FROM intelligence_findings
+            WHERE id='finding-a' AND owner_uid='owner-a'
+        """).fetchone()
+        self.assertEqual(row, ("sufficient", "resolved"))
+
     def test_owner_scoped_evidence_foreign_key(self):
         self.insert_finding()
         self.db.execute("""
