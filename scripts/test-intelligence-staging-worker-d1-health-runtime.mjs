@@ -3423,6 +3423,9 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       "http://localhost/intelligence/findings/evidence-correlations/reviews",
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201);
+    const afterDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeAudit.count) + 1,
+      "decision insert must append exactly one audit event");
     const result = await created.json();
     assert.equal(result.outcome, "related");
     assert.equal(result.reviewerUid, ownerUid);
@@ -3596,7 +3599,6 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
         "Decision review test finding", "Owner decision workflow runtime fixture", "missing",
         null, null, null, now, now, ownerUid).run();
 
-    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const beforeFinding = await db.prepare("SELECT status,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).first();
     const supportResponse = await mf.dispatchFetch(
@@ -3615,6 +3617,7 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
       outcome: "accepted",
       reason: "I reviewed the recommendation and accept the proposed next step."
     };
+    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const created = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
       { method: "POST", headers, body: JSON.stringify(body) });
@@ -3662,6 +3665,58 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
     assert.equal(history.evidenceContentVerified, false);
     assert.equal(history.checkPassed, false);
 
+    const integrityResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews/integrity", { headers });
+    assert.equal(integrityResponse.status, 200);
+    const integrity = await integrityResponse.json();
+    assert.equal(integrity.scope, "authenticated_owner_staging_only");
+    assert.equal(integrity.summary.recordsScanned, 1);
+    assert.equal(integrity.summary.integrityMatches, 1);
+    assert.equal(integrity.items[0].status, "integrity_match");
+    assert.equal(integrity.evidenceContentVerified, false);
+    assert.equal(integrity.sourceReachabilityChecked, false);
+    assert.equal(integrity.decisionTruthVerified, false);
+    assert.equal(integrity.checkPassed, false);
+    assert.equal(integrity.executionEnabled, false);
+
+    const alteredSnapshot = JSON.stringify({sourceType:"finding_metadata",sourceId:"different-source"});
+    await db.prepare(`INSERT INTO intelligence_evidence_decision_reviews
+      (id,owner_uid,reviewer_uid,review_key_sha256,source_type,source_id,outcome,reason,
+       review_snapshot_json,review_snapshot_sha256,reviewed_at,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind("decision-review-hash-mismatch",ownerUid,ownerUid,"c".repeat(64),"finding_metadata",
+        findingId,"rejected","Runtime fixture with deliberately mismatched snapshot hash.",
+        alteredSnapshot,"0".repeat(64),now+1,now+1).run();
+    await db.prepare(`INSERT INTO intelligence_evidence_decision_reviews
+      (id,owner_uid,reviewer_uid,review_key_sha256,source_type,source_id,outcome,reason,
+       review_snapshot_json,review_snapshot_sha256,reviewed_at,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind("outsider-decision-review","another-owner","another-owner","d".repeat(64),"finding_metadata",
+        findingId,"accepted","Other owner fixture.",alteredSnapshot,createHash("sha256").update(alteredSnapshot).digest("hex"),now+2,now+2).run();
+
+    const beforeIntegrityAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    const integrityAfterMismatchResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews/integrity?limit=2", { headers });
+    assert.equal(integrityAfterMismatchResponse.status, 200);
+    const integrityAfterMismatch = await integrityAfterMismatchResponse.json();
+    assert.equal(integrityAfterMismatch.summary.recordsScanned, 2);
+    assert.equal(integrityAfterMismatch.summary.integrityMatches, 1);
+    assert.equal(integrityAfterMismatch.summary.snapshotHashMismatches, 1);
+    assert.equal(integrityAfterMismatch.items.some(item => item.id === "outsider-decision-review"), false);
+    assert.equal(integrityAfterMismatch.evidenceContentVerified, false);
+    const afterIntegrityAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterIntegrityAudit.count), Number(beforeIntegrityAudit.count), "integrity analysis must be read-only");
+    const invalidIntegrityLimit = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews/integrity?limit=101", { headers });
+    assert.equal(invalidIntegrityLimit.status, 400);
+    const unknownIntegrityParam = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews/integrity?ownerUid=spoof", { headers });
+    assert.equal(unknownIntegrityParam.status, 400);
+    const unauthenticatedIntegrity = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews/integrity",
+      { headers: { Origin: "https://mehranmsh.github.io" } });
+    assert.equal(unauthenticatedIntegrity.status, 401);
+
     const refreshed = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-support", { headers });
     const refreshedData = await refreshed.json();
@@ -3671,9 +3726,6 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
     const afterFinding = await db.prepare("SELECT status,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).first();
     assert.deepEqual(afterFinding, beforeFinding, "owner decision must not change finding state");
-    const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1, "decision insert must append exactly one audit event");
-
     await assert.rejects(
       db.prepare("UPDATE intelligence_evidence_decision_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
       /append-only/i

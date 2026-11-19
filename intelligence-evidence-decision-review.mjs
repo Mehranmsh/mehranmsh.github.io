@@ -55,3 +55,70 @@ export function buildEvidenceDecisionReviewHistory(rows) {
     operationPerformed: false
   };
 }
+
+
+// Verify only the stored decision snapshot's metadata integrity. This does not
+// authenticate the underlying evidence, its source, or the truth of a decision.
+export async function buildEvidenceDecisionReviewIntegrity(rows, sha256Hex) {
+  if (!Array.isArray(rows) || rows.length > 100 || typeof sha256Hex !== "function") {
+    throw new RangeError("Integrity review requires at most 100 rows and a SHA-256 function.");
+  }
+  const items = [];
+  for (const row of rows) {
+    const snapshotJson = String(row.review_snapshot_json ?? "");
+    const expectedHash = String(row.review_snapshot_sha256 ?? "");
+    const computedHash = await sha256Hex(snapshotJson);
+    let snapshot = null;
+    let snapshotJsonValid = false;
+    try {
+      const parsed = JSON.parse(snapshotJson);
+      snapshotJsonValid = Boolean(parsed && typeof parsed === "object" && !Array.isArray(parsed));
+      if (snapshotJsonValid) snapshot = parsed;
+    } catch {
+      snapshotJsonValid = false;
+    }
+    const snapshotHashMatches = /^[0-9a-f]{64}$/.test(expectedHash) &&
+      /^[0-9a-f]{64}$/.test(String(computedHash)) && expectedHash === computedHash;
+    const snapshotIdentityMatches = snapshotJsonValid &&
+      snapshot.sourceType === String(row.source_type) &&
+      snapshot.sourceId === String(row.source_id);
+    const reviewerMatchesOwner = String(row.reviewer_uid) === String(row.owner_uid);
+    let status = "integrity_match";
+    if (!snapshotJsonValid) status = "invalid_snapshot_json";
+    else if (!snapshotHashMatches) status = "snapshot_hash_mismatch";
+    else if (!snapshotIdentityMatches) status = "snapshot_identity_mismatch";
+    else if (!reviewerMatchesOwner) status = "reviewer_owner_mismatch";
+    items.push({
+      id: String(row.id),
+      sourceType: String(row.source_type),
+      sourceId: String(row.source_id),
+      outcome: String(row.outcome),
+      reviewedAt: Number(row.reviewed_at),
+      expectedSnapshotHash: expectedHash,
+      computedSnapshotHash: String(computedHash),
+      snapshotJsonValid,
+      snapshotHashMatches,
+      snapshotIdentityMatches,
+      reviewerMatchesOwner,
+      status
+    });
+  }
+  return {
+    items,
+    summary: {
+      recordsScanned: items.length,
+      integrityMatches: items.filter(item => item.status === "integrity_match").length,
+      snapshotHashMismatches: items.filter(item => item.status === "snapshot_hash_mismatch").length,
+      invalidSnapshotJson: items.filter(item => item.status === "invalid_snapshot_json").length,
+      snapshotIdentityMismatches: items.filter(item => item.status === "snapshot_identity_mismatch").length,
+      reviewerOwnerMismatches: items.filter(item => item.status === "reviewer_owner_mismatch").length
+    },
+    assessment: "stored_decision_snapshot_metadata_integrity_only",
+    evidenceContentVerified: false,
+    sourceReachabilityChecked: false,
+    decisionTruthVerified: false,
+    checkPassed: false,
+    executionEnabled: false,
+    operationPerformed: false
+  };
+}
