@@ -13,7 +13,7 @@ required = [
     'request("/session",{method:"POST"',
     'request("/session",{method:"DELETE"',
     'request("/session")',
-    'request("/health")',
+    'request("/health",{allowHttpError:true})',
     '/intelligence/knowledge/review-queue',
     'body:{action}',
     'data-review="verify"',
