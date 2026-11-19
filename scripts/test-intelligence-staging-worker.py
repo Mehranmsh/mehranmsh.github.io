@@ -606,6 +606,37 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         helper = ROOT / "intelligence-evidence-drift.mjs"
         self.assertTrue(helper.exists())
 
+    def test_evidence_consistency_api_is_owner_scoped_bounded_and_read_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-consistency" && method === "GET")')
+        for fragment in [
+            'new Set(["module"])',
+            'COMPANY_MODULES.includes(moduleId)',
+            'e.owner_uid = ? AND f.owner_uid = ?',
+            'f.id = e.finding_id AND f.owner_uid = e.owner_uid',
+            'ORDER BY e.id ASC',
+            'LIMIT 501',
+            'buildEvidenceConsistency(rows.results || [], { maxRows: 500, maxGroups: 50 })',
+            'scope: "authenticated_owner_staging_only"',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+        self.assertIn('import { buildEvidenceConsistency } from "./intelligence-evidence-consistency.mjs";', self.source)
+        helper = ROOT / "intelligence-evidence-consistency.mjs"
+        self.assertTrue(helper.exists())
+        helper_source = helper.read_text()
+        for fragment in [
+            'assessment:"stored_evidence_metadata_consistency_candidates_only"',
+            'isConflictVerdict:false',
+            'isContradictionVerdict:false',
+            'evidenceContentVerified:false',
+            'sourceReachabilityChecked:false',
+            'checkPassed:false',
+            'executionEnabled:false',
+            'operationPerformed:false',
+        ]:
+            self.assertIn(fragment, helper_source)
+
     def test_evidence_correlation_api_is_owner_scoped_bounded_and_read_only(self):
         route = self.route_block('if (path === "/intelligence/findings/evidence-correlations" && method === "GET")')
         for fragment in [

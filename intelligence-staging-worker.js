@@ -9,6 +9,7 @@ import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs"
 import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEvidenceReviewHistory } from "./intelligence-owner-evidence-review.mjs";
 import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
+import { buildEvidenceConsistency } from "./intelligence-evidence-consistency.mjs";
 import { EVIDENCE_CORRELATION_REVIEW_OUTCOMES, EVIDENCE_CORRELATION_TYPES, buildEvidenceCorrelationReviewSnapshot, buildEvidenceCorrelationReviewHistory } from "./intelligence-evidence-correlation-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -858,6 +859,38 @@ async function handle(request, env) {
       }, 201);
     } catch {
       return fail("Correlation owner review could not be recorded. Confirm staging migration 0011 and the current correlation group.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-consistency" && method === "GET") {
+    const allowedParams = new Set(["module"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported evidence consistency filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown evidence consistency module filter.");
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
+               e.source_ref, e.content_digest
+        FROM intelligence_finding_evidence e
+        INNER JOIN intelligence_findings f
+          ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
+        WHERE e.owner_uid = ? AND f.owner_uid = ?
+          AND (? = '' OR f.module_id = ?)
+        ORDER BY e.id ASC
+        LIMIT 501
+      `).bind(owner.uid, owner.uid, moduleId, moduleId).all();
+      const analysis = buildEvidenceConsistency(rows.results || [], { maxRows: 500, maxGroups: 50 });
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        scope: "authenticated_owner_staging_only",
+        filter: { module: moduleId || null },
+        ...analysis
+      });
+    } catch {
+      return fail("Evidence consistency analysis is unavailable. Confirm the staging findings schema is present.", 503);
     }
   }
 
