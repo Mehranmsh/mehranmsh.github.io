@@ -107,6 +107,8 @@ async function testPiSessionCreationRejectsUntrustedClientClaims() {
   try {
     const invalidBodies = [
       {},
+      { accessToken: "short" },
+      { accessToken: "x".repeat(4097) },
       { accessToken: "not-a-valid-token", username: "mehranmsh", uid: "staging-owner-test-uid" },
       { accessToken: "not-a-valid-token", isOwner: true },
     ];
