@@ -710,6 +710,45 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("trg_intelligence_correlation_review_no_delete", migration_source)
         self.assertIn("trg_intelligence_correlation_review_audit_insert", migration_source)
 
+    def test_evidence_decision_support_api_is_owner_scoped_bounded_and_read_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-decision-support" && method === "GET")')
+        for fragment in [
+            'new Set(["module"])',
+            'COMPANY_MODULES.includes(moduleId)',
+            'f.owner_uid = ?',
+            'e.owner_uid = ? AND f.owner_uid = ?',
+            'ORDER BY f.updated_at DESC, f.id DESC',
+            'LIMIT 101',
+            'ORDER BY e.id ASC',
+            'LIMIT 501',
+            'ORDER BY reviewed_at DESC, id DESC',
+            'LIMIT 100',
+            'buildEvidenceDecisionSupport({',
+            'scope: "authenticated_owner_staging_only"',
+            'findingsReviewLimitReached',
+            'evidenceReferenceScanLimitReached',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+        self.assertIn('import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";', self.source)
+        helper = ROOT / "intelligence-evidence-decision-support.mjs"
+        self.assertTrue(helper.exists())
+        helper_source = helper.read_text()
+        for fragment in [
+            'assessment: "owner_decision_support_advisory_only"',
+            'decisionMade: false',
+            'evidenceContentVerified: false',
+            'conflictVerdict: false',
+            'riskVerdict: false',
+            'checkPassed: false',
+            'findingStateChanged: false',
+            'companyStateChanged: false',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, helper_source)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)

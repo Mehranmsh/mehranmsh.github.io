@@ -10,6 +10,7 @@ import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEviden
 import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
 import { buildEvidenceConsistency } from "./intelligence-evidence-consistency.mjs";
+import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";
 import { EVIDENCE_CORRELATION_REVIEW_OUTCOMES, EVIDENCE_CORRELATION_TYPES, buildEvidenceCorrelationReviewSnapshot, buildEvidenceCorrelationReviewHistory } from "./intelligence-evidence-correlation-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -859,6 +860,87 @@ async function handle(request, env) {
       }, 201);
     } catch {
       return fail("Correlation owner review could not be recorded. Confirm staging migration 0011 and the current correlation group.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-decision-support" && method === "GET") {
+    const allowedParams = new Set(["module"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported evidence decision-support filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown evidence decision-support module filter.");
+    try {
+      const findings = await env.DB.prepare(`
+        SELECT f.id, f.module_id, f.check_id, f.severity, f.status,
+               f.evidence_state,
+               COUNT(e.id) AS evidence_count,
+               SUM(CASE WHEN e.id IS NOT NULL AND e.content_digest IS NULL THEN 1 ELSE 0 END) AS missing_digest_count,
+               SUM(CASE WHEN e.id IS NOT NULL AND e.observed_at IS NULL THEN 1 ELSE 0 END) AS missing_observed_at_count,
+               COUNT(e.content_digest) - COUNT(DISTINCT e.content_digest) AS duplicate_digest_count
+        FROM intelligence_findings f
+        LEFT JOIN intelligence_finding_evidence e
+          ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+        WHERE f.owner_uid = ? AND (? = '' OR f.module_id = ?)
+        GROUP BY f.id
+        ORDER BY f.updated_at DESC, f.id DESC
+        LIMIT 101
+      `).bind(owner.uid, moduleId, moduleId).all();
+      const evidence = await env.DB.prepare(`
+        SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
+               e.source_ref, e.content_digest
+        FROM intelligence_finding_evidence e
+        INNER JOIN intelligence_findings f
+          ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
+        WHERE e.owner_uid = ? AND f.owner_uid = ?
+          AND (? = '' OR f.module_id = ?)
+        ORDER BY e.id ASC
+        LIMIT 501
+      `).bind(owner.uid, owner.uid, moduleId, moduleId).all();
+      const reviews = await env.DB.prepare(`
+        SELECT correlation_key_sha256 AS correlationKeySha256, outcome, reference_count AS referenceCount, reviewed_at
+        FROM intelligence_evidence_correlation_reviews
+        WHERE owner_uid = ?
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT 100
+      `).bind(owner.uid).all();
+
+      const metadata = buildEvidenceMetadataReview((findings.results || []).slice(0, 100));
+      const correlation = buildEvidenceCorrelation(evidence.results || [], { maxRows: 500, maxGroups: 50 });
+      const consistency = buildEvidenceConsistency(evidence.results || [], { maxRows: 500, maxGroups: 50 });
+      const correlationGroups = [];
+      for (const group of correlation.returnedCorrelationGroups) {
+        const keyBytes = new Uint8Array(await crypto.subtle.digest(
+          "SHA-256", new TextEncoder().encode(group.correlationKey)
+        ));
+        const correlationKeySha256 = Array.from(keyBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+        correlationGroups.push({ ...group, correlationKeySha256 });
+      }
+      const support = buildEvidenceDecisionSupport({
+        metadataItems: metadata.items,
+        correlationGroups,
+        consistencyCandidates: consistency.returnedCandidates,
+        correlationReviewHistory: reviews.results || []
+      });
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        scope: "authenticated_owner_staging_only",
+        filter: { module: moduleId || null },
+        coverage: {
+          findingsReviewed: metadata.items.length,
+          findingsReviewLimitReached: (findings.results || []).length > 100,
+          evidenceReferencesScanned: correlation.evidenceReferencesScanned,
+          evidenceReferenceScanLimitReached: correlation.evidenceReferenceScanLimitReached,
+          correlationGroupsTruncated: correlation.correlationGroupsTruncated,
+          consistencyCandidatesTruncated: consistency.candidatesTruncated,
+          correlationReviewHistoryLimit: 100,
+          correlationReviewHistoryMayBeIncomplete: (reviews.results || []).length === 100
+        },
+        ...support
+      });
+    } catch {
+      return fail("Evidence decision support is unavailable. Confirm staging findings and correlation-review migrations are present.", 503);
     }
   }
 

@@ -90,6 +90,9 @@ jobs:
       - name: Test Intelligence evidence metadata consistency candidates
         run: node --test scripts/intelligence-evidence-consistency.test.mjs
 
+      - name: Test Intelligence evidence decision support recommendations
+        run: node --test scripts/intelligence-evidence-decision-support.test.mjs
+
       - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs
 
