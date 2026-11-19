@@ -77,6 +77,21 @@ required = [
     "approvalConsumed",
     "Executor enabled: ",
     "No data mutation, deletion, external action, or approval consumption",
+    'id="ownerEvidenceReviewPanel"',
+    'id="ownerEvidenceReviewForm"',
+    'id="ownerEvidenceReviewOutcome"',
+    'id="ownerEvidenceReviewReason"',
+    'id="ownerEvidenceReviewHistory"',
+    'data-review-finding',
+    'async function selectOwnerEvidenceReviewFinding',
+    'async function submitOwnerEvidenceReview',
+    'request("/intelligence/findings/"+encodeURIComponent(selectedOwnerReviewFindingId)+"/reviews"',
+    'request("/intelligence/findings/reviews?findingId="+encodeURIComponent(selectedOwnerReviewFindingId)',
+    'Append-only record',
+    'Content verified: false',
+    'Check passed: false',
+    'evidenceSnapshotSha256',
+
 ]
 for marker in required:
     if marker not in page:
