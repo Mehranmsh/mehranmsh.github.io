@@ -81,6 +81,12 @@ for forbidden in [
     if forbidden in page:
         raise SystemExit(f"Staging console must not reference production capability: {forbidden}")
 
+def test_staging_ui_has_one_footer_and_only_three_review_templates():
+    assert page.count("<footer>") == 1
+    assert page.count("</footer>") == 1
+    assert page.count(".innerHTML=") == 3
+
+
 def test_staging_ui_escapes_untrusted_content_before_html_insertion():
     # The few HTML-string templates must escape every server-controlled value.
     for marker in [
