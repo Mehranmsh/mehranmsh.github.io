@@ -30,7 +30,7 @@ const deny = (reason) => ({
  * approval must be a server-verified record, never a client assertion.
  * The caller is responsible for loading it from the approval ledger.
  */
-export function evaluateCapabilityRequest(request, nowMs = Date.now()) {
+export function evaluateCapabilityRequest(request, nowSeconds = Math.floor(Date.now() / 1000)) {
   if (!request || typeof request !== "object" || Array.isArray(request)) return deny("invalid_request");
   const capability = CAPABILITIES[request.capability];
   if (!capability) return deny("unknown_capability");
@@ -59,8 +59,8 @@ export function evaluateCapabilityRequest(request, nowMs = Date.now()) {
       approval.scope !== capability.scope || approval.status !== "issued" ||
       approval.revoked !== false || approval.revokedAt !== null ||
       approval.consumedAt !== null || approval.consumedBy !== null ||
-      !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(approval.expiresAt) ||
-      approval.expiresAt <= nowMs) {
+      !Number.isSafeInteger(nowSeconds) || !Number.isSafeInteger(approval.expiresAt) ||
+      approval.expiresAt <= nowSeconds) {
     return { decision: "deny", reason: "approval_invalid_expired_or_out_of_scope", executionEnabled: EXECUTION_ENABLED, capabilityKnown: true };
   }
   return {
