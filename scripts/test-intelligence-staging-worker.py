@@ -2,6 +2,7 @@
 """Static safety contract for the isolated Intelligence staging Worker."""
 from pathlib import Path
 import re
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,6 +80,47 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('PRAGMA foreign_keys', self.source)
         self.assertIn('PRAGMA foreign_key_check', self.source)
         self.assertIn('foreignKeyViolations', self.source)
+
+    def test_finding_priority_api_is_owner_scoped_bounded_and_read_only(self):
+        start = self.source.index('if (path === "/intelligence/findings/priorities" && method === "GET")')
+        end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', start)
+        route = self.source[start:end]
+        for fragment in [
+            'WHERE owner_uid = ? AND (? = \'\' OR module_id = ?)',
+            '.bind(owner.uid, moduleId, moduleId).all()',
+            'allowedParams = new Set(["module", "limit"])',
+            'limit > 100',
+            'LIMIT 500',
+            'scoreFindingPriority(item)',
+            '.sort(compareFindingPriority)',
+            'candidateSetBounded: scanned.length === 500',
+            'assessment: "deterministic_metadata_triage_only"',
+            'executionEnabled: false',
+            'operationPerformed: false',
+            'isRiskVerdict: false',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE ", "DELETE FROM", "request.json"]:
+            self.assertNotIn(forbidden, route)
+        self.assertIn('import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";', self.source)
+
+    def test_finding_priority_model_has_deterministic_expected_scores(self):
+        script = """
+          import assert from 'node:assert/strict';
+          import { scoreFindingPriority, compareFindingPriority } from './intelligence-finding-priority.mjs';
+          const critical = {id:'a',severity:'critical',status:'open',evidence_state:'missing'};
+          const high = {id:'b',severity:'high',status:'open',evidence_state:'sufficient'};
+          const mitigated = {id:'c',severity:'medium',status:'mitigated',evidence_state:'sufficient'};
+          assert.equal(scoreFindingPriority(critical).priorityScore, 120);
+          assert.equal(scoreFindingPriority(critical).priorityBand, 'critical');
+          assert.equal(scoreFindingPriority(high).priorityScore, 90);
+          assert.equal(scoreFindingPriority(mitigated).priorityScore, 45);
+          assert.equal(scoreFindingPriority(critical).isRiskVerdict, false);
+          assert.deepEqual([mitigated, high, critical].sort(compareFindingPriority).map(x=>x.id), ['a','b','c']);
+        """
+        result = subprocess.run(["node", "--input-type=module", "-e", script],
+                                cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_findings_api_is_read_only_owner_scoped_and_bounded(self):
         start = self.source.index('if (path === "/intelligence/findings" && method === "GET")')
