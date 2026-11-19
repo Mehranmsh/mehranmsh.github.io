@@ -834,6 +834,11 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(trigger, migration_source)
 
     def test_company_assessment_overview_is_owner_only_read_only_and_partial_failure_safe(self):
+        registry_start = self.source.index('if (path === "/intelligence/company/modules"')
+        registry_end = self.source.index('if (path === "/intelligence/company/assessment-coverage"', registry_start)
+        registry_route = self.source[registry_start:registry_end]
+        self.assertIn('success: true', registry_route)
+        self.assertIn('scope: "authenticated_owner_staging_only"', registry_route)
         for element_id in [
             "intelCompanyReadinessPanel",
             "refreshIntelCompanyReadinessBtn",
