@@ -488,6 +488,57 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         """
         subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, check=True)
 
+    def test_gap_test_strategy_is_owner_scoped_read_only_and_does_not_infer_pass(self):
+        route_start = self.source.index('if (path === "/intelligence/company/gap-test-strategy" && method === "GET")')
+        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
+        route = self.source[route_start:route_end]
+        for fragment in [
+            'new Set(["module"])',
+            'COMPANY_MODULES.includes(moduleId)',
+            'WHERE owner_uid = ? AND module_id = ?',
+            '.bind(owner.uid, moduleId).all()',
+            'buildGapTestStrategy(moduleId, rows.results || [])',
+            'scope: "authenticated_owner_staging_only"',
+            'assessment: "blueprint_gap_signals_and_test_recommendations_only"',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+        helper = ROOT / "intelligence-gap-test-strategy.mjs"
+        self.assertTrue(helper.exists())
+        script = """
+          import assert from "node:assert/strict";
+          import { buildGapTestStrategy, COMPANY_TEST_BLUEPRINTS } from "./intelligence-gap-test-strategy.mjs";
+          assert.equal(Object.keys(COMPANY_TEST_BLUEPRINTS).length, 13);
+          const social = buildGapTestStrategy("social", [
+            {check_id:"authentication", finding_count:2, open_finding_count:1}
+          ]);
+          assert.equal(social.blueprintCheckCount, 5);
+          const auth = social.checks.find(item => item.checkId === "authentication");
+          const privacy = social.checks.find(item => item.checkId === "privacy");
+          assert.equal(auth.evidenceState, "findings_recorded");
+          assert.equal(auth.findingCount, 2);
+          assert.equal(auth.openFindingCount, 1);
+          assert.ok(auth.recommendedTests.length >= 3);
+          assert.equal(privacy.evidenceState, "no_recorded_finding");
+          assert.match(privacy.interpretation, /does not mean.*passed/i);
+          assert.equal(social.evidenceCompleteness, "unverified");
+          assert.equal(social.testsExecuted, false);
+          assert.equal(social.executionEnabled, false);
+          assert.equal(social.operationPerformed, false);
+          assert.equal(social.isGapVerdict, false);
+          assert.throws(() => buildGapTestStrategy("unknown"), /Unknown company module/);
+          for (const moduleId of Object.keys(COMPANY_TEST_BLUEPRINTS)) {
+            const result = buildGapTestStrategy(moduleId);
+            assert.ok(result.blueprintCheckCount > 0);
+            assert.ok(result.checks.every(item => item.coverageSignal === "unverified"));
+            assert.ok(result.checks.every(item => item.recommendedTests.length >= 3));
+          }
+        """
+        subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, check=True)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
