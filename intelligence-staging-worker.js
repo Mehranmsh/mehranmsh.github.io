@@ -357,7 +357,7 @@ async function handle(request, env) {
     \`).bind(owner.uid, state, state, state, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
-    return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100, nextOffset: offset + items.length });
+    return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
   }
 
   if (path === "/intelligence/memory" && method === "POST") {
@@ -412,7 +412,7 @@ async function handle(request, env) {
     \`).bind(owner.uid, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
-    return response({ success: true, assessment: "owner_review_state_only", items, offset, limit: 100, hasMore: scanned.length > 100, nextOffset: offset + items.length });
+    return response({ success: true, assessment: "owner_review_state_only", items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
   }
 
   const memoryMatch = path.match(/^\/intelligence\/memory\/([0-9a-f-]{36})$/i);
