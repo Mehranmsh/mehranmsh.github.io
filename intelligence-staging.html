@@ -34,6 +34,16 @@
    <div class="grid"><div><label for="knowledgeSourceType">Source type</label><select id="knowledgeSourceType"><option value="owner_input">Owner input</option><option value="uploaded_document">Uploaded document</option><option value="external_url">External URL</option><option value="system_observation">System observation</option></select></div><div><label for="knowledgeSourceRef">Source reference (optional)</label><input id="knowledgeSourceRef" maxlength="1000" placeholder="Document reference or HTTPS URL"></div><div><label for="knowledgeConfidence">Recorded confidence (optional, 0-100)</label><input id="knowledgeConfidence" type="number" min="0" max="100" step="1"></div></div>
    <div class="actions"><button type="submit" id="saveKnowledgeBtn">Save knowledge</button></div>
   </form><div id="knowledgeStatus" class="notice" aria-live="polite">New records start as unreviewed.</div>
+  <div class="panel">
+   <div class="row"><div><h2>Search organizational knowledge</h2><div class="muted small">Owner-only search across titles, content, categories and source references.</div></div></div>
+   <form id="knowledgeSearchForm">
+    <label for="knowledgeSearchInput">Search terms</label>
+    <input id="knowledgeSearchInput" type="search" maxlength="120" placeholder="Search decisions, projects, procedures..." autocomplete="off">
+    <div class="actions"><button type="submit" id="knowledgeSearchBtn">Search knowledge</button></div>
+   </form>
+   <div id="knowledgeSearchStatus" class="notice" aria-live="polite">Search your saved organizational knowledge.</div>
+   <div id="knowledgeSearchResults" class="grid" aria-live="polite"></div>
+  </div>
   <div class="row"><h2>Knowledge evaluations</h2><button id="refreshEvaluationsBtn" class="secondary">Refresh evaluations</button></div><div class="muted small">Relationship signals and review metadata, not a factual verdict.</div><div id="evaluationsStatus" class="notice">Evaluations not loaded.</div><div id="evaluationsList" class="grid"></div>
  </section>
  <section class="panel">
@@ -80,6 +90,30 @@ async function logout(){if(!sessionToken)return;try{await request("/session",{me
 async function loadQueue(){message("queueStatus","Loading review queue...");try{const data=await request("/intelligence/knowledge/review-queue?limit=50");$("queueList").replaceChildren();for(const item of data.items||[]){const card=document.createElement("article");card.className="card";const reasons=(item.reasons||[]).join(" · ");card.innerHTML='<div class="row"><span class="tag">Priority '+Number(item.priority||0)+'</span><span class="small muted">'+esc(item.verificationStatus)+'</span></div><h3>'+esc(item.title)+'</h3><div class="small muted">'+esc(reasons)+'</div><div class="small muted">Source: '+esc(item.sourceType||"—")+' · Observed: '+esc(item.observedAt||"—")+'</div><div class="actions"><button class="secondary" data-review="verify" data-id="'+esc(item.id)+'">Verify</button><button class="danger" data-review="dispute" data-id="'+esc(item.id)+'">Dispute</button><button class="secondary" data-review="unverify" data-id="'+esc(item.id)+'">Reset review</button></div>';$("queueList").append(card)}message("queueStatus",(data.returnedCount||0)+" items returned from "+(data.scannedCount||0)+" scanned. "+data.assessment+". Priority is not a truth score.", "good")}catch(error){message("queueStatus",error.message,"bad")}}
 async function reviewKnowledge(id,action,button){if(!confirm("Record owner review: "+action+"?"))return;button.disabled=true;try{await request("/intelligence/knowledge/"+encodeURIComponent(id),{method:"PUT",body:{action}});await Promise.all([loadQueue(),loadEvaluations()])}catch(error){message("queueStatus",error.message,"bad")}finally{button.disabled=false}}
 async function saveKnowledge(event){event.preventDefault();const button=$("saveKnowledgeBtn");button.disabled=true;const sourceType=$("knowledgeSourceType").value;const confidence=$("knowledgeConfidence").value;const body={category:$("knowledgeCategory").value,importance:$("knowledgeImportance").value,title:$("knowledgeTitle").value.trim(),content:$("knowledgeContent").value.trim(),sourceType,sourceRef:$("knowledgeSourceRef").value.trim(),observedAt:new Date().toISOString(),confidenceScore:confidence===""?null:Number(confidence)};try{await request("/intelligence/knowledge",{method:"POST",body});$("knowledgeForm").reset();message("knowledgeStatus","Knowledge saved. It is unreviewed until you explicitly verify it.","good");await Promise.all([loadQueue(),loadEvaluations()])}catch(error){message("knowledgeStatus",error.message,"bad")}finally{button.disabled=false}}
+async function searchKnowledge(event){
+ event.preventDefault();
+ const query=$("knowledgeSearchInput").value.trim();
+ const button=$("knowledgeSearchBtn");
+ button.disabled=true;
+ $("knowledgeSearchResults").replaceChildren();
+ message("knowledgeSearchStatus",query?"Searching private organizational knowledge...":"Enter a search term to find saved knowledge.","warn");
+ if(!query){button.disabled=false;return}
+ try{
+  const data=await request("/intelligence/knowledge?state=all&limit=50&q="+encodeURIComponent(query));
+  const items=data.items||[];
+  for(const item of items){
+   const card=document.createElement("article");card.className="card";
+   const title=document.createElement("h3");title.textContent=item.title||"Untitled";
+   const meta=document.createElement("div");meta.className="small muted";
+   meta.textContent=[item.category,item.verification_status,item.archived_at?"Archived":"Active"].filter(Boolean).join(" · ");
+   const content=document.createElement("p");content.textContent=String(item.content||"").slice(0,360)+(String(item.content||"").length>360?"…":"");
+   const source=document.createElement("div");source.className="small muted";source.textContent="Source: "+(item.source_type||"—")+(item.source_ref?" · "+item.source_ref:"");
+   card.append(title,meta,content,source);$("knowledgeSearchResults").append(card);
+  }
+  message("knowledgeSearchStatus",items.length+" matching owner records returned"+(data.hasMore?" · more results available":"")+". Search is literal and does not infer facts.","good");
+ }catch(error){message("knowledgeSearchStatus",error.message,"bad")}
+ finally{button.disabled=false}
+}
 async function loadEvaluations(){
  message("evaluationsStatus","Loading deterministic evaluations...");
  try{
@@ -146,7 +180,7 @@ async function assessCapability(capability,approvalId){
  }catch(error){message("capabilityAssessmentStatus",error.message,"bad")}
 }
 async function refreshAll(){await Promise.all([loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
-$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>
