@@ -668,6 +668,11 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     ).bind(ownerUid, issuedBody.id).all();
     assert.ok(approvalAuditRows.results.some(row => row.action === "capability_approval_issued"));
     assert.ok(approvalAuditRows.results.some(row => row.action === "capability_approval_revoked"));
+    assert.equal(
+      approvalAuditRows.results.filter(row => row.action === "capability_approval_revoked").length,
+      1,
+      "the database transition trigger must produce exactly one revocation audit",
+    );
     const assessmentAudit = await db.prepare(
       "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE owner_uid=? AND action='capability_assessed' AND target_id='memory.create'"
     ).bind(ownerUid).first();
