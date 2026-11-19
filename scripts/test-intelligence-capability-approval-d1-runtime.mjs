@@ -132,9 +132,34 @@ async function testWrongOwnerFailsClosed() {
   }
 }
 
+async function testExpiredAndRevokedApprovalsFailClosed() {
+  for (const scenario of ["expired", "revoked"]) {
+    const { mf, db } = await createDatabase();
+    try {
+      if (scenario === "expired") {
+        await db.prepare("UPDATE intelligence_capability_approvals SET expires_at=149 WHERE id='grant-valid'").run();
+      } else {
+        await db.prepare("UPDATE intelligence_capability_approvals SET status='revoked', revoked_at=140 WHERE id='grant-valid'").run();
+      }
+      await assert.rejects(
+        db.batch(statements(db, { now: 150, operationId: `op-${scenario}` })),
+        /constraint|NOT NULL|not null/i,
+        `${scenario} approval must not authorize an operation`,
+      );
+      const approval = await db.prepare("SELECT status FROM intelligence_capability_approvals WHERE id='grant-valid'").first();
+      assert.equal(approval.status, scenario === "expired" ? "issued" : "revoked");
+      assert.equal(await count(db, "SELECT COUNT(*) AS count FROM protected_operations"), 0);
+    } finally {
+      await mf.dispose();
+    }
+  }
+  console.log("PASS: D1-runtime expired and revoked approvals fail closed");
+}
+
 await testSequentialSingleUse();
 console.log("PASS: D1-runtime sequential one-time consumption and row-count guard");
 await testRollbackOnOperationFailure();
 console.log("PASS: D1-runtime rollback restores approval and trigger audit");
 await testWrongOwnerFailsClosed();
 console.log("PASS: D1-runtime wrong-owner attempt fails closed");
+await testExpiredAndRevokedApprovalsFailClosed();
