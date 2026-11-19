@@ -7,9 +7,10 @@ Use a separate, minimal Worker. Do not deploy production `worker.js` with a diff
 ## Runtime boundary
 
 - Worker source: `intelligence-staging-worker.js`.
-- Proposed Worker name: `mehran-intelligence-staging`.
-- Future separate config: `wrangler.intelligence-staging.jsonc`, not production `wrangler.jsonc`.
+- Worker name: `mehran-intelligence-staging`.
+- Separate config: `wrangler.intelligence-staging.jsonc`; never use production `wrangler.jsonc`.
 - D1 binding `DB` must target only `mehran-msh-intelligence-staging`.
+- The config currently contains an unmistakable placeholder for `database_id`. It is intentionally not deployable until replaced with the verified staging database ID.
 - No cron, scheduled handler, queue consumer, agent polling, executor, or GitHub write capability.
 - No production secrets, tokens, database IDs, or data.
 - No AI binding until a separate budget guard is implemented and reviewed.
@@ -49,8 +50,7 @@ Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revoca
 
 ## Current status
 
-The isolated Worker source and static safety tests are committed to PR33. The staging Wrangler config, live D1 migration 0003, Cloudflare binding, live Pi verification, and deployment are not done. The staging database ID is still required before the binding can be safely finalized.
-
+The isolated Worker source and static safety tests are committed to PR33. The separate Wrangler config template is now committed, but its D1 ID is deliberately a placeholder. Live D1 migration 0003, Cloudflare binding, live Pi verification, and deployment are not done. No production database or Worker has been changed.
 
 ## Owner memory routes
 
