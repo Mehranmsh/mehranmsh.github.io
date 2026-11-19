@@ -8,7 +8,7 @@
 
 - The page intentionally ships with `STAGING_WORKER_URL` set to `REPLACE_WITH_VERIFIED_STAGING_WORKER_URL`.
 - The UI remains disabled while that placeholder is present.
-- After an independently authorized staging deployment, replace it only with the verified `workers.dev` URL for Worker `mehran-intelligence-staging`.
+- After an independently authorized staging deployment, replace it only with the verified `mehran-intelligence-staging.<account-subdomain>.workers.dev` URL for Worker `mehran-intelligence-staging`.
 - Never enter the production Worker URL or reuse the production authentication/session API.
 - The staging Worker CORS allowlist currently permits the GitHub Pages origin `https://mehranmsh.github.io`.
 
