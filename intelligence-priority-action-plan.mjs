@@ -43,7 +43,7 @@ export function buildPriorityActionPlan(rows, limit = 25) {
       recommendedAction: remediation.currentRecommendation,
       affectedArea: remediation.affectedArea,
       suggestedSteps: remediation.steps,
-      requiredValidation: remediation.validationChecks,
+      requiredValidation: remediation.validation,
       ownerDecision: "not_recorded",
       ownerApprovalRequired: true,
       executionEnabled: false,
