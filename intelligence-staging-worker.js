@@ -369,13 +369,13 @@ async function handle(request, env) {
     const memoryKind = clean(body.memoryKind || "general", 40);
     const sourceType = clean(body.sourceType || "owner_input", 40);
     const sourceRef = body.sourceRef == null ? null : clean(body.sourceRef, 1000);
-    const confidenceScore = body.confidenceScore == null ? null : Number(body.confidenceScore);
+    const confidenceScore = body.confidenceScore === undefined || body.confidenceScore === null ? null : body.confidenceScore;
     const kinds = ["general", "preference", "goal", "constraint", "decision", "project_context"];
     const sourceTypes = ["owner_input", "knowledge_record", "system_observation"];
     if (!category || typeof body.content !== "string" || !content || body.content.length > 4000 ||
         !kinds.includes(memoryKind) || !sourceTypes.includes(sourceType) ||
         (sourceRef !== null && (!sourceRef || /[\r\n]/.test(sourceRef))) ||
-        (confidenceScore !== null && (!Number.isInteger(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) ||
+        (confidenceScore !== null && (typeof confidenceScore !== "number" || !Number.isSafeInteger(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) ||
         (sourceType === "owner_input" && sourceRef !== null) ||
         (sourceType === "knowledge_record" && !uuid(sourceRef))) {
       return fail("Memory content, type, provenance, or confidence is invalid.");
