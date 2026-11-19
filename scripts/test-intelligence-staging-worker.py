@@ -98,6 +98,20 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
 
 
+    def test_knowledge_evaluation_is_read_only_owner_scoped_and_explicitly_limited(self):
+        for fragment in [
+            'const evaluationMatch = path.match(/^\\/intelligence\\/knowledge\\/([0-9a-f-]{36})\\/evaluation$/i)',
+            'if (evaluationMatch && method === "GET")',
+            'WHERE id = ? AND owner_uid = ?',
+            'WHERE owner_uid = ?',
+            '["candidate", "confirmed"].includes(item.status)',
+            'reviewState',
+            '"deterministic_metadata_only"',
+            '"The recorded confidence score is not independently validated."',
+            '"No external source retrieval, semantic fact-checking, or autonomous truth selection is performed."',
+        ]:
+            self.assertIn(fragment, self.source)
+
     def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
         for fragment in [
             "source_type, source_ref, observed_at, confidence_score, verification_status",
