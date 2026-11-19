@@ -85,18 +85,42 @@ function clean(value, max = 2000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-async function fetchPiUser(accessToken) {
+export async function fetchPiUser(accessToken) {
   if (typeof accessToken !== "string" || accessToken.length < 10 || accessToken.length > 4096) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const result = await fetch(PI_ME_URL, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      redirect: "error",
       signal: controller.signal
     });
-    if (!result.ok) return null;
-    const user = await result.json();
-    if (typeof user?.uid !== "string" || !user.uid || typeof user?.username !== "string" || !user.username) return null;
+    if (!result.ok || !/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(result.headers.get("Content-Type") || "")) return null;
+    const declaredLength = Number(result.headers.get("Content-Length") || 0);
+    if (declaredLength > 8192) return null;
+    if (!result.body) return null;
+    const reader = result.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > 8192) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const user = JSON.parse(new TextDecoder().decode(bytes));
+    if (typeof user?.uid !== "string" || !user.uid.trim() || user.uid.length > 200 ||
+        typeof user?.username !== "string" || !user.username.trim() || user.username.length > 100) return null;
     return { uid: user.uid, username: user.username };
   } catch {
     return null;
@@ -199,7 +223,7 @@ async function handle(request, env) {
 
   if (path === "/session" && method === "POST") {
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => key !== "accessToken")) return fail("A Pi access token is required.");
+    if (!body || Object.keys(body).some(key => key !== "accessToken") || typeof body.accessToken !== "string" || body.accessToken.length < 10 || body.accessToken.length > 4096) return fail("A valid Pi access token is required.");
     const ownerUid = clean(env.MEHRAN_INTELLIGENCE_STAGING_OWNER_UID, 200);
     if (!ownerUid) return fail("Staging owner identity is not configured.", 503);
     const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -271,14 +295,14 @@ async function handle(request, env) {
   if (path === "/intelligence/capability-approvals" && method === "GET") {
     const now = Math.floor(Date.now() / 1000);
     try {
-      await env.DB.prepare("UPDATE intelligence_capability_approvals SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?")
-        .bind(owner.uid, now).run();
       const rows = await env.DB.prepare(`
-        SELECT id,capability,scope,status,issued_at,expires_at,revoked_at,consumed_at,consumed_by
+        SELECT id,capability,scope,
+               CASE WHEN status='issued' AND expires_at<=? THEN 'expired' ELSE status END AS status,
+               issued_at,expires_at,revoked_at,consumed_at,consumed_by
         FROM intelligence_capability_approvals
         WHERE owner_uid=?
         ORDER BY issued_at DESC LIMIT 100
-      `).bind(owner.uid).all();
+      `).bind(now, owner.uid).all();
       return response({ success: true, items: rows.results || [], executionEnabled: false });
     } catch {
       return fail("Capability approvals could not be safely loaded.", 503);
@@ -323,12 +347,16 @@ async function handle(request, env) {
     const id = capabilityApprovalMatch[1];
     const now = Math.floor(Date.now() / 1000);
     try {
-      const result = await env.DB.prepare(`
-        UPDATE intelligence_capability_approvals
-        SET status='revoked',revoked_at=?
-        WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?
-      `).bind(now, id, owner.uid, now).run();
-      if (!Number(result?.meta?.changes || 0)) return fail("Capability approval not found or no longer revocable.", 409);
+      const results = await env.DB.batch([
+        // Migration 0008 records this state transition through its audit trigger.
+        // Do not insert a second application-level audit row here.
+        env.DB.prepare(`
+          UPDATE intelligence_capability_approvals
+          SET status='revoked',revoked_at=?
+          WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?
+        `).bind(now, id, owner.uid, now)
+      ]);
+      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Capability approval not found or no longer revocable.", 409);
       return response({ success: true, id, status: "revoked", executionEnabled: false });
     } catch {
       return fail("Capability approval revocation failed safely.", 503);
@@ -440,7 +468,7 @@ async function handle(request, env) {
     if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid memory page offset.");
     }
-    const rows = await env.DB.prepare(\`
+    const rows = await env.DB.prepare(`
       SELECT id, category, content, memory_kind, source_type, source_ref,
              confidence_score, review_status, reviewed_at, archived_at,
              created_at, updated_at
@@ -448,7 +476,7 @@ async function handle(request, env) {
       WHERE owner_uid = ?
         AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
       ORDER BY updated_at DESC, id DESC LIMIT 101 OFFSET ?
-    \`).bind(owner.uid, state, state, state, offset).all();
+    `).bind(owner.uid, state, state, state, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
     return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
@@ -477,9 +505,9 @@ async function handle(request, env) {
     const id = randomId();
     try {
       await env.DB.batch([
-        env.DB.prepare(\`INSERT INTO intelligence_owner_memory
+        env.DB.prepare(`INSERT INTO intelligence_owner_memory
           (id,owner_uid,category,content,memory_kind,source_type,source_ref,confidence_score)
-          VALUES(?,?,?,?,?,?,?,?)\`)
+          VALUES(?,?,?,?,?,?,?,?)`)
           .bind(id, owner.uid, category, content, memoryKind, sourceType, sourceRef, confidenceScore),
         audit(env.DB, owner.uid, "owner_memory_created", "memory", id, { category, memoryKind, sourceType, confidenceScore })
       ]);
@@ -495,7 +523,7 @@ async function handle(request, env) {
     if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid memory review queue offset.");
     }
-    const rows = await env.DB.prepare(\`
+    const rows = await env.DB.prepare(`
       SELECT id, category, content, memory_kind, source_type, source_ref,
              confidence_score, review_status, reviewed_at, updated_at
       FROM intelligence_owner_memory
@@ -504,7 +532,7 @@ async function handle(request, env) {
       ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,
                updated_at ASC, id ASC
       LIMIT 101 OFFSET ?
-    \`).bind(owner.uid, offset).all();
+    `).bind(owner.uid, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
     return response({ success: true, assessment: "owner_review_state_only", items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
@@ -536,10 +564,10 @@ async function handle(request, env) {
       try {
         const results = await env.DB.batch([
           env.DB.prepare(transition.sql).bind(...values),
-          env.DB.prepare(\`
+          env.DB.prepare(`
             INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
             SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-          \`).bind(randomId(), owner.uid, transition.audit, "memory", id, "{}", Math.floor(Date.now()/1000))
+          `).bind(randomId(), owner.uid, transition.audit, "memory", id, "{}", Math.floor(Date.now()/1000))
         ]);
         if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found or transition not applicable.", 404);
       } catch {
@@ -554,10 +582,10 @@ async function handle(request, env) {
       const results = await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_owner_memory SET category=?,content=?,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL")
           .bind(category, content, now, id, owner.uid),
-        env.DB.prepare(\`
+        env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        \`).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000))
+        `).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000))
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found or archived.", 404);
     } catch {
@@ -573,10 +601,10 @@ async function handle(request, env) {
       const results = await env.DB.batch([
         env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?")
           .bind(id, owner.uid),
-        env.DB.prepare(\`
+        env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        \`).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
+        `).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
     } catch {
@@ -993,14 +1021,13 @@ async function handle(request, env) {
 
   if (path === "/intelligence/approvals" && method === "GET") {
     const now = Math.floor(Date.now() / 1000);
-    await env.DB.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?")
-      .bind(owner.uid, now).run();
     const rows = await env.DB.prepare(`
-      SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,
+      SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,
+             CASE WHEN status='issued' AND expires_at<=? THEN 'expired' ELSE status END AS status,
              issued_at,expires_at,revoked_at,consumed_at,consumed_by
       FROM intelligence_approval_ledger WHERE owner_uid=?
       ORDER BY issued_at DESC LIMIT 100
-    `).bind(owner.uid).all();
+    `).bind(now, owner.uid).all();
     return response({ success: true, items: rows.results || [] });
   }
 
@@ -1026,6 +1053,10 @@ async function handle(request, env) {
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?")
           .bind(body.taskId, owner.uid, now),
+        env.DB.prepare(`
+          INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
+          SELECT ?,?,?,?,?,?,? WHERE changes() > 0
+        `).bind(randomId(), owner.uid, "approval_expiry_sweep", "task", body.taskId, JSON.stringify({ reason: "new_approval_requested" }), now),
         env.DB.prepare("INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)")
           .bind(id, body.taskId, owner.uid, "mehranmsh", body.repository, body.branch, body.baseSha, scopeJson, scopeHash, now, now + expiresIn),
         audit(env.DB, owner.uid, "approval_issued", "approval", id, { taskId: body.taskId, repository: body.repository, branch: body.branch, scopeHash })

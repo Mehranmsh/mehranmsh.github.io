@@ -259,10 +259,11 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('const approvalLifetime = parseApprovalLifetime(body.expiresInSeconds);', self.source)
         self.assertIn('const expiresIn = approvalLifetime.seconds;', self.source)
 
-    def test_expired_approval_is_transitioned_before_replacement(self):
-        self.assertIn("UPDATE intelligence_approval_ledger SET status='expired'", self.source)
-        self.assertIn('await env.DB.prepare("UPDATE intelligence_approval_ledger SET status=\'expired\' WHERE owner_uid=? AND status=\'issued\' AND expires_at<=?")', self.source)
-        self.assertIn("status='issued' AND expires_at<=?", self.source)
+    def test_expired_approval_is_read_only_on_get_and_audited_before_replacement(self):
+        self.assertIn("CASE WHEN status='issued' AND expires_at<=? THEN 'expired' ELSE status END AS status", self.source)
+        self.assertIn("UPDATE intelligence_approval_ledger SET status='expired' WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?", self.source)
+        self.assertIn("approval_expiry_sweep", self.source)
+        self.assertIn("SELECT ?,?,?,?,?,?,? WHERE changes() > 0", self.source)
         self.assertIn('scopeJson.length > 4096', self.source)
         self.assertIn('Object.keys(body.scope).length === 0', self.source)
         self.assertIn('approval_expired', (ROOT / "migrations" / "0003_intelligence_staging_runtime.sql").read_text(encoding="utf-8"))

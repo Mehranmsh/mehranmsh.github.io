@@ -32,13 +32,15 @@ Migration `0003_intelligence_staging_runtime.sql` adds:
 
 Migration 0004 `0004_intelligence_knowledge_provenance.sql` adds source type/reference, observation timestamp, bounded confidence score, and owner verification status. It enforces provenance validation and prevents rewriting provenance after evidence relationships exist while allowing separate owner review transitions.
 
-Migrations 0003 and 0004 are committed but have not been applied to Cloudflare. Apply them in order only after confirming the staging database ID and target.
+Migrations 0000-0008 are committed. The user has applied 0000-0002 to the separate staging D1 database; migrations 0003-0008 remain unapplied remotely. Apply remaining migrations only after positively identifying the staging database and receiving explicit authorization.
 
 ## Implemented route allowlist
 
-- `GET /health`: checks all eight required tables.
+- `GET /health`: checks all nine required tables, verifies the D1 foreign-key setting and checks for foreign-key violations; returns 503 when the schema is incomplete or invalid.
 - `POST /session`, `GET /session`, `DELETE /session`
 - `GET/POST /intelligence/tasks`: creates and lists owner-scoped queued plans only; execution is disabled.
+- `GET /intelligence/capabilities`: returns the static capability policy inventory only.
+- `GET/POST /intelligence/capability-approvals`, `DELETE /intelligence/capability-approvals/:id`, and `POST /intelligence/capabilities/evaluate`: owner-scoped approval records and audited assessment only. Evaluation never consumes an approval or performs an operation; `executionEnabled` remains false.
 - `GET/POST /intelligence/knowledge`: GET accepts `state=active` (default), `state=archived`, or `state=all`, always scoped to the authenticated owner.
 - `PUT /intelligence/knowledge/:id`: owner-scoped metadata/content update, archive, restore, and explicit `verify` / `dispute` / `unverify` review transitions. Provenance fields are returned on reads and accepted on create; linked provenance cannot be rewritten. Content edits are blocked when a relationship cites that record; create a corrected record and link it instead so evidence history is preserved.
 - `GET/POST /intelligence/knowledge/relations`
@@ -56,7 +58,7 @@ Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revoca
 
 ## Current status
 
-The isolated Worker source and static safety tests are committed to PR33. The separate Wrangler config template is now committed, but its D1 ID is deliberately a placeholder. Live D1 migration 0003, Cloudflare binding, live Pi verification, and deployment are not done. No production database or Worker has been changed.
+The isolated Worker, Wrangler config template, and D1-runtime test suite are committed on the open draft PR51 chain. The config's D1 ID and the staging console's Worker URL are deliberately placeholders. CI exercises the Worker against disposable Miniflare D1, including owner isolation, session revocation, rate limits, audit atomicity, knowledge relations, and capability approval lifecycle. The staging database ID has not been positively verified in this repository workflow; migrations 0003-0008 remain unapplied remotely. Cloudflare binding, live Pi verification, and staging deployment are not done. No production database or Worker has been changed.
 
 ## Owner memory routes
 

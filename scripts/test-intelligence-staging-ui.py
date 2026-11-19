@@ -81,6 +81,46 @@ for forbidden in [
     if forbidden in page:
         raise SystemExit(f"Staging console must not reference production capability: {forbidden}")
 
+def test_staging_logout_does_not_claim_revocation_when_server_did_not_confirm():
+    assert 'Session revocation was not confirmed:' in page
+    assert 'The local session remains available so you can retry.' in page
+    assert 'The server rejected this session; sign in again.' in page
+    assert 'Staging session revoked. The bearer token was cleared from this page.' in page
+    assert 'finally{sessionToken="";sessionExpiresAt=0;setAuthenticated(false)' not in page
+
+
+def test_staging_ui_has_one_footer_and_only_three_review_templates():
+    assert page.count("<footer>") == 1
+    assert page.count("</footer>") == 1
+    assert page.count(".innerHTML=") == 3
+
+
+def test_staging_ui_escapes_untrusted_content_before_html_insertion():
+    # The few HTML-string templates must escape every server-controlled value.
+    for marker in [
+        "function esc(value)",
+        ".replace(/[&<>",
+        "&amp;",
+        "&lt;",
+        "&gt;",
+        "&quot;",
+        "&#39;",
+        'esc(item.verificationStatus)',
+        'esc(item.title)',
+        'esc(reasons)',
+        'esc(item.sourceType||"—")',
+        'esc(item.observedAt||"—")',
+        'esc(item.id)',
+        'esc(task.title)',
+        'esc(task.description)',
+        'esc(task.status)',
+        'esc(task.priority)',
+        'esc(item.reviewState)',
+        'title.textContent=item.category+" · "+item.memory_kind',
+        'body.textContent=item.content',
+    ]:
+        assert marker in page, f"Server-controlled UI content must be escaped or assigned as text: {marker}"
+
 if "REPLACE_WITH_VERIFIED_STAGING_WORKER_URL" not in page:
     raise SystemExit("Staging Worker URL must remain an explicit unconfigured placeholder.")
 if page.count("STAGING_WORKER_URL") < 5:
