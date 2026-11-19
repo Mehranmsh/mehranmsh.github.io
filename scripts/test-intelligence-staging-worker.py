@@ -81,6 +81,14 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
 
+    def test_strict_json_media_type_and_session_time_bounds(self):
+        self.assertIn('type.split(";")[0].trim().toLowerCase() !== "application/json"', self.source)
+        self.assertIn('!Number.isSafeInteger(createdAt)', self.source)
+        self.assertIn('!Number.isSafeInteger(expiresAt)', self.source)
+        self.assertIn('createdAt > now', self.source)
+        self.assertIn('expiresAt <= createdAt', self.source)
+        self.assertIn('typeof body.content !== "string"', self.source)
+
     def test_bounded_json_and_rate_limits(self):
         self.assertIn('MAX_BODY_BYTES = 20_000', self.source)
         self.assertIn('request_count', self.source)
