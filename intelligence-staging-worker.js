@@ -9,6 +9,7 @@ import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs"
 import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEvidenceReviewHistory } from "./intelligence-owner-evidence-review.mjs";
 import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
+import { EVIDENCE_CORRELATION_REVIEW_OUTCOMES, EVIDENCE_CORRELATION_TYPES, buildEvidenceCorrelationReviewSnapshot, buildEvidenceCorrelationReviewHistory } from "./intelligence-evidence-correlation-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -753,6 +754,112 @@ async function handle(request, env) {
     }
   }
 
+
+  if (path === "/intelligence/findings/evidence-correlations/reviews" && method === "GET") {
+    const allowedParams = new Set(["correlationKeySha256", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported correlation review history filter.");
+    }
+    const keyHash = url.searchParams.get("correlationKeySha256") || "";
+    const rawLimit = url.searchParams.get("limit") || "50";
+    const limit = Number(rawLimit);
+    if (keyHash && !/^[0-9a-f]{64}$/.test(keyHash)) return fail("Invalid correlation key hash.");
+    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Correlation review history limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT id, correlation_type, correlation_key_sha256, outcome, reason,
+               reviewer_uid, reviewed_at, reference_count,
+               correlation_snapshot_sha256, correlation_snapshot_json
+        FROM intelligence_evidence_correlation_reviews
+        WHERE owner_uid = ? AND (? = '' OR correlation_key_sha256 = ?)
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT ?
+      `).bind(owner.uid, keyHash, keyHash, limit).all();
+      return response({
+        success: true,
+        scope: "authenticated_owner_staging_only",
+        ...buildEvidenceCorrelationReviewHistory(rows.results || [])
+      });
+    } catch {
+      return fail("Correlation review history is unavailable. Confirm staging migration 0011 is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-correlations/reviews" && method === "POST") {
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => !["correlationType", "correlationKey", "outcome", "reason"].includes(key)) ||
+        !EVIDENCE_CORRELATION_TYPES.includes(body.correlationType) ||
+        typeof body.correlationKey !== "string" || body.correlationKey.length < 1 || body.correlationKey.length > 200 ||
+        /[\\u0000-\\u001f\\u007f]/.test(body.correlationKey) ||
+        !EVIDENCE_CORRELATION_REVIEW_OUTCOMES.includes(body.outcome) ||
+        typeof body.reason !== "string" || body.reason.length > 1000 ||
+        !clean(body.reason, 1000) || clean(body.reason, 1000).length !== body.reason.trim().length) {
+      return fail("A valid correlation pattern, owner outcome, and bounded reason are required.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
+               e.source_ref, e.content_digest
+        FROM intelligence_finding_evidence e
+        INNER JOIN intelligence_findings f
+          ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
+        WHERE e.owner_uid = ? AND f.owner_uid = ?
+        ORDER BY e.id ASC
+        LIMIT 501
+      `).bind(owner.uid, owner.uid).all();
+      const analysis = buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 });
+      const group = analysis.returnedCorrelationGroups.find(item =>
+        item.correlationType === body.correlationType && item.correlationKey === body.correlationKey
+      );
+      if (!group) return fail("This correlation pattern is no longer present in the current bounded owner-scoped analysis.", 409);
+      if (group.referencesTruncated || group.referenceCount > 20) {
+        return fail("This correlation group exceeds the 20-reference review snapshot limit and cannot be recorded as a complete review.", 409);
+      }
+      const snapshot = buildEvidenceCorrelationReviewSnapshot(group.references);
+      const keyHashBytes = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(body.correlationKey)
+      ));
+      const keyHash = Array.from(keyHashBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      const snapshotHashBytes = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(snapshot.snapshotJson)
+      ));
+      const snapshotHash = Array.from(snapshotHashBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      const reviewId = randomId();
+      const reviewedAt = Math.floor(Date.now() / 1000);
+      await env.DB.prepare(`
+        INSERT INTO intelligence_evidence_correlation_reviews
+          (id, owner_uid, reviewer_uid, correlation_type, correlation_key_sha256,
+           outcome, reason, correlation_snapshot_json, correlation_snapshot_sha256,
+           reference_count, reviewed_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        reviewId, owner.uid, owner.uid, body.correlationType, keyHash,
+        body.outcome, clean(body.reason, 1000), snapshot.snapshotJson,
+        snapshotHash, snapshot.referenceCount, reviewedAt, reviewedAt
+      ).run();
+      return response({
+        success: true,
+        id: reviewId,
+        correlationType: body.correlationType,
+        correlationKeySha256: keyHash,
+        outcome: body.outcome,
+        reviewerUid: owner.uid,
+        reviewedAt,
+        referenceCount: snapshot.referenceCount,
+        snapshotSha256: snapshotHash,
+        historyIsAppendOnly: true,
+        relationshipFactVerified: false,
+        evidenceContentVerified: false,
+        checkPassed: false,
+        executionEnabled: false,
+        operationPerformed: true
+      }, 201);
+    } catch {
+      return fail("Correlation owner review could not be recorded. Confirm staging migration 0011 and the current correlation group.", 503);
+    }
+  }
 
   if (path === "/intelligence/findings/evidence-correlations" && method === "GET") {
     const allowedParams = new Set(["module"]);
