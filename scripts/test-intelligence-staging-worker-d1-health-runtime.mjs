@@ -716,7 +716,7 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
       headers,
       body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
     });
-    assert.equal(issued.status, 201, `session issuance failed: ${await issued.clone().text()}; Pi identity calls: ${piCalls}`);
+    assert.equal(issued.status, 201);
     const issuedBody = await issued.json();
     assert.equal(issuedBody.executionEnabled, false);
     assert.equal(issuedBody.status, "issued");
@@ -1077,7 +1077,7 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
     });
 
     const issued = await issue();
-    assert.equal(issued.status, 201);
+    assert.equal(issued.status, 201, `session issuance failed: ${await issued.clone().text()}; Pi identity calls: ${piCalls}`);
     const issuedBody = await issued.json();
     assert.equal(issuedBody.success, true);
     assert.equal(typeof issuedBody.token, "string");
