@@ -34,7 +34,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
     def test_owner_scoping_is_present_on_sensitive_reads_and_writes(self):
         for fragment in [
-            'WHERE owner_uid = ? AND archived_at IS NULL',
+            'WHERE owner_uid = ?\n        AND (? = \'all\' OR (? = \'archived\' AND archived_at IS NOT NULL) OR (? = \'active\' AND archived_at IS NULL))',
             'WHERE owner_uid = ? AND (? = \'\' OR status = ?)',
             'WHERE id=? AND owner_uid=?',
             'WHERE id=? AND created_by=?',
@@ -80,6 +80,12 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('path === "/intelligence/tasks"', self.source)
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
+
+    def test_archived_knowledge_can_be_listed_without_cross_owner_access(self):
+        self.assertIn('const state = clean(url.searchParams.get("state") || "active", 16)', self.source)
+        self.assertIn('["active","archived","all"].includes(state)', self.source)
+        self.assertIn("(? = 'archived' AND archived_at IS NOT NULL)", self.source)
+        self.assertIn("(? = 'active' AND archived_at IS NULL)", self.source)
 
     def test_knowledge_update_archive_restore_are_owner_scoped_and_audited(self):
         self.assertIn('if (knowledgeMatch && method === "PUT")', self.source)
