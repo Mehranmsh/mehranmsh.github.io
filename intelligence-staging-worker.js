@@ -4,6 +4,7 @@ import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
 import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";
 import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
 import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-dependency-impact.mjs";
+import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -672,6 +673,36 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Dependency impact analysis is unavailable.", 503);
+    }
+  }
+
+  if (path === "/intelligence/company/gap-test-strategy" && method === "GET") {
+    const allowedParams = new Set(["module"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported gap analysis filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    if (!COMPANY_MODULES.includes(moduleId)) return fail("A valid company module is required.");
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT check_id, COUNT(*) AS finding_count,
+          SUM(CASE WHEN status IN ('open','accepted') THEN 1 ELSE 0 END) AS open_finding_count
+        FROM intelligence_findings
+        WHERE owner_uid = ? AND module_id = ?
+        GROUP BY check_id
+      `).bind(owner.uid, moduleId).all();
+      const strategy = buildGapTestStrategy(moduleId, rows.results || []);
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        scope: "authenticated_owner_staging_only",
+        assessment: "blueprint_gap_signals_and_test_recommendations_only",
+        executionEnabled: false,
+        operationPerformed: false,
+        ...strategy
+      });
+    } catch {
+      return fail("Gap analysis and test strategy are unavailable. Confirm the staging findings schema is present.", 503);
     }
   }
 
