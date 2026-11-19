@@ -2420,3 +2420,88 @@ async function testSpoofedOriginsCannotReadOrRevokeOwnerSession() {
 }
 
 await testSpoofedOriginsCannotReadOrRevokeOwnerSession();
+
+async function testUntrustedOriginRejectedAcrossProtectedRouteMatrix() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const sessionId = "session-origin-route-matrix-001";
+  const resourceId = "11111111-1111-4111-8111-111111111111";
+  const routes = [
+    ["GET", "/intelligence/capabilities"],
+    ["GET", "/intelligence/capability-approvals"],
+    ["POST", "/intelligence/capability-approvals"],
+    ["DELETE", `/intelligence/capability-approvals/${resourceId}`],
+    ["POST", "/intelligence/capabilities/evaluate"],
+    ["GET", "/intelligence/tasks"],
+    ["POST", "/intelligence/tasks"],
+    ["GET", "/intelligence/memory"],
+    ["POST", "/intelligence/memory"],
+    ["GET", "/intelligence/memory/review-queue"],
+    ["PUT", `/intelligence/memory/${resourceId}`],
+    ["DELETE", `/intelligence/memory/${resourceId}`],
+    ["GET", "/intelligence/knowledge/review-queue"],
+    ["GET", "/intelligence/knowledge"],
+    ["GET", "/intelligence/knowledge/evaluations"],
+    ["POST", "/intelligence/knowledge"],
+    ["GET", `/intelligence/knowledge/evaluations/${resourceId}`],
+    ["PUT", `/intelligence/knowledge/${resourceId}`],
+    ["GET", "/intelligence/knowledge/relations"],
+    ["POST", "/intelligence/knowledge/relations"],
+    ["PUT", `/intelligence/knowledge/relations/${resourceId}`],
+    ["GET", "/intelligence/approvals"],
+    ["POST", "/intelligence/approvals"],
+    ["DELETE", `/intelligence/approvals/${resourceId}`],
+  ];
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind(sessionId, tokenHash(token), ownerUid, now, now + 3600).run();
+
+    const tables = await db.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'intelligence_%' ORDER BY name"
+    ).all();
+    const snapshot = async () => {
+      const rows = [];
+      for (const { name } of tables.results || []) {
+        const safeName = String(name).replace(/"/g, '""');
+        const result = await db.prepare(`SELECT * FROM "${safeName}" ORDER BY rowid`).all();
+        rows.push([name, result.results || []]);
+      }
+      return rows;
+    };
+    const before = await snapshot();
+
+    for (const [method, path] of routes) {
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Origin: "https://mehranmsh.github.io.attacker.example",
+      };
+      const init = { method, headers };
+      if (["POST", "PUT"].includes(method)) {
+        headers["Content-Type"] = "application/json";
+        init.body = JSON.stringify({});
+      }
+      const response = await mf.dispatchFetch(`http://localhost${path}`, init);
+      assert.equal(response.status, 403,
+        `untrusted Origin must be rejected for ${method} ${path}`);
+    }
+
+    const after = await snapshot();
+    assert.deepEqual(after, before,
+      "rejected cross-origin requests must not alter any Intelligence staging table row or value");
+
+    const session = await db.prepare(
+      "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
+    ).bind(sessionId).first();
+    assert.equal(session.revoked_at, null,
+      "the owner session must remain active after the route matrix");
+
+    console.log(`PASS: untrusted Origin rejected across ${routes.length} protected routes with zero staging-table mutations`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testUntrustedOriginRejectedAcrossProtectedRouteMatrix();
