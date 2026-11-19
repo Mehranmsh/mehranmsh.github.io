@@ -999,14 +999,13 @@ async function handle(request, env) {
 
   if (path === "/intelligence/approvals" && method === "GET") {
     const now = Math.floor(Date.now() / 1000);
-    await env.DB.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE owner_uid=? AND status='issued' AND expires_at<=?")
-      .bind(owner.uid, now).run();
     const rows = await env.DB.prepare(`
-      SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,status,
+      SELECT id,task_id,repository,branch,base_sha,scope_json,scope_sha256,
+             CASE WHEN status='issued' AND expires_at<=? THEN 'expired' ELSE status END AS status,
              issued_at,expires_at,revoked_at,consumed_at,consumed_by
       FROM intelligence_approval_ledger WHERE owner_uid=?
       ORDER BY issued_at DESC LIMIT 100
-    `).bind(owner.uid).all();
+    `).bind(now, owner.uid).all();
     return response({ success: true, items: rows.results || [] });
   }
 
@@ -1032,6 +1031,10 @@ async function handle(request, env) {
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE task_id=? AND owner_uid=? AND status='issued' AND expires_at<=?")
           .bind(body.taskId, owner.uid, now),
+        env.DB.prepare(`
+          INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
+          SELECT ?,?,?,?,?,?,? WHERE changes() > 0
+        `).bind(randomId(), owner.uid, "approval_expiry_sweep", "task", body.taskId, JSON.stringify({ reason: "new_approval_requested" }), now),
         env.DB.prepare("INSERT INTO intelligence_approval_ledger(id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)")
           .bind(id, body.taskId, owner.uid, "mehranmsh", body.repository, body.branch, body.baseSha, scopeJson, scopeHash, now, now + expiresIn),
         audit(env.DB, owner.uid, "approval_issued", "approval", id, { taskId: body.taskId, repository: body.repository, branch: body.branch, scopeHash })
