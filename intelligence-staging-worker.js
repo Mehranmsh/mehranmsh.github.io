@@ -387,9 +387,9 @@ async function handle(request, env) {
     if (!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType) ||
         typeof sourceRef !== "string" || sourceRef.length > 1000 ||
         typeof observedAt !== "string" || observedAt.length > 40 ||
-        (observedAt && (!/^\\d{4}-\\d{2}-\\d{2}T.*(?:Z|[+-]\\d{2}:?\\d{2})$/.test(observedAt) || !Number.isFinite(Date.parse(observedAt)))) ||
+        (observedAt && (!observedAt.includes("T") || !Number.isFinite(Date.parse(observedAt)) || !(observedAt.endsWith("Z") || /[+-]/.test(observedAt.slice(19))))) ||
         (confidenceScore !== null && (!Number.isInteger(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) ||
-        (sourceType === "external_url" && (!/^https:\\/\\//i.test(sourceRef) || sourceRef.slice(8).includes("@")))) return fail("Invalid knowledge provenance.");
+        (sourceType === "external_url" && (!sourceRef.toLowerCase().startsWith("https://") || sourceRef.slice(8).includes("@")))) return fail("Invalid knowledge provenance.");
     const title = clean(body.title, 160);
     const content = clean(body.content, 12000);
     const category = clean(body.category || "company", 40);
