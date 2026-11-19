@@ -2559,3 +2559,91 @@ async function testCorsPreflightOriginBoundaries() {
 }
 
 await testCorsPreflightOriginBoundaries();
+
+
+async function testOriginSerializationEdgeCasesFailClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const sessionId = "session-origin-serialization-001";
+  const resourceId = "22222222-2222-4222-8222-222222222222";
+  const routes = [
+    ["GET", "/intelligence/capabilities"],
+    ["POST", "/intelligence/tasks"],
+    ["GET", "/intelligence/memory"],
+    ["POST", "/intelligence/knowledge"],
+    ["GET", "/intelligence/knowledge/relations"],
+    ["POST", "/intelligence/approvals"],
+    ["DELETE", `/intelligence/approvals/${resourceId}`],
+  ];
+  const origins = [
+    "https://mehranmsh.github.io@attacker.example",
+    "https://mehranmsh.github.io:444",
+    "https://mehranmsh.github.io.",
+    "http://mehranmsh.github.io:443",
+    "https://MEHRANMSH.github.io",
+    "https://mehranmsh.github.io.attacker.example:443",
+    "file://mehranmsh.github.io",
+  ];
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind(sessionId, tokenHash(token), ownerUid, now, now + 3600).run();
+
+    for (const origin of origins) {
+      for (const [method, path] of routes) {
+        const headers = {
+          Authorization: `Bearer ${token}`,
+          Origin: origin,
+        };
+        const init = { method, headers };
+        if (["POST", "PUT"].includes(method)) {
+          headers["Content-Type"] = "application/json";
+          init.body = JSON.stringify({});
+        }
+        const response = await mf.dispatchFetch(`http://localhost${path}`, init);
+        assert.equal(response.status, 403,
+          `non-exact Origin ${origin} must be rejected for ${method} ${path}`);
+        assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io",
+          "the response must retain only the configured allow-origin value");
+      }
+
+      const preflight = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "authorization,content-type",
+        },
+      });
+      assert.equal(preflight.status, 403,
+        `non-exact Origin ${origin} must fail CORS preflight`);
+    }
+
+    const session = await db.prepare(
+      "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
+    ).bind(sessionId).first();
+    assert.equal(session.revoked_at, null,
+      "rejected Origin variants must leave the owner session active");
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(audit.count), 0,
+      "rejected Origin variants must not create audit records");
+
+    const trusted = await mf.dispatchFetch("http://localhost/intelligence/capabilities", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Origin: "https://mehranmsh.github.io",
+      },
+    });
+    assert.equal(trusted.status, 200,
+      "the exact configured Origin must continue to work");
+    console.log(`PASS: ${origins.length} Origin serialization edge cases rejected across ${routes.length} protected routes without state mutation`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testOriginSerializationEdgeCasesFailClosed();
