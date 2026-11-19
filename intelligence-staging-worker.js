@@ -457,7 +457,7 @@ async function handle(request, env) {
           SELECT ?,?,?,?,?,?,? WHERE EXISTS (
             SELECT 1 FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=? AND status=?
           )
-        `).bind(randomId(), owner.uid, `knowledge_relation_${body.action}d`, "knowledge_relation", id, JSON.stringify({ status }), Math.floor(Date.now()/1000), id, owner.uid, status)
+        `).bind(randomId(), owner.uid, ({ confirm: "knowledge_relation_confirmed", dismiss: "knowledge_relation_dismissed", resolve: "knowledge_relation_resolved" })[body.action], "knowledge_relation", id, JSON.stringify({ status }), Math.floor(Date.now()/1000), id, owner.uid, status)
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Relationship state changed; reload and retry.", 409);
     } catch {
