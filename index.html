@@ -2821,8 +2821,10 @@ async function loadIntelPriorityActionReviewIntegrity(){
   for(const [label,value] of [["Records scanned",stats.recordsScanned??0],["Integrity matches",stats.integrityMatches??0],["Hash mismatches",stats.snapshotHashMismatches??0],["Invalid snapshots",stats.invalidSnapshotJson??0],["Identity mismatches",stats.snapshotIdentityMismatches??0],["Reviewer mismatches",stats.reviewerOwnerMismatches??0]]){
    const item=document.createElement("div");item.className="stat-card";const name=document.createElement("div");name.className="small-text";name.textContent=label;const number=document.createElement("strong");number.textContent=String(value);item.append(name,number);summary.append(item);
   }
-  status.textContent="Checked "+String(stats.recordsScanned??0)+" owner review records. This verifies stored snapshot metadata only; decision truth is not verified.";
-  status.className=(Number(stats.snapshotHashMismatches||0)+Number(stats.invalidSnapshotJson||0)+Number(stats.snapshotIdentityMismatches||0)+Number(stats.reviewerOwnerMismatches||0))===0?"notice success":"notice warn";
+  const integrityProblems=Number(stats.snapshotHashMismatches||0)+Number(stats.invalidSnapshotJson||0)+Number(stats.snapshotIdentityMismatches||0)+Number(stats.reviewerOwnerMismatches||0);
+  const incompleteScan=Boolean(data.truncated);
+  status.textContent="Checked "+String(stats.recordsScanned??0)+" owner review records. "+(incompleteScan?"The 100-record scan limit was reached; older records were not included. ":"")+"This verifies stored snapshot metadata only; decision truth is not verified.";
+  status.className=integrityProblems===0&&!incompleteScan?"notice success":"notice warn";
  }catch(error){status.textContent="Review integrity check unavailable: "+error.message;status.className="notice warn";summary.replaceChildren();}
  finally{if(button)button.disabled=false;}
 }
