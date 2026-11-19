@@ -157,6 +157,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             ("eval-b", "owner-a", "B", "Evidence B", "owner"),
             ("eval-c", "owner-a", "C", "Evidence C", "owner"),
             ("eval-other", "owner-b", "Other", "Private evidence", "owner"),
+            ("eval-other-2", "owner-b", "Other 2", "Other evidence", "owner"),
         ])
         self.db.executemany("""
             INSERT INTO intelligence_knowledge_relations(
