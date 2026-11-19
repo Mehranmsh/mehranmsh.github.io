@@ -3,6 +3,7 @@ import stagingWorker, { fetchPiUser } from "../intelligence-staging-worker.js";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
+import { buildEvidenceSnapshot } from "../intelligence-owner-evidence-review.mjs";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -3206,3 +3207,90 @@ async function testOwnerCompanyAssessmentBlueprint() {
   } finally { await mf.dispose(); }
 }
 await testOwnerCompanyAssessmentBlueprint();
+
+async function testOwnerEvidenceSnapshotDriftRuntime() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}`, Origin: "https://mehranmsh.github.io" };
+  const findingId = "10000000-0000-4000-8000-000000000001";
+  const evidenceA = "20000000-0000-4000-8000-000000000001";
+  const evidenceB = "20000000-0000-4000-8000-000000000002";
+  const noBaselineFinding = "10000000-0000-4000-8000-000000000002";
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("evidence-drift-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    for (const id of [findingId, noBaselineFinding]) {
+      await db.prepare(`INSERT INTO intelligence_findings
+        (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+         evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(id, ownerUid, "social", "authentication", "v1", "high", "open",
+          "Test finding", "Finding for isolated evidence drift runtime test", "missing",
+          null, null, null, now, now, ownerUid).run();
+    }
+    await db.prepare(`INSERT INTO intelligence_finding_evidence
+      (id,finding_id,owner_uid,kind,source_ref,content_digest,observed_at,note,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?)`)
+      .bind(evidenceA, findingId, ownerUid, "test_run", "test-run-a", "a".repeat(64), now, "Initial evidence reference", now).run();
+    const snapshot = buildEvidenceSnapshot([{
+      id: evidenceA, kind: "test_run", content_digest: "a".repeat(64), observed_at: now
+    }]);
+    const digest = createHash("sha256").update(snapshot.evidenceSnapshotJson).digest("hex");
+    await db.prepare(`INSERT INTO intelligence_finding_reviews
+      (id,finding_id,owner_uid,reviewer_uid,outcome,reason,evidence_snapshot_json,
+       evidence_snapshot_sha256,evidence_count,reviewed_at,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind("review-drift-baseline", findingId, ownerUid, ownerUid, "accepted",
+        "Capture baseline metadata for drift test", snapshot.evidenceSnapshotJson,
+        digest, snapshot.evidenceCount, now, now).run();
+    await db.prepare(`INSERT INTO intelligence_finding_evidence
+      (id,finding_id,owner_uid,kind,source_ref,content_digest,observed_at,note,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?)`)
+      .bind(evidenceB, findingId, ownerUid, "document", "document-b", null, null, "New evidence reference", now + 1).run();
+
+    const before = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_finding_reviews").first();
+    const response = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-drift?findingId=" + findingId, { headers });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.baselineAvailable, true);
+    assert.equal(data.baselineReviewId, "review-drift-baseline");
+    assert.equal(data.unchanged.length, 1);
+    assert.equal(data.added.length, 1);
+    assert.equal(data.changed.length, 0);
+    assert.equal(data.removed.length, 0);
+    assert.equal(data.driftDetected, true);
+    assert.equal(data.evidenceContentVerified, false);
+    assert.equal(data.sourceReachabilityChecked, false);
+    assert.equal(data.checkPassed, false);
+    assert.equal(data.isRiskVerdict, false);
+    assert.equal(data.executionEnabled, false);
+    assert.equal(data.operationPerformed, false);
+    const after = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_finding_reviews").first();
+    assert.equal(Number(after.count), Number(before.count), "drift comparison must not append review history");
+
+    const noBaseline = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-drift?findingId=" + noBaselineFinding, { headers });
+    assert.equal(noBaseline.status, 200);
+    const noBaselineData = await noBaseline.json();
+    assert.equal(noBaselineData.baselineAvailable, false);
+    assert.equal(noBaselineData.driftAssessmentAvailable, false);
+    const unauthenticated = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-drift?findingId=" + findingId,
+      { headers: { Origin: "https://mehranmsh.github.io" } });
+    assert.equal(unauthenticated.status, 401);
+    const unknown = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-drift?findingId=30000000-0000-4000-8000-000000000001", { headers });
+    assert.equal(unknown.status, 404);
+    const unsupported = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-drift?findingId=" + findingId + "&ownerUid=spoof", { headers });
+    assert.equal(unsupported.status, 400);
+    console.log("PASS: evidence drift is owner-scoped, snapshot-bound, metadata-only, and read-only on D1 runtime");
+  } finally {
+    await mf.dispose();
+  }
+}
+await testOwnerEvidenceSnapshotDriftRuntime();
+
