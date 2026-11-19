@@ -195,6 +195,8 @@ async function handle(request, env) {
     if (!body || Object.keys(body).some(key => key !== "accessToken")) return fail("A Pi access token is required.");
     const ownerUid = clean(env.MEHRAN_INTELLIGENCE_STAGING_OWNER_UID, 200);
     if (!ownerUid) return fail("Staging owner identity is not configured.", 503);
+    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (!await rateLimit(env.DB, `ip:${clientIp}`, "session-auth")) return fail("Authentication rate limit exceeded.", 429);
     const piUser = await fetchPiUser(body.accessToken);
     if (!piUser || piUser.uid !== ownerUid || piUser.username.toLowerCase() !== "mehranmsh") return fail("Pi owner verification failed.", 403);
     if (!await rateLimit(env.DB, ownerUid, "session-create")) return fail("Rate limit exceeded.", 429);
