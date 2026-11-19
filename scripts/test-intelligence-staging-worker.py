@@ -112,6 +112,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, self.source)
 
+    def test_batched_knowledge_evaluations_are_owner_scoped_and_bounded(self):
+        self.assertIn('path === "/intelligence/knowledge/evaluations" && method === "GET"', self.source)
+        self.assertIn('WITH relation_edges AS (', self.source)
+        self.assertIn('UNION ALL', self.source)
+        self.assertIn('WHERE owner_uid = ?', self.source)
+        self.assertIn('LIMIT ?', self.source)
+        self.assertIn('recordedConfidenceScore: item.confidence_score', self.source)
+        self.assertIn('assessment: "deterministic_metadata_only"', self.source)
+        self.assertIn('Number(item.unresolved_conflict_count) > 0', self.source)
+
     def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
         for fragment in [
             "source_type, source_ref, observed_at, confidence_score, verification_status",
