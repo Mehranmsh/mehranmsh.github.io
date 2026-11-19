@@ -8,7 +8,7 @@ import sys
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
+HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html", ROOT / "intelligence-staging.html"]
 WORKER_FILE = ROOT / "worker.js"
 STAGING_WORKER_FILE = ROOT / "intelligence-staging-worker.js"
 REVIEW_QUEUE_FILE = ROOT / "intelligence-review-queue.mjs"
