@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
 import { buildEvidenceSnapshot } from "../intelligence-owner-evidence-review.mjs";
+import { buildEvidenceCorrelationReviewSnapshot } from "../intelligence-evidence-correlation-review.mjs";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -426,7 +427,7 @@ async function testCompleteSchemaReportsHealthy() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 3);
+  const { mf } = await createWorker(migrations.length - 4);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
