@@ -1,5 +1,5 @@
 name: MEHRAN MSH Quality Checks
-# Run Worker, Intelligence, migration-schema, and local regression contracts.
+# Run Worker, Intelligence, migration-schema, D1-runtime, and local regression contracts.
 
 on:
   push:
