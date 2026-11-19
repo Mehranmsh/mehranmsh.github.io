@@ -918,7 +918,12 @@ async function handle(request, env) {
         !body.scope || typeof body.scope !== "object" || Array.isArray(body.scope)) return fail("Invalid approval scope.");
     const task = await env.DB.prepare("SELECT id FROM intelligence_tasks WHERE id=? AND created_by=?").bind(body.taskId, owner.uid).first();
     if (!task) return fail("Task not found for this owner.", 404);
-    const expiresIn = Math.min(3600, Math.max(60, Number(body.expiresInSeconds) || 600));
+    if (body.expiresInSeconds !== undefined &&
+        (typeof body.expiresInSeconds !== "number" || !Number.isSafeInteger(body.expiresInSeconds) ||
+         body.expiresInSeconds < 60 || body.expiresInSeconds > 3600)) {
+      return fail("Approval expiry must be an integer number of seconds between 60 and 3600.");
+    }
+    const expiresIn = body.expiresInSeconds === undefined ? 600 : body.expiresInSeconds;
     const now = Math.floor(Date.now()/1000);
     const scopeJson = JSON.stringify(body.scope);
     const scopeHash = await digest(scopeJson);
