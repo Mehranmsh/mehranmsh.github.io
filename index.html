@@ -1015,6 +1015,13 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div class="notice warn">A matching hash confirms only that stored snapshot bytes match their stored digest. It does not verify evidence content, source availability, authenticity, correctness, or decision truth. This report never changes records or executes actions.</div>
 </div>
 </div>
+<div class="panel" id="intelCompanyReadinessPanel">
+ <div class="section-title"><div><h3>Company Assessment Overview</h3><div class="small-text">A consolidated, owner-only view of available assessment signals. This is not a readiness score or certification.</div></div><button class="btn secondary small" id="refreshIntelCompanyReadinessBtn" type="button">Refresh overview</button></div>
+ <div id="intelCompanyReadinessStatus" class="notice" aria-live="polite">Company assessment overview has not been loaded.</div>
+ <div id="intelCompanyReadinessSummary" class="grid intelligence-stats" aria-live="polite"></div>
+ <div id="intelCompanyReadinessSources" class="grid"><div class="empty">Refresh to inspect the availability of each assessment source.</div></div>
+ <div class="notice warn">Interpretation limits: no recorded finding does not mean a check passed; a provisional dependency map is not runtime proof; evidence metadata integrity is not evidence correctness; owner review outcomes are not automatic decisions. Partial source failures remain visible and are never treated as positive results.</div>
+</div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
  <form id="intelMemoryForm" class="card" autocomplete="off">
@@ -2654,6 +2661,99 @@ async function loadIntelDecisionIntegrity(){
 }
 $("refreshIntelDecisionIntegrityBtn")?.addEventListener("click",loadIntelDecisionIntegrity);
 
+
+function renderIntelCompanyReadiness(results){
+ const summary=$("intelCompanyReadinessSummary"),sources=$("intelCompanyReadinessSources");
+ if(!summary||!sources)return;
+ summary.replaceChildren();sources.replaceChildren();
+ const available=results.filter(item=>item.ok).length;
+ const metrics=[
+  ["Sources available",available+" / "+results.length],
+  ["Sources unavailable",String(results.length-available)],
+  ["Assessment scope","Owner-only"],
+  ["Execution","Disabled"]
+ ];
+ for(const [label,value] of metrics){
+  const card=document.createElement("div");card.className="stat-card";
+  const name=document.createElement("div");name.className="small-text";name.textContent=label;
+  const number=document.createElement("strong");number.textContent=value;
+  card.append(name,number);summary.append(card);
+ }
+ for(const item of results){
+  const card=document.createElement("div");card.className="card";
+  const heading=document.createElement("strong");heading.textContent=item.label;
+  const state=document.createElement("div");state.className="notice "+(item.ok?"success":"warn");
+  state.textContent=item.ok?"Available · "+item.detail:"Unavailable · "+item.error;
+  const note=document.createElement("p");note.className="small-text";note.textContent=item.note;
+  card.append(heading,state,note);sources.append(card);
+ }
+}
+function intelReadinessDetail(key,data){
+ const count=(value)=>Array.isArray(value)?value.length:null;
+ if(key==="coverage"){
+  const checks=count(data.checks)||count(data.modules)||0;
+  return checks+" recorded coverage rows; zero findings are not pass results";
+ }
+ if(key==="priorities")return (count(data.items)??0)+" prioritized findings in this bounded response";
+ if(key==="remediation")return (count(data.plans)??0)+" advisory plans in this bounded response";
+ if(key==="dependencies")return (count(data.modules)??0)+" modules; graph completeness: "+String(data.graphCompleteness||"not supplied");
+ if(key==="gaps")return (count(data.modules)??count(data.items)??0)+" module/test strategy entries";
+ if(key==="decisions")return (count(data.recommendations)??count(data.items)??0)+" current bounded recommendations";
+ if(key==="integrity")return String(data.summary?.recordsScanned??0)+" stored decision snapshots checked";
+ return "Response received";
+}
+async function loadIntelCompanyReadiness(){
+ const status=$("intelCompanyReadinessStatus"),button=$("refreshIntelCompanyReadinessBtn");
+ if(!status)return;
+ if(button)button.disabled=true;
+ status.textContent="Loading owner-scoped assessment sources independently...";
+ status.className="notice";
+ const fixed=[
+  {key:"coverage",label:"Assessment coverage",path:"/intelligence/company/assessment-coverage",note:"Inventory and recorded findings only; no check is passed by absence."},
+  {key:"priorities",label:"Finding priorities",path:"/intelligence/findings/priorities?limit=100",note:"Deterministic metadata triage, not a risk verdict."},
+  {key:"remediation",label:"Remediation plans",path:"/intelligence/findings/remediation-plans?limit=100",note:"Advisory suggestions only; no task or change is created."},
+  {key:"decisions",label:"Evidence decision support",path:"/intelligence/findings/evidence-decision-support",note:"Recommendations are not owner decisions or factual verdicts."},
+  {key:"integrity",label:"Decision snapshot integrity",path:"/intelligence/findings/evidence-decision-reviews/integrity?limit=100",note:"Checks stored snapshot metadata bytes and ownership only."}
+ ];
+ try{
+  const moduleData=await api("/intelligence/company/modules");
+  const modules=Array.isArray(moduleData.modules)?moduleData.modules:[];
+  const moduleSources=modules.flatMap(module=>[
+   {key:"dependencies",module:module.id,label:"Dependency impact · "+module.name,path:"/intelligence/company/dependency-impact?module="+encodeURIComponent(module.id),note:"Provisional declared dependency analysis for this module, not runtime proof."},
+   {key:"gaps",module:module.id,label:"Gap and test strategy · "+module.name,path:"/intelligence/company/gap-test-strategy?module="+encodeURIComponent(module.id),note:"Blueprint-based test recommendations; unrecorded tests are not assumed failed."}
+  ]);
+  const sources=[...fixed,...moduleSources];
+  const settled=await Promise.allSettled(sources.map(source=>api(source.path)));
+  const outcomes=settled.map((result,index)=>{
+   const source=sources[index];
+   if(result.status!=="fulfilled")return {...source,ok:false,error:result.reason?.message||"Request failed"};
+   const data=result.value||{};
+   if(data.scope&&data.scope!=="authenticated_owner_staging_only")return {...source,ok:false,error:"Unexpected response scope"};
+   if(data.success===false)return {...source,ok:false,error:data.error||"Source reported failure"};
+   return {...source,ok:true,data,detail:intelReadinessDetail(source.key,data)};
+  });
+  const grouped=fixed.map(source=>{
+   const item=outcomes.find(x=>x.key===source.key);
+   return item||{...source,ok:false,error:"No result"};
+  });
+  for(const key of ["dependencies","gaps"]){
+   const items=outcomes.filter(x=>x.key===key);
+   const ok=items.filter(x=>x.ok);
+   grouped.push({key,label:key==="dependencies"?"Dependency and impact":"Gap and test strategy",ok:items.length>0&&ok.length===items.length,
+    detail:ok.length+" / "+items.length+" modules responded",
+    error:items.length===0?"No company modules were returned":(items.length-ok.length)+" module requests unavailable",
+    note:key==="dependencies"?"Module-level dependency maps are provisional and are not runtime dependency proof.":"Module-level gap/test strategies are advisory; no recorded test is not a failed test."});
+  }
+  renderIntelCompanyReadiness(grouped);
+  const available=grouped.filter(item=>item.ok).length;
+  status.textContent=available+" of "+grouped.length+" assessment categories fully available. Module-level results are aggregated across "+modules.length+" declared modules; partial failures remain visible.";
+  status.className=available===grouped.length?"notice success":"notice warn";
+ }catch(error){
+  status.textContent="Company assessment overview unavailable: "+error.message;
+  status.className="notice warn";
+ }finally{if(button)button.disabled=false}
+}
+$("refreshIntelCompanyReadinessBtn")?.addEventListener("click",loadIntelCompanyReadiness);
 
 async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";

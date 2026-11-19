@@ -825,6 +825,47 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(trigger, migration_source)
 
+    def test_company_assessment_overview_is_owner_only_read_only_and_partial_failure_safe(self):
+        for element_id in [
+            "intelCompanyReadinessPanel",
+            "refreshIntelCompanyReadinessBtn",
+            "intelCompanyReadinessStatus",
+            "intelCompanyReadinessSummary",
+            "intelCompanyReadinessSources",
+        ]:
+            self.assertIn(f'id="{element_id}"', self.index_html)
+        start = self.index_html.index("function renderIntelCompanyReadiness(")
+        end = self.index_html.index("async function loadProjects()", start)
+        panel_code = self.index_html[start:end]
+        for endpoint in [
+            "/intelligence/company/assessment-coverage",
+            "/intelligence/findings/priorities?limit=100",
+            "/intelligence/findings/remediation-plans?limit=100",
+            "/intelligence/company/modules",
+            "/intelligence/company/dependency-impact?module=",
+            "/intelligence/company/gap-test-strategy?module=",
+            "/intelligence/findings/evidence-decision-support",
+            "/intelligence/findings/evidence-decision-reviews/integrity?limit=100",
+        ]:
+            self.assertIn(endpoint, panel_code)
+        for fragment in [
+            "Promise.allSettled",
+            "authenticated_owner_staging_only",
+            "Unavailable",
+            "no check is passed by absence",
+            "not a risk verdict",
+            "no task or change is created",
+            "not owner decisions or factual verdicts",
+            "replaceChildren()",
+            "document.createElement(",
+            "textContent",
+            "addEventListener(\"click\",loadIntelCompanyReadiness)",
+        ]:
+            self.assertIn(fragment, panel_code)
+        for forbidden in ["innerHTML", "insertAdjacentHTML", 'method:"POST"', 'method:"PUT"', 'method:"DELETE"']:
+            self.assertNotIn(forbidden, panel_code)
+        self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
