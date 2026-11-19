@@ -15,6 +15,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
 
+    def route_block(self, marker):
+        start = self.source.index(marker)
+        end = self.source.find("\n  if (path ===", start + len(marker))
+        if end < 0:
+            end = len(self.source)
+        return self.source[start:end]
+
     def test_health_requires_the_capability_approval_ledger(self):
         match = re.search(
             r'const required = \[(.*?)\];',
@@ -65,11 +72,12 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
 
     def test_owner_evidence_review_api_is_owner_scoped_and_append_only(self):
-        history_start = self.source.index('if (path === "/intelligence/findings/reviews" && method === "GET")')
+        history_marker = 'if (path === "/intelligence/findings/reviews" && method === "GET")'
+        history_start = self.source.index(history_marker)
         post_start = self.source.index('const ownerReviewMatch = path.match(', history_start)
-        findings_start = self.source.index('if (path === "/intelligence/findings" && method === "GET")', post_start)
         history_route = self.source[history_start:post_start]
-        post_route = self.source[post_start:findings_start]
+        post_end = self.source.find('\n  if (path ===', post_start)
+        post_route = self.source[post_start:post_end]
         for fragment in [
             'WHERE owner_uid = ? AND finding_id = ?',
             'LIMIT ?',
@@ -184,9 +192,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_finding_priority_api_is_owner_scoped_bounded_and_read_only(self):
-        start = self.source.index('if (path === "/intelligence/findings/priorities" && method === "GET")')
-        end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', start)
-        route = self.source[start:end]
+        route = self.route_block('if (path === "/intelligence/findings/priorities" && method === "GET")')
         for fragment in [
             'WHERE owner_uid = ? AND (? = \'\' OR module_id = ?)',
             '.bind(owner.uid, moduleId, moduleId).all()',
@@ -447,9 +453,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"session-auth"', self.source)
 
     def test_assessment_coverage_is_owner_scoped_read_only_and_never_reports_pass(self):
-        route_start = self.source.index('if (path === "/intelligence/company/assessment-coverage" && method === "GET")')
-        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
-        route = self.source[route_start:route_end]
+        route = self.route_block('if (path === "/intelligence/company/assessment-coverage" && method === "GET")')
         for fragment in [
             "FROM intelligence_findings",
             "WHERE owner_uid = ?",
@@ -485,9 +489,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("blueprintVersion: 1", route)
 
     def test_dependency_impact_catalog_is_bounded_explicit_and_non_executing(self):
-        route_start = self.source.index('if (path === "/intelligence/company/dependency-impact" && method === "GET")')
-        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
-        route = self.source[route_start:route_end]
+        route = self.route_block('if (path === "/intelligence/company/dependency-impact" && method === "GET")')
         for fragment in [
             'new Set(["module"])',
             'COMPANY_MODULES.includes(moduleId)',
@@ -528,9 +530,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, check=True)
 
     def test_gap_test_strategy_is_owner_scoped_read_only_and_does_not_infer_pass(self):
-        route_start = self.source.index('if (path === "/intelligence/company/gap-test-strategy" && method === "GET")')
-        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
-        route = self.source[route_start:route_end]
+        route = self.route_block('if (path === "/intelligence/company/gap-test-strategy" && method === "GET")')
         for fragment in [
             'new Set(["module"])',
             'COMPANY_MODULES.includes(moduleId)',
