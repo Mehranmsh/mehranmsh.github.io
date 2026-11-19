@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "intelligence-staging-worker.js"
 CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
 OWNER_REVIEW_MODULE = ROOT / "intelligence-owner-evidence-review.mjs"
+PRIORITY_ACTION_PLAN_MODULE = ROOT / "intelligence-priority-action-plan.mjs"
 INDEX_HTML = ROOT / "index.html"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
@@ -17,6 +18,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
         cls.owner_review_module = OWNER_REVIEW_MODULE.read_text(encoding="utf-8")
+        cls.priority_action_plan_module = PRIORITY_ACTION_PLAN_MODULE.read_text(encoding="utf-8")
         cls.index_html = INDEX_HTML.read_text(encoding="utf-8")
 
     def route_block(self, marker):
@@ -865,6 +867,38 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         for forbidden in ["innerHTML", "insertAdjacentHTML", 'method:"POST"', 'method:"PUT"', 'method:"DELETE"']:
             self.assertNotIn(forbidden, panel_code)
         self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
+
+    def test_priority_action_plan_is_owner_scoped_bounded_and_advisory(self):
+        route = self.route_block('if (path === "/intelligence/findings/priority-action-plan" && method === "GET")')
+        for fragment in [
+            'new Set(["module", "limit"])',
+            'COMPANY_MODULES.includes(moduleId)',
+            'LIMIT 500',
+            'WHERE f.owner_uid = ?',
+            'e.owner_uid = f.owner_uid',
+            'buildPriorityActionPlan(rows, limit)',
+            'authenticated_owner_staging_only',
+            'Priority action-plan limit must be an integer from 1 to 100',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ["INSERT INTO", "UPDATE intelligence_", "DELETE FROM", "env.AI", "fetch("]:
+            self.assertNotIn(forbidden, route)
+        for fragment in [
+            "scoreFindingPriority",
+            "buildRemediationPlan",
+            "MAX_CANDIDATES = 500",
+            "MAX_RETURNED = 100",
+            "ownerDecision: \"not_recorded\"",
+            "ownerApprovalRequired: true",
+            "contentVerified: false",
+            "sourceReachabilityChecked: false",
+            "taskCreated: false",
+            "executionEnabled: false",
+            "operationPerformed: false",
+        ]:
+            self.assertIn(fragment, self.priority_action_plan_module)
+        for forbidden in ["INSERT INTO", "UPDATE ", "DELETE ", "fetch("]:
+            self.assertNotIn(forbidden, self.priority_action_plan_module)
 
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
