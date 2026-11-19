@@ -84,6 +84,7 @@ for forbidden in [
 def test_staging_logout_does_not_claim_revocation_when_server_did_not_confirm():
     assert 'Session revocation was not confirmed:' in page
     assert 'The local session remains available so you can retry.' in page
+    assert 'The server rejected this session; sign in again.' in page
     assert 'Staging session revoked. The bearer token was cleared from this page.' in page
     assert 'finally{sessionToken="";sessionExpiresAt=0;setAuthenticated(false)' not in page
 
