@@ -192,3 +192,6 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in findings_function, f"Findings dashboard must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsList' in findings_function and '.append(card)' in findings_function
 assert 'textContent' in page or 'findingsElement' in page
+
+refresh_block = page.split("async function refreshAll(){", 1)[1].split("}", 1)[0]
+assert "loadFindings(true)" in refresh_block, "Findings must load automatically after owner authentication."
