@@ -302,6 +302,44 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('CF-Connecting-IP', self.source)
         self.assertIn('"session-auth"', self.source)
 
+    def test_assessment_coverage_is_owner_scoped_read_only_and_never_reports_pass(self):
+        route_start = self.source.index('if (path === "/intelligence/company/assessment-coverage" && method === "GET")')
+        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
+        route = self.source[route_start:route_end]
+        for fragment in [
+            "FROM intelligence_findings",
+            "WHERE owner_uid = ?",
+            ".bind(owner.uid).all()",
+            "GROUP BY module_id, check_id",
+            'recordState: counts.findingCount ? "findings_recorded" : "no_recorded_findings"',
+            'scope: "authenticated_owner_staging_only"',
+            'assessment: "blueprint_coverage_and_recorded_findings_only"',
+            "executionEnabled: false",
+            "operationPerformed: false",
+            "checksWithoutRecordedFindings",
+            "No recorded finding does not mean a check passed",
+            "An evidence-sufficient finding is not a check-pass certification",
+            "No check is executed",
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
+            self.assertNotIn(forbidden, route)
+
+    def test_assessment_coverage_blueprints_include_all_thirteen_company_modules(self):
+        route_start = self.source.index('if (path === "/intelligence/company/assessment-coverage" && method === "GET")')
+        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
+        route = self.source[route_start:route_end]
+        module_ids = [
+            "music", "ai", "social", "instruments", "robotics", "security",
+            "intelligence", "logistics", "customer-experience", "labs",
+            "governance", "data", "robot-operations"
+        ]
+        for module_id in module_ids:
+            self.assertRegex(route, rf'id: "{re.escape(module_id)}"')
+        self.assertEqual(len(re.findall(r'\{ id: "[a-z-]+", checks: \[', route)), 13)
+        self.assertEqual(route.count("checks: ["), 13)
+        self.assertIn("blueprintVersion: 1", route)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
