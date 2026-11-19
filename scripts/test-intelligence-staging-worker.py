@@ -80,6 +80,24 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('PRAGMA foreign_key_check', self.source)
         self.assertIn('foreignKeyViolations', self.source)
 
+    def test_findings_api_is_read_only_owner_scoped_and_bounded(self):
+        start = self.source.index('if (path === "/intelligence/findings" && method === "GET")')
+        end = self.source.index('if (path === "/intelligence/capabilities" && method === "GET")', start)
+        route = self.source[start:end]
+        self.assertIn('WHERE f.owner_uid = ?', route)
+        self.assertIn('e.owner_uid = f.owner_uid', route)
+        self.assertIn('allowedParams = new Set(["module", "severity", "status", "limit", "offset"])', route)
+        self.assertIn('limit > 100', route)
+        self.assertIn('offset > 10000', route)
+        self.assertIn('LIMIT ? OFFSET ?', route)
+        self.assertIn('executionEnabled: false', route)
+        self.assertIn('assessment: "recorded_findings_only"', route)
+        self.assertNotIn('request.json', route)
+        self.assertNotIn('INSERT INTO', route)
+        self.assertNotIn('UPDATE ', route)
+        self.assertNotIn('DELETE ', route)
+        self.assertIn('path === "/intelligence/findings"', self.source)
+
     def test_route_allowlist_has_no_task_execution_endpoint(self):
         self.assertIn('path === "/health"', self.source)
         self.assertIn('path === "/session"', self.source)
