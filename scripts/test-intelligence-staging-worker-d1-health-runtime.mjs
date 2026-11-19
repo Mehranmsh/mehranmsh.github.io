@@ -1764,8 +1764,8 @@ async function testApprovalBindingIsImmutableAcrossLifecycle() {
       ["base_sha", "e".repeat(40)],
       ["scope_json", '{"paths":["*"]}'],
       ["scope_sha256", "tampered-hash"],
-      ["issued_at", now + 1],
-      ["expires_at", now + 901],
+      ["issued_at", Number(originalRow.issued_at) + 1],
+      ["expires_at", Number(originalRow.expires_at) + 1],
     ];
     for (const [column, value] of mutations) {
       await assert.rejects(
