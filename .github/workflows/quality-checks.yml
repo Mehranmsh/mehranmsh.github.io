@@ -63,6 +63,9 @@ jobs:
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
 
+      - name: Test deterministic Intelligence review queue prioritization
+        run: node --test scripts/intelligence-review-queue.test.mjs
+
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py
 
