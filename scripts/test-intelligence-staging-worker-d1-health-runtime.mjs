@@ -239,6 +239,65 @@ async function testPiSessionCreationRejectsUntrustedClientClaims() {
 }
 
 
+async function testPiSessionFailureAndCreationAtomicity() {
+  const ownerUid = "staging-owner-test-uid";
+  const cases = [
+    { name: "Pi upstream outage", fetch: async () => new Response("unavailable", { status: 503 }) },
+    { name: "foreign Pi identity", fetch: async () => new Response(JSON.stringify({ uid: "foreign-owner", username: "mehranmsh" }), { status: 200, headers: { "Content-Type": "application/json" } }) },
+    { name: "malformed Pi identity", fetch: async () => new Response("{invalid", { status: 200, headers: { "Content-Type": "application/json" } }) },
+  ];
+  for (const scenario of cases) {
+    const { mf, db } = await createWorker(migrations.length);
+    try {
+      const env = {
+        DB: db,
+        MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
+        PI_IDENTITY: { fetch: scenario.fetch },
+      };
+      const response = await stagingWorker.fetch(new Request("http://localhost/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CF-Connecting-IP": "192.0.2.90" },
+        body: JSON.stringify({ accessToken: "valid-pi-access-token-123" }),
+      }), env);
+      assert.equal(response.status, 403, scenario.name + " must fail closed");
+      const sessions = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_sessions").first();
+      const audits = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE action='session_created'").first();
+      assert.equal(Number(sessions.count), 0, scenario.name + " must not create a session");
+      assert.equal(Number(audits.count), 0, scenario.name + " must not create a creation audit");
+    } finally {
+      await mf.dispose();
+    }
+  }
+
+  for (const failure of ["session_insert", "audit_insert"]) {
+    const { mf, db } = await createWorker(migrations.length);
+    try {
+      const env = {
+        DB: db,
+        MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
+        PI_IDENTITY: { fetch: async () => new Response(JSON.stringify({ uid: ownerUid, username: "mehranmsh" }), { status: 200, headers: { "Content-Type": "application/json" } }) },
+      };
+      const table = failure === "session_insert" ? "intelligence_staging_sessions" : "intelligence_staging_audit";
+      const condition = failure === "session_insert" ? "" : " WHEN NEW.action='session_created'";
+      const triggerName = "reject_session_creation_" + failure;
+      await db.prepare(`CREATE TRIGGER ${triggerName} BEFORE INSERT ON ${table}${condition} BEGIN SELECT RAISE(ABORT, 'simulated D1 write failure'); END`).run();
+      const response = await stagingWorker.fetch(new Request("http://localhost/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "CF-Connecting-IP": failure === "session_insert" ? "192.0.2.91" : "192.0.2.92" },
+        body: JSON.stringify({ accessToken: "valid-pi-access-token-123" }),
+      }), env);
+      assert.equal(response.status, 503, failure + " failure must return service unavailable");
+      const sessions = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_sessions").first();
+      const audits = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE action='session_created'").first();
+      assert.equal(Number(sessions.count), 0, failure + " failure must leave no partial session");
+      assert.equal(Number(audits.count), 0, failure + " failure must leave no partial audit");
+    } finally {
+      await mf.dispose();
+    }
+  }
+  console.log("PASS: Pi identity failures fail closed and session/audit creation is atomic under D1 write failures");
+}
+
 async function testSessionReadRateLimit() {
   const { mf, db } = await createWorker(migrations.length);
   const ownerUid = "staging-owner-test-uid";
@@ -400,6 +459,7 @@ await testMissingCapabilityLedgerFailsClosed();
 await testPiIdentityResponseValidation();
 await testSessionVerificationAndRevocation();
 await testPiSessionCreationRejectsUntrustedClientClaims();
+await testPiSessionFailureAndCreationAtomicity();
 await testSessionReadRateLimit();
 await testOriginAndSecurityHeaders();
 await testProtectedRoutesRequireSession();
