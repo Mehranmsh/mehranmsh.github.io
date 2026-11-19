@@ -12,6 +12,8 @@ MIGRATIONS = [
     ROOT / "migrations" / "0003_intelligence_staging_runtime.sql",
     ROOT / "migrations" / "0004_intelligence_knowledge_provenance.sql",
     ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql",
+    ROOT / "migrations" / "0006_intelligence_owner_memory_confidence_integer.sql",
+    ROOT / "migrations" / "0007_intelligence_approval_ledger_state_guards.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -67,6 +69,64 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 ) VALUES('grant-x','missing','owner','owner','repo','branch',
                          'sha','{}','hash','issued',1,4102444800)
             """)
+
+
+    def test_approval_ledger_scope_is_immutable_and_states_are_one_way(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_tasks(id,title,created_by)
+            VALUES('guard-task','Guard task','owner-a')
+        """)
+        insert = """
+            INSERT INTO intelligence_approval_ledger(
+                id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                scope_json,scope_sha256,status,issued_at,expires_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+        """
+        good = ('guard-a','guard-task','owner-a','mehranmsh','owner/repo','main',
+                'a'*40,'{"paths":["src/"]}','b'*64,'issued',100,200)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, good[:9] + ('revoked',) + good[10:])
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_approval_ledger(
+                    id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                    scope_json,scope_sha256,status,issued_at,expires_at,revoked_at
+                ) VALUES('guard-b','guard-task','owner-a','mehranmsh','owner/repo','main',
+                         ?, '{"paths":["src/"]}', ?, 'issued',100,200,150)
+            """, ('a'*40,'b'*64))
+        self.db.execute(insert, good)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET repository='attacker/repo' WHERE id='guard-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET status='revoked' WHERE id='guard-a'")
+        self.db.execute("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=150 WHERE id='guard-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET status='consumed',consumed_at=160,consumed_by='executor' WHERE id='guard-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET revoked_at=151 WHERE id='guard-a'")
+
+        consumed = ('guard-c','guard-task','owner-a','mehranmsh','owner/repo','main',
+                    'c'*40,'{"paths":["docs/"]}','d'*64,'issued',100,200)
+        self.db.execute(insert, consumed)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET status='consumed' WHERE id='guard-c'")
+        self.db.execute("""
+            UPDATE intelligence_approval_ledger
+            SET status='consumed',consumed_at=150,consumed_by='staging-test'
+            WHERE id='guard-c'
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET consumed_by='other' WHERE id='guard-c'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-c'")
+
+        expired = ('guard-d','guard-task','owner-a','mehranmsh','owner/repo','main',
+                   'e'*40,'{"paths":["tests/"]}','f'*64,'issued',100,200)
+        self.db.execute(insert, expired)
+        self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-d'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_approval_ledger SET status='issued' WHERE id='guard-d'")
 
     def test_linked_knowledge_content_guard_is_installed(self):
         self.apply_chain()
