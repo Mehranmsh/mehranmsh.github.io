@@ -85,6 +85,25 @@ function clean(value, max = 2000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+function validateApprovalScope(scope) {
+  if (!scope || typeof scope !== "object" || Array.isArray(scope) ||
+      Object.keys(scope).length !== 1 || !Array.isArray(scope.paths) ||
+      scope.paths.length < 1 || scope.paths.length > 20) return null;
+  const paths = [];
+  for (const raw of scope.paths) {
+    if (typeof raw !== "string" || raw.length < 1 || raw.length > 200 ||
+        raw.startsWith("/") || raw.includes("\\") || raw.includes("%") ||
+        raw.includes("//") || /[\u0000-\u0020\u007f*?\[\]{}!:#]/.test(raw)) return null;
+    const normalized = raw.endsWith("/") ? raw.slice(0, -1) : raw;
+    const segments = normalized.split("/");
+    if (!normalized || segments.some(segment => !segment || segment === "." || segment === ".." || segment.toLowerCase() === ".git")) return null;
+    paths.push(raw);
+  }
+  if (new Set(paths).size !== paths.length) return null;
+  paths.sort();
+  return { paths };
+}
+
 export async function fetchPiUser(accessToken, fetchImpl = fetch) {
   if (typeof accessToken !== "string" || accessToken.length < 10 || accessToken.length > 4096) return null;
   const controller = new AbortController();
@@ -1034,10 +1053,11 @@ async function handle(request, env) {
 
   if (path === "/intelligence/approvals" && method === "POST") {
     const body = await readJson(request);
+    const validatedScope = validateApprovalScope(body?.scope);
     if (!body || Object.keys(body).some(key => !["taskId","repository","branch","baseSha","scope","expiresInSeconds"].includes(key)) ||
         !uuid(body.taskId) || !/^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/.test(body.repository) ||
         !/^[A-Za-z0-9._/-]{1,200}$/.test(body.branch) || !/^[0-9a-f]{40}$/i.test(body.baseSha) ||
-        !body.scope || typeof body.scope !== "object" || Array.isArray(body.scope)) return fail("Invalid approval scope.");
+        !validatedScope) return fail("Invalid approval scope. Use 1-20 unique, explicit relative paths without wildcards or traversal.");
     const task = await env.DB.prepare("SELECT id FROM intelligence_tasks WHERE id=? AND created_by=?").bind(body.taskId, owner.uid).first();
     if (!task) return fail("Task not found for this owner.", 404);
     const approvalLifetime = parseApprovalLifetime(body.expiresInSeconds);
@@ -1046,7 +1066,7 @@ async function handle(request, env) {
     }
     const expiresIn = approvalLifetime.seconds;
     const now = Math.floor(Date.now()/1000);
-    const scopeJson = JSON.stringify(body.scope);
+    const scopeJson = JSON.stringify(validatedScope);
     const scopeHash = await digest(scopeJson);
     const id = randomId();
     if (scopeJson.length > 4096 || Object.keys(body.scope).length === 0) return fail("Approval scope must be a non-empty object within 4 KB.");
