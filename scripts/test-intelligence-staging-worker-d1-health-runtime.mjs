@@ -2466,8 +2466,8 @@ async function testUntrustedOriginRejectedAcrossProtectedRouteMatrix() {
       const rows = [];
       for (const { name } of tables.results || []) {
         const safeName = String(name).replace(/"/g, '""');
-        const result = await db.prepare(`SELECT COUNT(*) AS count FROM "${safeName}"`).first();
-        rows.push([name, Number(result.count)]);
+        const result = await db.prepare(`SELECT * FROM "${safeName}" ORDER BY rowid`).all();
+        rows.push([name, result.results || []]);
       }
       return rows;
     };
@@ -2490,7 +2490,7 @@ async function testUntrustedOriginRejectedAcrossProtectedRouteMatrix() {
 
     const after = await snapshot();
     assert.deepEqual(after, before,
-      "rejected cross-origin requests must not mutate any Intelligence staging table");
+      "rejected cross-origin requests must not alter any Intelligence staging table row or value");
 
     const session = await db.prepare(
       "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
