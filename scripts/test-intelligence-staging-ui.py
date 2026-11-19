@@ -201,7 +201,7 @@ for marker in [
 ]:
     assert marker in page, f"Findings dashboard missing required safe/read-only behavior: {marker}"
 
-findings_function = page.split("async function loadFindings(reset=true)", 1)[1].split("async function loadOverview()", 1)[0]
+findings_function = page.split("async function loadFindings(reset=true)", 1)[1].split("async function loadAssessmentCoverage()", 1)[0]
 assert 'method:"GET"' not in findings_function or 'request("/intelligence/findings?' in findings_function
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in findings_function, f"Findings dashboard must remain read-only and avoid HTML injection: {forbidden}"
