@@ -283,11 +283,23 @@ async function handle(request, env) {
       scope: "owner_staging",
       approval: null
     });
+    try {
+      await env.DB.batch([
+        audit(env.DB, owner.uid, "capability_assessed", "capability", body.capability, {
+          decision: assessment.decision,
+          reason: assessment.reason,
+          assessmentOnly: true
+        })
+      ]);
+    } catch {
+      return fail("Capability assessment could not be safely audited.", 503);
+    }
     return response({
       success: true,
       assessment: { ...assessment, executionEnabled: false },
       operationPerformed: false,
-      assessmentOnly: true
+      assessmentOnly: true,
+      auditRecorded: true
     });
   }
 
