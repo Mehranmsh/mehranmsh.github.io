@@ -319,6 +319,33 @@ assert "loadDependencyImpact()" in refresh_block, "Dependency impact must load a
 assert 'graphCompleteness' in page and 'unverified' in page
 
 
+# Evidence snapshot drift dashboard: owner-only comparison, safe DOM, and no verdict.
+for marker in [
+    'id="evidenceDriftPanel"',
+    'id="refreshEvidenceDriftBtn"',
+    'id="evidenceDriftSummary"',
+    'id="evidenceDriftList"',
+    'async function loadOwnerEvidenceDrift()',
+    '/intelligence/findings/evidence-drift?findingId=',
+    'data.unchanged',
+    'data.changed',
+    'data.added',
+    'data.removed',
+    'data.driftDetected',
+    'data.evidenceContentVerified',
+    'data.checkPassed',
+    'refreshEvidenceDriftBtn',
+    'loadOwnerEvidenceDrift);',
+    'Metadata comparison only.',
+]:
+    assert marker in page, f"Evidence drift dashboard missing safety or behavior marker: {marker}"
+
+drift_function = page.split("async function loadOwnerEvidenceDrift()", 1)[1].split("async function loadGapTestStrategy()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in drift_function, f"Evidence drift UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in drift_function and '.append(' in drift_function
+
+
 # Gap analysis and test strategy dashboard: owner-only GET, no pass inference, no execution.
 for marker in [
     'id="gapTestStrategyPanel"',
