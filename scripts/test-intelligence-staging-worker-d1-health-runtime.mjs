@@ -124,6 +124,18 @@ async function testSessionVerificationAndRevocation() {
     assert.equal(accepted.status, 200);
     assert.deepEqual(await accepted.json(), { success: true, ownerUid });
 
+    await db.prepare(
+      "CREATE TRIGGER reject_session_revoke_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='session_revoked' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const auditFailure = await mf.dispatchFetch("http://localhost/session", {
+      method: "DELETE",
+      headers,
+    });
+    assert.equal(auditFailure.status, 503);
+    const stillValidAfterAuditFailure = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(stillValidAfterAuditFailure.status, 200, "failed revocation audit must roll back the session revocation");
+    await db.prepare("DROP TRIGGER reject_session_revoke_audit").run();
+
     const revoked = await mf.dispatchFetch("http://localhost/session", {
       method: "DELETE",
       headers,
@@ -133,11 +145,16 @@ async function testSessionVerificationAndRevocation() {
 
     const rejectedAfterRevocation = await mf.dispatchFetch("http://localhost/session", { headers });
     assert.equal(rejectedAfterRevocation.status, 401);
+    const replayedRevoke = await mf.dispatchFetch("http://localhost/session", {
+      method: "DELETE",
+      headers,
+    });
+    assert.equal(replayedRevoke.status, 401, "a revoked bearer token must not revoke or access the session again");
 
     const audit = await db.prepare(
       "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_revoked'"
     ).bind(ownerUid).first();
-    assert.equal(Number(audit.count), 1);
+    assert.equal(Number(audit.count), 1, "exactly one revocation audit must be recorded");
 
     const expiredToken = randomBytes(32).toString("base64url");
     await db.prepare(
