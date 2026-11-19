@@ -81,6 +81,12 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
 
+    def test_memory_deletion_is_owner_scoped_and_audited(self):
+        self.assertIn('if (memoryDeleteMatch && method === "DELETE")', self.source)
+        self.assertIn('DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?', self.source)
+        self.assertIn('"owner_memory_deleted"', self.source)
+        self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
+
     def test_expired_approval_is_transitioned_before_replacement(self):
         self.assertIn("UPDATE intelligence_approval_ledger SET status='expired'", self.source)
         self.assertIn('await env.DB.prepare("UPDATE intelligence_approval_ledger SET status=\'expired\' WHERE owner_uid=? AND status=\'issued\' AND expires_at<=?")', self.source)
