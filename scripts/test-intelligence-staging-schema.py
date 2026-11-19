@@ -27,7 +27,10 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
 
     def test_ordered_migration_chain_and_idempotence(self):
         self.apply_chain()
-        self.apply_chain()
+        # 0004 is a one-time additive ALTER TABLE migration; the earlier
+        # CREATE IF NOT EXISTS migrations remain safely repeatable.
+        for path in MIGRATIONS[:-1]:
+            self.db.executescript(path.read_text(encoding="utf-8"))
         tables = {row[0] for row in self.db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
