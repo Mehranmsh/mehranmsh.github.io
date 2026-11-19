@@ -210,7 +210,7 @@ async function handle(request, env) {
     if (!row) return fail("Session not found.", 404);
     const revokedAt = Math.floor(Date.now() / 1000);
     try {
-      await env.DB.batch([
+      const results = await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_staging_sessions SET revoked_at=? WHERE id=? AND owner_uid=? AND revoked_at IS NULL")
           .bind(revokedAt, row.id, owner.uid),
         env.DB.prepare(`
@@ -219,8 +219,9 @@ async function handle(request, env) {
             SELECT 1 FROM intelligence_staging_sessions
             WHERE id=? AND owner_uid=? AND revoked_at=?
           )
-        `).bind(randomId(), owner.uid, "session_revoked", "session", row.id, "{}", Math.floor(Date.now()/1000), row.id, owner.uid, Math.floor(Date.now()/1000))
+        `).bind(randomId(), owner.uid, "session_revoked", "session", row.id, "{}", revokedAt, row.id, owner.uid, revokedAt)
       ]);
+      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Session was already revoked.", 409);
     } catch {
       return fail("Session revocation failed.", 503);
     }
