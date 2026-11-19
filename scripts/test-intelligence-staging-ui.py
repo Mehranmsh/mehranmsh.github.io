@@ -82,7 +82,7 @@ required = [
     'id="ownerEvidenceReviewOutcome"',
     'id="ownerEvidenceReviewReason"',
     'id="ownerEvidenceReviewHistory"',
-    'data-review-finding',
+    'dataset.reviewFinding',
     'async function selectOwnerEvidenceReviewFinding',
     'async function submitOwnerEvidenceReview',
     'request("/intelligence/findings/"+encodeURIComponent(selectedOwnerReviewFindingId)+"/reviews"',
