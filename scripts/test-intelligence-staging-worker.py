@@ -918,8 +918,31 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('authenticated_owner_staging_only', renderer)
         self.assertNotIn("innerHTML", renderer)
         self.assertNotIn("insertAdjacentHTML", renderer)
-        self.assertNotIn('method:"POST"', renderer)
+        self.assertIn('method:"POST"', renderer)
+        self.assertIn('"/intelligence/findings/priority-action-reviews"', renderer)
         self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
+
+    def test_priority_action_owner_review_ui_is_owner_scoped_and_non_executing(self):
+        self.assertIn('id="refreshIntelPriorityActionReviewIntegrityBtn"', self.index_html)
+        self.assertIn('id="intelPriorityActionReviewIntegrityStatus"', self.index_html)
+        start = self.index_html.index("async function loadIntelPriorityActionReviewHistory")
+        end = self.index_html.index("async function loadIntelPriorityActionPlan()", start)
+        ui = self.index_html[start:end]
+        for fragment in [
+            '"/intelligence/findings/priority-action-reviews?actionKey="',
+            '"/intelligence/findings/priority-action-reviews/integrity?limit=100"',
+            'method:"POST"',
+            'actionKey:action.actionKey',
+            'moduleId:action.moduleId',
+            'outcome:outcome.value',
+            'reason',
+            'authenticated_owner_staging_only',
+            'textContent',
+            'execution: disabled'
+        ]:
+            self.assertIn(fragment, self.index_html if fragment == 'execution: disabled' else ui + self.index_html[start:end])
+        self.assertNotIn("innerHTML", ui)
+        self.assertNotIn("insertAdjacentHTML", ui)
 
     def test_priority_action_review_is_owner_scoped_append_only_and_stale_safe(self):
         self.assertIn('"intelligence_priority_action_reviews"', self.source)
