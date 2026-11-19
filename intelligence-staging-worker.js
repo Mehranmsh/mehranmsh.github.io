@@ -384,12 +384,20 @@ async function handle(request, env) {
     const sourceRef = body.sourceRef === undefined ? "" : body.sourceRef;
     const observedAt = body.observedAt === undefined ? "" : body.observedAt;
     const confidenceScore = body.confidenceScore === undefined ? null : body.confidenceScore;
+    let externalUrlValid = sourceType !== "external_url";
+    if (sourceType === "external_url") {
+      try {
+        const parsedSourceUrl = new URL(sourceRef);
+        externalUrlValid = parsedSourceUrl.protocol === "https:" && !!parsedSourceUrl.hostname &&
+          !parsedSourceUrl.username && !parsedSourceUrl.password;
+      } catch { externalUrlValid = false; }
+    }
     if (!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType) ||
         typeof sourceRef !== "string" || sourceRef.length > 1000 ||
         typeof observedAt !== "string" || observedAt.length > 40 ||
         (observedAt && (!observedAt.includes("T") || !Number.isFinite(Date.parse(observedAt)) || !(observedAt.endsWith("Z") || /[+-]/.test(observedAt.slice(19))))) ||
         (confidenceScore !== null && (!Number.isInteger(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) ||
-        (sourceType === "external_url" && (!sourceRef.toLowerCase().startsWith("https://") || sourceRef.slice(8).includes("@")))) return fail("Invalid knowledge provenance.");
+        !externalUrlValid) return fail("Invalid knowledge provenance.");
     const title = clean(body.title, 160);
     const content = clean(body.content, 12000);
     const category = clean(body.category || "company", 40);
