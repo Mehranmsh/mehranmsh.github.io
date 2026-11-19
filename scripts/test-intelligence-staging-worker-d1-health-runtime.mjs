@@ -2933,3 +2933,50 @@ async function testCorsPreflightMethodAllowlist() {
 }
 
 await testCorsPreflightMethodAllowlist();
+
+
+async function testOwnerScopedKnowledgeSearch() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}`, Origin: "https://mehranmsh.github.io" };
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("knowledge-search-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.batch([
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,source_type,source_ref) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind("knowledge-search-owner-1", ownerUid, "decision", "Pi ecosystem roadmap", "Keep all company modules on Pi Network.", "high", "test", "owner_input", ""),
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,source_type,source_ref) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind("knowledge-search-owner-2", ownerUid, "procedure", "Studio onboarding", "Document the recording setup.", "normal", "test", "owner_input", ""),
+      db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,source_type,source_ref) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind("knowledge-search-foreign", "another-owner-uid", "decision", "Pi ecosystem secret", "This foreign record must never appear.", "high", "test", "owner_input", "")
+    ]);
+    const byTitle = await mf.dispatchFetch("http://localhost/intelligence/knowledge?state=all&limit=50&q=PI%20ECOSYSTEM", { headers });
+    assert.equal(byTitle.status, 200);
+    const titleData = await byTitle.json();
+    assert.deepEqual(titleData.items.map(item => item.id), ["knowledge-search-owner-1"],
+      "search must be case-insensitive and restricted to the authenticated owner");
+
+    const byContent = await mf.dispatchFetch("http://localhost/intelligence/knowledge?state=all&limit=50&q=recording%20setup", { headers });
+    assert.equal(byContent.status, 200);
+    const contentData = await byContent.json();
+    assert.deepEqual(contentData.items.map(item => item.id), ["knowledge-search-owner-2"],
+      "search must match record content as well as title");
+
+    const tooLong = await mf.dispatchFetch("http://localhost/intelligence/knowledge?state=all&q=" + "x".repeat(121), { headers });
+    assert.equal(tooLong.status, 400, "oversized search input must be rejected");
+
+    const unauthenticated = await mf.dispatchFetch("http://localhost/intelligence/knowledge?state=all&q=Pi", {
+      headers: { Origin: "https://mehranmsh.github.io" },
+    });
+    assert.equal(unauthenticated.status, 401, "knowledge search must remain behind owner authentication");
+    console.log("PASS: knowledge search is owner-scoped, case-insensitive, bounded, and protected by the owner session");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testOwnerScopedKnowledgeSearch();
+
