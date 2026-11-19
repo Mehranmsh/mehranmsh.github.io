@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS intelligence_evidence_decision_reviews (
   source_type TEXT NOT NULL CHECK(source_type IN (
     'finding_metadata','correlation_candidate','consistency_candidate'
   )),
-  source_id TEXT NOT NULL CHECK(length(source_id) BETWEEN 1 AND 200),
+  source_id TEXT NOT NULL CHECK(length(source_id) BETWEEN 1 AND 300),
   outcome TEXT NOT NULL CHECK(outcome IN ('accepted','rejected','needs_more_info')),
   reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 1 AND 1000),
   review_snapshot_json TEXT NOT NULL
