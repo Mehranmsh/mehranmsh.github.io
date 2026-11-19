@@ -155,6 +155,46 @@ function uuid(value) {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+
+function buildKnowledgeReviewItem(item, nowMs = Date.now()) {
+  const reasons = [];
+  const disputed = item.verification_status === "disputed";
+  const ownerVerified = item.verification_status === "owner_verified";
+  const unresolvedConflicts = Number(item.unresolved_conflict_count) || 0;
+  const candidateRelations = Number(item.candidate_relation_count) || 0;
+  const observedAt = typeof item.observed_at === "string" ? Date.parse(item.observed_at) : NaN;
+  const missingObservationDate = !item.observed_at;
+  const stale = Number.isFinite(observedAt) && observedAt < nowMs - 180 * 24 * 60 * 60 * 1000;
+  const missingSourceReference = item.source_type !== "owner_input" && !item.source_ref;
+  if (disputed) reasons.push("owner_disputed");
+  if (unresolvedConflicts > 0) reasons.push("unresolved_conflict");
+  if (candidateRelations > 0) reasons.push("candidate_relationship");
+  if (stale) reasons.push("source_observation_older_than_180_days");
+  if (missingObservationDate) reasons.push("missing_observation_date");
+  if (missingSourceReference) reasons.push("missing_source_reference");
+  if (!ownerVerified && !disputed) reasons.push("owner_verification_needed");
+  let priority = 0;
+  if (disputed) priority = Math.max(priority, 100);
+  if (unresolvedConflicts > 0) priority = Math.max(priority, 90);
+  if (stale) priority = Math.max(priority, 75);
+  if (missingObservationDate || missingSourceReference) priority = Math.max(priority, 65);
+  if (candidateRelations > 0) priority = Math.max(priority, 55);
+  if (!ownerVerified && !disputed) priority = Math.max(priority, 45);
+  return {
+    id: item.id,
+    title: item.title,
+    sourceType: item.source_type,
+    observedAt: item.observed_at,
+    verificationStatus: item.verification_status,
+    priority,
+    priorityBand: priority >= 90 ? "critical" : priority >= 70 ? "high" : priority >= 55 ? "medium" : "normal",
+    reasons,
+    relationCount: Number(item.relation_count) || 0,
+    recordedConfidenceScore: item.confidence_score,
+    assessment: "deterministic_metadata_only"
+  };
+}
+
 async function handle(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -360,6 +400,61 @@ async function handle(request, env) {
       return fail("Owner memory deletion failed.", 503);
     }
     return response({ success: true, id, deleted: true });
+  }
+
+
+  if (path === "/intelligence/knowledge/review-queue" && method === "GET") {
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));
+    const includeArchived = url.searchParams.get("includeArchived") === "true";
+    const rows = await env.DB.prepare(`
+      WITH relation_edges AS (
+        SELECT source_knowledge_id AS knowledge_id, relation_type, status
+        FROM intelligence_knowledge_relations WHERE owner_uid = ?
+        UNION ALL
+        SELECT target_knowledge_id AS knowledge_id, relation_type, status
+        FROM intelligence_knowledge_relations WHERE owner_uid = ?
+      ),
+      relation_stats AS (
+        SELECT knowledge_id,
+          COUNT(*) AS relation_count,
+          SUM(CASE WHEN status = 'candidate' THEN 1 ELSE 0 END) AS candidate_relation_count,
+          SUM(CASE WHEN relation_type = 'conflicts_with' AND status IN ('candidate','confirmed') THEN 1 ELSE 0 END) AS unresolved_conflict_count
+        FROM relation_edges GROUP BY knowledge_id
+      )
+      SELECT k.id, k.title, k.source_type, k.source_ref, k.observed_at,
+             k.confidence_score, k.verification_status, k.archived_at,
+             COALESCE(s.relation_count, 0) AS relation_count,
+             COALESCE(s.candidate_relation_count, 0) AS candidate_relation_count,
+             COALESCE(s.unresolved_conflict_count, 0) AS unresolved_conflict_count
+      FROM intelligence_knowledge k
+      LEFT JOIN relation_stats s ON s.knowledge_id = k.id
+      WHERE k.owner_uid = ? AND (? = 1 OR k.archived_at IS NULL)
+      ORDER BY k.updated_at DESC
+      LIMIT 500
+    `).bind(owner.uid, owner.uid, owner.uid, includeArchived ? 1 : 0).all();
+    const scanned = rows.results || [];
+    const items = scanned
+      .map(item => buildKnowledgeReviewItem(item))
+      .filter(item => item.priority > 0)
+      .sort((a, b) => b.priority - a.priority || String(a.observedAt || "").localeCompare(String(b.observedAt || "")))
+      .slice(0, limit);
+    return response({
+      success: true,
+      items,
+      returnedCount: items.length,
+      scannedCount: scanned.length,
+      scanLimit: 500,
+      includeArchived,
+      staleAfterDays: 180,
+      ordering: "priority_desc_then_oldest_observation",
+      assessment: "deterministic_metadata_only",
+      limitations: [
+        "Priority is a review aid, not a truth score or factual conclusion.",
+        "A source reference does not prove that the source was read or is accurate.",
+        "At most 500 most recently updated owner records are scanned per request.",
+        "No external source retrieval, semantic fact-checking, or autonomous conflict resolution is performed."
+      ]
+    });
   }
 
   if (path === "/intelligence/knowledge" && method === "GET") {
