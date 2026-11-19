@@ -2766,18 +2766,18 @@ function renderIntelPriorityActionPlan(data){
   const outcome=document.createElement("select");outcome.className="input";
   for(const [value,label] of [["accepted","Accepted for planning"],["rejected","Rejected"],["needs_more_info","Need more information"]]){const option=document.createElement("option");option.value=value;option.textContent=label;outcome.append(option)}
   const reasonLabel=document.createElement("label");reasonLabel.textContent="Reason (required, max 1,000 characters)";
-  const reason=document.createElement("textarea");reason.rows=2;reason.maxLength=1000;reason.required=true;reason.placeholder="Explain why you chose this outcome...";
+  const reviewReason=document.createElement("textarea");reviewReason.rows=2;reviewReason.maxLength=1000;reviewReason.required=true;reviewReason.placeholder="Explain why you chose this outcome...";
   const reviewStatus=document.createElement("div");reviewStatus.className="small-text";reviewStatus.setAttribute("aria-live","polite");
   const save=document.createElement("button");save.type="button";save.className="btn secondary small";save.textContent="Save owner review";
   save.addEventListener("click",async()=>{
-   const note=reason.value.trim();if(!note){reviewStatus.textContent="A reason is required.";return}
+   const note=reviewReason.value.trim();if(!note){reviewStatus.textContent="A reason is required.";return}
    if(!/^[0-9a-f]{64}$/.test(String(action.actionKey||""))){reviewStatus.textContent="This action has no valid review key. Refresh the action plan.";return}
    save.disabled=true;reviewStatus.textContent="Verifying the current action and recording your review...";
-   try{await api("/intelligence/findings/priority-action-reviews",{method:"POST",body:JSON.stringify({actionKey:action.actionKey,moduleId:action.moduleId,outcome:outcome.value,reason:note})});reviewStatus.textContent="Owner review recorded. No finding, company state, or remediation action was changed.";reason.value="";await loadIntelPriorityActionReviews(action.actionKey)}
+   try{await api("/intelligence/findings/priority-action-reviews",{method:"POST",body:JSON.stringify({actionKey:action.actionKey,moduleId:action.moduleId,outcome:outcome.value,reason:note})});reviewStatus.textContent="Owner review recorded. No finding, company state, or remediation action was changed.";reviewReason.value="";await loadIntelPriorityActionReviews(action.actionKey)}
    catch(error){reviewStatus.textContent=error.status===409?"This action changed or is no longer current. Refresh the action plan before reviewing.":"Review not recorded: "+error.message}
    finally{save.disabled=false}
   });
-  reviewBox.append(reviewTitle,outcomeLabel,outcome,reasonLabel,reason,save,reviewStatus);
+  reviewBox.append(reviewTitle,outcomeLabel,outcome,reasonLabel,reviewReason,save,reviewStatus);
   const approval=document.createElement("div");approval.className="notice warn";
   approval.textContent="Owner review is a recorded decision only. It does not approve execution, change a finding, or mark remediation complete.";
   card.append(approval,reviewBox);list.append(card);
