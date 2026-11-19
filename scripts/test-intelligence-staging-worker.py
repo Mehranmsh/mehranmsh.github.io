@@ -124,6 +124,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
 
     def test_knowledge_review_queue_is_bounded_owner_scoped_and_deterministic(self):
+        helper = (ROOT / "intelligence-review-queue.mjs").read_text(encoding="utf-8")
         self.assertIn('import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";', self.source)
         for fragment in [
             'path === "/intelligence/knowledge/review-queue" && method === "GET"',
@@ -132,15 +133,19 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'staleAfterDays: 180',
             'ordering: "priority_desc_then_oldest_observation"',
             'assessment: "deterministic_metadata_only"',
+            '.filter(item => item.priority > 0)',
+            '.slice(0, limit)',
+        ]:
+            self.assertIn(fragment, self.source)
+        for fragment in [
             '"owner_disputed"',
             '"unresolved_conflict"',
             '"source_observation_older_than_180_days"',
             '"missing_source_reference"',
             'priorityBand: priority >= 90 ? "critical"',
-            '.filter(item => item.priority > 0)',
-            '.slice(0, limit)',
+            'export function buildKnowledgeReviewItem',
         ]:
-            self.assertIn(fragment, self.source)
+            self.assertIn(fragment, helper)
         self.assertIn('No external source retrieval, semantic fact-checking, or autonomous conflict resolution is performed.', self.source)
 
     def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
