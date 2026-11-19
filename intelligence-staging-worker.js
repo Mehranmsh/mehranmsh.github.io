@@ -458,6 +458,79 @@ async function handle(request, env) {
     });
   }
 
+  if (path === "/intelligence/findings" && method === "GET") {
+    const allowedParams = new Set(["module", "severity", "status", "limit", "offset"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported findings filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    const severity = url.searchParams.get("severity") || "";
+    const status = url.searchParams.get("status") || "";
+    const rawLimit = url.searchParams.get("limit") || "25";
+    const rawOffset = url.searchParams.get("offset") || "0";
+    const limit = Number(rawLimit);
+    const offset = Number(rawOffset);
+    const modules = new Set([
+      "music", "ai", "social", "instruments", "robotics", "security",
+      "intelligence", "logistics", "customer-experience", "labs",
+      "governance", "data", "robot-operations"
+    ]);
+    const severities = new Set(["critical", "high", "medium", "low", "info", "unrated"]);
+    const statuses = new Set(["open", "accepted", "mitigated", "resolved", "false_positive"]);
+    if (moduleId && !modules.has(moduleId)) return fail("Unknown findings module filter.");
+    if (severity && !severities.has(severity)) return fail("Invalid findings severity filter.");
+    if (status && !statuses.has(status)) return fail("Invalid findings status filter.");
+    if (!/^([1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Findings limit must be an integer from 1 to 100.");
+    }
+    if (!/^\\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
+      return fail("Invalid findings page offset.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT f.id, f.module_id, f.check_id, f.blueprint_version,
+               f.severity, f.status, f.title, f.description,
+               f.evidence_state, f.recommendation, f.status_reason,
+               f.review_due_at, f.created_at, f.updated_at, f.created_by,
+               (SELECT COUNT(*) FROM intelligence_finding_evidence e
+                WHERE e.finding_id = f.id AND e.owner_uid = f.owner_uid) AS evidence_count
+        FROM intelligence_findings f
+        WHERE f.owner_uid = ?
+          AND (? = '' OR f.module_id = ?)
+          AND (? = '' OR f.severity = ?)
+          AND (? = '' OR f.status = ?)
+        ORDER BY
+          CASE f.severity
+            WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2
+            WHEN 'low' THEN 3 WHEN 'info' THEN 4 ELSE 5
+          END,
+          f.updated_at DESC, f.id DESC
+        LIMIT ? OFFSET ?
+      `).bind(owner.uid, moduleId, moduleId, severity, severity,
+        status, status, limit + 1, offset).all();
+      const scanned = rows.results || [];
+      const items = scanned.slice(0, limit);
+      return response({
+        success: true,
+        items,
+        filters: { module: moduleId || null, severity: severity || null, status: status || null },
+        offset, limit,
+        hasMore: scanned.length > limit,
+        nextOffset: scanned.length > limit ? offset + items.length : null,
+        scope: "authenticated_owner_staging_only",
+        assessment: "recorded_findings_only",
+        executionEnabled: false,
+        limitations: [
+          "Findings are recorded observations, not a security certification.",
+          "Evidence count means references are attached; it does not validate their contents or prove a check passed.",
+          "This endpoint is read-only and does not create, update, resolve, or execute anything."
+        ]
+      });
+    } catch {
+      return fail("Findings are unavailable. Confirm the staging schema migration is present.", 503);
+    }
+  }
+
   if (path === "/intelligence/capabilities" && method === "GET") {
     return response({
       success: true,
