@@ -1852,3 +1852,90 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
 }
 
 await testCapabilityAssessmentFailureAndApprovalStateSafety();
+
+
+async function testCapabilityApprovalRevocationOwnerAndExpiryBoundaries() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const foreignUid = "foreign-capability-owner";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const ownId = "90909090-9090-4090-8090-909090909090";
+  const foreignId = "abababab-abab-4bab-8bab-abababababab";
+  const expiredId = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-capability-revocation-boundaries", tokenHash(token), ownerUid, now, now + 3600).run();
+
+    for (const [id, owner, issuedAt, expiresAt] of [
+      [ownId, ownerUid, now, now + 600],
+      [foreignId, foreignUid, now, now + 600],
+      [expiredId, ownerUid, now - 120, now - 1],
+    ]) {
+      await db.prepare(
+        "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+      ).bind(id, owner, "memory.delete", issuedAt, expiresAt).run();
+    }
+
+    const headers = { Authorization: "Bearer " + token };
+    const foreignRevoke = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${foreignId}`,
+      { method: "DELETE", headers }
+    );
+    assert.equal(foreignRevoke.status, 409,
+      "an owner must not revoke another owner's capability approval");
+    const foreignRow = await db.prepare(
+      "SELECT owner_uid,status,revoked_at FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(foreignId).first();
+    assert.equal(foreignRow.owner_uid, foreignUid);
+    assert.equal(foreignRow.status, "issued");
+    assert.equal(foreignRow.revoked_at, null);
+
+    const expiredRevoke = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${expiredId}`,
+      { method: "DELETE", headers }
+    );
+    assert.equal(expiredRevoke.status, 409,
+      "an expired approval must not be revocable as an active approval");
+    const expiredRow = await db.prepare(
+      "SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(expiredId).first();
+    assert.equal(expiredRow.status, "issued");
+    assert.equal(expiredRow.revoked_at, null);
+
+    const revoked = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${ownId}`,
+      { method: "DELETE", headers }
+    );
+    assert.equal(revoked.status, 200);
+    const repeated = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${ownId}`,
+      { method: "DELETE", headers }
+    );
+    assert.equal(repeated.status, 409,
+      "a terminal approval must not be revoked a second time");
+
+    const ownRow = await db.prepare(
+      "SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?"
+    ).bind(ownId).first();
+    assert.equal(ownRow.status, "revoked");
+    assert.ok(ownRow.revoked_at);
+
+    const ownAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='capability_approval_revoked' AND target_id=?"
+    ).bind(ownerUid, ownId).first();
+    assert.equal(Number(ownAudit.count), 1,
+      "one successful revocation must produce exactly one audit event");
+    const foreignAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id=? AND action='capability_approval_revoked'"
+    ).bind(foreignId).first();
+    assert.equal(Number(foreignAudit.count), 0,
+      "a rejected cross-owner revocation must not create a revocation audit event");
+    console.log("PASS: capability approval revocation is owner-bound, expiry-aware, one-time, and audit-exact");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCapabilityApprovalRevocationOwnerAndExpiryBoundaries();
