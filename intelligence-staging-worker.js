@@ -545,7 +545,7 @@ async function handle(request, env) {
       "governance", "data", "robot-operations"
     ]);
     if (moduleId && !modules.has(moduleId)) return fail("Unknown priority module filter.");
-    if (!/^([1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^([1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Priority limit must be an integer from 1 to 100.");
     }
     try {
