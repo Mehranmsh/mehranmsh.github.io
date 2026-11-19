@@ -3807,6 +3807,8 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201, await created.clone().text());
     const result = await created.json();
+    assert.equal(result.success, true);
+    assert.equal(result.scope, "authenticated_owner_staging_only");
     assert.equal(result.findingId, findingId);
     assert.equal(result.moduleId, "security");
     assert.equal(result.reviewerUid, ownerUid);
