@@ -81,6 +81,27 @@ for forbidden in [
     if forbidden in page:
         raise SystemExit(f"Staging console must not reference production capability: {forbidden}")
 
+def test_staging_ui_escapes_untrusted_content_before_html_insertion():
+    # The few HTML-string templates must escape every server-controlled value.
+    assert 'function esc(value){return String(value??"").replace(/[&<>"\\\']/g,c=>({'"&"":"&amp;","<":"&lt;",">":"&gt;",\'"\\\'\':"&#39;"}[c]))}' in page
+    for marker in [
+        'esc(item.verificationStatus)',
+        'esc(item.title)',
+        'esc(reasons)',
+        'esc(item.sourceType||"—")',
+        'esc(item.observedAt||"—")',
+        'esc(item.id)',
+        'esc(task.title)',
+        'esc(task.description)',
+        'esc(task.status)',
+        'esc(task.priority)',
+        'esc(item.reviewState)',
+        'title.textContent=item.category+" · "+item.memory_kind',
+        'body.textContent=item.content',
+    ]:
+        assert marker in page, f"Server-controlled UI content must be escaped or assigned as text: {marker}"
+
+
 if "REPLACE_WITH_VERIFIED_STAGING_WORKER_URL" not in page:
     raise SystemExit("Staging Worker URL must remain an explicit unconfigured placeholder.")
 if page.count("STAGING_WORKER_URL") < 5:
