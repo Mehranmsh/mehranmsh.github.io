@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { fetchPiUser } from "../intelligence-staging-worker.js";
+import stagingWorker, { fetchPiUser } from "../intelligence-staging-worker.js";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
@@ -30,13 +30,12 @@ async function applyMigrations(db, names) {
   }
 }
 
-async function createWorker(migrationCount, serviceBindings = {}) {
+async function createWorker(migrationCount) {
   const mf = new Miniflare({
     scriptPath: new URL("../intelligence-staging-worker.js", import.meta.url).pathname,
     modules: true,
     bindings: { MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: "staging-owner-test-uid" },
     d1Databases: { DB: `intelligence-health-runtime-${migrationCount}` },
-    serviceBindings,
   });
   const db = await mf.getD1Database("DB");
   await applyMigrations(db, migrations.slice(0, migrationCount));
@@ -1054,7 +1053,11 @@ await testKnowledgeRelationReadsAreOwnerScoped();
 async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
   let piCalls = 0;
   let identity = { uid: "staging-owner-test-uid", username: "mehranmsh" };
-  const serviceBindings = {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const env = {
+    DB: db,
+    MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
     PI_IDENTITY: { fetch: async (request) => {
       piCalls += 1;
       assert.equal(new URL(request.url).href, "https://api.minepi.com/v2/me");
@@ -1064,10 +1067,9 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
       });
     } },
   };
-  const { mf, db } = await createWorker(migrations.length, serviceBindings);
-  const ownerUid = "staging-owner-test-uid";
+  const dispatch = (url, init = {}) => stagingWorker.fetch(new Request(url, init), env);
   try {
-    const issue = () => mf.dispatchFetch("http://localhost/session", {
+    const issue = () => dispatch("http://localhost/session", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1097,7 +1099,7 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
     ).bind(ownerUid, session.id).first();
     assert.equal(Number(audit.count), 1, "session issuance must create exactly one matching audit row");
 
-    const authenticated = await mf.dispatchFetch("http://localhost/session", {
+    const authenticated = await dispatch("http://localhost/session", {
       headers: { Authorization: "Bearer " + issuedBody.token },
     });
     assert.equal(authenticated.status, 200);
@@ -1132,18 +1134,21 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
   }
 
   let rateLimitPiCalls = 0;
-  const rateLimitedBindings = {
+  const rateLimited = await createWorker(migrations.length);
+  const rateLimitEnv = {
+    DB: rateLimited.db,
+    MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
     PI_IDENTITY: { fetch: async () => {
       rateLimitPiCalls += 1;
-      return new Response(JSON.stringify({ uid: "staging-owner-test-uid", username: "mehranmsh" }), {
+      return new Response(JSON.stringify({ uid: ownerUid, username: "mehranmsh" }), {
         status: 200, headers: { "Content-Type": "application/json" },
       });
     } },
   };
-  const rateLimited = await createWorker(migrations.length, rateLimitedBindings);
+  const rateLimitDispatch = (url, init = {}) => stagingWorker.fetch(new Request(url, init), rateLimitEnv);
   try {
     for (let index = 0; index < 30; index += 1) {
-      const allowed = await rateLimited.mf.dispatchFetch("http://localhost/session", {
+      const allowed = await rateLimitDispatch("http://localhost/session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1153,7 +1158,7 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
       });
       assert.equal(allowed.status, 201, "the first 30 authentication attempts should be allowed");
     }
-    const blocked = await rateLimited.mf.dispatchFetch("http://localhost/session", {
+    const blocked = await rateLimitDispatch("http://localhost/session", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -1172,5 +1177,4 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
     await rateLimited.mf.dispose();
   }
 }
-
 await testPiSessionIssuanceEndToEndAndIpRateLimit();
