@@ -238,10 +238,7 @@ async function handle(request, env) {
           .bind(revokedAt, row.id, owner.uid),
         env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
-          SELECT ?,?,?,?,?,?,? WHERE EXISTS (
-            SELECT 1 FROM intelligence_staging_sessions
-            WHERE id=? AND owner_uid=? AND revoked_at=?
-          )
+          SELECT ?,?,?,?,?,?,? WHERE changes() = 1
         `).bind(randomId(), owner.uid, "session_revoked", "session", row.id, "{}", revokedAt, row.id, owner.uid, revokedAt)
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Session was already revoked.", 409);
@@ -334,9 +331,7 @@ async function handle(request, env) {
           .bind(category, content, updatedAt, id, owner.uid),
         env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
-          SELECT ?,?,?,?,?,?,? WHERE EXISTS (
-            SELECT 1 FROM intelligence_owner_memory WHERE id=? AND owner_uid=? AND updated_at=?
-          )
+          SELECT ?,?,?,?,?,?,? WHERE changes() = 1
         `).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000), id, owner.uid, updatedAt)
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
@@ -454,9 +449,7 @@ async function handle(request, env) {
         statement,
         env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
-          SELECT ?,?,?,?,?,?,? WHERE EXISTS (
-            SELECT 1 FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=? AND status=?
-          )
+          SELECT ?,?,?,?,?,?,? WHERE changes() = 1
         `).bind(randomId(), owner.uid, ({ confirm: "knowledge_relation_confirmed", dismiss: "knowledge_relation_dismissed", resolve: "knowledge_relation_resolved" })[body.action], "knowledge_relation", id, JSON.stringify({ status }), Math.floor(Date.now()/1000), id, owner.uid, status)
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Relationship state changed; reload and retry.", 409);
@@ -508,7 +501,7 @@ async function handle(request, env) {
     const result = await env.DB.batch([
       env.DB.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?")
         .bind(now, id, owner.uid, now),
-      env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM intelligence_approval_ledger WHERE id=? AND owner_uid=? AND status='revoked' AND revoked_at=?)")
+      env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) SELECT ?,?,?,?,?,?,? WHERE changes() = 1")
         .bind(randomId(), owner.uid, "approval_revoked", "approval", id, "{}", now, id, owner.uid, now)
     ]);
     if (!Number(result?.[0]?.meta?.changes || 0)) return fail("Approval not found or no longer revocable.", 409);
