@@ -104,7 +104,8 @@ async function testSequentialSingleUse() {
     assert.equal(await count(db, "SELECT COUNT(*) AS count FROM protected_operations"), 1);
     assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid' AND action='capability_approval_consumed'"), 1);
     const approval = await db.prepare("SELECT status, consumed_by FROM intelligence_capability_approvals WHERE id='grant-valid'").first();
-    assert.deepEqual(approval, { status: "consumed", consumed_by: "staging-operation:op-first" });
+    assert.equal(approval.status, "consumed");
+    assert.equal(approval.consumed_by, "staging-operation:op-first");
   } finally {
     await mf.dispose();
   }
@@ -115,7 +116,9 @@ async function testRollbackOnOperationFailure() {
   try {
     await assert.rejects(db.batch(statements(db, { failOperation: true })), /constraint|NOT NULL|not null/i);
     const approval = await db.prepare("SELECT status, consumed_at, consumed_by FROM intelligence_capability_approvals WHERE id='grant-valid'").first();
-    assert.deepEqual(approval, { status: "issued", consumed_at: null, consumed_by: null });
+    assert.equal(approval.status, "issued");
+    assert.equal(approval.consumed_at, null);
+    assert.equal(approval.consumed_by, null);
     assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid'"), 0);
     assert.equal(await count(db, "SELECT COUNT(*) AS count FROM protected_operations"), 0);
   } finally {
