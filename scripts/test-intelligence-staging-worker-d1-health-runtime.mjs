@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
+import { createHash, randomBytes } from "node:crypto";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -32,11 +33,72 @@ async function createWorker(migrationCount) {
   const mf = new Miniflare({
     scriptPath: new URL("../intelligence-staging-worker.js", import.meta.url).pathname,
     modules: true,
+    bindings: { MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: "staging-owner-test-uid" },
     d1Databases: { DB: `intelligence-health-runtime-${migrationCount}` },
   });
   const db = await mf.getD1Database("DB");
   await applyMigrations(db, migrations.slice(0, migrationCount));
   return { mf, db };
+}
+
+
+function tokenHash(token) {
+  return createHash("sha256").update(token).digest("base64url");
+}
+
+async function testSessionVerificationAndRevocation() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const tokenDigest = tokenHash(token);
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-valid-0001", tokenDigest, ownerUid, now, now + 3600).run();
+
+    const headers = { Authorization: `Bearer ${token}` };
+    const accepted = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(accepted.status, 200);
+    assert.deepEqual(await accepted.json(), { success: true, ownerUid });
+
+    const revoked = await mf.dispatchFetch("http://localhost/session", {
+      method: "DELETE",
+      headers,
+    });
+    assert.equal(revoked.status, 200);
+    assert.deepEqual(await revoked.json(), { success: true, revoked: true });
+
+    const rejectedAfterRevocation = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(rejectedAfterRevocation.status, 401);
+
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_revoked'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(audit.count), 1);
+
+    const expiredToken = randomBytes(32).toString("base64url");
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-expired-001", tokenHash(expiredToken), ownerUid, now - 7200, now - 3600).run();
+    const expired = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: `Bearer ${expiredToken}` },
+    });
+    assert.equal(expired.status, 401);
+
+    const foreignToken = randomBytes(32).toString("base64url");
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-foreign-001", tokenHash(foreignToken), "different-owner-uid", now, now + 3600).run();
+    const foreignOwner = await mf.dispatchFetch("http://localhost/session", {
+      headers: { Authorization: `Bearer ${foreignToken}` },
+    });
+    assert.equal(foreignOwner.status, 401);
+
+    console.log("PASS: staging sessions enforce owner binding, expiry, revocation, and audit");
+  } finally {
+    await mf.dispose();
+  }
 }
 
 async function testCompleteSchemaReportsHealthy() {
@@ -75,3 +137,4 @@ async function testMissingCapabilityLedgerFailsClosed() {
 
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
+await testSessionVerificationAndRevocation();
