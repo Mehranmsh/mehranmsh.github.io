@@ -97,6 +97,24 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('Content is evidence-linked. Create a corrected record and relate it instead.', self.source)
         self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
 
+
+    def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
+        for fragment in [
+            "source_type, source_ref, observed_at, confidence_score, verification_status",
+            '"sourceType","sourceRef","observedAt","confidenceScore"',
+            '"external_url"',
+            "Number.isInteger(confidenceScore)",
+            "confidenceScore > 100",
+            'sourceRef.slice(8).includes("@")',
+            '"owner_verified"',
+            '"knowledge_owner_verified"',
+            '"knowledge_disputed"',
+            '"knowledge_verification_reset"',
+        ]:
+            self.assertIn(fragment, self.source)
+        self.assertIn("trg_intelligence_knowledge_provenance_guard_update",
+                      (ROOT / "migrations" / "0004_intelligence_knowledge_provenance.sql").read_text(encoding="utf-8"))
+
     def test_memory_deletion_is_owner_scoped_and_audited(self):
         self.assertIn('if (memoryDeleteMatch && method === "DELETE")', self.source)
         self.assertIn('DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?', self.source)
