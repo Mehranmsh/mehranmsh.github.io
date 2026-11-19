@@ -2223,7 +2223,7 @@ message.textContent="Company data could not be loaded: "+error.message+". Sign i
 message.className="notice warn";
 $("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks()}
+}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity()}
 }
 async function testMcpConnection(){
 const button=$("testMcpBtn"),status=$("mcpStatus");
