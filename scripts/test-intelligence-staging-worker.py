@@ -679,6 +679,29 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("trg_intelligence_correlation_review_no_delete", migration_source)
         self.assertIn("trg_intelligence_correlation_review_audit_insert", migration_source)
 
+    def test_correlation_review_drift_api_is_owner_scoped_read_only_and_bounded(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-correlations/review-drift" && method === "GET")')
+        for fragment in [
+            'new Set(["reviewId"])',
+            'WHERE id = ? AND owner_uid = ?',
+            'buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 })',
+            'buildEvidenceCorrelationReviewDrift(snapshot, group?.references || [])',
+            'previousSnapshotSha256: review.correlation_snapshot_sha256',
+            'coverageComplete: false',
+            'evidenceContentVerified: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'INSERT INTO', 'UPDATE intelligence_', 'DELETE FROM']:
+            self.assertNotIn(forbidden, route)
+        helper = ROOT / "intelligence-evidence-correlation-drift.mjs"
+        self.assertTrue(helper.exists())
+        helper_source = helper.read_text()
+        self.assertIn("export function buildEvidenceCorrelationReviewDrift", helper_source)
+        self.assertIn("driftDetected", helper_source)
+
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
