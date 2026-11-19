@@ -52,7 +52,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             self.db.execute("""
                 INSERT INTO intelligence_approval_ledger(
                     id,task_id,owner_uid,owner_username,repository,branch,
-                    base_sha,scope_json,scope_sha256,status,expires_at
+                    base_sha,scope_json,scope_sha256,status,issued_at,expires_at
                 ) VALUES('grant-x','missing','owner','owner','repo','branch',
                          'sha','{}','hash','issued',1,4102444800)
             """)
