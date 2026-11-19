@@ -365,12 +365,40 @@ for marker in [
 ]:
     assert marker in page, f"Evidence correlation dashboard missing safety or behavior marker: {marker}"
 
-correlation_function = page.split("async function loadEvidenceCorrelations()", 1)[1].split("async function loadOwnerEvidenceReviewHistory()", 1)[0]
+correlation_function = page.split("async function loadEvidenceCorrelations()", 1)[1].split("async function loadEvidenceCorrelationReviewHistory()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in correlation_function, f"Evidence correlation UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in correlation_function and '.append(' in correlation_function
 assert "loadEvidenceCorrelations()" in refresh_block, "Evidence correlations must load after owner authentication."
 
+
+
+# Owner correlation decisions: explicit, owner-authenticated, append-only, and safe DOM.
+for marker in [
+    'id="evidenceCorrelationReviewHistory"',
+    'async function loadEvidenceCorrelationReviewHistory()',
+    'async function submitEvidenceCorrelationReview(event)',
+    'form.className="correlationReviewForm"',
+    'form.dataset.correlationType',
+    'form.dataset.correlationKey',
+    'Record owner decision',
+    '/intelligence/findings/evidence-correlations/reviews',
+    'historyIsAppendOnly',
+    'relationshipFactVerified',
+    '$("evidenceCorrelationList").addEventListener("submit",submitEvidenceCorrelationReview);',
+    'loadEvidenceCorrelationReviewHistory()',
+]:
+    assert marker in page, f"Owner correlation review UI missing required behavior: {marker}"
+
+correlation_history_function = page.split("async function loadEvidenceCorrelationReviewHistory()", 1)[1].split("async function submitEvidenceCorrelationReview(event)", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in correlation_history_function, f"Correlation review history must remain read-only and safe: {forbidden}"
+
+correlation_review_function = page.split("async function submitEvidenceCorrelationReview(event)", 1)[1].split("async function loadOwnerEvidenceReviewHistory()", 1)[0]
+for marker in ['method:"POST"', 'correlationType:form.dataset.correlationType', 'correlationKey:form.dataset.correlationKey', 'outcome:form.elements.outcome.value', 'reason:form.elements.reason.value']:
+    assert marker in correlation_review_function, f"Owner correlation review submission missing: {marker}"
+for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in correlation_review_function, f"Owner correlation review UI must avoid unsafe HTML: {forbidden}"
 
 # Gap analysis and test strategy dashboard: owner-only GET, no pass inference, no execution.
 for marker in [

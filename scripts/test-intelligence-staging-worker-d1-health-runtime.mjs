@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
 import { buildEvidenceSnapshot } from "../intelligence-owner-evidence-review.mjs";
+import { buildEvidenceCorrelationReviewSnapshot } from "../intelligence-evidence-correlation-review.mjs";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -18,6 +19,7 @@ const migrations = [
   "0008_intelligence_capability_approval_ledger",
   "0009_intelligence_findings_schema",
   "0010_intelligence_finding_review_ledger",
+  "0011_intelligence_evidence_correlation_reviews",
 ];
 
 async function applyMigrations(db, names) {
@@ -425,13 +427,13 @@ async function testCompleteSchemaReportsHealthy() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 3);
+  const { mf } = await createWorker(migrations.length - 4);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
     assert.equal(response.status, 503, JSON.stringify(body));
     assert.equal(body.schemaReady, false);
-    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews"]);
+    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews"]);
     assert.equal(body.executor, false);
     console.log("PASS: staging Worker /health fails closed when migration 0008 is absent");
   } finally {
@@ -3370,4 +3372,123 @@ async function testOwnerEvidenceCorrelationRuntime() {
   }
 }
 await testOwnerEvidenceCorrelationRuntime();
+
+
+async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Origin: "https://mehranmsh.github.io",
+    "Content-Type": "application/json"
+  };
+  const findingA = "60000000-0000-4000-8000-000000000001";
+  const findingB = "60000000-0000-4000-8000-000000000002";
+  const evidenceA = "70000000-0000-4000-8000-000000000001";
+  const evidenceB = "70000000-0000-4000-8000-000000000002";
+  const correlationKey = "doc:review-shared";
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("correlation-review-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    for (const id of [findingA, findingB]) {
+      await db.prepare(`INSERT INTO intelligence_findings
+        (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+         evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(id, ownerUid, "social", "privacy", "v1", "high", "open",
+          "Correlation review test finding", "Fixture for owner correlation review runtime", "missing",
+          null, null, null, now, now, ownerUid).run();
+    }
+    for (const [id, findingId] of [[evidenceA, findingA], [evidenceB, findingB]]) {
+      await db.prepare(`INSERT INTO intelligence_finding_evidence
+        (id,finding_id,owner_uid,kind,source_ref,content_digest,observed_at,note,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?)`)
+        .bind(id, findingId, ownerUid, "document", correlationKey, "c".repeat(64), now,
+          "Correlation review metadata fixture", now).run();
+    }
+    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    const beforeFindings = await db.prepare(
+      "SELECT id,status FROM intelligence_findings WHERE owner_uid=? ORDER BY id"
+    ).bind(ownerUid).all();
+    const body = {
+      correlationType: "shared_source_reference",
+      correlationKey,
+      outcome: "related",
+      reason: "Owner reviewed the two references and considers them related."
+    };
+    const created = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations/reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(created.status, 201);
+    const result = await created.json();
+    assert.equal(result.outcome, "related");
+    assert.equal(result.reviewerUid, ownerUid);
+    assert.equal(result.referenceCount, 2);
+    assert.equal(result.relationshipFactVerified, false);
+    assert.equal(result.evidenceContentVerified, false);
+    assert.equal(result.checkPassed, false);
+    assert.equal(result.executionEnabled, false);
+    assert.equal(result.operationPerformed, true);
+    const saved = await db.prepare(`
+      SELECT owner_uid,reviewer_uid,correlation_type,correlation_key_sha256,outcome,
+             correlation_snapshot_json,correlation_snapshot_sha256,reference_count
+      FROM intelligence_evidence_correlation_reviews WHERE id=?
+    `).bind(result.id).first();
+    assert.equal(saved.owner_uid, ownerUid);
+    assert.equal(saved.reviewer_uid, ownerUid);
+    assert.equal(saved.correlation_type, "shared_source_reference");
+    assert.equal(saved.outcome, "related");
+    assert.equal(Number(saved.reference_count), 2);
+    const snapshot = buildEvidenceCorrelationReviewSnapshot([
+      {evidenceId:evidenceA,findingId:findingA,moduleId:"social",checkId:"privacy",kind:"document",sourceRef:correlationKey,contentDigest:"c".repeat(64)},
+      {evidenceId:evidenceB,findingId:findingB,moduleId:"social",checkId:"privacy",kind:"document",sourceRef:correlationKey,contentDigest:"c".repeat(64)}
+    ]);
+    assert.equal(saved.correlation_snapshot_json, snapshot.snapshotJson);
+    const snapshotHash = createHash("sha256").update(snapshot.snapshotJson).digest("hex");
+    assert.equal(saved.correlation_snapshot_sha256, snapshotHash);
+    const keyHash = createHash("sha256").update(correlationKey).digest("hex");
+    assert.equal(saved.correlation_key_sha256, keyHash);
+    const history = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations/reviews?correlationKeySha256=" + keyHash,
+      { headers });
+    assert.equal(history.status, 200);
+    const historyData = await history.json();
+    assert.equal(historyData.items.length, 1);
+    assert.equal(historyData.items[0].snapshot.length, 2);
+    assert.equal(historyData.historyIsAppendOnly, true);
+    assert.equal(historyData.relationshipFactVerified, false);
+    const afterFindings = await db.prepare(
+      "SELECT id,status FROM intelligence_findings WHERE owner_uid=? ORDER BY id"
+    ).bind(ownerUid).all();
+    assert.deepEqual(afterFindings.results, beforeFindings.results, "correlation review must not change finding state");
+    const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1, "review insert must append exactly one audit event");
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_evidence_correlation_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
+      /append-only/i
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_evidence_correlation_reviews WHERE id=?").bind(result.id).run(),
+      /retained/i
+    );
+    const stale = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations/reviews",
+      { method:"POST", headers, body:JSON.stringify({...body,correlationKey:"doc:stale"}) });
+    assert.equal(stale.status, 409);
+    const spoof = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations/reviews",
+      { method:"POST", headers, body:JSON.stringify({...body,ownerUid:"spoof"}) });
+    assert.equal(spoof.status, 400);
+    const unauthenticated = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-correlations/reviews",
+      { method:"POST", headers:{Origin:"https://mehranmsh.github.io","Content-Type":"application/json"}, body:JSON.stringify(body) });
+    assert.equal(unauthenticated.status, 401);
+    console.log("PASS: owner correlation decisions are current-pattern-bound, snapshot-hashed, append-only, audited, and non-verdict on D1 runtime");
+  } finally {
+    await mf.dispose();
+  }
+}
+await testOwnerEvidenceCorrelationReviewLedgerRuntime();
 

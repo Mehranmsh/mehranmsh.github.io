@@ -34,6 +34,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         required_tables = set(re.findall(r'"([a-z_]+)"', match.group(1)))
         self.assertIn("intelligence_capability_approvals", required_tables)
         self.assertIn("intelligence_finding_reviews", required_tables)
+        self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
+        self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
         self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
@@ -631,6 +633,51 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'operationPerformed: false',
         ]:
             self.assertIn(fragment, helper_source)
+
+    def test_correlation_review_history_api_is_owner_scoped_bounded_and_read_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-correlations/reviews" && method === "GET")')
+        for fragment in [
+            'new Set(["correlationKeySha256", "limit"])',
+            'WHERE owner_uid = ? AND (? = \'\' OR correlation_key_sha256 = ?)',
+            'ORDER BY reviewed_at DESC, id DESC',
+            'LIMIT ?',
+            'buildEvidenceCorrelationReviewHistory(rows.results || [])',
+            'scope: "authenticated_owner_staging_only"',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'INSERT INTO', 'UPDATE intelligence_', 'DELETE FROM']:
+            self.assertNotIn(forbidden, route)
+
+    def test_correlation_review_post_recomputes_current_owner_pattern_and_appends_owner_decision(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-correlations/reviews" && method === "POST")')
+        for fragment in [
+            '["correlationType", "correlationKey", "outcome", "reason"]',
+            'EVIDENCE_CORRELATION_TYPES.includes(body.correlationType)',
+            'EVIDENCE_CORRELATION_REVIEW_OUTCOMES.includes(body.outcome)',
+            'e.owner_uid = ? AND f.owner_uid = ?',
+            'buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 })',
+            'item.correlationType === body.correlationType && item.correlationKey === body.correlationKey',
+            'group.referencesTruncated',
+            'buildEvidenceCorrelationReviewSnapshot(group.references)',
+            'reviewId, owner.uid, owner.uid, body.correlationType',
+            'INSERT INTO intelligence_evidence_correlation_reviews',
+            'relationshipFactVerified: false',
+            'evidenceContentVerified: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: true',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['body.ownerUid', 'body.reviewerUid', 'UPDATE intelligence_', 'DELETE FROM']:
+            self.assertNotIn(forbidden, route)
+        helper = ROOT / "intelligence-evidence-correlation-review.mjs"
+        migration = ROOT / "migrations" / "0011_intelligence_evidence_correlation_reviews.sql"
+        self.assertTrue(helper.exists())
+        self.assertTrue(migration.exists())
+        migration_source = migration.read_text()
+        self.assertIn("trg_intelligence_correlation_review_immutable", migration_source)
+        self.assertIn("trg_intelligence_correlation_review_no_delete", migration_source)
+        self.assertIn("trg_intelligence_correlation_review_audit_insert", migration_source)
 
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
