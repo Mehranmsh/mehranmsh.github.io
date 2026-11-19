@@ -24,6 +24,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIsNotNone(match, "Health route must declare its required schema tables.")
         required_tables = set(re.findall(r'"([a-z_]+)"', match.group(1)))
         self.assertIn("intelligence_capability_approvals", required_tables)
+        self.assertIn("intelligence_finding_reviews", required_tables)
         self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
@@ -61,6 +62,44 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('knowledge_relation_', self.source)
         self.assertIn('{ confirm: "knowledge_relation_confirmed", dismiss: "knowledge_relation_dismissed", resolve: "knowledge_relation_resolved" }', self.source)
         self.assertIn('approval_revoked', self.source)
+
+
+    def test_owner_evidence_review_api_is_owner_scoped_and_append_only(self):
+        history_start = self.source.index('if (path === "/intelligence/findings/reviews" && method === "GET")')
+        post_start = self.source.index('const ownerReviewMatch = path.match(', history_start)
+        findings_start = self.source.index('if (path === "/intelligence/findings" && method === "GET")', post_start)
+        history_route = self.source[history_start:post_start]
+        post_route = self.source[post_start:findings_start]
+        for fragment in [
+            'WHERE owner_uid = ? AND finding_id = ?',
+            'LIMIT ?',
+            'append_only_owner_review_history',
+            'historyIsAppendOnly',
+            'evidenceContentVerified: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+        ]:
+            self.assertIn(fragment, history_route)
+        for fragment in [
+            'OWNER_EVIDENCE_REVIEW_OUTCOMES.includes(body.outcome)',
+            'Object.keys(body).some(key => !["outcome", "reason"].includes(key))',
+            'WHERE id = ? AND owner_uid = ? LIMIT 1',
+            'WHERE finding_id = ? AND owner_uid = ?',
+            'evidenceCount > 100',
+            'buildEvidenceSnapshot(evidenceRows.results || [])',
+            'reviewer_uid, outcome, reason',
+            'reviewId, findingId, owner.uid, owner.uid, body.outcome',
+            'historyIsAppendOnly: true',
+            'evidenceContentVerified: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: true',
+        ]:
+            self.assertIn(fragment, post_route)
+        for forbidden in ['request.json', 'body.ownerUid', 'body.reviewerUid', 'DELETE FROM intelligence_finding_reviews', 'UPDATE intelligence_finding_reviews']:
+            self.assertNotIn(forbidden, post_route)
+        self.assertIn('intelligence_finding_reviews', self.source)
+        self.assertIn('buildEvidenceSnapshot', self.source)
 
     def test_no_executor_scheduler_or_production_binding(self):
         forbidden = [
