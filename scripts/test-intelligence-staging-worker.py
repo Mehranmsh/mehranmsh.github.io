@@ -1032,5 +1032,14 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotRegex(self.config, r'"queues"\s*:')
         self.assertNotRegex(self.config, r'"routes"\s*:')
 
+    def test_intelligence_dashboard_loads_company_assessment_overview_automatically(self):
+        start = self.index_html.index("async function loadIntelligence(){")
+        end = self.index_html.index("\nasync function testMcpConnection()", start)
+        loader = self.index_html[start:end]
+        self.assertIn("loadIntelCompanyReadiness()", loader)
+        self.assertIn("loadIntelPriorityActionPlan()", loader)
+        self.assertIn("loadIntelDecisionIntegrity()", loader)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
