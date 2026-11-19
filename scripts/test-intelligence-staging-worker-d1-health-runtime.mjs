@@ -428,7 +428,7 @@ async function testCompleteSchemaReportsHealthy() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 4);
+  const { mf } = await createWorker(migrations.length - 5);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
