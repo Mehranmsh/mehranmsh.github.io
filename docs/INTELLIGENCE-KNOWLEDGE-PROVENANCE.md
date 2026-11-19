@@ -4,7 +4,7 @@
 
 Knowledge records are not interchangeable with verified facts. INTELLIGENCE must preserve where a statement came from, when it was observed, how it was assessed, and whether the owner has reviewed it. A confidence value is an assessment aid, not proof of truth.
 
-## Required provenance fields for the next schema revision
+## Implemented staging provenance fields
 
 Each knowledge record should carry:
 
@@ -33,7 +33,7 @@ Each knowledge record should carry:
 - No autonomous source fetching, browsing, ingestion, or verification is enabled by this policy.
 - No task execution or external side effect is authorized by a knowledge record or relationship.
 
-## Acceptance tests for implementation
+## Acceptance tests
 
 - Invalid source types and verification states are rejected.
 - Confidence values outside 0-100 and non-integers are rejected.
@@ -46,6 +46,12 @@ Each knowledge record should carry:
 - Migration tests run against the complete staging migration chain in disposable SQLite.
 - Live D1 behavior is separately validated after the staging database target is confirmed.
 
-## Rollout boundary
+## Staging implementation
 
-This document is a design contract only. It does not add columns, alter any database, change the Worker API, enable source ingestion, or authorize deployment. Implementation requires a separately reviewed additive migration and matching Worker/API tests.
+Migration `0004_intelligence_knowledge_provenance.sql` adds the five bounded fields to the staging knowledge table. The isolated Worker accepts provenance metadata when creating a knowledge record, returns it on owner-scoped reads, and exposes explicit owner review transitions through `PUT /intelligence/knowledge/:id` actions `verify`, `dispute`, and `unverify`.
+
+The source locator and confidence score are never treated as proof. Creation always starts with `verification_status=unreviewed`; only an authenticated owner action can change that state. The audit records the review transition and metadata category without copying source content or source URLs.
+
+Migration 0004 is an additive, one-time ALTER TABLE migration. It is committed but has not been applied to Cloudflare D1. Apply it only after migrations 0000-0003 and only to the positively identified staging database. Live D1 and Worker behavior remain unverified.
+
+This implementation does not enable source fetching, document ingestion, automated verification, task execution, or production deployment.
