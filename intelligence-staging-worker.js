@@ -94,7 +94,7 @@ export async function fetchPiUser(accessToken) {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       signal: controller.signal
     });
-    if (!result.ok || !/^application\\/(?:[a-z0-9.+-]+\\+)?json(?:\\s*;|$)/i.test(result.headers.get("Content-Type") || "")) return null;
+    if (!result.ok || !/^application\/(?:[a-z0-9.+-]+\+)?json(?:\s*;|$)/i.test(result.headers.get("Content-Type") || "")) return null;
     const declaredLength = Number(result.headers.get("Content-Length") || 0);
     if (declaredLength > 8192) return null;
     if (!result.body) return null;
