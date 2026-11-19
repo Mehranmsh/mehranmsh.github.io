@@ -21,6 +21,11 @@
  <div id="authStatus" class="notice" aria-live="polite">No staging session.</div>
 </section>
 <div id="workspace" class="hidden">
+ <section class="panel" id="intelligenceOverviewPanel">
+  <div class="row"><div><h2>Intelligence overview</h2><div class="muted small">Owner-only staging metrics. Counts are operational signals, not a security certification.</div></div><button id="refreshOverviewBtn" class="secondary" type="button">Refresh overview</button></div>
+  <div id="overviewStatus" class="notice" aria-live="polite">Overview not loaded.</div>
+  <div id="overviewMetrics" class="grid" aria-live="polite"></div>
+ </section>
  <section class="panel">
   <div class="row"><div><h2>Knowledge review queue</h2><div class="muted small">Deterministic metadata triage, not an automated fact-checker.</div></div><button id="refreshQueueBtn" class="secondary">Refresh queue</button></div>
   <div id="queueStatus" class="notice">Queue not loaded.</div><div id="queueList" class="grid"></div>
@@ -179,8 +184,37 @@ async function assessCapability(capability,approvalId){
   message("capabilityAssessmentStatus","Decision: "+assessment.decision+" · Reason: "+assessment.reason+" · Assessment only: "+String(result.assessmentOnly)+" · Operation performed: "+String(result.operationPerformed)+" · Approval consumed: "+String(result.approvalConsumed)+" · Execution enabled: "+String(assessment.executionEnabled),"good");
  }catch(error){message("capabilityAssessmentStatus",error.message,"bad")}
 }
-async function refreshAll(){await Promise.all([loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
-$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+async function loadOverview(){
+ message("overviewStatus","Loading owner-only staging metrics...");
+ $("overviewMetrics").replaceChildren();
+ try{
+  const data=await request("/intelligence/overview");
+  const labels=[
+   ["active_knowledge_count","Active knowledge"],
+   ["knowledge_needs_review_count","Knowledge needing review"],
+   ["disputed_knowledge_count","Disputed knowledge"],
+   ["unresolved_conflict_count","Unresolved conflicts"],
+   ["candidate_relation_count","Candidate relationships"],
+   ["active_memory_count","Active private memories"],
+   ["memory_needs_review_count","Memories needing review"],
+   ["queued_task_count","Queued tasks"],
+   ["in_progress_task_count","In-progress tasks"],
+   ["active_approval_count","Active approvals"],
+   ["expired_approval_count","Expired approvals"],
+   ["archived_knowledge_count","Archived knowledge"]
+  ];
+  for(const [key,label] of labels){
+   const card=document.createElement("article");card.className="card";
+   const heading=document.createElement("div");heading.className="small muted";heading.textContent=label;
+   const value=document.createElement("strong");value.textContent=String(data.counts?.[key]??0);value.style.fontSize="25px";
+   card.append(heading,value);$("overviewMetrics").append(card);
+  }
+  const time=data.generatedAt?new Date(data.generatedAt).toLocaleString():"time unavailable";
+  message("overviewStatus","Updated "+time+". Staging-only operational counts; no actions were executed.","good");
+ }catch(error){message("overviewStatus",error.message,"bad")}
+}
+async function refreshAll(){await Promise.all([loadOverview(),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
+$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>
