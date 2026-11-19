@@ -1,6 +1,7 @@
 import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";
 import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";
 import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
+import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -527,6 +528,64 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Assessment coverage is unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/priorities" && method === "GET") {
+    const allowedParams = new Set(["module", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported priority filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    const rawLimit = url.searchParams.get("limit") || "25";
+    const limit = Number(rawLimit);
+    const modules = new Set([
+      "music", "ai", "social", "instruments", "robotics", "security",
+      "intelligence", "logistics", "customer-experience", "labs",
+      "governance", "data", "robot-operations"
+    ]);
+    if (moduleId && !modules.has(moduleId)) return fail("Unknown priority module filter.");
+    if (!/^([1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Priority limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT id, module_id, check_id, severity, status, title, recommendation,
+               evidence_state, review_due_at, updated_at
+        FROM intelligence_findings
+        WHERE owner_uid = ? AND (? = '' OR module_id = ?)
+        ORDER BY CASE severity
+          WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3 WHEN 'info' THEN 4 ELSE 5 END,
+          updated_at DESC, id DESC
+        LIMIT 500
+      `).bind(owner.uid, moduleId, moduleId).all();
+      const scanned = rows.results || [];
+      const ranked = scanned.map(item => ({ ...item, ...scoreFindingPriority(item) }))
+        .sort(compareFindingPriority);
+      const items = ranked.slice(0, limit);
+      return response({
+        success: true,
+        items,
+        filters: { module: moduleId || null },
+        candidateCount: scanned.length,
+        returnedCount: items.length,
+        candidateSetBounded: scanned.length === 500,
+        scope: "authenticated_owner_staging_only",
+        assessment: "deterministic_metadata_triage_only",
+        triageModel: "deterministic_metadata_v1",
+        executionEnabled: false,
+        operationPerformed: false,
+        limitations: [
+          "Priority is a deterministic triage aid based only on recorded severity, status, and evidence state.",
+          "The score is not a measured risk probability, security verdict, or certification.",
+          "Evidence state changes attention only; sufficient evidence does not reduce the score or prove a check passed.",
+          "At most 500 findings are considered per request; a bounded candidate set may omit older records.",
+          "No external evidence is fetched and no finding or company state is changed."
+        ]
+      });
+    } catch {
+      return fail("Finding priorities are unavailable. Confirm the staging findings schema is present.", 503);
     }
   }
 
