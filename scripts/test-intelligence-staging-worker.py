@@ -733,6 +733,36 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(fragment, helper)
         self.assertIn('import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";', self.source)
 
+    def test_evidence_decision_review_integrity_api_is_owner_scoped_bounded_and_read_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-decision-reviews/integrity" && method === "GET")')
+        for fragment in [
+            'new Set(["limit"])',
+            'WHERE owner_uid = ?',
+            'ORDER BY reviewed_at DESC, id DESC',
+            'LIMIT ?',
+            'buildEvidenceDecisionReviewIntegrity(rows, async value =>',
+            'truncated',
+            'scope: "authenticated_owner_staging_only"',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', 'INSERT INTO', 'UPDATE intelligence_', 'DELETE FROM']:
+            self.assertNotIn(forbidden, route)
+        self.assertIn('buildEvidenceDecisionReviewIntegrity } from "./intelligence-evidence-decision-review.mjs";', self.source)
+        helper = ROOT / "intelligence-evidence-decision-review.mjs"
+        helper_source = helper.read_text()
+        for fragment in [
+            'stored_decision_snapshot_metadata_integrity_only',
+            'snapshotHashMismatches',
+            'snapshotIdentityMismatches',
+            'reviewerOwnerMismatches',
+            'evidenceContentVerified: false',
+            'sourceReachabilityChecked: false',
+            'decisionTruthVerified: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+        ]:
+            self.assertIn(fragment, helper_source)
+
     def test_evidence_decision_review_api_is_owner_scoped_current_and_append_only(self):
         route = self.route_block('if (path === "/intelligence/findings/evidence-decision-reviews" && method === "POST")')
         for fragment in [
