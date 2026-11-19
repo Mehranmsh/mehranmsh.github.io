@@ -89,8 +89,7 @@ async function testSequentialSingleUse() {
   const { mf, db } = await createDatabase();
   try {
     const first = await db.batch(statements(db, { operationId: "op-first" }));
-    // D1 meta.changes includes trigger side effects; verify the approval and audit rows below.
-    assert.equal(first[2].meta.changes, 1, "first operation must be committed");
+    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM protected_operations WHERE id='op-first'"), 1, "first operation must be committed");
     await assert.rejects(
       db.batch(statements(db, { operationId: "op-second" })),
       /constraint|NOT NULL|not null/i,
