@@ -43,7 +43,7 @@ async function digest(value) {
 
 async function readJson(request) {
   const type = request.headers.get("Content-Type") || "";
-  if (!type.toLowerCase().includes("application/json")) return null;
+  if (type.split(";")[0].trim().toLowerCase() !== "application/json") return null;
   const length = Number(request.headers.get("Content-Length") || 0);
   if (!Number.isFinite(length) || length > MAX_BODY_BYTES || !request.body) return null;
   const reader = request.body.getReader();
@@ -142,10 +142,12 @@ async function verifySession(request, env) {
     LIMIT 1
   `).bind(tokenHash, now).first();
   const expected = clean(env.MEHRAN_INTELLIGENCE_STAGING_OWNER_UID, 200);
+  const createdAt = Number(row?.created_at);
+  const expiresAt = Number(row?.expires_at);
   if (!expected || !row || row.owner_uid !== expected ||
-      !Number.isFinite(Number(row.created_at)) ||
-      Number(row.created_at) < now - SESSION_SECONDS ||
-      Number(row.expires_at) > Number(row.created_at) + SESSION_SECONDS) return null;
+      !Number.isSafeInteger(createdAt) || !Number.isSafeInteger(expiresAt) ||
+      createdAt > now || createdAt < now - SESSION_SECONDS ||
+      expiresAt <= createdAt || expiresAt > createdAt + SESSION_SECONDS) return null;
   return { uid: row.owner_uid };
 }
 
@@ -302,7 +304,7 @@ async function handle(request, env) {
     if (!body || Object.keys(body).some(key => !["category","content"].includes(key))) return fail("Invalid memory payload.");
     const category = clean(body.category || "general", 40);
     const content = clean(body.content, 4000);
-    if (!category || !content || body.content.length > 4000) return fail("Memory category and content are required and bounded.");
+    if (!category || typeof body.content !== "string" || !content || body.content.length > 4000) return fail("Memory category and content are required and bounded.");
     const id = randomId();
     try {
       await env.DB.batch([
@@ -323,7 +325,7 @@ async function handle(request, env) {
     if (!body || Object.keys(body).some(key => !["category","content"].includes(key))) return fail("Invalid memory update.");
     const category = clean(body.category || "general", 40);
     const content = clean(body.content, 4000);
-    if (!category || !content || body.content.length > 4000) return fail("Memory category and content are required and bounded.");
+    if (!category || typeof body.content !== "string" || !content || body.content.length > 4000) return fail("Memory category and content are required and bounded.");
     const updatedAt = new Date().toISOString();
     try {
       const results = await env.DB.batch([
