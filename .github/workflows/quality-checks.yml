@@ -81,6 +81,12 @@ jobs:
       - name: Test one-time capability approval consumption atomicity
         run: python scripts/test-intelligence-capability-approval-atomic-consumption.py
 
+      - name: Install pinned Miniflare D1 test runtime
+        run: npm install --no-save --no-package-lock miniflare@4.20260730.0
+
+      - name: Test capability approval transaction on D1 runtime
+        run: node scripts/test-intelligence-capability-approval-d1-runtime.mjs
+
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py
 
