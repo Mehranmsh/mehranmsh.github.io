@@ -505,7 +505,9 @@ async function loadEvidenceIntelligenceOverview(){
      "Recommendations: "+Number(summary.recommendationCount||0),
      "High priority: "+Number(summary.highPriority||0),
      "Already reviewed: "+Number(summary.alreadyReviewed||0),
-     "Findings reviewed: "+Number(coverage.findingsReviewed||0),
+     "Owner outcomes: accepted "+Number(summary.priorDecisionOutcomes?.accepted||0)+" · rejected "+Number(summary.priorDecisionOutcomes?.rejected||0)+" · needs info "+Number(summary.priorDecisionOutcomes?.needsMoreInfo||0),
+     "Unreviewed recommendations: "+Number(summary.priorDecisionOutcomes?.unreviewed||0),
+     "Findings reviewed: "+Number(summary.priorDecisionOutcomes?.accepted||0)+" / rejected "+Number(summary.priorDecisionOutcomes?.rejected||0)+" / needs info "+Number(summary.priorDecisionOutcomes?.needsMoreInfo||0)+" · Findings reviewed: "+Number(coverage.findingsReviewed||0),
      "Evidence references scanned: "+Number(coverage.evidenceReferencesScanned||0)
     ],targets[3],"Owner decisions only · Decision made automatically: "+String(data.decisionMade)+" · Check passed: "+String(data.checkPassed)+" · Execution enabled: "+String(data.executionEnabled)));
     ready++;
