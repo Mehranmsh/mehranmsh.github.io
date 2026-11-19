@@ -4,7 +4,7 @@ export const PRIORITY_ACTION_REVIEW_OUTCOMES = Object.freeze([
 
 export function buildPriorityActionReviewSnapshot(action) {
   if (!action || typeof action.findingId !== "string" ||
-      !/^[0-9a-f-]{36}$/i.test(action.findingId) ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(action.findingId) ||
       typeof action.moduleId !== "string" || !action.moduleId ||
       typeof action.checkId !== "string" || !action.checkId) {
     throw new TypeError("A current priority action with a valid finding identity is required.");
