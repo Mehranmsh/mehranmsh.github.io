@@ -147,6 +147,63 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 WHERE id='prov-a'
             """)
 
+    def test_knowledge_evaluation_relation_aggregation_is_owner_scoped(self):
+        self.apply_chain()
+        self.db.executemany("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES(?,?,?,?,?)
+        """, [
+            ("eval-a", "owner-a", "A", "Evidence A", "owner"),
+            ("eval-b", "owner-a", "B", "Evidence B", "owner"),
+            ("eval-c", "owner-a", "C", "Evidence C", "owner"),
+            ("eval-other", "owner-b", "Other", "Private evidence", "owner"),
+        ])
+        self.db.executemany("""
+            INSERT INTO intelligence_knowledge_relations(
+                id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,
+                status,source_evidence,target_evidence
+            ) VALUES(?,?,?,?,?,?,?,?)
+        """, [
+            ("eval-rel-1", "owner-a", "eval-a", "eval-b",
+             "conflicts_with", "candidate", "Evidence A", "Evidence B"),
+            ("eval-rel-2", "owner-a", "eval-a", "eval-c",
+             "supports", "confirmed", "Evidence A", "Evidence C"),
+            ("eval-rel-3", "owner-b", "eval-other", "eval-other-2",
+             "supports", "confirmed", "Private evidence", "Other evidence"),
+        ])
+        rows = self.db.execute("""
+            WITH relation_edges AS (
+                SELECT source_knowledge_id AS knowledge_id, relation_type, status
+                FROM intelligence_knowledge_relations WHERE owner_uid = ?
+                UNION ALL
+                SELECT target_knowledge_id AS knowledge_id, relation_type, status
+                FROM intelligence_knowledge_relations WHERE owner_uid = ?
+            ),
+            relation_stats AS (
+                SELECT knowledge_id,
+                    COUNT(*) AS relation_count,
+                    SUM(CASE WHEN status = 'candidate' THEN 1 ELSE 0 END) AS candidate_relation_count,
+                    SUM(CASE WHEN relation_type = 'conflicts_with' AND status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_conflict_count,
+                    SUM(CASE WHEN relation_type = 'conflicts_with' AND status IN ('candidate','confirmed') THEN 1 ELSE 0 END) AS unresolved_conflict_count,
+                    SUM(CASE WHEN relation_type = 'supports' AND status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_support_count,
+                    SUM(CASE WHEN relation_type = 'supersedes' AND status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_supersedes_count
+                FROM relation_edges GROUP BY knowledge_id
+            )
+            SELECT k.id, COALESCE(s.relation_count, 0),
+                   COALESCE(s.candidate_relation_count, 0),
+                   COALESCE(s.unresolved_conflict_count, 0),
+                   COALESCE(s.confirmed_support_count, 0)
+            FROM intelligence_knowledge k
+            LEFT JOIN relation_stats s ON s.knowledge_id = k.id
+            WHERE k.owner_uid = ?
+            ORDER BY k.id
+        """, ("owner-a", "owner-a", "owner-a")).fetchall()
+        self.assertEqual(rows, [
+            ("eval-a", 2, 1, 1, 1),
+            ("eval-b", 1, 1, 1, 0),
+            ("eval-c", 1, 0, 0, 1),
+        ])
+
     def test_runtime_tables_are_separate_and_idempotent(self):
         self.apply_chain()
         expected = {
