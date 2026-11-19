@@ -1014,6 +1014,14 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelDecisionIntegrityList" class="grid"><div class="empty">Load the private integrity report to inspect recent owner decision snapshots.</div></div>
  <div class="notice warn">A matching hash confirms only that stored snapshot bytes match their stored digest. It does not verify evidence content, source availability, authenticity, correctness, or decision truth. This report never changes records or executes actions.</div>
 </div>
+<div class="panel" id="intelCompanyReadinessPanel">
+ <div class="section-title"><div><h3>Company Readiness Signals</h3><div class="small-text">Private, bounded overview of recorded findings, proposed tests, declared dependencies, and owner review metadata.</div></div><button class="btn secondary small" id="refreshIntelCompanyReadinessBtn" type="button">Refresh overview</button></div>
+ <div id="intelCompanyReadinessStatus" class="notice" aria-live="polite">Company readiness overview has not been loaded.</div>
+ <div id="intelCompanyReadinessSummary" class="grid intelligence-stats" aria-live="polite"></div>
+ <div class="card"><h4>Company-wide signals</h4><div id="intelCompanyReadinessSources" class="grid"><div class="empty">Refresh to load the bounded source reports.</div></div></div>
+ <div class="card"><h4>Module coverage and planning signals</h4><div id="intelCompanyReadinessModules" class="grid"><div class="empty">Module reports have not been loaded.</div></div></div>
+ <div class="notice warn">This is not a readiness certification, security verdict, or health score. No recorded finding does not mean a check passed. Dependency edges are provisional declarations, proposed tests have not run, evidence metadata does not prove evidence correctness, and owner review outcomes remain advisory. No records, approvals, or company state are changed.</div>
+</div>
 </div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
@@ -2223,7 +2231,7 @@ message.textContent="Company data could not be loaded: "+error.message+". Sign i
 message.className="notice warn";
 $("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity()}
+}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity();loadIntelCompanyReadiness()}
 }
 async function testMcpConnection(){
 const button=$("testMcpBtn"),status=$("mcpStatus");
@@ -2654,6 +2662,96 @@ async function loadIntelDecisionIntegrity(){
 }
 $("refreshIntelDecisionIntegrityBtn")?.addEventListener("click",loadIntelDecisionIntegrity);
 
+
+
+const INTEL_COMPANY_MODULES=[
+ "music","ai","social","instruments","robotics","security","intelligence",
+ "logistics","customer-experience","labs","governance","data","robot-operations"
+];
+function readinessMetric(label,value,detail){
+ const card=document.createElement("div");card.className="card";
+ const name=document.createElement("div");name.className="small-text";name.textContent=label;
+ const number=document.createElement("strong");number.className="stat-value";number.textContent=String(value);
+ card.append(name,number);
+ if(detail){const note=document.createElement("div");note.className="small-text";note.textContent=detail;card.append(note)}
+ return card;
+}
+function readinessText(parent,value,className){
+ const node=document.createElement("div");if(className)node.className=className;
+ node.textContent=String(value??"—");parent.append(node);return node;
+}
+async function loadIntelCompanyReadiness(){
+ const status=$("intelCompanyReadinessStatus"),button=$("refreshIntelCompanyReadinessBtn");
+ const summary=$("intelCompanyReadinessSummary"),sources=$("intelCompanyReadinessSources"),modules=$("intelCompanyReadinessModules");
+ if(!status||!summary||!sources||!modules)return;
+ if(button)button.disabled=true;
+ status.textContent="Loading owner-scoped company signals from staging...";
+ status.className="notice";
+ summary.replaceChildren();sources.replaceChildren();modules.replaceChildren();
+ const requests=[
+  {key:"coverage",label:"Assessment coverage",url:"/intelligence/company/assessment-coverage"},
+  {key:"priorities",label:"Finding priorities",url:"/intelligence/findings/priorities?limit=100"},
+  {key:"remediation",label:"Remediation plans",url:"/intelligence/findings/remediation-plans?limit=100"},
+  {key:"decisionSupport",label:"Evidence decision support",url:"/intelligence/findings/evidence-decision-support"},
+  {key:"integrity",label:"Decision snapshot integrity",url:"/intelligence/findings/evidence-decision-reviews/integrity?limit=50"}
+ ];
+ for(const moduleId of INTEL_COMPANY_MODULES){
+  requests.push({key:"gap:"+moduleId,label:moduleId+" test strategy",url:"/intelligence/company/gap-test-strategy?module="+encodeURIComponent(moduleId)});
+  requests.push({key:"dependency:"+moduleId,label:moduleId+" dependency map",url:"/intelligence/company/dependency-impact?module="+encodeURIComponent(moduleId)});
+ }
+ try{
+  const settled=await Promise.allSettled(requests.map(item=>api(item.url)));
+  const reports={};
+  settled.forEach((result,index)=>{if(result.status==="fulfilled")reports[requests[index].key]=result.value;});
+  const available=settled.filter(item=>item.status==="fulfilled").length;
+  const failed=settled.length-available;
+  summary.append(
+   readinessMetric("Reports available",available+" / "+settled.length,"Partial results are retained when a source is unavailable"),
+   readinessMetric("Assessment checks",reports.coverage?.totalChecks??"—","Declared blueprint checks, not passed checks"),
+   readinessMetric("Recorded finding priorities",reports.priorities?.candidateCount??"—","Bounded candidate set; not a risk verdict"),
+   readinessMetric("Advisory recommendations",reports.decisionSupport?.summary?.recommendationCount??"—","Owner review prompts, not automated decisions"),
+   readinessMetric("Snapshot records scanned",reports.integrity?.summary?.recordsScanned??"—","Stored decision snapshot metadata only")
+  );
+  const sourceRows=[
+   ["Assessment coverage",reports.coverage, data=>data.totalChecks+" checks · "+data.checksWithFindings+" with recorded findings · "+data.checksWithoutRecordedFindings+" without recorded findings"],
+   ["Finding priorities",reports.priorities,data=>data.returnedCount+" prioritized of "+data.candidateCount+" bounded candidates"],
+   ["Remediation planning",reports.remediation,data=>(data.plans||[]).length+" advisory plans returned"],
+   ["Evidence decision support",reports.decisionSupport,data=>data.summary?.recommendationCount+" recommendations · "+data.summary?.ownerDecisionsRequired+" owner decisions required"],
+   ["Decision snapshot integrity",reports.integrity,data=>data.summary?.recordsScanned+" snapshots scanned · "+data.summary?.snapshotHashMismatches+" hash mismatches"]
+  ];
+  for(const [label,data,describe] of sourceRows){
+   const card=document.createElement("div");card.className="card";
+   const heading=document.createElement("strong");heading.textContent=label;
+   const detail=document.createElement("div");detail.className="small-text";
+   detail.textContent=data?describe(data):"Unavailable in this refresh";
+   const state=document.createElement("div");state.className="small-text";state.textContent=data?"Available":"Unavailable";
+   card.append(heading,detail,state);sources.append(card);
+  }
+  const moduleData=INTEL_COMPANY_MODULES.map(moduleId=>{
+   const gap=reports["gap:"+moduleId],dependency=reports["dependency:"+moduleId];
+   const card=document.createElement("div");card.className="card";
+   const heading=document.createElement("strong");heading.textContent=moduleId;
+   const gapLine=document.createElement("div");gapLine.className="small-text";
+   gapLine.textContent=gap
+    ?"Test strategy: "+gap.blueprintCheckCount+" blueprint checks · "+gap.checksWithoutRecordedFindings+" with no recorded finding (not a pass)"
+    :"Test strategy: unavailable";
+   const depLine=document.createElement("div");depLine.className="small-text";
+   depLine.textContent=dependency
+    ?"Declared dependencies: "+dependency.directDependencies.length+" direct · "+dependency.affectedModules.length+" affected (graph "+dependency.graphCompleteness+")"
+    :"Dependency map: unavailable";
+   card.append(heading,gapLine,depLine);modules.append(card);
+   return !!gap&&!!dependency;
+  });
+  const moduleComplete=moduleData.filter(Boolean).length;
+  status.textContent="Loaded "+available+" of "+settled.length+" bounded reports; "+moduleComplete+" of "+INTEL_COMPANY_MODULES.length+" modules have both planning reports."+(failed?" Some sources were unavailable; review the source list below.":" All requested sources responded.");
+  status.className=failed?"notice warn":"notice success";
+ }catch(error){
+  status.textContent="Company overview could not be assembled: "+error.message;
+  status.className="notice warn";
+  summary.replaceChildren();sources.replaceChildren();modules.replaceChildren();
+ }finally{if(button)button.disabled=false}
+}
+$("refreshIntelCompanyReadinessBtn")?.addEventListener("click",loadIntelCompanyReadiness);
 
 async function loadProjects(){
 $("projectsMessage").textContent="Loading projects...";
