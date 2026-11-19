@@ -439,7 +439,10 @@ async function handle(request, env) {
     const confirmedConflicts = relations.filter(item =>
       item.relation_type === "conflicts_with" && item.status === "confirmed"
     );
-    const unresolvedConflicts = confirmedConflicts.filter(item => item.status !== "resolved");
+    const unresolvedConflicts = relations.filter(item =>
+      item.relation_type === "conflicts_with" &&
+      ["candidate", "confirmed"].includes(item.status)
+    );
     const signals = {
       archived: !!knowledge.archived_at,
       ownerReviewed: knowledge.verification_status !== "unreviewed",
