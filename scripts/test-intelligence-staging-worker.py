@@ -837,7 +837,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         registry_start = self.source.index('if (path === "/intelligence/company/modules"')
         registry_end = self.source.index('if (path === "/intelligence/company/assessment-coverage"', registry_start)
         registry_route = self.source[registry_start:registry_end]
-        self.assertIn('success: true', registry_route)
+        self.assertEqual(registry_route.count("success: true"), 1)
         self.assertIn('scope: "authenticated_owner_staging_only"', registry_route)
         for element_id in [
             "intelCompanyReadinessPanel",
