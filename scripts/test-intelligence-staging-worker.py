@@ -219,6 +219,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'offset > 10000',
             'ORDER BY updated_at DESC, id DESC LIMIT 101 OFFSET ?',
             "ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,",
+            "AND review_status IN ('disputed','unreviewed')",
             'LIMIT 101 OFFSET ?',
             'hasMore: scanned.length > 100 && offset + items.length < 10000',
             'nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null',
