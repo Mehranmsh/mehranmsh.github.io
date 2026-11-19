@@ -40,7 +40,7 @@ async function createDatabase() {
     const sql = await readFile(new URL(`migrations/${name}.sql`, ROOT), "utf8");
     // The baseline file may contain only SQL comments; D1 exec rejects empty scripts.
     const executableSql = sql.split("\n").filter(line => !line.trim().startsWith("--")).join("\n").trim();
-    if (executableSql) await db.exec(sql);
+    if (executableSql) await db.exec(executableSql);
   }
   await db.exec(`
     CREATE TABLE protected_operations (
