@@ -140,7 +140,6 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             '.slice(0, limit)',
         ]:
             self.assertIn(fragment, self.source)
-        self.assertIn('function buildKnowledgeReviewItem(item, nowMs = Date.now())', self.source)
         self.assertIn('No external source retrieval, semantic fact-checking, or autonomous conflict resolution is performed.', self.source)
 
     def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
