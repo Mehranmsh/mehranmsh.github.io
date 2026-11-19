@@ -236,7 +236,7 @@ for marker in [
     'item.priorityBand',
     'item.priorityReasons',
     'data.candidateSetBounded',
-    'deterministic_metadata_v1',
+    'data.triageModel',
     'loadFindingPriorities()',
     'refreshFindingPrioritiesBtn',
 ]:
