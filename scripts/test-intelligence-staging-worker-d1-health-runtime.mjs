@@ -422,4 +422,83 @@ async function testOwnerMemoryAuditIsolationAndProvenance() {
 }
 
 await testTaskAuditAtomicityAndOwnerIsolation();
+async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-knowledge-governance-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const createKnowledge = async (title, content) => {
+      const response = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ title, content, category: "governance-test", sourceType: "owner_input" }),
+      });
+      assert.equal(response.status, 201);
+      return (await response.json()).id;
+    };
+    const sourceId = await createKnowledge("Evidence source A", "Verified phrase alpha");
+    const targetId = await createKnowledge("Evidence source B", "Verified phrase beta");
+
+    await db.prepare(
+      "INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)"
+    ).bind("22222222-2222-4222-8222-222222222222", "different-owner-uid", "Foreign knowledge", "Private", "different-owner-uid").run();
+
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(listed.status, 200);
+    const listBody = await listed.json();
+    assert.deepEqual(listBody.items.map(item => item.id).sort(), [sourceId, targetId].sort());
+
+    const relation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        sourceId,
+        targetId,
+        relationType: "supports",
+        sourceEvidence: "Verified phrase alpha",
+        targetEvidence: "Verified phrase beta",
+      }),
+    });
+    assert.equal(relation.status, 201);
+
+    const blockedEdit = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/${sourceId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ content: "Altered evidence after relation" }),
+    });
+    assert.equal(blockedEdit.status, 409);
+    const unchanged = await db.prepare("SELECT content FROM intelligence_knowledge WHERE id=? AND owner_uid=?")
+      .bind(sourceId, ownerUid).first();
+    assert.equal(unchanged.content, "Verified phrase alpha");
+
+    await db.prepare(
+      "CREATE TRIGGER reject_knowledge_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='knowledge_created' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedCreate = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title: "Must roll back", content: "No unaudited knowledge", sourceType: "owner_input" }),
+    });
+    assert.equal(failedCreate.status, 503);
+    const count = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_knowledge WHERE owner_uid=?")
+      .bind(ownerUid).first();
+    assert.equal(Number(count.count), 2);
+    console.log("PASS: knowledge ownership, evidence immutability, and atomic audit are enforced");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testOwnerMemoryAuditIsolationAndProvenance();
+await testKnowledgeOwnershipEvidenceAndAuditAtomicity();
