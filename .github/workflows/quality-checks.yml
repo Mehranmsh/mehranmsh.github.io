@@ -87,6 +87,9 @@ jobs:
       - name: Test Intelligence correlation owner review ledger
         run: node --test scripts/intelligence-evidence-correlation-review.test.mjs
 
+      - name: Test Intelligence correlation review snapshot drift
+        run: node --test scripts/intelligence-evidence-correlation-drift.test.mjs
+
       - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs
 
