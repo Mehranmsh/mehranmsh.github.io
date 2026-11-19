@@ -146,7 +146,8 @@ async function testExpiredAndRevokedApprovalsFailClosed() {
         /constraint|NOT NULL|not null/i,
         `${scenario} approval must not authorize an operation`,
       );
-      const approval = await db.prepare("SELECT status FROM intelligence_capability_approvals WHERE id='grant-valid'").first();
+      const approvalId = scenario === "expired" ? "grant-expired" : "grant-valid";
+      const approval = await db.prepare("SELECT status FROM intelligence_capability_approvals WHERE id=?").bind(approvalId).first();
       assert.equal(approval.status, scenario === "expired" ? "issued" : "revoked");
       assert.equal(await count(db, "SELECT COUNT(*) AS count FROM protected_operations"), 0);
     } finally {
