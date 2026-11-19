@@ -67,5 +67,21 @@ BEGIN
   SELECT RAISE(ABORT, 'owner memory provenance is immutable');
 END;
 
+-- Direct database writes must obey the same source semantics as the Worker.
+-- Owner-entered memories cannot carry a misleading external/knowledge locator.
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_owner_memory_owner_input_source_insert
+BEFORE INSERT ON intelligence_owner_memory
+WHEN NEW.source_type = 'owner_input' AND NEW.source_ref IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'owner_input memory cannot have a source reference');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_owner_memory_owner_input_source_update
+BEFORE UPDATE OF source_type, source_ref ON intelligence_owner_memory
+WHEN NEW.source_type = 'owner_input' AND NEW.source_ref IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'owner_input memory cannot have a source reference');
+END;
+
 -- Archiving is reversible and distinct from deletion. Review metadata can still
 -- be updated while archived; the owner remains the only authenticated reviewer.
