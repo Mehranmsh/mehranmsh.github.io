@@ -3,6 +3,7 @@ import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-
 import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
 import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";
 import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
+import { buildPriorityActionPlan } from "./intelligence-priority-action-plan.mjs";
 import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-dependency-impact.mjs";
 import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
 import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs";
@@ -772,6 +773,48 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Finding priorities are unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/priority-action-plan" && method === "GET") {
+    const allowedParams = new Set(["module", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported priority action-plan filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    const rawLimit = url.searchParams.get("limit") || "25";
+    const limit = Number(rawLimit);
+    if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown priority action-plan module filter.");
+    if (!/^(?:[1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Priority action-plan limit must be an integer from 1 to 100.");
+    }
+    try {
+      const result = await env.DB.prepare(`
+        SELECT f.id, f.module_id, f.check_id, f.severity, f.status, f.title,
+               f.recommendation, f.evidence_state, f.review_due_at, f.updated_at,
+               COUNT(e.id) AS evidence_reference_count,
+               SUM(CASE WHEN e.id IS NOT NULL AND
+                 (e.content_digest IS NULL OR e.observed_at IS NULL)
+                 THEN 1 ELSE 0 END) AS incomplete_evidence_reference_count
+        FROM intelligence_findings f
+        LEFT JOIN intelligence_finding_evidence e
+          ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+        WHERE f.owner_uid = ? AND (? = '' OR f.module_id = ?)
+        GROUP BY f.id
+        ORDER BY f.updated_at DESC, f.id DESC
+        LIMIT 500
+      `).bind(owner.uid, moduleId, moduleId).all();
+      const rows = result.results || [];
+      const plan = buildPriorityActionPlan(rows, limit);
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        scope: "authenticated_owner_staging_only",
+        filters: { module: moduleId || null },
+        ...plan
+      });
+    } catch {
+      return fail("Priority action plan is unavailable. Confirm the staging findings and evidence schema are present.", 503);
     }
   }
 
