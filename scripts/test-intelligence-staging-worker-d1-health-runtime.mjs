@@ -471,6 +471,39 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
       }),
     });
     assert.equal(relation.status, 201);
+    const relationId = (await relation.json()).id;
+
+    const foreignRelation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations/cccccccc-cccc-4ccc-8ccc-cccccccccccc", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(foreignRelation.status, 404);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_relation_confirm_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='knowledge_relation_confirmed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedConfirm = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${relationId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(failedConfirm.status, 503);
+    const stillCandidate = await db.prepare("SELECT status FROM intelligence_knowledge_relations WHERE id=? AND owner_uid=?")
+      .bind(relationId, ownerUid).first();
+    assert.equal(stillCandidate.status, "candidate");
+    await db.prepare("DROP TRIGGER reject_relation_confirm_audit").run();
+
+    const confirmed = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/relations/${relationId}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(confirmed.status, 200);
+    const relationAudit = await db.prepare(
+      "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE owner_uid=? AND target_id=? AND action='knowledge_relation_confirmed'"
+    ).bind(ownerUid, relationId).first();
+    assert.equal(relationAudit.target_type, "knowledge_relation");
 
     const blockedEdit = await mf.dispatchFetch(`http://localhost/intelligence/knowledge/${sourceId}`, {
       method: "PUT",
