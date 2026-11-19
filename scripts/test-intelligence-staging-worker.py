@@ -928,21 +928,28 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         start = self.index_html.index("async function loadIntelPriorityActionReviewHistory")
         end = self.index_html.index("async function loadIntelPriorityActionPlan()", start)
         ui = self.index_html[start:end]
+        renderer_start = self.index_html.index("function renderIntelPriorityActionPlan(data)")
+        renderer_end = self.index_html.index("async function loadIntelPriorityActionReviewHistory", renderer_start)
+        renderer = self.index_html[renderer_start:renderer_end]
         for fragment in [
             '"/intelligence/findings/priority-action-reviews?actionKey="',
             '"/intelligence/findings/priority-action-reviews/integrity?limit=100"',
+            'authenticated_owner_staging_only',
+            'textContent'
+        ]:
+            self.assertIn(fragment, ui)
+        for fragment in [
             'method:"POST"',
             'actionKey:action.actionKey',
             'moduleId:action.moduleId',
             'outcome:outcome.value',
-            'reason',
-            'authenticated_owner_staging_only',
-            'textContent',
+            'reasonInput.value.trim()',
+            '"/intelligence/findings/priority-action-reviews"',
             'execution: disabled'
         ]:
-            self.assertIn(fragment, self.index_html if fragment == 'execution: disabled' else ui + self.index_html[start:end])
-        self.assertNotIn("innerHTML", ui)
-        self.assertNotIn("insertAdjacentHTML", ui)
+            self.assertIn(fragment, renderer)
+        self.assertNotIn("innerHTML", ui + renderer)
+        self.assertNotIn("insertAdjacentHTML", ui + renderer)
 
     def test_priority_action_review_is_owner_scoped_append_only_and_stale_safe(self):
         self.assertIn('"intelligence_priority_action_reviews"', self.source)
