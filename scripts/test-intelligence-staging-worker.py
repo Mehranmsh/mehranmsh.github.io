@@ -81,6 +81,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
 
+    def test_knowledge_update_archive_restore_are_owner_scoped_and_audited(self):
+        self.assertIn('if (knowledgeMatch && method === "PUT")', self.source)
+        self.assertIn('WHERE id=? AND owner_uid=? AND archived_at IS NULL', self.source)
+        self.assertIn('WHERE id=? AND owner_uid=? AND archived_at IS NOT NULL', self.source)
+        self.assertIn('"knowledge_updated"', self.source)
+        self.assertIn('"knowledge_archived"', self.source)
+        self.assertIn('"knowledge_restored"', self.source)
+        self.assertIn('Content is evidence-linked. Create a corrected record and relate it instead.', self.source)
+        self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
+
     def test_memory_deletion_is_owner_scoped_and_audited(self):
         self.assertIn('if (memoryDeleteMatch && method === "DELETE")', self.source)
         self.assertIn('DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?', self.source)
