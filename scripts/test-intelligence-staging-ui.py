@@ -140,3 +140,15 @@ if page.count("STAGING_WORKER_URL") < 5:
     raise SystemExit("Staging Worker URL must be consistently isolated through one config constant.")
 
 print("INTELLIGENCE staging UI safety contract passed.")
+
+# Company module registry contract
+assert 'companyModuleRegistryPanel' in page
+
+# Company module registry contract
+assert 'refreshCompanyModulesBtn' in page
+
+# Company module registry contract
+assert 'loadCompanyModules()' in page
+
+# Company module registry contract
+assert 'request("/intelligence/company/modules")' in page
