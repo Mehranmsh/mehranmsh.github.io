@@ -175,10 +175,16 @@ async function handle(request, env) {
       ).bind(...required).all();
       const found = new Set((rows.results || []).map(row => row.name));
       const missing = required.filter(name => !found.has(name));
+      const foreignKeyState = await env.DB.prepare("PRAGMA foreign_keys").first();
+      const foreignKeyViolations = await env.DB.prepare("PRAGMA foreign_key_check").all();
+      const foreignKeysEnabled = Number(foreignKeyState?.foreign_keys) === 1;
+      const violationCount = (foreignKeyViolations.results || []).length;
+      const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0;
       return response({
         success: true, service: "mehran-intelligence-staging",
-        schemaReady: missing.length === 0, missingTables: missing, executor: false
-      }, missing.length ? 503 : 200);
+        schemaReady, missingTables: missing, foreignKeysEnabled,
+        foreignKeyViolations: violationCount, executor: false
+      }, schemaReady ? 200 : 503);
     } catch {
       return fail("Staging schema is unavailable.", 503);
     }
