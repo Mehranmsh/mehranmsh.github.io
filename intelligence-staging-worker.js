@@ -576,7 +576,6 @@ async function handle(request, env) {
     return response({
       success: true,
       company: "MEHRAN MSH",
-      success: true,
       scope: "authenticated_owner_staging_only",
       registryVersion: 1,
       source: "owner_declared_architecture",
