@@ -35,7 +35,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'WHERE owner_uid = ? AND archived_at IS NULL',
             'WHERE owner_uid = ? AND (? = \'\' OR status = ?)',
             'WHERE id=? AND owner_uid=?',
-            'WHERE task_id=? AND created_by=?',
+            'WHERE id=? AND created_by=?',
         ]:
             self.assertIn(fragment, self.source)
 
