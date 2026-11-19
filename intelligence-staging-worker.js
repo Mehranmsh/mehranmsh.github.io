@@ -247,6 +247,41 @@ async function handle(request, env) {
   if (!owner) return fail("Authentication required.", 401);
   if (!await rateLimit(env.DB, owner.uid, `${method}:${path.split("/").slice(1,3).join("/")}`)) return fail("Rate limit exceeded.", 429);
 
+  if (path === "/intelligence/tasks" && method === "GET") {
+    const rows = await env.DB.prepare(`
+      SELECT id, title, description, assigned_to, priority, status,
+             requires_approval, created_at, updated_at
+      FROM intelligence_tasks
+      WHERE created_by = ?
+      ORDER BY created_at DESC LIMIT 100
+    `).bind(owner.uid).all();
+    return response({ success: true, executionEnabled: false, items: rows.results || [] });
+  }
+
+  if (path === "/intelligence/tasks" && method === "POST") {
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => !["title","description","priority","requiresApproval"].includes(key))) return fail("Invalid task payload.");
+    const title = clean(body.title, 160);
+    const description = clean(body.description, 3000);
+    const priority = clean(body.priority || "normal", 16);
+    if (!title || !["high","normal","low"].includes(priority) ||
+        (body.requiresApproval !== undefined && typeof body.requiresApproval !== "boolean")) return fail("A title, valid priority and boolean approval flag are required.");
+    const id = randomId();
+    try {
+      await env.DB.batch([
+        env.DB.prepare(`
+          INSERT INTO intelligence_tasks
+            (id,title,description,assigned_to,priority,status,requires_approval,created_by)
+          VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)
+        `).bind(id, title, description, priority, body.requiresApproval ? 1 : 0, owner.uid),
+        audit(env.DB, owner.uid, "task_planned", "task", id, { priority, requiresApproval: !!body.requiresApproval })
+      ]);
+    } catch {
+      return fail("Task could not be recorded.", 503);
+    }
+    return response({ success: true, id, status: "queued", executionEnabled: false }, 201);
+  }
+
   if (path === "/intelligence/knowledge" && method === "GET") {
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));
     const rows = await env.DB.prepare(`
