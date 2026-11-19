@@ -30,7 +30,9 @@ Migration `0003_intelligence_staging_runtime.sql` adds:
 - `intelligence_owner_memory`
 - `trg_intelligence_knowledge_content_immutable_with_relations`, which prevents in-place edits to evidence-linked knowledge; corrected facts must be new records with explicit relationships.
 
-It is committed but has not been applied to Cloudflare. Apply it only after confirming the staging database ID and target.
+Migration 0004 `0004_intelligence_knowledge_provenance.sql` adds source type/reference, observation timestamp, bounded confidence score, and owner verification status. It enforces provenance validation and prevents rewriting provenance after evidence relationships exist while allowing separate owner review transitions.
+
+Migrations 0003 and 0004 are committed but have not been applied to Cloudflare. Apply them in order only after confirming the staging database ID and target.
 
 ## Implemented route allowlist
 
@@ -38,7 +40,7 @@ It is committed but has not been applied to Cloudflare. Apply it only after conf
 - `POST /session`, `GET /session`, `DELETE /session`
 - `GET/POST /intelligence/tasks`: creates and lists owner-scoped queued plans only; execution is disabled.
 - `GET/POST /intelligence/knowledge`: GET accepts `state=active` (default), `state=archived`, or `state=all`, always scoped to the authenticated owner.
-- `PUT /intelligence/knowledge/:id`: owner-scoped metadata/content update, archive, and restore. Content edits are blocked when a relationship cites that record; create a corrected record and link it instead so evidence history is preserved.
+- `PUT /intelligence/knowledge/:id`: owner-scoped metadata/content update, archive, restore, and explicit `verify` / `dispute` / `unverify` review transitions. Provenance fields are returned on reads and accepted on create; linked provenance cannot be rewritten. Content edits are blocked when a relationship cites that record; create a corrected record and link it instead so evidence history is preserved.
 - `GET/POST /intelligence/knowledge/relations`
 - `PUT /intelligence/knowledge/relations/:id`: confirm, dismiss, or owner-selected conflict resolution.
 - `GET/POST /intelligence/approvals`
