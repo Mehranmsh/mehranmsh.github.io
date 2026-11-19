@@ -2834,3 +2834,46 @@ async function testForbiddenOriginResponsesKeepSecurityHeaders() {
 }
 
 await testForbiddenOriginResponsesKeepSecurityHeaders();
+
+
+async function testCorsPreflightRequestHeaderAllowlist() {
+  const { mf } = await createWorker(migrations.length);
+  const paths = [
+    "/intelligence/capabilities",
+    "/intelligence/capability-approvals",
+    "/intelligence/capabilities/evaluate",
+    "/intelligence/tasks",
+    "/intelligence/memory",
+    "/intelligence/memory/review-queue",
+    "/intelligence/knowledge",
+    "/intelligence/knowledge/review-queue",
+    "/intelligence/knowledge/evaluations",
+    "/intelligence/knowledge/relations",
+    "/intelligence/approvals",
+  ];
+  try {
+    for (const path of paths) {
+      const response = await mf.dispatchFetch(`http://localhost${path}`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://mehranmsh.github.io",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "authorization,content-type,x-untrusted-header",
+        },
+      });
+      assert.equal(response.status, 200,
+        `trusted preflight must succeed for ${path}`);
+      assert.equal(response.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io");
+      assert.equal(response.headers.get("Access-Control-Allow-Headers"), "Content-Type, Authorization",
+        "preflight must advertise only the explicitly configured request-header allowlist");
+      assert.doesNotMatch(response.headers.get("Access-Control-Allow-Headers") || "", /x-untrusted-header/i,
+        "unrequested custom headers must never be reflected into the CORS allowlist");
+      assert.equal(response.headers.get("Vary"), "Origin");
+    }
+    console.log(`PASS: CORS preflight advertises only the configured request-header allowlist across ${paths.length} protected route families`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCorsPreflightRequestHeaderAllowlist();
