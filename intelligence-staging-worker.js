@@ -993,7 +993,7 @@ async function handle(request, env) {
     const rawLimit = url.searchParams.get("limit") || "50";
     const limit = Number(rawLimit);
     if (reviewKey && !/^[0-9a-f]{64}$/.test(reviewKey)) return fail("Invalid decision review key.");
-    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^(?:[1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Decision review history limit must be an integer from 1 to 100.");
     }
     try {
