@@ -3864,7 +3864,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       /retained/i
     );
 
-    await db.prepare("UPDATE intelligence_findings SET severity='low', updated_at=? WHERE id=? AND owner_uid=?")
+    await db.prepare("UPDATE intelligence_findings SET severity='low', status_reason='Changed severity to test stale priority-action review rejection.', updated_at=? WHERE id=? AND owner_uid=?")
       .bind(now + 1, findingId, ownerUid).run();
     const stale = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/priority-action-reviews",
