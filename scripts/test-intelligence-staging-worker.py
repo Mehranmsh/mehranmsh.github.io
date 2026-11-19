@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "intelligence-staging-worker.js"
 CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
 OWNER_REVIEW_MODULE = ROOT / "intelligence-owner-evidence-review.mjs"
+INDEX_HTML = ROOT / "index.html"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
     @classmethod
@@ -16,6 +17,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
         cls.owner_review_module = OWNER_REVIEW_MODULE.read_text(encoding="utf-8")
+        cls.index_html = INDEX_HTML.read_text(encoding="utf-8")
 
     def route_block(self, marker):
         start = self.source.index(marker)
@@ -762,6 +764,33 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'executionEnabled: false',
         ]:
             self.assertIn(fragment, helper_source)
+
+    def test_decision_snapshot_integrity_dashboard_is_private_read_only_and_uses_safe_dom(self):
+        for element_id in [
+            "intelDecisionIntegrityPanel",
+            "refreshIntelDecisionIntegrityBtn",
+            "intelDecisionIntegrityStatus",
+            "intelDecisionIntegritySummary",
+            "intelDecisionIntegrityList",
+        ]:
+            self.assertIn(f'id="{element_id}"', self.index_html)
+        self.assertIn('/intelligence/findings/evidence-decision-reviews/integrity?limit=50', self.index_html)
+        self.assertIn('data.scope!=="authenticated_owner_staging_only"', self.index_html)
+        self.assertIn('data.truncated?', self.index_html)
+        self.assertIn('evidence content, source availability, authenticity, correctness, or decision truth', self.index_html)
+        start = self.index_html.index("function renderIntelDecisionIntegritySummary(")
+        end = self.index_html.index("async function loadProjects()", start)
+        panel_code = self.index_html[start:end]
+        for fragment in [
+            "document.createElement(",
+            "textContent",
+            "replaceChildren()",
+            "addEventListener(\"click\",loadIntelDecisionIntegrity)",
+        ]:
+            self.assertIn(fragment, panel_code)
+        for forbidden in ["innerHTML", "insertAdjacentHTML", "method:\"POST\"", "method:\"PUT\"", "method:\"DELETE\""]:
+            self.assertNotIn(forbidden, panel_code)
+        self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
 
     def test_evidence_decision_review_api_is_owner_scoped_current_and_append_only(self):
         route = self.route_block('if (path === "/intelligence/findings/evidence-decision-reviews" && method === "POST")')
