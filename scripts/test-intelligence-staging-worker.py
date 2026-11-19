@@ -906,7 +906,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         panel = self.index_html[panel_start:panel_end]
         self.assertIn('id="intelPriorityActionModule"', panel)
         self.assertIn('id="intelPriorityActionPlanList"', panel)
-        self.assertIn('owner review is required', panel)
+        self.assertIn('Owner review is required', panel)
         function_start = self.index_html.index("function renderIntelPriorityActionPlan(data)")
         function_end = self.index_html.index('async function loadIntelCompanyReadiness()', function_start)
         renderer = self.index_html[function_start:function_end]
