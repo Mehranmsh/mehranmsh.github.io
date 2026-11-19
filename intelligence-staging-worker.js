@@ -315,7 +315,13 @@ async function loadOwnerEvidenceDecisionSupport(env, ownerUid, moduleId = "") {
     recommendations,
     summary: {
       ...support.summary,
-      alreadyReviewed: recommendations.filter(item => item.priorDecisionOutcome).length
+      alreadyReviewed: recommendations.filter(item => item.priorDecisionOutcome).length,
+      priorDecisionOutcomes: {
+        accepted: recommendations.filter(item => item.priorDecisionOutcome === "accepted").length,
+        rejected: recommendations.filter(item => item.priorDecisionOutcome === "rejected").length,
+        needsMoreInfo: recommendations.filter(item => item.priorDecisionOutcome === "needs_more_info").length,
+        unreviewed: recommendations.filter(item => !item.priorDecisionOutcome).length
+      }
     }
   };
 }

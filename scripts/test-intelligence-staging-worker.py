@@ -724,6 +724,11 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'buildEvidenceDecisionSupport({',
             'review_key_sha256', 'reviewKey',
             'findingsReviewLimitReached', 'evidenceReferenceScanLimitReached',
+            'priorDecisionOutcomes: {',
+            'item.priorDecisionOutcome === "accepted"',
+            'item.priorDecisionOutcome === "rejected"',
+            'item.priorDecisionOutcome === "needs_more_info"',
+            'unreviewed: recommendations.filter(item => !item.priorDecisionOutcome).length',
         ]:
             self.assertIn(fragment, helper)
         self.assertIn('import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";', self.source)

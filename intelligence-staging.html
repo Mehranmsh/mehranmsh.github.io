@@ -505,6 +505,8 @@ async function loadEvidenceIntelligenceOverview(){
      "Recommendations: "+Number(summary.recommendationCount||0),
      "High priority: "+Number(summary.highPriority||0),
      "Already reviewed: "+Number(summary.alreadyReviewed||0),
+     "Owner outcomes: accepted "+Number(summary.priorDecisionOutcomes?.accepted||0)+" · rejected "+Number(summary.priorDecisionOutcomes?.rejected||0)+" · needs info "+Number(summary.priorDecisionOutcomes?.needsMoreInfo||0),
+     "Unreviewed recommendations: "+Number(summary.priorDecisionOutcomes?.unreviewed||0),
      "Findings reviewed: "+Number(coverage.findingsReviewed||0),
      "Evidence references scanned: "+Number(coverage.evidenceReferencesScanned||0)
     ],targets[3],"Owner decisions only · Decision made automatically: "+String(data.decisionMade)+" · Check passed: "+String(data.checkPassed)+" · Execution enabled: "+String(data.executionEnabled)));
@@ -546,7 +548,7 @@ async function loadEvidenceDecisionSupport(){
   const summary=data.summary||{},coverage=data.coverage||{};
   message("evidenceDecisionSupportSummary",
    "Recommendations: "+Number(summary.recommendationCount||0)+" · High: "+Number(summary.highPriority||0)+" · Medium: "+Number(summary.mediumPriority||0)+" · Low: "+Number(summary.lowPriority||0)+" · Already reviewed: "+Number(summary.alreadyReviewed||0)+
-   " · Findings reviewed: "+Number(coverage.findingsReviewed||0)+" · Evidence refs scanned: "+Number(coverage.evidenceReferencesScanned||0)+
+   " · Owner outcomes: accepted "+Number(summary.priorDecisionOutcomes?.accepted||0)+" / rejected "+Number(summary.priorDecisionOutcomes?.rejected||0)+" / needs info "+Number(summary.priorDecisionOutcomes?.needsMoreInfo||0)+" · Unreviewed: "+Number(summary.priorDecisionOutcomes?.unreviewed||0)+" · Findings reviewed: "+Number(coverage.findingsReviewed||0)+" · Evidence refs scanned: "+Number(coverage.evidenceReferencesScanned||0)+
    " · Findings limit reached: "+String(coverage.findingsReviewLimitReached)+" · Evidence scan limit reached: "+String(coverage.evidenceReferenceScanLimitReached)+
    " · Decision made automatically: "+String(data.decisionMade)+" · Execution enabled: "+String(data.executionEnabled),"good");
   if(!(data.recommendations||[]).length)list.append(findingsElement("p","muted","No decision prompts were produced from the current bounded dataset."));
