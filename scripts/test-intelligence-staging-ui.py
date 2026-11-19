@@ -77,6 +77,21 @@ required = [
     "approvalConsumed",
     "Executor enabled: ",
     "No data mutation, deletion, external action, or approval consumption",
+    'id="ownerEvidenceReviewPanel"',
+    'id="ownerEvidenceReviewForm"',
+    'id="ownerEvidenceReviewOutcome"',
+    'id="ownerEvidenceReviewReason"',
+    'id="ownerEvidenceReviewHistory"',
+    'dataset.reviewFinding',
+    'async function selectOwnerEvidenceReviewFinding',
+    'async function submitOwnerEvidenceReview',
+    'request("/intelligence/findings/"+encodeURIComponent(selectedOwnerReviewFindingId)+"/reviews"',
+    'request("/intelligence/findings/reviews?findingId="+encodeURIComponent(selectedOwnerReviewFindingId)',
+    'Append-only record',
+    'Content verified: false',
+    'Check passed: false',
+    'evidenceSnapshotSha256',
+
 ]
 for marker in required:
     if marker not in page:
@@ -180,13 +195,13 @@ for marker in [
     'findingsElement("h3","",item.title||"Untitled finding")',
     'findingsElement("p","",item.description||"No description recorded.")',
     'findingsElement("p","small",item.recommendation?',
-    'card.append(top,title,module,description,evidence,recommendation,reason,dates)',
+    'card.append(top,title,module,description,evidence,recommendation,reason,dates,actions)',
     'Execution enabled: false.',
     'Assessment: "+String(data.assessment)',
 ]:
     assert marker in page, f"Findings dashboard missing required safe/read-only behavior: {marker}"
 
-findings_function = page.split("async function loadFindings(reset=true)", 1)[1].split("async function loadOverview()", 1)[0]
+findings_function = page.split("async function loadFindings(reset=true)", 1)[1].split("async function loadAssessmentCoverage()", 1)[0]
 assert 'method:"GET"' not in findings_function or 'request("/intelligence/findings?' in findings_function
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in findings_function, f"Findings dashboard must remain read-only and avoid HTML injection: {forbidden}"
@@ -216,7 +231,7 @@ for marker in [
 ]:
     assert marker in page, f"Assessment coverage dashboard missing required safety behavior: {marker}"
 
-coverage_function = page.split("async function loadAssessmentCoverage()", 1)[1].split("async function loadOverview()", 1)[0]
+coverage_function = page.split("async function loadAssessmentCoverage()", 1)[1].split("async function loadFindingPriorities()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in coverage_function, f"Assessment coverage must remain read-only and avoid HTML injection: {forbidden}"
 assert 'createElement' in coverage_function and 'findingsElement(' in coverage_function
@@ -242,7 +257,7 @@ for marker in [
 ]:
     assert marker in page, f"Finding priority dashboard missing safety or behavior marker: {marker}"
 
-priority_function = page.split("async function loadFindingPriorities()", 1)[1].split("async function loadOverview()", 1)[0]
+priority_function = page.split("async function loadFindingPriorities()", 1)[1].split("async function loadRemediationPlans()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in priority_function, f"Finding priority UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in priority_function and '.append(card)' in priority_function
@@ -268,7 +283,7 @@ for marker in [
 ]:
     assert marker in page, f"Remediation planner dashboard missing safety or behavior marker: {marker}"
 
-planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("async function loadOverview()", 1)[0]
+planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in planner_function, f"Remediation planner UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in planner_function and 'document.createElement("details")' in planner_function

@@ -81,6 +81,21 @@
   <div id="evidenceMetadataReviewSummary" class="notice" aria-live="polite">Evidence metadata review not loaded.</div>
   <div id="evidenceMetadataReviewList" class="grid" aria-live="polite"></div>
  </section>
+ <section class="panel hidden" id="ownerEvidenceReviewPanel">
+  <div class="row"><div><h2>Owner evidence review ledger</h2><div class="muted small">Record an explicit owner decision against a fixed snapshot of the finding's current evidence references.</div></div><button id="refreshOwnerEvidenceReviewBtn" class="secondary" type="button">Refresh history</button></div>
+  <div class="notice warn">A review records the owner's assessment of metadata and references at one point in time. It does not verify evidence contents, source reachability, or mark a security check as passed. Each submission creates a new append-only record; earlier decisions are not overwritten.</div>
+  <div id="ownerEvidenceReviewFinding" class="notice">Select a finding to review.</div>
+  <form id="ownerEvidenceReviewForm">
+   <label for="ownerEvidenceReviewOutcome">Owner decision</label>
+   <select id="ownerEvidenceReviewOutcome" required><option value="needs_more_info">Needs more information</option><option value="accepted">Accept this evidence snapshot</option><option value="rejected">Reject this evidence snapshot</option></select>
+   <label for="ownerEvidenceReviewReason">Reason for this decision</label>
+   <textarea id="ownerEvidenceReviewReason" rows="3" maxlength="1000" required placeholder="Explain what you reviewed and why you chose this outcome."></textarea>
+   <div class="actions"><button id="submitOwnerEvidenceReviewBtn" type="submit">Record owner review</button></div>
+  </form>
+  <div id="ownerEvidenceReviewStatus" class="notice" aria-live="polite">No review has been submitted.</div>
+  <h3>Append-only review history</h3>
+  <div id="ownerEvidenceReviewHistory" class="grid" aria-live="polite"></div>
+ </section>
  <section class="panel" id="gapTestStrategyPanel">
   <div class="row"><div><h2>Gap analysis &amp; test strategy</h2><div class="muted small">Blueprint signals and recommended tests. No repository scan or test execution.</div></div><button id="refreshGapTestStrategyBtn" class="secondary" type="button">Refresh strategy</button></div>
   <div class="grid"><div><label for="gapTestStrategyModule">Company module</label><select id="gapTestStrategyModule"><option value="music">MUSIC</option><option value="ai">AI</option><option value="social">SOCIAL</option><option value="instruments">INSTRUMENTS</option><option value="robotics">ROBOTICS</option><option value="security">SECURITY</option><option value="intelligence">INTELLIGENCE</option><option value="logistics">LOGISTICS</option><option value="customer-experience">CUSTOMER EXPERIENCE</option><option value="labs">LABS</option><option value="governance">GOVERNANCE</option><option value="data">DATA</option><option value="robot-operations">ROBOT OPERATIONS</option></select></div></div>
@@ -280,7 +295,10 @@ async function loadFindings(reset=true){
    const recommendation=findingsElement("p","small",item.recommendation?"Recommendation: "+item.recommendation:"No recommendation recorded.");
    const reason=findingsElement("div","small muted",item.status_reason?"Status reason: "+item.status_reason:"No status reason recorded.");
    const dates=findingsElement("div","small muted","Updated: "+String(item.updated_at||"unknown")+(item.review_due_at?" · Review due: "+item.review_due_at:""));
-   card.append(top,title,module,description,evidence,recommendation,reason,dates);
+   const reviewButton=findingsElement("button","secondary","Review evidence");
+   reviewButton.type="button";reviewButton.dataset.reviewFinding=String(item.id);
+   const actions=findingsElement("div","actions");actions.append(reviewButton);
+   card.append(top,title,module,description,evidence,recommendation,reason,dates,actions);
    $("findingsList").append(card);
   }
   findingsHasMore=!!data.hasMore;
@@ -409,6 +427,57 @@ async function loadEvidenceMetadataReview(){
  }catch(error){message("evidenceMetadataReviewSummary",error.message,"bad")}
  finally{button.disabled=false}
 }
+let selectedOwnerReviewFindingId="";
+async function loadOwnerEvidenceReviewHistory(){
+ if(!selectedOwnerReviewFindingId)return;
+ const list=$("ownerEvidenceReviewHistory");list.replaceChildren();
+ message("ownerEvidenceReviewStatus","Loading append-only owner review history...");
+ const button=$("refreshOwnerEvidenceReviewBtn");button.disabled=true;
+ try{
+  const data=await request("/intelligence/findings/reviews?findingId="+encodeURIComponent(selectedOwnerReviewFindingId)+"&limit=50");
+  for(const item of data.items||[]){
+   const card=findingsElement("article","card");
+   const heading=findingsElement("h3","",String(item.outcome||"unknown").replaceAll("_"," "));
+   const meta=findingsElement("div","small muted","Reviewed: "+new Date(Number(item.reviewedAt)*1000).toLocaleString()+" · Reviewer UID: "+String(item.reviewerUid)+" · Evidence refs captured: "+Number(item.evidenceCount));
+   const reason=findingsElement("p","",String(item.reason||""));
+   const digest=findingsElement("div","small muted","Snapshot SHA-256: "+String(item.evidenceSnapshotSha256||""));
+   const disclosure=document.createElement("details");
+   const summary=findingsElement("summary","","View captured evidence metadata");
+   const refs=findingsElement("ul","small");
+   for(const ref of item.evidenceSnapshot||[]){
+    refs.append(findingsElement("li","","Ref "+String(ref.id)+" · "+String(ref.kind)+" · Digest: "+String(ref.contentDigest||"not recorded")+" · Observed: "+String(ref.observedAt??"not recorded")));
+   }
+   disclosure.append(summary,refs);
+   const disclaimer=findingsElement("div","small muted","Append-only record · Content verified: false · Check passed: false");
+   card.append(heading,meta,reason,digest,disclosure,disclaimer);list.append(card);
+  }
+  message("ownerEvidenceReviewStatus","Loaded "+Number(data.items?.length||0)+" review records · Append-only: "+String(data.historyIsAppendOnly)+" · Evidence content verified: "+String(data.evidenceContentVerified)+" · Check passed: "+String(data.checkPassed),"good");
+ }catch(error){message("ownerEvidenceReviewStatus",error.message,"bad")}
+ finally{button.disabled=false}
+}
+async function selectOwnerEvidenceReviewFinding(findingId){
+ selectedOwnerReviewFindingId=findingId;
+ $("ownerEvidenceReviewPanel").classList.remove("hidden");
+ $("ownerEvidenceReviewFinding").textContent="Selected finding: "+findingId+". The next submission records a new review of its current evidence-reference snapshot.";
+ $("ownerEvidenceReviewReason").value="";
+ await loadOwnerEvidenceReviewHistory();
+ $("ownerEvidenceReviewPanel").scrollIntoView({behavior:"smooth",block:"start"});
+}
+async function submitOwnerEvidenceReview(event){
+ event.preventDefault();
+ if(!selectedOwnerReviewFindingId)return;
+ const button=$("submitOwnerEvidenceReviewBtn");button.disabled=true;
+ try{
+  const result=await request("/intelligence/findings/"+encodeURIComponent(selectedOwnerReviewFindingId)+"/reviews",{
+   method:"POST",
+   body:{outcome:$("ownerEvidenceReviewOutcome").value,reason:$("ownerEvidenceReviewReason").value}
+  });
+  $("ownerEvidenceReviewReason").value="";
+  message("ownerEvidenceReviewStatus","Owner review recorded: "+String(result.outcome)+" · Evidence refs captured: "+Number(result.evidenceCount)+" · Snapshot SHA-256: "+String(result.evidenceSnapshotSha256)+". No evidence content was verified and no check was passed.","good");
+  await loadOwnerEvidenceReviewHistory();
+ }catch(error){message("ownerEvidenceReviewStatus",error.message,"bad")}
+ finally{button.disabled=false}
+}
 async function loadGapTestStrategy(){
  message("gapTestStrategySummary","Preparing blueprint-based test recommendations...");
  $("gapTestStrategyList").replaceChildren();
@@ -518,7 +587,7 @@ async function loadCompanyModules(){
  }catch(error){message("companyModulesStatus",error.message,"bad")}
 }
 async function refreshAll(){await Promise.all([loadCompanyModules(),loadOverview(),loadFindings(true),loadAssessmentCoverage(),loadFindingPriorities(),loadRemediationPlans(),loadDependencyImpact(),loadGapTestStrategy(),loadEvidenceMetadataReview(),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
-$("refreshAssessmentCoverageBtn").addEventListener("click",loadAssessmentCoverage);$("refreshFindingPrioritiesBtn").addEventListener("click",loadFindingPriorities);$("refreshRemediationPlansBtn").addEventListener("click",loadRemediationPlans);$("refreshDependencyImpactBtn").addEventListener("click",loadDependencyImpact);$("refreshGapTestStrategyBtn").addEventListener("click",loadGapTestStrategy);$("refreshEvidenceMetadataReviewBtn").addEventListener("click",loadEvidenceMetadataReview);$("evidenceMetadataReviewModule").addEventListener("change",loadEvidenceMetadataReview);$("gapTestStrategyModule").addEventListener("change",loadGapTestStrategy);$("dependencyImpactModule").addEventListener("change",loadDependencyImpact);$("refreshFindingsBtn").addEventListener("click",()=>loadFindings(true));$("loadMoreFindingsBtn").addEventListener("click",()=>loadFindings(false));["findingsModuleFilter","findingsSeverityFilter","findingsStatusFilter"].forEach(id=>$(id).addEventListener("change",()=>loadFindings(true)));$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+$("findingsList").addEventListener("click",event=>{const button=event.target.closest("[data-review-finding]");if(button)selectOwnerEvidenceReviewFinding(button.dataset.reviewFinding)});$("ownerEvidenceReviewForm").addEventListener("submit",submitOwnerEvidenceReview);$("refreshOwnerEvidenceReviewBtn").addEventListener("click",loadOwnerEvidenceReviewHistory);$("refreshAssessmentCoverageBtn").addEventListener("click",loadAssessmentCoverage);$("refreshFindingPrioritiesBtn").addEventListener("click",loadFindingPriorities);$("refreshRemediationPlansBtn").addEventListener("click",loadRemediationPlans);$("refreshDependencyImpactBtn").addEventListener("click",loadDependencyImpact);$("refreshGapTestStrategyBtn").addEventListener("click",loadGapTestStrategy);$("refreshEvidenceMetadataReviewBtn").addEventListener("click",loadEvidenceMetadataReview);$("evidenceMetadataReviewModule").addEventListener("change",loadEvidenceMetadataReview);$("gapTestStrategyModule").addEventListener("change",loadGapTestStrategy);$("dependencyImpactModule").addEventListener("change",loadDependencyImpact);$("refreshFindingsBtn").addEventListener("click",()=>loadFindings(true));$("loadMoreFindingsBtn").addEventListener("click",()=>loadFindings(false));["findingsModuleFilter","findingsSeverityFilter","findingsStatusFilter"].forEach(id=>$(id).addEventListener("change",()=>loadFindings(true)));$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>

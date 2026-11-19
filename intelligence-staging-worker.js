@@ -6,6 +6,7 @@ import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
 import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-dependency-impact.mjs";
 import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
 import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs";
+import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEvidenceReviewHistory } from "./intelligence-owner-evidence-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -223,7 +224,8 @@ async function handle(request, env) {
         "intelligence_tasks", "intelligence_knowledge", "intelligence_approval_ledger",
         "intelligence_knowledge_relations", "intelligence_staging_sessions",
         "intelligence_staging_audit", "intelligence_staging_rate_limits",
-        "intelligence_owner_memory", "intelligence_capability_approvals"
+        "intelligence_owner_memory", "intelligence_capability_approvals",
+        "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews"
       ];
       const rows = await env.DB.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${required.map(() => "?").join(",")})`
@@ -716,7 +718,7 @@ async function handle(request, env) {
     const rawLimit = url.searchParams.get("limit") || "100";
     const limit = Number(rawLimit);
     if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown evidence review module.");
-    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^(?:[1-9]\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Evidence review limit must be an integer from 1 to 100.");
     }
     try {
@@ -746,6 +748,107 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Evidence metadata review is unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
+
+  if (path === "/intelligence/findings/reviews" && method === "GET") {
+    const allowedParams = new Set(["findingId", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported owner review history filter.");
+    }
+    const findingId = url.searchParams.get("findingId") || "";
+    const rawLimit = url.searchParams.get("limit") || "50";
+    const limit = Number(rawLimit);
+    if (!uuid(findingId)) return fail("A valid finding ID is required.");
+    if (!/^(?:[1-9]\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Review history limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT id, finding_id, outcome, reason, reviewer_uid, reviewed_at,
+               evidence_count, evidence_snapshot_sha256, evidence_snapshot_json
+        FROM intelligence_finding_reviews
+        WHERE owner_uid = ? AND finding_id = ?
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT ?
+      `).bind(owner.uid, findingId, limit).all();
+      return response({
+        success: true,
+        scope: "authenticated_owner_staging_only",
+        assessment: "append_only_owner_review_history",
+        ...buildOwnerEvidenceReviewHistory(rows.results || [])
+      });
+    } catch {
+      return fail("Owner evidence review history is unavailable. Confirm staging migration 0010 is present.", 503);
+    }
+  }
+
+  const ownerReviewMatch = path.match(/^\/intelligence\/findings\/([0-9a-f-]{36})\/reviews$/i);
+  if (ownerReviewMatch && method === "POST") {
+    const findingId = ownerReviewMatch[1];
+    if (!uuid(findingId)) return fail("Invalid finding ID.");
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => !["outcome", "reason"].includes(key)) ||
+        !OWNER_EVIDENCE_REVIEW_OUTCOMES.includes(body.outcome) ||
+        typeof body.reason !== "string" || body.reason.length > 1000 ||
+        !clean(body.reason, 1000) || clean(body.reason, 1000).length !== body.reason.trim().length) {
+      return fail("A valid review outcome and bounded reason are required.");
+    }
+    try {
+      const finding = await env.DB.prepare(
+        "SELECT id FROM intelligence_findings WHERE id = ? AND owner_uid = ? LIMIT 1"
+      ).bind(findingId, owner.uid).first();
+      if (!finding) return fail("Finding not found.", 404);
+      const countRow = await env.DB.prepare(
+        "SELECT COUNT(*) AS evidence_count FROM intelligence_finding_evidence WHERE finding_id = ? AND owner_uid = ?"
+      ).bind(findingId, owner.uid).first();
+      const evidenceCount = Number(countRow?.evidence_count || 0);
+      if (!Number.isSafeInteger(evidenceCount) || evidenceCount > 100) {
+        return fail("This finding has more than 100 evidence references; review snapshot is bounded and cannot be recorded.", 409);
+      }
+      const evidenceRows = await env.DB.prepare(`
+        SELECT id, kind, content_digest, observed_at
+        FROM intelligence_finding_evidence
+        WHERE finding_id = ? AND owner_uid = ?
+        ORDER BY id ASC
+        LIMIT 101
+      `).bind(findingId, owner.uid).all();
+      const snapshot = buildEvidenceSnapshot(evidenceRows.results || []);
+      const snapshotHashBytes = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(snapshot.evidenceSnapshotJson)
+      ));
+      const snapshotHash = Array.from(snapshotHashBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      const reviewId = randomId();
+      const reviewedAt = Math.floor(Date.now() / 1000);
+      await env.DB.prepare(`
+        INSERT INTO intelligence_finding_reviews
+          (id, finding_id, owner_uid, reviewer_uid, outcome, reason,
+           evidence_snapshot_json, evidence_snapshot_sha256, evidence_count,
+           reviewed_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        reviewId, findingId, owner.uid, owner.uid, body.outcome,
+        clean(body.reason, 1000), snapshot.evidenceSnapshotJson,
+        snapshotHash, snapshot.evidenceCount, reviewedAt, reviewedAt
+      ).run();
+      return response({
+        success: true,
+        id: reviewId,
+        findingId,
+        outcome: body.outcome,
+        reviewerUid: owner.uid,
+        reviewedAt,
+        evidenceCount: snapshot.evidenceCount,
+        evidenceSnapshotSha256: snapshotHash,
+        historyIsAppendOnly: true,
+        evidenceContentVerified: false,
+        checkPassed: false,
+        executionEnabled: false,
+        operationPerformed: true
+      }, 201);
+    } catch {
+      return fail("Owner evidence review could not be recorded. Confirm staging migration 0010 and the finding's evidence references.", 503);
     }
   }
 

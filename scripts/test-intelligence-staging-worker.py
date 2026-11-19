@@ -8,12 +8,21 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "intelligence-staging-worker.js"
 CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
+OWNER_REVIEW_MODULE = ROOT / "intelligence-owner-evidence-review.mjs"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
+        cls.owner_review_module = OWNER_REVIEW_MODULE.read_text(encoding="utf-8")
+
+    def route_block(self, marker):
+        start = self.source.index(marker)
+        end = self.source.find("\n  if (path ===", start + len(marker))
+        if end < 0:
+            end = len(self.source)
+        return self.source[start:end]
 
     def test_health_requires_the_capability_approval_ledger(self):
         match = re.search(
@@ -24,6 +33,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIsNotNone(match, "Health route must declare its required schema tables.")
         required_tables = set(re.findall(r'"([a-z_]+)"', match.group(1)))
         self.assertIn("intelligence_capability_approvals", required_tables)
+        self.assertIn("intelligence_finding_reviews", required_tables)
         self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
@@ -61,6 +71,50 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('knowledge_relation_', self.source)
         self.assertIn('{ confirm: "knowledge_relation_confirmed", dismiss: "knowledge_relation_dismissed", resolve: "knowledge_relation_resolved" }', self.source)
         self.assertIn('approval_revoked', self.source)
+
+
+    def test_owner_evidence_review_api_is_owner_scoped_and_append_only(self):
+        history_marker = 'if (path === "/intelligence/findings/reviews" && method === "GET")'
+        history_start = self.source.index(history_marker)
+        post_start = self.source.index('const ownerReviewMatch = path.match(', history_start)
+        history_route = self.source[history_start:post_start]
+        post_end = self.source.find('\n  if (path ===', post_start)
+        post_route = self.source[post_start:post_end]
+        for fragment in [
+            'WHERE owner_uid = ? AND finding_id = ?',
+            'LIMIT ?',
+            'append_only_owner_review_history',
+        ]:
+            self.assertIn(fragment, history_route)
+        for fragment in [
+            'OWNER_EVIDENCE_REVIEW_OUTCOMES.includes(body.outcome)',
+            'Object.keys(body).some(key => !["outcome", "reason"].includes(key))',
+            'WHERE id = ? AND owner_uid = ? LIMIT 1',
+            'WHERE finding_id = ? AND owner_uid = ?',
+            'evidenceCount > 100',
+            'buildEvidenceSnapshot(evidenceRows.results || [])',
+            'reviewer_uid, outcome, reason',
+            'reviewId, findingId, owner.uid, owner.uid, body.outcome',
+            'historyIsAppendOnly: true',
+            'evidenceContentVerified: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: true',
+        ]:
+            self.assertIn(fragment, post_route)
+        for forbidden in ['request.json', 'body.ownerUid', 'body.reviewerUid', 'DELETE FROM intelligence_finding_reviews', 'UPDATE intelligence_finding_reviews']:
+            self.assertNotIn(forbidden, post_route)
+        self.assertIn('intelligence_finding_reviews', self.source)
+        self.assertIn('buildEvidenceSnapshot', self.source)
+        for fragment in [
+            'historyIsAppendOnly: true',
+            'evidenceContentVerified: false',
+            'sourceReachabilityChecked: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, self.owner_review_module)
 
     def test_no_executor_scheduler_or_production_binding(self):
         forbidden = [
@@ -145,9 +199,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_finding_priority_api_is_owner_scoped_bounded_and_read_only(self):
-        start = self.source.index('if (path === "/intelligence/findings/priorities" && method === "GET")')
-        end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', start)
-        route = self.source[start:end]
+        route = self.route_block('if (path === "/intelligence/findings/priorities" && method === "GET")')
         for fragment in [
             'WHERE owner_uid = ? AND (? = \'\' OR module_id = ?)',
             '.bind(owner.uid, moduleId, moduleId).all()',
@@ -408,9 +460,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"session-auth"', self.source)
 
     def test_assessment_coverage_is_owner_scoped_read_only_and_never_reports_pass(self):
-        route_start = self.source.index('if (path === "/intelligence/company/assessment-coverage" && method === "GET")')
-        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
-        route = self.source[route_start:route_end]
+        route = self.route_block('if (path === "/intelligence/company/assessment-coverage" && method === "GET")')
         for fragment in [
             "FROM intelligence_findings",
             "WHERE owner_uid = ?",
@@ -446,9 +496,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("blueprintVersion: 1", route)
 
     def test_dependency_impact_catalog_is_bounded_explicit_and_non_executing(self):
-        route_start = self.source.index('if (path === "/intelligence/company/dependency-impact" && method === "GET")')
-        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
-        route = self.source[route_start:route_end]
+        route = self.route_block('if (path === "/intelligence/company/dependency-impact" && method === "GET")')
         for fragment in [
             'new Set(["module"])',
             'COMPANY_MODULES.includes(moduleId)',
@@ -489,9 +537,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         subprocess.run(["node", "--input-type=module", "-e", script], cwd=ROOT, check=True)
 
     def test_gap_test_strategy_is_owner_scoped_read_only_and_does_not_infer_pass(self):
-        route_start = self.source.index('if (path === "/intelligence/company/gap-test-strategy" && method === "GET")')
-        route_end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', route_start)
-        route = self.source[route_start:route_end]
+        route = self.route_block('if (path === "/intelligence/company/gap-test-strategy" && method === "GET")')
         for fragment in [
             'new Set(["module"])',
             'COMPANY_MODULES.includes(moduleId)',
