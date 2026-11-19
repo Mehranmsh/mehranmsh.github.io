@@ -3297,7 +3297,7 @@ await testOwnerEvidenceSnapshotDriftRuntime();
 
 async function testOwnerEvidenceCorrelationRuntime() {
   const { mf, db } = await createWorker(migrations.length);
-  const ownerUid = "correlation-owner-test-uid";
+  const ownerUid = "staging-owner-test-uid";
   const otherUid = "correlation-other-owner-test-uid";
   const now = Math.floor(Date.now() / 1000);
   const token = randomBytes(32).toString("base64url");
