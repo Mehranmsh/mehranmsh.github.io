@@ -132,7 +132,8 @@ async function testSessionReadRateLimit() {
     await mf.dispose();
   }
 }
-\nasync function testCompleteSchemaReportsHealthy() {
+
+async function testCompleteSchemaReportsHealthy() {
   const { mf, db } = await createWorker(migrations.length);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
@@ -168,4 +169,5 @@ async function testMissingCapabilityLedgerFailsClosed() {
 
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
-await testSessionVerificationAndRevocation();\nawait testSessionReadRateLimit();
+await testSessionVerificationAndRevocation();
+await testSessionReadRateLimit();
