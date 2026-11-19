@@ -46,3 +46,8 @@ These are repository-level checks, not a live D1 or Pi Browser integration test.
 ## Production boundary
 
 Do not change the production `DB` binding, production secrets, production Worker, or cron. Do not merge, deploy, execute tasks, expose an executor, or activate an executor without separate explicit owner authorization.
+
+
+## Owner memory API
+
+The isolated Worker exposes owner-scoped `GET/POST /intelligence/memory` and `PUT /intelligence/memory/:id` routes. Each write is paired with an audit record in the same D1 batch. Memory content is bounded to 4,000 characters per record.
