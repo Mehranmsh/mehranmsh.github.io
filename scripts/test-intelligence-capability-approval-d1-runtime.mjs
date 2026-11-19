@@ -139,7 +139,7 @@ async function testExpiredAndRevokedApprovalsFailClosed() {
       if (scenario === "expired") {
         await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-expired','owner-a','memory.create','owner_staging','issued',100,149)").run();
       } else {
-        await db.prepare("UPDATE intelligence_capability_approvals SET status='revoked', revoked_at=140 WHERE id='grant-valid'").run();
+        await db.prepare("UPDATE intelligence_capability_approvals SET status='revoked', revoked_at=140, id=id, owner_uid=owner_uid, capability=capability, scope=scope, issued_at=issued_at, expires_at=expires_at WHERE id='grant-valid'").run();
       }
       await assert.rejects(
         db.batch(statements(db, { grantId: scenario === "expired" ? "grant-expired" : "grant-valid", now: 150, operationId: `op-${scenario}` })),
