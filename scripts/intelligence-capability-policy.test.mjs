@@ -33,11 +33,22 @@ test("mutations require a server-verified owner approval", () => {
 
 test("approval must match owner, capability, scope and expiry", () => {
   const request = { ...base, capability: "memory.delete" };
-  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", expiresAt: 2000 };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", expiresAt: 2000, revoked: false };
   assert.equal(evaluateCapabilityRequest({ ...request, approval: good }, 1000).decision, "eligible_after_owner_approval");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, ownerId: "other" } }, 1000).decision, "deny");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: 1000 } }, 1000).reason, "approval_invalid_expired_or_out_of_scope");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, revoked: true } }, 1000).decision, "deny");
+});
+
+test("approval metadata must be explicit safe integers and an explicit active state", () => {
+  const request = { ...base, capability: "memory.delete" };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", expiresAt: 2000, revoked: false };
+  assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, revoked: undefined } }, 1000).decision, "deny");
+  assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: 2000.5 } }, 1000).decision, "deny");
+  assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: Number.MAX_SAFE_INTEGER + 1 } }, 1000).decision, "deny");
+  assert.equal(evaluateCapabilityRequest({ ...request, approval: good }, Number.NaN).decision, "deny");
+  assert.equal(evaluateCapabilityRequest({ ...request, approval: good }, 1000.5).decision, "deny");
+  assert.equal(evaluateCapabilityRequest({ ...request, ownerId: "", approval: good }, 1000).decision, "deny");
 });
 
 test("policy inventory keeps execution and privilege escalation forbidden", () => {
