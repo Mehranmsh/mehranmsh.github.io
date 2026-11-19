@@ -96,6 +96,9 @@ jobs:
       - name: Test complete Intelligence staging migration chain in disposable SQLite
         run: python scripts/test-intelligence-staging-schema.py
 
+      - name: Test Findings schema constraints in disposable SQLite
+        run: python scripts/test-intelligence-findings-schema.py
+
       - name: Test owner-memory confidence integer database guard
         run: python scripts/test-intelligence-owner-memory-confidence.py
 
