@@ -81,6 +81,69 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('PRAGMA foreign_key_check', self.source)
         self.assertIn('foreignKeyViolations', self.source)
 
+    def test_remediation_plans_api_is_owner_scoped_bounded_and_read_only(self):
+        start = self.source.index('if (path === "/intelligence/findings/remediation-plans" && method === "GET")')
+        end = self.source.index('if (path === "/intelligence/findings/priorities" && method === "GET")', start)
+        route = self.source[start:end]
+        for fragment in [
+            'allowedParams = new Set(["module", "limit"])',
+            'WHERE owner_uid = ? AND (? = \'\' OR module_id = ?)',
+            '.bind(owner.uid, moduleId, moduleId).all()',
+            'LIMIT 500',
+            'buildRemediationPlan(item)',
+            'assessment: "advisory_remediation_planning_only"',
+            'plannerVersion: "deterministic_remediation_v1"',
+            'executionEnabled: false',
+            'operationPerformed: false',
+            'No task is created',
+        ]:
+            self.assertIn(fragment, route)
+        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE ", "DELETE FROM", "request.json"]:
+            self.assertNotIn(forbidden, route)
+        self.assertIn('import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";', self.source)
+
+    def test_remediation_planner_has_explicit_owner_gates_and_no_execution(self):
+        planner = (ROOT / "intelligence-remediation-planner.mjs").read_text(encoding="utf-8")
+        for fragment in [
+            'export function buildRemediationPlan',
+            'ownerDecisionsRequired',
+            'riskRationale',
+            'prerequisites',
+            'validation',
+            'planStatus: "advisory_only"',
+            'executionEnabled: false',
+            'operationPerformed: false',
+            'isRiskVerdict: false',
+            'Affected areas are module-level guidance',
+        ]:
+            self.assertIn(fragment, planner)
+        for forbidden in ['fetch(', 'fetch (', 'writeFile', 'exec(', 'spawn(', 'INSERT INTO', 'UPDATE ', 'DELETE FROM']:
+            self.assertNotIn(forbidden, planner)
+
+    def test_remediation_planner_builds_deterministic_module_specific_guidance(self):
+        script = """
+          import assert from 'node:assert/strict';
+          import { buildRemediationPlan } from './intelligence-remediation-planner.mjs';
+          const social = buildRemediationPlan({id:'f-1',module_id:'social',check_id:'upload_security',severity:'high',status:'open',title:'Upload validation',recommendation:'Validate file content.'});
+          const socialAgain = buildRemediationPlan({id:'f-1',module_id:'social',check_id:'upload_security',severity:'high',status:'open',title:'Upload validation',recommendation:'Validate file content.'});
+          assert.deepEqual(social, socialAgain);
+          assert.equal(social.moduleId, 'social');
+          assert.equal(social.riskLevel, 'high');
+          assert.match(social.steps[0].detail, /file size, type, content/i);
+          assert.ok(social.validation.some(x => /upload validation/i.test(x)));
+          assert.equal(social.executionEnabled, false);
+          assert.equal(social.operationPerformed, false);
+          assert.equal(social.isRiskVerdict, false);
+          assert.ok(social.ownerDecisionsRequired.length >= 2);
+          const unknown = buildRemediationPlan({id:'f-2',module_id:'not-a-module',check_id:'not-a-check',severity:'unrated'});
+          assert.equal(unknown.moduleId, 'intelligence');
+          assert.equal(unknown.steps.length, 6);
+          assert.ok(unknown.limitations.some(x => /not verified repository paths/i.test(x)));
+        """
+        result = subprocess.run(["node", "--input-type=module", "-e", script],
+                                cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_finding_priority_api_is_owner_scoped_bounded_and_read_only(self):
         start = self.source.index('if (path === "/intelligence/findings/priorities" && method === "GET")')
         end = self.source.index('if (path === "/intelligence/findings" && method === "GET")', start)
