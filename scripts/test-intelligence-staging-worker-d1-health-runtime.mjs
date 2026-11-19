@@ -578,6 +578,21 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     assert.equal(foreignBody.operationPerformed, false);
     assert.equal(foreignBody.approvalConsumed, false);
 
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_revoke_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_approval_revoked' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const revokeAuditFailure = await mf.dispatchFetch(`http://localhost/intelligence/capability-approvals/${issuedBody.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(revokeAuditFailure.status, 503);
+    const stillIssued = await db.prepare(
+      "SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=? AND owner_uid=?"
+    ).bind(issuedBody.id, ownerUid).first();
+    assert.equal(stillIssued.status, "issued");
+    assert.equal(stillIssued.revoked_at, null);
+    await db.prepare("DROP TRIGGER reject_capability_revoke_audit").run();
+
     const revoked = await mf.dispatchFetch(`http://localhost/intelligence/capability-approvals/${issuedBody.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
