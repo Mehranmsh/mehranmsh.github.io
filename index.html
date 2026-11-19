@@ -2900,7 +2900,7 @@ async function loadIntelCompanyReadiness(){
    const source=sources[index];
    if(result.status!=="fulfilled")return {...source,ok:false,error:result.reason?.message||"Request failed"};
    const data=result.value||{};
-   if(data.scope&&data.scope!=="authenticated_owner_staging_only")return {...source,ok:false,error:"Unexpected response scope"};
+   if(data.scope!=="authenticated_owner_staging_only")return {...source,ok:false,error:"Unexpected response scope"};
    if(data.success===false)return {...source,ok:false,error:data.error||"Source reported failure"};
    return {...source,ok:true,data,detail:intelReadinessDetail(source.key,data)};
   });
