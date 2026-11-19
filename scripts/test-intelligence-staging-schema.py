@@ -50,6 +50,9 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "intelligence_staging_rate_limits",
             "intelligence_owner_memory",
             "intelligence_capability_approvals",
+            "intelligence_findings",
+            "intelligence_finding_evidence",
+            "intelligence_finding_reviews",
         }.issubset(tables))
         memory_columns = {row[1] for row in self.db.execute("PRAGMA table_info(intelligence_owner_memory)")}
         self.assertTrue({"memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"}.issubset(memory_columns))
