@@ -56,7 +56,9 @@ export function evaluateCapabilityRequest(request, nowMs = Date.now()) {
   }
   if (typeof request.ownerId !== "string" || request.ownerId.length === 0 ||
       approval.ownerId !== request.ownerId || approval.capability !== request.capability ||
-      approval.scope !== capability.scope || approval.revoked !== false ||
+      approval.scope !== capability.scope || approval.status !== "issued" ||
+      approval.revoked !== false || approval.revokedAt !== null ||
+      approval.consumedAt !== null || approval.consumedBy !== null ||
       !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(approval.expiresAt) ||
       approval.expiresAt <= nowMs) {
     return { decision: "deny", reason: "approval_invalid_expired_or_out_of_scope", executionEnabled: EXECUTION_ENABLED, capabilityKnown: true };
