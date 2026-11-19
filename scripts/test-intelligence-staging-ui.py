@@ -231,7 +231,7 @@ for marker in [
 ]:
     assert marker in page, f"Assessment coverage dashboard missing required safety behavior: {marker}"
 
-coverage_function = page.split("async function loadAssessmentCoverage()", 1)[1].split("async function loadOverview()", 1)[0]
+coverage_function = page.split("async function loadAssessmentCoverage()", 1)[1].split("async function loadFindingPriorities()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in coverage_function, f"Assessment coverage must remain read-only and avoid HTML injection: {forbidden}"
 assert 'createElement' in coverage_function and 'findingsElement(' in coverage_function
