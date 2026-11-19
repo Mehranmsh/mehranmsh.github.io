@@ -81,6 +81,13 @@ for forbidden in [
     if forbidden in page:
         raise SystemExit(f"Staging console must not reference production capability: {forbidden}")
 
+def test_staging_logout_does_not_claim_revocation_when_server_did_not_confirm():
+    assert 'Session revocation was not confirmed:' in page
+    assert 'The local session remains available so you can retry.' in page
+    assert 'Staging session revoked. The bearer token was cleared from this page.' in page
+    assert 'finally{sessionToken="";sessionExpiresAt=0;setAuthenticated(false)' not in page
+
+
 def test_staging_ui_has_one_footer_and_only_three_review_templates():
     assert page.count("<footer>") == 1
     assert page.count("</footer>") == 1
