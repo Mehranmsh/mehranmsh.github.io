@@ -42,14 +42,7 @@ async function createDatabase() {
     const executableSql = sql.split("\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\s+/g, " ").trim();
     if (executableSql) await db.exec(executableSql);
   }
-  await db.exec(`
-    CREATE TABLE protected_operations (
-      id TEXT PRIMARY KEY,
-      owner_uid TEXT NOT NULL,
-      capability TEXT NOT NULL,
-      payload TEXT NOT NULL
-    );
-  `);
+  await db.exec("CREATE TABLE protected_operations (id TEXT PRIMARY KEY, owner_uid TEXT NOT NULL, capability TEXT NOT NULL, payload TEXT NOT NULL);");
   await db.prepare(`
     INSERT INTO intelligence_capability_approvals
       (id,owner_uid,capability,scope,status,issued_at,expires_at)
