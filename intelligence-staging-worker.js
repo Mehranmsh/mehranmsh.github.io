@@ -400,7 +400,7 @@ async function handle(request, env) {
       await env.DB.batch([
         env.DB.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,source_type,source_ref,observed_at,confidence_score) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
           .bind(id, owner.uid, category, title, content, importance, "pi-owner", sourceType, sourceRef, observedAt, confidenceScore),
-        audit(env.DB, owner.uid, "knowledge_created", "knowledge", id, { category, importance })
+        audit(env.DB, owner.uid, "knowledge_created", "knowledge", id, { category, importance, sourceType, confidenceScore })
       ]);
     } catch {
       return fail("Knowledge record could not be saved.", 503);
