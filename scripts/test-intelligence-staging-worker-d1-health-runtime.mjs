@@ -305,12 +305,9 @@ async function testTaskAuditAtomicityAndOwnerIsolation() {
     const listedBody = await listed.json();
     assert.deepEqual(listedBody.items.map(item => item.id), [createdBody.id]);
 
-    await db.exec(`
-      CREATE TRIGGER reject_task_audit
-      BEFORE INSERT ON intelligence_staging_audit
-      WHEN NEW.action = 'task_planned'
-      BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END;
-    `);
+    await db.prepare(
+      "CREATE TRIGGER reject_task_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action = 'task_planned' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
     const rejected = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
       method: "POST",
       headers,
