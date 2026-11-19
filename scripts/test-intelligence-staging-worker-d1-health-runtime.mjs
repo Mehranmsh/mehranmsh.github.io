@@ -21,6 +21,7 @@ const migrations = [
   "0010_intelligence_finding_review_ledger",
   "0011_intelligence_evidence_correlation_reviews",
   "0012_intelligence_evidence_decision_reviews",
+  "0013_intelligence_priority_action_reviews",
 ];
 
 async function applyMigrations(db, names) {
@@ -428,13 +429,13 @@ async function testCompleteSchemaReportsHealthy() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 5);
+  const { mf } = await createWorker(migrations.length - 6);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
     assert.equal(response.status, 503, JSON.stringify(body));
     assert.equal(body.schemaReady, false);
-    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews"]);
+    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews", "intelligence_priority_action_reviews"]);
     assert.equal(body.executor, false);
     console.log("PASS: staging Worker /health fails closed when migration 0008 is absent");
   } finally {
@@ -3761,4 +3762,134 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
     await mf.dispose();
   }
 }
+async function testPriorityActionOwnerReviewWorkflowRuntime() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Origin: "https://mehranmsh.github.io",
+    "Content-Type": "application/json"
+  };
+  const findingId = "73000000-0000-4000-8000-000000000001";
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("priority-action-review-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(`INSERT INTO intelligence_findings
+      (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+       evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(findingId, ownerUid, "security", "authentication", "v1", "critical", "open",
+        "Priority action review test finding", "Owner review runtime fixture", "missing",
+        null, null, null, now, now, ownerUid).run();
+
+    const beforeFinding = await db.prepare("SELECT status,severity,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
+      .bind(findingId, ownerUid).first();
+    const planResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-plan?module=security&limit=25", { headers });
+    assert.equal(planResponse.status, 200);
+    const plan = await planResponse.json();
+    assert.equal(plan.scope, "authenticated_owner_staging_only");
+    const action = plan.actions.find(item => item.findingId === findingId);
+    assert.ok(action, "owner finding should produce a priority action");
+    assert.match(action.actionKey, /^[0-9a-f]{64}$/);
+
+    const body = {
+      actionKey: action.actionKey,
+      moduleId: action.moduleId,
+      outcome: "accepted",
+      reason: "I reviewed this advisory action and accept it for planning."
+    };
+    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    const created = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(created.status, 201, await created.clone().text());
+    const result = await created.json();
+    assert.equal(result.findingId, findingId);
+    assert.equal(result.moduleId, "security");
+    assert.equal(result.reviewerUid, ownerUid);
+    assert.equal(result.outcome, "accepted");
+    assert.equal(result.findingStateChanged, false);
+    assert.equal(result.companyStateChanged, false);
+    assert.equal(result.executionEnabled, false);
+    assert.equal(result.operationPerformed, true);
+    assert.match(result.snapshotSha256, /^[0-9a-f]{64}$/);
+
+    const saved = await db.prepare(`SELECT owner_uid,reviewer_uid,action_key_sha256,outcome,
+      review_snapshot_json,review_snapshot_sha256 FROM intelligence_priority_action_reviews WHERE id=?`)
+      .bind(result.id).first();
+    assert.equal(saved.owner_uid, ownerUid);
+    assert.equal(saved.reviewer_uid, ownerUid);
+    assert.equal(saved.action_key_sha256, action.actionKey);
+    assert.equal(saved.outcome, "accepted");
+    assert.equal(JSON.parse(saved.review_snapshot_json).findingId, findingId);
+    assert.equal(createHash("sha256").update(saved.review_snapshot_json).digest("hex"), saved.review_snapshot_sha256);
+
+    const audit = await db.prepare("SELECT action FROM intelligence_staging_audit WHERE target_id=?")
+      .bind(result.id).first();
+    assert.equal(audit.action, "priority_action_review_recorded");
+
+    const historyResponse = await mf.dispatchFetch(
+      `http://localhost/intelligence/findings/priority-action-reviews?actionKey=${action.actionKey}&limit=10`, { headers });
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json();
+    assert.equal(history.items.length, 1);
+    assert.equal(history.items[0].id, result.id);
+    assert.equal(history.items[0].reviewerUid, ownerUid);
+    assert.equal(history.historyIsAppendOnly, true);
+    assert.equal(history.findingStateChanged, false);
+
+    const integrityResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews/integrity?limit=10", { headers });
+    assert.equal(integrityResponse.status, 200);
+    const integrity = await integrityResponse.json();
+    assert.equal(integrity.summary.recordsScanned, 1);
+    assert.equal(integrity.summary.integrityMatches, 1);
+    assert.equal(integrity.decisionTruthVerified, false);
+
+    const afterFinding = await db.prepare("SELECT status,severity,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
+      .bind(findingId, ownerUid).first();
+    assert.deepEqual(afterFinding, beforeFinding, "owner review must not change finding state");
+    const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1);
+
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_priority_action_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
+      /append-only/i
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_priority_action_reviews WHERE id=?").bind(result.id).run(),
+      /retained/i
+    );
+
+    await db.prepare("UPDATE intelligence_findings SET severity='low', status_reason='Changed severity to test stale priority-action review rejection.', updated_at=? WHERE id=? AND owner_uid=?")
+      .bind(now + 1, findingId, ownerUid).run();
+    const stale = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(stale.status, 409, "changed action metadata must invalidate a previously displayed action key");
+    const spoof = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify({ ...body, ownerUid: "spoof" }) });
+    assert.equal(spoof.status, 400);
+    const invalidModule = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify({ ...body, moduleId: "other-owner-module" }) });
+    assert.equal(invalidModule.status, 400);
+    const invalidLimit = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews?limit=101", { headers });
+    assert.equal(invalidLimit.status, 400);
+    const unauthenticated = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers: { Origin: "https://mehranmsh.github.io", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    assert.equal(unauthenticated.status, 401);
+    console.log("PASS: priority action owner review is current-action-bound, owner-scoped, snapshot-hashed, append-only, audited, and non-executing on D1 runtime");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
+await testPriorityActionOwnerReviewWorkflowRuntime();

@@ -10,6 +10,7 @@ SOURCE = ROOT / "intelligence-staging-worker.js"
 CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
 OWNER_REVIEW_MODULE = ROOT / "intelligence-owner-evidence-review.mjs"
 PRIORITY_ACTION_PLAN_MODULE = ROOT / "intelligence-priority-action-plan.mjs"
+PRIORITY_ACTION_REVIEW_MODULE = ROOT / "intelligence-priority-action-review.mjs"
 INDEX_HTML = ROOT / "index.html"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
@@ -19,6 +20,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         cls.config = CONFIG.read_text(encoding="utf-8")
         cls.owner_review_module = OWNER_REVIEW_MODULE.read_text(encoding="utf-8")
         cls.priority_action_plan_module = PRIORITY_ACTION_PLAN_MODULE.read_text(encoding="utf-8")
+        cls.priority_action_review_module = PRIORITY_ACTION_REVIEW_MODULE.read_text(encoding="utf-8")
         cls.index_html = INDEX_HTML.read_text(encoding="utf-8")
 
     def route_block(self, marker):
@@ -918,6 +920,63 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotIn("insertAdjacentHTML", renderer)
         self.assertNotIn('method:"POST"', renderer)
         self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
+
+    def test_priority_action_review_is_owner_scoped_append_only_and_stale_safe(self):
+        self.assertIn('"intelligence_priority_action_reviews"', self.source)
+        plan = self.route_block('if (path === "/intelligence/findings/priority-action-plan" && method === "GET")')
+        self.assertIn("buildPriorityActionReviewSnapshot(action)", plan)
+        self.assertIn("action.actionKey = await sha256Hex", plan)
+
+        post = self.route_block('if (path === "/intelligence/findings/priority-action-reviews" && method === "POST")')
+        for fragment in [
+            '["actionKey", "moduleId", "outcome", "reason"]',
+            'PRIORITY_ACTION_REVIEW_OUTCOMES.includes(body.outcome)',
+            'WHERE f.owner_uid = ?',
+            'LIMIT 500',
+            'rows.length >= 500',
+            'buildPriorityActionPlan(rows, 100)',
+            'buildPriorityActionReviewSnapshot(action)',
+            'actionKey === body.actionKey',
+            'INSERT INTO intelligence_priority_action_reviews',
+            'reviewId, owner.uid, owner.uid',
+            'findingStateChanged: false',
+            'companyStateChanged: false',
+            'executionEnabled: false',
+            'operationPerformed: true',
+        ]:
+            self.assertIn(fragment, post)
+        for forbidden in ['body.ownerUid', 'body.reviewerUid', 'UPDATE intelligence_', 'DELETE FROM']:
+            self.assertNotIn(forbidden, post)
+
+        history = self.route_block('if (path === "/intelligence/findings/priority-action-reviews" && method === "GET")')
+        self.assertIn('WHERE owner_uid = ?', history)
+        self.assertIn('LIMIT ?', history)
+        integrity = self.route_block('if (path === "/intelligence/findings/priority-action-reviews/integrity" && method === "GET")')
+        self.assertIn('WHERE owner_uid = ?', integrity)
+        self.assertIn('buildPriorityActionReviewIntegrity(rows, sha256Hex)', integrity)
+
+        for fragment in [
+            'accepted', 'rejected', 'needs_more_info',
+            'reviewerMatchesOwner', 'snapshotHashMatches',
+            'findingStateChanged: false', 'companyStateChanged: false',
+            'executionEnabled: false'
+        ]:
+            self.assertIn(fragment, self.priority_action_review_module)
+        for forbidden in ['fetch(', 'INSERT INTO', 'UPDATE ', 'DELETE ']:
+            self.assertNotIn(forbidden, self.priority_action_review_module)
+
+        migration = ROOT / "migrations" / "0013_intelligence_priority_action_reviews.sql"
+        self.assertTrue(migration.exists())
+        migration_source = migration.read_text(encoding="utf-8")
+        for fragment in [
+            'FOREIGN KEY(finding_id, owner_uid)',
+            'CHECK(reviewer_uid = owner_uid)',
+            'CHECK(outcome IN (\'accepted\',\'rejected\',\'needs_more_info\'))',
+            'trg_intelligence_priority_action_review_audit_insert',
+            'trg_intelligence_priority_action_review_immutable',
+            'trg_intelligence_priority_action_review_no_delete'
+        ]:
+            self.assertIn(fragment, migration_source)
 
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)

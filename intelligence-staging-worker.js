@@ -4,6 +4,7 @@ import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
 import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";
 import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
 import { buildPriorityActionPlan } from "./intelligence-priority-action-plan.mjs";
+import { PRIORITY_ACTION_REVIEW_OUTCOMES, buildPriorityActionReviewSnapshot, buildPriorityActionReviewHistory, buildPriorityActionReviewIntegrity } from "./intelligence-priority-action-review.mjs";
 import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-dependency-impact.mjs";
 import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
 import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs";
@@ -50,6 +51,11 @@ function base64url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function sha256Hex(value) {
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
 async function digest(value) {
@@ -343,7 +349,7 @@ async function handle(request, env) {
         "intelligence_knowledge_relations", "intelligence_staging_sessions",
         "intelligence_staging_audit", "intelligence_staging_rate_limits",
         "intelligence_owner_memory", "intelligence_capability_approvals",
-        "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews"
+        "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews", "intelligence_priority_action_reviews"
       ];
       const rows = await env.DB.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${required.map(() => "?").join(",")})`
@@ -806,6 +812,10 @@ async function handle(request, env) {
       `).bind(owner.uid, moduleId, moduleId).all();
       const rows = result.results || [];
       const plan = buildPriorityActionPlan(rows, limit);
+      for (const action of plan.actions) {
+        const snapshot = buildPriorityActionReviewSnapshot(action);
+        action.actionKey = await sha256Hex(snapshot.snapshotJson);
+      }
       return response({
         success: true,
         company: "MEHRAN MSH",
@@ -815,6 +825,157 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Priority action plan is unavailable. Confirm the staging findings and evidence schema are present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/priority-action-reviews" && method === "GET") {
+    const allowedParams = new Set(["actionKey", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported priority action review history filter.");
+    }
+    const actionKey = url.searchParams.get("actionKey") || "";
+    const rawLimit = url.searchParams.get("limit") || "50";
+    const limit = Number(rawLimit);
+    if (actionKey && !/^[0-9a-f]{64}$/.test(actionKey)) return fail("Invalid priority action review key.");
+    if (!/^(?:[1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Priority action review history limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT id, action_key_sha256, finding_id, module_id, check_id, outcome, reason,
+               reviewer_uid, reviewed_at, review_snapshot_sha256, review_snapshot_json
+        FROM intelligence_priority_action_reviews
+        WHERE owner_uid = ? AND (? = '' OR action_key_sha256 = ?)
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT ?
+      `).bind(owner.uid, actionKey, actionKey, limit).all();
+      return response({
+        success: true,
+        scope: "authenticated_owner_staging_only",
+        ...buildPriorityActionReviewHistory(rows.results || [])
+      });
+    } catch {
+      return fail("Priority action review history is unavailable. Confirm staging migration 0013 is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/priority-action-reviews/integrity" && method === "GET") {
+    const allowedParams = new Set(["limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported priority action review integrity filter.");
+    }
+    const rawLimit = url.searchParams.get("limit") || "50";
+    const limit = Number(rawLimit);
+    if (!/^(?:[1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Priority action review integrity limit must be an integer from 1 to 100.");
+    }
+    try {
+      const result = await env.DB.prepare(`
+        SELECT id, owner_uid, reviewer_uid, finding_id, module_id, check_id, outcome,
+               reviewed_at, review_snapshot_json, review_snapshot_sha256
+        FROM intelligence_priority_action_reviews
+        WHERE owner_uid = ?
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT ?
+      `).bind(owner.uid, limit + 1).all();
+      const fetched = result.results || [];
+      const truncated = fetched.length > limit;
+      const rows = fetched.slice(0, limit);
+      const integrity = await buildPriorityActionReviewIntegrity(rows, sha256Hex);
+      return response({
+        success: true,
+        scope: "authenticated_owner_staging_only",
+        limit,
+        truncated,
+        ...integrity
+      });
+    } catch {
+      return fail("Priority action review integrity analysis is unavailable. Confirm staging migration 0013 is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/priority-action-reviews" && method === "POST") {
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => !["actionKey", "moduleId", "outcome", "reason"].includes(key)) ||
+        typeof body.actionKey !== "string" || !/^[0-9a-f]{64}$/.test(body.actionKey) ||
+        typeof body.moduleId !== "string" || !COMPANY_MODULES.includes(body.moduleId) ||
+        !PRIORITY_ACTION_REVIEW_OUTCOMES.includes(body.outcome) ||
+        typeof body.reason !== "string" || body.reason.length > 1000 ||
+        !clean(body.reason, 1000) || clean(body.reason, 1000).length !== body.reason.trim().length) {
+      return fail("A current priority action, owner outcome, and bounded reason are required.");
+    }
+    if (!await rateLimit(env.DB, owner.uid, "priority-action-review")) {
+      return fail("Priority action review rate limit exceeded.", 429);
+    }
+    try {
+      const result = await env.DB.prepare(`
+        SELECT f.id, f.module_id, f.check_id, f.severity, f.status, f.title,
+               f.recommendation, f.evidence_state, f.review_due_at, f.updated_at,
+               COUNT(e.id) AS evidence_reference_count,
+               SUM(CASE WHEN e.id IS NOT NULL AND
+                 (e.content_digest IS NULL OR e.observed_at IS NULL)
+                 THEN 1 ELSE 0 END) AS incomplete_evidence_reference_count
+        FROM intelligence_findings f
+        LEFT JOIN intelligence_finding_evidence e
+          ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+        WHERE f.owner_uid = ? AND f.module_id = ?
+        GROUP BY f.id
+        ORDER BY f.updated_at DESC, f.id DESC
+        LIMIT 500
+      `).bind(owner.uid, body.moduleId).all();
+      const rows = result.results || [];
+      if (rows.length >= 500) {
+        return fail("The current candidate set may be truncated. Narrow the action-plan filter before reviewing.", 409);
+      }
+      const plan = buildPriorityActionPlan(rows, 100);
+      let selected = null;
+      let selectedSnapshot = null;
+      for (const action of plan.actions) {
+        const snapshot = buildPriorityActionReviewSnapshot(action);
+        const actionKey = await sha256Hex(snapshot.snapshotJson);
+        if (actionKey === body.actionKey) {
+          selected = action;
+          selectedSnapshot = snapshot;
+          break;
+        }
+      }
+      if (!selected || !selectedSnapshot) {
+        return fail("This priority action is no longer present in the current owner-scoped plan. Refresh before reviewing.", 409);
+      }
+      const snapshotHash = await sha256Hex(selectedSnapshot.snapshotJson);
+      const reviewId = randomId();
+      const reviewedAt = Math.floor(Date.now() / 1000);
+      await env.DB.prepare(`
+        INSERT INTO intelligence_priority_action_reviews
+          (id, owner_uid, reviewer_uid, finding_id, module_id, check_id,
+           action_key_sha256, outcome, reason, review_snapshot_json,
+           review_snapshot_sha256, reviewed_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        reviewId, owner.uid, owner.uid, selected.findingId, selected.moduleId, selected.checkId,
+        body.actionKey, body.outcome, clean(body.reason, 1000), selectedSnapshot.snapshotJson,
+        snapshotHash, reviewedAt, reviewedAt
+      ).run();
+      return response({
+        success: true,
+        id: reviewId,
+        actionKey: body.actionKey,
+        findingId: selected.findingId,
+        moduleId: selected.moduleId,
+        checkId: selected.checkId,
+        outcome: body.outcome,
+        reviewerUid: owner.uid,
+        reviewedAt,
+        snapshotSha256: snapshotHash,
+        historyIsAppendOnly: true,
+        decisionIsHumanAuthored: true,
+        findingStateChanged: false,
+        companyStateChanged: false,
+        executionEnabled: false,
+        operationPerformed: true
+      }, 201);
+    } catch {
+      return fail("Priority action review could not be recorded. Confirm staging migration 0013 is present and the action is current.", 503);
     }
   }
 
