@@ -24,6 +24,18 @@ Each knowledge record should carry:
 6. Conflicting records remain visible until the owner explicitly resolves the conflict. Resolution records which knowledge item was selected; it does not erase the alternative.
 7. Imported or generated claims remain `unreviewed` unless the owner explicitly verifies them.
 
+## Deterministic knowledge evaluation endpoint
+
+The staging Worker exposes owner-scoped, read-only `GET /intelligence/knowledge/:id/evaluation`. It derives a review state from stored metadata and owner-controlled relationships:
+
+- `needs_review`: no owner verification or stronger blocking signal is present.
+- `owner_verified`: explicitly verified by the owner and not archived.
+- `disputed`: the owner marked the record disputed.
+- `conflict_unresolved`: at least one candidate or confirmed `conflicts_with` relationship remains unresolved.
+- `archived`: the record is archived and no higher-priority review state applies.
+
+The response separately reports candidate relationships, confirmed conflicts, unresolved conflicts, confirmed supports, and confirmed supersessions. It does not calculate a composite truth score, silently resolve conflicts, or treat a confidence field as a probability. This is deterministic metadata triage only, not semantic verification or an AI fact-checker. The endpoint reads no external URLs and creates no side effects.
+
 ## Security and privacy constraints
 
 - Every read and mutation remains scoped to the authenticated staging owner.
