@@ -25,6 +25,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "index.html"
+      - "intelligence-staging.html"
       - "music-studio.html"
       - "worker.js"
       - "intelligence-staging-worker.js"
