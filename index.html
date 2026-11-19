@@ -1007,6 +1007,13 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelApprovalsStatus" class="notice" aria-live="polite">Approval ledger has not been loaded.</div>
  <div id="intelApprovalsList" class="grid"><div class="empty">No approval grants loaded.</div></div>
 </div>
+<div class="panel" id="intelDecisionIntegrityPanel">
+ <div class="section-title"><div><h3>Owner Decision Snapshot Integrity</h3><div class="small-text">Read-only checks for stored decision snapshot metadata.</div></div><button class="btn secondary small" id="refreshIntelDecisionIntegrityBtn" type="button">Refresh integrity</button></div>
+ <div id="intelDecisionIntegrityStatus" class="notice" aria-live="polite">Integrity report has not been loaded.</div>
+ <div id="intelDecisionIntegritySummary" class="grid intelligence-stats" aria-live="polite"></div>
+ <div id="intelDecisionIntegrityList" class="grid"><div class="empty">Load the private integrity report to inspect recent owner decision snapshots.</div></div>
+ <div class="notice warn">A matching hash confirms only that stored snapshot bytes match their stored digest. It does not verify evidence content, source availability, authenticity, correctness, or decision truth. This report never changes records or executes actions.</div>
+</div>
 </div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
@@ -2593,6 +2600,59 @@ $("intelApprovalForm")?.addEventListener("submit",issueIntelligenceApproval);
 $("loadIntelBaseShaBtn")?.addEventListener("click",readIntelligenceBaseSha);
 $("refreshIntelApprovalsBtn")?.addEventListener("click",loadIntelligenceApprovals);
 $("intelApprovalsList")?.addEventListener("click",event=>{const button=event.target.closest("[data-revoke-intel-approval]");if(button)revokeIntelligenceApproval(button.dataset.revokeIntelApproval,button)});
+
+function renderIntelDecisionIntegritySummary(summary){
+ const root=$("intelDecisionIntegritySummary");if(!root)return;
+ root.replaceChildren();
+ const metrics=[
+  ["Records scanned",summary.recordsScanned],
+  ["Integrity matches",summary.integrityMatches],
+  ["Hash mismatches",summary.snapshotHashMismatches],
+  ["Invalid snapshots",summary.invalidSnapshotJson],
+  ["Identity mismatches",summary.snapshotIdentityMismatches],
+  ["Reviewer mismatches",summary.reviewerOwnerMismatches]
+ ];
+ for(const [label,value] of metrics){
+  const card=document.createElement("article");card.className="card";
+  const eyebrow=document.createElement("div");eyebrow.className="eyebrow";eyebrow.textContent=label.toUpperCase();
+  const number=document.createElement("div");number.className="stat";number.textContent=String(Number(value)||0);
+  card.append(eyebrow,number);root.append(card);
+ }
+}
+function renderIntelDecisionIntegrityItems(items){
+ const list=$("intelDecisionIntegrityList");if(!list)return;
+ list.replaceChildren();
+ if(!items.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No owner decision snapshots are recorded yet.";list.append(empty);return}
+ const labels={integrity_match:"Metadata matches",invalid_snapshot_json:"Invalid snapshot JSON",snapshot_hash_mismatch:"Snapshot hash mismatch",snapshot_identity_mismatch:"Snapshot identity mismatch",reviewer_owner_mismatch:"Reviewer / owner mismatch"};
+ for(const item of items){
+  const card=document.createElement("article");card.className="card";
+  const heading=document.createElement("div");heading.className="eyebrow";heading.textContent=(labels[item.status]||"Unknown integrity state")+" · "+String(item.outcome||"unknown");
+  const source=document.createElement("p");source.textContent=String(item.sourceType||"source")+" · "+String(item.sourceId||"—");
+  const stamp=document.createElement("div");stamp.className="small-text";stamp.textContent=item.reviewedAt?new Date(Number(item.reviewedAt)*1000).toLocaleString():"Review time unavailable";
+  const digest=document.createElement("div");digest.className="small-text";digest.textContent="Stored SHA-256: "+String(item.expectedSnapshotHash||"—");
+  const checks=document.createElement("div");checks.className="small-text";checks.textContent="JSON: "+(item.snapshotJsonValid?"valid":"invalid")+" · Hash: "+(item.snapshotHashMatches?"match":"mismatch")+" · Source identity: "+(item.snapshotIdentityMatches?"match":"mismatch")+" · Reviewer ownership: "+(item.reviewerMatchesOwner?"match":"mismatch");
+  card.append(heading,source,stamp,digest,checks);list.append(card);
+ }
+}
+async function loadIntelDecisionIntegrity(){
+ const status=$("intelDecisionIntegrityStatus"),button=$("refreshIntelDecisionIntegrityBtn");
+ if(!status)return;
+ if(button)button.disabled=true;
+ status.textContent="Checking stored owner decision snapshot metadata...";status.className="notice";
+ try{
+  const data=await api("/intelligence/findings/evidence-decision-reviews/integrity?limit=50");
+  if(data.scope!=="authenticated_owner_staging_only"||!data.summary||!Array.isArray(data.items))throw new Error("The integrity report returned an unexpected scope or shape.");
+  renderIntelDecisionIntegritySummary(data.summary);renderIntelDecisionIntegrityItems(data.items);
+  status.textContent=Number(data.summary.recordsScanned||0)+" decision snapshots reviewed"+(data.truncated?" · additional records exist beyond this bounded page":" · bounded report complete")+". Metadata-only analysis; no records were changed.";
+  status.className="notice success";
+ }catch(error){
+  status.textContent="Decision snapshot integrity report unavailable: "+error.message;
+  status.className="notice warn";
+  $("intelDecisionIntegritySummary")?.replaceChildren();
+  const list=$("intelDecisionIntegrityList");if(list){list.replaceChildren();const empty=document.createElement("div");empty.className="empty";empty.textContent="Sign in with the authorized owner account and confirm the staging decision-review schema is available.";list.append(empty)}
+ }finally{if(button)button.disabled=false}
+}
+$("refreshIntelDecisionIntegrityBtn")?.addEventListener("click",loadIntelDecisionIntegrity);
 
 
 async function loadProjects(){
