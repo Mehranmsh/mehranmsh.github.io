@@ -9,6 +9,7 @@ import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs"
 import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEvidenceReviewHistory } from "./intelligence-owner-evidence-review.mjs";
 import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
+import { buildEvidenceCorrelationReviewDrift } from "./intelligence-evidence-correlation-drift.mjs";
 import { EVIDENCE_CORRELATION_REVIEW_OUTCOMES, EVIDENCE_CORRELATION_TYPES, buildEvidenceCorrelationReviewSnapshot, buildEvidenceCorrelationReviewHistory } from "./intelligence-evidence-correlation-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -784,6 +785,66 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Correlation review history is unavailable. Confirm staging migration 0011 is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-correlations/review-drift" && method === "GET") {
+    const allowedParams = new Set(["reviewId"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported correlation review drift filter.");
+    }
+    const reviewId = url.searchParams.get("reviewId") || "";
+    if (!/^[0-9a-f-]{36}$/i.test(reviewId)) return fail("A valid correlation review ID is required.");
+    try {
+      const review = await env.DB.prepare(`
+        SELECT id, correlation_type, correlation_key_sha256,
+               correlation_snapshot_json, correlation_snapshot_sha256, reference_count
+        FROM intelligence_evidence_correlation_reviews
+        WHERE id = ? AND owner_uid = ?
+        LIMIT 1
+      `).bind(reviewId, owner.uid).first();
+      if (!review) return fail("Correlation review was not found for this owner.", 404);
+      const snapshot = JSON.parse(review.correlation_snapshot_json);
+      const rows = await env.DB.prepare(`
+        SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
+               e.source_ref, e.content_digest
+        FROM intelligence_finding_evidence e
+        INNER JOIN intelligence_findings f
+          ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
+        WHERE e.owner_uid = ? AND f.owner_uid = ?
+        ORDER BY e.id ASC
+        LIMIT 501
+      `).bind(owner.uid, owner.uid).all();
+      const analysis = buildEvidenceCorrelation(rows.results || [], { maxRows: 500, maxGroups: 50 });
+      const keyBytes = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(review.correlation_type === "shared_digest"
+          ? "digest:" + String(snapshot.references[0]?.contentDigest || "")
+          : review.correlation_type === "shared_source_reference"
+            ? "source:" + String(snapshot.references[0]?.sourceRef || "")
+            : "variance:" + String(snapshot.references[0]?.sourceRef || ""))
+      ));
+      const group = (analysis.returnedCorrelationGroups || []).find(item => item.correlationType === review.correlation_type &&
+        item.references?.some(ref => snapshot.references.some(old => old.evidenceId === ref.evidenceId)));
+      if (!group || group.referencesTruncated || Number(group.referenceCount) > 20) {
+        return response({
+          success: true, reviewId, comparisonAvailable: false,
+          reason: "Current correlation group is absent, truncated, or exceeds the complete comparison limit.",
+          previousReferenceCount: Number(review.reference_count),
+          currentReferenceCount: null, coverageComplete: analysis.coverageComplete,
+          isRelationshipVerdict: false, evidenceContentVerified: false,
+          checkPassed: false, executionEnabled: false, operationPerformed: false
+        });
+      }
+      const drift = buildEvidenceCorrelationReviewDrift(snapshot, group.references);
+      return response({
+        success: true, scope: "authenticated_owner_staging_only", reviewId,
+        comparisonAvailable: true, coverageComplete: analysis.coverageComplete,
+        previousSnapshotSha256: review.correlation_snapshot_sha256,
+        previousCorrelationKeySha256: review.correlation_key_sha256,
+        ...drift
+      });
+    } catch {
+      return fail("Correlation review drift analysis is unavailable. Confirm staging migration 0011 and the current schema.", 503);
     }
   }
 
