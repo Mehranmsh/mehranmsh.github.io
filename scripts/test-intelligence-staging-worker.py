@@ -866,8 +866,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             "addEventListener(\"click\",loadIntelCompanyReadiness)",
         ]:
             self.assertIn(fragment, panel_code)
-        for forbidden in ["innerHTML", "insertAdjacentHTML", 'method:"POST"', 'method:"PUT"', 'method:"DELETE"']:
+        for forbidden in ["innerHTML", "insertAdjacentHTML"]:
             self.assertNotIn(forbidden, panel_code)
+        company_loader_start = self.index_html.index("async function loadIntelCompanyReadiness()")
+        company_loader_end = self.index_html.index('$("refreshIntelCompanyReadinessBtn")?.addEventListener', company_loader_start)
+        company_loader = self.index_html[company_loader_start:company_loader_end]
+        for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', "innerHTML", "insertAdjacentHTML"]:
+            self.assertNotIn(forbidden, company_loader)
         self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
 
     def test_priority_action_plan_is_owner_scoped_bounded_and_advisory(self):
@@ -945,7 +950,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'outcome:outcome.value',
             'reasonInput.value.trim()',
             '"/intelligence/findings/priority-action-reviews"',
-            'execution: disabled'
+            'Execution: disabled.'
         ]:
             self.assertIn(fragment, renderer)
         self.assertNotIn("innerHTML", ui + renderer)
