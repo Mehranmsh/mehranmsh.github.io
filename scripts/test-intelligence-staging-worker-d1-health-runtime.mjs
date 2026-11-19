@@ -218,7 +218,50 @@ async function testProtectedRoutesRequireSession() {
   }
 }
 
+async function testJsonBodyLimitsAndContentType() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-body-limit-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const wrongType = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "text/plain" },
+      body: JSON.stringify({ title: "wrong content type" }),
+    });
+    assert.equal(wrongType.status, 400);
+
+    const oversized = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "x".repeat(21_000) }),
+    });
+    assert.equal(oversized.status, 400);
+
+    const malformed = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: "{invalid-json",
+    });
+    assert.equal(malformed.status, 400);
+
+    const rows = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks").first();
+    assert.equal(Number(rows.count), 0);
+    console.log("PASS: staging Worker rejects wrong content types, oversized JSON, and malformed JSON");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
 await testSessionVerificationAndRevocation();
 await testSessionReadRateLimit();
+await testOriginAndSecurityHeaders();
+await testProtectedRoutesRequireSession();
+await testJsonBodyLimitsAndContentType();
