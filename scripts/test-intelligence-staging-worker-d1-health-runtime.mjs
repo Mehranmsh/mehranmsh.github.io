@@ -264,4 +264,72 @@ await testSessionVerificationAndRevocation();
 await testSessionReadRateLimit();
 await testOriginAndSecurityHeaders();
 await testProtectedRoutesRequireSession();
+async function testTaskAuditAtomicityAndOwnerIsolation() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-task-audit-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const created = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title: "Owner-scoped test task", priority: "normal" }),
+    });
+    assert.equal(created.status, 201);
+    const createdBody = await created.json();
+    assert.equal(createdBody.executionEnabled, false);
+
+    const audit = await db.prepare(
+      "SELECT owner_uid, action, target_type, target_id FROM intelligence_staging_audit WHERE action='task_planned' AND target_id=?"
+    ).bind(createdBody.id).first();
+    assert.equal(audit.owner_uid, ownerUid);
+    assert.equal(audit.action, "task_planned");
+    assert.equal(audit.target_type, "task");
+
+    await db.prepare(`
+      INSERT INTO intelligence_tasks(id,title,created_by)
+      VALUES('foreign-owner-task','Foreign task','different-owner-uid')
+    `).run();
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(listed.status, 200);
+    const listedBody = await listed.json();
+    assert.deepEqual(listedBody.items.map(item => item.id), [createdBody.id]);
+
+    await db.exec(`
+      CREATE TRIGGER reject_task_audit
+      BEFORE INSERT ON intelligence_staging_audit
+      WHEN NEW.action = 'task_planned'
+      BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END;
+    `);
+    const rejected = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ title: "Must roll back without audit" }),
+    });
+    assert.equal(rejected.status, 503);
+    const ownerTasks = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_tasks WHERE created_by=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(ownerTasks.count), 1);
+    const auditRows = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='task_planned'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(auditRows.count), 1);
+    console.log("PASS: task creation is owner-scoped and rolls back when audit recording fails");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testJsonBodyLimitsAndContentType();
+await testTaskAuditAtomicityAndOwnerIsolation();
