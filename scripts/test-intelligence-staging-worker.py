@@ -6,11 +6,13 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "intelligence-staging-worker.js"
+CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = SOURCE.read_text(encoding="utf-8")
+        cls.config = CONFIG.read_text(encoding="utf-8")
 
     def test_pi_identity_is_verified_server_side(self):
         self.assertIn('https://api.minepi.com/v2/me', self.source)
@@ -85,6 +87,17 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('RATE_MAX = 30', self.source)
         self.assertIn('CF-Connecting-IP', self.source)
         self.assertIn('"session-auth"', self.source)
+
+    def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
+        self.assertIn('"name": "mehran-intelligence-staging"', self.config)
+        self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
+        self.assertIn('"database_name": "mehran-msh-intelligence-staging"', self.config)
+        self.assertIn('"database_id": "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID"', self.config)
+        self.assertNotIn('"mehran-msh-db"', self.config)
+        self.assertNotIn('"ai":', self.config)
+        self.assertNotRegex(self.config, r'"crons"\s*:')
+        self.assertNotRegex(self.config, r'"queues"\s*:')
+        self.assertNotRegex(self.config, r'"routes"\s*:')
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
