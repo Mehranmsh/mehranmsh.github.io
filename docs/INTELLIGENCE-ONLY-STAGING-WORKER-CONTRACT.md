@@ -46,7 +46,7 @@ There is no approval-consume endpoint and no task execution endpoint.
 
 ## Required security tests
 
-Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revocable sessions, owner-scoped reads and writes, audit atomicity, fail-closed rate limits, missing-schema 503 behavior, approval expiry/revocation/duplicate issue, bounded request bodies, and static absence of cron/executor/production resources.
+Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revocable sessions, future/invalid session timestamps, strict JSON media types, owner-scoped reads and writes, audit atomicity, fail-closed rate limits, missing-schema 503 behavior, approval expiry/revocation/duplicate issue, bounded request bodies, database-level session/rate/memory constraints, and static absence of cron/executor/production resources.
 
 ## Current status
 
