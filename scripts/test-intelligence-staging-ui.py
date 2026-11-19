@@ -53,6 +53,17 @@ required = [
     'Staging session expired. Sign in with Pi again.',
     'response.status===401&&sessionToken',
     'No production data, secrets, approvals or sessions are shared.',
+    "id=\"capabilityApprovalPanel\"",
+    "request(\"/intelligence/capability-approvals\")",
+    "request(\"/intelligence/capability-approvals\",{method:\"POST\"",
+    "request(\"/intelligence/capability-approvals/\"+encodeURIComponent(item.id),{method:\"DELETE\"})",
+    "request(\"/intelligence/capabilities/evaluate\",{method:\"POST\"",
+    "approvalId",
+    "assessmentOnly",
+    "operationPerformed",
+    "approvalConsumed",
+    "Executor enabled: ",
+    "No data mutation, deletion, external action, or approval consumption",
 ]
 for marker in required:
     if marker not in page:
