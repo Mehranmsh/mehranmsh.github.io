@@ -783,17 +783,21 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('data.truncated?', self.index_html)
         self.assertIn('evidence content, source availability, authenticity, correctness, or decision truth', self.index_html)
         start = self.index_html.index("function renderIntelDecisionIntegritySummary(")
-        end = self.index_html.index("async function loadProjects()", start)
-        panel_code = self.index_html[start:end]
+        loader_start = self.index_html.index("async function loadIntelDecisionIntegrity()", start)
+        end = self.index_html.index("async function loadProjects()", loader_start)
+        renderer_code = self.index_html[start:loader_start]
+        loader_code = self.index_html[loader_start:end]
         for fragment in [
             "document.createElement(",
             "textContent",
             "replaceChildren()",
             "addEventListener(\"click\",loadIntelDecisionIntegrity)",
         ]:
-            self.assertIn(fragment, panel_code)
-        for forbidden in ["innerHTML", "insertAdjacentHTML", "method:\"POST\"", "method:\"PUT\"", "method:\"DELETE\""]:
-            self.assertNotIn(forbidden, panel_code)
+            self.assertIn(fragment, renderer_code + loader_code)
+        for forbidden in ["innerHTML", "insertAdjacentHTML"]:
+            self.assertNotIn(forbidden, renderer_code + loader_code)
+        for forbidden in ["method:\"POST\"", "method:\"PUT\"", "method:\"DELETE\""]:
+            self.assertNotIn(forbidden, loader_code)
         self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
 
     def test_evidence_decision_review_api_is_owner_scoped_current_and_append_only(self):
