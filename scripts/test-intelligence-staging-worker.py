@@ -81,6 +81,23 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
 
+    def test_capability_policy_routes_are_owner_scoped_and_assessment_only(self):
+        self.assertIn('import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";', self.source)
+        self.assertIn('path === "/intelligence/capabilities" && method === "GET"', self.source)
+        self.assertIn('path === "/intelligence/capabilities/evaluate" && method === "POST"', self.source)
+        self.assertIn('Object.keys(body).some(key => key !== "capability")', self.source)
+        self.assertIn('ownerAuthenticated: true', self.source)
+        self.assertIn('sessionValid: true', self.source)
+        self.assertIn('ownerId: owner.uid', self.source)
+        self.assertIn('scope: "owner_staging"', self.source)
+        self.assertIn('approval: null', self.source)
+        self.assertIn('operationPerformed: false', self.source)
+        self.assertIn('assessmentOnly: true', self.source)
+        self.assertIn('audit(env.DB, owner.uid, "capability_assessed"', self.source)
+        self.assertIn('Capability assessment could not be safely audited.', self.source)
+        self.assertIn('auditRecorded: true', self.source)
+        self.assertIn('executionEnabled: false', self.source)
+
     def test_archived_knowledge_can_be_listed_without_cross_owner_access(self):
         self.assertIn('const state = clean(url.searchParams.get("state") || "active", 16)', self.source)
         self.assertIn('["active","archived","all"].includes(state)', self.source)

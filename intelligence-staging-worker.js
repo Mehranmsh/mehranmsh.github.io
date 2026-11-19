@@ -1,4 +1,5 @@
 import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";
+import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -256,6 +257,51 @@ async function handle(request, env) {
   const owner = await verifySession(request, env);
   if (!owner) return fail("Authentication required.", 401);
   if (!await rateLimit(env.DB, owner.uid, `${method}:${path.split("/").slice(1,3).join("/")}`)) return fail("Rate limit exceeded.", 429);
+
+  if (path === "/intelligence/capabilities" && method === "GET") {
+    return response({
+      success: true,
+      executionEnabled: false,
+      assessment: "policy_inventory_only",
+      capabilities: listCapabilityPolicy()
+    });
+  }
+
+  if (path === "/intelligence/capabilities/evaluate" && method === "POST") {
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => key !== "capability") ||
+        typeof body.capability !== "string" || body.capability.length > 80) {
+      return fail("A single known capability identifier is required.");
+    }
+    // Build all trust assertions from the verified server session.
+    // Never accept owner/session/scope/approval assertions from the client.
+    const assessment = evaluateCapabilityRequest({
+      capability: body.capability,
+      ownerAuthenticated: true,
+      sessionValid: true,
+      ownerId: owner.uid,
+      scope: "owner_staging",
+      approval: null
+    });
+    try {
+      await env.DB.batch([
+        audit(env.DB, owner.uid, "capability_assessed", "capability", body.capability, {
+          decision: assessment.decision,
+          reason: assessment.reason,
+          assessmentOnly: true
+        })
+      ]);
+    } catch {
+      return fail("Capability assessment could not be safely audited.", 503);
+    }
+    return response({
+      success: true,
+      assessment: { ...assessment, executionEnabled: false },
+      operationPerformed: false,
+      assessmentOnly: true,
+      auditRecorded: true
+    });
+  }
 
   if (path === "/intelligence/tasks" && method === "GET") {
     const rows = await env.DB.prepare(`

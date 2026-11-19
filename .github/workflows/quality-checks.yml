@@ -13,6 +13,7 @@ on:
       - "worker.js"
       - "intelligence-staging-worker.js"
       - "intelligence-review-queue.mjs"
+      - "intelligence-capability-policy.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
@@ -68,6 +69,9 @@ jobs:
 
       - name: Test deterministic Intelligence review queue prioritization
         run: node --test scripts/intelligence-review-queue.test.mjs
+
+      - name: Test INTELLIGENCE capability policy and autonomy boundaries
+        run: node --test scripts/intelligence-capability-policy.test.mjs
 
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py

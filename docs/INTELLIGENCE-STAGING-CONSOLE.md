@@ -25,6 +25,8 @@
 - Read-only schema health diagnostics.
 - Owner-scoped knowledge review queue with explicit Verify, Dispute, and Reset review actions.
 - Knowledge creation with provenance metadata. New knowledge always starts as unreviewed.
+- Batched owner-scoped knowledge evaluation details, including relationship counts and review state. These are metadata signals, not factual verdicts.
+- Owner-controlled private memory deletion with confirmation and server-side audit logging.
 - Owner-scoped task planning. Tasks remain queued; execution is disabled.
 - Owner-scoped private memory create/list.
 
