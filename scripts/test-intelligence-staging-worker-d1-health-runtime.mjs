@@ -3596,7 +3596,6 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
         "Decision review test finding", "Owner decision workflow runtime fixture", "missing",
         null, null, null, now, now, ownerUid).run();
 
-    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const beforeFinding = await db.prepare("SELECT status,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).first();
     const supportResponse = await mf.dispatchFetch(
@@ -3615,6 +3614,7 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
       outcome: "accepted",
       reason: "I reviewed the recommendation and accept the proposed next step."
     };
+    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const created = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
       { method: "POST", headers, body: JSON.stringify(body) });
