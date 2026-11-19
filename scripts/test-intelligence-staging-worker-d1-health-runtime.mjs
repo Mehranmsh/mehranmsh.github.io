@@ -648,6 +648,73 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
 
 await testCapabilityApprovalLifecycleIsAssessmentOnly();
 
+async function testApprovalReadsAreReadOnlyAndExpirySweepIsAudited() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const taskId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const expiredId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-approval-readonly-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(
+      "INSERT INTO intelligence_tasks(id,title,created_by) VALUES(?,?,?)"
+    ).bind(taskId, "Approval expiry audit test", ownerUid).run();
+    await db.prepare(`
+      INSERT INTO intelligence_approval_ledger
+        (id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,status,issued_at,expires_at)
+      VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)
+    `).bind(expiredId, taskId, ownerUid, "mehranmsh", "Mehranmsh/mehranmsh.github.io",
+      "main", "a".repeat(40), '{"paths":["docs/"]}', "test-scope-hash", now - 120, now - 60).run();
+
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/approvals", { headers });
+    assert.equal(listed.status, 200);
+    const listedBody = await listed.json();
+    assert.equal(listedBody.items.find(item => item.id === expiredId).status, "expired");
+    const afterRead = await db.prepare("SELECT status FROM intelligence_approval_ledger WHERE id=?")
+      .bind(expiredId).first();
+    assert.equal(afterRead.status, "issued", "GET must not mutate approval state");
+
+    await db.prepare(
+      "CREATE TRIGGER reject_approval_expiry_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='approval_expiry_sweep' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const payload = {
+      taskId, repository: "Mehranmsh/mehranmsh.github.io", branch: "main",
+      baseSha: "b".repeat(40), scope: { paths: ["docs/"] }, expiresInSeconds: 300,
+    };
+    const auditFailure = await mf.dispatchFetch("http://localhost/intelligence/approvals", {
+      method: "POST", headers, body: JSON.stringify(payload),
+    });
+    assert.equal(auditFailure.status, 409);
+    const rolledBack = await db.prepare("SELECT status FROM intelligence_approval_ledger WHERE id=?")
+      .bind(expiredId).first();
+    assert.equal(rolledBack.status, "issued", "failed expiry audit must roll back the state change");
+    await db.prepare("DROP TRIGGER reject_approval_expiry_audit").run();
+
+    const issued = await mf.dispatchFetch("http://localhost/intelligence/approvals", {
+      method: "POST", headers, body: JSON.stringify(payload),
+    });
+    assert.equal(issued.status, 201);
+    const expiredAfterIssue = await db.prepare("SELECT status FROM intelligence_approval_ledger WHERE id=?")
+      .bind(expiredId).first();
+    assert.equal(expiredAfterIssue.status, "expired");
+    const expiryAudit = await db.prepare(
+      "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE owner_uid=? AND action='approval_expiry_sweep' AND target_id=?"
+    ).bind(ownerUid, taskId).first();
+    assert.equal(expiryAudit.action, "approval_expiry_sweep");
+    assert.equal(expiryAudit.target_type, "task");
+    console.log("PASS: approval GET is read-only and expiry sweeps are audit-atomic");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testApprovalReadsAreReadOnlyAndExpirySweepIsAudited();
+
+
 async function testOwnerSensitiveMutationAuditAndIsolation() {
   const { mf, db } = await createWorker(migrations.length);
   const ownerUid = "staging-owner-test-uid";
