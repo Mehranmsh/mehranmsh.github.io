@@ -10,6 +10,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0001_intelligence_approval_ledger.sql",
     ROOT / "migrations" / "0002_intelligence_knowledge_relations.sql",
     ROOT / "migrations" / "0003_intelligence_staging_runtime.sql",
+    ROOT / "migrations" / "0004_intelligence_knowledge_provenance.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -69,6 +70,60 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         """).fetchone()
         self.assertIsNotNone(trigger)
         self.assertIn("OLD.content <> NEW.content", trigger[0])
+
+
+    def test_knowledge_provenance_bounds_immutability_and_owner_review(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
+                source_type,source_ref,observed_at,confidence_score)
+            VALUES('prov-a','owner-a','A','Evidence A','owner',
+                'external_url','https://example.org/source',
+                '2026-11-19T10:00:00Z',75)
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
+                    source_type,source_ref)
+                VALUES('prov-b','owner-a','B','Evidence B','owner',
+                    'external_url','https://user:pass@example.org/private')
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
+                    confidence_score)
+                VALUES('prov-c','owner-a','C','Evidence C','owner',101)
+            """)
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES('prov-d','owner-a','D','Evidence D','owner')
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge_relations(
+                id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,
+                status,source_evidence,target_evidence
+            ) VALUES('prov-rel','owner-a','prov-a','prov-d',
+                     'supports','candidate','Evidence A','Evidence D')
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_knowledge SET source_ref='https://example.org/changed'
+                WHERE id='prov-a'
+            """)
+        # Owner review is a separate audited workflow and remains possible after linking.
+        self.db.execute("""
+            UPDATE intelligence_knowledge SET verification_status='owner_verified'
+            WHERE id='prov-a' AND owner_uid='owner-a'
+        """)
+        status = self.db.execute("""
+            SELECT verification_status FROM intelligence_knowledge WHERE id='prov-a'
+        """).fetchone()[0]
+        self.assertEqual(status, 'owner_verified')
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_knowledge SET verification_status='approved'
+                WHERE id='prov-a'
+            """)
 
     def test_runtime_tables_are_separate_and_idempotent(self):
         self.apply_chain()
