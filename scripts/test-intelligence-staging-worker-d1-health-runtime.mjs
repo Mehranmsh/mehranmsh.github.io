@@ -1251,3 +1251,69 @@ async function testEveryProtectedRouteRequiresOwnerSession() {
 }
 
 await testEveryProtectedRouteRequiresOwnerSession();
+
+
+async function testOwnerMemoryTransitionLifecycleAndAuditAtomicity() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const memoryId = "88888888-8888-4888-8888-888888888888";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-memory-transitions-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(
+      "INSERT INTO intelligence_owner_memory(id,owner_uid,category,content,memory_kind,source_type) VALUES(?,?,?,?,?,?)"
+    ).bind(memoryId, ownerUid, "lifecycle", "Transition test record", "decision", "owner_input").run();
+    const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+    const dispatch = (action) => mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
+      method: "PUT", headers, body: JSON.stringify({ action }),
+    });
+
+    await db.prepare(
+      "CREATE TRIGGER reject_memory_dispute_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_disputed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedDispute = await dispatch("dispute");
+    assert.equal(failedDispute.status, 503);
+    let record = await db.prepare(
+      "SELECT review_status, archived_at FROM intelligence_owner_memory WHERE id=? AND owner_uid=?"
+    ).bind(memoryId, ownerUid).first();
+    assert.equal(record.review_status, "unreviewed", "failed audit must roll back the dispute transition");
+    assert.equal(record.archived_at, null);
+    await db.prepare("DROP TRIGGER reject_memory_dispute_audit").run();
+
+    const transitions = [
+      { action: "confirm", expectedStatus: "owner_confirmed", expectedArchived: false, audit: "owner_memory_confirmed" },
+      { action: "dispute", expectedStatus: "disputed", expectedArchived: false, audit: "owner_memory_disputed" },
+      { action: "unverify", expectedStatus: "unreviewed", expectedArchived: false, audit: "owner_memory_unverified" },
+      { action: "archive", expectedStatus: "unreviewed", expectedArchived: true, audit: "owner_memory_archived" },
+      { action: "restore", expectedStatus: "unreviewed", expectedArchived: false, audit: "owner_memory_restored" },
+    ];
+    for (const transition of transitions) {
+      const response = await dispatch(transition.action);
+      assert.equal(response.status, 200, `${transition.action} transition should succeed`);
+      record = await db.prepare(
+        "SELECT review_status, archived_at FROM intelligence_owner_memory WHERE id=? AND owner_uid=?"
+      ).bind(memoryId, ownerUid).first();
+      assert.equal(record.review_status, transition.expectedStatus);
+      assert.equal(Boolean(record.archived_at), transition.expectedArchived);
+      const audit = await db.prepare(
+        "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action=? AND target_id=?"
+      ).bind(ownerUid, transition.audit, memoryId).first();
+      assert.equal(Number(audit.count), 1, `${transition.action} must produce exactly one matching audit event`);
+    }
+
+    const duplicateRestore = await dispatch("restore");
+    assert.equal(duplicateRestore.status, 404, "restoring an active record must not create a second transition");
+    const auditCount = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id=? AND action LIKE 'owner_memory_%'"
+    ).bind(memoryId).first();
+    assert.equal(Number(auditCount.count), 5, "only the five successful transitions should be audited");
+    console.log("PASS: owner memory confirm/dispute/unverify/archive/restore transitions are owner-scoped and audit-atomic");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testOwnerMemoryTransitionLifecycleAndAuditAtomicity();
