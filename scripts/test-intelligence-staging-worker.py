@@ -35,6 +35,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("intelligence_capability_approvals", required_tables)
         self.assertIn("intelligence_finding_reviews", required_tables)
         self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
+        self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
         self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
