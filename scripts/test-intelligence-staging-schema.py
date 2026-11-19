@@ -108,6 +108,18 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
             VALUES('prov-d','owner-a','D','Evidence D','owner')
         """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_knowledge
+                SET source_type='external_url', source_ref='https://'
+                WHERE id='prov-d'
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_knowledge
+                SET source_type='external_url', source_ref='http://example.org'
+                WHERE id='prov-d'
+            """)
         self.db.execute("""
             INSERT INTO intelligence_knowledge_relations(
                 id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,
