@@ -47,3 +47,29 @@ CREATE TABLE IF NOT EXISTS intelligence_owner_memory (
 );
 CREATE INDEX IF NOT EXISTS idx_intelligence_owner_memory_owner
   ON intelligence_owner_memory(owner_uid, updated_at DESC);
+
+-- Approval invariants are enforced in the database, not only in the Worker.
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_approval_scope_guard
+BEFORE INSERT ON intelligence_approval_ledger
+WHEN NEW.expires_at <= NEW.issued_at
+  OR NEW.expires_at > NEW.issued_at + 3600
+  OR length(NEW.scope_json) > 4096
+  OR json_valid(NEW.scope_json) = 0
+  OR json_type(NEW.scope_json) <> 'object'
+  OR NOT EXISTS (SELECT 1 FROM json_each(NEW.scope_json))
+BEGIN
+  SELECT RAISE(ABORT, 'invalid approval scope or lifetime');
+END;
+
+-- Expiring an issued approval is a state transition and must leave an audit row.
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_approval_expiry_audit
+AFTER UPDATE OF status ON intelligence_approval_ledger
+WHEN OLD.status = 'issued' AND NEW.status = 'expired'
+BEGIN
+  INSERT INTO intelligence_staging_audit
+    (id, owner_uid, action, target_type, target_id, details_json, created_at)
+  VALUES (
+    lower(hex(randomblob(16))), NEW.owner_uid, 'approval_expired',
+    'approval', NEW.id, '{}', CAST(strftime('%s','now') AS INTEGER)
+  );
+END;
