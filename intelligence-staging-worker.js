@@ -85,7 +85,7 @@ function clean(value, max = 2000) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-async function fetchPiUser(accessToken) {
+export async function fetchPiUser(accessToken) {
   if (typeof accessToken !== "string" || accessToken.length < 10 || accessToken.length > 4096) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -94,9 +94,32 @@ async function fetchPiUser(accessToken) {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
       signal: controller.signal
     });
-    if (!result.ok) return null;
-    const user = await result.json();
-    if (typeof user?.uid !== "string" || !user.uid || typeof user?.username !== "string" || !user.username) return null;
+    if (!result.ok || !/^application\\/(?:[a-z0-9.+-]+\\+)?json(?:\\s*;|$)/i.test(result.headers.get("Content-Type") || "")) return null;
+    const declaredLength = Number(result.headers.get("Content-Length") || 0);
+    if (declaredLength > 8192) return null;
+    if (!result.body) return null;
+    const reader = result.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > 8192) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const user = JSON.parse(new TextDecoder().decode(bytes));
+    if (typeof user?.uid !== "string" || !user.uid.trim() || user.uid.length > 200 ||
+        typeof user?.username !== "string" || !user.username.trim() || user.username.length > 100) return null;
     return { uid: user.uid, username: user.username };
   } catch {
     return null;
