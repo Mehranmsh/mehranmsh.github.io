@@ -3086,3 +3086,38 @@ async function testOwnerScopedCompanyModuleRegistry() {
 }
 
 await testOwnerScopedCompanyModuleRegistry();
+
+
+
+async function testOwnerCompanyAssessmentBlueprint() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}`, Origin: "https://mehranmsh.github.io" };
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("company-assessment-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    const before = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks").first();
+    const response = await mf.dispatchFetch("http://localhost/intelligence/company/assessment-template?moduleId=social", { headers });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.moduleId, "social");
+    assert.equal(data.source, "versioned_assessment_blueprint");
+    assert.equal(data.assessmentStatus, "not_started");
+    assert.equal(data.executionEnabled, false);
+    assert.ok(data.checks.some(item => item.id === "upload_security" && item.evidenceRequired));
+    assert.ok(data.checks.every(item => item.status === "not_run"));
+    assert.ok(data.rules.some(item => item.includes("unknown")));
+    const unknown = await mf.dispatchFetch("http://localhost/intelligence/company/assessment-template?moduleId=unknown", { headers });
+    assert.equal(unknown.status, 404);
+    const unauthenticated = await mf.dispatchFetch("http://localhost/intelligence/company/assessment-template?moduleId=social", {
+      headers: { Origin: "https://mehranmsh.github.io" }
+    });
+    assert.equal(unauthenticated.status, 401);
+    const after = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks").first();
+    assert.equal(Number(after.count), Number(before.count), "assessment blueprint must not create tasks");
+    console.log("PASS: assessment blueprint is owner-authenticated, evidence-oriented, and non-executing");
+  } finally { await mf.dispose(); }
+}
+await testOwnerCompanyAssessmentBlueprint();
