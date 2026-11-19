@@ -406,6 +406,7 @@ async function handle(request, env) {
              confidence_score, review_status, reviewed_at, updated_at
       FROM intelligence_owner_memory
       WHERE owner_uid = ? AND archived_at IS NULL
+        AND review_status IN ('disputed','unreviewed')
       ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,
                updated_at ASC, id ASC
       LIMIT 101 OFFSET ?
