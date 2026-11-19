@@ -94,6 +94,13 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("""
                 INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
+                    source_type,source_ref)
+                VALUES('prov-empty','owner-a','Empty','Evidence','owner',
+                    'external_url','https://')
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
                     confidence_score)
                 VALUES('prov-c','owner-a','C','Evidence C','owner',101)
             """)
