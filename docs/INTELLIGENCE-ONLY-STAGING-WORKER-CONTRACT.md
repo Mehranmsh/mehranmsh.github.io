@@ -41,6 +41,8 @@ It is committed but has not been applied to Cloudflare. Apply it only after conf
 - `PUT /intelligence/knowledge/relations/:id`: confirm, dismiss, or owner-selected conflict resolution.
 - `GET/POST /intelligence/approvals`
 - `DELETE /intelligence/approvals/:id`: revoke issued approvals.
+- Approval review and replacement first transition expired issued approvals to `expired`; a D1 trigger writes an audit event for each transition.
+- D1 rejects approval rows with empty/non-object/invalid JSON scope, scope JSON over 4 KB, or a lifetime outside the allowed one-hour maximum. The Worker also requires a non-empty bounded scope object.
 
 There is no approval-consume endpoint and no task execution endpoint.
 
