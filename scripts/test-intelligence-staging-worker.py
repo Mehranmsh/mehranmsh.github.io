@@ -35,7 +35,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("intelligence_capability_approvals", required_tables)
         self.assertIn("intelligence_finding_reviews", required_tables)
         self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
-        self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
+        self.assertIn("intelligence_evidence_decision_reviews", required_tables)
         self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
@@ -710,44 +710,56 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("trg_intelligence_correlation_review_no_delete", migration_source)
         self.assertIn("trg_intelligence_correlation_review_audit_insert", migration_source)
 
-    def test_evidence_decision_support_api_is_owner_scoped_bounded_and_read_only(self):
+    def test_evidence_decision_support_api_remains_owner_scoped_and_bounded(self):
         route = self.route_block('if (path === "/intelligence/findings/evidence-decision-support" && method === "GET")')
+        self.assertIn('new Set(["module"])', route)
+        self.assertIn('COMPANY_MODULES.includes(moduleId)', route)
+        self.assertIn('loadOwnerEvidenceDecisionSupport(env, owner.uid, moduleId)', route)
+        helper_start = self.source.index("async function loadOwnerEvidenceDecisionSupport(")
+        helper_end = self.source.index("async function handle(", helper_start)
+        helper = self.source[helper_start:helper_end]
         for fragment in [
-            'new Set(["module"])',
-            'COMPANY_MODULES.includes(moduleId)',
-            'f.owner_uid = ?',
-            'e.owner_uid = ? AND f.owner_uid = ?',
-            'ORDER BY f.updated_at DESC, f.id DESC',
-            'LIMIT 101',
-            'ORDER BY e.id ASC',
-            'LIMIT 501',
-            'ORDER BY reviewed_at DESC, id DESC',
-            'LIMIT 100',
+            'f.owner_uid = ?', 'e.owner_uid = ? AND f.owner_uid = ?',
+            'LIMIT 101', 'LIMIT 501', 'LIMIT 100',
             'buildEvidenceDecisionSupport({',
-            'scope: "authenticated_owner_staging_only"',
-            'findingsReviewLimitReached',
-            'evidenceReferenceScanLimitReached',
+            'review_key_sha256', 'reviewKey',
+            'findingsReviewLimitReached', 'evidenceReferenceScanLimitReached',
         ]:
-            self.assertIn(fragment, route)
-        for forbidden in ['method === "POST"', 'method === "PUT"', 'method === "DELETE"', "INSERT INTO", "UPDATE intelligence_", "DELETE FROM"]:
-            self.assertNotIn(forbidden, route)
+            self.assertIn(fragment, helper)
         self.assertIn('import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";', self.source)
-        helper = ROOT / "intelligence-evidence-decision-support.mjs"
-        self.assertTrue(helper.exists())
-        helper_source = helper.read_text()
+
+    def test_evidence_decision_review_api_is_owner_scoped_current_and_append_only(self):
+        route = self.route_block('if (path === "/intelligence/findings/evidence-decision-reviews" && method === "POST")')
         for fragment in [
-            'assessment: "owner_decision_support_advisory_only"',
-            'decisionMade: false',
-            'evidenceContentVerified: false',
-            'conflictVerdict: false',
-            'riskVerdict: false',
-            'checkPassed: false',
+            '["reviewKey", "outcome", "reason"]',
+            'EVIDENCE_DECISION_REVIEW_OUTCOMES.includes(body.outcome)',
+            'loadOwnerEvidenceDecisionSupport(env, owner.uid, "")',
+            'candidate.reviewKey === body.reviewKey',
+            'buildEvidenceDecisionReviewSnapshot(item)',
+            'INSERT INTO intelligence_evidence_decision_reviews',
+            'reviewId, owner.uid, owner.uid',
             'findingStateChanged: false',
             'companyStateChanged: false',
             'executionEnabled: false',
-            'operationPerformed: false',
+            'operationPerformed: true',
         ]:
-            self.assertIn(fragment, helper_source)
+            self.assertIn(fragment, route)
+        for forbidden in ['body.ownerUid', 'body.reviewerUid', 'UPDATE intelligence_', 'DELETE FROM']:
+            self.assertNotIn(forbidden, route)
+        history = self.route_block('if (path === "/intelligence/findings/evidence-decision-reviews" && method === "GET")')
+        self.assertIn('WHERE owner_uid = ?', history)
+        self.assertIn('LIMIT ?', history)
+        migration = ROOT / "migrations" / "0012_intelligence_evidence_decision_reviews.sql"
+        helper = ROOT / "intelligence-evidence-decision-review.mjs"
+        self.assertTrue(migration.exists())
+        self.assertTrue(helper.exists())
+        migration_source = migration.read_text()
+        for trigger in [
+            "trg_intelligence_decision_review_audit_insert",
+            "trg_intelligence_decision_review_immutable",
+            "trg_intelligence_decision_review_no_delete",
+        ]:
+            self.assertIn(trigger, migration_source)
 
     def test_staging_wrangler_config_is_isolated_and_not_deployable_yet(self):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)

@@ -16,7 +16,7 @@ on:
       - "intelligence-review-queue.mjs"
       - "intelligence-approval-input.mjs"
       - "wrangler.intelligence-staging.jsonc"
-      - "migrations/000*.sql"
+      - "migrations/*.sql"
       - "docs/INTELLIGENCE-*.md"
       - "scripts/**"
       - "engine/**"
@@ -33,7 +33,7 @@ on:
       - "intelligence-staging-worker.js"
       - "intelligence-approval-input.mjs"
       - "wrangler.intelligence-staging.jsonc"
-      - "migrations/000*.sql"
+      - "migrations/*.sql"
       - "docs/INTELLIGENCE-*.md"
       - "scripts/**"
       - "engine/**"
@@ -92,6 +92,9 @@ jobs:
 
       - name: Test Intelligence evidence decision support recommendations
         run: node --test scripts/intelligence-evidence-decision-support.test.mjs
+
+      - name: Test Intelligence evidence decision review snapshots
+        run: node --test scripts/intelligence-evidence-decision-review.test.mjs
 
       - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs

@@ -20,6 +20,7 @@ const migrations = [
   "0009_intelligence_findings_schema",
   "0010_intelligence_finding_review_ledger",
   "0011_intelligence_evidence_correlation_reviews",
+  "0012_intelligence_evidence_decision_reviews",
 ];
 
 async function applyMigrations(db, names) {
@@ -427,13 +428,13 @@ async function testCompleteSchemaReportsHealthy() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 4);
+  const { mf } = await createWorker(migrations.length - 5);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
     assert.equal(response.status, 503, JSON.stringify(body));
     assert.equal(body.schemaReady, false);
-    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews"]);
+    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews"]);
     assert.equal(body.executor, false);
     console.log("PASS: staging Worker /health fails closed when migration 0008 is absent");
   } finally {
@@ -3570,3 +3571,142 @@ async function testEvidenceConsistencyApiRuntime() {
   }
 }
 await testEvidenceConsistencyApiRuntime();
+
+
+
+async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Origin: "https://mehranmsh.github.io",
+    "Content-Type": "application/json"
+  };
+  const findingId = "62000000-0000-4000-8000-000000000001";
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("decision-review-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(`INSERT INTO intelligence_findings
+      (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+       evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(findingId, ownerUid, "security", "authentication", "v1", "critical", "open",
+        "Decision review test finding", "Owner decision workflow runtime fixture", "missing",
+        null, null, null, now, now, ownerUid).run();
+
+    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    const beforeFinding = await db.prepare("SELECT status,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
+      .bind(findingId, ownerUid).first();
+    const supportResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-support", { headers });
+    assert.equal(supportResponse.status, 200);
+    const support = await supportResponse.json();
+    assert.equal(support.scope, "authenticated_owner_staging_only");
+    const recommendation = support.recommendations.find(item =>
+      item.sourceType === "finding_metadata" && item.sourceId === findingId);
+    assert.ok(recommendation, "owner finding should produce a decision prompt");
+    assert.match(recommendation.reviewKey, /^[0-9a-f]{64}$/);
+    assert.equal(recommendation.priorDecisionOutcome, null);
+
+    const body = {
+      reviewKey: recommendation.reviewKey,
+      outcome: "accepted",
+      reason: "I reviewed the recommendation and accept the proposed next step."
+    };
+    const created = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(created.status, 201);
+    const result = await created.json();
+    assert.equal(result.outcome, "accepted");
+    assert.equal(result.reviewerUid, ownerUid);
+    assert.equal(result.sourceType, "finding_metadata");
+    assert.equal(result.sourceId, findingId);
+    assert.equal(result.decisionIsHumanAuthored, true);
+    assert.equal(result.evidenceContentVerified, false);
+    assert.equal(result.riskVerdict, false);
+    assert.equal(result.checkPassed, false);
+    assert.equal(result.findingStateChanged, false);
+    assert.equal(result.companyStateChanged, false);
+    assert.equal(result.executionEnabled, false);
+    assert.equal(result.operationPerformed, true);
+
+    const saved = await db.prepare(`
+      SELECT owner_uid,reviewer_uid,review_key_sha256,source_type,source_id,outcome,
+             reason,review_snapshot_json,review_snapshot_sha256
+      FROM intelligence_evidence_decision_reviews WHERE id=?
+    `).bind(result.id).first();
+    assert.equal(saved.owner_uid, ownerUid);
+    assert.equal(saved.reviewer_uid, ownerUid);
+    assert.equal(saved.review_key_sha256, recommendation.reviewKey);
+    assert.equal(saved.source_type, "finding_metadata");
+    assert.equal(saved.source_id, findingId);
+    assert.equal(saved.outcome, "accepted");
+    const snapshotHash = createHash("sha256").update(saved.review_snapshot_json).digest("hex");
+    assert.equal(saved.review_snapshot_sha256, snapshotHash);
+    const snapshot = JSON.parse(saved.review_snapshot_json);
+    assert.equal(snapshot.sourceId, findingId);
+    assert.equal(snapshot.sourceType, "finding_metadata");
+
+    const historyResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews?reviewKey=" + recommendation.reviewKey,
+      { headers });
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json();
+    assert.equal(history.items.length, 1);
+    assert.equal(history.items[0].outcome, "accepted");
+    assert.equal(history.items[0].reviewerUid, ownerUid);
+    assert.equal(history.historyIsAppendOnly, true);
+    assert.equal(history.evidenceContentVerified, false);
+    assert.equal(history.checkPassed, false);
+
+    const refreshed = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-support", { headers });
+    const refreshedData = await refreshed.json();
+    const refreshedItem = refreshedData.recommendations.find(item => item.reviewKey === recommendation.reviewKey);
+    assert.equal(refreshedItem.priorDecisionOutcome, "accepted");
+
+    const afterFinding = await db.prepare("SELECT status,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
+      .bind(findingId, ownerUid).first();
+    assert.deepEqual(afterFinding, beforeFinding, "owner decision must not change finding state");
+    const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1, "decision insert must append exactly one audit event");
+
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_evidence_decision_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
+      /append-only/i
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_evidence_decision_reviews WHERE id=?").bind(result.id).run(),
+      /retained/i
+    );
+
+    await db.prepare("UPDATE intelligence_findings SET severity='medium', status_reason='Changed severity to validate stale decision snapshot rejection.' WHERE id=? AND owner_uid=?")
+      .bind(findingId, ownerUid).run();
+    const stale = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(stale.status, 409, "a recommendation changed since display must not accept a stale review key");
+    const unknown = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify({ ...body, reviewKey: "0".repeat(64) }) });
+    assert.equal(unknown.status, 409);
+    const spoof = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify({ ...body, ownerUid: "spoof" }) });
+    assert.equal(spoof.status, 400);
+    const badLimit = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews?limit=101", { headers });
+    assert.equal(badLimit.status, 400);
+    const unauthenticated = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers: { Origin: "https://mehranmsh.github.io", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    assert.equal(unauthenticated.status, 401);
+    console.log("PASS: owner decision workflow is current-recommendation-bound, owner-scoped, snapshot-hashed, append-only, audited, and non-executing on D1 runtime");
+  } finally {
+    await mf.dispose();
+  }
+}
+await testOwnerEvidenceDecisionReviewWorkflowRuntime();

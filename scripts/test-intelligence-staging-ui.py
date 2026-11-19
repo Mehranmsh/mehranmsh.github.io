@@ -283,36 +283,46 @@ for marker in [
 ]:
     assert marker in page, f"Remediation planner dashboard missing safety or behavior marker: {marker}"
 
-planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
+planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("function evidenceOverviewCard(", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in planner_function, f"Remediation planner UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in planner_function and 'document.createElement("details")' in planner_function
 assert "loadRemediationPlans()" in refresh_block, "Remediation plans must load automatically after owner authentication."
 
 
-# Evidence decision support dashboard contract: private owner prompts only.
+# Evidence decision support and append-only owner decision workflow.
 for marker in [
     'id="evidenceDecisionSupportPanel"',
     'id="refreshEvidenceDecisionSupportBtn"',
     'id="evidenceDecisionSupportModule"',
     'id="evidenceDecisionSupportSummary"',
     'id="evidenceDecisionSupportList"',
+    'id="evidenceDecisionReviewHistory"',
     'async function loadEvidenceDecisionSupport()',
     'request("/intelligence/findings/evidence-decision-support"+suffix)',
     'item.recommendation',
-    'item.priorOwnerOutcome',
-    'data.decisionMade',
-    'data.executionEnabled',
+    'item.priorDecisionOutcome',
+    'item.reviewKey',
+    'async function loadEvidenceDecisionReviewHistory()',
+    'request("/intelligence/findings/evidence-decision-reviews?limit=50")',
+    'async function submitEvidenceDecisionReview(event)',
+    'request("/intelligence/findings/evidence-decision-reviews"',
+    'form.dataset.reviewKey',
+    'method:"POST"',
+    'decisionReviewForm',
     'loadEvidenceDecisionSupport()',
     'refreshEvidenceDecisionSupportBtn',
-    'Owner decision required: ',
 ]:
-    assert marker in page, f"Evidence decision support dashboard missing safety or behavior marker: {marker}"
+    assert marker in page, f"Evidence decision review workflow missing behavior or safety marker: {marker}"
 
-decision_function = page.split("async function loadEvidenceDecisionSupport()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
-for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
-    assert forbidden not in decision_function, f"Evidence decision support UI must remain read-only and avoid HTML injection: {forbidden}"
-assert 'findingsElement(' in decision_function and '.append(' in decision_function
+decision_function = page.split("async function loadEvidenceDecisionSupport()", 1)[1].split("async function loadEvidenceDecisionReviewHistory()", 1)[0]
+for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in decision_function, f"Decision support UI must use safe DOM rendering: {forbidden}"
+assert 'findingsElement(' in decision_function and 'document.createElement(' in decision_function and '.append(' in decision_function
+submit_function = page.split("async function submitEvidenceDecisionReview(event)", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
+for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in submit_function, f"Decision review form must avoid unsafe DOM APIs: {forbidden}"
+assert 'body:{reviewKey:form.dataset.reviewKey,outcome:form.elements.outcome.value,reason:form.elements.reason.value}' in submit_function
 assert "loadEvidenceDecisionSupport()" in refresh_block, "Decision support must load after owner authentication."
 
 
@@ -505,7 +515,7 @@ for marker in [
 ]:
     assert marker in page, f"Evidence Intelligence overview missing required behavior or safety marker: {marker}"
 
-overview_function = page.split("async function loadEvidenceIntelligenceOverview()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
+overview_function = page.split("async function loadEvidenceIntelligenceOverview()", 1)[1].split("async function loadEvidenceDecisionSupport()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in overview_function, f"Evidence Intelligence overview must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in overview_function and '.append(' in overview_function

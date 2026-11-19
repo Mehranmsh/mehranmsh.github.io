@@ -11,6 +11,7 @@ import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
 import { buildEvidenceConsistency } from "./intelligence-evidence-consistency.mjs";
 import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";
+import { EVIDENCE_DECISION_REVIEW_OUTCOMES, buildEvidenceDecisionReviewSnapshot, buildEvidenceDecisionReviewHistory } from "./intelligence-evidence-decision-review.mjs";
 import { EVIDENCE_CORRELATION_REVIEW_OUTCOMES, EVIDENCE_CORRELATION_TYPES, buildEvidenceCorrelationReviewSnapshot, buildEvidenceCorrelationReviewHistory } from "./intelligence-evidence-correlation-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -214,6 +215,111 @@ function uuid(value) {
 
 
 
+async function loadOwnerEvidenceDecisionSupport(env, ownerUid, moduleId = "") {
+  const findings = await env.DB.prepare(`
+    SELECT f.id, f.module_id, f.check_id, f.severity, f.status,
+           f.evidence_state,
+           COUNT(e.id) AS evidence_count,
+           SUM(CASE WHEN e.id IS NOT NULL AND e.content_digest IS NULL THEN 1 ELSE 0 END) AS missing_digest_count,
+           SUM(CASE WHEN e.id IS NOT NULL AND e.observed_at IS NULL THEN 1 ELSE 0 END) AS missing_observed_at_count,
+           COUNT(e.content_digest) - COUNT(DISTINCT e.content_digest) AS duplicate_digest_count
+    FROM intelligence_findings f
+    LEFT JOIN intelligence_finding_evidence e
+      ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+    WHERE f.owner_uid = ? AND (? = '' OR f.module_id = ?)
+    GROUP BY f.id
+    ORDER BY f.updated_at DESC, f.id DESC
+    LIMIT 101
+  `).bind(ownerUid, moduleId, moduleId).all();
+  const evidence = await env.DB.prepare(`
+    SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
+           e.source_ref, e.content_digest
+    FROM intelligence_finding_evidence e
+    INNER JOIN intelligence_findings f
+      ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
+    WHERE e.owner_uid = ? AND f.owner_uid = ?
+      AND (? = '' OR f.module_id = ?)
+    ORDER BY e.id ASC
+    LIMIT 501
+  `).bind(ownerUid, ownerUid, moduleId, moduleId).all();
+  const correlationReviews = await env.DB.prepare(`
+    SELECT correlation_key_sha256 AS correlationKeySha256, outcome,
+           reference_count AS referenceCount, reviewed_at
+    FROM intelligence_evidence_correlation_reviews
+    WHERE owner_uid = ?
+    ORDER BY reviewed_at DESC, id DESC
+    LIMIT 100
+  `).bind(ownerUid).all();
+
+  const metadata = buildEvidenceMetadataReview((findings.results || []).slice(0, 100));
+  const correlation = buildEvidenceCorrelation(evidence.results || [], { maxRows: 500, maxGroups: 50 });
+  const consistency = buildEvidenceConsistency(evidence.results || [], { maxRows: 500, maxGroups: 50 });
+  const correlationGroups = [];
+  for (const group of correlation.returnedCorrelationGroups) {
+    const keyBytes = new Uint8Array(await crypto.subtle.digest(
+      "SHA-256", new TextEncoder().encode(group.correlationKey)
+    ));
+    const correlationKeySha256 = Array.from(keyBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+    correlationGroups.push({ ...group, correlationKeySha256 });
+  }
+  const support = buildEvidenceDecisionSupport({
+    metadataItems: metadata.items,
+    correlationGroups,
+    consistencyCandidates: consistency.returnedCandidates,
+    correlationReviewHistory: correlationReviews.results || []
+  });
+  const decisionReviews = await env.DB.prepare(`
+    SELECT review_key_sha256, outcome, reviewed_at
+    FROM intelligence_evidence_decision_reviews
+    WHERE owner_uid = ?
+    ORDER BY reviewed_at DESC, id DESC
+    LIMIT 100
+  `).bind(ownerUid).all();
+  const latestReviews = new Map();
+  for (const review of decisionReviews.results || []) {
+    if (!latestReviews.has(review.review_key_sha256)) latestReviews.set(review.review_key_sha256, review);
+  }
+  const recommendations = [];
+  for (const item of support.recommendations) {
+    const identity = buildEvidenceDecisionReviewSnapshot(item).snapshotJson;
+    const keyBytes = new Uint8Array(await crypto.subtle.digest(
+      "SHA-256", new TextEncoder().encode(identity)
+    ));
+    const reviewKey = Array.from(keyBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+    const prior = latestReviews.get(reviewKey);
+    recommendations.push({
+      ...item,
+      reviewKey,
+      priorDecisionOutcome: prior?.outcome || null,
+      priorDecisionReviewedAt: prior ? Number(prior.reviewed_at) : null
+    });
+  }
+  const coverage = {
+    findingsReviewed: metadata.items.length,
+    findingsReviewLimitReached: (findings.results || []).length > 100,
+    evidenceReferencesScanned: correlation.evidenceReferencesScanned,
+    evidenceReferenceScanLimitReached: correlation.evidenceReferenceScanLimitReached,
+    correlationGroupsTruncated: correlation.correlationGroupsTruncated,
+    consistencyCandidatesTruncated: consistency.candidatesTruncated,
+    correlationReviewHistoryLimit: 100,
+    correlationReviewHistoryMayBeIncomplete: (correlationReviews.results || []).length === 100,
+    decisionReviewHistoryLimit: 100,
+    decisionReviewHistoryMayBeIncomplete: (decisionReviews.results || []).length === 100
+  };
+  return {
+    company: "MEHRAN MSH",
+    scope: "authenticated_owner_staging_only",
+    filter: { module: moduleId || null },
+    coverage,
+    ...support,
+    recommendations,
+    summary: {
+      ...support.summary,
+      alreadyReviewed: recommendations.filter(item => item.priorDecisionOutcome).length
+    }
+  };
+}
+
 async function handle(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -230,7 +336,7 @@ async function handle(request, env) {
         "intelligence_knowledge_relations", "intelligence_staging_sessions",
         "intelligence_staging_audit", "intelligence_staging_rate_limits",
         "intelligence_owner_memory", "intelligence_capability_approvals",
-        "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews"
+        "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews"
       ];
       const rows = await env.DB.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${required.map(() => "?").join(",")})`
@@ -871,76 +977,103 @@ async function handle(request, env) {
     const moduleId = url.searchParams.get("module") || "";
     if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown evidence decision-support module filter.");
     try {
-      const findings = await env.DB.prepare(`
-        SELECT f.id, f.module_id, f.check_id, f.severity, f.status,
-               f.evidence_state,
-               COUNT(e.id) AS evidence_count,
-               SUM(CASE WHEN e.id IS NOT NULL AND e.content_digest IS NULL THEN 1 ELSE 0 END) AS missing_digest_count,
-               SUM(CASE WHEN e.id IS NOT NULL AND e.observed_at IS NULL THEN 1 ELSE 0 END) AS missing_observed_at_count,
-               COUNT(e.content_digest) - COUNT(DISTINCT e.content_digest) AS duplicate_digest_count
-        FROM intelligence_findings f
-        LEFT JOIN intelligence_finding_evidence e
-          ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
-        WHERE f.owner_uid = ? AND (? = '' OR f.module_id = ?)
-        GROUP BY f.id
-        ORDER BY f.updated_at DESC, f.id DESC
-        LIMIT 101
-      `).bind(owner.uid, moduleId, moduleId).all();
-      const evidence = await env.DB.prepare(`
-        SELECT e.id, e.finding_id, f.module_id, f.check_id, e.kind,
-               e.source_ref, e.content_digest
-        FROM intelligence_finding_evidence e
-        INNER JOIN intelligence_findings f
-          ON f.id = e.finding_id AND f.owner_uid = e.owner_uid
-        WHERE e.owner_uid = ? AND f.owner_uid = ?
-          AND (? = '' OR f.module_id = ?)
-        ORDER BY e.id ASC
-        LIMIT 501
-      `).bind(owner.uid, owner.uid, moduleId, moduleId).all();
-      const reviews = await env.DB.prepare(`
-        SELECT correlation_key_sha256 AS correlationKeySha256, outcome, reference_count AS referenceCount, reviewed_at
-        FROM intelligence_evidence_correlation_reviews
-        WHERE owner_uid = ?
-        ORDER BY reviewed_at DESC, id DESC
-        LIMIT 100
-      `).bind(owner.uid).all();
+      const support = await loadOwnerEvidenceDecisionSupport(env, owner.uid, moduleId);
+      return response({ success: true, ...support });
+    } catch {
+      return fail("Evidence decision support is unavailable. Confirm staging migrations 0009, 0011, and 0012 are present.", 503);
+    }
+  }
 
-      const metadata = buildEvidenceMetadataReview((findings.results || []).slice(0, 100));
-      const correlation = buildEvidenceCorrelation(evidence.results || [], { maxRows: 500, maxGroups: 50 });
-      const consistency = buildEvidenceConsistency(evidence.results || [], { maxRows: 500, maxGroups: 50 });
-      const correlationGroups = [];
-      for (const group of correlation.returnedCorrelationGroups) {
-        const keyBytes = new Uint8Array(await crypto.subtle.digest(
-          "SHA-256", new TextEncoder().encode(group.correlationKey)
-        ));
-        const correlationKeySha256 = Array.from(keyBytes, byte => byte.toString(16).padStart(2, "0")).join("");
-        correlationGroups.push({ ...group, correlationKeySha256 });
-      }
-      const support = buildEvidenceDecisionSupport({
-        metadataItems: metadata.items,
-        correlationGroups,
-        consistencyCandidates: consistency.returnedCandidates,
-        correlationReviewHistory: reviews.results || []
-      });
+  if (path === "/intelligence/findings/evidence-decision-reviews" && method === "GET") {
+    const allowedParams = new Set(["reviewKey", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported decision review history filter.");
+    }
+    const reviewKey = url.searchParams.get("reviewKey") || "";
+    const rawLimit = url.searchParams.get("limit") || "50";
+    const limit = Number(rawLimit);
+    if (reviewKey && !/^[0-9a-f]{64}$/.test(reviewKey)) return fail("Invalid decision review key.");
+    if (!/^(?:[1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Decision review history limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT id, review_key_sha256, source_type, source_id, outcome, reason,
+               reviewer_uid, reviewed_at, review_snapshot_sha256, review_snapshot_json
+        FROM intelligence_evidence_decision_reviews
+        WHERE owner_uid = ? AND (? = '' OR review_key_sha256 = ?)
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT ?
+      `).bind(owner.uid, reviewKey, reviewKey, limit).all();
       return response({
         success: true,
-        company: "MEHRAN MSH",
         scope: "authenticated_owner_staging_only",
-        filter: { module: moduleId || null },
-        coverage: {
-          findingsReviewed: metadata.items.length,
-          findingsReviewLimitReached: (findings.results || []).length > 100,
-          evidenceReferencesScanned: correlation.evidenceReferencesScanned,
-          evidenceReferenceScanLimitReached: correlation.evidenceReferenceScanLimitReached,
-          correlationGroupsTruncated: correlation.correlationGroupsTruncated,
-          consistencyCandidatesTruncated: consistency.candidatesTruncated,
-          correlationReviewHistoryLimit: 100,
-          correlationReviewHistoryMayBeIncomplete: (reviews.results || []).length === 100
-        },
-        ...support
+        ...buildEvidenceDecisionReviewHistory(rows.results || [])
       });
     } catch {
-      return fail("Evidence decision support is unavailable. Confirm staging findings and correlation-review migrations are present.", 503);
+      return fail("Decision review history is unavailable. Confirm staging migration 0012 is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-decision-reviews" && method === "POST") {
+    const body = await readJson(request);
+    if (!body || Object.keys(body).some(key => !["reviewKey", "outcome", "reason"].includes(key)) ||
+        typeof body.reviewKey !== "string" || !/^[0-9a-f]{64}$/.test(body.reviewKey) ||
+        !EVIDENCE_DECISION_REVIEW_OUTCOMES.includes(body.outcome) ||
+        typeof body.reason !== "string" || body.reason.length > 1000 ||
+        !clean(body.reason, 1000) || clean(body.reason, 1000).length !== body.reason.trim().length) {
+      return fail("A valid current recommendation, owner outcome, and bounded reason are required.");
+    }
+    try {
+      const support = await loadOwnerEvidenceDecisionSupport(env, owner.uid, "");
+      const item = support.recommendations.find(candidate => candidate.reviewKey === body.reviewKey);
+      if (!item) return fail("This recommendation is no longer present in the current owner-scoped analysis.", 409);
+      if ((item.sourceType === "finding_metadata" && support.coverage.findingsReviewLimitReached) ||
+          (item.sourceType === "correlation_candidate" &&
+            (support.coverage.evidenceReferenceScanLimitReached || support.coverage.correlationGroupsTruncated)) ||
+          (item.sourceType === "consistency_candidate" &&
+            (support.coverage.evidenceReferenceScanLimitReached || support.coverage.consistencyCandidatesTruncated))) {
+        return fail("The current analysis is truncated. Refresh and narrow the scope before recording a decision.", 409);
+      }
+      const snapshot = buildEvidenceDecisionReviewSnapshot(item);
+      const snapshotHashBytes = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(snapshot.snapshotJson)
+      ));
+      const snapshotHash = Array.from(snapshotHashBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      const reviewId = randomId();
+      const reviewedAt = Math.floor(Date.now() / 1000);
+      await env.DB.prepare(`
+        INSERT INTO intelligence_evidence_decision_reviews
+          (id, owner_uid, reviewer_uid, review_key_sha256, source_type, source_id,
+           outcome, reason, review_snapshot_json, review_snapshot_sha256, reviewed_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        reviewId, owner.uid, owner.uid, body.reviewKey, item.sourceType, item.sourceId,
+        body.outcome, clean(body.reason, 1000), snapshot.snapshotJson,
+        snapshotHash, reviewedAt, reviewedAt
+      ).run();
+      return response({
+        success: true,
+        id: reviewId,
+        reviewKey: body.reviewKey,
+        sourceType: item.sourceType,
+        sourceId: item.sourceId,
+        outcome: body.outcome,
+        reviewerUid: owner.uid,
+        reviewedAt,
+        snapshotSha256: snapshotHash,
+        historyIsAppendOnly: true,
+        decisionIsHumanAuthored: true,
+        evidenceContentVerified: false,
+        riskVerdict: false,
+        checkPassed: false,
+        findingStateChanged: false,
+        companyStateChanged: false,
+        executionEnabled: false,
+        operationPerformed: true
+      }, 201);
+    } catch {
+      return fail("Decision review could not be recorded. Confirm staging migration 0012 is present and the recommendation is current.", 503);
     }
   }
 

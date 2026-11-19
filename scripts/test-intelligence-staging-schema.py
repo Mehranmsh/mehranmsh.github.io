@@ -18,6 +18,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0009_intelligence_findings_schema.sql",
     ROOT / "migrations" / "0010_intelligence_finding_review_ledger.sql",
     ROOT / "migrations" / "0011_intelligence_evidence_correlation_reviews.sql",
+    ROOT / "migrations" / "0012_intelligence_evidence_decision_reviews.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -55,6 +56,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "intelligence_finding_evidence",
             "intelligence_finding_reviews",
             "intelligence_evidence_correlation_reviews",
+            "intelligence_evidence_decision_reviews",
         }.issubset(tables))
         memory_columns = {row[1] for row in self.db.execute("PRAGMA table_info(intelligence_owner_memory)")}
         self.assertTrue({"memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"}.issubset(memory_columns))
@@ -149,6 +151,48 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             self.db.execute("UPDATE intelligence_evidence_correlation_reviews SET reason='rewritten' WHERE id=?", (good[0],))
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("DELETE FROM intelligence_evidence_correlation_reviews WHERE id=?", (good[0],))
+        self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
+
+    def test_evidence_decision_review_ledger_is_owner_decided_append_only_and_audited(self):
+        self.apply_chain()
+        insert = """
+            INSERT INTO intelligence_evidence_decision_reviews(
+                id,owner_uid,reviewer_uid,review_key_sha256,source_type,source_id,
+                outcome,reason,review_snapshot_json,review_snapshot_sha256,
+                reviewed_at,created_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+        """
+        good = (
+            "decision-review-a","owner-a","owner-a","a"*64,
+            "finding_metadata","finding-1","accepted","Reviewed current recommendation.",
+            '{"sourceType":"finding_metadata","sourceId":"finding-1"}',"b"*64,400,400
+        )
+        self.db.execute(insert, good)
+        audit = self.db.execute(
+            "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE target_id=?",
+            (good[0],)
+        ).fetchone()
+        self.assertEqual(audit, ("evidence_decision_review_recorded","evidence_decision_review",good[0]))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ("decision-review-b","owner-a","other-owner","a"*64,
+                "finding_metadata","finding-1","accepted","Spoofed reviewer.",
+                '{"sourceType":"finding_metadata"}',"b"*64,401,401))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ("decision-review-c","owner-a","owner-a","a"*64,
+                "unknown","finding-1","accepted","Unknown source.",
+                '{"sourceType":"unknown"}',"b"*64,401,401))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ("decision-review-d","owner-a","owner-a","a"*64,
+                "finding_metadata","finding-1","approved","Invalid outcome.",
+                '{"sourceType":"finding_metadata"}',"b"*64,401,401))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ("decision-review-e","owner-a","owner-a","a"*64,
+                "finding_metadata","finding-1","accepted","Invalid JSON.",
+                '{broken}',"b"*64,401,401))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_evidence_decision_reviews SET reason='rewritten' WHERE id=?", (good[0],))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("DELETE FROM intelligence_evidence_decision_reviews WHERE id=?", (good[0],))
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
 
     def test_approval_ledger_rejects_unknown_task(self):
