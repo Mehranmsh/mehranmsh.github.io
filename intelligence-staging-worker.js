@@ -164,8 +164,21 @@ async function handle(request, env) {
 
   if (path === "/health" && method === "GET") {
     try {
-      const row = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='intelligence_staging_sessions'").first();
-      return response({ success: true, service: "mehran-intelligence-staging", schemaReady: !!row, executor: false });
+      const required = [
+        "intelligence_tasks", "intelligence_knowledge", "intelligence_approval_ledger",
+        "intelligence_knowledge_relations", "intelligence_staging_sessions",
+        "intelligence_staging_audit", "intelligence_staging_rate_limits",
+        "intelligence_owner_memory"
+      ];
+      const rows = await env.DB.prepare(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${required.map(() => "?").join(",")})`
+      ).bind(...required).all();
+      const found = new Set((rows.results || []).map(row => row.name));
+      const missing = required.filter(name => !found.has(name));
+      return response({
+        success: true, service: "mehran-intelligence-staging",
+        schemaReady: missing.length === 0, missingTables: missing, executor: false
+      }, missing.length ? 503 : 200);
     } catch {
       return fail("Staging schema is unavailable.", 503);
     }
@@ -199,12 +212,14 @@ async function handle(request, env) {
   if (path === "/session" && method === "GET") {
     const owner = await verifySession(request, env);
     if (!owner) return fail("Authentication required.", 401);
+    if (!await rateLimit(env.DB, owner.uid, "session-read")) return fail("Rate limit exceeded.", 429);
     return response({ success: true, ownerUid: owner.uid });
   }
 
   if (path === "/session" && method === "DELETE") {
     const owner = await verifySession(request, env);
     if (!owner) return fail("Authentication required.", 401);
+    if (!await rateLimit(env.DB, owner.uid, "session-revoke")) return fail("Rate limit exceeded.", 429);
     const tokenHash = await digest(bearer(request));
     const row = await env.DB.prepare("SELECT id FROM intelligence_staging_sessions WHERE token_hash=? AND owner_uid=? AND revoked_at IS NULL").bind(tokenHash, owner.uid).first();
     if (!row) return fail("Session not found.", 404);
