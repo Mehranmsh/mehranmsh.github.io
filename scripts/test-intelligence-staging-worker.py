@@ -83,6 +83,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('request_count', self.source)
         self.assertIn('RATE_WINDOW_SECONDS = 60', self.source)
         self.assertIn('RATE_MAX = 30', self.source)
+        self.assertIn('CF-Connecting-IP', self.source)
+        self.assertIn('"session-auth"', self.source)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
