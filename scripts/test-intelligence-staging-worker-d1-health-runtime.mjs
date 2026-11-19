@@ -1502,3 +1502,62 @@ async function testApprovalRevocationAuditAtomicityAndOwnerIsolation() {
 }
 
 await testApprovalRevocationAuditAtomicityAndOwnerIsolation();
+
+
+async function testApprovalScopeRejectsBroadOrUnsafePaths() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const taskId = "edededed-eded-4ded-8ded-edededededed";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-approval-scope-validation", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare("INSERT INTO intelligence_tasks(id,title,created_by) VALUES(?,?,?)")
+      .bind(taskId, "Approval scope validation", ownerUid).run();
+    const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    const request = scope => mf.dispatchFetch("http://localhost/intelligence/approvals", {
+      method: "POST", headers,
+      body: JSON.stringify({
+        taskId,
+        repository: "Mehranmsh/mehranmsh.github.io",
+        branch: "main",
+        baseSha: "c".repeat(40),
+        scope,
+        expiresInSeconds: 300,
+      }),
+    });
+    const invalidScopes = [
+      { paths: ["../secrets/"] },
+      { paths: ["/absolute/path"] },
+      { paths: ["src\\\\..\\\\secrets"] },
+      { paths: ["src/*"] },
+      { paths: [".git/config"] },
+      { paths: ["src/%2e%2e/secrets"] },
+      { paths: ["src/", "src/"] },
+      { paths: [] },
+      { paths: Array.from({ length: 21 }, (_, i) => `docs/${i}/`) },
+      { paths: ["docs/"], extra: true },
+      { paths: ["docs/", ""] },
+    ];
+    for (const scope of invalidScopes) {
+      const response = await request(scope);
+      assert.equal(response.status, 400, `unsafe scope must be rejected: ${JSON.stringify(scope)}`);
+    }
+    const valid = await request({ paths: ["zeta/", "docs/readme.md", "alpha/"] });
+    assert.equal(valid.status, 201);
+    const body = await valid.json();
+    const row = await db.prepare("SELECT scope_json,scope_sha256,status FROM intelligence_approval_ledger WHERE id=? AND owner_uid=?")
+      .bind(body.id, ownerUid).first();
+    assert.equal(row.status, "issued");
+    assert.equal(row.scope_json, JSON.stringify({ paths: ["alpha/", "docs/readme.md", "zeta/"] }),
+      "scope paths must be canonicalized before hashing and storage");
+    assert.equal(row.scope_sha256.length, 43, "stored scope digest must be SHA-256 base64url");
+    console.log("PASS: approval scopes reject traversal, wildcards, duplicates, and unbounded path sets");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testApprovalScopeRejectsBroadOrUnsafePaths();
