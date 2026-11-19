@@ -20,9 +20,11 @@ const CAPABILITIES = Object.freeze({
 });
 
 const deny = (reason) => ({
-  decision: "deny",
+  decision: "assessment_only_denied",
   reason,
   executionEnabled: EXECUTION_ENABLED,
+  assessmentOnly: true,
+  operationPerformed: false,
   capabilityKnown: false
 });
 
@@ -34,7 +36,7 @@ export function evaluateCapabilityRequest(request, nowSeconds = Math.floor(Date.
   if (!request || typeof request !== "object" || Array.isArray(request)) return deny("invalid_request");
   const capability = CAPABILITIES[request.capability];
   if (!capability) return deny("unknown_capability");
-  if (capability.tier === "forbidden") return { ...deny("capability_forbidden"), capabilityKnown: true };
+  if (capability.tier === "forbidden") return { ...deny("capability_forbidden"), decision: "assessment_only_forbidden", capabilityKnown: true };
   if (request.ownerAuthenticated !== true || request.sessionValid !== true) {
     return { ...deny("owner_session_required"), capabilityKnown: true };
   }
@@ -43,16 +45,18 @@ export function evaluateCapabilityRequest(request, nowSeconds = Math.floor(Date.
   }
   if (capability.tier === "automatic") {
     return {
-      decision: "eligible_for_automatic",
+      decision: "assessment_only_allowlisted",
       reason: "allowlisted_low_risk_capability",
       executionEnabled: EXECUTION_ENABLED,
+      assessmentOnly: true,
+      operationPerformed: false,
       capabilityKnown: true,
       effects: capability.effects
     };
   }
   const approval = request.approval;
   if (!approval || approval.serverVerified !== true) {
-    return { decision: "approval_required", reason: "owner_approval_required", executionEnabled: EXECUTION_ENABLED, capabilityKnown: true };
+    return { decision: "assessment_only_approval_required", reason: "owner_approval_required", executionEnabled: EXECUTION_ENABLED, assessmentOnly: true, operationPerformed: false, capabilityKnown: true };
   }
   if (typeof request.ownerId !== "string" || request.ownerId.length === 0 ||
       approval.ownerId !== request.ownerId || approval.capability !== request.capability ||
@@ -61,12 +65,14 @@ export function evaluateCapabilityRequest(request, nowSeconds = Math.floor(Date.
       approval.consumedAt !== null || approval.consumedBy !== null ||
       !Number.isSafeInteger(nowSeconds) || !Number.isSafeInteger(approval.expiresAt) ||
       approval.expiresAt <= nowSeconds) {
-    return { decision: "deny", reason: "approval_invalid_expired_or_out_of_scope", executionEnabled: EXECUTION_ENABLED, capabilityKnown: true };
+    return { decision: "assessment_only_denied", reason: "approval_invalid_expired_or_out_of_scope", executionEnabled: EXECUTION_ENABLED, assessmentOnly: true, operationPerformed: false, capabilityKnown: true };
   }
   return {
-    decision: "eligible_after_owner_approval",
+    decision: "assessment_only_approval_validated",
     reason: "valid_scoped_owner_approval",
     executionEnabled: EXECUTION_ENABLED,
+    assessmentOnly: true,
+    operationPerformed: false,
     capabilityKnown: true,
     effects: capability.effects
   };
