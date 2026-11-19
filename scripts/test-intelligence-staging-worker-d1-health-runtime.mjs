@@ -860,3 +860,52 @@ async function testOwnerSensitiveMutationAuditAndIsolation() {
 }
 
 await testOwnerSensitiveMutationAuditAndIsolation();
+
+async function testKnowledgeRelationReadsAreOwnerScoped() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const ownerSource = "10000000-0000-4000-8000-000000000001";
+  const ownerTarget = "20000000-0000-4000-8000-000000000002";
+  const foreignSource = "30000000-0000-4000-8000-000000000003";
+  const foreignTarget = "40000000-0000-4000-8000-000000000004";
+  const ownerRelation = "50000000-0000-4000-8000-000000000005";
+  const foreignRelation = "60000000-0000-4000-8000-000000000006";
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("session-relation-read-scope", tokenHash(token), ownerUid, now, now + 3600).run();
+    for (const [id, owner, title, content] of [
+      [ownerSource, ownerUid, "Owner source", "Owner evidence alpha"],
+      [ownerTarget, ownerUid, "Owner target", "Owner evidence beta"],
+      [foreignSource, "different-owner-uid", "Foreign source", "Foreign evidence alpha"],
+      [foreignTarget, "different-owner-uid", "Foreign target", "Foreign evidence beta"],
+    ]) {
+      await db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)")
+        .bind(id, owner, title, content, owner).run();
+    }
+    for (const [id, owner, source, target, sourceEvidence, targetEvidence] of [
+      [ownerRelation, ownerUid, ownerSource, ownerTarget, "Owner evidence alpha", "Owner evidence beta"],
+      [foreignRelation, "different-owner-uid", foreignSource, foreignTarget, "Foreign evidence alpha", "Foreign evidence beta"],
+    ]) {
+      await db.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,?,'supports','candidate',?,?)")
+        .bind(id, owner, source, target, sourceEvidence, targetEvidence).run();
+    }
+    const headers = { Authorization: "Bearer " + token };
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", { headers });
+    assert.equal(listed.status, 200);
+    const listedBody = await listed.json();
+    assert.deepEqual(listedBody.items.map(item => item.id), [ownerRelation]);
+    const foreignEvaluation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/" + foreignSource + "/evaluation", { headers });
+    assert.equal(foreignEvaluation.status, 404);
+    const ownerEvaluation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/" + ownerSource + "/evaluation", { headers });
+    assert.equal(ownerEvaluation.status, 200);
+    const ownerEvaluationBody = await ownerEvaluation.json();
+    assert.equal(ownerEvaluationBody.evaluation.relationCount, 1);
+    console.log("PASS: knowledge relation and evaluation reads remain owner-scoped");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testKnowledgeRelationReadsAreOwnerScoped();
