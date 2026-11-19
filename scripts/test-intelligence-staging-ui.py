@@ -283,7 +283,7 @@ for marker in [
 ]:
     assert marker in page, f"Remediation planner dashboard missing safety or behavior marker: {marker}"
 
-planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("async function loadOverview()", 1)[0]
+planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in planner_function, f"Remediation planner UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in planner_function and 'document.createElement("details")' in planner_function
