@@ -2730,3 +2730,48 @@ async function testMissingOriginDoesNotBypassAuthentication() {
 }
 
 await testMissingOriginDoesNotBypassAuthentication();
+
+
+async function testSecurityHeadersAcrossResponseMatrix() {
+  const { mf } = await createWorker(migrations.length);
+  const cases = [
+    ["GET", "/health", undefined, 200],
+    ["GET", "/intelligence/capabilities", undefined, 401],
+    ["POST", "/intelligence/tasks", JSON.stringify({}), 401],
+    ["GET", "/intelligence/memory", undefined, 401],
+    ["POST", "/intelligence/knowledge", JSON.stringify({}), 401],
+    ["GET", "/not-a-real-route", undefined, 401],
+  ];
+  const expected = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Cache-Control": "no-store",
+    "Vary": "Origin",
+    "Access-Control-Allow-Origin": "https://mehranmsh.github.io",
+  };
+  try {
+    for (const [method, path, body, status] of cases) {
+      const headers = { Origin: "https://mehranmsh.github.io" };
+      if (body !== undefined) headers["Content-Type"] = "application/json";
+      const response = await mf.dispatchFetch(`http://localhost${path}`, {
+        method,
+        headers,
+        ...(body !== undefined ? { body } : {}),
+      });
+      assert.equal(response.status, status,
+        `expected ${status} for ${method} ${path}`);
+      for (const [name, value] of Object.entries(expected)) {
+        assert.equal(response.headers.get(name), value,
+          `${name} must be present and consistent for ${method} ${path} status ${status}`);
+      }
+      assert.match(response.headers.get("Content-Type") || "", /^application\/json\s*;/i,
+        `responses must declare JSON content type for ${method} ${path}`);
+    }
+    console.log(`PASS: security and cache headers remain consistent across ${cases.length} success, authentication, and error response cases`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testSecurityHeadersAcrossResponseMatrix();
