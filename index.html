@@ -2888,7 +2888,14 @@ async function loadIntelCompanyReadiness(){
    {key:"gaps",module:module.id,label:"Gap and test strategy · "+module.name,path:"/intelligence/company/gap-test-strategy?module="+encodeURIComponent(module.id),note:"Blueprint-based test recommendations; unrecorded tests are not assumed failed."}
   ]);
   const sources=[...fixed,...moduleSources];
-  const settled=await Promise.allSettled(sources.map(source=>api(source.path)));
+  // Keep the owner dashboard from flooding the staging Worker when many modules are registered.
+  // Each batch is bounded; outcomes retain source order for deterministic rendering.
+  const settled=[];
+  const batchSize=4;
+  for(let offset=0;offset<sources.length;offset+=batchSize){
+   const batch=await Promise.allSettled(sources.slice(offset,offset+batchSize).map(source=>api(source.path)));
+   settled.push(...batch);
+  }
   const outcomes=settled.map((result,index)=>{
    const source=sources[index];
    if(result.status!=="fulfilled")return {...source,ok:false,error:result.reason?.message||"Request failed"};
