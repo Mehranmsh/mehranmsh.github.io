@@ -45,7 +45,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
     def test_audit_uses_database_batch_and_conditional_state_change(self):
         self.assertIn('await env.DB.batch([', self.source)
         self.assertIn('INSERT INTO intelligence_staging_audit', self.source)
-        self.assertIn('WHERE EXISTS (', self.source)
+        self.assertGreaterEqual(self.source.count('WHERE changes() = 1'), 4)
         self.assertIn('knowledge_relation_', self.source)
         self.assertIn('{ confirm: "knowledge_relation_confirmed", dismiss: "knowledge_relation_dismissed", resolve: "knowledge_relation_resolved" }', self.source)
         self.assertIn('approval_revoked', self.source)
