@@ -87,6 +87,9 @@ jobs:
       - name: Test capability approval transaction on D1 runtime
         run: node scripts/test-intelligence-capability-approval-d1-runtime.mjs
 
+      - name: Test staging Worker health against D1 runtime
+        run: node scripts/test-intelligence-staging-worker-d1-health-runtime.mjs
+
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py
 
