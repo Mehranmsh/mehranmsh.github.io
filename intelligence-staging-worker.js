@@ -208,7 +208,7 @@ async function handle(request, env) {
   const path = url.pathname;
   const method = request.method.toUpperCase();
 
-  if (request.headers.get("Origin") && request.headers.get("Origin") !== ALLOWED_ORIGIN) return fail("Origin not allowed.", 403);
+  if (request.headers.has("Origin") && request.headers.get("Origin") !== ALLOWED_ORIGIN) return fail("Origin not allowed.", 403);
   if (method === "OPTIONS") return response({ success: true });
   if (!env.DB) return fail("Staging database binding is unavailable.", 503);
 
