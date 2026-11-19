@@ -533,7 +533,7 @@ async function handle(request, env) {
     const offset = Number(rawOffset);
     const state = clean(url.searchParams.get("state") || "active", 16);
     if (!["active","archived","all"].includes(state)) return fail("Invalid knowledge state.");
-    if (!/^\\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
+    if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid knowledge page offset.");
     }
     const rows = await env.DB.prepare(`
