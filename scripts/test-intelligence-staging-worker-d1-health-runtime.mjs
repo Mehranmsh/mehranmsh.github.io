@@ -52,7 +52,7 @@ async function testPiIdentityResponseValidation() {
   const calls = [];
   try {
     globalThis.fetch = async (url, options) => {
-      calls.push({ url, authorization: options.headers.Authorization, accept: options.headers.Accept });
+      calls.push({ url, authorization: options.headers.Authorization, accept: options.headers.Accept, redirect: options.redirect });
       return new Response(JSON.stringify({ uid: "staging-owner-test-uid", username: "mehranmsh" }), {
         status: 200, headers: { "Content-Type": "application/json" },
       });
@@ -61,6 +61,7 @@ async function testPiIdentityResponseValidation() {
     assert.equal(calls[0].url, "https://api.minepi.com/v2/me");
     assert.equal(calls[0].authorization, "Bearer valid-access-token-123");
     assert.equal(calls[0].accept, "application/json");
+    assert.equal(calls[0].redirect, "error", "Pi token verification must not follow redirects");
 
     globalThis.fetch = async () => new Response("<html>not json</html>", {
       status: 200, headers: { "Content-Type": "text/html" },
