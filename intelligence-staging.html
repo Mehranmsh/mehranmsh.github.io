@@ -52,7 +52,7 @@
 "use strict";
 // Replace only after a separately authorized staging deployment. Never use the production Worker URL.
 const STAGING_WORKER_URL = "REPLACE_WITH_VERIFIED_STAGING_WORKER_URL";
-const configured = /^https:\/\/[a-z0-9.-]+\.workers\.dev$/i.test(STAGING_WORKER_URL);
+const configured = /^https:\/\/mehran-intelligence-staging\.[a-z0-9.-]+\.workers\.dev$/i.test(STAGING_WORKER_URL);
 const $ = id => document.getElementById(id);
 let sessionToken = "";
 let sessionExpiresAt = 0;
