@@ -72,7 +72,7 @@ jobs:
       - name: Test deterministic Intelligence review queue prioritization
         run: node --test scripts/intelligence-review-queue.test.mjs
 
-      - name: Test INTELLIGENCE capability policy and autonomy boundaries
+      - name: Test Intelligence evidence metadata review classification\n        run: node --test scripts/intelligence-evidence-review.test.mjs\n\n      - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs
 
       - name: Test strict approval lifetime input behavior
