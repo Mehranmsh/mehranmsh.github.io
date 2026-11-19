@@ -718,7 +718,7 @@ async function handle(request, env) {
     const rawLimit = url.searchParams.get("limit") || "100";
     const limit = Number(rawLimit);
     if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown evidence review module.");
-    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^(?:[1-9]\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Evidence review limit must be an integer from 1 to 100.");
     }
     try {
