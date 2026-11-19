@@ -281,7 +281,7 @@ async function loadOwnerEvidenceDecisionSupport(env, ownerUid, moduleId = "") {
   }
   const recommendations = [];
   for (const item of support.recommendations) {
-    const identity = JSON.stringify([item.sourceType, item.checkId, item.sourceId]);
+    const identity = buildEvidenceDecisionReviewSnapshot(item).snapshotJson;
     const keyBytes = new Uint8Array(await crypto.subtle.digest(
       "SHA-256", new TextEncoder().encode(identity)
     ));
