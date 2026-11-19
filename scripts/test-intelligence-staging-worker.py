@@ -122,6 +122,27 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('assessment: "deterministic_metadata_only"', self.source)
         self.assertIn('Number(item.unresolved_conflict_count) > 0', self.source)
 
+
+    def test_knowledge_review_queue_is_bounded_owner_scoped_and_deterministic(self):
+        for fragment in [
+            'path === "/intelligence/knowledge/review-queue" && method === "GET"',
+            'WHERE k.owner_uid = ? AND (? = 1 OR k.archived_at IS NULL)',
+            'LIMIT 500',
+            'staleAfterDays: 180',
+            'ordering: "priority_desc_then_oldest_observation"',
+            'assessment: "deterministic_metadata_only"',
+            '"owner_disputed"',
+            '"unresolved_conflict"',
+            '"source_observation_older_than_180_days"',
+            '"missing_source_reference"',
+            'priorityBand: priority >= 90 ? "critical"',
+            '.filter(item => item.priority > 0)',
+            '.slice(0, limit)',
+        ]:
+            self.assertIn(fragment, self.source)
+        self.assertIn('function buildKnowledgeReviewItem(item, nowMs = Date.now())', self.source)
+        self.assertIn('No external source retrieval, semantic fact-checking, or autonomous conflict resolution is performed.', self.source)
+
     def test_knowledge_provenance_is_owner_reviewed_and_bounded(self):
         for fragment in [
             "source_type, source_ref, observed_at, confidence_score, verification_status",
