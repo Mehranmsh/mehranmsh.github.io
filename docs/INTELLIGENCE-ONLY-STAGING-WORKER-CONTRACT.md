@@ -59,5 +59,6 @@ The isolated Worker source and static safety tests are committed to PR33. The se
 - `GET /intelligence/memory`: list only the authenticated owner's records.
 - `POST /intelligence/memory`: create a bounded memory record.
 - `PUT /intelligence/memory/:id`: update only an owner-owned record.
+- `DELETE /intelligence/memory/:id`: delete only an owner-owned record.
 
-Memory writes are audited atomically with the data mutation. No cross-owner or system-seed memory mutation route is exposed.
+Memory mutations are audited atomically with the data change; deletion audit records retain only the record identifier, not its content. No cross-owner or system-seed memory mutation route is exposed.
