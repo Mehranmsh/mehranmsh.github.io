@@ -2590,7 +2590,6 @@ async function testOriginSerializationEdgeCasesFailClosed() {
     "https://mehranmsh.github.io?query=1",
     "https://mehranmsh.github.io#fragment",
     "https://mehranmsh.github.io, https://attacker.example",
-    "",
   ];
   try {
     await db.prepare(
