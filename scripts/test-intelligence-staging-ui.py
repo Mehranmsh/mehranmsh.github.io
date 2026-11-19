@@ -500,7 +500,7 @@ for marker in [
     'Conflict verdict: "+String(data.isConflictVerdict)',
     'data-evidence-target',
     'refreshEvidenceIntelligenceOverviewBtn',
-    'loadEvidenceIntelligenceOverview(),loadEvidenceMetadataReview()',
+    'loadEvidenceIntelligenceOverview(),loadEvidenceDecisionSupport(),loadEvidenceMetadataReview()',
     'No conflict or risk verdict is produced, no check is passed',
 ]:
     assert marker in page, f"Evidence Intelligence overview missing required behavior or safety marker: {marker}"
