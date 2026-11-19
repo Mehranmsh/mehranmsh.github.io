@@ -44,6 +44,7 @@ BEFORE UPDATE OF source_type, source_ref, observed_at, confidence_score
 ON intelligence_knowledge
 WHEN (NEW.source_type = 'external_url' AND (
        substr(lower(NEW.source_ref),1,8) <> 'https://'
+       OR length(NEW.source_ref) <= 8
        OR instr(substr(NEW.source_ref,9), '@') > 0
      ))
   OR (NEW.observed_at <> '' AND (
