@@ -14,6 +14,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql",
     ROOT / "migrations" / "0006_intelligence_owner_memory_confidence_integer.sql",
     ROOT / "migrations" / "0007_intelligence_approval_ledger_state_guards.sql",
+    ROOT / "migrations" / "0008_intelligence_capability_approval_ledger.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -46,6 +47,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "intelligence_staging_audit",
             "intelligence_staging_rate_limits",
             "intelligence_owner_memory",
+            "intelligence_capability_approvals",
         }.issubset(tables))
         memory_columns = {row[1] for row in self.db.execute("PRAGMA table_info(intelligence_owner_memory)")}
         self.assertTrue({"memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"}.issubset(memory_columns))
@@ -127,6 +129,57 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-d'")
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE intelligence_approval_ledger SET status='issued' WHERE id='guard-d'")
+
+
+    def test_capability_approval_ledger_is_separate_scoped_and_one_way(self):
+        self.apply_chain()
+        insert = """
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES(?,?,?,?,?,?,?)
+        """
+        good = ('cap-a','owner-a','memory.delete','owner_staging','issued',100,200)
+        self.db.execute(insert, good)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ('cap-b','owner-a','task.execute','owner_staging','issued',100,200))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ('cap-c','owner-a','memory.delete','production','issued',100,200))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, ('cap-d','owner-a','memory.delete','owner_staging','revoked',100,200))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET capability='knowledge.create' WHERE id='cap-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET status='revoked' WHERE id='cap-a'")
+        self.db.execute("UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=150 WHERE id='cap-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET status='issued' WHERE id='cap-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET revoked_at=151 WHERE id='cap-a'")
+        audit = self.db.execute("""
+            SELECT action,target_type,target_id FROM intelligence_staging_audit
+            WHERE target_id='cap-a'
+        """).fetchone()
+        self.assertEqual(audit, ('capability_approval_revoked','capability_approval','cap-a'))
+
+        consumed = ('cap-e','owner-a','knowledge.review','owner_staging','issued',100,200)
+        self.db.execute(insert, consumed)
+        self.db.execute("""
+            UPDATE intelligence_capability_approvals
+            SET status='consumed',consumed_at=160,consumed_by='staging-test'
+            WHERE id='cap-e'
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET consumed_by='other' WHERE id='cap-e'")
+        self.assertEqual(self.db.execute("""
+            SELECT action FROM intelligence_staging_audit WHERE target_id='cap-e'
+        """).fetchone()[0], 'capability_approval_consumed')
+
+        expired = ('cap-f','owner-a','memory.create','owner_staging','issued',100,200)
+        self.db.execute(insert, expired)
+        self.db.execute("UPDATE intelligence_capability_approvals SET status='expired' WHERE id='cap-f'")
+        self.assertEqual(self.db.execute("""
+            SELECT action FROM intelligence_staging_audit WHERE target_id='cap-f'
+        """).fetchone()[0], 'capability_approval_expired')
 
     def test_linked_knowledge_content_guard_is_installed(self):
         self.apply_chain()
