@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """Prove one-time capability approval consumption and mutation are atomic in SQLite."""
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sqlite3
+import tempfile
+import threading
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +31,7 @@ WHERE id=? AND owner_uid=? AND capability=? AND scope='owner_staging'
   AND consumed_at IS NULL AND consumed_by IS NULL
 """
 # Deliberately violates a NOT NULL constraint unless the immediately preceding
-# statement changed exactly one row. D1 batch rolls the transaction back.
+# statement changed exactly one row. A D1 batch rolls the transaction back.
 ASSERT_ONE_CHANGE = """
 INSERT INTO intelligence_staging_audit
 (id,owner_uid,action,target_type,target_id,details_json,created_at)
@@ -70,14 +73,11 @@ class AtomicCapabilityConsumptionTests(unittest.TestCase):
                                       owner, capability, now))
             self.db.execute(ASSERT_ONE_CHANGE)
             if fail_operation:
-                # Simulate a protected mutation that fails a database constraint.
                 self.db.execute("""
                     INSERT INTO protected_operations(id,owner_uid,capability,payload)
                     VALUES (?, ?, ?, NULL)
                 """, (operation_id, owner, capability))
             else:
-                # The unique request/consumer ID binds the mutation to this exact
-                # successful consume, without relying on changes() after the guard.
                 self.db.execute("""
                     INSERT INTO protected_operations(id,owner_uid,capability,payload)
                     SELECT ?, ?, ?, 'committed'
@@ -96,7 +96,7 @@ class AtomicCapabilityConsumptionTests(unittest.TestCase):
             self.db.rollback()
             return False
 
-    def test_only_one_of_two_competing_uses_can_consume(self):
+    def test_only_one_of_two_sequential_uses_can_consume(self):
         self.assertTrue(self.run_atomic_operation(operation_id="op-first"))
         self.assertFalse(self.run_atomic_operation(operation_id="op-second"))
         self.assertEqual(self.db.execute(
@@ -110,6 +110,80 @@ class AtomicCapabilityConsumptionTests(unittest.TestCase):
             SELECT COUNT(*) FROM intelligence_staging_audit
             WHERE target_id='grant-valid' AND action='capability_approval_consumed'
         """).fetchone()[0], 1)
+
+    def test_two_simultaneous_contenders_commit_exactly_one_operation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db_path = Path(directory) / "concurrent.sqlite"
+            setup = sqlite3.connect(db_path)
+            setup.execute("PRAGMA foreign_keys=ON")
+            for migration in MIGRATIONS:
+                setup.executescript(migration.read_text(encoding="utf-8"))
+            setup.execute("""
+                CREATE TABLE protected_operations (
+                    id TEXT PRIMARY KEY,
+                    owner_uid TEXT NOT NULL,
+                    capability TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                )
+            """)
+            setup.execute("""
+                INSERT INTO intelligence_capability_approvals
+                (id,owner_uid,capability,scope,status,issued_at,expires_at)
+                VALUES ('grant-valid','owner-a','memory.create','owner_staging','issued',100,200)
+            """)
+            setup.commit()
+            setup.close()
+
+            barrier = threading.Barrier(2)
+
+            def contender(request_id):
+                conn = sqlite3.connect(db_path, timeout=15)
+                conn.execute("PRAGMA foreign_keys=ON")
+                try:
+                    barrier.wait(timeout=10)
+                    conn.execute("BEGIN IMMEDIATE")
+                    consumer_id = "staging-operation:" + request_id
+                    conn.execute(CONSUME, (
+                        150, consumer_id, "grant-valid", "owner-a",
+                        "memory.create", 150
+                    ))
+                    conn.execute(ASSERT_ONE_CHANGE)
+                    conn.execute("""
+                        INSERT INTO protected_operations(id,owner_uid,capability,payload)
+                        SELECT ?, 'owner-a', 'memory.create', 'committed'
+                        WHERE EXISTS (
+                            SELECT 1 FROM intelligence_capability_approvals
+                            WHERE id='grant-valid' AND owner_uid='owner-a'
+                              AND capability='memory.create' AND scope='owner_staging'
+                              AND status='consumed' AND consumed_by=? AND consumed_at=150
+                        )
+                    """, (request_id, consumer_id))
+                    conn.execute(ASSERT_ONE_CHANGE)
+                    conn.commit()
+                    return True
+                except (sqlite3.DatabaseError, threading.BrokenBarrierError):
+                    conn.rollback()
+                    return False
+                finally:
+                    conn.close()
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                outcomes = list(pool.map(contender, ["request-a", "request-b"]))
+
+            verify = sqlite3.connect(db_path)
+            self.assertEqual(sorted(outcomes), [False, True])
+            self.assertEqual(verify.execute(
+                "SELECT COUNT(*) FROM protected_operations"
+            ).fetchone()[0], 1)
+            self.assertEqual(verify.execute("""
+                SELECT status FROM intelligence_capability_approvals
+                WHERE id='grant-valid'
+            """).fetchone()[0], "consumed")
+            self.assertEqual(verify.execute("""
+                SELECT COUNT(*) FROM intelligence_staging_audit
+                WHERE target_id='grant-valid' AND action='capability_approval_consumed'
+            """).fetchone()[0], 1)
+            verify.close()
 
     def test_wrong_owner_capability_and_expired_grant_fail_closed(self):
         self.assertFalse(self.run_atomic_operation(owner="owner-b"))
