@@ -88,6 +88,20 @@ async function testPiIdentityResponseValidation() {
 
     globalThis.fetch = async () => { throw new Error("network details must not escape"); };
     assert.equal(await fetchPiUser("valid-access-token-123"), null, "network failures must fail closed");
+
+    const originalSetTimeout = globalThis.setTimeout;
+    let fireTimeout;
+    try {
+      globalThis.setTimeout = callback => { fireTimeout = callback; return 1; };
+      globalThis.fetch = async (_url, options) => new Promise((resolve, reject) => {
+        options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        fireTimeout();
+      });
+      assert.equal(await fetchPiUser("valid-access-token-123"), null, "Pi API timeout must abort the in-flight request and fail closed");
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+
     assert.equal(await fetchPiUser("short"), null, "invalid token length must avoid the upstream request");
     console.log("PASS: Pi identity verification bounds response size and rejects malformed, oversized, non-JSON, and failed upstream responses");
   } finally {
