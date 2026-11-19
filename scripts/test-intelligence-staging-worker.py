@@ -784,7 +784,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('evidence content, source availability, authenticity, correctness, or decision truth', self.index_html)
         start = self.index_html.index("function renderIntelDecisionIntegritySummary(")
         loader_start = self.index_html.index("async function loadIntelDecisionIntegrity()", start)
-        end = self.index_html.index("async function loadProjects()", loader_start)
+        end = self.index_html.index("function renderIntelCompanyReadiness(", loader_start)
         renderer_code = self.index_html[start:loader_start]
         loader_code = self.index_html[loader_start:end]
         for fragment in [
