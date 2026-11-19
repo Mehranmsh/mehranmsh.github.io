@@ -36,7 +36,7 @@ It is committed but has not been applied to Cloudflare. Apply it only after conf
 - `GET /health`: checks all eight required tables.
 - `POST /session`, `GET /session`, `DELETE /session`
 - `GET/POST /intelligence/tasks`: creates and lists owner-scoped queued plans only; execution is disabled.
-- `GET/POST /intelligence/knowledge`
+- `GET/POST /intelligence/knowledge`: GET accepts `state=active` (default), `state=archived`, or `state=all`, always scoped to the authenticated owner.
 - `PUT /intelligence/knowledge/:id`: owner-scoped metadata/content update, archive, and restore. Content edits are blocked when a relationship cites that record; create a corrected record and link it instead so evidence history is preserved.
 - `GET/POST /intelligence/knowledge/relations`
 - `PUT /intelligence/knowledge/relations/:id`: confirm, dismiss, or owner-selected conflict resolution.
