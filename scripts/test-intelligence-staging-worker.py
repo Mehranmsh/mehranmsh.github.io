@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""Static safety contract for the isolated Intelligence staging Worker."""
+from pathlib import Path
+import re
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "intelligence-staging-worker.js"
+
+class StagingWorkerSafetyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = SOURCE.read_text(encoding="utf-8")
+
+    def test_pi_identity_is_verified_server_side(self):
+        self.assertIn('https://api.minepi.com/v2/me', self.source)
+        self.assertIn('Authorization: `Bearer ${accessToken}`', self.source)
+        self.assertIn('piUser.uid !== ownerUid', self.source)
+        self.assertIn('piUser.username.toLowerCase() !== "mehranmsh"', self.source)
+        self.assertIn('MEHRAN_INTELLIGENCE_STAGING_OWNER_UID', self.source)
+
+    def test_session_tokens_are_random_and_only_hashes_are_persisted(self):
+        self.assertIn('crypto.getRandomValues(new Uint8Array(32))', self.source)
+        self.assertIn('const tokenHash = await digest(token)', self.source)
+        self.assertIn('token_hash', self.source)
+        self.assertNotRegex(self.source, r'INSERT INTO intelligence_staging_sessions[^\n]*\btoken\b')
+
+    def test_session_expiry_and_revocation_are_enforced(self):
+        self.assertIn('revoked_at IS NULL AND expires_at > ?', self.source)
+        self.assertIn('SESSION_SECONDS = 12 * 60 * 60', self.source)
+        self.assertIn('session_revoked', self.source)
+
+    def test_owner_scoping_is_present_on_sensitive_reads_and_writes(self):
+        for fragment in [
+            'WHERE owner_uid = ? AND archived_at IS NULL',
+            'WHERE owner_uid = ? AND (? = \'\' OR status = ?)',
+            'WHERE id=? AND owner_uid=?',
+            'WHERE task_id=? AND created_by=?',
+        ]:
+            self.assertIn(fragment, self.source)
+
+    def test_audit_uses_database_batch_and_conditional_state_change(self):
+        self.assertIn('await env.DB.batch([', self.source)
+        self.assertIn('INSERT INTO intelligence_staging_audit', self.source)
+        self.assertIn('WHERE EXISTS (', self.source)
+        self.assertIn('knowledge_relation_', self.source)
+        self.assertIn('approval_revoked', self.source)
+
+    def test_no_executor_scheduler_or_production_binding(self):
+        forbidden = [
+            r'\bscheduled\s*\(',
+            r'\bwaitUntil\s*\(',
+            r'\bclaimTask\b',
+            r'\bexecuteTask\b',
+            r'\bMEHRAN_OWNER_PI_UID\b',
+            r'\badmin_sessions\b',
+            r'\badmin_audit_log\b',
+            r'\bmehran-msh-db\b',
+            r'\bworkers_ai_daily_budget\b',
+        ]
+        for pattern in forbidden:
+            self.assertIsNone(re.search(pattern, self.source), pattern)
+        self.assertIn('executor: false', self.source)
+
+    def test_route_allowlist_has_no_task_execution_endpoint(self):
+        self.assertIn('path === "/health"', self.source)
+        self.assertIn('path === "/session"', self.source)
+        self.assertIn('path === "/intelligence/knowledge"', self.source)
+        self.assertIn('path === "/intelligence/knowledge/relations"', self.source)
+        self.assertIn('path === "/intelligence/approvals"', self.source)
+        self.assertNotRegex(self.source, r'path\s*===\s*["\']/intelligence/tasks')
+
+    def test_bounded_json_and_rate_limits(self):
+        self.assertIn('MAX_BODY_BYTES = 20_000', self.source)
+        self.assertIn('request_count', self.source)
+        self.assertIn('RATE_WINDOW_SECONDS = 60', self.source)
+        self.assertIn('RATE_MAX = 30', self.source)
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
