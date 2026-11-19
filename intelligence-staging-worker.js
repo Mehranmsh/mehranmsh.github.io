@@ -7,6 +7,7 @@ import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-depende
 import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
 import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs";
 import { OWNER_EVIDENCE_REVIEW_OUTCOMES, buildEvidenceSnapshot, buildOwnerEvidenceReviewHistory } from "./intelligence-owner-evidence-review.mjs";
+import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -751,6 +752,71 @@ async function handle(request, env) {
     }
   }
 
+
+  if (path === "/intelligence/findings/evidence-drift" && method === "GET") {
+    const allowedParams = new Set(["findingId"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported evidence drift filter.");
+    }
+    const findingId = url.searchParams.get("findingId") || "";
+    if (!uuid(findingId)) return fail("A valid finding ID is required.");
+    try {
+      const finding = await env.DB.prepare(
+        "SELECT id FROM intelligence_findings WHERE id = ? AND owner_uid = ? LIMIT 1"
+      ).bind(findingId, owner.uid).first();
+      if (!finding) return fail("Finding not found.", 404);
+      const evidenceRows = await env.DB.prepare(`
+        SELECT id, kind, content_digest, observed_at
+        FROM intelligence_finding_evidence
+        WHERE finding_id = ? AND owner_uid = ?
+        ORDER BY id ASC
+        LIMIT 101
+      `).bind(findingId, owner.uid).all();
+      if ((evidenceRows.results || []).length > 100) {
+        return fail("This finding exceeds the bounded 100-reference drift comparison.", 409);
+      }
+      const latestReview = await env.DB.prepare(`
+        SELECT id, outcome, reviewed_at, evidence_snapshot_json, evidence_snapshot_sha256
+        FROM intelligence_finding_reviews
+        WHERE finding_id = ? AND owner_uid = ?
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT 1
+      `).bind(findingId, owner.uid).first();
+      let baseline = null;
+      if (latestReview) {
+        const digestBytes = new Uint8Array(await crypto.subtle.digest(
+          "SHA-256", new TextEncoder().encode(latestReview.evidence_snapshot_json)
+        ));
+        const actualDigest = Array.from(digestBytes, byte => byte.toString(16).padStart(2, "0")).join("");
+        if (actualDigest !== latestReview.evidence_snapshot_sha256) {
+          return fail("The stored owner review snapshot digest does not match its recorded metadata.", 409);
+        }
+        baseline = JSON.parse(latestReview.evidence_snapshot_json);
+      }
+      const drift = buildEvidenceDrift(baseline, evidenceRows.results || []);
+      return response({
+        success: true,
+        findingId,
+        scope: "authenticated_owner_staging_only",
+        assessment: "metadata_snapshot_drift_only",
+        baselineReviewId: latestReview?.id || null,
+        baselineOutcome: latestReview?.outcome || null,
+        baselineReviewedAt: latestReview ? Number(latestReview.reviewed_at) : null,
+        baselineSnapshotSha256: latestReview?.evidence_snapshot_sha256 || null,
+        ...drift,
+        evidenceContentVerified: false,
+        sourceReachabilityChecked: false,
+        authenticityVerified: false,
+        correctnessVerified: false,
+        checkPassed: false,
+        isRiskVerdict: false,
+        executionEnabled: false,
+        operationPerformed: false
+      });
+    } catch {
+      return fail("Evidence snapshot drift analysis is unavailable. Confirm staging migrations 0009 and 0010 are present.", 503);
+    }
+  }
 
   if (path === "/intelligence/findings/reviews" && method === "GET") {
     const allowedParams = new Set(["findingId", "limit"]);
