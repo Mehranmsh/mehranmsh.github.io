@@ -323,12 +323,18 @@ async function handle(request, env) {
     const id = capabilityApprovalMatch[1];
     const now = Math.floor(Date.now() / 1000);
     try {
-      const result = await env.DB.prepare(`
-        UPDATE intelligence_capability_approvals
-        SET status='revoked',revoked_at=?
-        WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?
-      `).bind(now, id, owner.uid, now).run();
-      if (!Number(result?.meta?.changes || 0)) return fail("Capability approval not found or no longer revocable.", 409);
+      const results = await env.DB.batch([
+        env.DB.prepare(`
+          UPDATE intelligence_capability_approvals
+          SET status='revoked',revoked_at=?
+          WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?
+        `).bind(now, id, owner.uid, now),
+        env.DB.prepare(`
+          INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
+          SELECT ?,?,?,?,?,?,? WHERE changes() = 1
+        `).bind(randomId(), owner.uid, "capability_approval_revoked", "capability_approval", id, "{}", now)
+      ]);
+      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Capability approval not found or no longer revocable.", 409);
       return response({ success: true, id, status: "revoked", executionEnabled: false });
     } catch {
       return fail("Capability approval revocation failed safely.", 503);
