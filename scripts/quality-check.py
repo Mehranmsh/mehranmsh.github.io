@@ -9,7 +9,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
-WORKER_FILE = ROOT / "worker.js"
+WORKER_FILE = ROOT / "worker.js"\nSTAGING_WORKER_FILE = ROOT / "intelligence-staging-worker.js"
 ENGINE_FILE = ROOT / "engine" / "server.py"
 SAMPLER_FILE = ROOT / "instrument-sampler.js"
 SAMPLE_MANIFEST = ROOT / "assets" / "instruments" / "manifest.json"
@@ -41,7 +41,7 @@ def run_node_check(path):
         raise SystemExit(result.returncode)
 
 def main():
-    for path in (*HTML_FILES, WORKER_FILE):
+    for path in (*HTML_FILES, WORKER_FILE, STAGING_WORKER_FILE):
         if not path.is_file():
             raise SystemExit(f"Required project file is missing: {path.name}")
 
