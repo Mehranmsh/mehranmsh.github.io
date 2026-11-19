@@ -598,12 +598,16 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     assert.equal(revokedRow.status, "revoked");
     assert.notEqual(revokedRow.revoked_at, null);
 
-    const auditRows = await db.prepare(
+    const approvalAuditRows = await db.prepare(
       "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE owner_uid=? AND target_id=? ORDER BY created_at"
     ).bind(ownerUid, issuedBody.id).all();
-    assert.ok(auditRows.results.some(row => row.action === "capability_approval_issued"));
-    assert.ok(auditRows.results.some(row => row.action === "capability_assessed"));
-    assert.ok(auditRows.results.some(row => row.action === "capability_approval_revoked"));
+    assert.ok(approvalAuditRows.results.some(row => row.action === "capability_approval_issued"));
+    assert.ok(approvalAuditRows.results.some(row => row.action === "capability_approval_revoked"));
+    const assessmentAudit = await db.prepare(
+      "SELECT action,target_type,target_id FROM intelligence_staging_audit WHERE owner_uid=? AND action='capability_assessed' AND target_id='memory.create'"
+    ).bind(ownerUid).first();
+    assert.equal(assessmentAudit.action, "capability_assessed");
+    assert.equal(assessmentAudit.target_type, "capability");
     console.log("PASS: capability approvals are owner-bound, audited, revocable, and assessment-only");
   } finally {
     await mf.dispose();
