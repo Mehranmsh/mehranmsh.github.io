@@ -529,17 +529,28 @@ async function handle(request, env) {
 
   if (path === "/intelligence/knowledge" && method === "GET") {
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));
+    const rawOffset = url.searchParams.get("offset") || "0";
+    const offset = Number(rawOffset);
     const state = clean(url.searchParams.get("state") || "active", 16);
     if (!["active","archived","all"].includes(state)) return fail("Invalid knowledge state.");
+    if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
+      return fail("Invalid knowledge page offset.");
+    }
     const rows = await env.DB.prepare(`
       SELECT id, category, title, content, importance, created_at, updated_at, archived_at,
              source_type, source_ref, observed_at, confidence_score, verification_status
       FROM intelligence_knowledge
       WHERE owner_uid = ?
         AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
-      ORDER BY updated_at DESC LIMIT ?
-    `).bind(owner.uid, state, state, state, limit).all();
-    return response({ success: true, state, items: rows.results || [] });
+      ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?
+    `).bind(owner.uid, state, state, state, limit + 1, offset).all();
+    const scanned = rows.results || [];
+    const items = scanned.slice(0, limit);
+    return response({
+      success: true, state, items, offset, limit,
+      hasMore: scanned.length > limit,
+      nextOffset: offset + items.length
+    });
   }
 
   if (path === "/intelligence/knowledge/evaluations" && method === "GET") {
