@@ -1,5 +1,6 @@
 import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";
 import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";
+import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -918,12 +919,11 @@ async function handle(request, env) {
         !body.scope || typeof body.scope !== "object" || Array.isArray(body.scope)) return fail("Invalid approval scope.");
     const task = await env.DB.prepare("SELECT id FROM intelligence_tasks WHERE id=? AND created_by=?").bind(body.taskId, owner.uid).first();
     if (!task) return fail("Task not found for this owner.", 404);
-    if (body.expiresInSeconds !== undefined &&
-        (typeof body.expiresInSeconds !== "number" || !Number.isSafeInteger(body.expiresInSeconds) ||
-         body.expiresInSeconds < 60 || body.expiresInSeconds > 3600)) {
+    const approvalLifetime = parseApprovalLifetime(body.expiresInSeconds);
+    if (!approvalLifetime.valid) {
       return fail("Approval expiry must be an integer number of seconds between 60 and 3600.");
     }
-    const expiresIn = body.expiresInSeconds === undefined ? 600 : body.expiresInSeconds;
+    const expiresIn = approvalLifetime.seconds;
     const now = Math.floor(Date.now()/1000);
     const scopeJson = JSON.stringify(body.scope);
     const scopeHash = await digest(scopeJson);
