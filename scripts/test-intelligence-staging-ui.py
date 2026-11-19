@@ -195,3 +195,29 @@ assert 'textContent' in page or 'findingsElement' in page
 
 refresh_block = page.split("async function refreshAll(){", 1)[1].split("}", 1)[0]
 assert "loadFindings(true)" in refresh_block, "Findings must load automatically after owner authentication."
+
+
+# Assessment coverage dashboard contract: owner-scoped GET, safe DOM, no pass inference.
+for marker in [
+    'id="assessmentCoveragePanel"',
+    'id="refreshAssessmentCoverageBtn"',
+    'id="assessmentCoverageSummary"',
+    'id="assessmentCoverageSafetyNotice"',
+    'id="assessmentCoverageList"',
+    'async function loadAssessmentCoverage()',
+    'request("/intelligence/company/assessment-coverage")',
+    'data.totalChecks',
+    'data.checksWithFindings',
+    'data.checksWithoutRecordedFindings',
+    'item.recordState==="findings_recorded"',
+    'No recorded findings does not mean a check passed.',
+    'Execution enabled: false.',
+    'loadAssessmentCoverage()',
+]:
+    assert marker in page, f"Assessment coverage dashboard missing required safety behavior: {marker}"
+
+coverage_function = page.split("async function loadAssessmentCoverage()", 1)[1].split("async function loadOverview()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in coverage_function, f"Assessment coverage must remain read-only and avoid HTML injection: {forbidden}"
+assert 'createElement' in coverage_function and '.textContent' in coverage_function
+assert "loadAssessmentCoverage()" in refresh_block, "Coverage must load automatically after owner authentication."
