@@ -8,6 +8,13 @@ BEGIN
   SELECT RAISE(ABORT, 'new approvals must start issued');
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_approval_insert_metadata
+BEFORE INSERT ON intelligence_approval_ledger
+WHEN NEW.revoked_at IS NOT NULL OR NEW.consumed_at IS NOT NULL OR NEW.consumed_by IS NOT NULL
+BEGIN
+  SELECT RAISE(ABORT, 'new approval cannot contain terminal metadata');
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_intelligence_approval_state_transition
 BEFORE UPDATE OF status ON intelligence_approval_ledger
 WHEN OLD.status <> NEW.status
@@ -46,4 +53,15 @@ WHEN (NEW.status = 'revoked' AND
       (NEW.revoked_at IS NOT NULL OR NEW.consumed_at IS NOT NULL OR NEW.consumed_by IS NOT NULL))
 BEGIN
   SELECT RAISE(ABORT, 'approval terminal metadata does not match state');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_approval_terminal_metadata_immutable
+BEFORE UPDATE OF revoked_at, consumed_at, consumed_by
+ON intelligence_approval_ledger
+WHEN OLD.status IN ('revoked', 'expired', 'consumed')
+ AND (NEW.revoked_at IS NOT OLD.revoked_at
+   OR NEW.consumed_at IS NOT OLD.consumed_at
+   OR NEW.consumed_by IS NOT OLD.consumed_by)
+BEGIN
+  SELECT RAISE(ABORT, 'terminal approval metadata is immutable');
 END;
