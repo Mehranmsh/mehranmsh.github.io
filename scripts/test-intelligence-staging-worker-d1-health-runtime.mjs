@@ -102,6 +102,33 @@ async function testSessionVerificationAndRevocation() {
 }
 
 
+async function testPiSessionCreationRejectsUntrustedClientClaims() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    const invalidBodies = [
+      {},
+      { accessToken: "not-a-valid-token", username: "mehranmsh", uid: "staging-owner-test-uid" },
+      { accessToken: "not-a-valid-token", isOwner: true },
+    ];
+    for (const body of invalidBodies) {
+      const response = await mf.dispatchFetch("http://localhost/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      assert.equal(response.status, 400);
+    }
+    const sessionCount = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_sessions").first();
+    const auditCount = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE action='session_created'").first();
+    assert.equal(Number(sessionCount.count), 0);
+    assert.equal(Number(auditCount.count), 0);
+    console.log("PASS: Pi session creation rejects client-supplied identity claims and malformed payloads");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+
 async function testSessionReadRateLimit() {
   const { mf, db } = await createWorker(migrations.length);
   const ownerUid = "staging-owner-test-uid";
@@ -261,6 +288,7 @@ async function testJsonBodyLimitsAndContentType() {
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
 await testSessionVerificationAndRevocation();
+await testPiSessionCreationRejectsUntrustedClientClaims();
 await testSessionReadRateLimit();
 await testOriginAndSecurityHeaders();
 await testProtectedRoutesRequireSession();
