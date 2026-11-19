@@ -38,7 +38,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'WHERE owner_uid = ? AND (? = \'\' OR status = ?)',
             'WHERE id=? AND owner_uid=?',
             'WHERE id=? AND created_by=?',
-            'WHERE owner_uid = ?\n      ORDER BY updated_at DESC LIMIT 100',
+            'WHERE owner_uid = ?\n        AND (? = \'all\' OR (? = \'archived\' AND archived_at IS NOT NULL) OR (? = \'active\' AND archived_at IS NULL))',
         ]:
             self.assertIn(fragment, self.source)
 
@@ -80,6 +80,24 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('path === "/intelligence/tasks"', self.source)
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
+
+    def test_owner_memory_governance_routes_are_owner_scoped_and_audited(self):
+        for fragment in [
+            'memory_kind, source_type, source_ref',
+            'confidence_score, review_status, reviewed_at, archived_at',
+            'state = url.searchParams.get("state") || "active"',
+            '["active", "archived", "all"]',
+            'path === "/intelligence/memory/review-queue" && method === "GET"',
+            'owner_memory_confirmed',
+            'owner_memory_disputed',
+            'owner_memory_archived',
+            'owner_memory_restored',
+            'sourceType === "knowledge_record" && !uuid(sourceRef)',
+            'reviewStatus: "unreviewed"',
+            'assessment: "owner_review_state_only"',
+        ]:
+            self.assertIn(fragment, self.source)
+        self.assertIn('trg_intelligence_owner_memory_provenance_immutable', (ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql").read_text(encoding="utf-8"))
 
     def test_capability_policy_routes_are_owner_scoped_and_assessment_only(self):
         self.assertIn('import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";', self.source)

@@ -339,53 +339,115 @@ async function handle(request, env) {
   }
 
   if (path === "/intelligence/memory" && method === "GET") {
-    const rows = await env.DB.prepare(`
-      SELECT id, category, content, created_at, updated_at
+    const state = url.searchParams.get("state") || "active";
+    if (!["active", "archived", "all"].includes(state)) return fail("Invalid memory state filter.");
+    const rows = await env.DB.prepare(\`
+      SELECT id, category, content, memory_kind, source_type, source_ref,
+             confidence_score, review_status, reviewed_at, archived_at,
+             created_at, updated_at
       FROM intelligence_owner_memory
       WHERE owner_uid = ?
+        AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
       ORDER BY updated_at DESC LIMIT 100
-    `).bind(owner.uid).all();
-    return response({ success: true, items: rows.results || [] });
+    \`).bind(owner.uid, state, state, state).all();
+    return response({ success: true, state, items: rows.results || [] });
   }
 
   if (path === "/intelligence/memory" && method === "POST") {
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => !["category","content"].includes(key))) return fail("Invalid memory payload.");
+    const allowed = ["category", "content", "memoryKind", "sourceType", "sourceRef", "confidenceScore"];
+    if (!body || Object.keys(body).some(key => !allowed.includes(key))) return fail("Invalid memory payload.");
     const category = clean(body.category || "general", 40);
     const content = clean(body.content, 4000);
-    if (!category || typeof body.content !== "string" || !content || body.content.length > 4000) return fail("Memory category and content are required and bounded.");
+    const memoryKind = clean(body.memoryKind || "general", 40);
+    const sourceType = clean(body.sourceType || "owner_input", 40);
+    const sourceRef = body.sourceRef == null ? null : clean(body.sourceRef, 1000);
+    const confidenceScore = body.confidenceScore == null ? null : Number(body.confidenceScore);
+    const kinds = ["general", "preference", "goal", "constraint", "decision", "project_context"];
+    const sourceTypes = ["owner_input", "knowledge_record", "system_observation"];
+    if (!category || typeof body.content !== "string" || !content || body.content.length > 4000 ||
+        !kinds.includes(memoryKind) || !sourceTypes.includes(sourceType) ||
+        (sourceRef !== null && (!sourceRef || /[\r\n]/.test(sourceRef))) ||
+        (confidenceScore !== null && (!Number.isInteger(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) ||
+        (sourceType === "owner_input" && sourceRef !== null) ||
+        (sourceType === "knowledge_record" && !uuid(sourceRef))) {
+      return fail("Memory content, type, provenance, or confidence is invalid.");
+    }
     const id = randomId();
     try {
       await env.DB.batch([
-        env.DB.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,category,content) VALUES(?,?,?,?)")
-          .bind(id, owner.uid, category, content),
-        audit(env.DB, owner.uid, "owner_memory_created", "memory", id, { category })
+        env.DB.prepare(\`INSERT INTO intelligence_owner_memory
+          (id,owner_uid,category,content,memory_kind,source_type,source_ref,confidence_score)
+          VALUES(?,?,?,?,?,?,?,?)\`)
+          .bind(id, owner.uid, category, content, memoryKind, sourceType, sourceRef, confidenceScore),
+        audit(env.DB, owner.uid, "owner_memory_created", "memory", id, { category, memoryKind, sourceType, confidenceScore })
       ]);
     } catch {
-      return fail("Owner memory could not be saved.", 503);
+      return fail("Owner memory could not be saved; verify that any linked knowledge belongs to this owner.", 503);
     }
-    return response({ success: true, id }, 201);
+    return response({ success: true, id, reviewStatus: "unreviewed" }, 201);
+  }
+
+  if (path === "/intelligence/memory/review-queue" && method === "GET") {
+    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));
+    const rows = await env.DB.prepare(\`
+      SELECT id, category, content, memory_kind, source_type, source_ref,
+             confidence_score, review_status, reviewed_at, updated_at
+      FROM intelligence_owner_memory
+      WHERE owner_uid = ? AND archived_at IS NULL
+      ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,
+               updated_at ASC
+      LIMIT ?
+    \`).bind(owner.uid, limit).all();
+    return response({ success: true, assessment: "owner_review_state_only", items: rows.results || [] });
   }
 
   const memoryMatch = path.match(/^\/intelligence\/memory\/([0-9a-f-]{36})$/i);
   if (memoryMatch && method === "PUT") {
     const id = memoryMatch[1];
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => !["category","content"].includes(key))) return fail("Invalid memory update.");
+    if (!body || Object.keys(body).some(key => !["category", "content", "action"].includes(key))) return fail("Invalid memory update.");
+    const action = clean(body.action, 20);
+    const now = new Date().toISOString();
+    if (action) {
+      const transitions = {
+        confirm: { sql: "UPDATE intelligence_owner_memory SET review_status='owner_confirmed',reviewed_at=?,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL", audit: "owner_memory_confirmed" },
+        dispute: { sql: "UPDATE intelligence_owner_memory SET review_status='disputed',reviewed_at=?,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL", audit: "owner_memory_disputed" },
+        unverify: { sql: "UPDATE intelligence_owner_memory SET review_status='unreviewed',reviewed_at=NULL,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL", audit: "owner_memory_unverified" },
+        archive: { sql: "UPDATE intelligence_owner_memory SET archived_at=?,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL", audit: "owner_memory_archived" },
+        restore: { sql: "UPDATE intelligence_owner_memory SET archived_at=NULL,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NOT NULL", audit: "owner_memory_restored" }
+      };
+      const transition = transitions[action];
+      if (!transition || Object.keys(body).length !== 1) return fail("Unsupported memory action.");
+      const values = action === "confirm" || action === "dispute" || action === "archive"
+        ? [now, now, id, owner.uid] : [now, id, owner.uid];
+      try {
+        const results = await env.DB.batch([
+          env.DB.prepare(transition.sql).bind(...values),
+          env.DB.prepare(\`
+            INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
+            SELECT ?,?,?,?,?,?,? WHERE changes() = 1
+          \`).bind(randomId(), owner.uid, transition.audit, "memory", id, "{}", Math.floor(Date.now()/1000))
+        ]);
+        if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found or transition not applicable.", 404);
+      } catch {
+        return fail("Owner memory transition failed.", 503);
+      }
+      return response({ success: true, id, action });
+    }
     const category = clean(body.category || "general", 40);
     const content = clean(body.content, 4000);
     if (!category || typeof body.content !== "string" || !content || body.content.length > 4000) return fail("Memory category and content are required and bounded.");
-    const updatedAt = new Date().toISOString();
     try {
       const results = await env.DB.batch([
-        env.DB.prepare("UPDATE intelligence_owner_memory SET category=?,content=?,updated_at=? WHERE id=? AND owner_uid=?")
-          .bind(category, content, updatedAt, id, owner.uid),
-        env.DB.prepare(`
+        env.DB.prepare("UPDATE intelligence_owner_memory SET category=?,content=?,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL")
+          .bind(category, content, now, id, owner.uid),
+        env.DB.prepare(\`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        `).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000))
+        \`).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000))
       ]);
-      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
+      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found or archived.", 404);
     } catch {
       return fail("Owner memory update failed.", 503);
     }
@@ -399,10 +461,10 @@ async function handle(request, env) {
       const results = await env.DB.batch([
         env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?")
           .bind(id, owner.uid),
-        env.DB.prepare(`
+        env.DB.prepare(\`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        `).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
+        \`).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
     } catch {
@@ -410,7 +472,6 @@ async function handle(request, env) {
     }
     return response({ success: true, id, deleted: true });
   }
-
 
   if (path === "/intelligence/knowledge/review-queue" && method === "GET") {
     const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));

@@ -11,6 +11,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0002_intelligence_knowledge_relations.sql",
     ROOT / "migrations" / "0003_intelligence_staging_runtime.sql",
     ROOT / "migrations" / "0004_intelligence_knowledge_provenance.sql",
+    ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -27,9 +28,9 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
 
     def test_ordered_migration_chain_and_idempotence(self):
         self.apply_chain()
-        # 0004 is a one-time additive ALTER TABLE migration; the earlier
-        # CREATE IF NOT EXISTS migrations remain safely repeatable.
-        for path in MIGRATIONS[:-1]:
+        # 0004 and 0005 are one-time additive ALTER TABLE migrations;
+        # only the original CREATE IF NOT EXISTS migrations are repeatable.
+        for path in MIGRATIONS[:4]:
             self.db.executescript(path.read_text(encoding="utf-8"))
         tables = {row[0] for row in self.db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -44,6 +45,8 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "intelligence_staging_rate_limits",
             "intelligence_owner_memory",
         }.issubset(tables))
+        memory_columns = {row[1] for row in self.db.execute("PRAGMA table_info(intelligence_owner_memory)")}
+        self.assertTrue({"memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"}.issubset(memory_columns))
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
         approval_fks = list(self.db.execute(
             "PRAGMA foreign_key_list(intelligence_approval_ledger)"
@@ -204,6 +207,85 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             ("eval-b", 1, 1, 1, 0),
             ("eval-c", 1, 0, 0, 1),
         ])
+
+
+    def test_owner_memory_governance_provenance_and_review(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES('mem-source-a','owner-a','Source','Owner A evidence','owner')
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES('mem-source-b','owner-b','Other','Owner B evidence','owner')
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_owner_memory(
+                id,owner_uid,category,content,memory_kind,source_type,source_ref,confidence_score
+            ) VALUES('mem-a','owner-a','project','A project decision',
+                     'decision','knowledge_record','mem-source-a',90)
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,memory_kind,source_type,source_ref
+                ) VALUES('mem-cross','owner-a','project','Cross-owner reference',
+                         'project_context','knowledge_record','mem-source-b')
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,memory_kind,source_type,source_ref
+                ) VALUES('mem-bad-kind','owner-a','project','Bad kind',
+                         'secret','owner_input',NULL)
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,memory_kind,source_type,source_ref,confidence_score
+                ) VALUES('mem-bad-score','owner-a','project','Bad score',
+                         'goal','owner_input',NULL,101)
+            """)
+        # The database enforces source semantics even if a future caller bypasses the Worker.
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,source_type,source_ref
+                ) VALUES('mem-owner-ref','owner-a','project','Mislabelled source',
+                         'owner_input','mem-source-a')
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_owner_memory(
+                    id,owner_uid,category,content,source_type,source_ref
+                ) VALUES('mem-missing-ref','owner-a','project','Missing source',
+                         'knowledge_record',NULL)
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_owner_memory SET source_ref='mem-source-b'
+                WHERE id='mem-a'
+            """)
+        self.db.execute("""
+            UPDATE intelligence_owner_memory
+            SET review_status='owner_confirmed', reviewed_at='2026-11-19T03:00:00Z'
+            WHERE id='mem-a' AND owner_uid='owner-a'
+        """)
+        self.db.execute("""
+            UPDATE intelligence_owner_memory
+            SET archived_at='2026-11-19T03:05:00Z'
+            WHERE id='mem-a' AND owner_uid='owner-a'
+        """)
+        row = self.db.execute("""
+            SELECT review_status, archived_at, source_ref
+            FROM intelligence_owner_memory WHERE id='mem-a'
+        """).fetchone()
+        self.assertEqual(row, ('owner_confirmed', '2026-11-19T03:05:00Z', 'mem-source-a'))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_owner_memory SET review_status='approved'
+                WHERE id='mem-a'
+            """)
 
     def test_runtime_tables_are_separate_and_idempotent(self):
         self.apply_chain()
