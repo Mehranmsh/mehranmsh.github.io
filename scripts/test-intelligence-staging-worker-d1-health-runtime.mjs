@@ -3683,10 +3683,16 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
       /retained/i
     );
 
+    await db.prepare("UPDATE intelligence_findings SET severity='medium' WHERE id=? AND owner_uid=?")
+      .bind(findingId, ownerUid).run();
     const stale = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(stale.status, 409, "a recommendation changed since display must not accept a stale review key");
+    const unknown = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
       { method: "POST", headers, body: JSON.stringify({ ...body, reviewKey: "0".repeat(64) }) });
-    assert.equal(stale.status, 409);
+    assert.equal(unknown.status, 409);
     const spoof = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
       { method: "POST", headers, body: JSON.stringify({ ...body, ownerUid: "spoof" }) });
