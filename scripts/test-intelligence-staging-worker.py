@@ -68,7 +68,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('path === "/intelligence/knowledge"', self.source)
         self.assertIn('path === "/intelligence/knowledge/relations"', self.source)
         self.assertIn('path === "/intelligence/approvals"', self.source)
-        self.assertNotRegex(self.source, r'path\s*===\s*["\']/intelligence/tasks')
+        self.assertIn('path === "/intelligence/tasks"', self.source)
+        self.assertIn('executionEnabled: false', self.source)
+        self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
 
     def test_bounded_json_and_rate_limits(self):
         self.assertIn('MAX_BODY_BYTES = 20_000', self.source)
