@@ -22,6 +22,8 @@ required = [
     'Execution enabled: ',
     'EXECUTOR: DISABLED',
     'sessionToken = ""',
+    'Staging session expired. Sign in with Pi again.',
+    'response.status===401&&sessionToken',
     'No production data, secrets, approvals or sessions are shared.',
 ]
 for marker in required:
