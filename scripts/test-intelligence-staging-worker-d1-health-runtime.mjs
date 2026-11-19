@@ -1659,3 +1659,103 @@ async function testApprovalBindingIsImmutableAcrossLifecycle() {
 }
 
 await testApprovalBindingIsImmutableAcrossLifecycle();
+
+
+async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsumes() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const foreignUid = "foreign-capability-owner";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const approvalId = "12121212-1212-4212-8212-121212121212";
+  const foreignApprovalId = "34343434-3434-4434-8434-343434343434";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-capability-assessment-boundary", tokenHash(token), ownerUid, now, now + 3600).run();
+
+    for (const [id, owner] of [[approvalId, ownerUid], [foreignApprovalId, foreignUid]]) {
+      await db.prepare(
+        "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+      ).bind(id, owner, "memory.delete", now, now + 1800).run();
+    }
+
+    const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    const forged = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        capability: "memory.delete",
+        approval: {
+          serverVerified: true,
+          ownerId: ownerUid,
+          capability: "memory.delete",
+          scope: "owner_staging",
+          status: "issued",
+          expiresAt: now + 1800,
+          revoked: false,
+          revokedAt: null,
+          consumedAt: null,
+          consumedBy: null
+        }
+      }),
+    });
+    assert.equal(forged.status, 400, "client-supplied approval objects must be rejected");
+
+    const foreign = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.delete", approvalId: foreignApprovalId }),
+    });
+    assert.equal(foreign.status, 200);
+    const foreignBody = await foreign.json();
+    assert.equal(foreignBody.assessment.decision, "assessment_only_approval_required",
+      "an approval owned by another user must not be loaded or validated");
+    assert.equal(foreignBody.operationPerformed, false);
+    assert.equal(foreignBody.approvalConsumed, false);
+
+    const valid = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.delete", approvalId }),
+    });
+    assert.equal(valid.status, 200);
+    const validBody = await valid.json();
+    assert.equal(validBody.assessment.decision, "assessment_only_approval_validated");
+    assert.equal(validBody.assessment.executionEnabled, false);
+    assert.equal(validBody.assessment.assessmentOnly, true);
+    assert.equal(validBody.assessment.operationPerformed, false);
+    assert.equal(validBody.operationPerformed, false);
+    assert.equal(validBody.approvalConsumed, false);
+    assert.equal(validBody.auditRecorded, true);
+
+    const mismatch = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ capability: "memory.create", approvalId }),
+    });
+    assert.equal(mismatch.status, 200);
+    assert.equal((await mismatch.json()).assessment.decision, "assessment_only_denied",
+      "approval for one capability must not authorize another");
+
+    const rows = await db.prepare(
+      "SELECT id,owner_uid,capability,status,revoked_at,consumed_at,consumed_by FROM intelligence_capability_approvals ORDER BY id"
+    ).all();
+    const ownerRow = rows.results.find(row => row.id === approvalId);
+    const foreignRow = rows.results.find(row => row.id === foreignApprovalId);
+    assert.equal(ownerRow.status, "issued");
+    assert.equal(ownerRow.revoked_at, null);
+    assert.equal(ownerRow.consumed_at, null);
+    assert.equal(ownerRow.consumed_by, null);
+    assert.equal(foreignRow.status, "issued");
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='capability_assessed'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(audit.count), 3, "every assessment request must be audited exactly once");
+    console.log("PASS: capability assessment rejects client approval claims, isolates owners, matches capability, and never consumes or executes");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsumes();
