@@ -2537,6 +2537,18 @@ async function testCorsPreflightOriginBoundaries() {
       assert.equal(rejected.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io",
         "preflight responses must never reflect an untrusted Origin");
 
+      const originless = await mf.dispatchFetch(`http://localhost${path}`, {
+        method: "OPTIONS",
+        headers: {
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "authorization,content-type",
+        },
+      });
+      assert.equal(originless.status, 200,
+        `preflight without Origin must preserve non-browser compatibility for ${path}`);
+      assert.equal(originless.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io",
+        "originless preflight must retain only the configured allow-origin value");
+
       const accepted = await mf.dispatchFetch(`http://localhost${path}`, {
         method: "OPTIONS",
         headers: {
