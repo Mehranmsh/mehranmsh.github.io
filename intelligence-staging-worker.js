@@ -11,7 +11,7 @@ import { buildEvidenceDrift } from "./intelligence-evidence-drift.mjs";
 import { buildEvidenceCorrelation } from "./intelligence-evidence-correlation.mjs";
 import { buildEvidenceConsistency } from "./intelligence-evidence-consistency.mjs";
 import { buildEvidenceDecisionSupport } from "./intelligence-evidence-decision-support.mjs";
-import { EVIDENCE_DECISION_REVIEW_OUTCOMES, buildEvidenceDecisionReviewSnapshot, buildEvidenceDecisionReviewHistory } from "./intelligence-evidence-decision-review.mjs";
+import { EVIDENCE_DECISION_REVIEW_OUTCOMES, buildEvidenceDecisionReviewSnapshot, buildEvidenceDecisionReviewHistory, buildEvidenceDecisionReviewIntegrity } from "./intelligence-evidence-decision-review.mjs";
 import { EVIDENCE_CORRELATION_REVIEW_OUTCOMES, EVIDENCE_CORRELATION_TYPES, buildEvidenceCorrelationReviewSnapshot, buildEvidenceCorrelationReviewHistory } from "./intelligence-evidence-correlation-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -1018,6 +1018,46 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Decision review history is unavailable. Confirm staging migration 0012 is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-decision-reviews/integrity" && method === "GET") {
+    const allowedParams = new Set(["limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported decision review integrity filter.");
+    }
+    const rawLimit = url.searchParams.get("limit") || "50";
+    const limit = Number(rawLimit);
+    if (!/^(?:[1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Decision review integrity limit must be an integer from 1 to 100.");
+    }
+    try {
+      const result = await env.DB.prepare(`
+        SELECT id, owner_uid, reviewer_uid, source_type, source_id, outcome,
+               reviewed_at, review_snapshot_json, review_snapshot_sha256
+        FROM intelligence_evidence_decision_reviews
+        WHERE owner_uid = ?
+        ORDER BY reviewed_at DESC, id DESC
+        LIMIT ?
+      `).bind(owner.uid, limit + 1).all();
+      const fetched = result.results || [];
+      const truncated = fetched.length > limit;
+      const rows = fetched.slice(0, limit);
+      const integrity = await buildEvidenceDecisionReviewIntegrity(rows, async value => {
+        const bytes = new Uint8Array(await crypto.subtle.digest(
+          "SHA-256", new TextEncoder().encode(value)
+        ));
+        return Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+      });
+      return response({
+        success: true,
+        scope: "authenticated_owner_staging_only",
+        limit,
+        truncated,
+        ...integrity
+      });
+    } catch {
+      return fail("Decision review integrity analysis is unavailable. Confirm staging migration 0012 is present.", 503);
     }
   }
 
