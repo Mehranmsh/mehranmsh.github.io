@@ -856,6 +856,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             "/intelligence/findings/evidence-decision-reviews/integrity?limit=100",
         ]:
             self.assertIn(endpoint, panel_code)
+        self.assertIn('if(data.scope!=="authenticated_owner_staging_only")', panel_code)
         for fragment in [
             "Promise.allSettled",
             "authenticated_owner_staging_only",
