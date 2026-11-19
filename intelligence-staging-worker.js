@@ -175,7 +175,7 @@ async function handle(request, env) {
         "intelligence_tasks", "intelligence_knowledge", "intelligence_approval_ledger",
         "intelligence_knowledge_relations", "intelligence_staging_sessions",
         "intelligence_staging_audit", "intelligence_staging_rate_limits",
-        "intelligence_owner_memory"
+        "intelligence_owner_memory", "intelligence_capability_approvals"
       ];
       const rows = await env.DB.prepare(
         `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${required.map(() => "?").join(",")})`

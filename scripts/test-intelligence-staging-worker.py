@@ -14,6 +14,17 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
 
+    def test_health_requires_the_capability_approval_ledger(self):
+        match = re.search(
+            r'const required = \[(.*?)\];',
+            self.source,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match, "Health route must declare its required schema tables.")
+        required_tables = set(re.findall(r'"([a-z_]+)"', match.group(1)))
+        self.assertIn("intelligence_capability_approvals", required_tables)
+        self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
+
     def test_pi_identity_is_verified_server_side(self):
         self.assertIn('https://api.minepi.com/v2/me', self.source)
         self.assertIn('Authorization: `Bearer ${accessToken}`', self.source)
