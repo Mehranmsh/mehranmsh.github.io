@@ -5,6 +5,7 @@ import { scoreFindingPriority, compareFindingPriority } from "./intelligence-fin
 import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
 import { analyzeDependencyImpact, COMPANY_MODULES } from "./intelligence-dependency-impact.mjs";
 import { buildGapTestStrategy } from "./intelligence-gap-test-strategy.mjs";
+import { buildEvidenceMetadataReview } from "./intelligence-evidence-review.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -703,6 +704,48 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Gap analysis and test strategy are unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/evidence-review" && method === "GET") {
+    const allowedParams = new Set(["module", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported evidence review filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    const rawLimit = url.searchParams.get("limit") || "100";
+    const limit = Number(rawLimit);
+    if (moduleId && !COMPANY_MODULES.includes(moduleId)) return fail("Unknown evidence review module.");
+    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Evidence review limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT f.id, f.module_id, f.check_id, f.severity, f.status, f.evidence_state,
+          COUNT(e.id) AS evidence_count,
+          SUM(CASE WHEN e.id IS NOT NULL AND e.content_digest IS NULL THEN 1 ELSE 0 END) AS missing_digest_count,
+          SUM(CASE WHEN e.id IS NOT NULL AND e.observed_at IS NULL THEN 1 ELSE 0 END) AS missing_observed_at_count,
+          COUNT(e.content_digest) - COUNT(DISTINCT e.content_digest) AS duplicate_digest_count
+        FROM intelligence_findings f
+        LEFT JOIN intelligence_finding_evidence e
+          ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+        WHERE f.owner_uid = ? AND (? = '' OR f.module_id = ?)
+        GROUP BY f.id
+        ORDER BY f.updated_at DESC, f.id DESC
+        LIMIT ?
+      `).bind(owner.uid, moduleId, moduleId, limit).all();
+      const review = buildEvidenceMetadataReview(rows.results || []);
+      return response({
+        success: true,
+        scope: "authenticated_owner_staging_only",
+        assessment: "recorded_evidence_metadata_review_only",
+        module: moduleId || null,
+        executionEnabled: false,
+        operationPerformed: false,
+        ...review
+      });
+    } catch {
+      return fail("Evidence metadata review is unavailable. Confirm the staging findings schema is present.", 503);
     }
   }
 
