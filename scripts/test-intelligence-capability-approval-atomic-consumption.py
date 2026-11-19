@@ -2,7 +2,6 @@
 """Prove one-time capability approval consumption and mutation are atomic in SQLite."""
 from pathlib import Path
 import sqlite3
-import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,9 +27,8 @@ WHERE id=? AND owner_uid=? AND capability=? AND scope='owner_staging'
   AND status='issued' AND expires_at>? AND revoked_at IS NULL
   AND consumed_at IS NULL AND consumed_by IS NULL
 """
-# In a D1 batch, every statement runs in one transaction. This deliberate
-# constraint violation aborts the batch if the immediately preceding statement
-# did not change exactly one row. The audit table's details_json is NOT NULL.
+# Deliberately violates a NOT NULL constraint unless the immediately preceding
+# statement changed exactly one row. D1 batch rolls the transaction back.
 ASSERT_ONE_CHANGE = """
 INSERT INTO intelligence_staging_audit
 (id,owner_uid,action,target_type,target_id,details_json,created_at)
@@ -65,9 +63,10 @@ class AtomicCapabilityConsumptionTests(unittest.TestCase):
     def run_atomic_operation(self, *, grant_id="grant-valid", owner="owner-a",
                              capability="memory.create", now=150,
                              operation_id="op-1", fail_operation=False):
+        consumer_id = "staging-operation:" + operation_id
         try:
             self.db.execute("BEGIN IMMEDIATE")
-            self.db.execute(CONSUME, (now, "staging-operation", grant_id,
+            self.db.execute(CONSUME, (now, consumer_id, grant_id,
                                       owner, capability, now))
             self.db.execute(ASSERT_ONE_CHANGE)
             if fail_operation:
@@ -77,11 +76,19 @@ class AtomicCapabilityConsumptionTests(unittest.TestCase):
                     VALUES (?, ?, ?, NULL)
                 """, (operation_id, owner, capability))
             else:
+                # The unique request/consumer ID binds the mutation to this exact
+                # successful consume, without relying on changes() after the guard.
                 self.db.execute("""
                     INSERT INTO protected_operations(id,owner_uid,capability,payload)
                     SELECT ?, ?, ?, 'committed'
-                    WHERE changes() = 1
-                """, (operation_id, owner, capability))
+                    WHERE EXISTS (
+                        SELECT 1 FROM intelligence_capability_approvals
+                        WHERE id=? AND owner_uid=? AND capability=?
+                          AND scope='owner_staging' AND status='consumed'
+                          AND consumed_by=? AND consumed_at=?
+                    )
+                """, (operation_id, owner, capability, grant_id, owner,
+                      capability, consumer_id, now))
             self.db.execute(ASSERT_ONE_CHANGE)
             self.db.commit()
             return True
@@ -98,7 +105,7 @@ class AtomicCapabilityConsumptionTests(unittest.TestCase):
         self.assertEqual(self.db.execute("""
             SELECT status, consumed_by FROM intelligence_capability_approvals
             WHERE id='grant-valid'
-        """).fetchone(), ("consumed", "staging-operation"))
+        """).fetchone(), ("consumed", "staging-operation:op-first"))
         self.assertEqual(self.db.execute("""
             SELECT COUNT(*) FROM intelligence_staging_audit
             WHERE target_id='grant-valid' AND action='capability_approval_consumed'
