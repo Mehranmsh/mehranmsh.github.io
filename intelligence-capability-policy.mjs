@@ -54,9 +54,11 @@ export function evaluateCapabilityRequest(request, nowMs = Date.now()) {
   if (!approval || approval.serverVerified !== true) {
     return { decision: "approval_required", reason: "owner_approval_required", executionEnabled: EXECUTION_ENABLED, capabilityKnown: true };
   }
-  if (approval.ownerId !== request.ownerId || approval.capability !== request.capability ||
-      approval.scope !== capability.scope || approval.revoked === true ||
-      !Number.isFinite(approval.expiresAt) || approval.expiresAt <= nowMs) {
+  if (typeof request.ownerId !== "string" || request.ownerId.length === 0 ||
+      approval.ownerId !== request.ownerId || approval.capability !== request.capability ||
+      approval.scope !== capability.scope || approval.revoked !== false ||
+      !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(approval.expiresAt) ||
+      approval.expiresAt <= nowMs) {
     return { decision: "deny", reason: "approval_invalid_expired_or_out_of_scope", executionEnabled: EXECUTION_ENABLED, capabilityKnown: true };
   }
   return {
