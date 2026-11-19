@@ -74,3 +74,17 @@ test("approval must still be issued and have no terminal ledger metadata", () =>
   }
   assert.equal(evaluateCapabilityRequest({ ...request, approval: good }, 1000).decision, "eligible_after_owner_approval");
 });
+
+test("approval expiry timestamps use Unix seconds like the D1 ledger", () => {
+  const request = { ...base, capability: "memory.delete" };
+  const approval = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 101, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
+  const originalNow = Date.now;
+  Date.now = () => 100_000;
+  try {
+    assert.equal(evaluateCapabilityRequest({ ...request, approval }).decision, "eligible_after_owner_approval");
+  } finally {
+    Date.now = originalNow;
+  }
+  assert.equal(evaluateCapabilityRequest({ ...request, approval }, 101).decision, "deny");
+  assert.equal(evaluateCapabilityRequest({ ...request, approval }, 100).decision, "eligible_after_owner_approval");
+});
