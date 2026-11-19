@@ -548,6 +548,23 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     assert.equal(issuedBody.executionEnabled, false);
     assert.equal(issuedBody.status, "issued");
 
+    const expiredId = "88888888-8888-4888-8888-888888888888";
+    await db.prepare(`
+      INSERT INTO intelligence_capability_approvals
+        (id,owner_uid,capability,scope,status,issued_at,expires_at)
+      VALUES(?,?,?,'owner_staging','issued',?,?)
+    `).bind(expiredId, ownerUid, "memory.delete", now - 120, now - 60).run();
+    const approvalList = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(approvalList.status, 200);
+    const approvalListBody = await approvalList.json();
+    assert.equal(approvalListBody.items.find(item => item.id === expiredId).status, "expired");
+    const expiredStored = await db.prepare(
+      "SELECT status FROM intelligence_capability_approvals WHERE id=? AND owner_uid=?"
+    ).bind(expiredId, ownerUid).first();
+    assert.equal(expiredStored.status, "issued", "GET must not mutate the approval ledger");
+
     const assessment = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
