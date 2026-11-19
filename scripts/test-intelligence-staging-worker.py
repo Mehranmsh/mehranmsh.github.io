@@ -93,6 +93,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('approval: null', self.source)
         self.assertIn('operationPerformed: false', self.source)
         self.assertIn('assessmentOnly: true', self.source)
+        self.assertIn('audit(env.DB, owner.uid, "capability_assessed"', self.source)
+        self.assertIn('Capability assessment could not be safely audited.', self.source)
+        self.assertIn('auditRecorded: true', self.source)
         self.assertIn('executionEnabled: false', self.source)
 
     def test_archived_knowledge_can_be_listed_without_cross_owner_access(self):
