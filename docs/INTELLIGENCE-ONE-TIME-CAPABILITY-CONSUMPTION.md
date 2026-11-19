@@ -10,7 +10,7 @@ A future approved mutation must be a single Cloudflare D1 `batch()` whose statem
 
 1. Conditionally transition exactly one matching capability grant from `issued` to `consumed`.
 2. Assert that the immediately preceding statement changed exactly one row.
-3. Perform exactly one owner-scoped mutation, conditioned on the successful consume statement.
+3. Perform exactly one owner-scoped mutation, conditioned on the exact consumed grant and a unique per-request consumer ID.
 4. Assert that the mutation changed exactly one row.
 5. Write the operation-completed audit event. The migration's state-transition trigger separately records the grant-consumed event.
 
@@ -18,7 +18,7 @@ If any statement fails, the D1 batch must roll back the grant transition, its tr
 
 ## Conditional consume statement
 
-The future Worker must derive owner identity from the authenticated server session. It must never accept owner UID, approval status, scope, or a trusted approval object from the client.
+The future Worker must derive owner identity from the authenticated server session. It must never accept owner UID, approval status, scope, or a trusted approval object from the client. The Worker also creates a unique request/consumer ID and uses it as `consumed_by` for this single attempt.
 
 ```sql
 UPDATE intelligence_capability_approvals
@@ -32,7 +32,9 @@ The conditional update is the single-use gate. Concurrent requests race on the s
 
 ## Fail-closed row-count guards
 
-D1 batch does not provide application-level branching between statements. Therefore, the future batch needs a database-enforced guard after the consume statement and after the mutation. A guard statement should deliberately violate a NOT NULL constraint if the preceding statement changed anything other than exactly one row. That constraint failure aborts the batch and rolls back all earlier statements.
+D1 batch does not provide application-level branching between statements. Therefore, the future batch needs a database-enforced guard after the consume statement and after the mutation. A guard statement should deliberately violate a NOT NULL constraint if the immediately preceding statement changed anything other than exactly one row. That constraint failure aborts the batch and rolls back all earlier statements.
+
+After the consume guard, the mutation must check the consumed approval row using the unique per-request consumer ID, owner, capability, scope, and timestamp. It must not depend on `changes()` from the consume statement because the guard statement itself becomes the immediately preceding SQL statement.
 
 The disposable SQLite test implements this pattern using `intelligence_staging_audit.details_json` (NOT NULL) and `WHERE changes() <> 1`. The guard is a test/design primitive, not a production route or permission to execute.
 
@@ -52,7 +54,7 @@ The disposable SQLite test implements this pattern using `intelligence_staging_a
 
 `scripts/test-intelligence-capability-approval-atomic-consumption.py` applies the full staging migration chain to disposable SQLite and verifies:
 
-- only one of two sequential competing uses can consume the same grant;
+- only one of two competing uses can consume the same grant;
 - wrong owner, wrong capability, expired, and revoked grants fail closed;
 - a failed protected mutation rolls back consumption and trigger-generated audit;
 - a successful operation and the consumed state commit together.
