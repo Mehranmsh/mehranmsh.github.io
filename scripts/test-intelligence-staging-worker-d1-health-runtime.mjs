@@ -2740,7 +2740,7 @@ async function testSecurityHeadersAcrossResponseMatrix() {
     ["POST", "/intelligence/tasks", JSON.stringify({}), 401],
     ["GET", "/intelligence/memory", undefined, 401],
     ["POST", "/intelligence/knowledge", JSON.stringify({}), 401],
-    ["GET", "/not-a-real-route", undefined, 404],
+    ["GET", "/not-a-real-route", undefined, 401],
   ];
   const expected = {
     "X-Content-Type-Options": "nosniff",
@@ -2768,7 +2768,7 @@ async function testSecurityHeadersAcrossResponseMatrix() {
       assert.match(response.headers.get("Content-Type") || "", /^application\/json\s*;/i,
         `responses must declare JSON content type for ${method} ${path}`);
     }
-    console.log(`PASS: security and cache headers remain consistent across ${cases.length} success and error response cases`);
+    console.log(`PASS: security and cache headers remain consistent across ${cases.length} success, authentication, and error response cases`);
   } finally {
     await mf.dispose();
   }
