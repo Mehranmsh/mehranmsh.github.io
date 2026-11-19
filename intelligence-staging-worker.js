@@ -367,7 +367,8 @@ async function handle(request, env) {
     const state = clean(url.searchParams.get("state") || "active", 16);
     if (!["active","archived","all"].includes(state)) return fail("Invalid knowledge state.");
     const rows = await env.DB.prepare(`
-      SELECT id, category, title, content, importance, created_at, updated_at, archived_at
+      SELECT id, category, title, content, importance, created_at, updated_at, archived_at,
+             source_type, source_ref, observed_at, confidence_score, verification_status
       FROM intelligence_knowledge
       WHERE owner_uid = ?
         AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
@@ -378,7 +379,17 @@ async function handle(request, env) {
 
   if (path === "/intelligence/knowledge" && method === "POST") {
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => !["category","title","content","importance"].includes(key))) return fail("Invalid knowledge payload.");
+    if (!body || Object.keys(body).some(key => !["category","title","content","importance","sourceType","sourceRef","observedAt","confidenceScore"].includes(key))) return fail("Invalid knowledge payload.");
+    const sourceType = clean(body.sourceType || "owner_input", 32);
+    const sourceRef = body.sourceRef === undefined ? "" : body.sourceRef;
+    const observedAt = body.observedAt === undefined ? "" : body.observedAt;
+    const confidenceScore = body.confidenceScore === undefined ? null : body.confidenceScore;
+    if (!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType) ||
+        typeof sourceRef !== "string" || sourceRef.length > 1000 ||
+        typeof observedAt !== "string" || observedAt.length > 40 ||
+        (observedAt && (!/^\\d{4}-\\d{2}-\\d{2}T.*(?:Z|[+-]\\d{2}:?\\d{2})$/.test(observedAt) || !Number.isFinite(Date.parse(observedAt)))) ||
+        (confidenceScore !== null && (!Number.isInteger(confidenceScore) || confidenceScore < 0 || confidenceScore > 100)) ||
+        (sourceType === "external_url" && (!/^https:\\/\\//i.test(sourceRef) || sourceRef.slice(8).includes("@")))) return fail("Invalid knowledge provenance.");
     const title = clean(body.title, 160);
     const content = clean(body.content, 12000);
     const category = clean(body.category || "company", 40);
@@ -387,8 +398,8 @@ async function handle(request, env) {
     const id = randomId();
     try {
       await env.DB.batch([
-        env.DB.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by) VALUES(?,?,?,?,?,?,?)")
-          .bind(id, owner.uid, category, title, content, importance, "pi-owner"),
+        env.DB.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,category,title,content,importance,created_by,source_type,source_ref,observed_at,confidence_score) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+          .bind(id, owner.uid, category, title, content, importance, "pi-owner", sourceType, sourceRef, observedAt, confidenceScore),
         audit(env.DB, owner.uid, "knowledge_created", "knowledge", id, { category, importance })
       ]);
     } catch {
@@ -403,9 +414,16 @@ async function handle(request, env) {
     const body = await readJson(request);
     if (!body || Object.keys(body).some(key => !["action","category","title","content","importance"].includes(key))) return fail("Invalid knowledge payload.");
     const action = body.action || "update";
-    if (!["update","archive","restore"].includes(action)) return fail("Invalid knowledge action.");
+    if (!["update","archive","restore","verify","dispute","unverify"].includes(action)) return fail("Invalid knowledge action.");
     let statement, auditAction, details = {};
-    if (action === "archive") {
+    if (["verify","dispute","unverify"].includes(action)) {
+      if (Object.keys(body).some(key => key !== "action")) return fail("Verification review accepts only an action.");
+      const nextStatus = ({ verify: "owner_verified", dispute: "disputed", unverify: "unreviewed" })[action];
+      statement = env.DB.prepare("UPDATE intelligence_knowledge SET verification_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL AND verification_status<>?")
+        .bind(nextStatus, id, owner.uid, nextStatus);
+      auditAction = ({ verify: "knowledge_owner_verified", dispute: "knowledge_disputed", unverify: "knowledge_verification_reset" })[action];
+      details = { verificationStatus: nextStatus };
+    } else if (action === "archive") {
       if (Object.keys(body).some(key => key !== "action")) return fail("Archive accepts only an action.");
       statement = env.DB.prepare("UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(id, owner.uid);
       auditAction = "knowledge_archived";
