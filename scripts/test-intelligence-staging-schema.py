@@ -77,6 +77,47 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertNotIn("admin_audit_log", found)
         self.assertNotIn("social_users", found)
 
+    def test_approval_scope_constraints_and_expiry_audit(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_tasks(id,title,created_by)
+            VALUES('task-a','Task A','owner-a')
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_approval_ledger(
+                    id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                    scope_json,scope_sha256,status,issued_at,expires_at
+                ) VALUES('bad-scope','task-a','owner-a','mehranmsh','owner/repo','main',
+                         '0123456789012345678901234567890123456789','[]','hash','issued',100,200)
+            """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_approval_ledger(
+                    id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                    scope_json,scope_sha256,status,issued_at,expires_at
+                ) VALUES('bad-lifetime','task-a','owner-a','mehranmsh','owner/repo','main',
+                         '0123456789012345678901234567890123456789','{"paths":["src/"]}',
+                         'hash','issued',100,4001)
+            """)
+        self.db.execute("""
+            INSERT INTO intelligence_approval_ledger(
+                id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                scope_json,scope_sha256,status,issued_at,expires_at
+            ) VALUES('approval-a','task-a','owner-a','mehranmsh','owner/repo','main',
+                     '0123456789012345678901234567890123456789','{"paths":["src/"]}',
+                     'hash','issued',100,200)
+        """)
+        self.db.execute("""
+            UPDATE intelligence_approval_ledger SET status='expired'
+            WHERE id='approval-a' AND status='issued'
+        """)
+        event = self.db.execute("""
+            SELECT action,target_id FROM intelligence_staging_audit
+            WHERE target_id='approval-a'
+        """).fetchone()
+        self.assertEqual(event, ('approval_expired','approval-a'))
+
     def test_runtime_tables_enforce_session_rate_and_memory_bounds(self):
         self.apply_chain()
         with self.assertRaises(sqlite3.IntegrityError):
