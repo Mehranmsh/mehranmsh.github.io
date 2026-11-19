@@ -62,6 +62,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         for pattern in forbidden:
             self.assertIsNone(re.search(pattern, self.source), pattern)
         self.assertIn('executor: false', self.source)
+        self.assertIn('PRAGMA foreign_keys', self.source)
+        self.assertIn('PRAGMA foreign_key_check', self.source)
+        self.assertIn('foreignKeyViolations', self.source)
 
     def test_route_allowlist_has_no_task_execution_endpoint(self):
         self.assertIn('path === "/health"', self.source)
