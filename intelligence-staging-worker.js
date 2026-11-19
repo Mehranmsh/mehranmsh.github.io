@@ -574,6 +574,7 @@ async function handle(request, env) {
         scope: "authenticated_owner_staging_only",
         assessment: "deterministic_metadata_triage_only",
         triageModel: "deterministic_metadata_v1",
+        isRiskVerdict: false,
         executionEnabled: false,
         operationPerformed: false,
         limitations: [
