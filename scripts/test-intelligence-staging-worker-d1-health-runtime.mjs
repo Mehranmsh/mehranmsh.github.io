@@ -2807,7 +2807,7 @@ async function testForbiddenOriginResponsesKeepSecurityHeaders() {
       }
       assert.notEqual(response.headers.get("Access-Control-Allow-Origin"), origin,
         "an untrusted Origin must never be reflected in CORS response headers");
-      assert.match(response.headers.get("Content-Type") || "", /^application\\/json\\s*;/i,
+      assert.match(response.headers.get("Content-Type") || "", /^application\/json\s*;/i,
         "forbidden-Origin responses must remain JSON");
     }
     console.log(`PASS: security headers remain intact and attacker Origins are never reflected across ${cases.length} forbidden-Origin responses`);
