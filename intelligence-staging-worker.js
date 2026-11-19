@@ -761,7 +761,7 @@ async function handle(request, env) {
     const rawLimit = url.searchParams.get("limit") || "50";
     const limit = Number(rawLimit);
     if (!uuid(findingId)) return fail("A valid finding ID is required.");
-    if (!/^(?:[1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^(?:[1-9]\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Review history limit must be an integer from 1 to 100.");
     }
     try {
