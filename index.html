@@ -1031,7 +1031,11 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelPriorityActionPlanStatus" class="notice" aria-live="polite">Priority action plan has not been loaded.</div>
  <div id="intelPriorityActionPlanSummary" class="grid intelligence-stats" aria-live="polite"></div>
  <div id="intelPriorityActionPlanList" class="grid"><div class="empty">Refresh to load the owner-scoped advisory action plan.</div></div>
- <div class="notice warn">This is deterministic triage, not a risk verdict or certification. Evidence metadata does not prove evidence contents or correctness. No task, approval, owner decision, finding update, or company operation is created here. Execution remains disabled.</div>
+ <div class="section-title"><h3>Owner review integrity</h3><button class="btn secondary small" id="refreshIntelPriorityActionReviewIntegrityBtn" type="button">Check review integrity</button></div>
+ <div id="intelPriorityActionReviewIntegrityStatus" class="notice" aria-live="polite">Review snapshot integrity has not been checked.</div>
+ <div id="intelPriorityActionReviewIntegritySummary" class="grid intelligence-stats" aria-live="polite"></div>
+ <div class="notice warn">This is a metadata-integrity check of stored review snapshots, not proof that a decision is true or evidence is correct. Reviews are append-only and do not execute actions.</div>
+ <div class="notice warn">This is deterministic triage, not a risk verdict or certification. Evidence metadata does not prove evidence contents or correctness. No task, approval, finding update, or company operation is created here. Execution remains disabled.</div>
 </div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
@@ -2753,11 +2757,77 @@ function renderIntelPriorityActionPlan(data){
   card.append(heading,meta,status,reason,recommendation,evidence);
   intelAppendTextList(card,"Suggested steps",action.suggestedSteps);
   intelAppendTextList(card,"Validation to perform",action.requiredValidation);
-  const approval=document.createElement("div");approval.className="notice warn";
-  approval.textContent="Owner approval required. This panel records no decision and cannot execute the recommendation.";
-  card.append(approval);list.append(card);
+  const review=document.createElement("section");review.className="intel-action-review";
+  const reviewTitle=document.createElement("h4");reviewTitle.textContent="Owner review";
+  const reviewNote=document.createElement("p");reviewNote.className="small-text";reviewNote.textContent="Record your decision about this advisory action. This does not change the finding or execute remediation.";
+  const outcome=document.createElement("select");outcome.setAttribute("aria-label","Owner review outcome");
+  for(const [value,label] of [["accepted","Accepted"],["rejected","Rejected"],["needs_more_info","Needs more information"]]){const option=document.createElement("option");option.value=value;option.textContent=label;outcome.append(option);}
+  const reasonInput=document.createElement("textarea");reasonInput.maxLength=1000;reasonInput.rows=2;reasonInput.placeholder="Reason for this decision (required, up to 1,000 characters)";reasonInput.setAttribute("aria-label","Reason for owner review");
+  const save=document.createElement("button");save.type="button";save.className="btn small";save.textContent="Save owner review";
+  const feedback=document.createElement("div");feedback.className="notice";feedback.setAttribute("aria-live","polite");feedback.textContent="No review submitted in this session.";
+  const historyTitle=document.createElement("h5");historyTitle.textContent="Review history";
+  const history=document.createElement("div");history.className="intel-action-review-history";history.textContent="Loading owner review history...";
+  review.append(reviewTitle,reviewNote,outcome,reasonInput,save,feedback,historyTitle,history);
+  save.addEventListener("click",async()=>{
+   const reason=reasonInput.value.trim();
+   if(!reason||reason.length>1000){feedback.textContent="Enter a reason between 1 and 1,000 characters.";feedback.className="notice warn";return;}
+   if(!/^[0-9a-f]{64}$/.test(String(action.actionKey||""))){feedback.textContent="This action has no valid review key. Refresh the action plan.";feedback.className="notice error";return;}
+   save.disabled=true;feedback.textContent="Verifying the current action and recording your owner review...";feedback.className="notice";
+   try{
+    const result=await api("/intelligence/findings/priority-action-reviews",{method:"POST",body:JSON.stringify({actionKey:action.actionKey,moduleId:action.moduleId,outcome:outcome.value,reason})});
+    if(result.scope&&result.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+    reasonInput.value="";
+    feedback.textContent="Owner review recorded. Finding state changed: No. Company state changed: No. Execution: disabled.";
+    feedback.className="notice success";
+    await loadIntelPriorityActionReviewHistory(action.actionKey,history);
+    await loadIntelPriorityActionReviewIntegrity();
+   }catch(error){feedback.textContent="Review not recorded: "+error.message;feedback.className="notice warn";}
+   finally{save.disabled=false;}
+  });
+  card.append(review);list.append(card);
+  if(/^[0-9a-f]{64}$/.test(String(action.actionKey||"")))loadIntelPriorityActionReviewHistory(action.actionKey,history);
+  else history.textContent="Review history unavailable because this action has no valid review key.";
  }
 }
+async function loadIntelPriorityActionReviewHistory(actionKey,container){
+ if(!container)return;
+ container.textContent="Loading owner review history...";
+ try{
+  const data=await api("/intelligence/findings/priority-action-reviews?actionKey="+encodeURIComponent(actionKey)+"&limit=10");
+  if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+  const items=Array.isArray(data.items)?data.items:[];
+  container.replaceChildren();
+  if(!items.length){const empty=document.createElement("div");empty.className="small-text";empty.textContent="No owner reviews recorded for this action.";container.append(empty);return;}
+  for(const item of items){
+   const entry=document.createElement("article");entry.className="intel-review-history-item";
+   const heading=document.createElement("strong");heading.textContent=String(item.outcome||"review");
+   const date=document.createElement("small");date.textContent=item.reviewedAt?new Date(Number(item.reviewedAt)*1000).toLocaleString():"Date unavailable";
+   const reason=document.createElement("p");reason.textContent=String(item.reason||"No reason supplied.");
+   const meta=document.createElement("small");meta.textContent="Reviewer: "+String(item.reviewerUid||"owner")+" · Snapshot SHA-256: "+String(item.snapshotSha256||"unavailable");
+   entry.append(heading,date,reason,meta);container.append(entry);
+  }
+ }catch(error){container.textContent="Review history unavailable: "+error.message;}
+}
+async function loadIntelPriorityActionReviewIntegrity(){
+ const status=$("intelPriorityActionReviewIntegrityStatus"),summary=$("intelPriorityActionReviewIntegritySummary"),button=$("refreshIntelPriorityActionReviewIntegrityBtn");
+ if(!status||!summary)return;
+ if(button)button.disabled=true;
+ status.textContent="Checking owner-scoped review snapshot metadata...";
+ status.className="notice";
+ try{
+  const data=await api("/intelligence/findings/priority-action-reviews/integrity?limit=100");
+  if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+  const stats=data.summary||{};summary.replaceChildren();
+  for(const [label,value] of [["Records scanned",stats.recordsScanned??0],["Integrity matches",stats.integrityMatches??0],["Hash mismatches",stats.snapshotHashMismatches??0],["Invalid snapshots",stats.invalidSnapshotJson??0],["Identity mismatches",stats.snapshotIdentityMismatches??0],["Reviewer mismatches",stats.reviewerOwnerMismatches??0]]){
+   const item=document.createElement("div");item.className="stat-card";const name=document.createElement("div");name.className="small-text";name.textContent=label;const number=document.createElement("strong");number.textContent=String(value);item.append(name,number);summary.append(item);
+  }
+  status.textContent="Checked "+String(stats.recordsScanned??0)+" owner review records. This verifies stored snapshot metadata only; decision truth is not verified.";
+  status.className=(Number(stats.snapshotHashMismatches||0)+Number(stats.invalidSnapshotJson||0)+Number(stats.snapshotIdentityMismatches||0)+Number(stats.reviewerOwnerMismatches||0))===0?"notice success":"notice warn";
+ }catch(error){status.textContent="Review integrity check unavailable: "+error.message;status.className="notice warn";summary.replaceChildren();}
+ finally{if(button)button.disabled=false;}
+}
+$("refreshIntelPriorityActionReviewIntegrityBtn")?.addEventListener("click",loadIntelPriorityActionReviewIntegrity);
+
 async function loadIntelPriorityActionPlan(){
  const status=$("intelPriorityActionPlanStatus"),button=$("refreshIntelPriorityActionPlanBtn");
  if(!status)return;
@@ -2779,6 +2849,7 @@ async function loadIntelPriorityActionPlan(){
   const data=await api("/intelligence/findings/priority-action-plan"+query);
   if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
   renderIntelPriorityActionPlan(data);
+  loadIntelPriorityActionReviewIntegrity();
   const count=data.summary?.returnedCount??0;
   status.textContent=count+" advisory actions loaded. "+(data.summary?.candidateCount??0)+" recorded findings considered within the bounded candidate set.";
   status.className="notice success";
@@ -4572,6 +4643,8 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 #social-prompt-creator .prompt-folder-subtitle{margin:0 0 12px;color:var(--muted);font-size:11px}
 #social-prompt-creator .prompt-folder-grid[hidden],#social-prompt-creator .prompt-folder-view[hidden],#social-prompt-creator .prompt-gallery-grid[hidden],#social-prompt-creator .prompt-gallery-grid .prompt-template[hidden]{display:none!important}
 @media(max-width:600px){#social-prompt-creator .prompt-folder-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#social-prompt-creator .prompt-folder{min-height:75px;padding:9px;gap:8px}#social-prompt-creator .prompt-folder-icon{width:35px;height:35px;flex-basis:35px;font-size:18px}}
+
+.intel-action-review{display:grid;gap:9px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.intel-action-review h4,.intel-action-review h5{margin:0;font-size:13px}.intel-action-review select,.intel-action-review textarea{width:100%;background:#080f1b;border:1px solid #263b56;color:white;border-radius:9px;padding:10px;font:inherit;font-size:12px}.intel-action-review-history{display:grid;gap:8px}.intel-review-history-item{display:grid;gap:5px;padding:11px;border:1px solid var(--line);border-radius:10px;background:#0b1422}.intel-review-history-item strong{font-size:12px}.intel-review-history-item small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}.intel-review-history-item p{font-size:12px;line-height:1.6;margin:2px 0;overflow-wrap:anywhere}
 </style>
 <script id="prompt-gallery-category-filter-script">
 (()=>{
