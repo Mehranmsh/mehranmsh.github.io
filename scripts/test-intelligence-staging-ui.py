@@ -219,5 +219,5 @@ for marker in [
 coverage_function = page.split("async function loadAssessmentCoverage()", 1)[1].split("async function loadOverview()", 1)[0]
 for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
     assert forbidden not in coverage_function, f"Assessment coverage must remain read-only and avoid HTML injection: {forbidden}"
-assert 'createElement' in coverage_function and '.textContent' in coverage_function
+assert 'createElement' in coverage_function and 'findingsElement(' in coverage_function
 assert "loadAssessmentCoverage()" in refresh_block, "Coverage must load automatically after owner authentication."
