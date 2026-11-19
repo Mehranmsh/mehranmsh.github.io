@@ -1022,6 +1022,17 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelCompanyReadinessSources" class="grid"><div class="empty">Refresh to inspect the availability of each assessment source.</div></div>
  <div class="notice warn">Interpretation limits: no recorded finding does not mean a check passed; a provisional dependency map is not runtime proof; evidence metadata integrity is not evidence correctness; owner review outcomes are not automatic decisions. Partial source failures remain visible and are never treated as positive results.</div>
 </div>
+<div class="panel" id="intelPriorityActionPlanPanel">
+ <div class="section-title"><div><h3>Priority Action Plan</h3><div class="small-text">Evidence-linked advisory actions from recorded findings. Owner review is required before any separate implementation decision.</div></div><button class="btn secondary small" id="refreshIntelPriorityActionPlanBtn" type="button">Refresh action plan</button></div>
+ <div class="grid">
+  <div class="field"><label for="intelPriorityActionModule">Filter by module</label><select id="intelPriorityActionModule"><option value="">All company modules</option></select></div>
+  <div class="field"><label for="intelPriorityActionLimit">Maximum actions</label><select id="intelPriorityActionLimit"><option value="10">10</option><option value="25" selected>25</option><option value="50">50</option><option value="100">100</option></select></div>
+ </div>
+ <div id="intelPriorityActionPlanStatus" class="notice" aria-live="polite">Priority action plan has not been loaded.</div>
+ <div id="intelPriorityActionPlanSummary" class="grid intelligence-stats" aria-live="polite"></div>
+ <div id="intelPriorityActionPlanList" class="grid"><div class="empty">Refresh to load the owner-scoped advisory action plan.</div></div>
+ <div class="notice warn">This is deterministic triage, not a risk verdict or certification. Evidence metadata does not prove evidence contents or correctness. No task, approval, owner decision, finding update, or company operation is created here. Execution remains disabled.</div>
+</div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
  <form id="intelMemoryForm" class="card" autocomplete="off">
@@ -2230,7 +2241,7 @@ message.textContent="Company data could not be loaded: "+error.message+". Sign i
 message.className="notice warn";
 $("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity()}
+}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity();loadIntelPriorityActionPlan()}
 }
 async function testMcpConnection(){
 const button=$("testMcpBtn"),status=$("mcpStatus");
@@ -2702,6 +2713,87 @@ function intelReadinessDetail(key,data){
  if(key==="integrity")return String(data.summary?.recordsScanned??0)+" stored decision snapshots checked";
  return "Response received";
 }
+function intelAppendTextList(parent,label,items){
+ if(!Array.isArray(items)||!items.length)return;
+ const heading=document.createElement("div");heading.className="small-text";heading.textContent=label;
+ const list=document.createElement("ul");
+ for(const item of items.slice(0,12)){const li=document.createElement("li");li.textContent=String(item);list.append(li)}
+ parent.append(heading,list);
+}
+function renderIntelPriorityActionPlan(data){
+ const summary=$("intelPriorityActionPlanSummary"),list=$("intelPriorityActionPlanList");
+ if(!summary||!list)return;
+ summary.replaceChildren();list.replaceChildren();
+ const stats=data.summary||{};
+ const metrics=[
+  ["Candidates considered",String(stats.candidateCount??0)],
+  ["Actions returned",String(stats.returnedCount??0)],
+  ["Critical / high",String(stats.highPriority??0)],
+  ["Owner decisions required",String(stats.ownerDecisionRequired??0)]
+ ];
+ for(const [label,value] of metrics){
+  const card=document.createElement("div");card.className="stat-card";
+  const name=document.createElement("div");name.className="small-text";name.textContent=label;
+  const number=document.createElement("strong");number.textContent=value;
+  card.append(name,number);summary.append(card);
+ }
+ const actions=Array.isArray(data.actions)?data.actions:[];
+ if(!actions.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No recorded findings were returned for this filter. This does not mean company checks passed.";list.append(empty);return}
+ for(const action of actions){
+  const card=document.createElement("article");card.className="card";
+  const heading=document.createElement("h3");heading.textContent=String(action.title||"Recorded finding");
+  const meta=document.createElement("div");meta.className="small-text";
+  meta.textContent="Module: "+String(action.moduleId||"Unspecified")+" · Finding: "+String(action.findingId||"Unavailable")+" · Priority: "+String(action.priorityBand||"unrated")+" ("+String(action.priorityScore??"—")+")";
+  const status=document.createElement("div");status.className="notice warn";
+  status.textContent="Recorded severity: "+String(action.recordedSeverity||"unrated")+" · Recorded status: "+String(action.recordedStatus||"unknown")+" · Owner decision: "+String(action.ownerDecision||"not recorded");
+  const reason=document.createElement("p");reason.textContent=String(action.reasonForAction||"No priority rationale supplied.");
+  const recommendation=document.createElement("p");recommendation.textContent="Recommended action: "+String(action.recommendedAction||"No recommendation recorded.");
+  const evidence=document.createElement("p");evidence.className="small-text";
+  evidence.textContent="Evidence references: "+String(action.evidence?.referenceCount??0)+" · Incomplete metadata: "+String(action.evidence?.incompleteMetadataReferenceCount??0)+" · Assessment: "+String(action.evidence?.assessment||"not assessed")+" · Content verified: No";
+  card.append(heading,meta,status,reason,recommendation,evidence);
+  intelAppendTextList(card,"Suggested steps",action.suggestedSteps);
+  intelAppendTextList(card,"Validation to perform",action.requiredValidation);
+  const approval=document.createElement("div");approval.className="notice warn";
+  approval.textContent="Owner approval required. This panel records no decision and cannot execute the recommendation.";
+  card.append(approval);list.append(card);
+ }
+}
+async function loadIntelPriorityActionPlan(){
+ const status=$("intelPriorityActionPlanStatus"),button=$("refreshIntelPriorityActionPlanBtn");
+ if(!status)return;
+ if(button)button.disabled=true;
+ status.textContent="Loading owner-scoped priority action plan...";
+ status.className="notice";
+ try{
+  const moduleSelect=$("intelPriorityActionModule");
+  if(moduleSelect&&moduleSelect.options.length===1){
+   const moduleData=await api("/intelligence/company/modules");
+   for(const module of (Array.isArray(moduleData.modules)?moduleData.modules:[])){
+    const option=document.createElement("option");option.value=String(module.id||"");option.textContent=String(module.name||module.id||"Module");
+    moduleSelect.append(option);
+   }
+  }
+  const moduleId=moduleSelect?.value||"";
+  const limit=$("intelPriorityActionLimit")?.value||"25";
+  const query="?limit="+encodeURIComponent(limit)+(moduleId?"&module="+encodeURIComponent(moduleId):"");
+  const data=await api("/intelligence/findings/priority-action-plan"+query);
+  if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+  renderIntelPriorityActionPlan(data);
+  const count=data.summary?.returnedCount??0;
+  status.textContent=count+" advisory actions loaded. "+(data.summary?.candidateCount??0)+" recorded findings considered within the bounded candidate set.";
+  status.className="notice success";
+ }catch(error){
+  status.textContent="Priority action plan unavailable: "+error.message;
+  status.className="notice warn";
+  $("intelPriorityActionPlanSummary")?.replaceChildren();
+  const list=$("intelPriorityActionPlanList");
+  if(list){list.replaceChildren();const empty=document.createElement("div");empty.className="empty";empty.textContent="Sign in with the authorized owner account and confirm the staging findings schema is available.";list.append(empty)}
+ }finally{if(button)button.disabled=false}
+}
+$("refreshIntelPriorityActionPlanBtn")?.addEventListener("click",loadIntelPriorityActionPlan);
+$("intelPriorityActionModule")?.addEventListener("change",loadIntelPriorityActionPlan);
+$("intelPriorityActionLimit")?.addEventListener("change",loadIntelPriorityActionPlan);
+
 async function loadIntelCompanyReadiness(){
  const status=$("intelCompanyReadinessStatus"),button=$("refreshIntelCompanyReadinessBtn");
  if(!status)return;
