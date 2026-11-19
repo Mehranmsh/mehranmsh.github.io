@@ -2585,6 +2585,11 @@ async function testOriginSerializationEdgeCasesFailClosed() {
     "https://MEHRANMSH.github.io",
     "https://mehranmsh.github.io.attacker.example:443",
     "file://mehranmsh.github.io",
+    "https://mehranmsh.github.io/",
+    "https://mehranmsh.github.io/path",
+    "https://mehranmsh.github.io?query=1",
+    "https://mehranmsh.github.io#fragment",
+    "https://mehranmsh.github.io, https://attacker.example",
   ];
   try {
     await db.prepare(
