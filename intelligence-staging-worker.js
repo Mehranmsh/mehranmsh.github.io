@@ -958,6 +958,7 @@ async function handle(request, env) {
       ).run();
       return response({
         success: true,
+        scope: "authenticated_owner_staging_only",
         id: reviewId,
         actionKey: body.actionKey,
         findingId: selected.findingId,
