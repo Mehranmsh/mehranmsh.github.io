@@ -785,6 +785,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         start = self.index_html.index("function renderIntelDecisionIntegritySummary(")
         end = self.index_html.index("async function loadProjects()", start)
         panel_code = self.index_html[start:end]
+        review_start = self.index_html.index("async function loadIntelPriorityActionReviews(")
+        review_end = self.index_html.index('$("refreshIntelPriorityActionReviewsBtn")', review_start)
+        panel_code = panel_code.replace(self.index_html[review_start:review_end], "")
         for fragment in [
             "document.createElement(",
             "textContent",
@@ -841,6 +844,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         start = self.index_html.index("function renderIntelCompanyReadiness(")
         end = self.index_html.index("async function loadProjects()", start)
         panel_code = self.index_html[start:end]
+        review_start = self.index_html.index("async function loadIntelPriorityActionReviews(")
+        review_end = self.index_html.index('$("refreshIntelPriorityActionReviewsBtn")', review_start)
+        panel_code = panel_code.replace(self.index_html[review_start:review_end], "")
         for endpoint in [
             "/intelligence/company/assessment-coverage",
             "/intelligence/findings/priorities?limit=100",
