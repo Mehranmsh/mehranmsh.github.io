@@ -929,7 +929,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
         post = self.route_block('if (path === "/intelligence/findings/priority-action-reviews" && method === "POST")')
         for fragment in [
-            '["actionKey", "outcome", "reason"]',
+            '["actionKey", "moduleId", "outcome", "reason"]',
             'PRIORITY_ACTION_REVIEW_OUTCOMES.includes(body.outcome)',
             'WHERE f.owner_uid = ?',
             'LIMIT 500',
