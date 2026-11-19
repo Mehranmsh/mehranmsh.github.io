@@ -138,6 +138,37 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 VALUES('bad-memory','owner-a','general','')
             """)
 
+    def test_memory_delete_audit_requires_owner_match_and_existing_row(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_owner_memory(id,owner_uid,category,content)
+            VALUES('mem-a','owner-a','note','Private note')
+        """)
+        self.db.execute("""
+            DELETE FROM intelligence_owner_memory WHERE id='mem-a' AND owner_uid='owner-b'
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_staging_audit
+            (id,owner_uid,action,target_type,target_id,details_json,created_at)
+            SELECT 'delete-wrong-owner','owner-b','owner_memory_deleted','memory','mem-a','{}',100
+            WHERE changes() = 1
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0], 0)
+        self.db.execute("""
+            DELETE FROM intelligence_owner_memory WHERE id='mem-a' AND owner_uid='owner-a'
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_staging_audit
+            (id,owner_uid,action,target_type,target_id,details_json,created_at)
+            SELECT 'delete-owner-a','owner-a','owner_memory_deleted','memory','mem-a','{}',101
+            WHERE changes() = 1
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT action FROM intelligence_staging_audit WHERE target_id='mem-a'"
+        ).fetchone()[0], 'owner_memory_deleted')
+
     def test_audit_insert_requires_a_successful_state_change(self):
         self.apply_chain()
         self.db.execute("""
