@@ -2505,3 +2505,57 @@ async function testUntrustedOriginRejectedAcrossProtectedRouteMatrix() {
 }
 
 await testUntrustedOriginRejectedAcrossProtectedRouteMatrix();
+
+
+async function testCorsPreflightOriginBoundaries() {
+  const { mf } = await createWorker(migrations.length);
+  const paths = [
+    "/intelligence/capabilities",
+    "/intelligence/capability-approvals",
+    "/intelligence/capabilities/evaluate",
+    "/intelligence/tasks",
+    "/intelligence/memory",
+    "/intelligence/memory/review-queue",
+    "/intelligence/knowledge",
+    "/intelligence/knowledge/review-queue",
+    "/intelligence/knowledge/evaluations",
+    "/intelligence/knowledge/relations",
+    "/intelligence/approvals",
+  ];
+  try {
+    for (const path of paths) {
+      const rejected = await mf.dispatchFetch(`http://localhost${path}`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://mehranmsh.github.io.attacker.example",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "authorization,content-type",
+        },
+      });
+      assert.equal(rejected.status, 403,
+        `untrusted preflight Origin must be rejected for ${path}`);
+      assert.equal(rejected.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io",
+        "preflight responses must never reflect an untrusted Origin");
+
+      const accepted = await mf.dispatchFetch(`http://localhost${path}`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://mehranmsh.github.io",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "authorization,content-type",
+        },
+      });
+      assert.equal(accepted.status, 200,
+        `the configured application Origin must pass preflight for ${path}`);
+      assert.equal(accepted.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io");
+      assert.equal(accepted.headers.get("Vary"), "Origin");
+      assert.match(accepted.headers.get("Access-Control-Allow-Methods") || "", /POST/);
+      assert.match(accepted.headers.get("Access-Control-Allow-Headers") || "", /Authorization/);
+    }
+    console.log(`PASS: CORS preflight rejects spoofed origins and accepts only the configured origin across ${paths.length} protected route families`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCorsPreflightOriginBoundaries();
