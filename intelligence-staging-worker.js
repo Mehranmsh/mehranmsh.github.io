@@ -480,10 +480,10 @@ async function handle(request, env) {
     if (moduleId && !modules.has(moduleId)) return fail("Unknown findings module filter.");
     if (severity && !severities.has(severity)) return fail("Invalid findings severity filter.");
     if (status && !statuses.has(status)) return fail("Invalid findings status filter.");
-    if (!/^([1-9]\\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    if (!/^([1-9]\d?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
       return fail("Findings limit must be an integer from 1 to 100.");
     }
-    if (!/^\\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
+    if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid findings page offset.");
     }
     try {
