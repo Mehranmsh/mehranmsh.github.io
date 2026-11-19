@@ -440,7 +440,7 @@ async function handle(request, env) {
     if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid memory page offset.");
     }
-    const rows = await env.DB.prepare(\`
+    const rows = await env.DB.prepare(`
       SELECT id, category, content, memory_kind, source_type, source_ref,
              confidence_score, review_status, reviewed_at, archived_at,
              created_at, updated_at
@@ -448,7 +448,7 @@ async function handle(request, env) {
       WHERE owner_uid = ?
         AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
       ORDER BY updated_at DESC, id DESC LIMIT 101 OFFSET ?
-    \`).bind(owner.uid, state, state, state, offset).all();
+    `).bind(owner.uid, state, state, state, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
     return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
@@ -477,9 +477,9 @@ async function handle(request, env) {
     const id = randomId();
     try {
       await env.DB.batch([
-        env.DB.prepare(\`INSERT INTO intelligence_owner_memory
+        env.DB.prepare(`INSERT INTO intelligence_owner_memory
           (id,owner_uid,category,content,memory_kind,source_type,source_ref,confidence_score)
-          VALUES(?,?,?,?,?,?,?,?)\`)
+          VALUES(?,?,?,?,?,?,?,?)`)
           .bind(id, owner.uid, category, content, memoryKind, sourceType, sourceRef, confidenceScore),
         audit(env.DB, owner.uid, "owner_memory_created", "memory", id, { category, memoryKind, sourceType, confidenceScore })
       ]);
@@ -495,7 +495,7 @@ async function handle(request, env) {
     if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid memory review queue offset.");
     }
-    const rows = await env.DB.prepare(\`
+    const rows = await env.DB.prepare(`
       SELECT id, category, content, memory_kind, source_type, source_ref,
              confidence_score, review_status, reviewed_at, updated_at
       FROM intelligence_owner_memory
@@ -504,7 +504,7 @@ async function handle(request, env) {
       ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,
                updated_at ASC, id ASC
       LIMIT 101 OFFSET ?
-    \`).bind(owner.uid, offset).all();
+    `).bind(owner.uid, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
     return response({ success: true, assessment: "owner_review_state_only", items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
@@ -536,10 +536,10 @@ async function handle(request, env) {
       try {
         const results = await env.DB.batch([
           env.DB.prepare(transition.sql).bind(...values),
-          env.DB.prepare(\`
+          env.DB.prepare(`
             INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
             SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-          \`).bind(randomId(), owner.uid, transition.audit, "memory", id, "{}", Math.floor(Date.now()/1000))
+          `).bind(randomId(), owner.uid, transition.audit, "memory", id, "{}", Math.floor(Date.now()/1000))
         ]);
         if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found or transition not applicable.", 404);
       } catch {
@@ -554,10 +554,10 @@ async function handle(request, env) {
       const results = await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_owner_memory SET category=?,content=?,updated_at=? WHERE id=? AND owner_uid=? AND archived_at IS NULL")
           .bind(category, content, now, id, owner.uid),
-        env.DB.prepare(\`
+        env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        \`).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000))
+        `).bind(randomId(), owner.uid, "owner_memory_updated", "memory", id, JSON.stringify({ category }), Math.floor(Date.now()/1000))
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found or archived.", 404);
     } catch {
@@ -573,10 +573,10 @@ async function handle(request, env) {
       const results = await env.DB.batch([
         env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?")
           .bind(id, owner.uid),
-        env.DB.prepare(\`
+        env.DB.prepare(`
           INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
           SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        \`).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
+        `).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
       ]);
       if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
     } catch {
