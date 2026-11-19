@@ -83,6 +83,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
     def test_expired_approval_is_transitioned_before_replacement(self):
         self.assertIn("UPDATE intelligence_approval_ledger SET status='expired'", self.source)
+        self.assertIn('await env.DB.prepare("UPDATE intelligence_approval_ledger SET status=\'expired\' WHERE owner_uid=? AND status=\'issued\' AND expires_at<=?")', self.source)
         self.assertIn("status='issued' AND expires_at<=?", self.source)
         self.assertIn('scopeJson.length > 4096', self.source)
         self.assertIn('Object.keys(body.scope).length === 0', self.source)
