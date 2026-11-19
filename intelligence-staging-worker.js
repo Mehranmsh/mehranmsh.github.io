@@ -342,6 +342,38 @@ async function handle(request, env) {
     }
   }
 
+  if (path === "/intelligence/company/modules" && method === "GET") {
+    const modules = [
+      { id: "music", name: "Mehran Music", area: "product", lifecycle: "registered", purpose: "Music creation, artist presence, audio projects, and music services.", checks: ["ownership_and_access", "service_health", "content_integrity", "user_experience"] },
+      { id: "ai", name: "Mehran AI", area: "product", lifecycle: "registered", purpose: "AI-powered experiences and assistant services.", checks: ["model_and_provider_configuration", "data_privacy", "access_control", "service_health"] },
+      { id: "social", name: "SOCIAL", area: "product", lifecycle: "in_development", purpose: "Profiles, posts, media, messaging, groups, and discovery.", checks: ["authentication", "authorization", "privacy", "upload_security", "abuse_controls"] },
+      { id: "instruments", name: "Mehran Instruments", area: "product", lifecycle: "planned", purpose: "Music instrument and professional studio equipment trade.", checks: ["catalog_integrity", "supplier_workflows", "payments_and_orders", "logistics"] },
+      { id: "robotics", name: "Mehran Robotics", area: "product", lifecycle: "planned", purpose: "Future robotics products, services, and integrations.", checks: ["device_identity", "safety_boundaries", "update_integrity", "operator_access"] },
+      { id: "security", name: "SECURITY", area: "shared_capability", lifecycle: "registered", purpose: "Identity, access control, threat monitoring, and security governance.", checks: ["authentication", "authorization", "auditability", "secret_handling", "recovery"] },
+      { id: "intelligence", name: "INTELLIGENCE", area: "shared_capability", lifecycle: "in_development", purpose: "Organizational knowledge, analysis, planning, assessment, and controlled assistance.", checks: ["owner_isolation", "knowledge_quality", "approval_boundaries", "assessment_integrity", "observability"] },
+      { id: "logistics", name: "LOGISTICS", area: "shared_capability", lifecycle: "planned", purpose: "Operational coordination, procurement, delivery, and resource movement.", checks: ["workflow_integrity", "tracking", "supplier_access", "exception_handling"] },
+      { id: "customer-experience", name: "CUSTOMER EXPERIENCE", area: "shared_capability", lifecycle: "planned", purpose: "Customer support, feedback, service quality, and user journeys.", checks: ["privacy", "response_quality", "case_access", "service_continuity"] },
+      { id: "labs", name: "LABS", area: "shared_capability", lifecycle: "planned", purpose: "Research, experimentation, prototypes, and technical validation.", checks: ["experiment_isolation", "data_handling", "reproducibility", "release_gates"] },
+      { id: "governance", name: "GOVERNANCE", area: "shared_capability", lifecycle: "planned", purpose: "Policies, approvals, accountability, and owner oversight.", checks: ["policy_versioning", "approval_integrity", "audit_trails", "separation_of_duties"] },
+      { id: "data", name: "DATA", area: "shared_capability", lifecycle: "planned", purpose: "Data organization, quality, retention, and controlled access.", checks: ["data_classification", "retention", "backup_recovery", "owner_isolation"] },
+      { id: "robot-operations", name: "ROBOT OPERATIONS", area: "shared_capability", lifecycle: "planned", purpose: "Future fleet operations, device monitoring, and operator workflows.", checks: ["device_authentication", "command_authorization", "safety_interlocks", "event_audit"] }
+    ].map(item => ({ ...item, readiness: "not_assessed" }));
+    return response({
+      success: true,
+      company: "MEHRAN MSH",
+      registryVersion: 1,
+      source: "owner_declared_architecture",
+      assessment: "module_inventory_only",
+      executionEnabled: false,
+      modules,
+      limitations: [
+        "This is a declared architecture registry, not a live scan of deployed services or repositories.",
+        "Every module remains not_assessed until separate evidence-based checks are implemented and run.",
+        "No company configuration, task, approval, or production resource is changed."
+      ]
+    });
+  }
+
   if (path === "/intelligence/capabilities" && method === "GET") {
     return response({
       success: true,
