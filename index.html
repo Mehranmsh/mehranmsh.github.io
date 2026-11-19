@@ -2775,7 +2775,7 @@ function renderIntelPriorityActionPlan(data){
    save.disabled=true;feedback.textContent="Verifying the current action and recording your owner review...";feedback.className="notice";
    try{
     const result=await api("/intelligence/findings/priority-action-reviews",{method:"POST",body:JSON.stringify({actionKey:action.actionKey,moduleId:action.moduleId,outcome:outcome.value,reason})});
-    if(result.scope&&result.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+    if(result.success!==true||result.scope!=="authenticated_owner_staging_only")throw new Error("The owner-scoped review response could not be verified.");
     reasonInput.value="";
     feedback.textContent="Owner review recorded. Finding state changed: No. Company state changed: No. Execution: disabled.";
     feedback.className="notice success";
