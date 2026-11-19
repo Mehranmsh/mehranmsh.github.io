@@ -15,6 +15,8 @@ MIGRATIONS = [
     ROOT / "migrations" / "0006_intelligence_owner_memory_confidence_integer.sql",
     ROOT / "migrations" / "0007_intelligence_approval_ledger_state_guards.sql",
     ROOT / "migrations" / "0008_intelligence_capability_approval_ledger.sql",
+    ROOT / "migrations" / "0009_intelligence_findings_schema.sql",
+    ROOT / "migrations" / "0010_intelligence_finding_review_ledger.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -60,6 +62,53 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         ))
         self.assertTrue(any(row[2] == "intelligence_tasks" for row in approval_fks))
         self.assertTrue(any(row[2] == "intelligence_knowledge" for row in relation_fks))
+
+
+    def test_owner_finding_review_ledger_is_append_only_scoped_and_audited(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_findings(
+                id,owner_uid,module_id,check_id,blueprint_version,title,description,
+                created_at,updated_at,created_by
+            ) VALUES(
+                '00000000-0000-4000-8000-000000000001','owner-a','security',
+                'auditability','v1','Audit review','Check evidence provenance',
+                100,100,'owner-a'
+            )
+        """)
+        insert = """
+            INSERT INTO intelligence_finding_reviews(
+                id,finding_id,owner_uid,reviewer_uid,outcome,reason,
+                evidence_snapshot_json,evidence_snapshot_sha256,evidence_count,
+                reviewed_at,created_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+        """
+        good = (
+            '00000000-0000-4000-8000-000000000010',
+            '00000000-0000-4000-8000-000000000001',
+            'owner-a','owner-a','needs_more_info','Need a reproducible test report.',
+            '[]','a' * 64,0,200,200
+        )
+        self.db.execute(insert, good)
+        audit = self.db.execute("""
+            SELECT action,target_type,target_id FROM intelligence_staging_audit
+            WHERE target_id=? ORDER BY created_at DESC LIMIT 1
+        """, (good[0],)).fetchone()
+        self.assertEqual(audit, ('finding_evidence_review_recorded','finding_review',good[0]))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, (good[0] + '-2',good[1],'owner-a','other-owner',
+                'accepted','No', '[]','b' * 64,0,201,201))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, (good[0] + '-3',good[1],'owner-b','owner-b',
+                'accepted','Cross owner', '[]','b' * 64,0,201,201))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(insert, (good[0] + '-4',good[1],'owner-a','owner-a',
+                'accepted','Bad snapshot', '[{}]','b' * 64,0,201,201))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_finding_reviews SET reason='rewritten' WHERE id=?", (good[0],))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("DELETE FROM intelligence_finding_reviews WHERE id=?", (good[0],))
+        self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
 
     def test_approval_ledger_rejects_unknown_task(self):
         self.apply_chain()
