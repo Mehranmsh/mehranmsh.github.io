@@ -213,6 +213,19 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("trg_intelligence_knowledge_provenance_guard_update",
                       (ROOT / "migrations" / "0004_intelligence_knowledge_provenance.sql").read_text(encoding="utf-8"))
 
+    def test_memory_and_review_queue_reads_are_bounded_and_paginated(self):
+        for fragment in [
+            'const rawOffset = url.searchParams.get("offset") || "0";',
+            'offset > 10000',
+            'ORDER BY updated_at DESC, id DESC LIMIT 101 OFFSET ?',
+            "ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,",
+            "AND review_status IN ('disputed','unreviewed')",
+            'LIMIT 101 OFFSET ?',
+            'hasMore: scanned.length > 100 && offset + items.length < 10000',
+            'nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null',
+        ]:
+            self.assertIn(fragment, self.source)
+
     def test_memory_deletion_is_owner_scoped_and_audited(self):
         self.assertIn('if (memoryDeleteMatch && method === "DELETE")', self.source)
         self.assertIn('DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?', self.source)

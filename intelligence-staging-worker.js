@@ -341,6 +341,11 @@ async function handle(request, env) {
   if (path === "/intelligence/memory" && method === "GET") {
     const state = url.searchParams.get("state") || "active";
     if (!["active", "archived", "all"].includes(state)) return fail("Invalid memory state filter.");
+    const rawOffset = url.searchParams.get("offset") || "0";
+    const offset = Number(rawOffset);
+    if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
+      return fail("Invalid memory page offset.");
+    }
     const rows = await env.DB.prepare(\`
       SELECT id, category, content, memory_kind, source_type, source_ref,
              confidence_score, review_status, reviewed_at, archived_at,
@@ -348,9 +353,11 @@ async function handle(request, env) {
       FROM intelligence_owner_memory
       WHERE owner_uid = ?
         AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
-      ORDER BY updated_at DESC LIMIT 100
-    \`).bind(owner.uid, state, state, state).all();
-    return response({ success: true, state, items: rows.results || [] });
+      ORDER BY updated_at DESC, id DESC LIMIT 101 OFFSET ?
+    \`).bind(owner.uid, state, state, state, offset).all();
+    const scanned = rows.results || [];
+    const items = scanned.slice(0, 100);
+    return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
   }
 
   if (path === "/intelligence/memory" && method === "POST") {
@@ -389,17 +396,24 @@ async function handle(request, env) {
   }
 
   if (path === "/intelligence/memory/review-queue" && method === "GET") {
-    const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 50));
+    const rawOffset = url.searchParams.get("offset") || "0";
+    const offset = Number(rawOffset);
+    if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
+      return fail("Invalid memory review queue offset.");
+    }
     const rows = await env.DB.prepare(\`
       SELECT id, category, content, memory_kind, source_type, source_ref,
              confidence_score, review_status, reviewed_at, updated_at
       FROM intelligence_owner_memory
       WHERE owner_uid = ? AND archived_at IS NULL
+        AND review_status IN ('disputed','unreviewed')
       ORDER BY CASE review_status WHEN 'disputed' THEN 0 WHEN 'unreviewed' THEN 1 ELSE 2 END,
-               updated_at ASC
-      LIMIT ?
-    \`).bind(owner.uid, limit).all();
-    return response({ success: true, assessment: "owner_review_state_only", items: rows.results || [] });
+               updated_at ASC, id ASC
+      LIMIT 101 OFFSET ?
+    \`).bind(owner.uid, offset).all();
+    const scanned = rows.results || [];
+    const items = scanned.slice(0, 100);
+    return response({ success: true, assessment: "owner_review_state_only", items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
   }
 
   const memoryMatch = path.match(/^\/intelligence\/memory\/([0-9a-f-]{36})$/i);
