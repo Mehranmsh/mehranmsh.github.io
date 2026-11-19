@@ -102,7 +102,7 @@ async function fetchPiUser(accessToken) {
   }
 }
 
-async function audit(db, ownerUid, action, targetType = "", targetId = "", details = {}) {
+function audit(db, ownerUid, action, targetType = "", targetId = "", details = {}) {
   return db.prepare(`
     INSERT INTO intelligence_staging_audit
       (id, owner_uid, action, target_type, target_id, details_json, created_at)
@@ -212,7 +212,13 @@ async function handle(request, env) {
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_staging_sessions SET revoked_at=? WHERE id=? AND owner_uid=? AND revoked_at IS NULL")
           .bind(Math.floor(Date.now() / 1000), row.id, owner.uid),
-        audit(env.DB, owner.uid, "session_revoked", "session", row.id)
+        env.DB.prepare(`
+          INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
+          SELECT ?,?,?,?,?,?,? WHERE EXISTS (
+            SELECT 1 FROM intelligence_staging_sessions
+            WHERE id=? AND owner_uid=? AND revoked_at=?
+          )
+        `).bind(randomId(), owner.uid, "session_revoked", "session", row.id, "{}", Math.floor(Date.now()/1000), row.id, owner.uid, Math.floor(Date.now()/1000))
       ]);
     } catch {
       return fail("Session revocation failed.", 503);
@@ -327,7 +333,6 @@ async function handle(request, env) {
     } else {
       return fail("Relationship transition is not allowed.", 409);
     }
-    const auditStatement = audit(env.DB, owner.uid, `knowledge_relation_${body.action}d`, "knowledge_relation", id, { status });
     try {
       const results = await env.DB.batch([
         statement,
