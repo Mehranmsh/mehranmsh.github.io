@@ -768,6 +768,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
     def test_company_readiness_overview_is_private_bounded_and_read_only(self):
         for element_id in [
             "intelCompanyReadinessPanel",
+            "intelCompanyReadinessModule",
             "refreshIntelCompanyReadinessBtn",
             "intelCompanyReadinessStatus",
             "intelCompanyReadinessSummary",
@@ -786,6 +787,10 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(endpoint, self.index_html)
         self.assertIn('Promise.allSettled(requests.map(item=>api(item.url)))', self.index_html)
+        self.assertIn('const moduleId=INTEL_COMPANY_MODULES.includes(selector.value)?selector.value:"intelligence"', self.index_html)
+        self.assertIn('key:"dependency",label:"Module dependency map"', self.index_html)
+        self.assertIn('key:"gap",label:"Module test strategy"', self.index_html)
+        self.assertIn('Seven bounded GET reports per refresh', self.index_html)
         self.assertIn('INTEL_COMPANY_MODULES', self.index_html)
         self.assertIn('No recorded finding (not a pass)', self.index_html)
         self.assertIn('not a readiness certification, security verdict, or health score', self.index_html)
