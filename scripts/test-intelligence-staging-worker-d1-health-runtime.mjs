@@ -167,6 +167,57 @@ async function testMissingCapabilityLedgerFailsClosed() {
   }
 }
 
+async function testOriginAndSecurityHeaders() {
+  const { mf } = await createWorker(migrations.length);
+  try {
+    const rejected = await mf.dispatchFetch("http://localhost/health", {
+      headers: { Origin: "https://untrusted.example" },
+    });
+    assert.equal(rejected.status, 403);
+
+    const accepted = await mf.dispatchFetch("http://localhost/health", {
+      headers: { Origin: "https://mehranmsh.github.io" },
+    });
+    assert.equal(accepted.status, 200);
+    assert.equal(accepted.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io");
+    assert.equal(accepted.headers.get("X-Content-Type-Options"), "nosniff");
+    assert.equal(accepted.headers.get("Referrer-Policy"), "no-referrer");
+    assert.equal(accepted.headers.get("X-Frame-Options"), "DENY");
+    assert.equal(accepted.headers.get("Cache-Control"), "no-store");
+    assert.equal(accepted.headers.get("Vary"), "Origin");
+
+    const preflight = await mf.dispatchFetch("http://localhost/session", {
+      method: "OPTIONS",
+      headers: { Origin: "https://mehranmsh.github.io" },
+    });
+    assert.equal(preflight.status, 200);
+    assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), "https://mehranmsh.github.io");
+    console.log("PASS: staging Worker rejects untrusted origins and emits security headers");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testProtectedRoutesRequireSession() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    const read = await mf.dispatchFetch("http://localhost/intelligence/tasks");
+    assert.equal(read.status, 401);
+
+    const write = await mf.dispatchFetch("http://localhost/intelligence/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "unauthorized task" }),
+    });
+    assert.equal(write.status, 401);
+    const rows = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks").first();
+    assert.equal(Number(rows.count), 0);
+    console.log("PASS: staging Intelligence routes reject unauthenticated reads and writes");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testCompleteSchemaReportsHealthy();
 await testMissingCapabilityLedgerFailsClosed();
 await testSessionVerificationAndRevocation();
