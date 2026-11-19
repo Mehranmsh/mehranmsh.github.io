@@ -81,6 +81,9 @@ jobs:
       - name: Test Intelligence evidence snapshot drift classification
         run: node --test scripts/intelligence-evidence-drift.test.mjs
 
+      - name: Test Intelligence evidence metadata correlation
+        run: node --test scripts/intelligence-evidence-correlation.test.mjs
+
       - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs
 
