@@ -454,3 +454,33 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in consistency_function, f"Evidence consistency UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in consistency_function and '.append(' in consistency_function
 assert "loadEvidenceConsistency()" in refresh_block, "Evidence consistency must load after owner authentication."
+
+
+# Unified Evidence Intelligence overview: owner-authenticated summaries, bounded counts, safe DOM, navigation only.
+for marker in [
+    'id="evidenceIntelligenceOverviewPanel"',
+    'id="refreshEvidenceIntelligenceOverviewBtn"',
+    'id="evidenceIntelligenceOverviewModule"',
+    'id="evidenceIntelligenceOverviewSummary"',
+    'id="evidenceIntelligenceOverviewCards"',
+    'async function loadEvidenceIntelligenceOverview()',
+    'request("/intelligence/findings/evidence-review"',
+    'request("/intelligence/findings/evidence-correlations"',
+    'request("/intelligence/findings/evidence-consistency"',
+    'Promise.allSettled',
+    'Sources available: "+ready+"/3',
+    'Each engine uses its own bounded dataset; counts are not a combined total.',
+    'Content verified: "+String(data.evidenceContentVerified)',
+    'Conflict verdict: "+String(data.isConflictVerdict)',
+    'data-evidence-target',
+    'refreshEvidenceIntelligenceOverviewBtn',
+    'loadEvidenceIntelligenceOverview(),loadEvidenceMetadataReview()',
+    'No conflict or risk verdict is produced, no check is passed',
+]:
+    assert marker in page, f"Evidence Intelligence overview missing required behavior or safety marker: {marker}"
+
+overview_function = page.split("async function loadEvidenceIntelligenceOverview()", 1)[1].split("async function loadEvidenceMetadataReview()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in overview_function, f"Evidence Intelligence overview must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in overview_function and '.append(' in overview_function
+assert 'Promise.allSettled' in overview_function, "Overview must show partial results if an individual engine is unavailable."
