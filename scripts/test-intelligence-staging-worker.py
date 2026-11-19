@@ -765,6 +765,56 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, helper_source)
 
+    def test_company_readiness_overview_is_private_bounded_and_read_only(self):
+        for element_id in [
+            "intelCompanyReadinessPanel",
+            "intelCompanyReadinessModule",
+            "refreshIntelCompanyReadinessBtn",
+            "intelCompanyReadinessStatus",
+            "intelCompanyReadinessSummary",
+            "intelCompanyReadinessSources",
+            "intelCompanyReadinessModules",
+        ]:
+            self.assertIn(f'id="{element_id}"', self.index_html)
+        for endpoint in [
+            '/intelligence/company/assessment-coverage',
+            '/intelligence/findings/priorities?limit=100',
+            '/intelligence/findings/remediation-plans?limit=100',
+            '/intelligence/findings/evidence-decision-support',
+            '/intelligence/findings/evidence-decision-reviews/integrity?limit=50',
+            '/intelligence/company/gap-test-strategy?module=',
+            '/intelligence/company/dependency-impact?module=',
+        ]:
+            self.assertIn(endpoint, self.index_html)
+        self.assertIn('Promise.allSettled(requests.map(item=>api(item.url)))', self.index_html)
+        self.assertIn('const moduleId=INTEL_COMPANY_MODULES.includes(selector.value)?selector.value:"intelligence"', self.index_html)
+        self.assertIn('key:"dependency",label:"Module dependency map"', self.index_html)
+        self.assertIn('key:"gap",label:"Module test strategy"', self.index_html)
+        self.assertIn('Seven bounded GET reports per refresh', self.index_html)
+        self.assertIn('INTEL_COMPANY_MODULES', self.index_html)
+        self.assertIn('with no recorded finding (not a pass)', self.index_html)
+        self.assertIn('not a readiness certification, security verdict, or health score', self.index_html)
+        start = self.index_html.index('const INTEL_COMPANY_MODULES=')
+        end = self.index_html.index('async function loadProjects()', start)
+        panel_code = self.index_html[start:end]
+        for fragment in [
+            'document.createElement(',
+            'textContent',
+            'replaceChildren()',
+            'addEventListener("click",loadIntelCompanyReadiness)',
+            'authenticated_owner_staging_only',
+        ]:
+            if fragment == 'authenticated_owner_staging_only':
+                continue
+            self.assertIn(fragment, panel_code)
+        for forbidden in [
+            'innerHTML', 'insertAdjacentHTML',
+            'method:"POST"', 'method:"PUT"', 'method:"DELETE"',
+            'method: "POST"', 'method: "PUT"', 'method: "DELETE"',
+        ]:
+            self.assertNotIn(forbidden, panel_code)
+        self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
+
     def test_decision_snapshot_integrity_dashboard_is_private_read_only_and_uses_safe_dom(self):
         for element_id in [
             "intelDecisionIntegrityPanel",
