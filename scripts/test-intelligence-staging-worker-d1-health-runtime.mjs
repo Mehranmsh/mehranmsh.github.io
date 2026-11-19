@@ -1561,3 +1561,101 @@ async function testApprovalScopeRejectsBroadOrUnsafePaths() {
 }
 
 await testApprovalScopeRejectsBroadOrUnsafePaths();
+
+
+async function testApprovalBindingIsImmutableAcrossLifecycle() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const taskId = "fefefefe-fefe-4efe-8efe-fefefefefefe";
+  const scopeJson = JSON.stringify({ paths: ["docs/readme.md", "src/"] });
+  const scopeHash = createHash("sha256").update(scopeJson).digest("base64url");
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-approval-binding-immutable", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare("INSERT INTO intelligence_tasks(id,title,created_by) VALUES(?,?,?)")
+      .bind(taskId, "Approval binding immutability", ownerUid).run();
+
+    const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    const issued = await mf.dispatchFetch("http://localhost/intelligence/approvals", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        taskId,
+        repository: "Mehranmsh/mehranmsh.github.io",
+        branch: "intelligence/staging-approval-binding-immutability-v1",
+        baseSha: "d".repeat(40),
+        scope: { paths: ["src/", "docs/readme.md"] },
+        expiresInSeconds: 900,
+      }),
+    });
+    assert.equal(issued.status, 201);
+    const body = await issued.json();
+    const originalRow = await db.prepare(
+      "SELECT id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,issued_at,expires_at,status FROM intelligence_approval_ledger WHERE id=?"
+    ).bind(body.id).first();
+    assert.equal(originalRow.task_id, taskId);
+    assert.equal(originalRow.owner_uid, ownerUid);
+    assert.equal(originalRow.owner_username, "mehranmsh");
+    assert.equal(originalRow.repository, "Mehranmsh/mehranmsh.github.io");
+    assert.equal(originalRow.branch, "intelligence/staging-approval-binding-immutability-v1");
+    assert.equal(originalRow.base_sha, "d".repeat(40));
+    assert.equal(originalRow.scope_json, scopeJson);
+    assert.equal(originalRow.scope_sha256, scopeHash);
+
+    const mutations = [
+      ["id", "00000000-0000-4000-8000-000000000000"],
+      ["task_id", "11111111-1111-4111-8111-111111111111"],
+      ["owner_uid", "different-owner"],
+      ["owner_username", "different-user"],
+      ["repository", "Other/repository"],
+      ["branch", "main"],
+      ["base_sha", "e".repeat(40)],
+      ["scope_json", '{"paths":["*"]}'],
+      ["scope_sha256", "tampered-hash"],
+      ["issued_at", now + 1],
+      ["expires_at", now + 901],
+    ];
+    for (const [column, value] of mutations) {
+      await assert.rejects(
+        db.prepare(`UPDATE intelligence_approval_ledger SET ${column}=? WHERE id=?`)
+          .bind(value, body.id).run(),
+        undefined,
+        `approval binding field ${column} must be immutable`,
+      );
+    }
+
+    const unchanged = await db.prepare(
+      "SELECT id,task_id,owner_uid,owner_username,repository,branch,base_sha,scope_json,scope_sha256,issued_at,expires_at,status FROM intelligence_approval_ledger WHERE id=?"
+    ).bind(body.id).first();
+    for (const key of Object.keys(originalRow)) assert.equal(unchanged[key], originalRow[key], `immutable field ${key} changed`);
+
+    const revoked = await mf.dispatchFetch(`http://localhost/intelligence/approvals/${body.id}`, {
+      method: "DELETE", headers: { Authorization: "Bearer " + token },
+    });
+    assert.equal(revoked.status, 200);
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_approval_ledger SET revoked_at=? WHERE id=?")
+        .bind(now + 2, body.id).run(),
+      undefined,
+      "terminal revocation metadata must be immutable",
+    );
+    const finalRow = await db.prepare(
+      "SELECT status,revoked_at,repository,branch,base_sha,scope_json,scope_sha256 FROM intelligence_approval_ledger WHERE id=?"
+    ).bind(body.id).first();
+    assert.equal(finalRow.status, "revoked");
+    assert.ok(finalRow.revoked_at);
+    assert.equal(finalRow.repository, originalRow.repository);
+    assert.equal(finalRow.branch, originalRow.branch);
+    assert.equal(finalRow.base_sha, originalRow.base_sha);
+    assert.equal(finalRow.scope_json, originalRow.scope_json);
+    assert.equal(finalRow.scope_sha256, originalRow.scope_sha256);
+    console.log("PASS: approval task, owner, repository, branch, base SHA, scope, and terminal metadata remain immutable");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testApprovalBindingIsImmutableAcrossLifecycle();
