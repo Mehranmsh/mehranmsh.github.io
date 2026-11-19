@@ -1218,6 +1218,21 @@ async function testPiSessionIssuanceEndToEndAndIpRateLimit() {
     assert.equal(authenticated.status, 200);
     assert.deepEqual(await authenticated.json(), { success: true, ownerUid });
 
+    const alteredToken = issuedBody.token.slice(0, -1) + (issuedBody.token.endsWith("A") ? "B" : "A");
+    assert.notEqual(alteredToken, issuedBody.token);
+    const tamperedBearer = await dispatch("http://localhost/session", {
+      headers: { Authorization: "Bearer " + alteredToken },
+    });
+    assert.equal(tamperedBearer.status, 401, "a one-character-modified bearer token must be rejected");
+    const rowsAfterTamper = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_sessions WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    const auditsAfterTamper = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_created'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(rowsAfterTamper.count), 1, "tampered token verification must not create or alter sessions");
+    assert.equal(Number(auditsAfterTamper.count), 1, "tampered token verification must not create audit records");
+
     await db.prepare(
       "CREATE TRIGGER reject_session_create_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='session_created' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
     ).run();
