@@ -329,4 +329,97 @@ async function testTaskAuditAtomicityAndOwnerIsolation() {
 }
 
 await testJsonBodyLimitsAndContentType();
+async function testOwnerMemoryAuditIsolationAndProvenance() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const foreignKnowledgeId = "11111111-1111-4111-8111-111111111111";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-memory-governance-01", tokenHash(token), ownerUid, now, now + 3600).run();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    };
+
+    const foreignKnowledge = await db.prepare(
+      "INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)"
+    ).bind(foreignKnowledgeId, "different-owner-uid", "Foreign source", "Private foreign source", "different-owner-uid").run();
+    assert.equal(foreignKnowledge.success, true);
+
+    const crossOwnerSource = await mf.dispatchFetch("http://localhost/intelligence/memory", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        content: "Must not link another owner's source",
+        memoryKind: "project_context",
+        sourceType: "knowledge_record",
+        sourceRef: foreignKnowledgeId,
+      }),
+    });
+    assert.equal(crossOwnerSource.status, 503);
+    const crossOwnerCount = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_owner_memory WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(crossOwnerCount.count), 0);
+
+    const created = await mf.dispatchFetch("http://localhost/intelligence/memory", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        category: "governance-test",
+        content: "Owner-controlled memory record",
+        memoryKind: "decision",
+        sourceType: "owner_input",
+      }),
+    });
+    assert.equal(created.status, 201);
+    const createdBody = await created.json();
+    const audit = await db.prepare(
+      "SELECT owner_uid, action, target_type, target_id FROM intelligence_staging_audit WHERE action='owner_memory_created' AND target_id=?"
+    ).bind(createdBody.id).first();
+    assert.equal(audit.owner_uid, ownerUid);
+    assert.equal(audit.target_type, "memory");
+
+    await db.prepare(
+      "INSERT INTO intelligence_owner_memory(id,owner_uid,category,content) VALUES(?,?,?,?)"
+    ).bind("foreign-memory-0001", "different-owner-uid", "private", "Do not disclose").run();
+
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/memory", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(listed.status, 200);
+    const listedBody = await listed.json();
+    assert.deepEqual(listedBody.items.map(item => item.id), [createdBody.id]);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_memory_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_confirmed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const confirmFailed = await mf.dispatchFetch(`http://localhost/intelligence/memory/${createdBody.id}`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(confirmFailed.status, 503);
+    const unchanged = await db.prepare(
+      "SELECT review_status FROM intelligence_owner_memory WHERE id=? AND owner_uid=?"
+    ).bind(createdBody.id, ownerUid).first();
+    assert.equal(unchanged.review_status, "unreviewed");
+
+    const foreignUpdate = await mf.dispatchFetch("http://localhost/intelligence/memory/foreign-memory-0001", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(foreignUpdate.status, 404);
+
+    console.log("PASS: owner memory enforces source ownership, read isolation, and atomic review audit");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testTaskAuditAtomicityAndOwnerIsolation();
+await testOwnerMemoryAuditIsolationAndProvenance();
