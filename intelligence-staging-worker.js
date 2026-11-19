@@ -318,7 +318,7 @@ async function handle(request, env) {
     }, 201);
   }
 
-  const capabilityApprovalMatch = path.match(/^\\/intelligence\\/capability-approvals\\/([0-9a-f-]{36})$/i);
+  const capabilityApprovalMatch = path.match(/^\/intelligence\/capability-approvals\/([0-9a-f-]{36})$/i);
   if (capabilityApprovalMatch && method === "DELETE") {
     const id = capabilityApprovalMatch[1];
     const now = Math.floor(Date.now() / 1000);
