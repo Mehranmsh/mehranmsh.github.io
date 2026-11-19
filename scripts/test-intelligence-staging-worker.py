@@ -235,6 +235,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"owner_memory_deleted"', self.source)
         self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
 
+    def test_approval_expiry_input_requires_bounded_integer_seconds(self):
+        self.assertIn('typeof body.expiresInSeconds !== "number"', self.source)
+        self.assertIn('!Number.isSafeInteger(body.expiresInSeconds)', self.source)
+        self.assertIn('body.expiresInSeconds < 60', self.source)
+        self.assertIn('body.expiresInSeconds > 3600', self.source)
+        self.assertIn('body.expiresInSeconds === undefined ? 600 : body.expiresInSeconds', self.source)
+
     def test_expired_approval_is_transitioned_before_replacement(self):
         self.assertIn("UPDATE intelligence_approval_ledger SET status='expired'", self.source)
         self.assertIn('await env.DB.prepare("UPDATE intelligence_approval_ledger SET status=\'expired\' WHERE owner_uid=? AND status=\'issued\' AND expires_at<=?")', self.source)
