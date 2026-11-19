@@ -66,3 +66,13 @@ Every future executor must independently enforce:
 ## Change control
 
 Changes to the capability inventory or tier assignments require owner review and tests. Adding a capability is not permission to deploy or execute it. Production remains outside this policy's staging scope.
+
+
+## Staging Worker integration
+
+The isolated staging Worker exposes the policy through two authenticated, owner-scoped assessment routes:
+
+- `GET /intelligence/capabilities` returns the allowlist inventory and explicitly reports `executionEnabled: false`.
+- `POST /intelligence/capabilities/evaluate` accepts only a `capability` identifier. The Worker constructs owner authentication, session validity, owner ID, and staging scope from its already-verified server session. Client-supplied trust assertions or approval objects are rejected.
+
+This route is deliberately assessment-only. It passes no approval record, so approval-tier mutations remain `approval_required`; it does not read or consume the approval ledger, perform the requested operation, create tasks, or enable execution. Forbidden and unknown capabilities remain denied. This is not a live authorization gate for mutation endpoints.
