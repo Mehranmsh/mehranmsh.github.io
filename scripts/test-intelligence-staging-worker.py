@@ -8,12 +8,14 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "intelligence-staging-worker.js"
 CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
+OWNER_REVIEW_MODULE = ROOT / "intelligence-owner-evidence-review.mjs"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
+        cls.owner_review_module = OWNER_REVIEW_MODULE.read_text(encoding="utf-8")
 
     def route_block(self, marker):
         start = self.source.index(marker)
@@ -82,10 +84,6 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'WHERE owner_uid = ? AND finding_id = ?',
             'LIMIT ?',
             'append_only_owner_review_history',
-            'historyIsAppendOnly',
-            'evidenceContentVerified: false',
-            'checkPassed: false',
-            'executionEnabled: false',
         ]:
             self.assertIn(fragment, history_route)
         for fragment in [
@@ -108,6 +106,15 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertNotIn(forbidden, post_route)
         self.assertIn('intelligence_finding_reviews', self.source)
         self.assertIn('buildEvidenceSnapshot', self.source)
+        for fragment in [
+            'historyIsAppendOnly: true',
+            'evidenceContentVerified: false',
+            'sourceReachabilityChecked: false',
+            'checkPassed: false',
+            'executionEnabled: false',
+            'operationPerformed: false',
+        ]:
+            self.assertIn(fragment, self.owner_review_module)
 
     def test_no_executor_scheduler_or_production_binding(self):
         forbidden = [
