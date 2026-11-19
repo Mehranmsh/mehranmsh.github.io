@@ -298,6 +298,56 @@ async function testPiSessionFailureAndCreationAtomicity() {
   console.log("PASS: Pi identity failures fail closed and session/audit creation is atomic under D1 write failures");
 }
 
+async function testPiSessionTokenStorageContract() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const env = {
+    DB: db,
+    MEHRAN_INTELLIGENCE_STAGING_OWNER_UID: ownerUid,
+    PI_IDENTITY: { fetch: async (_input, init = {}) => {
+      assert.equal(new Headers(init.headers).get("Authorization"), "Bearer valid-pi-access-token-123");
+      return new Response(JSON.stringify({ uid: ownerUid, username: "mehranmsh" }), {
+        status: 200, headers: { "Content-Type": "application/json" },
+      });
+    } },
+  };
+  try {
+    const response = await stagingWorker.fetch(new Request("http://localhost/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": "192.0.2.93" },
+      body: JSON.stringify({ accessToken: "valid-pi-access-token-123" }),
+    }), env);
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.success, true);
+    assert.equal(typeof body.token, "string");
+    assert.match(body.token, /^[A-Za-z0-9_-]{43}$/, "session bearer token must contain 256 bits of base64url randomness");
+    assert.equal(Number.isInteger(body.expiresAt), true);
+
+    const session = await db.prepare(
+      "SELECT id,token_hash,owner_uid,created_at,expires_at,revoked_at FROM intelligence_staging_sessions"
+    ).first();
+    assert.ok(session);
+    assert.equal(session.owner_uid, ownerUid);
+    assert.equal(session.token_hash, tokenHash(body.token), "only the SHA-256 digest of the bearer token is stored");
+    assert.notEqual(session.token_hash, body.token, "the raw bearer token must never be persisted");
+    assert.equal(body.expiresAt, Number(session.expires_at));
+    assert.equal(Number(session.expires_at) - Number(session.created_at), 12 * 60 * 60);
+    assert.equal(session.revoked_at, null);
+
+    const auditRows = await db.prepare(
+      "SELECT owner_uid,action,target_type,target_id FROM intelligence_staging_audit WHERE action='session_created'"
+    ).all();
+    assert.equal(auditRows.results.length, 1);
+    assert.equal(auditRows.results[0].owner_uid, ownerUid);
+    assert.equal(auditRows.results[0].target_type, "session");
+    assert.equal(auditRows.results[0].target_id, session.id);
+    console.log("PASS: Pi session issuance returns a single-use secret while persisting only its hash and matching audit reference");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testSessionReadRateLimit() {
   const { mf, db } = await createWorker(migrations.length);
   const ownerUid = "staging-owner-test-uid";
@@ -460,6 +510,7 @@ await testPiIdentityResponseValidation();
 await testSessionVerificationAndRevocation();
 await testPiSessionCreationRejectsUntrustedClientClaims();
 await testPiSessionFailureAndCreationAtomicity();
+await testPiSessionTokenStorageContract();
 await testSessionReadRateLimit();
 await testOriginAndSecurityHeaders();
 await testProtectedRoutesRequireSession();
