@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS intelligence_finding_reviews (
   outcome TEXT NOT NULL CHECK(outcome IN ('accepted','rejected','needs_more_info')),
   reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 1 AND 1000),
   evidence_snapshot_json TEXT NOT NULL
-    CHECK(length(evidence_snapshot_json) BETWEEN 2 AND 12000)
+    CHECK(length(evidence_snapshot_json) BETWEEN 2 AND 20000)
     CHECK(json_valid(evidence_snapshot_json))
     CHECK(json_type(evidence_snapshot_json) = 'array'),
   evidence_snapshot_sha256 TEXT NOT NULL
