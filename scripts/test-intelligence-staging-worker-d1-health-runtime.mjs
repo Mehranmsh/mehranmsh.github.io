@@ -2775,3 +2775,45 @@ async function testSecurityHeadersAcrossResponseMatrix() {
 }
 
 await testSecurityHeadersAcrossResponseMatrix();
+
+
+async function testForbiddenOriginResponsesKeepSecurityHeaders() {
+  const { mf } = await createWorker(migrations.length);
+  const cases = [
+    ["GET", "/health", undefined, "https://mehranmsh.github.io.attacker.example"],
+    ["GET", "/intelligence/capabilities", undefined, "https://attacker.example"],
+    ["POST", "/intelligence/tasks", JSON.stringify({}), "null"],
+    ["OPTIONS", "/intelligence/knowledge", undefined, "http://mehranmsh.github.io"],
+  ];
+  const expected = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+    "Cache-Control": "no-store",
+    "Vary": "Origin",
+    "Access-Control-Allow-Origin": "https://mehranmsh.github.io",
+  };
+  try {
+    for (const [method, path, body, origin] of cases) {
+      const headers = { Origin: origin };
+      if (body !== undefined) headers["Content-Type"] = "application/json";
+      const response = await mf.dispatchFetch(`http://localhost${path}`, {
+        method, headers, ...(body !== undefined ? { body } : {}),
+      });
+      assert.equal(response.status, 403, `untrusted Origin must be rejected for ${method} ${path}`);
+      for (const [name, value] of Object.entries(expected)) {
+        assert.equal(response.headers.get(name), value,
+          `${name} must remain secure on forbidden-Origin response for ${method} ${path}`);
+      }
+      assert.notEqual(response.headers.get("Access-Control-Allow-Origin"), origin,
+        "an untrusted Origin must never be reflected in CORS response headers");
+      assert.match(response.headers.get("Content-Type") || "", /^application\\/json\\s*;/i,
+        "forbidden-Origin responses must remain JSON");
+    }
+    console.log(`PASS: security headers remain intact and attacker Origins are never reflected across ${cases.length} forbidden-Origin responses`);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testForbiddenOriginResponsesKeepSecurityHeaders();
