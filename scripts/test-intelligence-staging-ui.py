@@ -7,7 +7,7 @@ page = (ROOT / "intelligence-staging.html").read_text(encoding="utf-8")
 
 required = [
     'const STAGING_WORKER_URL = "REPLACE_WITH_VERIFIED_STAGING_WORKER_URL";',
-    'mehran-intelligence-staging\\\\\\\\\\\\\\\\.',
+    'mehran-intelligence-staging\\.',
     'workers\\.dev',
     'Pi.authenticate(["username"]',
     'request("/session",{method:"POST"',
