@@ -199,7 +199,7 @@ async function handle(request, env) {
 
   if (path === "/session" && method === "POST") {
     const body = await readJson(request);
-    if (!body || Object.keys(body).some(key => key !== "accessToken")) return fail("A Pi access token is required.");
+    if (!body || Object.keys(body).some(key => key !== "accessToken") || typeof body.accessToken !== "string" || body.accessToken.length < 10 || body.accessToken.length > 4096) return fail("A valid Pi access token is required.");
     const ownerUid = clean(env.MEHRAN_INTELLIGENCE_STAGING_OWNER_UID, 200);
     if (!ownerUid) return fail("Staging owner identity is not configured.", 503);
     const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
