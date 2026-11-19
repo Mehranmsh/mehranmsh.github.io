@@ -124,6 +124,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
 
     def test_knowledge_review_queue_is_bounded_owner_scoped_and_deterministic(self):
+        self.assertIn('import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";', self.source)
         for fragment in [
             'path === "/intelligence/knowledge/review-queue" && method === "GET"',
             'WHERE k.owner_uid = ? AND (? = 1 OR k.archived_at IS NULL)',
