@@ -9,7 +9,8 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
-WORKER_FILE = ROOT / "worker.js"\nSTAGING_WORKER_FILE = ROOT / "intelligence-staging-worker.js"
+WORKER_FILE = ROOT / "worker.js"
+STAGING_WORKER_FILE = ROOT / "intelligence-staging-worker.js"
 ENGINE_FILE = ROOT / "engine" / "server.py"
 SAMPLER_FILE = ROOT / "instrument-sampler.js"
 SAMPLE_MANIFEST = ROOT / "assets" / "instruments" / "manifest.json"
@@ -47,6 +48,8 @@ def main():
 
     print("1/3 Checking Cloudflare Worker JavaScript syntax...")
     run_node_check(WORKER_FILE)
+    print("Checking isolated Intelligence staging Worker JavaScript syntax...")
+    run_node_check(STAGING_WORKER_FILE)
     for path in (SAMPLER_FILE, SAMPLE_MANIFEST):
         if not path.is_file():
             raise SystemExit(f"Required recorded-instrument asset file is missing: {path.relative_to(ROOT)}")
