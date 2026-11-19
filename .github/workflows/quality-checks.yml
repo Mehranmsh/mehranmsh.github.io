@@ -14,9 +14,7 @@ on:
       - "intelligence-staging-worker.js"
       - "intelligence-capability-policy.mjs"
       - "intelligence-review-queue.mjs"
-      - "intelligence-capability-policy.mjs"
       - "intelligence-approval-input.mjs"
-      - "intelligence-capability-policy.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
@@ -79,6 +77,9 @@ jobs:
 
       - name: Test strict approval lifetime input behavior
         run: node --test scripts/intelligence-approval-input.test.mjs
+
+      - name: Test one-time capability approval consumption atomicity
+        run: python scripts/test-intelligence-capability-approval-atomic-consumption.py
 
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py
