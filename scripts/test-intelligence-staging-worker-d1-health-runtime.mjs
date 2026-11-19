@@ -434,7 +434,7 @@ async function testMissingCapabilityLedgerFailsClosed() {
     const body = await response.json();
     assert.equal(response.status, 503, JSON.stringify(body));
     assert.equal(body.schemaReady, false);
-    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews"]);
+    assert.deepEqual(body.missingTables, ["intelligence_capability_approvals", "intelligence_findings", "intelligence_finding_evidence", "intelligence_finding_reviews", "intelligence_evidence_correlation_reviews", "intelligence_evidence_decision_reviews"]);
     assert.equal(body.executor, false);
     console.log("PASS: staging Worker /health fails closed when migration 0008 is absent");
   } finally {
