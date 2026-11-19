@@ -11,6 +11,7 @@ on:
       - "music-studio.html"
       - "worker.js"
       - "intelligence-staging-worker.js"
+      - "intelligence-review-queue.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
