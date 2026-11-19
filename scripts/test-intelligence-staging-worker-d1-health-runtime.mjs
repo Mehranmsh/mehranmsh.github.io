@@ -2303,3 +2303,58 @@ async function testSessionExpiryBoundaryIsFailClosed() {
 }
 
 await testSessionExpiryBoundaryIsFailClosed();
+
+
+async function testUntrustedOriginCannotReadOrRevokeOwnerSession() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const sessionId = "session-origin-boundary-001";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind(sessionId, tokenHash(token), ownerUid, now, now + 3600).run();
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://untrusted.example",
+    };
+    const read = await mf.dispatchFetch("http://localhost/session", { headers });
+    assert.equal(read.status, 403,
+      "untrusted origins must be rejected before authenticated session reads");
+
+    const revoke = await mf.dispatchFetch("http://localhost/session", {
+      method: "DELETE",
+      headers,
+    });
+    assert.equal(revoke.status, 403,
+      "untrusted origins must be rejected before session revocation");
+
+    const session = await db.prepare(
+      "SELECT revoked_at FROM intelligence_staging_sessions WHERE id=?"
+    ).bind(sessionId).first();
+    assert.equal(session.revoked_at, null,
+      "an untrusted-origin request must not revoke the session");
+
+    const audit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='session_revoked' AND target_id=?"
+    ).bind(ownerUid, sessionId).first();
+    assert.equal(Number(audit.count), 0,
+      "untrusted-origin requests must not create revocation audit events");
+
+    const trustedRead = await mf.dispatchFetch("http://localhost/session", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Origin: "https://mehranmsh.github.io",
+      },
+    });
+    assert.equal(trustedRead.status, 200,
+      "the configured application origin must retain access to the valid session");
+    console.log("PASS: untrusted origins cannot read or revoke owner sessions or mutate audit state");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testUntrustedOriginCannotReadOrRevokeOwnerSession();
