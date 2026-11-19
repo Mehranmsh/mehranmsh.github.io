@@ -385,7 +385,7 @@ for marker in [
     '/intelligence/findings/evidence-correlations/reviews',
     'historyIsAppendOnly',
     'relationshipFactVerified',
-    'evidenceCorrelationList.addEventListener("submit",submitEvidenceCorrelationReview);',
+    '$("evidenceCorrelationList").addEventListener("submit",submitEvidenceCorrelationReview);',
     'loadEvidenceCorrelationReviewHistory()',
 ]:
     assert marker in page, f"Owner correlation review UI missing required behavior: {marker}"
