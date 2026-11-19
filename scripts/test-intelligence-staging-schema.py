@@ -61,6 +61,15 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                          'sha','{}','hash','issued',1,4102444800)
             """)
 
+    def test_linked_knowledge_content_guard_is_installed(self):
+        self.apply_chain()
+        trigger = self.db.execute("""
+            SELECT sql FROM sqlite_master
+            WHERE type='trigger' AND name='trg_intelligence_knowledge_content_immutable_with_relations'
+        """).fetchone()
+        self.assertIsNotNone(trigger)
+        self.assertIn("OLD.content <> NEW.content", trigger[0])
+
     def test_runtime_tables_are_separate_and_idempotent(self):
         self.apply_chain()
         expected = {
@@ -154,6 +163,11 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             ) VALUES('relation-a','owner-a','knowledge-a','knowledge-b',
                      'supports','candidate','Evidence A','Evidence B')
         """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                UPDATE intelligence_knowledge SET content='Changed evidence'
+                WHERE id='knowledge-a' AND owner_uid='owner-a'
+            """)
         self.db.execute("""
             UPDATE intelligence_knowledge SET archived_at=CURRENT_TIMESTAMP
             WHERE id='knowledge-a' AND owner_uid='owner-b' AND archived_at IS NULL
