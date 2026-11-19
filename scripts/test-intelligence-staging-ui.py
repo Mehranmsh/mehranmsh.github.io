@@ -38,6 +38,8 @@ required = [
     'memoryPrev',
     'memoryNext',
     'memoryHasMore',
+    'if(memoryView==="review")await loadMemoryReviewQueue();else await loadMemory()',
+    'memoryOffset=0;$("memoryState").value="active";loadMemory();return',
     'hasMore',
     'memoryState',
     'archived',
