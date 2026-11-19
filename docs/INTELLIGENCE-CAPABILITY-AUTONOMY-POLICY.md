@@ -86,3 +86,8 @@ Capability approvals are stored in the separate `intelligence_capability_approva
 The isolated staging Worker exposes owner-authenticated routes to list, issue, and revoke these capability approvals. The assessment route accepts only a capability identifier and optional approval record ID; it loads the record from D1 with an owner-scoped query and constructs the trust object server-side. It does not accept a client-supplied approval object.
 
 **Important:** assessment is not execution authorization. The route does not consume the approval or perform the operation. A future mutating operation must atomically validate and consume its one-time approval with the operation and audit record, and must receive a separate security review and explicit owner authorization. The current runtime remains executor-free and `EXECUTION_ENABLED = false`.
+
+
+## Assessment-only result contract
+
+Every capability policy result is explicitly marked `assessmentOnly: true` and `operationPerformed: false`. Decision names use the `assessment_only_*` prefix, including a valid approval result. No result from this policy module is an execution grant or permission to mutate data. The staging Worker remains hard-disabled for execution.
