@@ -3047,3 +3047,42 @@ async function testOwnerScopedIntelligenceOverview() {
 }
 
 await testOwnerScopedIntelligenceOverview();
+
+
+
+async function testOwnerScopedCompanyModuleRegistry() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = { Authorization: `Bearer ${token}`, Origin: "https://mehranmsh.github.io" };
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("company-registry-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    const before = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks").first();
+    const response = await mf.dispatchFetch("http://localhost/intelligence/company/modules", { headers });
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.company, "MEHRAN MSH");
+    assert.equal(data.source, "owner_declared_architecture");
+    assert.equal(data.assessment, "module_inventory_only");
+    assert.equal(data.executionEnabled, false);
+    assert.ok(Array.isArray(data.modules) && data.modules.length >= 10);
+    assert.ok(data.modules.some(item => item.id === "intelligence"));
+    assert.ok(data.modules.some(item => item.id === "social"));
+    assert.ok(data.modules.some(item => item.id === "robotics"));
+    assert.ok(data.modules.every(item => item.readiness === "not_assessed"));
+    assert.ok(data.limitations.length >= 3);
+    const after = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks").first();
+    assert.equal(Number(after.count), Number(before.count), "registry read must not mutate task state");
+    const unauthenticated = await mf.dispatchFetch("http://localhost/intelligence/company/modules", {
+      headers: { Origin: "https://mehranmsh.github.io" }
+    });
+    assert.equal(unauthenticated.status, 401, "company registry must require owner authentication");
+    console.log("PASS: company module registry is owner-authenticated, explicitly non-assessive, and read-only");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testOwnerScopedCompanyModuleRegistry();
