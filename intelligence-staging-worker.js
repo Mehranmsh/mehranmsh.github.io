@@ -458,6 +458,78 @@ async function handle(request, env) {
     });
   }
 
+  if (path === "/intelligence/company/assessment-coverage" && method === "GET") {
+    const modules = [
+      { id: "music", checks: ["ownership_and_access", "service_health", "content_integrity", "user_experience"] },
+      { id: "ai", checks: ["model_and_provider_configuration", "data_privacy", "access_control", "service_health"] },
+      { id: "social", checks: ["authentication", "authorization", "privacy", "upload_security", "abuse_controls"] },
+      { id: "instruments", checks: ["catalog_integrity", "supplier_workflows", "payments_and_orders", "logistics"] },
+      { id: "robotics", checks: ["device_identity", "safety_boundaries", "update_integrity", "operator_access"] },
+      { id: "security", checks: ["authentication", "authorization", "auditability", "secret_handling", "recovery"] },
+      { id: "intelligence", checks: ["owner_isolation", "knowledge_quality", "approval_boundaries", "assessment_integrity", "observability"] },
+      { id: "logistics", checks: ["workflow_integrity", "tracking", "supplier_access", "exception_handling"] },
+      { id: "customer-experience", checks: ["privacy", "response_quality", "case_access", "service_continuity"] },
+      { id: "labs", checks: ["experiment_isolation", "data_handling", "reproducibility", "release_gates"] },
+      { id: "governance", checks: ["policy_versioning", "approval_integrity", "audit_trails", "separation_of_duties"] },
+      { id: "data", checks: ["data_classification", "retention", "backup_recovery", "owner_isolation"] },
+      { id: "robot-operations", checks: ["device_authentication", "command_authorization", "safety_interlocks", "event_audit"] }
+    ];
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT module_id, check_id, COUNT(*) AS finding_count,
+               SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS open_finding_count,
+               SUM(CASE WHEN evidence_state='sufficient' THEN 1 ELSE 0 END) AS evidence_sufficient_finding_count
+        FROM intelligence_findings
+        WHERE owner_uid = ?
+        GROUP BY module_id, check_id
+      `).bind(owner.uid).all();
+      const recorded = new Map((rows.results || []).map(row => [
+        row.module_id + ":" + row.check_id,
+        {
+          findingCount: Number(row.finding_count) || 0,
+          openFindingCount: Number(row.open_finding_count) || 0,
+          evidenceSufficientFindingCount: Number(row.evidence_sufficient_finding_count) || 0
+        }
+      ]));
+      const checks = modules.flatMap(module => module.checks.map(checkId => {
+        const counts = recorded.get(module.id + ":" + checkId) || {
+          findingCount: 0, openFindingCount: 0, evidenceSufficientFindingCount: 0
+        };
+        return {
+          moduleId: module.id,
+          checkId,
+          blueprintVersion: 1,
+          recordState: counts.findingCount ? "findings_recorded" : "no_recorded_findings",
+          ...counts
+        };
+      }));
+      const checksWithFindings = checks.filter(item => item.findingCount > 0).length;
+      return response({
+        success: true,
+        company: "MEHRAN MSH",
+        registryVersion: 1,
+        blueprintVersion: 1,
+        scope: "authenticated_owner_staging_only",
+        assessment: "blueprint_coverage_and_recorded_findings_only",
+        executionEnabled: false,
+        operationPerformed: false,
+        modules: modules.length,
+        totalChecks: checks.length,
+        checksWithFindings,
+        checksWithoutRecordedFindings: checks.length - checksWithFindings,
+        checks,
+        limitations: [
+          "This endpoint maps declared blueprint checks to findings already recorded for the authenticated owner.",
+          "No recorded finding does not mean a check passed; it means no finding is recorded for that check.",
+          "An evidence-sufficient finding is not a check-pass certification.",
+          "No check is executed, no evidence is fetched, and no finding or company state is changed."
+        ]
+      });
+    } catch {
+      return fail("Assessment coverage is unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
   if (path === "/intelligence/findings" && method === "GET") {
     const allowedParams = new Set(["module", "severity", "status", "limit", "offset"]);
     for (const key of url.searchParams.keys()) {
