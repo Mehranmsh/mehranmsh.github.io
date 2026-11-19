@@ -36,6 +36,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'WHERE owner_uid = ? AND (? = \'\' OR status = ?)',
             'WHERE id=? AND owner_uid=?',
             'WHERE id=? AND created_by=?',
+            'WHERE owner_uid = ?\\n      ORDER BY updated_at DESC LIMIT 100',
         ]:
             self.assertIn(fragment, self.source)
 
@@ -66,6 +67,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('path === "/health"', self.source)
         self.assertIn('path === "/session"', self.source)
         self.assertIn('path === "/intelligence/knowledge"', self.source)
+        self.assertIn('path === "/intelligence/memory"', self.source)
+        self.assertIn('intelligence_owner_memory', self.source)
         self.assertIn('path === "/intelligence/knowledge/relations"', self.source)
         self.assertIn('path === "/intelligence/approvals"', self.source)
         self.assertIn('path === "/intelligence/tasks"', self.source)
