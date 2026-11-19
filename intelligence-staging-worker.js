@@ -1072,12 +1072,17 @@ async function handle(request, env) {
   if (approvalMatch && method === "DELETE") {
     const id = approvalMatch[1];
     const now = Math.floor(Date.now()/1000);
-    const result = await env.DB.batch([
-      env.DB.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?")
-        .bind(now, id, owner.uid, now),
-      env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) SELECT ?,?,?,?,?,?,? WHERE changes() = 1")
-        .bind(randomId(), owner.uid, "approval_revoked", "approval", id, "{}", now)
-    ]);
+    let result;
+    try {
+      result = await env.DB.batch([
+        env.DB.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id=? AND owner_uid=? AND status='issued' AND expires_at>?")
+          .bind(now, id, owner.uid, now),
+        env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) SELECT ?,?,?,?,?,?,? WHERE changes() = 1")
+          .bind(randomId(), owner.uid, "approval_revoked", "approval", id, "{}", now)
+      ]);
+    } catch {
+      return fail("Approval revocation could not be committed with its audit record.", 503);
+    }
     if (!Number(result?.[0]?.meta?.changes || 0)) return fail("Approval not found or no longer revocable.", 409);
     return response({ success: true, id, status: "revoked" });
   }
