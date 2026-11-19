@@ -6,4 +6,4 @@ A separate Worker source, `intelligence-staging-worker.js`, is now implemented w
 
 Migration 0003 adds staging-only sessions, audit, rate limits, and owner memory. It is committed but not yet applied to Cloudflare D1. The staging database ID has not yet been independently recorded. Do not apply it until the target is positively confirmed.
 
-No staging Wrangler config or binding has been created, and no Worker is deployed. The existing production `wrangler.jsonc`, Worker, D1 binding, AI binding, cron, secrets, and data remain outside this work.
+A separate `wrangler.intelligence-staging.jsonc` template now exists and points only to the staging database name, but its `database_id` is an explicit placeholder. It is not deployable and no Cloudflare binding or Worker has been created. The existing production `wrangler.jsonc`, Worker, D1 binding, AI binding, cron, secrets, and data remain outside this work.
