@@ -3492,3 +3492,81 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
 }
 await testOwnerEvidenceCorrelationReviewLedgerRuntime();
 
+
+
+async function testEvidenceConsistencyApiRuntime() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const otherOwner = "different-owner-test-uid";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Origin: "https://mehranmsh.github.io",
+    "Content-Type": "application/json"
+  };
+  const findings = [
+    ["61000000-0000-4000-8000-000000000001", ownerUid, "social"],
+    ["61000000-0000-4000-8000-000000000002", ownerUid, "security"],
+    ["61000000-0000-4000-8000-000000000003", otherOwner, "social"]
+  ];
+  const evidence = [
+    ["71000000-0000-4000-8000-000000000001", findings[0][0], ownerUid, "doc:consistency-shared", "a".repeat(64)],
+    ["71000000-0000-4000-8000-000000000002", findings[1][0], ownerUid, "doc:consistency-shared", "b".repeat(64)],
+    ["71000000-0000-4000-8000-000000000003", findings[2][0], otherOwner, "doc:consistency-shared", "c".repeat(64)]
+  ];
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)")
+      .bind("consistency-api-session", tokenHash(token), ownerUid, now, now + 3600).run();
+    for (const [id, uid, moduleId] of findings) {
+      await db.prepare(`INSERT INTO intelligence_findings
+        (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+         evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .bind(id, uid, moduleId, "consistency", "v1", "medium", "open",
+          "Consistency API test finding", "Fixture for owner-scoped consistency analysis", "missing",
+          null, null, null, now, now, uid).run();
+    }
+    for (const [id, findingId, uid, sourceRef, digest] of evidence) {
+      await db.prepare(`INSERT INTO intelligence_finding_evidence
+        (id,finding_id,owner_uid,kind,source_ref,content_digest,observed_at,note,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?)`)
+        .bind(id, findingId, uid, "document", sourceRef, digest, now,
+          "Metadata-only consistency fixture", now).run();
+    }
+    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    const all = await mf.dispatchFetch("http://localhost/intelligence/findings/evidence-consistency", { headers });
+    assert.equal(all.status, 200);
+    const data = await all.json();
+    assert.equal(data.scope, "authenticated_owner_staging_only");
+    assert.equal(data.evidenceReferencesScanned, 2, "analysis must exclude another owner's evidence");
+    assert.equal(data.coverageComplete, true);
+    assert.equal(data.isConflictVerdict, false);
+    assert.equal(data.isContradictionVerdict, false);
+    assert.equal(data.evidenceContentVerified, false);
+    assert.equal(data.sourceReachabilityChecked, false);
+    assert.equal(data.checkPassed, false);
+    assert.equal(data.executionEnabled, false);
+    assert.equal(data.operationPerformed, false);
+    assert.ok(data.returnedCandidates.some(item => item.candidateType === "source_reference_digest_variance_candidate"));
+    const filtered = await mf.dispatchFetch("http://localhost/intelligence/findings/evidence-consistency?module=social", { headers });
+    assert.equal(filtered.status, 200);
+    const filteredData = await filtered.json();
+    assert.equal(filteredData.evidenceReferencesScanned, 1);
+    assert.equal(filteredData.filter.module, "social");
+    const invalidFilter = await mf.dispatchFetch("http://localhost/intelligence/findings/evidence-consistency?module=unknown", { headers });
+    assert.equal(invalidFilter.status, 400);
+    const unknownParam = await mf.dispatchFetch("http://localhost/intelligence/findings/evidence-consistency?ownerUid=spoof", { headers });
+    assert.equal(unknownParam.status, 400);
+    const unauthenticated = await mf.dispatchFetch("http://localhost/intelligence/findings/evidence-consistency", {
+      headers: { Origin: "https://mehranmsh.github.io" }
+    });
+    assert.equal(unauthenticated.status, 401);
+    const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterAudit.count), Number(beforeAudit.count), "read-only analysis must not append audit or mutate state");
+    console.log("PASS: evidence consistency API is owner-scoped, bounded, filter-validated, read-only, and non-verdict on D1 runtime");
+  } finally {
+    await mf.dispose();
+  }
+}
+await testEvidenceConsistencyApiRuntime();
