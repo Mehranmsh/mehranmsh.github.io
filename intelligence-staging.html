@@ -61,6 +61,12 @@
   <div id="findingPrioritySummary" class="notice" aria-live="polite">Priorities have not been loaded.</div>
   <div id="findingPriorityList" class="grid" aria-live="polite"></div>
  </section>
+ <section class="panel" id="remediationPlannerPanel">
+  <div class="row"><div><h2>Remediation planner</h2><div class="muted small">Structured advisory plans for recorded findings. No code changes or operations are performed.</div></div><button id="refreshRemediationPlansBtn" class="secondary" type="button">Refresh plans</button></div>
+  <div class="notice warn" id="remediationPlannerSafetyNotice">Plans are guidance, not verified diagnoses. Affected areas are module-level, not confirmed file paths. Owner approval is required before any implementation. Execution enabled: false.</div>
+  <div id="remediationPlannerSummary" class="notice" aria-live="polite">Remediation plans have not been loaded.</div>
+  <div id="remediationPlannerList" class="grid" aria-live="polite"></div>
+ </section>
  <section class="panel">
   <div class="row"><div><h2>Knowledge review queue</h2><div class="muted small">Deterministic metadata triage, not an automated fact-checker.</div></div><button id="refreshQueueBtn" class="secondary">Refresh queue</button></div>
   <div id="queueStatus" class="notice">Queue not loaded.</div><div id="queueList" class="grid"></div>
@@ -318,6 +324,48 @@ async function loadFindingPriorities(){
  }catch(error){message("findingPrioritySummary",error.message,"bad")}
  finally{button.disabled=false}
 }
+async function loadRemediationPlans(){
+ message("remediationPlannerSummary","Preparing advisory plans from owner-scoped recorded findings...");
+ $("remediationPlannerList").replaceChildren();
+ const button=$("refreshRemediationPlansBtn");button.disabled=true;
+ try{
+  const data=await request("/intelligence/findings/remediation-plans?limit=25");
+  for(const plan of data.plans||[]){
+   const card=findingsElement("article","card");
+   const heading=findingsElement("h3","",plan.title||"Untitled finding");
+   const meta=findingsElement("div","small muted",String(plan.moduleId||"unknown")+" · "+String(plan.checkId||"unknown")+" · "+String(plan.recordedSeverity||"unrated")+" · Priority "+Number(plan.priorityScore||0));
+   const risk=findingsElement("div","small","Suggested planning risk: "+String(plan.riskLevel||"unrated")+" · "+String(plan.riskRationale||""));
+   const area=findingsElement("p","","Affected area: "+String(plan.affectedArea||"Not identified"));
+   const recommendation=findingsElement("p","","Recorded recommendation: "+String(plan.currentRecommendation||"None recorded"));
+   const disclosure=document.createElement("details");
+   const summary=findingsElement("summary","","View remediation plan");
+   const body=findingsElement("div","small");
+   const stepsHeading=findingsElement("h4","","Proposed sequence");
+   const steps=findingsElement("ol","");
+   for(const step of plan.steps||[]){
+    const li=findingsElement("li","","");
+    li.append(findingsElement("strong","",String(step.title||"Step")),document.createTextNode(" "+String(step.detail||"")));
+    steps.append(li);
+   }
+   const prerequisitesHeading=findingsElement("h4","","Prerequisites and dependencies");
+   const prerequisites=findingsElement("ul","");
+   for(const item of [...(plan.prerequisites||[]),...(plan.dependencies||[])])prerequisites.append(findingsElement("li","",String(item)));
+   const validationHeading=findingsElement("h4","","Validation required");
+   const validation=findingsElement("ul","");
+   for(const item of plan.validation||[])validation.append(findingsElement("li","",String(item)));
+   const decisionsHeading=findingsElement("h4","","Owner decisions required");
+   const decisions=findingsElement("ul","");
+   for(const item of plan.ownerDecisionsRequired||[])decisions.append(findingsElement("li","",String(item)));
+   body.append(stepsHeading,steps,prerequisitesHeading,prerequisites,validationHeading,validation,decisionsHeading,decisions);
+   disclosure.append(summary,body);
+   const disclaimer=findingsElement("div","small muted","Advisory only · "+String(plan.planStatus)+" · Execution enabled: "+String(plan.executionEnabled)+" · Operation performed: "+String(plan.operationPerformed));
+   card.append(heading,meta,risk,area,recommendation,disclosure,disclaimer);
+   $("remediationPlannerList").append(card);
+  }
+  message("remediationPlannerSummary","Prepared "+Number(data.returnedCount||0)+" plans from "+Number(data.candidateCount||0)+" considered findings · Planner: "+String(data.plannerVersion)+" · Candidate set bounded: "+String(data.candidateSetBounded)+" · Execution enabled: "+String(data.executionEnabled)+". "+(data.limitations||[]).join(" "),"good");
+ }catch(error){message("remediationPlannerSummary",error.message,"bad")}
+ finally{button.disabled=false}
+}
 async function loadOverview(){
  message("overviewStatus","Loading owner-only staging metrics...");
  $("overviewMetrics").replaceChildren();
@@ -380,8 +428,8 @@ async function loadCompanyModules(){
   message("companyModulesStatus",String(data.modules?.length||0)+" modules registered. Readiness remains not assessed until evidence-based checks run.","good");
  }catch(error){message("companyModulesStatus",error.message,"bad")}
 }
-async function refreshAll(){await Promise.all([loadCompanyModules(),loadOverview(),loadFindings(true),loadAssessmentCoverage(),loadFindingPriorities(),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
-$("refreshAssessmentCoverageBtn").addEventListener("click",loadAssessmentCoverage);$("refreshFindingPrioritiesBtn").addEventListener("click",loadFindingPriorities);$("refreshFindingsBtn").addEventListener("click",()=>loadFindings(true));$("loadMoreFindingsBtn").addEventListener("click",()=>loadFindings(false));["findingsModuleFilter","findingsSeverityFilter","findingsStatusFilter"].forEach(id=>$(id).addEventListener("change",()=>loadFindings(true)));$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
+async function refreshAll(){await Promise.all([loadCompanyModules(),loadOverview(),loadFindings(true),loadAssessmentCoverage(),loadFindingPriorities(),loadRemediationPlans(),loadQueue(),loadEvaluations(),loadTasks(),loadMemory(),loadMemorySourceOptions(),loadCapabilityApprovals()]);updateMemorySourceControl()}
+$("refreshAssessmentCoverageBtn").addEventListener("click",loadAssessmentCoverage);$("refreshFindingPrioritiesBtn").addEventListener("click",loadFindingPriorities);$("refreshRemediationPlansBtn").addEventListener("click",loadRemediationPlans);$("refreshFindingsBtn").addEventListener("click",()=>loadFindings(true));$("loadMoreFindingsBtn").addEventListener("click",()=>loadFindings(false));["findingsModuleFilter","findingsSeverityFilter","findingsStatusFilter"].forEach(id=>$(id).addEventListener("change",()=>loadFindings(true)));$("refreshCompanyModulesBtn").addEventListener("click",loadCompanyModules);$("companyModulesList").addEventListener("click",event=>{const button=event.target.closest("[data-assess-module]");if(button)loadCompanyAssessmentBlueprint(button.dataset.assessModule)});$("refreshOverviewBtn").addEventListener("click",loadOverview);$("refreshCapabilityApprovalsBtn").addEventListener("click",loadCapabilityApprovals);$("capabilityApprovalForm").addEventListener("submit",issueCapabilityApproval);$("healthBtn").addEventListener("click",checkHealth);$("loginBtn").addEventListener("click",login);$("logoutBtn").addEventListener("click",logout);$("refreshQueueBtn").addEventListener("click",loadQueue);$("refreshEvaluationsBtn").addEventListener("click",loadEvaluations);$("refreshTasksBtn").addEventListener("click",loadTasks);$("refreshMemoryBtn").addEventListener("click",()=>{memoryOffset=0;loadMemory()});$("memoryState").addEventListener("change",()=>{memoryOffset=0;loadMemory()});$("memoryPrev").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(-1):loadMemory(-1));$("memoryNext").addEventListener("click",()=>memoryView==="review"?loadMemoryReviewQueue(1):loadMemory(1));$("memorySourceType").addEventListener("change",updateMemorySourceControl);$("memorySourcePrev").addEventListener("click",()=>loadMemorySourceOptions(-1));$("memorySourceNext").addEventListener("click",()=>loadMemorySourceOptions(1));$("refreshMemoryQueueBtn").addEventListener("click",()=>{memoryOffset=0;loadMemoryReviewQueue()});$("knowledgeForm").addEventListener("submit",saveKnowledge);$("knowledgeSearchForm").addEventListener("submit",searchKnowledge);$("taskForm").addEventListener("submit",saveTask);$("memoryForm").addEventListener("submit",saveMemory);$("queueList").addEventListener("click",event=>{const button=event.target.closest("[data-review]");if(button)reviewKnowledge(button.dataset.id,button.dataset.review,button)});$("memoryList").addEventListener("click",event=>{const button=event.target.closest("[data-memory-action]");if(!button)return;const action=button.dataset.memoryAction;if(action==="refresh"){memoryOffset=0;$("memoryState").value="active";loadMemory();return}memoryAction(button.dataset.id,action,button)});
 $("healthBtn").disabled=!configured;$("loginBtn").disabled=!configured;$("connectionState").textContent=configured?"Staging Worker configured":"Worker URL placeholder detected; staging actions are disabled";
 if(!configured)message("healthResult","Safety lock active: set STAGING_WORKER_URL to the verified staging Worker URL only. Production URLs are not accepted.","warn");
 </script>

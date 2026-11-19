@@ -2,6 +2,7 @@ import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";
 import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";
 import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";
 import { scoreFindingPriority, compareFindingPriority } from "./intelligence-finding-priority.mjs";
+import { buildRemediationPlan } from "./intelligence-remediation-planner.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const MAX_BODY_BYTES = 20_000;
@@ -528,6 +529,68 @@ async function handle(request, env) {
       });
     } catch {
       return fail("Assessment coverage is unavailable. Confirm the staging findings schema is present.", 503);
+    }
+  }
+
+  if (path === "/intelligence/findings/remediation-plans" && method === "GET") {
+    const allowedParams = new Set(["module", "limit"]);
+    for (const key of url.searchParams.keys()) {
+      if (!allowedParams.has(key)) return fail("Unsupported remediation-plan filter.");
+    }
+    const moduleId = url.searchParams.get("module") || "";
+    const rawLimit = url.searchParams.get("limit") || "25";
+    const limit = Number(rawLimit);
+    const modules = new Set([
+      "music", "ai", "social", "instruments", "robotics", "security",
+      "intelligence", "logistics", "customer-experience", "labs",
+      "governance", "data", "robot-operations"
+    ]);
+    if (moduleId && !modules.has(moduleId)) return fail("Unknown remediation-plan module filter.");
+    if (!/^([1-9][0-9]?|100)$/.test(rawLimit) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      return fail("Remediation-plan limit must be an integer from 1 to 100.");
+    }
+    try {
+      const rows = await env.DB.prepare(`
+        SELECT id, module_id, check_id, severity, status, title, recommendation,
+               evidence_state, updated_at
+        FROM intelligence_findings
+        WHERE owner_uid = ? AND (? = '' OR module_id = ?)
+        ORDER BY CASE severity
+          WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3 WHEN 'info' THEN 4 ELSE 5 END,
+          updated_at DESC, id DESC
+        LIMIT 500
+      `).bind(owner.uid, moduleId, moduleId).all();
+      const candidates = (rows.results || [])
+        .map(item => ({ item, priority: scoreFindingPriority(item) }))
+        .sort((a, b) => b.priority.priorityScore - a.priority.priorityScore)
+        .slice(0, limit);
+      const plans = candidates.map(({ item, priority }) => ({
+        ...buildRemediationPlan(item),
+        priorityScore: priority.priorityScore,
+        priorityBand: priority.priorityBand
+      }));
+      return response({
+        success: true,
+        plans,
+        filters: { module: moduleId || null },
+        candidateCount: (rows.results || []).length,
+        returnedCount: plans.length,
+        candidateSetBounded: (rows.results || []).length === 500,
+        scope: "authenticated_owner_staging_only",
+        assessment: "advisory_remediation_planning_only",
+        plannerVersion: "deterministic_remediation_v1",
+        executionEnabled: false,
+        operationPerformed: false,
+        limitations: [
+          "Plans are structured suggestions based on recorded finding metadata and a static module guidance catalog.",
+          "Affected areas are module-level guidance, not verified repository paths or confirmed root causes.",
+          "No source files, external evidence, credentials, or production systems are inspected.",
+          "No task is created, no approval is consumed, and no finding or company state is changed."
+        ]
+      });
+    } catch {
+      return fail("Remediation plans are unavailable. Confirm the staging findings schema is present.", 503);
     }
   }
 

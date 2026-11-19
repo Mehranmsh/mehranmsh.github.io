@@ -247,3 +247,29 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in priority_function, f"Finding priority UI must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in priority_function and '.append(card)' in priority_function
 assert "loadFindingPriorities()" in refresh_block, "Priority triage must load automatically after owner authentication."
+
+
+# Remediation planner dashboard contract: owner-only, advisory, and read-only.
+for marker in [
+    'id="remediationPlannerPanel"',
+    'id="refreshRemediationPlansBtn"',
+    'id="remediationPlannerSafetyNotice"',
+    'id="remediationPlannerSummary"',
+    'id="remediationPlannerList"',
+    'async function loadRemediationPlans()',
+    'request("/intelligence/findings/remediation-plans?limit=25")',
+    'plan.riskLevel',
+    'plan.riskRationale',
+    'plan.ownerDecisionsRequired',
+    'plan.executionEnabled',
+    'data.plannerVersion',
+    'loadRemediationPlans()',
+    'refreshRemediationPlansBtn',
+]:
+    assert marker in page, f"Remediation planner dashboard missing safety or behavior marker: {marker}"
+
+planner_function = page.split("async function loadRemediationPlans()", 1)[1].split("async function loadOverview()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in planner_function, f"Remediation planner UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in planner_function and 'document.createElement("details")' in planner_function
+assert "loadRemediationPlans()" in refresh_block, "Remediation plans must load automatically after owner authentication."
