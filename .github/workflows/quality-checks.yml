@@ -14,6 +14,7 @@ on:
       - "intelligence-staging-worker.js"
       - "intelligence-review-queue.mjs"
       - "intelligence-capability-policy.mjs"
+      - "intelligence-approval-input.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
@@ -30,6 +31,7 @@ on:
       - "music-studio.html"
       - "worker.js"
       - "intelligence-staging-worker.js"
+      - "intelligence-approval-input.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
@@ -72,6 +74,9 @@ jobs:
 
       - name: Test INTELLIGENCE capability policy and autonomy boundaries
         run: node --test scripts/intelligence-capability-policy.test.mjs
+
+      - name: Test strict approval lifetime input behavior
+        run: node --test scripts/intelligence-approval-input.test.mjs
 
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py
