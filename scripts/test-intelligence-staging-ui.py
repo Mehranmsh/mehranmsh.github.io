@@ -346,6 +346,32 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
 assert 'findingsElement(' in drift_function and '.append(' in drift_function
 
 
+# Evidence correlation dashboard: owner-only read-only metadata patterns and safe DOM.
+for marker in [
+    'id="evidenceCorrelationPanel"',
+    'id="refreshEvidenceCorrelationBtn"',
+    'id="evidenceCorrelationModule"',
+    'id="evidenceCorrelationSummary"',
+    'id="evidenceCorrelationList"',
+    'async function loadEvidenceCorrelations()',
+    '/intelligence/findings/evidence-correlations',
+    'data.returnedCorrelationGroups',
+    'data.coverageComplete',
+    'data.isContradictionVerdict',
+    'data.evidenceContentVerified',
+    'refreshEvidenceCorrelationBtn',
+    'loadEvidenceCorrelations);',
+    'Shared metadata is only a correlation signal.',
+]:
+    assert marker in page, f"Evidence correlation dashboard missing safety or behavior marker: {marker}"
+
+correlation_function = page.split("async function loadEvidenceCorrelations()", 1)[1].split("async function loadOwnerEvidenceReviewHistory()", 1)[0]
+for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in correlation_function, f"Evidence correlation UI must remain read-only and avoid HTML injection: {forbidden}"
+assert 'findingsElement(' in correlation_function and '.append(' in correlation_function
+assert "loadEvidenceCorrelations()" in refresh_block, "Evidence correlations must load after owner authentication."
+
+
 # Gap analysis and test strategy dashboard: owner-only GET, no pass inference, no execution.
 for marker in [
     'id="gapTestStrategyPanel"',
