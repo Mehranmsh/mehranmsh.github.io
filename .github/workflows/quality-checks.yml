@@ -77,6 +77,9 @@ jobs:
       - name: Test isolated Intelligence staging Worker security contract
         run: python scripts/test-intelligence-staging-worker.py
 
+      - name: Test isolated Intelligence staging UI safety contract
+        run: python scripts/test-intelligence-staging-ui.py
+
       - name: Test Intelligence knowledge and memory owner isolation in disposable SQLite
         run: python scripts/test-intelligence-knowledge-isolation.py
 
