@@ -692,6 +692,9 @@ async function handle(request, env) {
     const rawOffset = url.searchParams.get("offset") || "0";
     const offset = Number(rawOffset);
     const state = clean(url.searchParams.get("state") || "active", 16);
+    const rawQuery = url.searchParams.get("q") || "";
+    if (rawQuery.length > 120) return fail("Knowledge search query must be at most 120 characters.");
+    const query = clean(rawQuery, 120);
     if (!["active","archived","all"].includes(state)) return fail("Invalid knowledge state.");
     if (!/^\d+$/.test(rawOffset) || !Number.isSafeInteger(offset) || offset > 10000) {
       return fail("Invalid knowledge page offset.");
@@ -702,8 +705,9 @@ async function handle(request, env) {
       FROM intelligence_knowledge
       WHERE owner_uid = ?
         AND (? = 'all' OR (? = 'archived' AND archived_at IS NOT NULL) OR (? = 'active' AND archived_at IS NULL))
+        AND (? = '' OR instr(lower(title || ' ' || content || ' ' || category || ' ' || COALESCE(source_ref, '')), lower(?)) > 0)
       ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?
-    `).bind(owner.uid, state, state, state, limit + 1, offset).all();
+    `).bind(owner.uid, state, state, state, query, query, limit + 1, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, limit);
     return response({
