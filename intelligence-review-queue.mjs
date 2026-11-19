@@ -1,4 +1,4 @@
-function buildKnowledgeReviewItem(item, nowMs = Date.now()) {
+export function buildKnowledgeReviewItem(item, nowMs = Date.now()) {
   const reasons = [];
   const disputed = item.verification_status === "disputed";
   const ownerVerified = item.verification_status === "owner_verified";
