@@ -21,6 +21,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0012_intelligence_evidence_decision_reviews.sql",
     ROOT / "migrations" / "0013_intelligence_priority_action_reviews.sql",
     ROOT / "migrations" / "0014_intelligence_owner_identity_immutability.sql",
+    ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -763,6 +764,47 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 (id,token_hash,owner_uid,created_at,expires_at)
                 VALUES('s2','hash-1','owner-b',100,200)
             """)
+
+
+    def test_task_records_are_plan_only_and_execution_fields_are_locked(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_tasks(id,title,created_by)
+            VALUES('plan-only-task','Plan only','owner-a')
+        """)
+        blocked_updates = [
+            "UPDATE intelligence_tasks SET status='in_progress' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET assigned_to='external_executor' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET result_text='executed' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET action_type='shell' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET action_payload='{\"command\":\"run\"}' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET agent_claimed_at='now' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET scheduler_claim_id='claim-1' WHERE id='plan-only-task'",
+        ]
+        for statement in blocked_updates:
+            with self.subTest(statement=statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(statement)
+        for statement in (
+            "UPDATE intelligence_tasks SET created_by='owner-b' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET id='transferred-task' WHERE id='plan-only-task'",
+        ):
+            with self.subTest(statement=statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(statement)
+        for statement in (
+            "INSERT INTO intelligence_tasks(id,title,created_by,status) VALUES('bad-status','Bad','owner-a','in_progress')",
+            "INSERT INTO intelligence_tasks(id,title,created_by,action_type) VALUES('bad-action','Bad','owner-a','shell')",
+            "INSERT INTO intelligence_tasks(id,title,created_by,agent_claim_id) VALUES('bad-claim','Bad','owner-a','claim-1')",
+        ):
+            with self.subTest(statement=statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(statement)
+        row = self.db.execute(
+            "SELECT status,assigned_to,result_text,action_type,action_payload,created_by FROM intelligence_tasks WHERE id='plan-only-task'"
+        ).fetchone()
+        self.assertEqual(row, ('queued','mehran_intelligence','','','{}','owner-a'))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

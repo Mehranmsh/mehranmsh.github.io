@@ -25,6 +25,7 @@ const migrations = [
   "0012_intelligence_evidence_decision_reviews",
   "0013_intelligence_priority_action_reviews",
   "0014_intelligence_owner_identity_immutability",
+  "0015_intelligence_task_execution_disabled",
 ];
 
 async function applyMigrations(db, names) {
@@ -4133,6 +4134,7 @@ async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity()
 
 await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
 await testMissingSecurityTriggerFailsClosed();
+await testMissingTaskExecutionGuardFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
 
