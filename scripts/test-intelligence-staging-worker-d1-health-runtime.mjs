@@ -3711,6 +3711,18 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
       outcome: "accepted",
       reason: "I reviewed the recommendation and accept the proposed next step."
     };
+    await db.prepare(
+      "CREATE TRIGGER reject_decision_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='evidence_decision_review_recorded' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedDecision = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(failedDecision.status, 503, "decision review must fail closed when audit insertion fails");
+    const rolledBackDecision = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_evidence_decision_reviews WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(rolledBackDecision.count), 0, "failed audit must roll back the decision review row");
+    await db.prepare("DROP TRIGGER reject_decision_review_audit").run();
     const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const created = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
@@ -3894,6 +3906,18 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       outcome: "accepted",
       reason: "I reviewed this advisory action and accept it for planning."
     };
+    await db.prepare(
+      "CREATE TRIGGER reject_priority_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='priority_action_review_recorded' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedPriorityReview = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(failedPriorityReview.status, 503, "priority review must fail closed when audit insertion fails");
+    const rolledBackPriorityReview = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_priority_action_reviews WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(rolledBackPriorityReview.count), 0, "failed audit must roll back the priority review row");
+    await db.prepare("DROP TRIGGER reject_priority_review_audit").run();
     const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const created = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/priority-action-reviews",
