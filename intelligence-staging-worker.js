@@ -910,7 +910,7 @@ async function handle(request, env) {
         ...buildPriorityActionReviewHistory(rows.results || [])
       });
     } catch {
-      return fail("Priority action review history is unavailable. Confirm staging migration 0013 is present.", 503);
+      return fail("Priority action review history is unavailable. Check the required staging review schema and database guards.", 503);
     }
   }
 
@@ -945,7 +945,7 @@ async function handle(request, env) {
         ...integrity
       });
     } catch {
-      return fail("Priority action review integrity analysis is unavailable. Confirm staging migration 0013 is present.", 503);
+      return fail("Priority action review integrity analysis is unavailable. Check the required staging review schema and database guards.", 503);
     }
   }
 
@@ -1031,7 +1031,7 @@ async function handle(request, env) {
         operationPerformed: true
       }, 201);
     } catch {
-      return fail("Priority action review could not be recorded. Confirm staging migration 0013 is present and the action is current.", 503);
+      return fail("Priority action review could not be recorded. Check the required staging review schema and database guards, then confirm the action is current.", 503);
     }
   }
 
