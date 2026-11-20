@@ -927,7 +927,7 @@ async function handle(request, env) {
     try {
       const result = await env.DB.prepare(`
         SELECT id, owner_uid, reviewer_uid, finding_id, module_id, check_id, outcome,
-               action_key_sha256, reviewed_at, review_snapshot_json, review_snapshot_sha256
+               action_key_sha256, reviewed_at, created_at, review_snapshot_json, review_snapshot_sha256
         FROM intelligence_priority_action_reviews
         WHERE owner_uid = ?
         ORDER BY reviewed_at DESC, id DESC
