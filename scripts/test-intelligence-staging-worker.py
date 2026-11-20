@@ -1278,14 +1278,14 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(fragment, design)
 
 
-    def test_capability_approvals_have_no_consumption_write_path(self):
-        # The current staging contract permits issue, read, revoke, and assessment only.
-        # A future consumer must be separately designed and explicitly authorized.
+    def test_approval_ledgers_have_no_consumption_write_path(self):
+        # Both staging approval ledgers permit issue, read, revoke, and assessment only.
+        # Neither ledger may be consumed or execute a task under the current staging contract.
         for pattern in [
             r"\bSET\s+consumed_at\s*=",
             r"\bSET\s+consumed_by\s*=",
             r"\bSET\s+status\s*=\s*'consumed'",
-            r"\bUPDATE\s+intelligence_capability_approvals\b[\s\S]{0,500}\bconsumed_(?:at|by)\s*=",
+            r"\bUPDATE\s+(?:intelligence_capability_approvals|intelligence_approval_ledger)\b[\s\S]{0,500}\bconsumed_(?:at|by)\s*=",
         ]:
             self.assertIsNone(
                 re.search(pattern, self.source, re.IGNORECASE),
