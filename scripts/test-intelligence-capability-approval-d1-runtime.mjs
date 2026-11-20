@@ -3,6 +3,9 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 
 const ROOT = new URL("../", import.meta.url);
+// Design-only transaction harness for a future, separately approved executor. It intentionally
+// stops at migration 0018; current staging schema applies 0019 and blocks consumption.
+// The active dual-ledger lock is tested by test-intelligence-approval-consumption-lock-d1-runtime.mjs.
 const migrationNames = [
   "0000_intelligence_staging_baseline",
   "0001_intelligence_approval_ledger",
