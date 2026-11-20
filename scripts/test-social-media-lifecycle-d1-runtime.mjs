@@ -117,7 +117,7 @@ try {
     "trg_social_media_deletion_job_identity_immutable","trg_social_media_reference_identity_immutable",
     "trg_social_media_reference_no_delete","trg_social_media_reference_insert_audit",
     "trg_social_media_reference_release_audit","trg_social_media_deletion_job_audit",
-    "trg_social_media_audit_no_update","trg_social_media_audit_no_delete",
+    "trg_social_media_deletion_job_mark_upload_pending","trg_social_media_audit_no_update","trg_social_media_audit_no_delete",
     "trg_social_upload_delete_guard","trg_social_posts_media_release",
     "trg_social_stories_media_release","trg_social_profile_gallery_media_release",
     "trg_social_profile_avatar_media_release","trg_social_messages_media_release",
