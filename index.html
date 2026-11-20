@@ -1904,7 +1904,8 @@ function currentUsername(){return socialUser?.username||socialUser?.displayName|
 function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
 function renderAvatar(id){
 const el=$(id);if(!el)return;
-if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
+const source=safeSocialMediaSource(localProfile.photo,"image");
+if(source)el.innerHTML='<img src="'+sx(source)+'" alt="Profile">';
 else el.textContent=profileInitial();
 }
 window.socialProfileGallery=[];
@@ -1919,11 +1920,11 @@ panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class
 function renderProfileGallery(){
  const editor=$("profileGalleryEditor"),publicGrid=$("profileGalleryPublic");
  const items=Array.isArray(window.socialProfileGallery)?window.socialProfileGallery:[];
- if(editor)editor.innerHTML=items.length?items.map((p,i)=>'<div class="profile-gallery-thumb"><img src="'+sx(p.url)+'" alt="Gallery photo '+(i+1)+'"><button type="button" aria-label="Remove photo" onclick="removeProfileGalleryPhoto('+i+')">×</button><span>'+(i===0?'Photo 1':'Photo '+(i+1))+'</span></div>').join(''):'<div class="profile-gallery-empty">Your gallery is empty. Add a few moments that tell your story.</div>';
- if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+sx(p.url)+'" alt="Profile gallery photo '+(i+1)+'"></button>').join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
+ if(editor)editor.innerHTML=items.length?items.map((p,i)=>{const source=sx(safeSocialMediaSource(p.url,"image"));return '<div class="profile-gallery-thumb">'+(source?'<img src="'+source+'" alt="Gallery photo '+(i+1)+'">':'<span class="small-text">Photo unavailable</span>')+'<button type="button" aria-label="Remove photo" onclick="removeProfileGalleryPhoto('+i+')">×</button><span>'+(i===0?'Photo 1':'Photo '+(i+1))+'</span></div>'}).join(''):'<div class="profile-gallery-empty">Your gallery is empty. Add a few moments that tell your story.</div>';
+ if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>{const source=sx(safeSocialMediaSource(p.url,"image"));return source?'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+source+'" alt="Profile gallery photo '+(i+1)+'"></button>':'<div class="profile-gallery-empty">Photo unavailable</div>'}).join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
 }
 window.removeProfileGalleryPhoto=function(index){window.socialProfileGallery.splice(index,1);renderProfileGallery()};
-window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=safeSocialMediaSource(item.url,"image");box.classList.add("open");document.body.style.overflow="hidden";}else window.open(safeSocialMediaSource(item.url,"image"),"_blank","noopener")};
+window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const source=safeSocialMediaSource(item.url,"image");if(!source)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=source;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(source,"_blank","noopener")};
 function updateProfilePreview(){
 const name=$("profileDisplayName")?.value.trim()||socialUser?.displayName||socialUser?.username||"Your name";
 const bio=$("profileBio")?.value||"";
@@ -3537,6 +3538,7 @@ function socialRenderChatMessage(m){
  const media=(m.media||[]).map(item=>{
   if(item.unavailable)return '<span class="small-text">Attachment unavailable. It may have expired or been removed.</span>';
   const type=String(item.type||"").toLowerCase(),url=sx(safeSocialMediaSource(item.url,type));
+  if(!url)return '<span class="small-text">Attachment unavailable or blocked.</span>';
   if(window.socialExtendedSettingsCache?.chat?.autoDownload===false){
    const label=type.startsWith("image")?"View image":type.startsWith("video")?"Open video":(type.startsWith("audio")||type.includes("voice"))?"Play voice message":"Open attachment";
    return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text" style="display:inline-block;margin-top:8px">⬇ '+label+'</a>';
