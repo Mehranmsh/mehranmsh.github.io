@@ -1041,6 +1041,24 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
     assert.equal(relation.status, 201);
     const relationId = (await relation.json()).id;
 
+    const foreignSourceId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const foreignTargetId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    await db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)")
+      .bind(foreignSourceId, "different-owner-uid", "Foreign source", "Foreign source evidence", "different-owner-uid").run();
+    await db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)")
+      .bind(foreignTargetId, "different-owner-uid", "Foreign target", "Foreign target evidence", "different-owner-uid").run();
+    const foreignRelationId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    await db.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,? ,'supports','candidate',?,?)")
+      .bind(foreignRelationId, "different-owner-uid", foreignSourceId, foreignTargetId, "Foreign source evidence", "Foreign target evidence").run();
+
+    const relationList = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(relationList.status, 200);
+    const relationListBody = await relationList.json();
+    assert.deepEqual(relationListBody.items.map(item => item.id), [relationId],
+      "relationship listing must not disclose another owner's relationship");
+
     const relationCountBeforeCrossOwnerAttempt = await db.prepare(
       "SELECT COUNT(*) AS count FROM intelligence_knowledge_relations WHERE owner_uid=?"
     ).bind(ownerUid).first();
