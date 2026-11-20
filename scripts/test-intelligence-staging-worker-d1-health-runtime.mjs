@@ -6,7 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { buildEvidenceSnapshot } from "../intelligence-owner-evidence-review.mjs";
 import { buildEvidenceCorrelationReviewSnapshot } from "../intelligence-evidence-correlation-review.mjs";
 import { buildPriorityActionPlan } from "../intelligence-priority-action-plan.mjs";
-import { buildPriorityActionReviewSnapshot } from "../intelligence-priority-action-review.mjs";
+import { buildPriorityActionReviewSnapshot, buildPriorityActionReviewIntegrity } from "../intelligence-priority-action-review.mjs";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -4417,4 +4417,40 @@ async function testPublicHealthRouteIsIpRateLimited() {
   }
 }
 
+
+async function testPriorityActionReviewIntegrityDetectsActionKeyMismatch() {
+  const snapshotJson = JSON.stringify({
+    findingId: "73000000-0000-4000-8000-000000000099",
+    moduleId: "security",
+    checkId: "authentication"
+  });
+  const snapshotHash = createHash("sha256").update(snapshotJson).digest("hex");
+  const row = {
+    id: "forged-priority-review",
+    owner_uid: "staging-owner-test-uid",
+    reviewer_uid: "staging-owner-test-uid",
+    finding_id: "73000000-0000-4000-8000-000000000099",
+    module_id: "security",
+    check_id: "authentication",
+    action_key_sha256: "f".repeat(64),
+    outcome: "accepted",
+    reviewed_at: Math.floor(Date.now() / 1000),
+    review_snapshot_json: snapshotJson,
+    review_snapshot_sha256: snapshotHash
+  };
+  const inspect = rows => buildPriorityActionReviewIntegrity(rows, async value =>
+    createHash("sha256").update(value).digest("hex"));
+  const mismatch = await inspect([row]);
+  assert.equal(mismatch.summary.actionKeyMismatches, 1);
+  assert.equal(mismatch.items[0].actionKeyMatchesSnapshot, false);
+  assert.equal(mismatch.items[0].status, "action_key_mismatch");
+
+  row.action_key_sha256 = snapshotHash;
+  const valid = await inspect([row]);
+  assert.equal(valid.summary.integrityMatches, 1);
+  assert.equal(valid.items[0].actionKeyMatchesSnapshot, true);
+  console.log("PASS: priority action review integrity detects action-key/snapshot hash mismatches");
+}
+
 await testPublicHealthRouteIsIpRateLimited();
+await testPriorityActionReviewIntegrityDetectsActionKeyMismatch();
