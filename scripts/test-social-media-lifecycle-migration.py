@@ -213,6 +213,31 @@ def test_reference_and_job_owner_guards():
     db.close()
 
 
+def test_gallery_replacement_releases_old_upload_and_registers_new_one():
+    db = build_db()
+    add_upload(db, "old-file")
+    add_upload(db, "new-file")
+    db.execute(
+        "INSERT INTO social_profile_photos(id,user_id,photo_url,upload_id) VALUES('gallery-photo','user-a','https://cdn.example/old-file','old-file')"
+    )
+    add_ref(db, "old-file", "profile_gallery", "gallery-photo", "gallery:0")
+    db.execute(
+        "UPDATE social_profile_photos SET photo_url='https://cdn.example/new-file',upload_id='new-file' WHERE id='gallery-photo'"
+    )
+    add_ref(db, "new-file", "profile_gallery", "gallery-photo", "gallery:0")
+    old_ref = db.execute(
+        "SELECT released_at FROM social_media_references WHERE upload_id='old-file'"
+    ).fetchone()[0]
+    new_ref = db.execute(
+        "SELECT released_at FROM social_media_references WHERE upload_id='new-file'"
+    ).fetchone()[0]
+    assert old_ref is not None and new_ref is None
+    assert job_count(db, "old-file") == 1
+    assert db.execute("SELECT status FROM social_uploads WHERE id='old-file'").fetchone()[0] == "deletion_pending"
+    assert job_count(db, "new-file") == 0
+    db.close()
+
+
 def test_completed_provider_deletion_prevents_new_references():
     db = build_db()
     add_upload(db)
@@ -269,6 +294,7 @@ if __name__ == "__main__":
         test_reference_and_job_owner_guards,
         test_unmanaged_legacy_uploads_are_never_queued_or_deleted,
         test_completed_provider_deletion_prevents_new_references,
+        test_gallery_replacement_releases_old_upload_and_registers_new_one,
     ]
     for test in tests:
         test()
