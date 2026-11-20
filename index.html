@@ -1192,9 +1192,9 @@ function hasValidIntelligenceStagingUrl(){return /^https:\/\/mehran-intelligence
 async function intelligenceStagingRequest(path,options={}){
  if(!hasValidIntelligenceStagingUrl())throw new Error("A verified HTTPS mehran-intelligence-staging workers.dev URL is required. Production Worker access is disabled.");
  if(!path.startsWith("/intelligence/")&&path!=="/session"&&path!=="/health")throw new Error("This route is outside the Intelligence staging allowlist.");
- const {auth=true,...requestOptions}=options;
+ const {auth=true,tokenOverride,...requestOptions}=options;
  const headers={"Accept":"application/json","Content-Type":"application/json",...(requestOptions.headers||{})};
- if(auth){const token=getIntelligenceStagingToken();if(!token)throw new Error("Connect with Pi to create a separate Intelligence staging session.");headers.Authorization="Bearer "+token;}
+ if(auth){const token=tokenOverride||getIntelligenceStagingToken();if(!token)throw new Error("Connect with Pi to create a separate Intelligence staging session.");headers.Authorization="Bearer "+token;}
  const response=await fetch(INTELLIGENCE_STAGING_WORKER_URL+path,{...requestOptions,headers,cache:"no-store",redirect:"error"});
  const data=await response.json().catch(()=>({}));
  if(!response.ok){const error=new Error(data.message||data.error||"Intelligence staging request failed ("+response.status+")");error.status=response.status;throw error;}
@@ -1220,9 +1220,8 @@ async function connectIntelligenceStagingSession(){
   updateIntelligenceStagingSessionUI("Verifying your Pi identity directly with the isolated staging Worker...");
   const issued=await intelligenceStagingRequest("/session",{method:"POST",auth:false,body:JSON.stringify({accessToken:auth.accessToken})});
   if(!issued?.success||!issued.token)throw new Error("The staging Worker did not issue a valid session.");
-  try{localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token);}catch{throw new Error("The staging session could not be stored securely in this browser.");}
-  const verified=await intelligenceStagingRequest("/session");
-  if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");
+  try{localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token);}catch{try{await intelligenceStagingRequest("/session",{method:"DELETE",tokenOverride:issued.token});}catch{}throw new Error("The staging session could not be stored securely in this browser; the server-side session revocation was attempted.");}
+  try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");}catch(verificationError){try{await intelligenceStagingRequest("/session",{method:"DELETE"});}catch{}localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);throw verificationError;}
   updateIntelligenceStagingSessionUI("Independent Pi identity verified. Private Intelligence staging session is active. Expires "+new Date(issued.expiresAt*1000).toLocaleString()+".","notice success");
   await loadIntelligenceTasks();
   await Promise.all([loadIntelCompanyReadiness(),loadIntelPriorityActionPlan(),loadIntelDecisionIntegrity()]);
