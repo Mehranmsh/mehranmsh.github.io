@@ -5,6 +5,7 @@ CREATE TRIGGER IF NOT EXISTS trg_intelligence_task_insert_plan_only
 BEFORE INSERT ON intelligence_tasks
 WHEN NEW.status <> 'queued'
   OR NEW.assigned_to <> 'mehran_intelligence'
+  OR NEW.requires_approval NOT IN (0, 1)
   OR NEW.result_text <> ''
   OR NEW.action_type <> ''
   OR NEW.action_payload <> '{}'
@@ -34,8 +35,8 @@ BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_intelligence_task_identity_immutable
-BEFORE UPDATE OF id, created_by ON intelligence_tasks
-WHEN NEW.id IS NOT OLD.id OR NEW.created_by IS NOT OLD.created_by
+BEFORE UPDATE OF id, created_by, created_at ON intelligence_tasks
+WHEN NEW.id IS NOT OLD.id OR NEW.created_by IS NOT OLD.created_by OR NEW.created_at IS NOT OLD.created_at
 BEGIN
   SELECT RAISE(ABORT, 'Intelligence task identity is immutable');
 END;

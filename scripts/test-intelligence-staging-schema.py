@@ -788,6 +788,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         for statement in (
             "UPDATE intelligence_tasks SET created_by='owner-b' WHERE id='plan-only-task'",
             "UPDATE intelligence_tasks SET id='transferred-task' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET created_at='changed' WHERE id='plan-only-task'",
         ):
             with self.subTest(statement=statement):
                 with self.assertRaises(sqlite3.IntegrityError):
@@ -796,6 +797,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "INSERT INTO intelligence_tasks(id,title,created_by,status) VALUES('bad-status','Bad','owner-a','in_progress')",
             "INSERT INTO intelligence_tasks(id,title,created_by,action_type) VALUES('bad-action','Bad','owner-a','shell')",
             "INSERT INTO intelligence_tasks(id,title,created_by,agent_claim_id) VALUES('bad-claim','Bad','owner-a','claim-1')",
+            "INSERT INTO intelligence_tasks(id,title,created_by,requires_approval) VALUES('bad-approval','Bad','owner-a',2)",
         ):
             with self.subTest(statement=statement):
                 with self.assertRaises(sqlite3.IntegrityError):
