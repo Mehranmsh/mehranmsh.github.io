@@ -1,6 +1,10 @@
 /**
- * Deterministic capability boundary for INTELLIGENCE.
- * This module classifies requests only. It never performs an operation.
+ * Deterministic capability policy for future AI/agent-delegated requests.
+ * It classifies eligibility only and never performs an operation.
+ * Current owner-facing write routes are direct, human-initiated actions:
+ * they require the dedicated Pi-verified owner session and owner-scoped SQL,
+ * but do not consume an AI capability approval.
+ * No AI/agent runtime, credentials, or execution route exists in staging.
  * Execution remains disabled in the staging Worker.
  */
 export const EXECUTION_ENABLED = false;
