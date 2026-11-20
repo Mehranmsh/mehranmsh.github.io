@@ -1615,8 +1615,13 @@ async function socialUpdateProfile(request, env) {
       if (existing) {
         retainedPhotoIds.add(existing.id);
         statements.push(env.DB.prepare(
-          "UPDATE social_profile_photos SET sort_order=? WHERE id=? AND user_id=?"
-        ).bind(i,existing.id,user.id));
+          "UPDATE social_profile_photos SET sort_order=?,upload_id=? WHERE id=? AND user_id=?"
+        ).bind(i,galleryUploads[i].id,existing.id,user.id));
+        if (existing.upload_id !== galleryUploads[i].id) {
+          statements.push(socialMediaReferenceStatement(
+            env,galleryUploads[i].id,user.id,"profile_gallery",existing.id,"gallery:"+i
+          ));
+        }
       } else {
         const photoId=crypto.randomUUID();
         statements.push(env.DB.prepare(
@@ -1779,7 +1784,7 @@ const SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS = [
   "trg_social_media_audit_no_update","trg_social_media_audit_no_delete",
   "trg_social_upload_lifecycle_state_guard","trg_social_upload_delete_guard","trg_social_posts_media_release",
   "trg_social_stories_media_release","trg_social_profile_gallery_media_release",
-  "trg_social_profile_avatar_media_release","trg_social_messages_media_release",
+  "trg_social_profile_gallery_media_replace","trg_social_profile_avatar_media_release","trg_social_messages_media_release",
   "trg_social_channel_posts_media_release"
 ];
 async function socialMediaLifecycleSchemaReady(env) {
