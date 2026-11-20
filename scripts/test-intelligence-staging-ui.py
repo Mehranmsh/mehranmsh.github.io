@@ -558,6 +558,19 @@ for marker in [
 ]:
     assert marker in public_page, f"SOCIAL profile/story media must use the safe URL policy: {marker}"
 
+avatar_renderer = public_page.split("function renderAvatar(id){", 1)[1].split("window.socialProfileGallery", 1)[0]
+assert 'safeSocialMediaSource(localProfile.photo,"image")' in avatar_renderer, "Locally stored profile avatars must pass the same safe media URL policy."
+
+gallery_renderer = public_page.split("function renderProfileGallery(){", 1)[1].split("window.removeProfileGalleryPhoto", 1)[0]
+assert 'safeSocialMediaSource(p.url,"image")' in gallery_renderer, "Profile gallery editor and preview must validate every photo URL."
+
+open_gallery_function = public_page.split("window.openProfileGalleryPhoto=function(index)", 1)[1].split("\nfunction updateProfilePreview", 1)[0]
+assert 'const source=safeSocialMediaSource(item.url,"image");if(!source)return;' in open_gallery_function, "Invalid gallery URLs must never be opened."
+assert 'Photo unavailable' in gallery_renderer, "Invalid profile gallery media must degrade to a safe placeholder."
+
+assert 'p.gallery.map((photo,i)=>{const source=sx(safeSocialMediaSource(photo.url,"image"));' in public_page, "Public profile galleries must validate URLs before both href and src insertion."
+assert 'if(!url)return \'<span class="small-text">Attachment unavailable or blocked.</span>\';' in chat_message_function, "Invalid chat attachment URLs must not render empty clickable links."
+
 # Priority Action Review integrity UI: every server-detected failure must be visible and affect status.
 public_page = (ROOT / "index.html").read_text(encoding="utf-8")
 review_integrity_function = public_page.split("async function loadIntelPriorityActionReviewIntegrity()", 1)[1].split('\n$("refreshIntelPriorityActionReviewIntegrityBtn")?.addEventListener', 1)[0]
