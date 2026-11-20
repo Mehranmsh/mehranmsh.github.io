@@ -951,10 +951,35 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         api_start = self.index_html.index("async function api(path,options={})")
         api_end = self.index_html.index("\n\n", api_start)
         api_helper = self.index_html[api_start:api_end]
-        guard = 'if(path.startsWith("/intelligence/"))throw new Error("Intelligence staging Worker is not connected. Production Worker access is disabled.");'
-        self.assertIn(guard, api_helper)
-        self.assertLess(api_helper.index(guard), api_helper.index('fetch(AUTH_WORKER+path'))
-        self.assertNotIn('path.startsWith("/intelligence/")||path==="/mcp"', api_helper)
+        self.assertIn('if(path.startsWith("/intelligence/"))return intelligenceStagingRequest(path,options);', api_helper)
+        staging_start = self.index_html.index("async function intelligenceStagingRequest")
+        staging_end = self.index_html.index("\nfunction updateIntelligenceStagingSessionUI", staging_start)
+        staging = self.index_html[staging_start:staging_end]
+        self.assertIn('if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error(', staging)
+        self.assertLess(staging.index('if(!INTELLIGENCE_STAGING_WORKER_URL)'), staging.index('fetch(INTELLIGENCE_STAGING_WORKER_URL+path'))
+        self.assertIn('const INTELLIGENCE_STAGING_WORKER_URL=""', self.index_html)
+        self.assertIn('const INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session"', self.index_html)
+        self.assertNotIn('fetch(AUTH_WORKER+path', staging)
+        load_start = self.index_html.index("async function loadIntelligence(){")
+        load_end = self.index_html.index("\nasync function testMcpConnection()", load_start)
+        load_ui = self.index_html[load_start:load_end]
+        self.assertIn('intelligenceStagingRequest("/session")', load_ui)
+        self.assertNotIn('api("/admin/overview")', load_ui)
+        self.assertNotIn('api("/projects")', load_ui)
+
+    def test_intelligence_pi_session_is_separate_and_access_token_is_not_persisted(self):
+        connect_start = self.index_html.index("async function connectIntelligenceStagingSession")
+        connect_end = self.index_html.index("\nasync function disconnectIntelligenceStagingSession", connect_start)
+        connect = self.index_html[connect_start:connect_end]
+        self.assertIn('window.Pi.authenticate(["username"]', connect)
+        self.assertIn('intelligenceStagingRequest("/session",{method:"POST",auth:false', connect)
+        self.assertIn('body:JSON.stringify({accessToken:auth.accessToken})', connect)
+        self.assertIn('localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token)', connect)
+        self.assertNotIn('localStorage.setItem(ADMIN_SESSION_KEY', connect)
+        self.assertNotIn('localStorage.setItem(SOCIAL_TOKEN_KEY', connect)
+        self.assertNotIn('localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,auth.accessToken)', connect)
+        self.assertIn('intelligenceStagingRequest("/session")', connect)
+        self.assertIn('intelligenceStagingRequest("/session",{method:"DELETE"})', self.index_html)
 
     def test_priority_action_owner_review_ui_is_owner_scoped_and_non_executing(self):
         self.assertIn('id="refreshIntelPriorityActionReviewIntegrityBtn"', self.index_html)
