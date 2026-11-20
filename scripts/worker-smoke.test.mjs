@@ -264,7 +264,8 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.ok(!route.includes('requiresApproval:{type:"boolean"}'));
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
-  assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
+  assert.match(indexSource, /const next=null/);
+  assert.doesNotMatch(indexSource, /data-intel-task-status=/);
 });
 
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
