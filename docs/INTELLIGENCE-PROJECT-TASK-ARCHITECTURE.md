@@ -11,6 +11,7 @@ The staging API currently supports:
 - Task planning with title, description, priority, and an approval flag.
 - Project create/list/detail/update/archive/restore, with owner-scoped task summaries.
 - Task-to-project association and detachment.
+- Manual task completion, reopening, and cancellation, with prerequisite-aware database guards and audit events.
 - Dependency list/add/remove, with database-enforced same-owner/same-project scope and cycle prevention.
 - New tasks enter `queued`.
 - Responses explicitly return `executionEnabled: false`.
@@ -106,6 +107,7 @@ Owner-authenticated, staging-only routes:
 - `POST /intelligence/tasks/:id/dependencies` to add one dependency edge.
 - `DELETE /intelligence/tasks/:id/dependencies/:dependencyId` to remove an edge.
 - `PUT /intelligence/tasks/:id/project` to associate or detach a task from a project.
+- `PUT /intelligence/tasks/:id/status` for owner-only manual completion, reopening, or cancellation. A task cannot complete before all prerequisites; a completed prerequisite cannot reopen while completed dependents remain.
 
 Every write must be owner-scoped and paired with an audit row in the same D1 batch. Return 404 for records outside the owner scope to avoid disclosing their existence. Reject unknown request keys, cap request bodies, cap list sizes, and use stable ordering.
 
