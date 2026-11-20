@@ -362,14 +362,26 @@ async function handle(request, env) {
       ).bind(...requiredTriggers).all();
       const foundTriggers = new Set((triggerRows.results || []).map(row => row.name));
       const missingTriggers = requiredTriggers.filter(name => !foundTriggers.has(name));
+      const requiredColumns = {
+        intelligence_knowledge: ["source_type", "source_ref", "observed_at", "confidence_score", "verification_status"],
+        intelligence_owner_memory: ["memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"]
+      };
+      const missingColumns = [];
+      for (const [table, expectedColumns] of Object.entries(requiredColumns)) {
+        const columnRows = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
+        const actualColumns = new Set((columnRows.results || []).map(column => column.name));
+        for (const column of expectedColumns) {
+          if (!actualColumns.has(column)) missingColumns.push(`${table}.${column}`);
+        }
+      }
       const foreignKeyState = await env.DB.prepare("PRAGMA foreign_keys").first();
       const foreignKeyViolations = await env.DB.prepare("PRAGMA foreign_key_check").all();
       const foreignKeysEnabled = Number(foreignKeyState?.foreign_keys) === 1;
       const violationCount = (foreignKeyViolations.results || []).length;
-      const schemaReady = missing.length === 0 && missingTriggers.length === 0 && foreignKeysEnabled && violationCount === 0;
+      const schemaReady = missing.length === 0 && missingTriggers.length === 0 && missingColumns.length === 0 && foreignKeysEnabled && violationCount === 0;
       return response({
         success: true, service: "mehran-intelligence-staging",
-        schemaReady, missingTables: missing, missingTriggers, foreignKeysEnabled,
+        schemaReady, missingTables: missing, missingTriggers, missingColumns, foreignKeysEnabled,
         foreignKeyViolations: violationCount, executor: false
       }, schemaReady ? 200 : 503);
     } catch {
