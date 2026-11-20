@@ -48,4 +48,6 @@ Do not change the production `DB` binding, production secrets, production Worker
 
 ## Owner memory API
 
-The isolated Worker currently exposes only owner-scoped `GET /intelligence/memory` and `POST /intelligence/memory`. Each create is paired with an audit record in the same D1 batch. Memory content is bounded to 4,000 characters per record. There is currently no memory update or delete route. The `memory.delete` capability name may appear in the approval policy inventory, but approval issuance/evaluation is advisory only and does not expose or execute a delete operation.
+The isolated Worker exposes owner-scoped `GET /intelligence/memory`, `POST /intelligence/memory`, `GET /intelligence/memory/review-queue`, and `PUT /intelligence/memory/:id`. PUT supports bounded category/content edits and the explicit `confirm`, `dispute`, `unverify`, `archive`, and `restore` transitions. Successful create/update/review/archive/restore operations are paired with audit records in the same D1 batch. Memory content is bounded to 4,000 characters per record. Archiving is reversible.
+
+`DELETE /intelligence/memory/:id` is recognized but intentionally returns HTTP 403 without changing data. The capability policy classifies `memory.delete` as approval-tier, while approval issuance/evaluation remain advisory and there is no one-time approval-consumption workflow. Permanent deletion must remain disabled until that server-enforced approval boundary is implemented and tested.
