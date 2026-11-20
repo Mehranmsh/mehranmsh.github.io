@@ -12,12 +12,16 @@ on:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
