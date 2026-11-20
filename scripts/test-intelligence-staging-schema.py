@@ -98,6 +98,21 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 VALUES('prov-empty','owner-a','Empty','Evidence','owner',
                     'external_url','https://')
             """)
+        # An at-sign in a URL path is not userinfo and must remain valid.
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
+                source_type,source_ref)
+            VALUES('prov-path-at','owner-a','Path at','Evidence','owner',
+                'external_url','https://example.org/@news')
+        """)
+        # Userinfo in the authority remains forbidden.
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
+                    source_type,source_ref)
+                VALUES('prov-userinfo','owner-a','Userinfo','Evidence','owner',
+                    'external_url','https://user@example.org/source')
+            """)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("""
                 INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by,
