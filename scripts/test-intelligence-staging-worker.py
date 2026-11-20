@@ -971,6 +971,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         connect_start = self.index_html.index("async function connectIntelligenceStagingSession")
         connect_end = self.index_html.index("\nasync function disconnectIntelligenceStagingSession", connect_start)
         connect = self.index_html[connect_start:connect_end]
+        self.assertIn('intelligenceStagingRequest("/health",{auth:false})', connect)
+        self.assertLess(connect.index('intelligenceStagingRequest("/health",{auth:false})'), connect.index('window.Pi.authenticate(["username"]'))
         self.assertIn('window.Pi.authenticate(["username"]', connect)
         self.assertIn('intelligenceStagingRequest("/session",{method:"POST",auth:false', connect)
         self.assertIn('body:JSON.stringify({accessToken:auth.accessToken})', connect)
