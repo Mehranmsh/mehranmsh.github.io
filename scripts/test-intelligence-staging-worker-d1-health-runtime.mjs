@@ -435,6 +435,25 @@ async function testCompleteSchemaReportsHealthy() {
   }
 }
 
+async function testHealthRejectsPreexistingTaskExecutionState() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_task_insert_plan_only").run();
+    await db.prepare("INSERT INTO intelligence_tasks(id,title,created_by,status) VALUES('legacy-executing-task','Legacy task','staging-owner','in_progress')").run();
+    await applyMigrations(db, ["0015_intelligence_task_execution_disabled"]);
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.equal(body.invalidTaskExecutionStateCount, 1);
+    assert.deepEqual(body.missingTriggers, []);
+    console.log("PASS: staging health fails closed when pre-existing task rows contain execution state");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testHealthRejectsPreexistingTaskExecutionState();
 async function testMissingKnowledgeProvenanceColumnsFailClosed() {
   const { mf } = await createWorker(4);
   try {
