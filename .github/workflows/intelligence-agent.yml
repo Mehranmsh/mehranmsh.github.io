@@ -1,14 +1,6 @@
 name: MEHRAN INTELLIGENCE Agent Runner
 
 on:
-  push:
-    paths:
-      - "worker.js"
-      - "scripts/intelligence-agent.mjs"
-      - "scripts/worker-smoke.test.mjs"
-      - ".github/workflows/intelligence-agent.yml"
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
