@@ -52,7 +52,7 @@ try {
 
   const legacyValues = (id, taskId, issued, expiry) => [
     id, taskId, "owner-a", "mehranmsh", "Mehranmsh/mehranmsh.github.io",
-    "intelligence/staging-test", "a".repeat(40), "{}", "b".repeat(64), issued, expiry
+    "intelligence/staging-test", "a".repeat(40), '{"paths":["src/"]}', "b".repeat(64), issued, expiry
   ];
   await db.prepare(`
     INSERT INTO intelligence_approval_ledger(
