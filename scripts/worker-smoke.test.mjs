@@ -235,7 +235,8 @@ test("password hashing parameters remain explicit and compatible with the deploy
 
 test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools with bounded schemas", () => {
   assert.ok(indexSource.includes('path==="/mcp"'));
-  assert.ok(indexSource.includes('id="testMcpBtn"'));
+  assert.doesNotMatch(indexSource, /testMcpBtn/);
+  assert.match(indexSource, /No production MCP request is sent from this page/);
   const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
   assert.ok(start >= 0 && end > start, "MCP route must exist before the AI chat route");
