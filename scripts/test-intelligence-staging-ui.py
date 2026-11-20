@@ -572,7 +572,9 @@ assert 'Photo unavailable' in gallery_renderer, "Invalid profile gallery media m
 assert 'p.gallery.map((photo,i)=>{const source=sx(safeSocialMediaSource(photo.url,"image"));' in public_page, "Public profile galleries must validate URLs before both href and src insertion."
 assert 'sx(safeSocialMediaSource(u.avatarUrl,"image"))' in public_page, "Contact-list avatars must validate their URL."
 assert public_page.count('sx(safeSocialMediaSource(other.avatarUrl,"image"))') >= 2, "Conversation avatars must validate their URL."
-assert 'safeSocialMediaSource(fileUrl,"video")' in public_page and 'safeSocialMediaSource(fileUrl,"image")' in public_page, "Story editor previews must validate uploaded media URLs."
+story_editor = public_page.split("async function socialCreateStory()", 1)[1].split("async function socialPublishStory", 1)[0]
+assert 'src="\'+sx(fileUrl)+\'"' in story_editor, "Story previews must use only the browser-created local object URL."
+assert 'safeSocialMediaSource(fileUrl' not in story_editor, "The remote media URL policy must not reject locally-created object URLs."
 assert 'safeSocialMediaSource(data,"image")' in public_page, "Profile image previews must validate data URLs."
 assert 'status.innerHTML=\'Saved successfully.' not in public_page, "Generated image URLs must not be inserted as raw HTML links."
 assert 'if(!url)return \'<span class="small-text">Attachment unavailable or blocked.</span>\';' in chat_message_function, "Invalid chat attachment URLs must not render empty clickable links."
