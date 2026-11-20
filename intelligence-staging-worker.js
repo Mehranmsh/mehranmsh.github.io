@@ -1804,7 +1804,7 @@ async function handle(request, env) {
       WHERE created_by = ?
       ORDER BY created_at DESC LIMIT 100
     `).bind(owner.uid).all();
-    return response({ success: true, executionEnabled: false, items: rows.results || [] });
+    return response({ success: true, executionEnabled: false, items: (rows.results || []).map(row => ({ id: row.id, title: row.title, description: row.description, assignedTo: row.assigned_to, priority: row.priority, status: row.status, requiresApproval: Number(row.requires_approval) === 1, createdAt: row.created_at, updatedAt: row.updated_at })) });
   }
 
   if (path === "/intelligence/tasks" && method === "POST") {
