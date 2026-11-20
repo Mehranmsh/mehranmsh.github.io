@@ -3041,8 +3041,8 @@ async function socialCreateStory(){
   editor.querySelectorAll("[data-editor-close]").forEach(b=>b.addEventListener("click",close));
   const media=$e("storyEditMedia"),layer=$e("storyStickerLayer");
   const fileUrl=URL.createObjectURL(file);if(!isVideo)imageObject=fileUrl;
-  if(isVideo){media.innerHTML='<video src="'+fileUrl+'" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>';$e("storyFilterTools").style.display="none";$e("storyStickerTools").style.display="none";$e("storyVideoNote").style.display="block";}
-  else{media.innerHTML='<img id="storyEditImage" src="'+fileUrl+'" alt="Story preview" style="width:100%;height:100%;object-fit:contain;filter:none">';}
+  if(isVideo){media.innerHTML='<video src="'+sx(safeSocialMediaSource(fileUrl,"video"))+'" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>';$e("storyFilterTools").style.display="none";$e("storyStickerTools").style.display="none";$e("storyVideoNote").style.display="block";}
+  else{media.innerHTML='<img id="storyEditImage" src="'+sx(safeSocialMediaSource(fileUrl,"image"))+'" alt="Story preview" style="width:100%;height:100%;object-fit:contain;filter:none">';}
   const filterById=id=>filters.find(x=>x.id===id)?.css||"none";
   const paintLayer=()=>{layer.innerHTML=stickers.map((x,i)=>'<div style="position:absolute;left:50%;top:'+(28+i*13)+'%;transform:translate(-50%,-50%);max-width:90%;padding:5px 10px;border-radius:10px;background:#07101a66;color:white;font-size:'+(x.length>8?22:36)+'px;font-weight:800;text-shadow:0 2px 8px #000;text-align:center;white-space:pre-wrap">'+sx(x)+'</div>').join("");};
   editor.querySelectorAll("[data-story-filter]").forEach(btn=>btn.addEventListener("click",()=>{selectedFilter=btn.dataset.storyFilter;const img=$e("storyEditImage");if(img)img.style.filter=filterById(selectedFilter);editor.querySelectorAll("[data-story-filter]").forEach(x=>x.style.background=x===btn?"#17415a":"#17263a");}));
@@ -3146,7 +3146,7 @@ function socialRenderContacts(){
  const box=$("contactsResults");if(!box)return;
  const q=($("contactsSearchInput")?.value||"").trim().toLowerCase();
  const users=socialContactsCache.filter(u=>(u.username||"").toLowerCase().includes(q)||(u.displayName||"").toLowerCase().includes(q));
- box.innerHTML=users.map(u=>'<button type="button" class="social-result" data-contact-user="'+sx(u.username)+'" style="display:flex;width:100%;align-items:center;gap:12px;text-align:left;margin:8px 0;padding:12px"><span class="avatar">'+(u.avatarUrl?'<img src="'+sx(u.avatarUrl)+'" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover">':sx((u.displayName||u.username||"?").slice(0,1).toUpperCase()))+'</span><span style="flex:1"><strong>'+sx(u.displayName||u.username)+'</strong><span class="small-text" style="display:block">@'+sx(u.username)+'</span></span><span class="small-text">Chat ›</span></button>').join("")||'<div class="empty">'+(socialContactsCache.length?"No contacts match this filter.":"No contacts yet. Follow people or let people follow you to see them here.")+'</div>';
+ box.innerHTML=users.map(u=>'<button type="button" class="social-result" data-contact-user="'+sx(u.username)+'" style="display:flex;width:100%;align-items:center;gap:12px;text-align:left;margin:8px 0;padding:12px"><span class="avatar">'+(u.avatarUrl?'<img src="'+sx(safeSocialMediaSource(u.avatarUrl,"image"))+'" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover">':sx((u.displayName||u.username||"?").slice(0,1).toUpperCase()))+'</span><span style="flex:1"><strong>'+sx(u.displayName||u.username)+'</strong><span class="small-text" style="display:block">@'+sx(u.username)+'</span></span><span class="small-text">Chat ›</span></button>').join("")||'<div class="empty">'+(socialContactsCache.length?"No contacts match this filter.":"No contacts yet. Follow people or let people follow you to see them here.")+'</div>';
 }
 async function socialLoadContacts(){
  const box=$("contactsResults");if(!box)return;
@@ -3173,7 +3173,7 @@ function socialRenderConversationRows(){
  list.innerHTML=rows.map(c=>{
   const other=(c.members||[]).find(x=>x.username!==currentUsername())||(c.members||[])[0];
   const title=c.title||other?.displayName||other?.username||(c.type==="group"?"Group":"Direct message");
-  const avatar=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
+  const avatar=other?.avatarUrl?'<img src="'+sx(safeSocialMediaSource(other.avatarUrl,"image"))+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
   const preview=c.lastMessage|| (c.type==="group"?"Group conversation":"No messages yet");
   const stamp=c.lastMessageAt?new Date(c.lastMessageAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";
   const unread=Number(c.unreadCount||0);const identityLabel=socialAccountTypeLabel(other?.accountType);
@@ -3381,7 +3381,7 @@ async function socialOpenConversation(id){
  $("chatTitle").textContent=c?.title||other?.displayName||other?.username||"Conversation";
  const inbox=$("chatInboxView"),thread=$("chatThreadView"),avatar=$("chatThreadAvatar");
  if(inbox)inbox.classList.add("hidden");if(thread)thread.classList.remove("hidden");
- if(avatar)avatar.innerHTML=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
+ if(avatar)avatar.innerHTML=other?.avatarUrl?'<img src="'+sx(safeSocialMediaSource(other.avatarUrl,"image"))+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
  const status=$("chatThreadStatus");if(status){const presence=other?.lastSeenAt?socialPresenceLabel(other.lastSeenAt):"SOCIAL chat";status.textContent=c?.type==="group"?"Group conversation":presence;}
  socialRenderGroupManagement(c);
  ["chatInput","sendChatBtn","voiceChatBtn","chatAttachBtn","chatEmojiBtn"].forEach(key=>{const el=$(key);if(el)el.disabled=false;});
@@ -3925,7 +3925,7 @@ async function socialDownloadGeneratedImage(){
 async function socialSaveGeneratedImage(){
  if(!socialGeneratedImageFile)return;
  const button=$("imageStudioSaveBtn"),status=$("imageStudioSaveStatus");button.disabled=true;status.textContent="Saving to your uploads...";
- try{const url=await socialUploadFile(socialGeneratedImageFile);status.innerHTML='Saved successfully. <a href="'+sx(url)+'" target="_blank" rel="noopener">Open saved image</a>'; }
+ try{const url=await socialUploadFile(socialGeneratedImageFile);const safeUrl=sx(safeSocialMediaSource(url,"image"));status.textContent=safeUrl?"Saved successfully. ":"Saved, but the returned image link was blocked.";if(safeUrl){const link=document.createElement("a");link.href=safeUrl;link.target="_blank";link.rel="noopener";link.textContent="Open saved image";status.append(link);} }
  catch(e){status.textContent=e.message||"Could not save image.";}
  finally{button.disabled=false;}
 }
@@ -4280,7 +4280,7 @@ $("openProfileEditor")?.addEventListener("click",()=>{$("profileEditor").classLi
 $("closeProfileEditor")?.addEventListener("click",()=>$("profileEditor").classList.add("hidden"));
 $("profileDisplayName")?.addEventListener("input",updateProfilePreview);
 $("profileBio")?.addEventListener("input",updateProfilePreview);
-$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No new profile photo selected";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>5*1024*1024){e.target.value="";$("profileFileStatus").textContent="Choose an image under 5 MB.";return;}$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");try{const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+data+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
+$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No new profile photo selected";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>5*1024*1024){e.target.value="";$("profileFileStatus").textContent="Choose an image under 5 MB.";return;}$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");try{const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+sx(safeSocialMediaSource(data,"image"))+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
 $("profileGalleryInput")?.addEventListener("change",e=>{const files=Array.from(e.target.files||[]);for(const file of files){if(!file.type.startsWith("image/")||file.size>5*1024*1024){$("profileMessage").textContent="Each gallery image must be an image under 5 MB.";continue;}window.socialProfileGallery.push({file,name:file.name,localUrl:URL.createObjectURL(file)});}renderProfileGallery();e.target.value="";});
 $("profileShareBtn")?.addEventListener("click",async()=>{const url=location.origin+location.pathname+"#social-profile";try{if(navigator.share)await navigator.share({title:"SOCIAL profile",url});else{await navigator.clipboard.writeText(url);toast("Profile link copied");}}catch(e){}});
 document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.addEventListener("click",()=>{profileTab=btn.dataset.profileTab;document.querySelectorAll("[data-profile-tab]").forEach(b=>b.classList.toggle("active",b===btn));$("profilePostsPanel").classList.toggle("hidden",profileTab!=="posts");$("profileAboutPanel").classList.toggle("hidden",profileTab!=="about");}));
