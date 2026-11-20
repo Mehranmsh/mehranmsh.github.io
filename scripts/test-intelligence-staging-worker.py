@@ -971,7 +971,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
     def test_intelligence_module_has_no_production_admin_mcp_or_scheduler_calls(self):
         start = self.index_html.index("async function loadIntelligence(){")
-        end = self.index_html.index("\\nasync function loadProjects()", start)
+        end = self.index_html.index("\nasync function loadProjects()", start)
         module = self.index_html[start:end]
         for forbidden in ['api("/admin/', 'api("/projects"', 'api("/mcp"', 'fetch(AUTH_WORKER', 'loadIntelligenceSchedulerRuns', 'updateIntelligenceTask']:
             self.assertNotIn(forbidden, module)
