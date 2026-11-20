@@ -263,7 +263,7 @@ async function handle(request, env) {
 
   if (path === "/intelligence/tasks" && method === "GET") {
     const rows = await env.DB.prepare(`
-      SELECT id, title, description, assigned_to, priority, status,
+      SELECT id, title, description, assigned_to, priority, status, project_id,
              requires_approval, created_at, updated_at
       FROM intelligence_tasks
       WHERE created_by = ?
