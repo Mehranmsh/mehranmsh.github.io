@@ -68,9 +68,9 @@ There is no approval-consume endpoint and no task execution endpoint.
 
 ## Frontend connection boundary
 
-- The shared dashboard API helper deliberately rejects every `/intelligence/` request before issuing a network request to the production `AUTH_WORKER`.
+- The shared dashboard API helper routes every `/intelligence/` request exclusively through `intelligenceStagingRequest`; it never sends those requests to the production `AUTH_WORKER`. The staging request helper fails closed unless the URL matches the dedicated HTTPS `mehran-intelligence-staging.*.workers.dev` hostname pattern.
 - The production admin session token must never be reused as a staging Intelligence session. The staging Worker requires its own Pi `POST /session` verification and separately stored, revocable session token.
-- Keep this fail-closed UI guard until a dedicated staging Worker URL and separate Pi-session lifecycle are implemented and reviewed. Do not route Intelligence requests through the production Worker as a temporary workaround.
+- Keep the dedicated-hostname allowlist and separate Pi-session lifecycle in place. Do not route Intelligence requests through the production Worker as a temporary workaround.
 - Existing production admin and project API requests remain separate; this boundary applies specifically to the `/intelligence/` API namespace.
 
 ## Required security tests
