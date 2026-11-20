@@ -979,6 +979,10 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('id="intelSendBtn" disabled', self.index_html)
         self.assertNotIn('path === "/intelligence/chat"', self.source)
 
+    def test_staging_branch_does_not_reintroduce_the_intelligence_agent_workflow(self):
+        workflow = ROOT / ".github" / "workflows" / "intelligence-agent.yml"
+        self.assertFalse(workflow.exists(), "The disabled Intelligence Agent workflow must stay absent from staging branches.")
+
     def test_intelligence_pi_session_is_separate_and_access_token_is_not_persisted(self):
         connect_start = self.index_html.index("async function connectIntelligenceStagingSession")
         connect_end = self.index_html.index("\nasync function disconnectIntelligenceStagingSession", connect_start)
