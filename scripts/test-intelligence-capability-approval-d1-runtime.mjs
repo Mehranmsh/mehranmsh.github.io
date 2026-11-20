@@ -165,6 +165,61 @@ async function testRollbackOnOperationFailure() {
   }
 }
 
+async function testRollbackWhenFinalAuditStatementFails() {
+  const { mf, db } = await createDatabase();
+  try {
+    // Fail only the final statement. Earlier statements consume the approval,
+    // write the operation, and create the normal trigger-owned consumption audit.
+    await db.prepare(`
+      CREATE TRIGGER reject_atomic_test_audit
+      BEFORE INSERT ON intelligence_staging_audit
+      WHEN NEW.id = 'atomic-fail-last'
+      BEGIN
+        SELECT RAISE(ABORT, 'intentional final audit failure');
+      END
+    `).run();
+
+    const batch = statements(db, { operationId: "op-final-audit-failure" });
+    batch[batch.length - 1] = db.prepare(`
+      INSERT INTO intelligence_staging_audit
+        (id,owner_uid,action,target_type,target_id,details_json,created_at)
+      VALUES ('atomic-fail-last','owner-a','atomic_test','test','grant-valid','{}',150)
+    `);
+
+    await assert.rejects(
+      db.batch(batch),
+      /intentional final audit failure/i,
+      "a failure in the final batch statement must abort the complete batch",
+    );
+
+    const approval = await db.prepare(
+      "SELECT status, consumed_at, consumed_by FROM intelligence_capability_approvals WHERE id='grant-valid'"
+    ).first();
+    assert.deepEqual(
+      [approval.status, approval.consumed_at, approval.consumed_by],
+      ["issued", null, null],
+      "the approval consumption must roll back after final-statement failure",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM protected_operations WHERE id='op-final-audit-failure'"),
+      0,
+      "the operation write must roll back after final-statement failure",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid' AND action='capability_approval_consumed'"),
+      0,
+      "the trigger-owned consumption audit must roll back after final-statement failure",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE id='atomic-fail-last'"),
+      0,
+      "the deliberately failing final audit row must not persist",
+    );
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testWrongOwnerFailsClosed() {
   const { mf, db } = await createDatabase();
   try {
@@ -210,6 +265,8 @@ await testSequentialSingleUse();
 console.log("PASS: D1-runtime sequential one-time consumption and row-count guard");
 await testRollbackOnOperationFailure();
 console.log("PASS: D1-runtime rollback restores approval and trigger audit");
+await testRollbackWhenFinalAuditStatementFails();
+console.log("PASS: D1-runtime final-statement failure rolls back approval, operation, and trigger audit");
 await testWrongOwnerFailsClosed();
 console.log("PASS: D1-runtime wrong-owner attempt fails closed");
 await testExpiredAndRevokedApprovalsFailClosed();
