@@ -2996,7 +2996,7 @@ let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],s
 const sx=v=>escapeHTML(String(v??""));
 function safeSocialMediaSource(value,type="image"){
  const raw=String(value??"").trim();
- const dataType=type==="video"?/^data:video\\/(?:mp4|webm|ogg);base64,[a-z0-9+/=]+$/i:/^data:image\\/(?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i;
+ const dataType=type==="video"?/^data:video[/](?:mp4|webm|ogg);base64,[a-z0-9+/=]+$/i:/^data:image[/](?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i;
  if(dataType.test(raw))return raw;
  try{const parsed=new URL(raw,window.location.origin);return parsed.protocol==="https:"?parsed.href:""}catch{return ""}
 }
