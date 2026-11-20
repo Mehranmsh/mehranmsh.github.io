@@ -965,6 +965,11 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         )
 
         insert_legacy("legacy-expired", "approval-task-expired", issued_at, now - 1)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-expired'",
+                (now,),
+            )
         self.db.execute(
             "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'"
         )
@@ -1000,6 +1005,16 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-main'",
                 (now + 60,),
             )
+        self.db.execute("""
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES('capability-expired-revoke','owner-a','knowledge.review','owner_staging','issued',?,?)
+        """, (issued_at, now - 60))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "revocation must precede expiry"):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-expired-revoke'",
+                (now - 30,),
+            )
 
         consumed_audits = self.db.execute("""
             SELECT COUNT(*) FROM intelligence_staging_audit
@@ -1011,6 +1026,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "trg_intelligence_approval_terminal_timestamp_guard",
             "trg_intelligence_approval_consumption_disabled",
             "trg_intelligence_capability_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_revocation_before_expiry_guard",
         }
         found_triggers = {
             row[0] for row in self.db.execute(
