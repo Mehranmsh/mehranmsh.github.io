@@ -1079,15 +1079,15 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelEventsList" class="grid"><div class="empty">No activity loaded.</div></div>
 </div>
 <div class="panel intelligence-assistant">
-<div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
-<div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
-<div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً مهم‌ترین قدم بعدی شرکت چیه؟"></textarea></div>
-<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 3/day</span></div>
+<div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">AI responses are disabled in staging until a separate budget guard and AI binding are implemented and reviewed.</div></div><span class="pill">Private · Beta</span></div>
+<div id="intelChatStatus" class="notice">No AI model is connected to the staging Worker. No model request or external action can be triggered from this panel.</div>
+<div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" disabled placeholder="AI connection is pending the separate budget and safety review."></textarea></div>
+<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn" disabled>AI connection pending security review</button><span class="small-text" id="intelQuota">AI binding not configured</span></div>
 <div id="intelReply" class="card intelligence-reply" aria-live="polite"></div>
 </div>
 <details class="panel intelligence-advanced"><summary>Technical connections and project data</summary>
 <div class="grid">
-<div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI · Llama 3.3</h3><p>Private assistant model connection.</p></div>
+<div class="card"><div class="eyebrow">AI CORE · DISABLED</div><h3>Budget guard pending</h3><p>No AI binding is present in the staging Worker. Add one only after a separate budget guard is implemented and reviewed.</p></div>
 <div class="card"><div class="eyebrow">INTEGRATION BOUNDARY</div><h3>Production connectors</h3><p>Production MCP and administrator connectors are intentionally unavailable inside the isolated Intelligence staging workspace.</p><div class="notice warn">No production MCP request is sent from this page.</div></div>
 <div class="card"><div class="eyebrow">SECURITY</div><h3>Administrator access</h3><p>Company information is protected by the MEHRAN administrator session.</p></div>
 </div>
@@ -2502,21 +2502,6 @@ catch(error){status.textContent="Could not load Intelligence activity: "+error.m
 }
 $("refreshIntelEventsBtn")?.addEventListener("click",loadIntelligenceEvents);
 
-async function sendIntelligenceMessage(){
-const input=$("intelQuestion"),button=$("intelSendBtn"),reply=$("intelReply"),status=$("intelChatStatus");
-const message=(input.value||"").trim();if(!message){status.textContent="Write a question first.";status.className="notice warn";return}
-button.disabled=true;status.textContent="MEHRAN INTELLIGENCE is analyzing the available company data...";status.className="notice";
-reply.style.display="none";
-try{
-const data=await api("/intelligence/chat",{method:"POST",body:JSON.stringify({message})});
-reply.textContent=data.reply||"No response returned.";reply.style.display="block";
-$("intelQuota").textContent="Today: "+(data.usage?.dailyRequests??"—")+"/"+(data.usage?.dailyLimit??10)+" requests · Hourly limit: "+(data.usage?.hourlyLimit??3);
-status.textContent="Analysis complete. No company data was changed.";status.className="notice success";
-}catch(error){status.textContent="Assistant unavailable: "+error.message;status.className="notice warn"}
-finally{button.disabled=false}
-}
-$("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
-$("intelQuestion")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendIntelligenceMessage()}});
 $("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
 
 
