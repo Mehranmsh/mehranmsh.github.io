@@ -62,6 +62,14 @@ try {
 
   const frozen = await db.prepare("SELECT status FROM social_uploads WHERE id='shared-file'").first();
   assert.equal(frozen.status,"deletion_pending","queued upload must be frozen against new references");
+  await assert.rejects(
+    db.prepare("UPDATE social_uploads SET status='ready' WHERE id='shared-file'").run(),
+    /SOCIAL upload lifecycle state cannot be reversed/i
+  );
+  await assert.rejects(
+    db.prepare("UPDATE social_uploads SET lifecycle_managed=0 WHERE id='shared-file'").run(),
+    /SOCIAL upload lifecycle state cannot be reversed/i
+  );
   await db.prepare("INSERT INTO social_posts(id,user_id) VALUES('post-2','owner-a')").run();
   await assert.rejects(
     addRef("ref-readded","shared-file","post","post-2"),
