@@ -356,14 +356,20 @@ async function handle(request, env) {
       ).bind(...required).all();
       const found = new Set((rows.results || []).map(row => row.name));
       const missing = required.filter(name => !found.has(name));
+      const requiredTriggers = ["trg_intelligence_approval_scope_guard","trg_intelligence_approval_expiry_audit","trg_intelligence_knowledge_content_immutable_with_relations","trg_intelligence_knowledge_provenance_guard_insert","trg_intelligence_knowledge_provenance_guard_update","trg_intelligence_owner_memory_knowledge_source_insert","trg_intelligence_owner_memory_knowledge_source_update","trg_intelligence_owner_memory_provenance_immutable","trg_intelligence_owner_memory_owner_input_source_insert","trg_intelligence_owner_memory_owner_input_source_update","trg_intelligence_owner_memory_confidence_integer_insert","trg_intelligence_owner_memory_confidence_integer_update","trg_intelligence_approval_insert_issued_only","trg_intelligence_approval_insert_metadata","trg_intelligence_approval_state_transition","trg_intelligence_approval_scope_immutable","trg_intelligence_approval_terminal_metadata","trg_intelligence_approval_terminal_metadata_immutable","trg_intelligence_capability_approval_insert_guard","trg_intelligence_capability_approval_identity_immutable","trg_intelligence_capability_approval_transition_guard","trg_intelligence_capability_approval_terminal_metadata_immutable","trg_intelligence_capability_approval_audit","trg_intelligence_finding_no_initial_sufficient_evidence","trg_intelligence_finding_sufficient_requires_evidence","trg_intelligence_finding_resolved_requires_evidence","trg_intelligence_finding_transition_requires_sufficient_evidence","trg_intelligence_finding_identity_immutable","trg_intelligence_finding_updated_at_monotonic","trg_intelligence_finding_transition_reason","trg_intelligence_finding_severity_reason","trg_intelligence_finding_audit_insert","trg_intelligence_finding_audit_update","trg_intelligence_finding_no_delete","trg_intelligence_finding_evidence_audit_insert","trg_intelligence_finding_evidence_immutable","trg_intelligence_finding_evidence_no_delete","trg_intelligence_finding_review_audit_insert","trg_intelligence_finding_review_immutable","trg_intelligence_finding_review_no_delete","trg_intelligence_correlation_review_audit_insert","trg_intelligence_correlation_review_immutable","trg_intelligence_correlation_review_no_delete","trg_intelligence_decision_review_audit_insert","trg_intelligence_decision_review_immutable","trg_intelligence_decision_review_no_delete","trg_intelligence_priority_action_review_audit_insert","trg_intelligence_priority_action_review_immutable","trg_intelligence_priority_action_review_no_delete"];
+      const triggerRows = await env.DB.prepare(
+        `SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (${requiredTriggers.map(() => "?").join(",")})`
+      ).bind(...requiredTriggers).all();
+      const foundTriggers = new Set((triggerRows.results || []).map(row => row.name));
+      const missingTriggers = requiredTriggers.filter(name => !foundTriggers.has(name));
       const foreignKeyState = await env.DB.prepare("PRAGMA foreign_keys").first();
       const foreignKeyViolations = await env.DB.prepare("PRAGMA foreign_key_check").all();
       const foreignKeysEnabled = Number(foreignKeyState?.foreign_keys) === 1;
       const violationCount = (foreignKeyViolations.results || []).length;
-      const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0;
+      const schemaReady = missing.length === 0 && missingTriggers.length === 0 && foreignKeysEnabled && violationCount === 0;
       return response({
         success: true, service: "mehran-intelligence-staging",
-        schemaReady, missingTables: missing, foreignKeysEnabled,
+        schemaReady, missingTables: missing, missingTriggers, foreignKeysEnabled,
         foreignKeyViolations: violationCount, executor: false
       }, schemaReady ? 200 : 503);
     } catch {
