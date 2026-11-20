@@ -1708,7 +1708,7 @@ async function handle(request, env) {
 
   if (path === "/intelligence/capability-approvals" && method === "POST") {
     const body = await readJson(request);
-    const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review", "memory.delete"]);
+    const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review"]);
     if (!body || Object.keys(body).some(key => !["capability", "expiresInSeconds"].includes(key)) ||
         typeof body.capability !== "string" || !allowed.has(body.capability)) {
       return fail("A known approval-tier capability is required.");
