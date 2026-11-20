@@ -535,6 +535,7 @@ assert 'Promise.allSettled' in overview_function, "Overview must show partial re
 
 
 # SOCIAL media URL policy: untrusted remote and attachment URLs must be HTTPS-only.
+public_page = (ROOT / "index.html").read_text(encoding="utf-8")
 social_media_helper = public_page.split("function safeSocialMediaSource(value,type=\"image\")", 1)[1].split("\nasync function socialUploadFile", 1)[0]
 for marker in [
     'kind.startsWith("video/")',
