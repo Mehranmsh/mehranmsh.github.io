@@ -481,7 +481,7 @@ async function testMissingSecurityTriggerFailsClosed() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 7);
+  const { mf } = await createWorker(migrations.length - 8);
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
