@@ -1230,34 +1230,22 @@ async function testOwnerSensitiveMutationAuditAndIsolation() {
     const foreignDelete = await mf.dispatchFetch(`http://localhost/intelligence/memory/${foreignMemoryId}`, {
       method: "DELETE", headers,
     });
-    assert.equal(foreignDelete.status, 404);
+    assert.equal(foreignDelete.status, 403);
     const foreignStillExists = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
       .bind(foreignMemoryId).first();
     assert.ok(foreignStillExists);
 
-    await db.prepare(
-      "CREATE TRIGGER reject_memory_delete_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_deleted' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
-    ).run();
-    const deleteAuditFailure = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
+    const permanentDeleteDisabled = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
       method: "DELETE", headers,
     });
-    assert.equal(deleteAuditFailure.status, 503);
-    const memoryAfterFailure = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
+    assert.equal(permanentDeleteDisabled.status, 403);
+    const memoryAfterDeniedDelete = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
       .bind(memoryId).first();
-    assert.ok(memoryAfterFailure, "memory deletion must roll back if audit insertion fails");
-    await db.prepare("DROP TRIGGER reject_memory_delete_audit").run();
-
-    const deleted = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
-      method: "DELETE", headers,
-    });
-    assert.equal(deleted.status, 200);
-    const deletedRow = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
-      .bind(memoryId).first();
-    assert.equal(deletedRow, null);
+    assert.ok(memoryAfterDeniedDelete, "permanent memory deletion must remain disabled");
     const deleteAudit = await db.prepare(
       "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='owner_memory_deleted' AND target_id=?"
     ).bind(ownerUid, memoryId).first();
-    assert.equal(Number(deleteAudit.count), 1);
+    assert.equal(Number(deleteAudit.count), 0);
 
     const knowledgeId = "66666666-6666-4666-8666-666666666666";
     await db.prepare(
