@@ -1576,10 +1576,13 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
   assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
-  assert.match(html, /canCancelActive=false/);
+  assert.match(html, /const next=null/);
+  assert.match(html, /const actionLabel=""/);
   assert.match(html, /No agent or scheduler can claim it/);
   assert.match(html, /No automatic execution is enabled/);
   assert.doesNotMatch(html, /Cancel running task/);
+  assert.doesNotMatch(html, /Cancel queued task/);
+  assert.doesNotMatch(html, /Approve task/);
   assert.doesNotMatch(html, /You can cancel this active task/);
   assert.match(workerSource, /schedulerClaimed: Boolean\(row\.scheduler_claimed_at\)/);
   assert.match(workerSource, /agentClaimed: Boolean\(row\.agent_claimed_at\)/);
