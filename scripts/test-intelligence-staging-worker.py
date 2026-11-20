@@ -435,11 +435,10 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, self.source)
 
-    def test_memory_deletion_is_owner_scoped_and_audited(self):
+    def test_permanent_memory_deletion_fails_closed_until_approval_gating_exists(self):
         self.assertIn('if (memoryDeleteMatch && method === "DELETE")', self.source)
-        self.assertIn('DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?', self.source)
-        self.assertIn('"owner_memory_deleted"', self.source)
-        self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
+        self.assertIn('Permanent memory deletion is disabled pending approval-gated controls.', self.source)
+        self.assertNotIn('DELETE FROM intelligence_owner_memory', self.source)
 
     def test_approval_expiry_uses_strict_tested_parser(self):
         self.assertIn('import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";', self.source)
