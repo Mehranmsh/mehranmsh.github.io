@@ -267,6 +267,17 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotIn('DELETE ', route)
         self.assertIn('path === "/intelligence/findings"', self.source)
 
+    def test_task_execution_lockout_covers_all_claim_fields_and_health_checks_legacy_rows(self):
+        migration = (ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql").read_text(encoding="utf-8")
+        for field in ["status", "assigned_to", "requires_approval", "result_text", "action_type", "action_payload", "agent_claimed_at", "agent_claim_id", "scheduler_claimed_at", "scheduler_claim_id"]:
+            self.assertIn(field, migration)
+        self.assertIn("trg_intelligence_task_insert_plan_only", migration)
+        self.assertIn("trg_intelligence_task_execution_state_immutable", migration)
+        self.assertIn("trg_intelligence_task_identity_immutable", migration)
+        self.assertIn("invalidTaskExecutionStateCount", self.source)
+        self.assertIn("invalidTaskExecutionStateCount === 0", self.source)
+        self.assertIn("intelligence_tasks: [\"status\", \"assigned_to\", \"requires_approval\", \"result_text\", \"action_type\", \"action_payload\", \"agent_claimed_at\", \"agent_claim_id\", \"scheduler_claimed_at\", \"scheduler_claim_id\"]", self.source)
+
     def test_route_allowlist_has_no_task_execution_endpoint(self):
         self.assertIn('path === "/health"', self.source)
         self.assertIn('path === "/session"', self.source)
