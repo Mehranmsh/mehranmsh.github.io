@@ -1027,6 +1027,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "trg_intelligence_approval_consumption_disabled",
             "trg_intelligence_capability_approval_consumption_disabled",
             "trg_intelligence_capability_approval_revocation_before_expiry_guard",
+            "trg_intelligence_capability_approval_revocation_before_expiry_guard",
         }
         found_triggers = {
             row[0] for row in self.db.execute(
