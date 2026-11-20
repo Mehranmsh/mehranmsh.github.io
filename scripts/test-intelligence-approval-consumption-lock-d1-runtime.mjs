@@ -98,6 +98,11 @@ try {
       scope_json,scope_sha256,status,issued_at,expires_at
     ) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)
   `).bind(...legacyValues("legacy-expired", "task-legacy-expired", issuedAt, now - 1)).run();
+  await assert.rejects(
+    db.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-expired'").bind(now).run(),
+    /terminal timestamp/i,
+    "an already-expired legacy approval must not be recorded as revoked",
+  );
   await db.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'").run();
   const expiredLegacy = await db.prepare("SELECT status FROM intelligence_approval_ledger WHERE id='legacy-expired'").first();
   assert.equal(expiredLegacy.status, "expired", "an approval may expire after its expiry time");
@@ -108,7 +113,7 @@ try {
         id,task_id,owner_uid,owner_username,repository,branch,base_sha,
         scope_json,scope_sha256,status,issued_at,expires_at
       ) VALUES('legacy-future-issue','task-legacy-main','owner-a','mehranmsh',
-        'Mehranmsh/mehranmsh.github.io','intelligence/staging-test',?,'{}',?,'issued',?,?)
+        'Mehranmsh/mehranmsh.github.io','intelligence/staging-test',?,'{"paths":["src/"]}',?,'issued',?,?)
     `).bind("a".repeat(40), "b".repeat(64), now + 60, now + 120).run(),
     /invalid legacy approval issue/i,
     "future-dated legacy issuance must be rejected",
@@ -141,6 +146,18 @@ try {
     "future-dated capability revocation must be rejected",
   );
 
+  await db.prepare(`
+    INSERT INTO intelligence_capability_approvals(
+      id,owner_uid,capability,scope,status,issued_at,expires_at
+    ) VALUES('capability-expired-revoke','owner-a','knowledge.review','owner_staging','issued',?,?)
+  `).bind(issuedAt, now - 60).run();
+  await assert.rejects(
+    db.prepare("UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-expired-revoke'")
+      .bind(now - 30).run(),
+    /revocation must precede expiry/i,
+    "capability revocation after expiry must be rejected",
+  );
+
   const consumptionAudit = await db.prepare(`
     SELECT COUNT(*) AS count FROM intelligence_staging_audit
     WHERE action IN ('approval_consumed','capability_approval_consumed')
@@ -153,6 +170,7 @@ try {
     "trg_intelligence_approval_terminal_timestamp_guard",
     "trg_intelligence_approval_consumption_disabled",
     "trg_intelligence_capability_approval_consumption_disabled",
+    "trg_intelligence_capability_approval_revocation_before_expiry_guard",
   ];
   const triggerRows = await db.prepare(
     `SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (${required.map(() => "?").join(",")})`
