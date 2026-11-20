@@ -4154,7 +4154,11 @@ async function socialChannelPost(request, env, channelId) {
         name: cleanText(item.name || upload.name, 180)
       });
     } else if (item && validHttpsUrl(item.url)) {
-      // Backward compatibility for previously supported externally hosted media.
+      const ownedUpload = await env.DB.prepare(
+        "SELECT id FROM social_uploads WHERE user_id=? AND url=? AND lifecycle_managed=1 LIMIT 1"
+      ).bind(user.id,item.url).first();
+      if (ownedUpload) return error("Use the uploadId field for your own uploaded media.",400);
+      // External/legacy URLs remain supported, but are not managed uploads.
       media.push({
         url: item.url,
         type: cleanText(item.type || "", 100),
