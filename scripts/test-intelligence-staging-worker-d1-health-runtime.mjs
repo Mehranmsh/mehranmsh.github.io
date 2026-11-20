@@ -580,6 +580,23 @@ async function testMissingSecurityTriggerFailsClosed() {
   }
 }
 
+async function testMissingPriorityReviewTimestampGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    const requiredTrigger = "trg_intelligence_priority_action_review_timestamp_guard";
+    await db.prepare(`DROP TRIGGER ${requiredTrigger}`).run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingTriggers, [requiredTrigger]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when the priority review timestamp guard is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testMissingCapabilityLedgerFailsClosed() {
   const { mf } = await createWorker(migrations.indexOf("0008_intelligence_capability_approval_ledger"));
   try {
@@ -4123,6 +4140,27 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     assert.equal(JSON.parse(saved.review_snapshot_json).findingId, findingId);
     assert.equal(createHash("sha256").update(saved.review_snapshot_json).digest("hex"), saved.review_snapshot_sha256);
 
+    const insertReviewSelect = "INSERT INTO intelligence_priority_action_reviews " +
+      "(id,owner_uid,reviewer_uid,finding_id,module_id,check_id,action_key_sha256,outcome,reason," +
+      "review_snapshot_json,review_snapshot_sha256,reviewed_at,created_at) " +
+      "SELECT ?,owner_uid,reviewer_uid,finding_id,module_id,check_id,action_key_sha256,outcome,reason," +
+      "review_snapshot_json,review_snapshot_sha256,?,? " +
+      "FROM intelligence_priority_action_reviews WHERE id=?";
+    const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
+    await assert.rejects(db.prepare(insertReviewSelect)
+      .bind("future-priority-review", futureTimestamp, futureTimestamp, result.id).run(),
+      /priority action review timestamps cannot be in the future/i);
+    await assert.rejects(db.prepare(insertReviewSelect)
+      .bind("future-created-priority-review", saved.reviewed_at, futureTimestamp, result.id).run(),
+      /priority action review timestamps cannot be in the future/i);
+    await assert.rejects(db.prepare(insertReviewSelect)
+      .bind("mismatched-created-priority-review", saved.reviewed_at, saved.reviewed_at - 1, result.id).run());
+    const reviewCountAfterRejectedInserts = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_priority_action_reviews WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(reviewCountAfterRejectedInserts.count), 1,
+      "invalid direct inserts must not create priority review rows");
+
     const audit = await db.prepare("SELECT action FROM intelligence_staging_audit WHERE target_id=?")
       .bind(result.id).first();
     assert.equal(audit.action, "priority_action_review_recorded");
@@ -4385,6 +4423,7 @@ async function testMissingTaskExecutionGuardFailsClosed() {
 
 await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
 await testMissingSecurityTriggerFailsClosed();
+await testMissingPriorityReviewTimestampGuardFailsClosed();
 await testMissingTaskExecutionGuardFailsClosed();
 await testMissingApprovalConsumptionGuardFailsClosed();
 await testMissingApprovalRevocationExpiryGuardFailsClosed();
