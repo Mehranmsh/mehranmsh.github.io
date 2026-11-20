@@ -1362,6 +1362,8 @@ test("SOCIAL account deletion UI explains the pause without collecting credentia
   const end=indexSource.indexOf("async function socialLogout(){",start);
   assert.ok(start>=0 && end>start);
   const handler=indexSource.slice(start,end);
+  assert.match(indexSource,/id="socialDeleteAccountBtn" disabled/);
+  assert.match(indexSource,/id="socialDeletePassword"[^>]*disabled/);
   assert.match(handler,/Account deletion is temporarily paused/);
   assert.match(handler,/account and uploaded files remain untouched/);
   assert.doesNotMatch(handler,/fetch\(SOCIAL_API/);
