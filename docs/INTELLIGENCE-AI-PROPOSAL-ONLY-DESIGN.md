@@ -122,3 +122,18 @@ All model output, user-supplied text, external page content, uploaded content, a
 ## Implementation gate
 
 This design is not permission to implement or deploy the proposal service. Before any schema migration, new Worker route, AI provider binding, secret, or deployment is added, the owner must review the design and explicitly authorize that specific staging-only implementation step. Production changes and PR merge require separate explicit authorization. Until then, this document is the complete scope of work for the proposal-only concept.
+
+
+## Immutable proposal snapshots and append-only decision events
+
+"Append-only" applies to the proposal's reviewed content and its decision history, not to an in-place mutable blob that overwrites prior decisions:
+
+- The proposal payload is immutable after intake. A changed payload is a new proposal snapshot with a new ID and server-computed hash; the earlier snapshot remains readable and may receive a superseded decision event.
+- Keep decision history in a separate append-only event ledger. Each event has a server-generated event ID, owner UID derived from the authenticated session, proposal ID, event type, server timestamp, and bounded decision metadata. Ordinary application routes must not update or delete prior events.
+- A current-status field may exist as a transactionally maintained projection for efficient filtering, but it is not the source of truth. It may only advance through a strict state machine using conditional updates from the expected prior state. The event insert and projection update must commit atomically.
+- Valid transitions are explicit and terminal states cannot be reopened: pending to accepted, rejected, expired, or superseded. Reconsideration creates a new proposal snapshot rather than resetting a terminal record.
+- Audit/event ordering must use server-assigned timestamps plus a unique monotonic sequence or stable event ID for deterministic ordering; client timestamps are display-only metadata and never determine expiry or ordering.
+- A proposal's owner UID, payload, payload hash, creation/expiry timestamps, provenance verification state, and event actor are server-owned fields. Unknown or client-supplied authority fields are rejected, not copied into storage.
+- On acceptance, the immutable proposal snapshot, approval snapshot, target version, and event transition are checked within the same transaction. A unique constraint or equivalent conditional write must ensure only one accepted event exists for a proposal and approval.
+
+This separation prevents an apparently append-only history from being undermined by mutable proposal payloads or editable decision rows.
