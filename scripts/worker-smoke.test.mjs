@@ -2117,7 +2117,7 @@ test("Intelligence staging approval UI is read-only except for revocation", () =
   assert.doesNotMatch(indexSource, /intelApprovalForm|issueIntelApprovalBtn|readIntelligenceBaseSha|issueIntelligenceApproval/);
   assert.doesNotMatch(indexSource, /api\("\/intelligence\/approvals",\{method:"POST"/);
   assert.match(indexSource, /window\.confirm\("Revoke this issued grant\?/);
-  assert.match(indexSource, /no executor can consume a grant/);
+  assert.match(indexSource, /no executor can consume a grant/i);
 });
 
 
