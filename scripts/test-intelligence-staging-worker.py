@@ -956,6 +956,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         staging_end = self.index_html.index("\nfunction updateIntelligenceStagingSessionUI", staging_start)
         staging = self.index_html[staging_start:staging_end]
         self.assertIn('if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error(', staging)
+        self.assertIn('function hasValidIntelligenceStagingUrl(){return /^https:\\/\\/mehran-intelligence-staging\\.[a-z0-9-]+\\.workers\\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}', self.index_html)
+        self.assertIn('tokenOverride', staging)
         self.assertLess(staging.index('if(!INTELLIGENCE_STAGING_WORKER_URL)'), staging.index('fetch(INTELLIGENCE_STAGING_WORKER_URL+path'))
         self.assertIn('const INTELLIGENCE_STAGING_WORKER_URL=""', self.index_html)
         self.assertIn('const INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session"', self.index_html)
@@ -972,6 +974,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         connect_end = self.index_html.index("\nasync function disconnectIntelligenceStagingSession", connect_start)
         connect = self.index_html[connect_start:connect_end]
         self.assertIn('intelligenceStagingRequest("/health",{auth:false})', connect)
+        self.assertIn('health.schemaReady!==true||health.executor!==false', connect)
+        self.assertIn('method:"DELETE",tokenOverride:issued.token', connect)
         self.assertLess(connect.index('intelligenceStagingRequest("/health",{auth:false})'), connect.index('window.Pi.authenticate(["username"]'))
         self.assertIn('window.Pi.authenticate(["username"]', connect)
         self.assertIn('intelligenceStagingRequest("/session",{method:"POST",auth:false', connect)
