@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Disposable SQLite proof for the proposed INTELLIGENCE project/task schema.
+"""Disposable SQLite contract tests for INTELLIGENCE project/task migration 0005.
 
-This is a design contract test, not a production migration. It applies the
-current staging migrations to an in-memory database, then exercises the
-proposed additive project/dependency constraints.
+These tests execute the committed staging migration 0005 in an in-memory
+SQLite database. They do not apply it to live Cloudflare D1.
 """
 from pathlib import Path
 import sqlite3
