@@ -4132,6 +4132,22 @@ async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity()
   }
 }
 
+async function testMissingTaskExecutionGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_task_execution_state_immutable").run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingTriggers, ["trg_intelligence_task_execution_state_immutable"]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when task execution guard is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
 await testMissingSecurityTriggerFailsClosed();
 await testMissingTaskExecutionGuardFailsClosed();
