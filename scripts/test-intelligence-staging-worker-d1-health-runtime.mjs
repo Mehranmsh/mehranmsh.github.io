@@ -3911,7 +3911,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
   }
 }
 
-await testCompleteSchemaReportsHealthy();
 await testMissingSecurityTriggerFailsClosed();
-await testOwnerEvidenceDecisionReviewWorkflowRuntime();
+await testOwnerEvidenceDecisionReviewRuntime();
+await testPriorityActionOwnerReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
