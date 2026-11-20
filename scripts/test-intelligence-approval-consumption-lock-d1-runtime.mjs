@@ -71,6 +71,11 @@ try {
   assert.deepEqual([legacy.status, legacy.consumed_at, legacy.consumed_by], ["issued", null, null]);
 
   await assert.rejects(
+    db.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-main'").run(),
+    /terminal timestamp/i,
+    "a legacy approval must not expire before its expiry time",
+  );
+  await assert.rejects(
     db.prepare("UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'")
       .bind(issuedAt - 1).run(),
     /terminal timestamp/i,
@@ -93,11 +98,9 @@ try {
       scope_json,scope_sha256,status,issued_at,expires_at
     ) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)
   `).bind(...legacyValues("legacy-expired", "task-legacy-expired", issuedAt, now - 1)).run();
-  await assert.rejects(
-    db.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'").run(),
-    /terminal timestamp/i,
-    "legacy approval must not expire before its expiry time",
-  );
+  await db.prepare("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'").run();
+  const expiredLegacy = await db.prepare("SELECT status FROM intelligence_approval_ledger WHERE id='legacy-expired'").first();
+  assert.equal(expiredLegacy.status, "expired", "an approval may expire after its expiry time");
 
   await assert.rejects(
     db.prepare(`
