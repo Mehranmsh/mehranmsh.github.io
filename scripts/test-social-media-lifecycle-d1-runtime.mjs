@@ -60,10 +60,15 @@ try {
     /SOCIAL upload cannot be deleted/i
   );
 
+  const frozen = await db.prepare("SELECT status FROM social_uploads WHERE id='shared-file'").first();
+  assert.equal(frozen.status,"deletion_pending","queued upload must be frozen against new references");
   await db.prepare("INSERT INTO social_posts(id,user_id) VALUES('post-2','owner-a')").run();
-  await addRef("ref-readded","shared-file","post","post-2");
-  const queued = await db.prepare("SELECT status,last_error FROM social_media_deletion_jobs WHERE upload_id='shared-file'").first();
-  assert.deepEqual([queued.status,queued.last_error],["blocked","active_reference_added"]);
+  await assert.rejects(
+    addRef("ref-readded","shared-file","post","post-2"),
+    /SOCIAL media reference upload ownership/i
+  );
+  const queued = await db.prepare("SELECT status FROM social_media_deletion_jobs WHERE upload_id='shared-file'").first();
+  assert.equal(queued.status,"pending","re-reference rejection must leave the deletion job pending");
   await assert.rejects(
     db.prepare("INSERT INTO social_media_deletion_jobs(id,batch_id,upload_id,owner_user_id,request_key,status) VALUES('bad','batch','shared-file','owner-b','bad-request','pending')").run(),
     /SOCIAL media deletion requires/i
