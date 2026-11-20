@@ -11,6 +11,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0002_intelligence_knowledge_relations.sql",
     ROOT / "migrations" / "0003_intelligence_staging_runtime.sql",
     ROOT / "migrations" / "0004_intelligence_knowledge_provenance.sql",
+    ROOT / "migrations" / "0005_intelligence_projects_dependencies.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.apply_chain()
         # 0004 is a one-time additive ALTER TABLE migration; the earlier
         # CREATE IF NOT EXISTS migrations remain safely repeatable.
-        for path in MIGRATIONS[:-1]:
+        for path in MIGRATIONS[:-2]:
             self.db.executescript(path.read_text(encoding="utf-8"))
         tables = {row[0] for row in self.db.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -43,16 +44,22 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             "intelligence_staging_audit",
             "intelligence_staging_rate_limits",
             "intelligence_owner_memory",
+            "intelligence_projects",
+            "intelligence_task_dependencies",
         }.issubset(tables))
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
         approval_fks = list(self.db.execute(
             "PRAGMA foreign_key_list(intelligence_approval_ledger)"
         ))
+        task_project_fks = list(self.db.execute("PRAGMA foreign_key_list(intelligence_tasks)"))
+        dependency_fks = list(self.db.execute("PRAGMA foreign_key_list(intelligence_task_dependencies)"))
         relation_fks = list(self.db.execute(
             "PRAGMA foreign_key_list(intelligence_knowledge_relations)"
         ))
         self.assertTrue(any(row[2] == "intelligence_tasks" for row in approval_fks))
         self.assertTrue(any(row[2] == "intelligence_knowledge" for row in relation_fks))
+        self.assertTrue(any(row[2] == "intelligence_projects" for row in task_project_fks))
+        self.assertEqual(sum(row[2] == "intelligence_tasks" for row in dependency_fks), 2)
 
     def test_approval_ledger_rejects_unknown_task(self):
         self.apply_chain()
