@@ -299,6 +299,12 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(fragment, self.source)
         self.assertIn('trg_intelligence_owner_memory_provenance_immutable', (ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql").read_text(encoding="utf-8"))
 
+    def test_permanently_disabled_memory_delete_cannot_receive_a_capability_approval(self):
+        self.assertIn('const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review"]); ', self.source)
+        self.assertNotIn('"memory.delete"', self.source)
+        policy = (ROOT / "intelligence-capability-policy.mjs").read_text(encoding="utf-8")
+        self.assertNotIn('"memory.delete"', policy)
+
     def test_capability_policy_routes_are_owner_scoped_and_assessment_only(self):
         self.assertIn('import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";', self.source)
         self.assertIn('path === "/intelligence/capabilities" && method === "GET"', self.source)
