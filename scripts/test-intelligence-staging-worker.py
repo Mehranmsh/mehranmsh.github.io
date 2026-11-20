@@ -2,6 +2,7 @@
 """Static safety contract for the isolated Intelligence staging Worker."""
 from pathlib import Path
 import re
+import json
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -207,6 +208,25 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotRegex(self.config, r'"crons"\s*:')
         self.assertNotRegex(self.config, r'"queues"\s*:')
         self.assertNotRegex(self.config, r'"routes"\s*:')
+
+        # Parse JSONC after removing full-line comments and validate the actual
+        # binding structure, not only the presence of expected text fragments.
+        parsed = json.loads(re.sub(r"(?m)^\\s*//.*$", "", self.config))
+        self.assertEqual(parsed.get("name"), "mehran-intelligence-staging")
+        self.assertEqual(parsed.get("main"), "intelligence-staging-worker.js")
+        self.assertTrue(parsed.get("workers_dev"))
+        self.assertFalse(parsed.get("preview_urls"))
+        self.assertEqual(set(parsed.keys()), {
+            "name", "main", "compatibility_date", "workers_dev",
+            "preview_urls", "d1_databases"
+        })
+        bindings = parsed.get("d1_databases")
+        self.assertIsInstance(bindings, list)
+        self.assertEqual(len(bindings), 1)
+        self.assertEqual(bindings[0].get("binding"), "DB")
+        self.assertEqual(bindings[0].get("database_name"), "mehran-msh-intelligence-staging")
+        self.assertEqual(bindings[0].get("database_id"), "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID")
+        self.assertEqual(set(bindings[0].keys()), {"binding", "database_name", "database_id"})
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
