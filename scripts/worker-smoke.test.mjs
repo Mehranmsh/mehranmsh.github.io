@@ -2174,7 +2174,7 @@ test("INTELLIGENCE relationship review UI is owner-controlled and renders untrus
     assert.ok(indexSource.includes('id="'+id+'"'), "Missing relationship review control: "+id);
   }
   assert.match(indexSource,/api\("\/intelligence\/knowledge\/relations"/);
-  assert.match(indexSource,/data\.relations\|\|\[\]/);
+  assert.match(indexSource,/data\.items\|\|\[\]/);
   assert.match(indexSource,/dataset\.intelRelationAction="confirm"/);
   assert.match(indexSource,/dataset\.intelRelationAction="dismiss"/);
   assert.match(indexSource,/dataset\.intelRelationAction="resolve"/);
