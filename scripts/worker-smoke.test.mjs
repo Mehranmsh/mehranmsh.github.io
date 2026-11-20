@@ -2648,6 +2648,7 @@ test("SOCIAL content writes register owned media references in the same D1 batch
   const post=workerSource.slice(postStart,postEnd);
   assert.match(post,/INSERT INTO social_posts/);
   assert.match(post,/socialMediaReferenceStatement\(env,\s*item\.id,\s*user\.id,\s*"post",\s*id/);
+  assert.match(post,/lifecycle_managed/);
   assert.match(post,/await env\.DB\.batch\(\[/);
 
   const storyStart=workerSource.indexOf("async function socialCreateStory(");
@@ -2660,12 +2661,14 @@ test("SOCIAL content writes register owned media references in the same D1 batch
   const messageEnd=workerSource.indexOf("\nasync function ",messageStart+20);
   const message=workerSource.slice(messageStart,messageEnd);
   assert.match(message,/socialMediaReferenceStatement\(env,\s*item\.uploadId,\s*user\.id,\s*"message",\s*id/);
+  assert.match(message,/Use the uploadId field for your own uploaded media/);
 
   const channelStart=workerSource.indexOf("async function socialChannelPost(");
   const channelEnd=workerSource.indexOf("\nasync function ",channelStart+20);
   const channel=workerSource.slice(channelStart,channelEnd);
   assert.match(channel,/uploadId: upload\.id/);
   assert.match(channel,/socialMediaReferenceStatement\(env,\s*item\.uploadId,\s*user\.id,\s*"channel_post",\s*id/);
+  assert.match(channel,/Use the uploadId field for your own uploaded media/);
 });
 
 test("SOCIAL profile media must be ready public uploads owned by the authenticated user", () => {
