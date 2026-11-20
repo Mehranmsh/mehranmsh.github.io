@@ -1118,14 +1118,17 @@ if __name__ == "__main__":
         # All business routes are behind the Pi-verified staging owner session.
         gate = 'const owner = await verifySession(request, env);'
         self.assertIn(gate, self.source)
-        self.assertIn('if (!owner) return fail("Authentication required.", 401);', self.source)
-        gate_index = self.source.index(gate)
+        gate_positions = [match.start() for match in re.finditer(re.escape(gate), self.source)]
+        self.assertGreaterEqual(len(gate_positions), 3)
+        # The third occurrence is the shared gate after the session-only routes.
+        gate_index = gate_positions[2]
+        auth_check = self.source.index('if (!owner) return fail("Authentication required.", 401);', gate_index)
         for marker in [
             'if (path === "/intelligence/memory" && method === "POST")',
             'if (path === "/intelligence/knowledge" && method === "POST")',
             'if (path === "/intelligence/knowledge/relations" && method === "POST")',
         ]:
-            self.assertGreater(self.source.index(marker), gate_index)
+            self.assertGreater(self.source.index(marker), auth_check)
             route = self.route_block(marker)
             self.assertIn("owner.uid", route)
 
