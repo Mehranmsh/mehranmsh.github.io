@@ -976,6 +976,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         for forbidden in ['api("/admin/', 'api("/projects"', 'api("/mcp"', 'fetch(AUTH_WORKER', 'loadIntelligenceSchedulerRuns', 'updateIntelligenceTask']:
             self.assertNotIn(forbidden, module)
         self.assertIn("No production MCP request is sent from this page", self.index_html)
+        self.assertNotIn("sendIntelligenceMessage", self.index_html)
+        self.assertIn('id="intelSendBtn" disabled', self.index_html)
+        self.assertNotIn('path === "/intelligence/chat"', self.source)
 
     def test_intelligence_pi_session_is_separate_and_access_token_is_not_persisted(self):
         connect_start = self.index_html.index("async function connectIntelligenceStagingSession")
