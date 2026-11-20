@@ -1112,3 +1112,50 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+    def test_owner_manual_writes_are_separate_from_future_agent_capabilities(self):
+        # All business routes are behind the Pi-verified staging owner session.
+        gate = 'const owner = await verifySession(request, env);'
+        self.assertIn(gate, self.source)
+        self.assertIn('if (!owner) return fail("Authentication required.", 401);', self.source)
+        gate_index = self.source.index(gate)
+        for marker in [
+            'if (path === "/intelligence/memory" && method === "POST")',
+            'if (path === "/intelligence/knowledge" && method === "POST")',
+            'if (path === "/intelligence/knowledge/relations" && method === "POST")',
+        ]:
+            self.assertGreater(self.source.index(marker), gate_index)
+            route = self.route_block(marker)
+            self.assertIn("owner.uid", route)
+
+        # Capability evaluation only assesses a server-side approval.
+        evaluation = self.route_block('if (path === "/intelligence/capabilities/evaluate" && method === "POST")')
+        for fragment in [
+            'WHERE id=? AND owner_uid=?',
+            'serverVerified: true',
+            'assessmentOnly: true',
+            'operationPerformed: false',
+            'executionEnabled: false',
+            'capability_assessed',
+        ]:
+            self.assertIn(fragment, evaluation)
+        for forbidden in ['consumed_at =', 'consumed_by =', 'executeTask(', 'claimTask(']:
+            self.assertNotIn(forbidden, evaluation)
+
+        policy = (ROOT / "intelligence-capability-policy.mjs").read_text(encoding="utf-8")
+        self.assertIn("future AI/agent-delegated requests", policy)
+        self.assertIn("Current owner-facing write routes are direct, human-initiated actions", policy)
+        self.assertIn("export const EXECUTION_ENABLED = false;", policy)
+
+        # Staging exposes no agent identity, agent session, or agent route.
+        for forbidden in [
+            'path.startsWith("/agent/',
+            'path === "/agent/',
+            'agentSession',
+            'AGENT_TOKEN',
+            'env.AI',
+            'scheduled(',
+            'waitUntil(',
+        ]:
+            self.assertNotIn(forbidden, self.source)
