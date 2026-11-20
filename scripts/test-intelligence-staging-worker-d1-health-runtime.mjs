@@ -26,6 +26,7 @@ const migrations = [
   "0013_intelligence_priority_action_reviews",
   "0014_intelligence_owner_identity_immutability",
   "0015_intelligence_task_execution_disabled",
+  "0016_intelligence_capability_approval_allowlist",
 ];
 
 async function applyMigrations(db, names) {
@@ -454,6 +455,30 @@ async function testHealthRejectsPreexistingTaskExecutionState() {
 }
 
 await testHealthRejectsPreexistingTaskExecutionState();
+await testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows();
+async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await assert.rejects(
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-delete','staging-owner','memory.delete','owner_staging','issued',100,200)").run(),
+      /capability is not available for approval/i,
+    );
+    await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_capability_guard").run();
+    await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('legacy-delete','staging-owner','memory.delete','owner_staging','issued',100,200)").run();
+    const migration = await readFile(new URL("migrations/0016_intelligence_capability_approval_allowlist.sql", ROOT), "utf8");
+    await db.exec(migration);
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.equal(body.invalidCapabilityApprovalCount, 1);
+    assert.ok(body.missingTriggers.includes("trg_intelligence_capability_approval_capability_guard") === false);
+    console.log("PASS: D1 rejects disabled approval capability and health blocks legacy rows");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testMissingKnowledgeProvenanceColumnsFailClosed() {
   const { mf } = await createWorker(4);
   try {
