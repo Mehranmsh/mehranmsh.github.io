@@ -400,7 +400,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 id,owner_uid,capability,scope,status,issued_at,expires_at
             ) VALUES(?,?,?,?,?,?,?)
         """
-        good = ('cap-a','owner-a','memory.delete','owner_staging','issued',100,200)
+        good = ('cap-a','owner-a','memory.create','owner_staging','issued',100,200)
         self.db.execute(insert, good)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute(insert, ('cap-b','owner-a','task.execute','owner_staging','issued',100,200))
