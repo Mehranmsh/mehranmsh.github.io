@@ -1251,7 +1251,7 @@ restoreIntelligenceStagingSession();
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
-if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin)){toast("Administrator access required.");return;}
+if(name==="admin"&&(!piUser||!piUser.isAdmin)){toast("Administrator access required.");return;}
 document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
 const page=$("page-"+name);
 if(page)page.classList.add("active");
@@ -2295,27 +2295,29 @@ await loadAdminUsers();
 });
 
 async function loadIntelligence(){
-const message=$("intelligenceMessage");
-message.textContent="Checking administrator session and loading live company data...";
-message.className="notice";
-$("refreshIntelligenceBtn").disabled=true;
-try{
-const [overview,projectData]=await Promise.all([api("/admin/overview"),api("/projects")]);
-const stats=overview.stats||{};
-const list=Array.isArray(projectData.projects)?projectData.projects:[];
-$("intelProjects").textContent=String(list.length);
-$("intelUsers").textContent=String(stats.users??0);
-$("intelActiveUsers").textContent=String(stats.activeUsers??0);
-$("intelOpenReports").textContent=String(stats.openReports??0);
-$("intelligenceProjectsList").innerHTML=list.length?'<div class="grid">'+list.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="small-text" style="margin-top:10px">Updated: '+escapeHTML(p.updatedAt||p.updated_at||"Not available")+'</div></div>').join("")+'</div>':'<div class="empty">No registered projects yet.</div>';
-message.textContent="Live company data loaded successfully. Updated "+new Date().toLocaleString()+".";
-message.className="notice success";
-}catch(error){
-message.textContent="Company data could not be loaded: "+error.message+". Sign in again with the authorized Pi administrator account if your session has expired.";
-message.className="notice warn";
-$("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
-$("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity();loadIntelPriorityActionPlan();loadIntelCompanyReadiness()}
+ const message=$("intelligenceMessage");
+ const button=$("refreshIntelligenceBtn");
+ if(button)button.disabled=true;
+ try{
+  if(!getIntelligenceStagingToken()){
+   message.textContent="Intelligence is isolated from the production Worker. Connect with Pi using the dedicated staging session above to load private data.";
+   message.className="notice warn";
+   $("intelligenceProjectsList").textContent="No production project or administrator data is loaded in this workspace.";
+   $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
+   return;
+  }
+  const session=await intelligenceStagingRequest("/session");
+  if(!session?.success)throw new Error("The independent staging session is not valid.");
+  message.textContent="Independent Intelligence staging session verified. Loading owner-scoped staging records only.";
+  message.className="notice success";
+  $("intelligenceProjectsList").textContent="Production project data is intentionally not queried from this workspace.";
+  $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
+  await loadIntelligenceTasks();
+ }catch(error){
+  message.textContent="Intelligence staging data is unavailable: "+error.message;
+  message.className="notice warn";
+  $("intelligenceProjectsList").textContent="No production data was requested.";
+ }finally{if(button)button.disabled=false}
 }
 async function testMcpConnection(){
 const button=$("testMcpBtn"),status=$("mcpStatus");
@@ -2543,7 +2545,7 @@ const data=await api("/intelligence/tasks");
 renderIntelligenceTasks(data.tasks||[]);
 status.textContent=(data.tasks||[]).length+" recent tasks loaded. Pre-authorized read-only reports and quality checks run automatically; sensitive actions require approval.";
 status.className="notice success";
-await loadIntelligenceSchedulerRuns();
+ // The isolated staging Worker has no scheduler or scheduled-run endpoint.
 await loadIntelligenceApprovals();
 await loadIntelligenceMemory();
 await loadIntelligenceKnowledge();
