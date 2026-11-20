@@ -26,7 +26,6 @@ required = [
     'data-show-dependencies',
     'data-remove-dependency',
     'Manual status changes only. Execution enabled: ',
-    'project_created',
     'body:{action}',
     'data-review="verify"',
     'data-review="dispute"',
