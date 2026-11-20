@@ -1974,7 +1974,7 @@ renderAvatar("sideAvatar");
 renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
-function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
+function mediaMarkup(item){const source=sx(safeSocialMediaSource(item.data,item.type));if(!source)return '<div class="empty">Media unavailable</div>';if(item.type==="video")return '<video src="'+source+'" controls playsinline preload="metadata"></video>';return '<img src="'+source+'" alt="Post media">'}
 function renderFeed(){
 const list=$("feedList");if(!list)return;
 $("feedCount").textContent=posts.length+" posts";
@@ -1995,7 +1995,7 @@ $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
 grid.innerHTML=filtered.map(p=>{
 const m=getPostMedia(p)[0];
 if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';
-return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>';
+return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+sx(safeSocialMediaSource(m.data,m.type))+'" muted></video>':'<img src="'+sx(safeSocialMediaSource(m.data,m.type))+'" alt="Explore post">')+'</button></div>';
 }).join("");
 }
 $("exploreSearch").addEventListener("input",renderExplore);
@@ -2005,7 +2005,7 @@ const videos=posts.filter(p=>getPostMedia(p).some(m=>m.type==="video"));
 if(!videos.length){box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';return}
 box.innerHTML=videos.map(p=>{
 const m=getPostMedia(p).find(x=>x.type==="video");
-return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+m.data+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
+return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+sx(safeSocialMediaSource(m.data,m.type))+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
 }).join("");
 }
 window.changePostMedia=function(id,delta){
@@ -2077,7 +2077,7 @@ const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readA
 draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name,file});
 }catch{toast("Could not read "+file.name)}
 }
-$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'" alt="Preview">').join("");
+$("uploadPreview").innerHTML=draftFiles.map(m=>{const source=sx(safeSocialMediaSource(m.data,m.type));return m.type==="video"?'<video src="'+source+'" controls></video>':'<img src="'+source+'" alt="Preview">'}).join("");
 $("postFileStatus").textContent=draftFiles.length?draftFiles.length+" ready to share · "+draftFiles.map(m=>m.name).join(", "):"No supported files selected. Try an image or video under 700 KB each.";$("postFileStatus").classList.toggle("has-files",draftFiles.length>0);
 });
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
@@ -2994,6 +2994,12 @@ updateAuthMode();
 <script>
 let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false,socialConversationRefreshBusy=false,socialChatRefreshTick=0;
 const sx=v=>escapeHTML(String(v??""));
+function safeSocialMediaSource(value,type="image"){
+ const raw=String(value??"").trim();
+ const dataType=type==="video"?/^data:video\\/(?:mp4|webm|ogg);base64,[a-z0-9+/=]+$/i:/^data:image\\/(?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i;
+ if(dataType.test(raw))return raw;
+ try{const parsed=new URL(raw,window.location.origin);return parsed.protocol==="https:"?parsed.href:""}catch{return ""}
+}
 async function socialUploadFile(file){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type,visibility:"public"})});
  const id=created.file?.id,target=created.upload;
