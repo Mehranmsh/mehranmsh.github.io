@@ -1,0 +1,110 @@
+# Intelligence AI proposal-only boundary (design, not implementation)
+
+## Status and non-goals
+
+This document defines a future design boundary only. It does not add an AI runtime, proposal API, database table, migration, model binding, credential, scheduler, queue, polling loop, task claimant, approval consumer, or executor.
+
+Current staging behavior remains unchanged:
+- `EXECUTION_ENABLED=false`.
+- The staging Worker exports only its existing `fetch` handler.
+- No agent identity, agent session, agent credential, tool bridge, proposal route, approval-consumption route, or task-execution route is present.
+- Existing owner-facing write routes remain direct human actions behind the dedicated Pi-verified owner session. They are not AI permissions.
+- The owner bearer token must never be passed to a model, agent, browser tool, or external service.
+- No production resource, database, Worker, secret, binding, or configuration may be changed as part of this design.
+
+## Trust boundaries
+
+1. **AI proposal producer:** untrusted, advisory-only. It may produce a structured suggestion, but has no database binding, owner session, Pi token, production credential, GitHub write token, or direct access to memory/knowledge records.
+2. **Proposal intake service (future, not implemented):** a narrow server-side boundary that validates and stores a proposal as inert data in an isolated proposal ledger. It must not write to canonical knowledge or memory tables.
+3. **Owner review surface:** visible only after the existing dedicated Pi-verified owner session. It displays the exact proposal payload, provenance, requested effect, risk, and expiry. It cannot silently approve on behalf of the owner.
+4. **Approval and commit service (future, not implemented):** accepts only an explicit owner action and performs a one-time, server-verified, owner-scoped transaction. It must not expose a general-purpose execution API to the AI.
+
+No component may infer owner approval from a chat message, model output, UI state, a client-supplied boolean, or possession of a proposal ID.
+
+## Proposal record contract
+
+A future proposal record should be inert and append-only for its decision history. At minimum it should bind:
+- a cryptographically random proposal ID;
+- authenticated owner UID assigned by the server, never accepted from the model;
+- proposal kind, restricted to an explicit allowlist such as `knowledge.create`, `knowledge.update`, `memory.create`, or `memory.update`;
+- a strictly validated target record ID for update proposals, or an explicit create operation;
+- bounded proposed content and metadata;
+- provenance claims separated from server-verified provenance;
+- source references and evidence references, each independently validated;
+- creation and expiry timestamps assigned by the server;
+- canonical payload hash calculated server-side over a deterministic serialization;
+- status such as `pending`, `accepted`, `rejected`, `expired`, or `superseded`;
+- decision actor, decision timestamp, and audit correlation ID.
+
+The model must not choose owner UID, status, decision actor, verified provenance, timestamps, approval scope, or payload hash. Unknown fields and unsupported proposal kinds must be rejected. Payload size, nesting depth, string lengths, URL schemes, and reference counts must be bounded.
+
+A proposal must never be presented as a verified system observation or uploaded document merely because the model says so. Until trusted ingestion exists, acceptable provenance remains the currently supported owner input, validated HTTPS external URL, or server-validated link to an existing owner-scoped knowledge record. The UI must distinguish model-generated text from independently verified evidence.
+
+## Approval binding and replay resistance
+
+A future approval must be:
+- bound to the authenticated owner UID;
+- bound to exactly one proposal ID and one capability;
+- bound to the exact canonical proposal payload hash and target record/version;
+- limited to the minimum explicit operation and scope;
+- short-lived and checked against server time;
+- single-use, with consumption and resulting mutation in one atomic database transaction;
+- non-replayable after acceptance, rejection, expiry, revocation, payload change, or target-version change.
+
+A generic approval for `memory.write` or `knowledge.write` is too broad. Approval must authorize one exact proposal snapshot, not a category of future operations. Any edit to the proposal invalidates the previous approval and requires a new owner review and approval.
+
+Do not treat the existing approval assessment endpoint as an enforcement mechanism. It is assessment-only and does not consume an approval or perform a write.
+
+## Owner acceptance transaction
+
+When an owner explicitly accepts a proposal, the future server implementation must perform all checks and writes in one atomic transaction/batch:
+1. Verify the dedicated owner session and derive owner UID from that session.
+2. Load the proposal by ID and owner UID; require `pending` and not expired.
+3. Recompute the canonical payload hash and compare it with the stored hash and approval snapshot hash.
+4. Verify the exact capability, target ID, target version, allowed fields, and operation-specific constraints.
+5. Verify a matching, unexpired, unrevoked, unused approval bound to this owner, proposal, capability, and payload hash.
+6. Conditionally mark the approval consumed and proposal accepted, requiring exactly one affected row for each conditional transition.
+7. Create or update the canonical knowledge/memory record with owner UID derived from the session, never from request data.
+8. Insert the audit event containing the proposal ID, payload hash, capability, target, and decision correlation ID.
+9. Commit all changes atomically. If any condition fails, no canonical record, approval consumption, proposal decision, or success audit may be partially committed.
+
+The transaction must use conditional updates or equivalent compare-and-swap checks to prevent concurrent double acceptance. A replay or stale target must fail closed with a conflict response. A failed transaction must be safe to retry only after the owner reloads current state.
+
+## Reject, expire, and supersede
+
+- Rejection is an owner-authenticated, append-only decision with a bounded reason and atomic audit.
+- Expiry is server-derived; clients cannot extend it.
+- A changed proposal becomes a new immutable snapshot or supersedes the old proposal. It never silently mutates an already reviewed payload.
+- Revocation or expiry of approval prevents acceptance.
+- No hard deletion of proposal/audit history is permitted through ordinary owner or AI routes.
+
+## Forbidden capabilities
+
+The AI proposal producer must never receive or invoke:
+- production writes or production credentials;
+- secrets, Pi access tokens, owner bearer tokens, or session material;
+- arbitrary SQL, arbitrary URL fetch, shell/command execution, GitHub write operations, or unrestricted filesystem access;
+- task execution, scheduler control, deployment, payment, asset transfer, or permission escalation;
+- direct mutation of canonical memory, knowledge, findings, company state, or user accounts.
+
+The future capability policy must explicitly deny these operations even if a client supplies a fabricated approval.
+
+## Required tests before implementation can be considered
+
+A future implementation requires isolated disposable-D1 runtime tests proving:
+- unauthenticated and wrong-owner proposal reads/writes are rejected;
+- model/client-supplied owner IDs, status, timestamps, provenance verification, and hashes are ignored or rejected;
+- unknown fields, oversized bodies, malformed JSON, unsupported kinds, invalid URLs, and traversal references are rejected;
+- proposal creation cannot change canonical memory or knowledge rows;
+- changed payload, changed target version, wrong capability, wrong owner, expired approval, revoked approval, and replayed approval all fail closed;
+- two concurrent accept attempts result in exactly one successful commit;
+- acceptance creates/updates the canonical record, consumes approval, changes proposal status, and writes audit atomically;
+- rejected/expired proposals cannot be accepted;
+- no route, binding, credential, scheduler, queue, or worker handler enables autonomous execution;
+- production configuration and production resources remain untouched.
+
+Static tests must additionally assert that the AI-facing boundary has no owner token, DB binding, production binding, execution flag override, or direct canonical write route.
+
+## Implementation gate
+
+This design is not permission to implement or deploy the proposal service. Before any schema migration, new Worker route, AI provider binding, secret, or deployment is added, the owner must review the design and explicitly authorize that specific staging-only implementation step. Production changes and PR merge require separate explicit authorization. Until then, this document is the complete scope of work for the proposal-only concept.
