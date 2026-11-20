@@ -367,6 +367,7 @@ async function handle(request, env) {
       const foundTriggers = new Set((triggerRows.results || []).map(row => row.name));
       const missingTriggers = requiredTriggers.filter(name => !foundTriggers.has(name));
       const requiredColumns = {
+        intelligence_tasks: ["status", "assigned_to", "requires_approval", "result_text", "action_type", "action_payload", "agent_claimed_at", "agent_claim_id", "scheduler_claimed_at", "scheduler_claim_id"],
         intelligence_knowledge: ["source_type", "source_ref", "observed_at", "confidence_score", "verification_status"],
         intelligence_owner_memory: ["memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"]
       };
@@ -378,15 +379,17 @@ async function handle(request, env) {
           if (!actualColumns.has(column)) missingColumns.push(`${table}.${column}`);
         }
       }
+      const taskExecutionState = await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks WHERE status IS NOT 'queued' OR assigned_to IS NOT 'mehran_intelligence' OR requires_approval IS NULL OR requires_approval NOT IN (0,1) OR result_text IS NOT '' OR action_type IS NOT '' OR action_payload IS NOT '{}' OR agent_claimed_at IS NOT NULL OR agent_claim_id IS NOT NULL OR scheduler_claimed_at IS NOT NULL OR scheduler_claim_id IS NOT NULL").first();
+      const invalidTaskExecutionStateCount = Number(taskExecutionState?.count || 0);
       const foreignKeyState = await env.DB.prepare("PRAGMA foreign_keys").first();
       const foreignKeyViolations = await env.DB.prepare("PRAGMA foreign_key_check").all();
       const foreignKeysEnabled = Number(foreignKeyState?.foreign_keys) === 1;
       const violationCount = (foreignKeyViolations.results || []).length;
-      const schemaReady = missing.length === 0 && missingTriggers.length === 0 && missingColumns.length === 0 && foreignKeysEnabled && violationCount === 0;
+      const schemaReady = missing.length === 0 && missingTriggers.length === 0 && missingColumns.length === 0 && invalidTaskExecutionStateCount === 0 && foreignKeysEnabled && violationCount === 0;
       return response({
         success: true, service: "mehran-intelligence-staging",
         schemaReady, missingTables: missing, missingTriggers, missingColumns, foreignKeysEnabled,
-        foreignKeyViolations: violationCount, executor: false
+        invalidTaskExecutionStateCount, foreignKeyViolations: violationCount, executor: false
       }, schemaReady ? 200 : 503);
     } catch {
       return fail("Staging schema is unavailable.", 503);
