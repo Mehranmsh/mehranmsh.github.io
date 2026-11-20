@@ -4349,6 +4349,22 @@ async function testMissingApprovalConsumptionGuardFailsClosed() {
   }
 }
 
+async function testMissingApprovalRevocationExpiryGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_revocation_before_expiry_guard").run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.ok(body.missingTriggers.includes("trg_intelligence_capability_approval_revocation_before_expiry_guard"));
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when the approval revocation expiry guard is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testMissingTaskExecutionGuardFailsClosed() {
   const { mf, db } = await createWorker(migrations.length);
   try {
@@ -4369,6 +4385,7 @@ await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
 await testMissingSecurityTriggerFailsClosed();
 await testMissingTaskExecutionGuardFailsClosed();
 await testMissingApprovalConsumptionGuardFailsClosed();
+await testMissingApprovalRevocationExpiryGuardFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
 
