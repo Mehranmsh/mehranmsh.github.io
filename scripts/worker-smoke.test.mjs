@@ -998,7 +998,7 @@ test("SOCIAL uploads enforce per-user ownership and verify storage metadata befo
   const deleteStart = workerSource.indexOf("async function socialDeleteUpload");
   const deleteEnd = workerSource.indexOf("async function fetchPiUser", deleteStart);
   const remove = workerSource.slice(deleteStart, deleteEnd);
-  assert.match(remove, /SELECT id,lifecycle_managed FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(remove, /SELECT id,lifecycle_managed,status FROM social_uploads WHERE id=\? AND user_id=\?/);
   assert.match(remove, /INSERT INTO social_media_deletion_jobs/);
   assert.match(remove, /executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED/);
   assert.doesNotMatch(remove, /rapidfileRequest\s*\(/);
@@ -2683,11 +2683,19 @@ test("SOCIAL profile media must be ready public uploads owned by the authenticat
   assert.match(profile,/await env\.DB\.batch\(statements\)/);
 });
 
+test("SOCIAL upload completion cannot reactivate a file after deletion is queued", () => {
+  const start=workerSource.indexOf("async function socialCompleteUpload(");
+  const end=workerSource.indexOf("\\nasync function ",start+20);
+  const handler=workerSource.slice(start,end);
+  assert.match(handler,/row\.status !== "uploading"/);
+});
+
 test("SOCIAL upload deletion only queues inert work and account deletion fails closed", () => {
   const start=workerSource.indexOf("async function socialDeleteUpload(");
   const end=workerSource.indexOf("\nasync function ",start+20);
   const deletion=workerSource.slice(start,end);
   assert.match(deletion,/INSERT INTO social_media_deletion_jobs/);
+  assert.match(deletion,/Only ready uploads can be queued for deletion/);
   assert.match(deletion,/executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED/);
   assert.match(deletion,/\},202\)/);
   assert.doesNotMatch(deletion,/rapidfileRequest\s*\(/);
