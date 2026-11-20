@@ -210,16 +210,17 @@ test("MEHRAN Intelligence agent API is separately scoped and approval-gated", ()
   assert.match(workerSource, /Agent service identity is not configured/);
 });
 
-test("MEHRAN Intelligence agent API fails closed until its service secret is configured", async () => {
-  const response = await request("/agent/v1/tasks/next", {}, { DB: mockDb() });
-  assert.equal(response.status, 503);
+test("MEHRAN Intelligence agent API remains disabled even when a service secret is absent or present", async () => {
+  const response = await request("/agent/v1/tasks/next", {}, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "x".repeat(64) });
+  assert.equal(response.status, 410);
   const payload = await response.json();
-  assert.match(payload.error, /Agent service identity is not configured/);
+  assert.match(payload.error, /Production Intelligence Agent execution is disabled/);
 });
 
-test("owner approval releases a task from the approval gate for agent claiming", () => {
+test("owner approval cannot re-enable the disabled Production Intelligence Agent", () => {
+  assert.match(workerSource, /Production Intelligence Agent execution is disabled/);
   assert.match(workerSource, /requires_approval=CASE WHEN \?='accepted' THEN 0 ELSE requires_approval END/);
-  assert.match(workerSource, /status IN \('queued','accepted'\) AND requires_approval=0/);
+  assert.match(workerSource, /if \(path\.startsWith\("\/agent\/v1\/"\)\)\s*\{\s*return error\([\s\S]*?410\);/);
 });
 
 test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approved task proposals", () => {
