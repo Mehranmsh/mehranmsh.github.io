@@ -32,11 +32,11 @@ Migration `0003_intelligence_staging_runtime.sql` adds:
 
 Migration 0004 `0004_intelligence_knowledge_provenance.sql` adds source type/reference, observation timestamp, bounded confidence score, and owner verification status. It enforces provenance validation and prevents rewriting provenance after evidence relationships exist while allowing separate owner review transitions.
 
-Migrations 0000-0008 are committed. The user has applied 0000-0002 to the separate staging D1 database; migrations 0003-0008 remain unapplied remotely. Apply remaining migrations only after positively identifying the staging database and receiving explicit authorization.
+Migrations 0000-0013 are committed on this draft branch. The owner manually applied migrations 0000-0002 to the separate staging D1 database. Remote application status for migrations 0003-0013 is unverified; do not assume they are either applied or unapplied. Verify the remote migration ledger before considering any change, and require explicit owner authorization.
 
 ## Implemented route allowlist
 
-- `GET /health`: checks all nine required tables, verifies the D1 foreign-key setting and checks for foreign-key violations; returns 503 when the schema is incomplete or invalid.
+- `GET /health`: checks all 15 required tables, verifies the D1 foreign-key setting and checks for foreign-key violations; returns 503 when the schema is incomplete or invalid.
 - `POST /session`, `GET /session`, `DELETE /session`
 - `GET/POST /intelligence/tasks`: creates and lists owner-scoped queued plans only; execution is disabled.
 - `GET /intelligence/capabilities`: returns the static capability policy inventory only.
@@ -58,7 +58,7 @@ Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revoca
 
 ## Current status
 
-The isolated Worker, Wrangler staging config, expanded Intelligence review APIs, owner review ledgers, and D1-runtime test suite are present on open Draft PR119. The config still contains `REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID`; the exact staging database ID has not been positively verified in this workflow. The owner previously applied migrations 0000-0002 manually; remote application status for migrations 0003-0013 is unverified and must be checked in the Cloudflare D1 console before any migration action. CI for commit `53497cd7c2293de0a417fc07a934d2a5da3baa98` passed all 34 steps using disposable test databases. This does not establish live D1 schema state or live Pi authentication. Cloudflare binding, live Pi verification, and staging deployment are not done. No production database or Worker has been changed. PR119 remains Draft/open/unmerged.
+The isolated Worker, Wrangler staging config, expanded Intelligence review APIs, owner review ledgers, and D1-runtime test suite are present on open Draft PR119. The config still contains `REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID`; the exact staging database ID has not been positively verified in this workflow. The owner previously applied migrations 0000-0002 manually; remote application status for migrations 0003-0013 is unverified and must be checked in the Cloudflare D1 console before any migration action. CI for the current PR119 head `fe55fbcb617e733865d27d61e0317c0fe500ac95` completed successfully (34/34 checks) using disposable test databases. This does not establish live D1 schema state or live Pi authentication. This does not establish live D1 schema state or live Pi authentication. Cloudflare binding, live Pi verification, and staging deployment are not done. No production database or Worker has been changed. PR119 remains Draft/open/unmerged.
 
 ## Owner memory routes
 
