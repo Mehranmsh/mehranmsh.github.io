@@ -8,6 +8,7 @@ export async function handleProjectApi({request,env,owner,url,path,method,helper
   const {response,fail,readJson,clean,randomId,audit,uuid}=helpers;
   const projectMatch=path.match(/^\/intelligence\/projects\/([0-9a-f-]{36})$/i);
   const taskProjectMatch=path.match(/^\/intelligence\/tasks\/([0-9a-f-]{36})\/project$/i);
+  const taskStatusMatch=path.match(/^\/intelligence\/tasks\/([0-9a-f-]{36})\/status$/i);
   const taskDepsMatch=path.match(/^\/intelligence\/tasks\/([0-9a-f-]{36})\/dependencies$/i);
   const depDeleteMatch=path.match(/^\/intelligence\/tasks\/([0-9a-f-]{36})\/dependencies\/([0-9a-f-]{36})$/i);
 
@@ -106,6 +107,30 @@ export async function handleProjectApi({request,env,owner,url,path,method,helper
       if(!Number(results?.[0]?.meta?.changes||0))return fail("Project not found.",404);
     }catch{return fail("Project update violates a project or task constraint.",409);}
     return response({success:true,id,status:body.status||existing.status});
+  }
+
+  if(taskStatusMatch&&method==="PUT"){
+    const taskId=taskStatusMatch[1],body=await readJson(request);
+    if(!body||Object.keys(body).some(k=>!["status","result"].includes(k))||
+      !["completed","queued","cancelled"].includes(body.status))return fail("Only manual completion, reopening, or cancellation is allowed.");
+    if(body.result!==undefined&&(typeof body.result!=="string"||body.result.length>3000))return fail("Task result must be a string up to 3,000 characters.");
+    const task=await env.DB.prepare("SELECT id,status FROM intelligence_tasks WHERE id=? AND created_by=?").bind(taskId,owner.uid).first();
+    if(!task)return fail("Task not found.",404);
+    if(task.status===body.status)return response({success:true,unchanged:true,status:task.status,executionEnabled:false});
+    const result=body.result===undefined?"":clean(body.result,3000);
+    const action=body.status==="completed"?"task_manually_completed":
+      (body.status==="queued"?"task_manually_reopened":"task_cancelled");
+    try{
+      const results=await env.DB.batch([
+        env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND created_by=?")
+          .bind(body.status,result,taskId,owner.uid),
+        env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) "+
+          "SELECT ?,?,?,?,?,?,? WHERE changes()=1")
+          .bind(randomId(),owner.uid,action,"task",taskId,JSON.stringify({previousStatus:task.status,status:body.status}),Math.floor(Date.now()/1000))
+      ]);
+      if(!Number(results?.[0]?.meta?.changes||0))return fail("Task not found.",404);
+    }catch{return fail("Task status change violates a prerequisite or project constraint.",409);}
+    return response({success:true,id:taskId,status:body.status,executionEnabled:false});
   }
 
   if(taskProjectMatch&&method==="PUT"){
