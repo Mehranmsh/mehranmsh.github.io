@@ -67,6 +67,46 @@ CREATE TABLE IF NOT EXISTS social_media_lifecycle_audit (
 CREATE INDEX IF NOT EXISTS idx_social_media_lifecycle_audit_upload
 ON social_media_lifecycle_audit(upload_id,created_at);
 
+CREATE TRIGGER IF NOT EXISTS trg_social_media_reference_owner_guard
+BEFORE INSERT ON social_media_references
+WHEN NOT EXISTS (
+  SELECT 1 FROM social_uploads u
+  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready'
+    AND (
+      (NEW.content_type='message' AND u.acl='private')
+      OR (NEW.content_type!='message' AND u.acl='public')
+    )
+)
+BEGIN
+  SELECT RAISE(ABORT,'SOCIAL media reference upload ownership, readiness, or visibility mismatch');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_social_media_deletion_job_owner_guard
+BEFORE INSERT ON social_media_deletion_jobs
+WHEN NOT EXISTS (
+  SELECT 1 FROM social_uploads u
+  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id
+) OR EXISTS (
+  SELECT 1 FROM social_media_references r
+  WHERE r.upload_id=NEW.upload_id AND r.released_at IS NULL
+)
+BEGIN
+  SELECT RAISE(ABORT,'SOCIAL media deletion requires an owned upload with no active references');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_social_media_deletion_job_identity_immutable
+BEFORE UPDATE ON social_media_deletion_jobs
+WHEN NEW.id IS NOT OLD.id
+  OR NEW.batch_id IS NOT OLD.batch_id
+  OR NEW.upload_id IS NOT OLD.upload_id
+  OR NEW.owner_user_id IS NOT OLD.owner_user_id
+  OR NEW.request_key IS NOT OLD.request_key
+  OR NEW.created_at IS NOT OLD.created_at
+  OR NEW.attempts < OLD.attempts
+BEGIN
+  SELECT RAISE(ABORT,'SOCIAL media deletion job identity is immutable');
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_social_media_reference_identity_immutable
 BEFORE UPDATE ON social_media_references
 WHEN NEW.id IS NOT OLD.id
