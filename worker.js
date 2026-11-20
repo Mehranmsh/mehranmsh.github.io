@@ -2024,6 +2024,7 @@ async function socialUserPosts(request, env, username) {
 async function socialDeletePost(request, env, postId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const row = await env.DB.prepare(
     "SELECT id,user_id FROM social_posts WHERE id=?"
@@ -2771,6 +2772,7 @@ async function socialCreateStory(request, env) {
 async function socialDeleteStory(request, env, id) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const result = await env.DB.prepare(
     "DELETE FROM social_stories WHERE id=? AND user_id=?"
@@ -3522,6 +3524,7 @@ async function socialEditMessage(request, env, messageId) {
 async function socialDeleteMessage(request, env, messageId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const result = await env.DB.prepare(`
     UPDATE social_messages
@@ -4242,6 +4245,7 @@ async function socialEditChannelPost(request, env, channelId, postId) {
 async function socialDeleteChannelPost(request, env, channelId, postId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
   const member = await getAccessibleChannelMembership(env, channelId, user.id);
   if (!member || !["owner", "admin"].includes(member.role)) return error("Admin permission required", 403);
   const post = await env.DB.prepare("SELECT id FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId).first();
