@@ -42,7 +42,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("intelligence_finding_reviews", required_tables)
         self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
         self.assertIn("intelligence_evidence_decision_reviews", required_tables)
-        self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
+        health_line = next((line.strip() for line in self.source.splitlines() if "const schemaReady =" in line), "")
+        self.assertIn("missing.length === 0", health_line)
+        self.assertIn("missingTriggers.length === 0", health_line)
+        self.assertIn("missingColumns.length === 0", health_line)
+        self.assertIn("foreignKeysEnabled", health_line)
+        self.assertIn("violationCount === 0", health_line)
+        self.assertIn('intelligence_knowledge: ["source_type", "source_ref", "observed_at", "confidence_score", "verification_status"]', self.source)
+        self.assertIn('intelligence_owner_memory: ["memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"]', self.source)
+        self.assertIn("missingTriggers", self.source)
+        self.assertIn("missingColumns", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
         self.assertIn('https://api.minepi.com/v2/me', self.source)
