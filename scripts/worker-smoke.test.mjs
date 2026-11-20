@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, access } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const intelligenceStagingWorkerSource = await readFile(new URL("../intelligence-staging-worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
-const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
+const agentWorkflowPath = new URL("../.github/workflows/intelligence-agent.yml", import.meta.url);
 const deployWorkflowSource = await readFile(new URL("../.github/workflows/deploy-worker.yml", import.meta.url), "utf8");
 const phrasesImportWorkflowSource = await readFile(new URL("../.github/workflows/import-persian-phrases.yml", import.meta.url), "utf8");
 const instrumentsImportWorkflowSource = await readFile(new URL("../.github/workflows/import-recorded-instruments.yml", import.meta.url), "utf8");
@@ -116,11 +116,8 @@ test("MEHRAN INTELLIGENCE agent queue claims only approved read-only task types"
   assert.doesNotMatch(claimRoute, /repository_change|code_write|deploy|merge/i);
 });
 
-test("MEHRAN INTELLIGENCE runner exposes its service secret only on trusted main pushes", () => {
-  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
-  assert.match(agentWorkflowSource, /Checkout trusted main branch[\s\S]*?ref: main/);
-  assert.match(agentWorkflowSource, /permissions:\s*contents: read/);
-  assert.doesNotMatch(agentWorkflowSource, /pull_request:/);
+test("disabled MEHRAN INTELLIGENCE runner workflow stays absent", async () => {
+  await assert.rejects(access(agentWorkflowPath), { code: "ENOENT" });
 });
 
 test("health endpoint reports online and confirms the database binding", async () => {
@@ -313,12 +310,7 @@ test("deployment and write-enabled imports are manual-only and main-branch guard
   }
 });
 
-test("secret-bearing Intelligence runner is restricted to the trusted main branch", () => {
-  assert.match(agentWorkflowSource, /push:\s*branches:\s*- main/);
-  assert.match(agentWorkflowSource, /if: github\.ref == 'refs\/heads\/main'/);
-  assert.match(agentWorkflowSource, /ref: main/);
-  assert.doesNotMatch(agentWorkflowSource, /^\s*workflow_dispatch:/m);
-});
+
 
 test("admin sessions fail closed without the immutable Pi owner UID and expire within 12 hours", () => {
   const verifyStart = workerSource.indexOf("async function verifyAdmin");
