@@ -458,7 +458,8 @@ async function testHealthRejectsPreexistingTaskExecutionState() {
 
 await testHealthRejectsPreexistingTaskExecutionState();
 await testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows();
-await testAuditAppendOnlyAndApprovalTimestampGuards();\nawait testHealthRejectsLegacyFutureIssuedApproval();
+await testAuditAppendOnlyAndApprovalTimestampGuards();
+await testHealthRejectsLegacyFutureIssuedApproval();
 async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows() {
   const { mf, db } = await createWorker(migrations.length);
   try {
@@ -518,7 +519,7 @@ async function testHealthRejectsLegacyFutureIssuedApproval() {
     const future = Math.floor(Date.now() / 1000) + 3600;
     await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('legacy-future','staging-owner','memory.create','owner_staging','issued',?,?)").bind(future, future + 60).run();
     const source = await readFile(new URL("migrations/0018_intelligence_capability_approval_issued_at_guard.sql", ROOT), "utf8");
-    const sql = source.split("\\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\\s+/g, " ").trim();
+    const sql = source.split("\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\s+/g, " ").trim();
     await db.exec(sql);
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
