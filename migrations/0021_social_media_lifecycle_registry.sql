@@ -230,7 +230,7 @@ BEGIN
   SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
     'story-release:'||u.id||':'||lower(hex(randomblob(16))),'pending'
   FROM social_uploads u
-  WHERE EXISTS (
+  WHERE u.lifecycle_managed=1 AND EXISTS (
     SELECT 1 FROM social_media_references r
     WHERE r.upload_id=u.id AND r.content_type='story' AND r.content_id=OLD.id
       AND r.released_at IS NOT NULL
@@ -256,7 +256,7 @@ BEGIN
   SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
     'gallery-release:'||u.id||':'||lower(hex(randomblob(16))),'pending'
   FROM social_uploads u
-  WHERE EXISTS (
+  WHERE u.lifecycle_managed=1 AND EXISTS (
     SELECT 1 FROM social_media_references r
     WHERE r.upload_id=u.id AND r.content_type='profile_gallery' AND r.content_id=OLD.id
       AND r.released_at IS NOT NULL
@@ -307,7 +307,7 @@ BEGIN
   SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
     'message-release:'||u.id||':'||lower(hex(randomblob(16))),'pending'
   FROM social_uploads u
-  WHERE EXISTS (
+  WHERE u.lifecycle_managed=1 AND EXISTS (
     SELECT 1 FROM social_media_references r
     WHERE r.upload_id=u.id AND r.content_type='message' AND r.content_id=OLD.id
       AND r.released_at IS NOT NULL
@@ -333,7 +333,7 @@ BEGIN
   SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
     'channel-release:'||u.id||':'||lower(hex(randomblob(16))),'pending'
   FROM social_uploads u
-  WHERE EXISTS (
+  WHERE u.lifecycle_managed=1 AND EXISTS (
     SELECT 1 FROM social_media_references r
     WHERE r.upload_id=u.id AND r.content_type='channel_post' AND r.content_id=OLD.id
       AND r.released_at IS NOT NULL
