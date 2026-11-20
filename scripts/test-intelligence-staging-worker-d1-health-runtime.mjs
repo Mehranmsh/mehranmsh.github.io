@@ -816,6 +816,14 @@ async function testOwnerMemoryAuditIsolationAndProvenance() {
     ).bind(ownerUid).first();
     assert.equal(Number(crossOwnerCount.count), 0);
 
+    const forgedSystemObservation = await mf.dispatchFetch("http://localhost/intelligence/memory", {
+      method: "POST", headers,
+      body: JSON.stringify({ content: "Untrusted system observation claim", memoryKind: "general", sourceType: "system_observation" }),
+    });
+    assert.equal(forgedSystemObservation.status, 400, "owner input cannot impersonate a system-generated observation");
+    const afterForgedObservation = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_owner_memory WHERE owner_uid=?").bind(ownerUid).first();
+    assert.equal(Number(afterForgedObservation.count), 0, "rejected provenance must not create a memory row");
+
     const created = await mf.dispatchFetch("http://localhost/intelligence/memory", {
       method: "POST",
       headers,
@@ -896,6 +904,17 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
       assert.equal(response.status, 201);
       return (await response.json()).id;
     };
+    const forgedSystemObservation = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+      method: "POST", headers,
+      body: JSON.stringify({ title: "Forged observation", content: "Untrusted system observation claim", sourceType: "system_observation" }),
+    });
+    assert.equal(forgedSystemObservation.status, 400, "owner input cannot impersonate a system-generated observation");
+    const forgedUpload = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+      method: "POST", headers,
+      body: JSON.stringify({ title: "Forged upload", content: "No verified upload exists", sourceType: "uploaded_document" }),
+    });
+    assert.equal(forgedUpload.status, 400, "upload provenance requires a future verified ingestion path");
+
     const sourceId = await createKnowledge("Evidence source A", "Verified phrase alpha");
     const targetId = await createKnowledge("Evidence source B", "Verified phrase beta");
 
