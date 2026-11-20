@@ -22,6 +22,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0013_intelligence_priority_action_reviews.sql",
     ROOT / "migrations" / "0014_intelligence_owner_identity_immutability.sql",
     ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql",
+    ROOT / "migrations" / "0016_intelligence_capability_approval_allowlist.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -75,6 +76,23 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
 
 
 
+
+    def test_capability_approval_database_allowlist_rejects_memory_delete(self):
+        self.apply_chain()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_capability_approvals(
+                    id,owner_uid,capability,scope,status,issued_at,expires_at
+                ) VALUES('grant-delete','owner-a','memory.delete','owner_staging','issued',100,200)
+            """)
+        self.db.execute("""
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES('grant-create','owner-a','memory.create','owner_staging','issued',100,200)
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT capability FROM intelligence_capability_approvals WHERE id='grant-create'"
+        ).fetchone()[0], "memory.create")
 
     def test_knowledge_and_memory_owner_identity_is_immutable(self):
         self.apply_chain()
