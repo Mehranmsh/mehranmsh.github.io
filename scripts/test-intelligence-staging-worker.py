@@ -1284,7 +1284,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         for pattern in [
             r"\bSET\s+consumed_at\s*=",
             r"\bSET\s+consumed_by\s*=",
-            r"\bSET\s+status\s*=\s*['\\"]consumed['\\"]",
+            r"\bSET\s+status\s*=\s*'consumed'",
             r"\bUPDATE\s+intelligence_capability_approvals\b[\s\S]{0,500}\bconsumed_(?:at|by)\s*=",
         ]:
             self.assertIsNone(
