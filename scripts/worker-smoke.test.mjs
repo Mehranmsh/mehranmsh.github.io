@@ -2420,7 +2420,7 @@ test("SOCIAL content writes register owned media references in the same D1 batch
   assert.match(post,/socialMediaReferenceStatement\(env,\s*item\.id,\s*user\.id,\s*"post",\s*id/);
   const validationStart=workerSource.indexOf("async function validatePostMedia(");
   const validationEnd=workerSource.indexOf("\nasync function ",validationStart+20);
-  assert.match(workerSource.slice(validationStart,validationEnd),/lifecycle_managed=1/);
+  assert.match(workerSource.slice(validationStart,validationEnd),/Number\(row\.lifecycle_managed\)\s*!==\s*1/);
   assert.match(post,/await env\.DB\.batch\(\[/);
 
   const storyStart=workerSource.indexOf("async function socialCreateStory(");
