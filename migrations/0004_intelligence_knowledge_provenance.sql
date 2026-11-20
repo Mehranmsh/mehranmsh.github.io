@@ -28,6 +28,11 @@ WHEN (NEW.source_type = 'external_url' AND (
        substr(lower(NEW.source_ref),1,8) <> 'https://'
        OR length(NEW.source_ref) <= 8
        OR instr(substr(NEW.source_ref,9), '@') > 0
+       AND instr(substr(NEW.source_ref,9), '@') < min(
+         CASE WHEN instr(substr(NEW.source_ref,9), '/') > 0 THEN instr(substr(NEW.source_ref,9), '/') ELSE 100000 END,
+         CASE WHEN instr(substr(NEW.source_ref,9), '?') > 0 THEN instr(substr(NEW.source_ref,9), '?') ELSE 100000 END,
+         CASE WHEN instr(substr(NEW.source_ref,9), '#') > 0 THEN instr(substr(NEW.source_ref,9), '#') ELSE 100000 END
+       )
      ))
   OR (NEW.source_type <> 'external_url' AND length(NEW.source_ref) > 1000)
   OR (NEW.observed_at <> '' AND (
@@ -46,6 +51,11 @@ WHEN (NEW.source_type = 'external_url' AND (
        substr(lower(NEW.source_ref),1,8) <> 'https://'
        OR length(NEW.source_ref) <= 8
        OR instr(substr(NEW.source_ref,9), '@') > 0
+       AND instr(substr(NEW.source_ref,9), '@') < min(
+         CASE WHEN instr(substr(NEW.source_ref,9), '/') > 0 THEN instr(substr(NEW.source_ref,9), '/') ELSE 100000 END,
+         CASE WHEN instr(substr(NEW.source_ref,9), '?') > 0 THEN instr(substr(NEW.source_ref,9), '?') ELSE 100000 END,
+         CASE WHEN instr(substr(NEW.source_ref,9), '#') > 0 THEN instr(substr(NEW.source_ref,9), '#') ELSE 100000 END
+       )
      ))
   OR (NEW.observed_at <> '' AND (
        length(NEW.observed_at) < 20
