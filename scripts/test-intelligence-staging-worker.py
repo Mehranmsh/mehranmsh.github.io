@@ -104,6 +104,9 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'project_created',
             'project_archived',
             'project_restored',
+            'archived_at=CURRENT_TIMESTAMP',
+            'archived_at=NULL',
+            'WHERE changes()=1',
             'executionEnabled:false',
         ]:
             self.assertIn(fragment, self.project_api)
