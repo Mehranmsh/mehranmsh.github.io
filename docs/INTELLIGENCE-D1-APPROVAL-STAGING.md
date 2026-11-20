@@ -17,7 +17,7 @@ Migrations 0003 through 0013 are present in the current draft branch. The owner 
 A separate Worker source file now exists at `intelligence-staging-worker.js`. It is not the production Worker and is not deployed.
 
 Implemented routes:
-- `GET /health`: verifies the complete eight-table schema.
+- `GET /health`: verifies all 15 required tables, D1 foreign-key enforcement, and zero foreign-key violations.
 - `POST/GET/DELETE /session`: server-side Pi identity verification, hashed bearer sessions, expiry and revocation.
 - `GET/POST /intelligence/tasks`: owner-scoped task planning only. New tasks remain queued; response explicitly reports `executionEnabled: false`.
 - Owner-scoped knowledge list/create with source type, source reference, observed timestamp, confidence assessment, and explicit owner verification/dispute/reset actions.
@@ -30,7 +30,7 @@ The Worker has bounded JSON bodies, origin restrictions, security headers, rate 
 
 The disposable SQLite migration tests validate the ordered migration chain, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
 
-These are repository-level checks, not a live D1 or Pi Browser integration test. The latest recorded CI run for commit `53497cd7c2293de0a417fc07a934d2a5da3baa98` completed successfully with 34 of 34 steps passing. These remain repository-level tests, not a live D1 or Pi Browser integration test.
+These are repository-level checks, not a live D1 or Pi Browser integration test. The latest CI run for PR119 head `fe55fbcb617e733865d27d61e0317c0fe500ac95` completed successfully with 34 of 34 checks passing. These remain repository-level tests, not a live D1 or Pi Browser integration test.
 
 ## 4. Remaining staging steps
 
