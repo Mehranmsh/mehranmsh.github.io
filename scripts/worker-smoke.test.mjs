@@ -2704,3 +2704,14 @@ test("SOCIAL upload deletion only queues inert work and account deletion fails c
   assert.match(account,/temporarily paused while SOCIAL media lifecycle is being staged/);
   assert.doesNotMatch(account,/rapidfileRequest\s*\(/);
 });
+
+test("staging Intelligence scheduler and Agent execution remain inert", () => {
+  const scheduledStart=workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const scheduledEnd=workerSource.indexOf("\\n  },",scheduledStart);
+  const scheduled=workerSource.slice(scheduledStart,scheduledEnd);
+  assert.match(scheduled,/return;\\s+const run = async/);
+  const agentStart=workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  assert.ok(agentStart>=0);
+  const agent=workerSource.slice(agentStart,agentStart+180);
+  assert.match(agent,/return error\\("Intelligence Agent execution is disabled\\.", 410\\)/);
+});
