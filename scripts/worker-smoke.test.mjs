@@ -662,7 +662,7 @@ test("channel media upload IDs must belong to the publishing admin and be ready 
   const start = workerSource.indexOf("async function socialChannelPost(");
   const end = workerSource.indexOf("\nasync function ", start + 20);
   const handler = workerSource.slice(start, end);
-  assert.match(handler, /SELECT id,name,mime_type,acl,status,url FROM social_uploads WHERE id=\? AND user_id=\? LIMIT 1/);
+  assert.match(handler, /SELECT id,name,mime_type,acl,status,url,lifecycle_managed FROM social_uploads WHERE id=\? AND user_id=\? LIMIT 1/);
   assert.match(handler, /upload\.status !== "ready"/);
   assert.match(handler, /upload\.acl !== "public"/);
   assert.match(handler, /!upload\.url \|\| !validHttpsUrl\(upload\.url\)/);
