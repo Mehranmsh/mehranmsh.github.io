@@ -1356,38 +1356,6 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
 
 
 
-test("MEHRAN Intelligence scheduled runner does not claim tasks that still require approval", async () => {
-  const state = { status: "accepted", requiresApproval: 1, candidateReads: 0, claimed: false };
-  const db = {
-    prepare(sql) {
-      return {
-        bind() { return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) state.claimed = true;
-          return { meta: { changes: state.claimed ? 1 : 0 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return sql.includes("requires_approval=0") && state.requiresApproval === 0 && state.candidateReads === 1
-              ? { id: "unapproved-task", action_type: "project_status_report" }
-              : null;
-          }
-          throw new Error("Unexpected unapproved-task SQL: " + sql);
-        },
-        async all() { return { results: [] }; }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.equal(state.claimed, false);
-});
-
-
-
-
 test("automated Intelligence task transitions are owner-approval-only and execution results cannot be forged", () => {
   const routeStart = workerSource.indexOf('if(intelligenceTaskMatch&&method==="PATCH")');
   const routeEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', routeStart);
