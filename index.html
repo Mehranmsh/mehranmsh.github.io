@@ -1203,7 +1203,7 @@ async function intelligenceStagingRequest(path,options={}){
 function updateIntelligenceStagingSessionUI(message,kind="notice"){
  const status=$("intelStagingSessionStatus"),connect=$("connectIntelStagingBtn"),disconnect=$("disconnectIntelStagingBtn");
  if(status){status.textContent=message;status.className=kind;}
- if(connect)connect.disabled=!hasValidIntelligenceStagingUrl();
+ if(connect)connect.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();
  if(disconnect)disconnect.disabled=!getIntelligenceStagingToken();
 }
 async function connectIntelligenceStagingSession(){
@@ -1228,7 +1228,7 @@ async function connectIntelligenceStagingSession(){
  }catch(error){
   localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI(error.message,"notice warn");
- }finally{if(button)button.disabled=!hasValidIntelligenceStagingUrl();}
+ }finally{if(button)button.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();}
 }
 async function disconnectIntelligenceStagingSession(){
  const button=$("disconnectIntelStagingBtn");if(button)button.disabled=true;
