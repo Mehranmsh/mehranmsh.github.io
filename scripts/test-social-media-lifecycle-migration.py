@@ -75,21 +75,22 @@ def test_shared_reference_blocks_early_deletion():
     db.close()
 
 
-def test_new_reference_blocks_pending_job():
+def test_new_reference_cannot_reuse_upload_after_deletion_is_queued():
     db = build_db()
     add_upload(db)
     db.execute("INSERT INTO social_posts(id,user_id) VALUES('post-2','user-a')")
     add_ref(db, "file-a", "post", "post-2")
     db.execute("DELETE FROM social_posts WHERE id='post-2'")
     assert job_count(db, "file-a") == 1
+    upload_status = db.execute("SELECT status FROM social_uploads WHERE id='file-a'").fetchone()[0]
+    assert upload_status == "deletion_pending", "queued upload must be frozen against new references"
     db.execute("INSERT INTO social_posts(id,user_id) VALUES('post-3','user-a')")
-    add_ref(db, "file-a", "post", "post-3")
-    status = db.execute("SELECT status,last_error FROM social_media_deletion_jobs WHERE upload_id='file-a'").fetchone()
-    assert status == ("blocked", "active_reference_added"), "new reference must block pending provider deletion"
     expect_integrity_error(
-        lambda: db.execute("DELETE FROM social_uploads WHERE id='file-a'"),
-        "blocked job must keep upload row",
+        lambda: add_ref(db, "file-a", "post", "post-3"),
+        "new references must be rejected once provider deletion is queued",
     )
+    status = db.execute("SELECT status FROM social_media_deletion_jobs WHERE upload_id='file-a'").fetchone()[0]
+    assert status == "pending", "failed re-reference must not mutate the deletion job"
     db.close()
 
 
@@ -252,7 +253,7 @@ def test_duplicate_active_reference_is_rejected():
 if __name__ == "__main__":
     tests = [
         test_shared_reference_blocks_early_deletion,
-        test_new_reference_blocks_pending_job,
+        test_new_reference_cannot_reuse_upload_after_deletion_is_queued,
         test_all_content_release_paths,
         test_legacy_untracked_urls_are_never_guessed,
         test_reference_and_audit_are_immutable_and_upload_delete_is_guarded,
