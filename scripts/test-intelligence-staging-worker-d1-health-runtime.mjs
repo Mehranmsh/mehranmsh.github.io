@@ -3941,6 +3941,6 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
 }
 
 await testMissingSecurityTriggerFailsClosed();
-await testOwnerEvidenceDecisionReviewRuntime();
+await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
