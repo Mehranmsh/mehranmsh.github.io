@@ -1755,6 +1755,7 @@ const SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS = [
   "trg_social_media_deletion_job_identity_immutable","trg_social_media_reference_identity_immutable",
   "trg_social_media_reference_no_delete","trg_social_media_reference_insert_audit",
   "trg_social_media_reference_release_audit","trg_social_media_deletion_job_audit",
+  "trg_social_media_deletion_job_mark_upload_pending",
   "trg_social_media_audit_no_update","trg_social_media_audit_no_delete",
   "trg_social_upload_delete_guard","trg_social_posts_media_release",
   "trg_social_stories_media_release","trg_social_profile_gallery_media_release",
@@ -4987,6 +4988,7 @@ async function socialCompleteUpload(request, env, id) {
   `).bind(id, user.id).first();
 
   if (!row) return error("File not found", 404);
+  if (row.status !== "uploading") return error("Upload is not awaiting completion.", 409);
 
   try {
     const result = await rapidfileRequest(
@@ -5084,13 +5086,14 @@ async function socialDeleteUpload(request, env, id) {
   const user=await getSocialUser(request,env);
   if (!user) return error("Authentication required",401);
   if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.",503);
-  const row=await env.DB.prepare("SELECT id,lifecycle_managed FROM social_uploads WHERE id=? AND user_id=?").bind(id,user.id).first();
+  const row=await env.DB.prepare("SELECT id,lifecycle_managed,status FROM social_uploads WHERE id=? AND user_id=?").bind(id,user.id).first();
   if (!row) return error("File not found",404);
   if (Number(row.lifecycle_managed)!==1) return error("This legacy upload has not been reconciled and cannot be queued for automatic deletion.",409);
-  const active=await env.DB.prepare("SELECT COUNT(*) AS count FROM social_media_references WHERE upload_id=? AND released_at IS NULL").bind(id).first();
-  if (Number(active?.count||0)>0) return error("This file is still used by SOCIAL content. Remove its references before requesting deletion.",409);
   const existingJob=await env.DB.prepare("SELECT id FROM social_media_deletion_jobs WHERE upload_id=? AND status IN ('pending','retry') ORDER BY created_at DESC LIMIT 1").bind(id).first();
   if (existingJob) return json({success:true,queued:true,alreadyQueued:true,deleted:false,executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED,jobId:existingJob.id,id},202);
+  if (row.status !== "ready") return error("Only ready uploads can be queued for deletion.",409);
+  const active=await env.DB.prepare("SELECT COUNT(*) AS count FROM social_media_references WHERE upload_id=? AND released_at IS NULL").bind(id).first();
+  if (Number(active?.count||0)>0) return error("This file is still used by SOCIAL content. Remove its references before requesting deletion.",409);
   const jobId=crypto.randomUUID();
   try {
     await env.DB.prepare("INSERT INTO social_media_deletion_jobs(id,batch_id,upload_id,owner_user_id,request_key,status) VALUES(?,?,?,?,?,'pending')")
