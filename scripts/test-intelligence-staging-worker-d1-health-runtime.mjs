@@ -4171,18 +4171,28 @@ await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
 
 async function testPublicHealthRouteIsIpRateLimited() {
-  const { mf } = await createWorker(migrations.length);
-  const headers = { "CF-Connecting-IP": "198.51.100.77" };
+  const { mf, db } = await createWorker(migrations.length);
+  const blockedIp = "198.51.100.77";
+  const allowedIp = "198.51.100.78";
+  const now = Math.floor(Date.now() / 1000);
   try {
-    for (let i = 0; i < 30; i++) {
-      const allowed = await mf.dispatchFetch("http://localhost/health", { headers });
-      assert.equal(allowed.status, 200, `health request ${i + 1} should remain within the configured limit`);
-    }
-    const blocked = await mf.dispatchFetch("http://localhost/health", { headers });
+    await db.prepare(
+      "INSERT INTO intelligence_staging_rate_limits(rate_key,window_started_at,request_count,blocked_until) VALUES(?,?,?,NULL)"
+    ).bind(tokenHash(`ip:${blockedIp}:health`), now, 30).run();
+
+    const blocked = await mf.dispatchFetch("http://localhost/health", {
+      headers: { "CF-Connecting-IP": blockedIp },
+    });
     assert.equal(blocked.status, 429);
     const body = await blocked.json();
     assert.match(body.error, /rate limit/i);
-    console.log("PASS: public staging health checks are IP-rate-limited");
+
+    const isolated = await mf.dispatchFetch("http://localhost/health", {
+      headers: { "CF-Connecting-IP": allowedIp },
+    });
+    assert.equal(isolated.status, 200,
+      "one client's health-check limit must not block another client IP");
+    console.log("PASS: public staging health checks enforce an isolated per-IP rate limit");
   } finally {
     await mf.dispose();
   }
