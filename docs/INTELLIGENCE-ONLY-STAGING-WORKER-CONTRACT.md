@@ -49,6 +49,9 @@ Migrations 0000-0013 are committed on this draft branch. The owner manually appl
 - `DELETE /intelligence/approvals/:id`: revoke issued approvals.
 - Approval review and replacement first transition expired issued approvals to `expired`; a D1 trigger writes an audit event for each transition.
 - D1 rejects approval rows with empty/non-object/invalid JSON scope, scope JSON over 4 KB, or a lifetime outside the allowed one-hour maximum. The Worker also requires a non-empty bounded scope object.
+- `GET /intelligence/findings`, `GET /intelligence/findings/priority`, and the associated assessment, remediation-plan, dependency-impact, gap-test-strategy, evidence-review, correlation, consistency, and decision-support routes provide owner-scoped analysis; they do not execute checks or mutate company state.
+- `GET/POST /intelligence/findings/priority-action-reviews`, `GET /intelligence/findings/priority-action-reviews/integrity`: append-only, owner-scoped human review records. POST recomputes the current owner-scoped action plan and rejects stale or foreign action keys; history and integrity queries filter by the authenticated owner. These reviews do not update findings or execute actions.
+- The staging Worker exports only a `fetch` handler. It has no `scheduled` handler, queue consumer, task claimant, approval-consumption route, or task-execution route. Task creation records queued plans only.
 
 There is no approval-consume endpoint and no task execution endpoint.
 
