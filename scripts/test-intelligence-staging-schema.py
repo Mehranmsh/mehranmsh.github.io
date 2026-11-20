@@ -378,15 +378,17 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.db.execute(insert, consumed)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE intelligence_approval_ledger SET status='consumed' WHERE id='guard-c'")
-        self.db.execute("""
-            UPDATE intelligence_approval_ledger
-            SET status='consumed',consumed_at=150,consumed_by='staging-test'
-            WHERE id='guard-c'
-        """)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.execute("UPDATE intelligence_approval_ledger SET consumed_by='other' WHERE id='guard-c'")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-c'")
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_approval_ledger
+                SET status='consumed',consumed_at=150,consumed_by='staging-test'
+                WHERE id='guard-c'
+            """)
+        guard_c = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE id='guard-c'"
+        ).fetchone()
+        self.assertEqual(guard_c, ('issued',None,None))
+        self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-c'")
 
         expired = ('guard-d','guard-task','owner-a','mehranmsh','owner/repo','main',
                    'e'*40,'{"paths":["tests/"]}','f'*64,'issued',100,200)
@@ -428,16 +430,19 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
 
         consumed = ('cap-e','owner-a','knowledge.review','owner_staging','issued',100,200)
         self.db.execute(insert, consumed)
-        self.db.execute("""
-            UPDATE intelligence_capability_approvals
-            SET status='consumed',consumed_at=160,consumed_by='staging-test'
-            WHERE id='cap-e'
-        """)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.execute("UPDATE intelligence_capability_approvals SET consumed_by='other' WHERE id='cap-e'")
-        self.assertEqual(self.db.execute("""
-            SELECT action FROM intelligence_staging_audit WHERE target_id='cap-e'
-        """).fetchone()[0], 'capability_approval_consumed')
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_capability_approvals
+                SET status='consumed',consumed_at=160,consumed_by='staging-test'
+                WHERE id='cap-e'
+            """)
+        cap_e = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id='cap-e'"
+        ).fetchone()
+        self.assertEqual(cap_e, ('issued',None,None))
+        self.assertIsNone(self.db.execute(
+            "SELECT action FROM intelligence_staging_audit WHERE target_id='cap-e'"
+        ).fetchone())
 
         expired = ('cap-f','owner-a','memory.create','owner_staging','issued',100,200)
         self.db.execute(insert, expired)
@@ -925,7 +930,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             """, (
                 approval_id, task_id, "owner-a", "mehranmsh",
                 "Mehranmsh/mehranmsh.github.io", "intelligence/staging-test",
-                "a" * 40, "{}", "b" * 64, issued, expiry,
+                "a" * 40, '{"paths":["src/"]}', "b" * 64, issued, expiry,
             ))
 
         insert_legacy("legacy-main", "approval-task-main", issued_at, expires_at)
