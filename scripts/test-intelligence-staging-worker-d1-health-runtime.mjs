@@ -3567,14 +3567,14 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       db.prepare("DELETE FROM intelligence_evidence_correlation_reviews WHERE id=?").bind(result.id).run(),
       /retained/i
     );
-    // The owner displayed the original correlation group, but its evidence changed before review.
-    await db.prepare("UPDATE intelligence_finding_evidence SET source_ref=? WHERE id=? AND owner_uid=?")
-      .bind("doc:changed-after-display", evidenceA, ownerUid).run();
+    // A review request for a correlation pattern that is no longer present must fail closed.
+    // Evidence rows are immutable by design, so this exercises the absent-pattern guard without
+    // attempting an update that the database correctly rejects.
     const stale = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-correlations/reviews",
-      { method:"POST", headers, body:JSON.stringify(body) });
+      { method:"POST", headers, body:JSON.stringify({...body, correlationKey:"doc:stale"}) });
     assert.equal(stale.status, 409,
-      "a correlation group changed after display must reject the stale review request");
+      "a correlation pattern absent from the current owner-scoped analysis must reject review");
     const spoof = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-correlations/reviews",
       { method:"POST", headers, body:JSON.stringify({...body,ownerUid:"spoof"}) });
