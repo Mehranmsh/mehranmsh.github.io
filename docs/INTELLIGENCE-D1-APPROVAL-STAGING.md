@@ -10,7 +10,7 @@ The production Worker configuration remains in `wrangler.jsonc` and must not be 
 
 The owner created the separate D1 database `mehran-msh-intelligence-staging` and manually applied migrations 0000, 0001, and 0002 in order. The owner observed the four expected Intelligence tables, three triggers, and queried indexes. `PRAGMA foreign_keys;` returned `1` in the active SQL Console session and `PRAGMA foreign_key_check;` completed without violations.
 
-Migrations 0003 through 0015 are present in the current draft branch, including owner-identity immutability (0014) and task-execution lockout (0015). The owner previously applied 0000, 0001, and 0002 manually; there is no verified record in this workflow that 0003 through 0015 have been applied remotely. The exact staging database ID is still unverified, and the staging Worker has not been deployed or bound to D1. Do not infer remote schema state from the disposable SQLite CI tests.
+Migrations 0003 through 0016 are present in the current draft branch, including owner-identity immutability (0014), task-execution lockout (0015), and database-enforced capability approval allowlist (0016). The owner previously applied 0000, 0001, and 0002 manually; there is no verified record in this workflow that 0003 through 0016 have been applied remotely. The exact staging database ID is still unverified, and the staging Worker has not been deployed or bound to D1. Do not infer remote schema state from the disposable SQLite CI tests.
 
 ## 2. Isolated Worker implementation
 
@@ -28,7 +28,7 @@ The Worker has bounded JSON bodies, origin restrictions, security headers, rate 
 
 ## 3. Repository validation
 
-The disposable SQLite migration tests validate the ordered migration chain through 0015, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
+The disposable SQLite migration tests validate the ordered migration chain through 0016, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
 
 These are repository-level checks, not a live D1 or Pi Browser integration test. The latest verified PR119 CI run at the time of this update is `44765591600` for head `eb92df570d93b308cf9299a48c419148d9c058f5`; it completed successfully, including 59 Python staging safety tests and 147 Worker smoke tests. This does not establish the remote D1 migration state or live Pi Browser integration.
 
@@ -36,7 +36,7 @@ These are repository-level checks, not a live D1 or Pi Browser integration test.
 
 1. Confirm the exact ID of `mehran-msh-intelligence-staging` independently before any staging deployment.
 2. Verify the existing `wrangler.intelligence-staging.jsonc` still points only to the staging database name and replace its placeholder ID only after independent verification.
-3. Confirm the actual remote migration state before applying any missing migrations from 0003 through 0015, in order, and only after explicit owner authorization.
+3. Confirm the actual remote migration state before applying any missing migrations from 0003 through 0016, in order, and only after explicit owner authorization.
 4. Configure a staging-only owner UID secret; never reuse the production owner secret.
 5. Deploy only after explicit owner authorization and complete code review.
 6. Run live Pi token, session, owner isolation, audit atomicity, rate-limit, knowledge/relationship, and approval issue/revoke/expiry tests.
@@ -50,7 +50,7 @@ Do not change the production `DB` binding, production secrets, production Worker
 
 The isolated Worker exposes owner-scoped `GET /intelligence/memory`, `POST /intelligence/memory`, `GET /intelligence/memory/review-queue`, and `PUT /intelligence/memory/:id`. PUT supports bounded category/content edits and the explicit `confirm`, `dispute`, `unverify`, `archive`, and `restore` transitions. Successful create/update/review/archive/restore operations are paired with audit records in the same D1 batch. Memory content is bounded to 4,000 characters per record. Archiving is reversible.
 
-`DELETE /intelligence/memory/:id` is recognized but intentionally returns HTTP 403 without changing data. The capability policy classifies `memory.delete` as approval-tier, while approval issuance/evaluation remain advisory and there is no one-time approval-consumption workflow. Permanent deletion must remain disabled until that server-enforced approval boundary is implemented and tested.
+`DELETE /intelligence/memory/:id` is recognized but intentionally returns HTTP 403 without changing data. The `memory.delete` capability is absent from the Worker and policy allowlists. Migration 0016 rejects direct D1 insertion of that capability, and the health endpoint fails closed if a legacy disallowed capability record exists. Permanent deletion remains disabled.
 
 
 ## Human owner actions versus AI/agent capabilities
