@@ -983,7 +983,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 </div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account to load company data.</div>
 </div>
 <div class="panel intelligence-tasks">
-<div class="section-title"><div><h2>Collaboration Task Hub</h2><div class="small-text">Private owner task planner. Records plans only, with no agent assignment or execution.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
+<div class="section-title"><div><h2>Private Task Planner</h2><div class="small-text">Private owner task planner. Records plans only, with no agent assignment or execution.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
 <div id="intelTasksStatus" class="notice">Task plans are stored in the isolated staging database. Saving a plan does not assign work or execute an action.</div>
 <div class="section-title" style="margin-top:18px"><div><h3>Execution boundary</h3><div class="small-text">Staging has no scheduler, queue consumer or executor.</div></div></div>
 <div id="intelRunsStatus" class="small-text" aria-live="polite">Scheduled execution is disabled in staging. Queued records are plans only.</div>
@@ -991,7 +991,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <form id="intelTaskForm" class="card" autocomplete="off">
 <div class="field"><label for="intelTaskTitle">Task title</label><input id="intelTaskTitle" maxlength="120" required placeholder="مثلاً بررسی و تکمیل ماژول SOCIAL"></div>
 <div class="field"><label for="intelTaskDescription">Task details</label><textarea id="intelTaskDescription" rows="3" maxlength="3000" required placeholder="هدف، محدوده و نتیجهٔ مورد انتظار را بنویس..."></textarea></div>
-<div class="small-text">This creates a private task plan only. No person, agent, scheduler or executor is assigned or activated by saving it.</div>
+<div class="small-text">This creates a private task plan only. The record is stored for tracking only. No agent, scheduler or executor is activated.</div>
 <div class="grid">
 
 <div class="field"><label for="intelTaskPriority">Priority</label><select id="intelTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
@@ -2534,7 +2534,7 @@ const actionTypes={project_status_report:"Project status report",social_metrics_
 list.innerHTML=tasks.map(task=>{
 const status=labels[task.status]||task.status;
 const executionNote=task.actionType==="documentation_patch_proposal"?(task.status==="awaiting_approval"?"This proposal is held for owner approval and cannot enter the active agent queue.":task.status==="accepted"?"Owner review recorded. Execution remains disabled.":""):(task.status==="accepted"?"Accepted plan only. No agent or scheduler can claim it.":task.status==="queued"?"Queued plan only. No automatic execution is enabled.":task.status==="in_progress"?"Unexpected running state. Investigate before proceeding.":"");
-return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(executionNote?'<div class="small-text">'+escapeHTML(executionNote)+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'</article>';
+return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Plan label: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(executionNote?'<div class="small-text">'+escapeHTML(executionNote)+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'</article>';
 }).join("");
 }
 
@@ -2543,11 +2543,11 @@ event.preventDefault();
 const form=$("intelTaskForm"),button=$("intelTaskCreateBtn"),status=$("intelTasksStatus");
 const title=$("intelTaskTitle").value.trim(),description=$("intelTaskDescription").value.trim();
 if(!title||!description){status.textContent="Enter a title and task details.";status.className="notice warn";return}
-button.disabled=true;status.textContent="Saving task to the shared queue...";status.className="notice";
+button.disabled=true;status.textContent="Saving private task plan...";status.className="notice";
 try{
 await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked})});
 form.reset();
-status.textContent="Task added to the shared queue. No external action was executed.";
+status.textContent="Task plan saved in the owner-scoped staging database. No external action was executed.";
 status.className="notice success";
 await loadIntelligenceTasks();
 }catch(error){status.textContent="Task could not be saved: "+error.message;status.className="notice warn"}
