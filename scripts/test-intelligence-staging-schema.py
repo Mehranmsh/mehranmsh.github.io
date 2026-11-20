@@ -942,6 +942,10 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
 
         with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
             self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-main'"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
                 "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
                 (issued_at - 1,),
             )
@@ -956,13 +960,12 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         )
 
         insert_legacy("legacy-expired", "approval-task-expired", issued_at, now - 1)
-        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
-            self.db.execute(
-                "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'"
-            )
         self.db.execute(
             "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'"
         )
+        self.assertEqual(self.db.execute(
+            "SELECT status FROM intelligence_approval_ledger WHERE id='legacy-expired'"
+        ).fetchone()[0], "expired")
 
         with self.assertRaisesRegex(sqlite3.IntegrityError, "invalid legacy approval issue"):
             insert_legacy("legacy-future", "approval-task-future", now + 60, now + 120)
