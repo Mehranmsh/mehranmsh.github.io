@@ -10,7 +10,7 @@ The production Worker configuration remains in `wrangler.jsonc` and must not be 
 
 The owner created the separate D1 database `mehran-msh-intelligence-staging` and manually applied migrations 0000, 0001, and 0002 in order. The owner observed the four expected Intelligence tables, three triggers, and queried indexes. `PRAGMA foreign_keys;` returned `1` in the active SQL Console session and `PRAGMA foreign_key_check;` completed without violations.
 
-Migrations 0003 and 0004 are committed but have **not** been applied to Cloudflare D1. Migration 0003 creates isolated staging sessions, audit, rate-limit, and owner-memory tables. Migration 0004 adds bounded knowledge provenance fields and database-level provenance guards. Apply them in order only after the target database ID is confirmed.
+Migrations 0003, 0004, and 0005 are committed but have **not** been applied to Cloudflare D1. Migration 0003 creates isolated staging sessions, audit, rate-limit, and owner-memory tables. Migration 0004 adds bounded knowledge provenance fields and database-level provenance guards. Migration 0005 adds private projects, task-to-project association, and dependency constraints. Apply them in order only after the target database ID is confirmed.
 
 The staging database ID has not yet been independently recorded. No Worker has been bound to it.
 
@@ -38,7 +38,7 @@ These are repository-level checks, not a live D1 or Pi Browser integration test.
 
 1. Confirm the exact ID of `mehran-msh-intelligence-staging`.
 2. Create a separate `wrangler.intelligence-staging.jsonc` using only that ID and a separate Worker name.
-3. Apply migrations 0003 and 0004 in order, only to that confirmed staging database.
+3. Apply migrations 0003, 0004, and 0005 in order, only to that confirmed staging database, and only after separate explicit authorization for each live migration operation.
 4. Configure a staging-only owner UID secret; never reuse the production owner secret.
 5. Deploy only after explicit owner authorization and complete code review.
 6. Run live Pi token, session, owner isolation, audit atomicity, rate-limit, knowledge/relationship, and approval issue/revoke/expiry tests.
