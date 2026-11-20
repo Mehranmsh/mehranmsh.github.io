@@ -526,7 +526,7 @@ async function testMissingSecurityTriggerFailsClosed() {
 }
 
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 8);
+  const { mf } = await createWorker(migrations.indexOf("0008_intelligence_capability_approval_ledger"));
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
