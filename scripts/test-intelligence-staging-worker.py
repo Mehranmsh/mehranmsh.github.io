@@ -1205,5 +1205,20 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, design)
 
+    def test_ai_proposal_design_requires_database_enforced_atomic_acceptance(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "D1 batch can keep statements atomic",
+            "UPDATE",
+            "matches zero rows is still a successful SQL statement",
+            "Do not rely on checking `meta.changes` after a D1 batch has already committed",
+            "all roll back",
+            "Enforce uniqueness in the schema",
+            "genuinely overlapping requests",
+            "deliberately failing final statement",
+            "Keep proposals review-only",
+        ]:
+            self.assertIn(fragment, design)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
