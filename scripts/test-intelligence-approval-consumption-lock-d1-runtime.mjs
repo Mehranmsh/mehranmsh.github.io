@@ -133,6 +133,20 @@ try {
   const capability = await db.prepare("SELECT status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id='capability-main'").first();
   assert.deepEqual([capability.status, capability.consumed_at, capability.consumed_by], ["issued", null, null]);
 
+  // Simulate genuinely overlapping consumers against the same disposable D1 row.
+  // The database trigger must reject both attempts, not merely the second sequential replay.
+  const concurrentAttempts = await Promise.allSettled([
+    db.prepare("UPDATE intelligence_capability_approvals SET status='consumed',consumed_at=?,consumed_by='concurrent-a' WHERE id='capability-main'")
+      .bind(now).run(),
+    db.prepare("UPDATE intelligence_capability_approvals SET status='consumed',consumed_at=?,consumed_by='concurrent-b' WHERE id='capability-main'")
+      .bind(now).run(),
+  ]);
+  assert.deepEqual(concurrentAttempts.map(result => result.status), ["rejected", "rejected"],
+    "overlapping consumption attempts must both be blocked while execution is disabled");
+  const afterConcurrentAttempts = await db.prepare("SELECT status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id='capability-main'").first();
+  assert.deepEqual([afterConcurrentAttempts.status, afterConcurrentAttempts.consumed_at, afterConcurrentAttempts.consumed_by],
+    ["issued", null, null], "concurrent blocked attempts must leave the approval untouched");
+
   await assert.rejects(
     db.prepare("UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-main'")
       .bind(issuedAt - 1).run(),
