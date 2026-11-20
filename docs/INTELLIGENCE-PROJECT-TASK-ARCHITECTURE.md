@@ -52,7 +52,9 @@ Indexes:
 
 Preferred initial approach: add nullable `project_id TEXT` to `intelligence_tasks`, plus an index on `(created_by, project_id, status, created_at)`.
 
-The migration must add a database trigger that rejects a task association unless the referenced project exists and `project.owner_uid = task.created_by`. It must also reject changing a task's creator while it is associated with a project. Project deletion should be restricted while tasks reference it; archival is the normal lifecycle operation.
+The migration must add database triggers that reject a task association unless the referenced project exists and `project.owner_uid = task.created_by`. It must also reject changing a task's creator while it is associated with a project, changing a project's owner while tasks remain attached, or moving a task in a way that invalidates the owner/project scope of existing dependency edges. Project deletion should be restricted while tasks reference it; archival is the normal lifecycle operation.
+
+Project completion must be guarded at the database boundary: a project cannot transition to `completed` while any attached task is not `completed`. New or updated tasks cannot be attached to a completed project unless they are already completed. Reopening a project remains an explicit owner action and must be audited by the API.
 
 This avoids a separate join table while the product has one owner per task. Revisit a join table only if multi-project task reuse becomes a real requirement.
 
