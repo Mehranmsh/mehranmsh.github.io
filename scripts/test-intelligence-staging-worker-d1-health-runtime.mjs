@@ -3463,6 +3463,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
     const beforeFindings = await db.prepare(
       "SELECT id,status FROM intelligence_findings WHERE owner_uid=? ORDER BY id"
     ).bind(ownerUid).all();
+    const beforeDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const body = {
       correlationType: "shared_source_reference",
       correlationKey,
@@ -3474,7 +3475,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201);
     const afterDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeOwnerReviewAudit.count) + 1,
+    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeDecisionInsertAudit.count) + 1,
       "decision insert must append exactly one audit event");
     const result = await created.json();
     assert.equal(result.outcome, "related");
@@ -3518,7 +3519,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
     ).bind(ownerUid).all();
     assert.deepEqual(afterFindings.results, beforeFindings.results, "correlation review must not change finding state");
     const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1, "review insert must append exactly one audit event");
+    assert.equal(Number(afterAudit.count), Number(beforeDecisionInsertAudit.count) + 1, "review insert must append exactly one audit event");
     await assert.rejects(
       db.prepare("UPDATE intelligence_evidence_correlation_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
       /append-only/i
