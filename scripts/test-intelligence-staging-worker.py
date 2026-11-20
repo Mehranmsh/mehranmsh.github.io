@@ -1240,6 +1240,21 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, design)
 
+
+    def test_ai_proposal_design_blocks_untrusted_url_fetch_and_double_acceptance(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "A URL in a proposal is an inert reference",
+            "must not fetch it, follow redirects",
+            "private network addresses",
+            "DNS/IP validation on every hop",
+            "two concurrent accept attempts result in exactly one successful commit",
+            "compare-and-swap",
+            "If any condition fails, no canonical record",
+            "payload change, or target-version change",
+        ]:
+            self.assertIn(fragment, design)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
