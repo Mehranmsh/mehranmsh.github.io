@@ -63,6 +63,8 @@ There is no approval-consume endpoint and no task execution endpoint.
 - Session restoration and revocation use only the staging Worker's `GET/DELETE /session` routes. The staging token is never copied into production admin or SOCIAL storage.
 - The frontend staging URL is intentionally an empty placeholder. Do not configure it until the staging Worker is deployed against the verified staging database and its owner UID secret and origin allowlist are confirmed.
 - The Intelligence page no longer loads production admin overview or production project data. Its API namespace is routed only to the dedicated staging URL.
+- Production MCP controls, scheduler history, and task-status mutation controls are absent from the staging UI. The Task Hub records plans only; it does not approve, claim, cancel, or execute them.
+- The AI chat control is disabled and the staging Worker exposes no chat route or AI binding. Reconsider this only after a separate budget guard and AI integration review.
 
 ## Frontend connection boundary
 
