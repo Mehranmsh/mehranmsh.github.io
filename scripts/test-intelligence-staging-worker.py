@@ -1282,10 +1282,10 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         # The current staging contract permits issue, read, revoke, and assessment only.
         # A future consumer must be separately designed and explicitly authorized.
         for pattern in [
-            r"\\bSET\\s+consumed_at\\s*=",
-            r"\\bSET\\s+consumed_by\\s*=",
-            r"\\bSET\\s+status\\s*=\\s*['\\\"]consumed['\\\"]",
-            r"\\bUPDATE\\s+intelligence_capability_approvals\\b[\\s\\S]{0,500}\\bconsumed_(?:at|by)\\s*=",
+            r"\bSET\s+consumed_at\s*=",
+            r"\bSET\s+consumed_by\s*=",
+            r"\bSET\s+status\s*=\s*['\\"]consumed['\\"]",
+            r"\bUPDATE\s+intelligence_capability_approvals\b[\s\S]{0,500}\bconsumed_(?:at|by)\s*=",
         ]:
             self.assertIsNone(
                 re.search(pattern, self.source, re.IGNORECASE),
