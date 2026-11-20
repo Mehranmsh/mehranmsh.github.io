@@ -10,7 +10,7 @@ The production Worker configuration remains in `wrangler.jsonc` and must not be 
 
 The owner created the separate D1 database `mehran-msh-intelligence-staging` and manually applied migrations 0000, 0001, and 0002 in order. The owner observed the four expected Intelligence tables, three triggers, and queried indexes. `PRAGMA foreign_keys;` returned `1` in the active SQL Console session and `PRAGMA foreign_key_check;` completed without violations.
 
-Migrations 0003 through 0013 are present in the current draft branch. The owner previously applied 0000, 0001, and 0002 manually; there is no verified record in this workflow that 0003 through 0013 have been applied remotely. The exact staging database ID is still unverified, and the staging Worker has not been deployed or bound to D1. Do not infer remote schema state from the disposable SQLite CI tests.
+Migrations 0003 through 0015 are present in the current draft branch, including owner-identity immutability (0014) and task-execution lockout (0015). The owner previously applied 0000, 0001, and 0002 manually; there is no verified record in this workflow that 0003 through 0015 have been applied remotely. The exact staging database ID is still unverified, and the staging Worker has not been deployed or bound to D1. Do not infer remote schema state from the disposable SQLite CI tests.
 
 ## 2. Isolated Worker implementation
 
@@ -28,15 +28,15 @@ The Worker has bounded JSON bodies, origin restrictions, security headers, rate 
 
 ## 3. Repository validation
 
-The disposable SQLite migration tests validate the ordered migration chain, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
+The disposable SQLite migration tests validate the ordered migration chain through 0015, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
 
-These are repository-level checks, not a live D1 or Pi Browser integration test. CI run `44643894114` for PR119 head `612dd665197d7cdcbb33394a04c270efb8f7e0d1` completed successfully with all 34 checks passing. These remain repository-level tests, not a live D1 or Pi Browser integration test. Check the PR's latest workflow run for any later revision.
+These are repository-level checks, not a live D1 or Pi Browser integration test. The latest verified PR119 CI run at the time of this update is `44765591600` for head `eb92df570d93b308cf9299a48c419148d9c058f5`; it completed successfully, including 59 Python staging safety tests and 147 Worker smoke tests. This does not establish the remote D1 migration state or live Pi Browser integration.
 
 ## 4. Remaining staging steps
 
-1. Confirm the exact ID of `mehran-msh-intelligence-staging`.
+1. Confirm the exact ID of `mehran-msh-intelligence-staging` independently before any staging deployment.
 2. Verify the existing `wrangler.intelligence-staging.jsonc` still points only to the staging database name and replace its placeholder ID only after independent verification.
-3. Confirm the actual remote migration state before applying any missing migrations from 0003 through 0013, in order, and only after explicit owner authorization.
+3. Confirm the actual remote migration state before applying any missing migrations from 0003 through 0015, in order, and only after explicit owner authorization.
 4. Configure a staging-only owner UID secret; never reuse the production owner secret.
 5. Deploy only after explicit owner authorization and complete code review.
 6. Run live Pi token, session, owner isolation, audit atomicity, rate-limit, knowledge/relationship, and approval issue/revoke/expiry tests.
