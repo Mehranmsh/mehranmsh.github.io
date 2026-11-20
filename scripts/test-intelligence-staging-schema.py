@@ -237,6 +237,9 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 500,500,'owner-a'
             )
         """)
+        audit_count_before = self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0]
         self.db.execute("""
             CREATE TRIGGER reject_review_audit
             BEFORE INSERT ON intelligence_staging_audit
@@ -300,7 +303,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         ).fetchone()[0], 0)
         self.assertEqual(self.db.execute(
             "SELECT COUNT(*) FROM intelligence_staging_audit"
-        ).fetchone()[0], 0)
+        ).fetchone()[0], audit_count_before)
 
     def test_approval_ledger_rejects_unknown_task(self):
         self.apply_chain()
