@@ -15,6 +15,7 @@ const migrationNames = [
   "0008_intelligence_capability_approval_ledger",
   "0016_intelligence_capability_approval_allowlist",
   "0017_intelligence_audit_immutability_and_approval_timestamps",
+  "0018_intelligence_capability_approval_issued_at_guard",
 ];
 
 const CONSUME = `
@@ -100,6 +101,31 @@ async function testDatabaseRejectsDisabledMemoryDeleteCapability() {
   }
 }
 
+async function testIssueTimestampGuardAndAuditAppendOnly() {
+  const { mf, db } = await createDatabase();
+  try {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    await assert.rejects(
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-future','owner-a','memory.create','owner_staging','issued',?,?)").bind(future, future + 60).run(),
+      /invalid capability approval issue or expiry timestamp/i,
+      "future-dated issuance must be rejected by D1",
+    );
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_staging_audit SET details_json='tampered' WHERE target_id='grant-valid'").run(),
+      /append-only/i,
+      "audit updates must be rejected",
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_staging_audit WHERE target_id='grant-valid'").run(),
+      /append-only/i,
+      "audit deletion must be rejected",
+    );
+    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid'"), 0);
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testSequentialSingleUse() {
   const { mf, db } = await createDatabase();
   try {
@@ -174,6 +200,8 @@ async function testExpiredAndRevokedApprovalsFailClosed() {
 
 await testDatabaseRejectsDisabledMemoryDeleteCapability();
 console.log("PASS: D1 rejects capability approvals for permanently disabled memory deletion");
+await testIssueTimestampGuardAndAuditAppendOnly();
+console.log("PASS: D1 rejects future-dated approval issuance and keeps audit history append-only");
 await testSequentialSingleUse();
 console.log("PASS: D1-runtime sequential one-time consumption and row-count guard");
 await testRollbackOnOperationFailure();
