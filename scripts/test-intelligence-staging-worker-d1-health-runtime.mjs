@@ -4046,7 +4046,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
 
 async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity() {
   const { mf, db } = await createWorker(migrations.length);
-  const ownerUid = "capability-management-owner";
+  const ownerUid = "staging-owner-test-uid";
   const foreignUid = "capability-management-foreign";
   const now = Math.floor(Date.now() / 1000);
   const token = randomBytes(32).toString("base64url");
