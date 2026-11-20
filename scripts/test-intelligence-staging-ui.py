@@ -533,6 +533,31 @@ assert 'findingsElement(' in overview_function and '.append(' in overview_functi
 assert 'Promise.allSettled' in overview_function, "Overview must show partial results if an individual engine is unavailable."
 
 
+
+# SOCIAL media URL policy: untrusted remote and attachment URLs must be HTTPS-only.
+social_media_helper = public_page.split("function safeSocialMediaSource(value,type=\"image\")", 1)[1].split("\nasync function socialUploadFile", 1)[0]
+for marker in [
+    'kind.startsWith("video/")',
+    'kind.startsWith("image/")',
+    'parsed.protocol==="https:"',
+    'data:video[/](?:mp4|webm|ogg)',
+    'data:image[/](?:png|jpeg|gif|webp|avif)',
+]:
+    assert marker in social_media_helper, f"SOCIAL media URL validation is missing: {marker}"
+
+chat_message_function = public_page.split("function socialRenderChatMessage(m)", 1)[1].split("\nasync function socialStartCall", 1)[0]
+assert 'safeSocialMediaSource(item.url,type)' in chat_message_function, "Chat attachments must validate URLs before href/src rendering."
+assert 'const type=String(item.type||"").toLowerCase(),url=sx(safeSocialMediaSource(item.url,type));' in chat_message_function
+assert 'href="'+url+'"' in chat_message_function and 'src="'+url+'"' in chat_message_function
+
+for marker in [
+    'safeSocialMediaSource(story.mediaUrl,"video")',
+    'safeSocialMediaSource(story.mediaUrl,"image")',
+    'safeSocialMediaSource(media.data,media.type)',
+    'safeSocialMediaSource(post.avatarUrl,"image")',
+]:
+    assert marker in public_page, f"SOCIAL profile/story media must use the safe URL policy: {marker}"
+
 # Priority Action Review integrity UI: every server-detected failure must be visible and affect status.
 public_page = (ROOT / "index.html").read_text(encoding="utf-8")
 review_integrity_function = public_page.split("async function loadIntelPriorityActionReviewIntegrity()", 1)[1].split('\n$("refreshIntelPriorityActionReviewIntegrityBtn")?.addEventListener', 1)[0]
