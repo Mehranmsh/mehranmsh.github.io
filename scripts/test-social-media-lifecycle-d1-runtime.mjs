@@ -69,6 +69,18 @@ try {
     /SOCIAL media deletion requires/i
   );
 
+  await insertUpload("terminal-file");
+  await db.prepare("INSERT INTO social_posts(id,user_id) VALUES('terminal-post','owner-a')").run();
+  await addRef("terminal-ref","terminal-file","post","terminal-post");
+  await db.prepare("DELETE FROM social_posts WHERE id='terminal-post'").run();
+  const terminalJob = await db.prepare("SELECT id FROM social_media_deletion_jobs WHERE upload_id='terminal-file'").first();
+  await db.prepare("UPDATE social_media_deletion_jobs SET status='completed',completed_at=CURRENT_TIMESTAMP WHERE id=?").bind(terminalJob.id).run();
+  await db.prepare("INSERT INTO social_posts(id,user_id) VALUES('after-delete-post','owner-a')").run();
+  await assert.rejects(
+    addRef("after-delete-ref","terminal-file","post","after-delete-post"),
+    /SOCIAL media reference upload ownership/i
+  );
+
   await insertUpload("private-file","owner-a",1,"private");
   await db.prepare("INSERT INTO social_messages(id,sender_id,media_json) VALUES('message-1','owner-a','[]')").run();
   await addRef("ref-message","private-file","message","message-1");
