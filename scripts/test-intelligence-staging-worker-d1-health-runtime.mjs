@@ -419,10 +419,28 @@ async function testCompleteSchemaReportsHealthy() {
     assert.equal(body.service, "mehran-intelligence-staging");
     assert.equal(body.schemaReady, true, JSON.stringify(body));
     assert.deepEqual(body.missingTables, []);
+    assert.deepEqual(body.missingTriggers, []);
     assert.equal(body.foreignKeysEnabled, true);
     assert.equal(body.foreignKeyViolations, 0);
     assert.equal(body.executor, false);
     console.log("PASS: staging Worker /health accepts the complete isolated D1 schema");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingSecurityTriggerFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    const requiredTrigger = "trg_intelligence_priority_action_review_no_delete";
+    await db.prepare(`DROP TRIGGER ${requiredTrigger}`).run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingTriggers, [requiredTrigger]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when a required security trigger is missing");
   } finally {
     await mf.dispose();
   }
@@ -3893,5 +3911,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
   }
 }
 
+await testCompleteSchemaReportsHealthy();
+await testMissingSecurityTriggerFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
