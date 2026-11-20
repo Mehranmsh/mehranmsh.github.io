@@ -4222,7 +4222,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind("outsider-priority-review", outsiderUid, outsiderUid, outsiderFindingId, "security",
         "authentication", outsiderActionKey, "accepted", "Other owner's private review.",
-        outsiderReviewSnapshot, outsiderReviewHash, now + 1, now + 1).run();
+        outsiderReviewSnapshot, outsiderReviewHash, now, now).run();
     const beforeOwnerReviewAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
 
     const outsiderHistoryResponse = await mf.dispatchFetch(
