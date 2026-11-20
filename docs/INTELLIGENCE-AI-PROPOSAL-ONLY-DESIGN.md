@@ -137,3 +137,15 @@ This design is not permission to implement or deploy the proposal service. Befor
 - On acceptance, the immutable proposal snapshot, approval snapshot, target version, and event transition are checked within the same transaction. A unique constraint or equivalent conditional write must ensure only one accepted event exists for a proposal and approval.
 
 This separation prevents an apparently append-only history from being undermined by mutable proposal payloads or editable decision rows.
+
+
+## Canonical payload encoding
+
+The phrase "canonical payload hash" must identify one byte-level representation, otherwise two services can hash semantically similar but byte-different objects or disagree about ambiguous input.
+
+- Use RFC 8785 JSON Canonicalization Scheme (JCS) for the bounded, validated proposal payload, then encode the canonical JSON as UTF-8 and calculate SHA-256 on the server.
+- Reject duplicate object member names during raw JSON parsing. A normal `JSON.parse` result is insufficient for this check because duplicate names may already have been collapsed.
+- Reject non-JSON values, non-finite numbers, invalid Unicode/lone surrogates, unsupported numeric precision, and values outside explicitly documented field bounds before canonicalization.
+- Define the exact hash envelope and version, for example a domain-separated prefix containing the proposal schema version before the canonical payload bytes. Store the canonicalization version with the immutable proposal snapshot so future implementations cannot silently change hash semantics.
+- Never hash client-provided canonical JSON or accept a client-supplied digest as authoritative. The server reconstructs the allowed payload from validated fields, canonicalizes it, and computes the digest itself.
+- Tests must include reordered object keys, Unicode edge cases, duplicate keys, numeric boundary cases, and changed canonicalization versions. Equivalent valid objects must produce identical bytes and hashes; ambiguous or invalid inputs must be rejected.
