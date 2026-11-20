@@ -534,7 +534,8 @@ assert 'Promise.allSettled' in overview_function, "Overview must show partial re
 
 
 # Priority Action Review integrity UI: every server-detected failure must be visible and affect status.
-review_integrity_function = page.split("async function loadIntelPriorityActionReviewIntegrity()", 1)[1].split('$("refreshIntelPriorityActionReviewIntegrityBtn")', 1)[0]
+public_page = (ROOT / "index.html").read_text(encoding="utf-8")
+review_integrity_function = public_page.split("async function loadIntelPriorityActionReviewIntegrity()", 1)[1].split('$("refreshIntelPriorityActionReviewIntegrityBtn")', 1)[0]
 for marker in [
     'stats.snapshotHashMismatches',
     'stats.actionKeyMismatches',
