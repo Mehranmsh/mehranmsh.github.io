@@ -30,7 +30,7 @@ The Worker has bounded JSON bodies, origin restrictions, security headers, rate 
 
 The disposable SQLite migration tests validate the ordered migration chain, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
 
-These are repository-level checks, not a live D1 or Pi Browser integration test. The latest CI run for PR119 head `fe55fbcb617e733865d27d61e0317c0fe500ac95` completed successfully with 34 of 34 checks passing. These remain repository-level tests, not a live D1 or Pi Browser integration test.
+These are repository-level checks, not a live D1 or Pi Browser integration test. The latest CI run for PR119 head `b836e1468dfcf17c432a51b25fd895840f14dd10` (run `44643110379`) completed successfully with 34 of 34 checks passing. These remain repository-level tests, not a live D1 or Pi Browser integration test.
 
 ## 4. Remaining staging steps
 
