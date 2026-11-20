@@ -738,7 +738,7 @@ test("channel post edits and deletion require admin membership and stay scoped t
   assert.match(remove, /!\["owner", "admin"\]\.includes\(member\.role\)/);
   assert.match(remove, /DELETE FROM social_channel_pins WHERE channel_id=\? AND post_id=\?/);
   assert.match(remove, /DELETE FROM social_channel_posts WHERE id=\? AND channel_id=\?/);
-  assert.match(remove, /Uploaded media files are intentionally retained/);
+  assert.match(remove, /Database triggers release references and queue safe, inert per-file deletion jobs/);
   assert.ok(workerSource.includes("channelPostItemMatch = path.match"));
 });
 
@@ -998,7 +998,7 @@ test("SOCIAL uploads enforce per-user ownership and verify storage metadata befo
   const deleteStart = workerSource.indexOf("async function socialDeleteUpload");
   const deleteEnd = workerSource.indexOf("async function fetchPiUser", deleteStart);
   const remove = workerSource.slice(deleteStart, deleteEnd);
-  assert.match(remove, /SELECT id FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(remove, /SELECT id,lifecycle_managed FROM social_uploads WHERE id=\? AND user_id=\?/);
   assert.match(remove, /DELETE FROM social_uploads WHERE id=\? AND user_id=\?/);
 });
 
@@ -1354,38 +1354,26 @@ test("SOCIAL bot owners can rotate active credentials and delete only their own 
   assert.doesNotMatch(list, /token_hash/);
 });
 
-test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
+test("SOCIAL account deletion remains fail-closed until resumable media cleanup is approved", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
   const end = workerSource.indexOf("\n}\n\nexport default", start);
   const handler = workerSource.slice(start, end);
-  assert.ok(start >= 0 && end > start, "socialDeleteAccount implementation must exist");
-  for (const marker of [
-    "identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-    "identitytoolkit.googleapis.com/v1/accounts:lookup",
-    "identity.localId === row.firebase_uid",
-    "rapidfileRequest(env, `/files/",
-    "DELETE FROM social_uploads WHERE user_id=?",
-    "DELETE FROM social_posts WHERE user_id=?",
-    "DELETE FROM social_stories WHERE user_id=?",
-    "DELETE FROM social_sessions WHERE user_id=?",
-    "DELETE FROM social_users WHERE id=?",
-    "Could not remove all account media from storage",
-    "ownershipTransferred: true",
-    "identitytoolkit.googleapis.com/v1/accounts:delete",
-    "providerIdentityDeleted"
-  ]) assert.ok(handler.includes(marker), "Missing account deletion safeguard: " + marker);
-  assert.doesNotMatch(handler, /deactivated: true/);
+  assert.ok(start >= 0 && end > start, "socialDeleteAccount guard must exist");
+  assert.match(handler, /Authentication required/);
+  assert.match(handler, /Account deletion is temporarily paused while SOCIAL media lifecycle is being staged/);
+  assert.match(handler, /No files or account data were deleted/);
+  assert.doesNotMatch(handler, /rapidfileRequest\s*\(/);
+  assert.doesNotMatch(handler, /DELETE FROM social_(uploads|users|posts|stories)/);
 });
 
-test("SOCIAL deletion transfers owned communities only to active existing members", () => {
+test("SOCIAL account deletion cannot transfer communities or erase user data before the resumable workflow exists", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
   const end = workerSource.indexOf("\n}\n\nexport default", start);
   const handler = workerSource.slice(start, end);
-  assert.ok(handler.includes("JOIN social_users u ON u.id=cm.user_id") && handler.includes("u.is_active=1"));
-  assert.ok(handler.includes("UPDATE social_conversation_members SET role='owner'") && handler.includes("c.owner_id=social_conversation_members.user_id"));
-  assert.ok(handler.includes("UPDATE social_channel_members SET role='owner'") && handler.includes("c.owner_id=social_channel_members.user_id"));
+  assert.ok(start >= 0 && end > start);
+  assert.doesNotMatch(handler, /UPDATE social_(conversations|channels|conversation_members|channel_members)/);
+  assert.doesNotMatch(handler, /DELETE FROM social_/);
 });
-
 
 test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits remain IP-scoped", () => {
   const helperStart = workerSource.indexOf("async function checkRateLimit");
@@ -1400,7 +1388,7 @@ test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits 
     ["socialCallPoll", "social-call-poll"],
     ["socialCallSignal", "social-call-signal"],
     ["socialAssistantChat", "social-ai-chat"],
-    ["socialDeleteAccount", "account-delete"]
+
   ]) {
     const start = workerSource.indexOf("async function " + fn);
     assert.ok(start >= 0, fn + " must exist");
@@ -2638,7 +2626,7 @@ test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive 
 test("SOCIAL media lifecycle requires the staging registry and keeps provider deletion disabled", () => {
   assert.match(workerSource,/const SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED = false/);
   assert.match(workerSource,/lifecycle_managed/);
-  assert.match(workerSource,/Number\(row\.lifecycle_managed\) !== 1/);
+  assert.match(workerSource,/Number\(row\.lifecycle_managed\)\s*!==\s*1/);
   assert.match(workerSource,/async function socialMediaLifecycleSchemaReady\(env\)/);
   assert.match(workerSource,/SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS/);
   assert.match(workerSource,/return Number\(triggers\?\.count \|\| 0\) === SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS\.length/);
@@ -2656,25 +2644,25 @@ test("SOCIAL content writes register owned media references in the same D1 batch
   const postEnd=workerSource.indexOf("\nasync function ",postStart+20);
   const post=workerSource.slice(postStart,postEnd);
   assert.match(post,/INSERT INTO social_posts/);
-  assert.match(post,/socialMediaReferenceStatement\(env, item\.id, user\.id, "post", id/);
+  assert.match(post,/socialMediaReferenceStatement\(env,\s*item\.id,\s*user\.id,\s*"post",\s*id/);
   assert.match(post,/await env\.DB\.batch\(\[/);
 
   const storyStart=workerSource.indexOf("async function socialCreateStory(");
   const storyEnd=workerSource.indexOf("\nasync function ",storyStart+20);
   const story=workerSource.slice(storyStart,storyEnd);
   assert.match(story,/media_upload_id/);
-  assert.match(story,/socialMediaReferenceStatement\(env, upload\.id, user\.id, "story", id/);
+  assert.match(story,/socialMediaReferenceStatement\(env,\s*upload\.id,\s*user\.id,\s*"story",\s*id/);
 
   const messageStart=workerSource.indexOf("async function socialSendMessage(");
   const messageEnd=workerSource.indexOf("\nasync function ",messageStart+20);
   const message=workerSource.slice(messageStart,messageEnd);
-  assert.match(message,/socialMediaReferenceStatement\(env,item\.uploadId,user\.id,"message",id/);
+  assert.match(message,/socialMediaReferenceStatement\(env,\s*item\.uploadId,\s*user\.id,\s*"message",\s*id/);
 
   const channelStart=workerSource.indexOf("async function socialChannelPost(");
   const channelEnd=workerSource.indexOf("\nasync function ",channelStart+20);
   const channel=workerSource.slice(channelStart,channelEnd);
   assert.match(channel,/uploadId: upload\.id/);
-  assert.match(channel,/socialMediaReferenceStatement\(env,item\.uploadId,user\.id,"channel_post",id/);
+  assert.match(channel,/socialMediaReferenceStatement\(env,\s*item\.uploadId,\s*user\.id,\s*"channel_post",\s*id/);
 });
 
 test("SOCIAL profile media must be ready public uploads owned by the authenticated user", () => {
