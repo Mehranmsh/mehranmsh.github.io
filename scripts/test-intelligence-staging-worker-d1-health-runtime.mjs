@@ -24,6 +24,7 @@ const migrations = [
   "0011_intelligence_evidence_correlation_reviews",
   "0012_intelligence_evidence_decision_reviews",
   "0013_intelligence_priority_action_reviews",
+  "0014_intelligence_owner_identity_immutability",
 ];
 
 async function applyMigrations(db, names) {
