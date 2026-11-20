@@ -1277,5 +1277,34 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, design)
 
+
+    def test_capability_approvals_have_no_consumption_write_path(self):
+        # The current staging contract permits issue, read, revoke, and assessment only.
+        # A future consumer must be separately designed and explicitly authorized.
+        for pattern in [
+            r"\\bSET\\s+consumed_at\\s*=",
+            r"\\bSET\\s+consumed_by\\s*=",
+            r"\\bSET\\s+status\\s*=\\s*['\\\"]consumed['\\\"]",
+            r"\\bUPDATE\\s+intelligence_capability_approvals\\b[\\s\\S]{0,500}\\bconsumed_(?:at|by)\\s*=",
+        ]:
+            self.assertIsNone(
+                re.search(pattern, self.source, re.IGNORECASE),
+                f"Capability approval consumption must remain unimplemented: {pattern}",
+            )
+
+        evaluation = self.route_block('if (path === "/intelligence/capabilities/evaluate" && method === "POST")')
+        for forbidden in [
+            "INSERT INTO",
+            "UPDATE ",
+            "DELETE FROM",
+            "executeTask(",
+            "claimTask(",
+            "consumed_at =",
+            "consumed_by =",
+        ]:
+            self.assertNotIn(forbidden, evaluation)
+
+        self.assertIn("export const EXECUTION_ENABLED = false;", self.policy_source)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
