@@ -29,6 +29,7 @@ const migrations = [
   "0016_intelligence_capability_approval_allowlist",
   "0017_intelligence_audit_immutability_and_approval_timestamps",
   "0018_intelligence_capability_approval_issued_at_guard",
+  "0019_intelligence_approval_consumption_lock_and_legacy_timestamps",
 ];
 
 async function applyMigrations(db, names) {
@@ -4332,6 +4333,22 @@ async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity()
   }
 }
 
+async function testMissingApprovalConsumptionGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_approval_consumption_disabled").run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.ok(body.missingTriggers.includes("trg_intelligence_approval_consumption_disabled"));
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when an approval consumption lock is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testMissingTaskExecutionGuardFailsClosed() {
   const { mf, db } = await createWorker(migrations.length);
   try {
@@ -4351,6 +4368,7 @@ async function testMissingTaskExecutionGuardFailsClosed() {
 await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
 await testMissingSecurityTriggerFailsClosed();
 await testMissingTaskExecutionGuardFailsClosed();
+await testMissingApprovalConsumptionGuardFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
 
