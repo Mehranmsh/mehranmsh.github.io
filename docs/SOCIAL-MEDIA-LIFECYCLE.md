@@ -26,7 +26,7 @@ Supported content types:
 - `message`
 - `channel_post`
 
-The database verifies that the referenced upload exists, is ready, belongs to the same owner, and has the expected visibility. Messages require private uploads; other supported content types require public uploads. Reference identity cannot be edited and reference history cannot be deleted.
+The database verifies that the referenced upload exists, is ready, belongs to the same owner, is lifecycle-managed, and has the expected visibility. Messages require private uploads; other supported content types require public uploads. Reference identity cannot be edited and reference history cannot be deleted.
 
 ### `social_media_deletion_jobs`
 
