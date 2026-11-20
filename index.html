@@ -967,6 +967,12 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 
 <section class="page" id="page-intelligence">
 <div class="page-heading"><h1>Intelligence</h1><p>Your private company analysis and AI workspace.</p></div>
+<div class="panel" id="intelStagingAuthPanel">
+ <div class="section-title"><div><h2>Private Intelligence Session</h2><div class="small-text">Independent Pi verification and a separate, revocable staging session. The production administrator session is never reused.</div></div></div>
+ <div id="intelStagingSessionStatus" class="notice warn" role="status" aria-live="polite">Staging Worker address is not configured. Intelligence remains disconnected and cannot access the production Worker.</div>
+ <div class="hero-actions" style="margin-top:0"><button class="btn" id="connectIntelStagingBtn" type="button" disabled>Connect with Pi</button><button class="btn secondary" id="disconnectIntelStagingBtn" type="button" disabled>Revoke staging session</button></div>
+ <div class="small-text">Connection stays disabled until the dedicated staging Worker is deployed with its verified staging database, owner UID secret and origin allowlist.</div>
+</div>
 <div class="panel intelligence-overview">
 <div class="section-title"><div><h2>Company Overview</h2><div class="small-text">A concise snapshot of MEHRAN MSH</div></div><button class="btn secondary small" id="refreshIntelligenceBtn">Refresh</button></div>
 <div class="grid intelligence-stats">
@@ -1170,6 +1176,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
+const INTELLIGENCE_STAGING_WORKER_URL="",INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session";
 let piUser=null,adminSessionRestoring=true,socialUser=null,socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 let profileTab="posts",profileData=null;
 function $(id){return document.getElementById(id)}
@@ -1177,7 +1184,70 @@ function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message,duration=3200){const el=$("toast");el.textContent=String(message??"");el.title="Tap to copy";el.onclick=()=>{const value=el.textContent; if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>{el.textContent="Copied: "+value;}).catch(()=>{});}};el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),duration)}
-async function api(path,options={}){if(path.startsWith("/intelligence/"))throw new Error("Intelligence staging Worker is not connected. Production Worker access is disabled.");const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||"Request failed ("+response.status+")");error.status=response.status;throw error}return data}
+async function api(path,options={}){if(path.startsWith("/intelligence/"))return intelligenceStagingRequest(path,options);const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||"Request failed ("+response.status+")");error.status=response.status;throw error}return data}
+
+
+function getIntelligenceStagingToken(){return localStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
+async function intelligenceStagingRequest(path,options={}){
+ if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error("Intelligence staging Worker is not configured. Production Worker access is disabled.");
+ if(!path.startsWith("/intelligence/")&&path!=="/session")throw new Error("This route is outside the Intelligence staging allowlist.");
+ const {auth=true,...requestOptions}=options;
+ const headers={"Accept":"application/json","Content-Type":"application/json",...(requestOptions.headers||{})};
+ if(auth){const token=getIntelligenceStagingToken();if(!token)throw new Error("Connect with Pi to create a separate Intelligence staging session.");headers.Authorization="Bearer "+token;}
+ const response=await fetch(INTELLIGENCE_STAGING_WORKER_URL+path,{...requestOptions,headers,cache:"no-store",redirect:"error"});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok){const error=new Error(data.message||data.error||"Intelligence staging request failed ("+response.status+")");error.status=response.status;throw error;}
+ return data;
+}
+function updateIntelligenceStagingSessionUI(message,kind="notice"){
+ const status=$("intelStagingSessionStatus"),connect=$("connectIntelStagingBtn"),disconnect=$("disconnectIntelStagingBtn");
+ if(status){status.textContent=message;status.className=kind;}
+ if(connect)connect.disabled=!INTELLIGENCE_STAGING_WORKER_URL;
+ if(disconnect)disconnect.disabled=!getIntelligenceStagingToken();
+}
+async function connectIntelligenceStagingSession(){
+ const button=$("connectIntelStagingBtn");if(button)button.disabled=true;
+ try{
+  if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error("The dedicated staging Worker URL has not been verified or configured. No authentication request was sent.");
+  if(typeof window.ensurePiReady==="function")await window.ensurePiReady();
+  if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("Pi authentication is unavailable. Open MEHRAN MSH in Pi Browser.");
+  updateIntelligenceStagingSessionUI("Waiting for your approval in the official Pi sign-in window...");
+  const auth=await window.Pi.authenticate(["username"],async()=>{});
+  if(!auth?.accessToken||!auth?.user?.uid)throw new Error("Pi did not return a complete identity and access token.");
+  updateIntelligenceStagingSessionUI("Verifying your Pi identity directly with the isolated staging Worker...");
+  const issued=await intelligenceStagingRequest("/session",{method:"POST",auth:false,body:JSON.stringify({accessToken:auth.accessToken})});
+  if(!issued?.success||!issued.token)throw new Error("The staging Worker did not issue a valid session.");
+  try{localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token);}catch{throw new Error("The staging session could not be stored securely in this browser.");}
+  const verified=await intelligenceStagingRequest("/session");
+  if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");
+  updateIntelligenceStagingSessionUI("Independent Pi identity verified. Private Intelligence staging session is active. Expires "+new Date(issued.expiresAt*1000).toLocaleString()+".","notice success");
+  await loadIntelligenceTasks();
+ }catch(error){
+  localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
+  updateIntelligenceStagingSessionUI(error.message,"notice warn");
+ }finally{if(button)button.disabled=!INTELLIGENCE_STAGING_WORKER_URL;}
+}
+async function disconnectIntelligenceStagingSession(){
+ const button=$("disconnectIntelStagingBtn");if(button)button.disabled=true;
+ const token=getIntelligenceStagingToken();
+ try{
+  if(token&&INTELLIGENCE_STAGING_WORKER_URL)await intelligenceStagingRequest("/session",{method:"DELETE"});
+  localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
+  updateIntelligenceStagingSessionUI("Intelligence staging session revoked locally and, when connected, on the staging Worker.","notice");
+ }catch(error){
+  updateIntelligenceStagingSessionUI("Server revocation could not be confirmed: "+error.message+". The local token has been retained so revocation can be retried.","notice warn");
+ }finally{if(button)button.disabled=!getIntelligenceStagingToken();}
+}
+async function restoreIntelligenceStagingSession(){
+ const token=getIntelligenceStagingToken();
+ if(!token){updateIntelligenceStagingSessionUI(INTELLIGENCE_STAGING_WORKER_URL?"Connect with Pi to open the separate Intelligence staging session.":"Staging Worker address is not configured. Intelligence remains disconnected and cannot access the production Worker.");return;}
+ if(!INTELLIGENCE_STAGING_WORKER_URL){updateIntelligenceStagingSessionUI("A staging session token exists locally, but the dedicated Worker URL is not configured. No request was sent.","notice warn");return;}
+ try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success)throw new Error("Session verification failed.");updateIntelligenceStagingSessionUI("Private Intelligence staging session restored and verified.","notice success");}
+ catch(error){if(error.status===401||error.status===403)localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);updateIntelligenceStagingSessionUI("Staging session could not be restored: "+error.message,"notice warn");}
+}
+$("connectIntelStagingBtn")?.addEventListener("click",connectIntelligenceStagingSession);
+$("disconnectIntelStagingBtn")?.addEventListener("click",disconnectIntelligenceStagingSession);
+restoreIntelligenceStagingSession();
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
