@@ -85,7 +85,6 @@ The isolated Worker, Wrangler staging config, separate Pi staging-session flow, 
 
 - `GET /intelligence/memory`: list only the authenticated owner's records.
 - `POST /intelligence/memory`: create a bounded memory record.
-- `PUT /intelligence/memory/:id`: update only an owner-owned record.
-- `DELETE /intelligence/memory/:id`: delete only an owner-owned record.
+- No `PUT` or `DELETE` memory route is currently implemented. Do not treat the `memory.delete` capability label as an available operation: approval issuance and evaluation are advisory only, and no approval-consumption or execution route exists.
 
-Memory mutations are audited atomically with the data change; deletion audit records retain only the record identifier, not its content. No cross-owner or system-seed memory mutation route is exposed.
+Memory creation is audited atomically with the data change. No cross-owner memory mutation route is exposed.
