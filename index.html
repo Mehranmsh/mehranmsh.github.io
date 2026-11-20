@@ -1858,23 +1858,9 @@ return false;
 try{return await socialMePromise}finally{socialMePromise=null}
 }
 async function socialDeleteAccount(){
- if(!socialSessionVerified||!socialUser||!getSocialToken()){toast("Sign in again before deleting your account.");return;}
- const password=$("socialDeletePassword").value;
- if(!password){$("socialDeletePassword").focus();toast("Enter your current sign-in password.");return;}
- if(!confirm("Permanently delete your SOCIAL account and its uploaded files? This cannot be undone."))return;
- const button=$("socialDeleteAccountBtn"),status=$("socialDeleteStatus");
- button.disabled=true;status.textContent="Verifying identity and removing your account data…";
- try{
-  const response=await fetch(SOCIAL_API+"/account",{method:"DELETE",headers:{...socialHeaders(),"Content-Type":"application/json"},body:JSON.stringify({password})});
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok||!data.deleted)throw new Error(data.error||"Account deletion could not be completed.");
-  localStorage.removeItem(SOCIAL_TOKEN_KEY);localStorage.removeItem("msh_social_cached_user");
-  try{if(window.socialFirebaseSignOut)await window.socialFirebaseSignOut();}catch(firebaseError){console.warn("SOCIAL data deleted; local Firebase sign-out needs review:",firebaseError);}
-  socialUser=null;socialSessionVerified=false;localProfile={};posts=[];localStorage.removeItem(SOCIAL_PROFILE_KEY);localStorage.removeItem(SOCIAL_POSTS_KEY);
-  $("settingsUsername").value="";$("socialDeletePassword").value="";
-  $("socialStatus").textContent="Account deleted";status.textContent="Your SOCIAL account and "+Number(data.removedFiles||0)+" uploaded file(s) were deleted."+(data.providerIdentityDeleted===false?" Your email sign-in identity could not be removed automatically. Please contact support.":"");
-  renderSocial();toast("SOCIAL account deleted.");
- }catch(error){status.textContent=error.message||"Deletion failed. Your account remains available.";button.disabled=false;}
+ const status=$("socialDeleteStatus");
+ status.textContent="Account deletion is temporarily paused while safe, resumable media cleanup is being built. Your account and uploaded files remain untouched.";
+ toast("Account deletion is temporarily unavailable.");
 }
 async function socialLogout(){
 try{if(getSocialToken())await fetch(SOCIAL_API+"/logout",{method:"POST",headers:socialHeaders()})}catch(error){console.warn(error)}
