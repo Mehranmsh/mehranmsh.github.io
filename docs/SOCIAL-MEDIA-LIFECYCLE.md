@@ -43,7 +43,7 @@ The audit ledger records reference creation/release and queued deletion. It is a
 - New post media, stories, channel-post media, private message attachments, profile avatars, and profile gallery images register stable upload references in the same D1 batch as their content writes.
 - Story, post, channel-post, gallery-photo, avatar replacement, and message soft-delete operations release their references through database triggers.
 - The final known reference release creates a per-file pending deletion job.
-- User-requested upload deletion checks active references and queues work only. It never calls Rapidfile DELETE and returns HTTP 202 with `executionEnabled: false`.
+- User-requested upload deletion checks active references and queues work only. The job trigger changes the upload status to `deletion_pending`. It never calls Rapidfile DELETE and returns HTTP 202 with `executionEnabled: false`.
 - Profile avatar/gallery URLs must resolve to ready public uploads owned by the authenticated user. URL-only legacy records are not retroactively guessed.
 - Account deletion is temporarily unavailable rather than invoking the former non-resumable provider-first deletion flow.
 
