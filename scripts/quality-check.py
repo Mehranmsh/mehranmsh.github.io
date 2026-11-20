@@ -171,16 +171,20 @@ def main():
     required_social_deletion_markers = [
         'id="socialDeletePassword"', 'id="socialDeleteAccountBtn"',
         'Permanently delete my account', 'socialFirebaseSignOut',
-        'fetch(SOCIAL_API+"/account"'
+        'Account deletion is temporarily paused while safe, resumable media cleanup is being built'
     ]
     missing = [marker for marker in required_social_deletion_markers if marker not in app]
     if missing:
         raise SystemExit("SOCIAL account deletion UI markers missing: " + ", ".join(missing))
     worker = (ROOT / "worker.js").read_text(encoding="utf-8")
-    if "rapidfileRequest(env, `/files/${encodeURIComponent(upload.id)}`, { method: \"DELETE\" })" not in worker:
-        raise SystemExit("SOCIAL account deletion must remove uploaded files from external storage.")
-    if "DELETE FROM social_users WHERE id=?" not in worker or "identity.localId === row.firebase_uid" not in worker or "accounts:signInWithPassword" not in worker or "accounts:lookup" not in worker or "Account data cleanup could not be completed" not in worker or "identitytoolkit.googleapis.com/v1/accounts:delete" not in worker:
-        raise SystemExit("SOCIAL account deletion must remove the user row only after provider re-authentication.")
+    account_delete_start = worker.find("async function socialDeleteAccount(request, env) {")
+    account_delete = worker[account_delete_start:] if account_delete_start >= 0 else ""
+    if "const SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED = false" not in worker:
+        raise SystemExit("SOCIAL media deletion execution must remain disabled during staging.")
+    if "Account deletion is temporarily paused while SOCIAL media lifecycle is being staged." not in account_delete:
+        raise SystemExit("SOCIAL account deletion must fail closed until resumable media cleanup is approved.")
+    if "rapidfileRequest(" in account_delete or "DELETE FROM social_users WHERE id=?" in account_delete:
+        raise SystemExit("SOCIAL account deletion must not call the provider or delete account data before the resumable lifecycle executor exists.")
 
     if "async function socialRotateBotToken" not in worker or "UPDATE social_bots SET token_hash=? WHERE id=? AND owner_id=? AND is_active=1" not in worker or "DELETE FROM social_bots WHERE id=? AND owner_id=?" not in worker:
         raise SystemExit("SOCIAL bot owners must be able to rotate and revoke their own bot credentials.")

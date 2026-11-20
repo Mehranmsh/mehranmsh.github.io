@@ -366,11 +366,11 @@ test("MEHRAN Intelligence agent API is separately scoped and approval-gated", ()
   assert.match(workerSource, /Agent service identity is not configured/);
 });
 
-test("MEHRAN Intelligence agent API fails closed until its service secret is configured", async () => {
+test("MEHRAN Intelligence agent API remains disabled in staging", async () => {
   const response = await request("/agent/v1/tasks/next", {}, { DB: mockDb() });
-  assert.equal(response.status, 503);
+  assert.equal(response.status, 410);
   const payload = await response.json();
-  assert.match(payload.error, /Agent service identity is not configured/);
+  assert.match(payload.error, /Intelligence Agent execution is disabled/);
 });
 
 test("owner approval releases a task from the approval gate for agent claiming", () => {
@@ -662,7 +662,7 @@ test("channel media upload IDs must belong to the publishing admin and be ready 
   const start = workerSource.indexOf("async function socialChannelPost(");
   const end = workerSource.indexOf("\nasync function ", start + 20);
   const handler = workerSource.slice(start, end);
-  assert.match(handler, /SELECT id,name,mime_type,acl,status,url FROM social_uploads WHERE id=\? AND user_id=\? LIMIT 1/);
+  assert.match(handler, /SELECT id,name,mime_type,acl,status,url,lifecycle_managed FROM social_uploads WHERE id=\? AND user_id=\? LIMIT 1/);
   assert.match(handler, /upload\.status !== "ready"/);
   assert.match(handler, /upload\.acl !== "public"/);
   assert.match(handler, /!upload\.url \|\| !validHttpsUrl\(upload\.url\)/);
@@ -738,7 +738,7 @@ test("channel post edits and deletion require admin membership and stay scoped t
   assert.match(remove, /!\["owner", "admin"\]\.includes\(member\.role\)/);
   assert.match(remove, /DELETE FROM social_channel_pins WHERE channel_id=\? AND post_id=\?/);
   assert.match(remove, /DELETE FROM social_channel_posts WHERE id=\? AND channel_id=\?/);
-  assert.match(remove, /Uploaded media files are intentionally retained/);
+  assert.match(remove, /Database triggers release references and queue safe, inert per-file deletion jobs/);
   assert.ok(workerSource.includes("channelPostItemMatch = path.match"));
 });
 
@@ -998,8 +998,11 @@ test("SOCIAL uploads enforce per-user ownership and verify storage metadata befo
   const deleteStart = workerSource.indexOf("async function socialDeleteUpload");
   const deleteEnd = workerSource.indexOf("async function fetchPiUser", deleteStart);
   const remove = workerSource.slice(deleteStart, deleteEnd);
-  assert.match(remove, /SELECT id FROM social_uploads WHERE id=\? AND user_id=\?/);
-  assert.match(remove, /DELETE FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(remove, /SELECT id,lifecycle_managed,status FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(remove, /INSERT INTO social_media_deletion_jobs/);
+  assert.match(remove, /executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED/);
+  assert.doesNotMatch(remove, /rapidfileRequest\s*\(/);
+  assert.doesNotMatch(remove, /DELETE FROM social_uploads/);
 });
 
 test("SOCIAL channel content and membership are hidden across block relationships", () => {
@@ -1354,38 +1357,39 @@ test("SOCIAL bot owners can rotate active credentials and delete only their own 
   assert.doesNotMatch(list, /token_hash/);
 });
 
-test("SOCIAL account deletion reauthenticates, removes external media and cleans account-owned data", () => {
+test("SOCIAL account deletion UI explains the pause without collecting credentials or sending a request", () => {
+  const start=indexSource.indexOf("async function socialDeleteAccount(){");
+  const end=indexSource.indexOf("async function socialLogout(){",start);
+  assert.ok(start>=0 && end>start);
+  const handler=indexSource.slice(start,end);
+  assert.match(indexSource,/id="socialDeleteAccountBtn" disabled/);
+  assert.match(indexSource,/id="socialDeletePassword"[^>]*disabled/);
+  assert.match(handler,/Account deletion is temporarily paused/);
+  assert.match(handler,/account and uploaded files remain untouched/);
+  assert.doesNotMatch(handler,/fetch\(SOCIAL_API/);
+  assert.doesNotMatch(handler,/socialDeletePassword.*value/);
+});
+
+test("SOCIAL account deletion remains fail-closed until resumable media cleanup is approved", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
   const end = workerSource.indexOf("\n}\n\nexport default", start);
   const handler = workerSource.slice(start, end);
-  assert.ok(start >= 0 && end > start, "socialDeleteAccount implementation must exist");
-  for (const marker of [
-    "identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-    "identitytoolkit.googleapis.com/v1/accounts:lookup",
-    "identity.localId === row.firebase_uid",
-    "rapidfileRequest(env, `/files/",
-    "DELETE FROM social_uploads WHERE user_id=?",
-    "DELETE FROM social_posts WHERE user_id=?",
-    "DELETE FROM social_stories WHERE user_id=?",
-    "DELETE FROM social_sessions WHERE user_id=?",
-    "DELETE FROM social_users WHERE id=?",
-    "Could not remove all account media from storage",
-    "ownershipTransferred: true",
-    "identitytoolkit.googleapis.com/v1/accounts:delete",
-    "providerIdentityDeleted"
-  ]) assert.ok(handler.includes(marker), "Missing account deletion safeguard: " + marker);
-  assert.doesNotMatch(handler, /deactivated: true/);
+  assert.ok(start >= 0 && end > start, "socialDeleteAccount guard must exist");
+  assert.match(handler, /Authentication required/);
+  assert.match(handler, /Account deletion is temporarily paused while SOCIAL media lifecycle is being staged/);
+  assert.match(handler, /No files or account data were deleted/);
+  assert.doesNotMatch(handler, /rapidfileRequest\s*\(/);
+  assert.doesNotMatch(handler, /DELETE FROM social_(uploads|users|posts|stories)/);
 });
 
-test("SOCIAL deletion transfers owned communities only to active existing members", () => {
+test("SOCIAL account deletion cannot transfer communities or erase user data before the resumable workflow exists", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
   const end = workerSource.indexOf("\n}\n\nexport default", start);
   const handler = workerSource.slice(start, end);
-  assert.ok(handler.includes("JOIN social_users u ON u.id=cm.user_id") && handler.includes("u.is_active=1"));
-  assert.ok(handler.includes("UPDATE social_conversation_members SET role='owner'") && handler.includes("c.owner_id=social_conversation_members.user_id"));
-  assert.ok(handler.includes("UPDATE social_channel_members SET role='owner'") && handler.includes("c.owner_id=social_channel_members.user_id"));
+  assert.ok(start >= 0 && end > start);
+  assert.doesNotMatch(handler, /UPDATE social_(conversations|channels|conversation_members|channel_members)/);
+  assert.doesNotMatch(handler, /DELETE FROM social_/);
 });
-
 
 test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits remain IP-scoped", () => {
   const helperStart = workerSource.indexOf("async function checkRateLimit");
@@ -1400,7 +1404,7 @@ test("authenticated SOCIAL rate limits are account-scoped while pre-auth limits 
     ["socialCallPoll", "social-call-poll"],
     ["socialCallSignal", "social-call-signal"],
     ["socialAssistantChat", "social-ai-chat"],
-    ["socialDeleteAccount", "account-delete"]
+
   ]) {
     const start = workerSource.indexOf("async function " + fn);
     assert.ok(start >= 0, fn + " must exist");
@@ -1531,256 +1535,13 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
   assert.equal(payload.error, "Admin authentication required");
 });
 
-test("Intelligence scheduled runner records an empty successful run", async () => {
-  const state = { inserted: null, finished: null, candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("INSERT INTO intelligence_scheduler_runs")) {
-            state.inserted = { id: values[0], startedAt: values[1] };
-          }
-          if (sql.includes("UPDATE intelligence_scheduler_runs SET finished_at")) {
-            state.finished = {
-              finishedAt: values[0], processed: values[1],
-              completed: values[2], blocked: values[3], id: values[4]
-            };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return null;
-          }
-          throw new Error("Unexpected scheduler history SQL: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.ok(state.inserted?.id);
-  assert.ok(state.inserted?.startedAt);
-  assert.equal(state.finished?.id, state.inserted.id);
-  assert.equal(state.finished?.processed, 0);
-  assert.equal(state.finished?.completed, 0);
-  assert.equal(state.finished?.blocked, 0);
-});
-
-test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
-  const html = indexSource;
-  const worker = workerSource;
-  for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
-    assert.ok(html.includes(action), `Task Hub exposes ${action}`);
-    assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
-  }
-  assert.match(worker, /const autoApproved=preapprovedReadOnlyActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
-  assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
-  assert.match(html, /actionTypes\[task\.actionType\]/);
-  assert.doesNotMatch(html, /data-intel-task-status=/);
-  assert.match(html, /No agent or scheduler can claim it/);
-  assert.match(html, /No automatic execution is enabled/);
-  assert.doesNotMatch(html, /Cancel running task/);
-  assert.doesNotMatch(html, /Cancel queued task/);
-  assert.doesNotMatch(html, /Approve task/);
-  assert.doesNotMatch(html, /You can cancel this active task/);
-  assert.match(workerSource, /schedulerClaimed: Boolean\(row\.scheduler_claimed_at\)/);
-  assert.match(workerSource, /agentClaimed: Boolean\(row\.agent_claimed_at\)/);
-});
-
-
-
-test("MEHRAN Intelligence scheduled runner completes an approved project report and stores its result", async () => {
-  const state = { status: "accepted", requiresApproval: 0, result: "", candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) {
-            if (state.status !== "accepted" || state.requiresApproval !== 0) return { meta: { changes: 0 } };
-            state.status = "in_progress";
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='completed',result_text=")) {
-            state.status = "completed";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='blocked',result_text=")) {
-            state.status = "blocked";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return state.candidateReads === 1
-              ? { id: "task-project-report", action_type: "project_status_report" }
-              : null;
-          }
-          if (sql.includes("SELECT COUNT(*) AS total FROM projects")) return { total: 2 };
-          throw new Error("Unexpected scheduled report SQL: " + sql);
-        },
-        async all() {
-          if (sql.includes("FROM projects ORDER BY created_at DESC LIMIT 50")) {
-            return { results: [{ name: "MEHRAN MSH", status: "Active", description: "Central hub", updated_at: "2026-11-18 10:00:00" }] };
-          }
-          throw new Error("Unexpected scheduled report query: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  assert.ok(scheduledPromise, "scheduled runner must register its background task");
-  await scheduledPromise;
-  assert.equal(state.status, "completed");
-  const report = JSON.parse(state.result);
-  assert.equal(report.type, "project_status_report");
-  assert.equal(report.projects.length, 1);
-  assert.equal(report.projects[0].name, "MEHRAN MSH");
-});
-
-test("MEHRAN Intelligence scheduled runner does not claim tasks that still require approval", async () => {
-  const state = { status: "accepted", requiresApproval: 1, candidateReads: 0, claimed: false };
-  const db = {
-    prepare(sql) {
-      return {
-        bind() { return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) state.claimed = true;
-          return { meta: { changes: state.claimed ? 1 : 0 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return sql.includes("requires_approval=0") && state.requiresApproval === 0 && state.candidateReads === 1
-              ? { id: "unapproved-task", action_type: "project_status_report" }
-              : null;
-          }
-          throw new Error("Unexpected unapproved-task SQL: " + sql);
-        },
-        async all() { return { results: [] }; }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.equal(state.claimed, false);
-});
-
-
-test("MEHRAN Intelligence scheduled runner stores SOCIAL metrics without exposing user data", async () => {
-  const state = { status: "accepted", result: "", candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) {
-            if (state.status !== "accepted") return { meta: { changes: 0 } };
-            state.status = "in_progress";
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='completed',result_text=")) {
-            state.status = "completed";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='blocked',result_text=")) {
-            state.status = "blocked";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return state.candidateReads === 1
-              ? { id: "task-social-metrics", action_type: "social_metrics_report" }
-              : null;
-          }
-          if (sql.includes("COUNT(*) AS total FROM social_users WHERE is_active=1")) return { total: 7 };
-          if (sql.includes("COUNT(*) AS total FROM social_users")) return { total: 9 };
-          if (sql.includes("COUNT(*) AS total FROM social_posts")) return { total: 23 };
-          if (sql.includes("COUNT(*) AS total FROM social_reports WHERE status='open'")) return { total: 2 };
-          throw new Error("Unexpected SOCIAL metrics SQL: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.equal(state.status, "completed");
-  const report = JSON.parse(state.result);
-  assert.equal(report.type, "social_metrics_report");
-  assert.equal(report.registeredUsers, 9);
-  assert.equal(report.activeUsers, 7);
-  assert.equal(report.posts, 23);
-  assert.equal(report.openReports, 2);
-  assert.equal(Object.hasOwn(report, "users"), false, "report must not include user-level records");
-});
-
-test("MEHRAN Intelligence scheduled runner records database health checks", async () => {
-  const state = { status: "accepted", result: "", candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) {
-            if (state.status !== "accepted") return { meta: { changes: 0 } };
-            state.status = "in_progress";
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='completed',result_text=")) {
-            state.status = "completed";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='blocked',result_text=")) {
-            state.status = "blocked";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return state.candidateReads === 1
-              ? { id: "task-service-health", action_type: "service_health_report" }
-              : null;
-          }
-          if (sql.includes("SELECT 1 AS healthy")) return { healthy: 1 };
-          if (sql.includes("SELECT COUNT(*) AS total FROM projects")) return { total: 4 };
-          throw new Error("Unexpected service health SQL: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.equal(state.status, "completed");
-  const report = JSON.parse(state.result);
-  assert.equal(report.type, "service_health_report");
-  assert.equal(report.database, "healthy");
-  assert.equal(report.projectRecords, 4);
+test("Intelligence scheduled runner remains inert and performs no database work", () => {
+  let dbCalls=0;
+  let waitUntilCalls=0;
+  const db={prepare(){dbCalls++;throw new Error("disabled scheduler must not query D1");}};
+  worker.scheduled({}, {DB:db}, {waitUntil(){waitUntilCalls++;}});
+  assert.equal(dbCalls,0);
+  assert.equal(waitUntilCalls,0);
 });
 
 test("automated Intelligence task transitions are owner-approval-only, cancellable and claim-fenced", () => {
@@ -2632,4 +2393,100 @@ test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive 
     executeTool:async()=>{executions++;return {};}
   }),/round limit reached/);
   assert.equal(executions,2,"only the two bounded rounds may execute");
+});
+
+
+test("SOCIAL media lifecycle requires the staging registry and keeps provider deletion disabled", () => {
+  assert.match(workerSource,/const SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED = false/);
+  assert.match(workerSource,/lifecycle_managed/);
+  assert.match(workerSource,/Number\(row\.lifecycle_managed\)\s*!==\s*1/);
+  assert.match(workerSource,/async function socialMediaLifecycleSchemaReady\(env\)/);
+  assert.match(workerSource,/SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS/);
+  assert.match(workerSource,/return Number\(triggers\?\.count \|\| 0\) === SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS\.length/);
+  for (const route of ["socialCreatePost","socialCreateStory","socialUpdateProfile","socialSendMessage","socialChannelPost","socialDeleteUpload"]) {
+    const start=workerSource.indexOf("async function "+route+"(");
+    const end=workerSource.indexOf("\nasync function ",start+20);
+    assert.ok(start>=0 && end>start,route+" must be present");
+    assert.match(workerSource.slice(start,end),/socialMediaLifecycleSchemaReady\(env\)/,route+" must fail closed without migration triggers");
+  }
+});
+
+test("SOCIAL content writes register owned media references in the same D1 batch", () => {
+  assert.match(workerSource,/function socialMediaReferenceStatement\(env, uploadId, ownerUserId, contentType, contentId, mediaSlot\)/);
+  const postStart=workerSource.indexOf("async function socialCreatePost(");
+  const postEnd=workerSource.indexOf("\nasync function ",postStart+20);
+  const post=workerSource.slice(postStart,postEnd);
+  assert.match(post,/INSERT INTO social_posts/);
+  assert.match(post,/socialMediaReferenceStatement\(env,\s*item\.id,\s*user\.id,\s*"post",\s*id/);
+  const validationStart=workerSource.indexOf("async function validatePostMedia(");
+  const validationEnd=workerSource.indexOf("\nasync function ",validationStart+20);
+  assert.match(workerSource.slice(validationStart,validationEnd),/Number\(row\.lifecycle_managed\)\s*!==\s*1/);
+  assert.match(post,/await env\.DB\.batch\(\[/);
+
+  const storyStart=workerSource.indexOf("async function socialCreateStory(");
+  const storyEnd=workerSource.indexOf("\nasync function ",storyStart+20);
+  const story=workerSource.slice(storyStart,storyEnd);
+  assert.match(story,/media_upload_id/);
+  assert.match(story,/socialMediaReferenceStatement\(env,\s*upload\.id,\s*user\.id,\s*"story",\s*id/);
+
+  const messageStart=workerSource.indexOf("async function socialSendMessage(");
+  const messageEnd=workerSource.indexOf("\nasync function ",messageStart+20);
+  const message=workerSource.slice(messageStart,messageEnd);
+  assert.match(message,/socialMediaReferenceStatement\(env,\s*item\.uploadId,\s*user\.id,\s*"message",\s*id/);
+  assert.match(message,/Use the uploadId field for your own uploaded media/);
+
+  const channelStart=workerSource.indexOf("async function socialChannelPost(");
+  const channelEnd=workerSource.indexOf("\nasync function ",channelStart+20);
+  const channel=workerSource.slice(channelStart,channelEnd);
+  assert.match(channel,/uploadId: upload\.id/);
+  assert.match(channel,/socialMediaReferenceStatement\(env,\s*item\.uploadId,\s*user\.id,\s*"channel_post",\s*id/);
+  assert.match(channel,/Use the uploadId field for your own uploaded media/);
+});
+
+test("SOCIAL profile media must be ready public uploads owned by the authenticated user", () => {
+  const start=workerSource.indexOf("async function socialUpdateProfile(");
+  const end=workerSource.indexOf("\nasync function ",start+20);
+  const profile=workerSource.slice(start,end);
+  assert.match(profile,/WHERE user_id=\? AND url=\? AND status='ready' AND acl='public'/);
+  assert.match(profile,/avatar_upload_id/);
+  assert.match(profile,/upload_id\) VALUES/);
+  assert.match(profile,/profile_gallery/);
+  assert.match(profile,/profile_avatar/);
+  assert.match(profile,/existingByUrl/);
+  assert.match(profile,/retainedPhotoIds/);
+  assert.doesNotMatch(profile,/DELETE FROM social_profile_photos WHERE user_id/);
+  assert.match(profile,/await env\.DB\.batch\(statements\)/);
+});
+
+test("SOCIAL upload completion cannot reactivate a file after deletion is queued", () => {
+  const start=workerSource.indexOf("async function socialCompleteUpload(");
+  const end=workerSource.indexOf("\\nasync function ",start+20);
+  const handler=workerSource.slice(start,end);
+  assert.match(handler,/row\.status !== "uploading"/);
+});
+
+test("SOCIAL upload deletion only queues inert work and account deletion fails closed", () => {
+  const start=workerSource.indexOf("async function socialDeleteUpload(");
+  const end=workerSource.indexOf("\nasync function ",start+20);
+  const deletion=workerSource.slice(start,end);
+  assert.match(deletion,/INSERT INTO social_media_deletion_jobs/);
+  assert.match(deletion,/Only ready uploads can be queued for deletion/);
+  assert.match(deletion,/executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED/);
+  assert.match(deletion,/\},202\)/);
+  assert.doesNotMatch(deletion,/rapidfileRequest\s*\(/);
+  const accountStart=workerSource.indexOf("async function socialDeleteAccount(");
+  const account=workerSource.slice(accountStart);
+  assert.match(account,/temporarily paused while SOCIAL media lifecycle is being staged/);
+  assert.doesNotMatch(account,/rapidfileRequest\s*\(/);
+});
+
+test("staging Intelligence scheduler and Agent execution remain inert", () => {
+  const scheduledStart=workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const scheduledEnd=workerSource.indexOf("\n  },",scheduledStart);
+  const scheduled=workerSource.slice(scheduledStart,scheduledEnd);
+  assert.match(scheduled,/return;\s+const run = async/);
+  const agentStart=workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  assert.ok(agentStart>=0);
+  const agent=workerSource.slice(agentStart,agentStart+180);
+  assert.match(agent,/return error\("Intelligence Agent execution is disabled\.", 410\)/);
 });

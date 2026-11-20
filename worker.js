@@ -1578,39 +1578,101 @@ async function socialGetProfile(request, env, username) {
 async function socialUpdateProfile(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
 
-  const displayName = cleanText(body.displayName, 60);
-  const bio = cleanText(body.bio, 500);
+  const displayName = cleanText(body.displayName,60);
+  const bio = cleanText(body.bio,500);
   const avatarUrl = String(body.avatarUrl || "").trim();
   const galleryInput = Array.isArray(body.gallery) ? body.gallery : null;
 
-  if (avatarUrl && !validHttpsUrl(avatarUrl)) {
-    return error("Avatar must be a valid HTTPS URL");
-  }
-  if (galleryInput && galleryInput.some(url => typeof url !== "string" || !validHttpsUrl(url))) {
-    return error("Every gallery photo must be a valid HTTPS URL");
+  if (avatarUrl && !validHttpsUrl(avatarUrl)) return error("Avatar must be a valid HTTPS URL");
+  if (galleryInput && (galleryInput.length>20 || new Set(galleryInput).size!==galleryInput.length ||
+      galleryInput.some(url=>typeof url!=="string"||!validHttpsUrl(url)))) {
+    return error("Gallery must contain up to 20 unique valid HTTPS image URLs");
   }
 
-  await env.DB.prepare(`
-    UPDATE social_users
-    SET display_name=?,bio=?,avatar_url=?,updated_at=CURRENT_TIMESTAMP
-    WHERE id=?
-  `).bind(displayName, bio, avatarUrl, user.id).run();
+  const currentProfile = await env.DB.prepare(
+    "SELECT avatar_url,avatar_upload_id FROM social_users WHERE id=?"
+  ).bind(user.id).first();
+  if (!currentProfile) return error("Profile not found",404);
+
+  let avatarUpload=null;
+  const unchangedLegacyAvatar = Boolean(
+    avatarUrl && avatarUrl===currentProfile.avatar_url && !currentProfile.avatar_upload_id
+  );
+  if (avatarUrl && !unchangedLegacyAvatar) {
+    avatarUpload=await env.DB.prepare(
+      "SELECT id,url FROM social_uploads WHERE user_id=? AND url=? AND status='ready' AND acl='public' AND lifecycle_managed=1 LIMIT 1"
+    ).bind(user.id,avatarUrl).first();
+    if (!avatarUpload) return error("Avatar must be a ready public upload owned by your account. An unchanged legacy avatar may be kept, but new external URLs are not accepted.",400);
+  }
+
+  const existingGallery = galleryInput
+    ? await env.DB.prepare("SELECT id,photo_url,upload_id,sort_order FROM social_profile_photos WHERE user_id=?").bind(user.id).all()
+    : {results:[]};
+  const existingByUrl = new Map((existingGallery.results||[]).map(row=>[row.photo_url,row]));
+  const galleryUploads=[];
+  if (galleryInput) for (const url of galleryInput) {
+    const existing=existingByUrl.get(url);
+    if (existing && !existing.upload_id) {
+      galleryUploads.push(null); // Keep an unchanged legacy URL; never infer a provider file from it.
+      continue;
+    }
+    const upload=await env.DB.prepare(
+      "SELECT id,url FROM social_uploads WHERE user_id=? AND url=? AND status='ready' AND acl='public' AND lifecycle_managed=1 LIMIT 1"
+    ).bind(user.id,url).first();
+    if (!upload) return error("Every new gallery image must be a ready public upload owned by your account. Existing legacy URLs may only be retained unchanged.",400);
+    galleryUploads.push(upload);
+  }
+
+  const retainedPhotoIds = new Set();
+  const statements=[
+    env.DB.prepare("UPDATE social_users SET display_name=?,bio=?,avatar_url=?,avatar_upload_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+      .bind(displayName,bio,avatarUrl,avatarUpload?.id||null,user.id)
+  ];
+  if (avatarUpload) statements.push(socialMediaReferenceStatement(
+    env,avatarUpload.id,user.id,"profile_avatar",user.id,"avatar"
+  ));
 
   if (galleryInput) {
-    await env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(user.id).run();
     for (let i=0;i<galleryInput.length;i++) {
-      await env.DB.prepare(
-        "INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order) VALUES(?,?,?,?)"
-      ).bind(crypto.randomUUID(),user.id,galleryInput[i],i).run();
+      const existing=existingByUrl.get(galleryInput[i]);
+      const upload=galleryUploads[i];
+      if (existing) {
+        retainedPhotoIds.add(existing.id);
+        if ((existing.upload_id||null)!==(upload?.id||null) || existing.sort_order!==i) {
+          statements.push(env.DB.prepare(
+            "UPDATE social_profile_photos SET sort_order=?,upload_id=? WHERE id=? AND user_id=?"
+          ).bind(i,upload?.id||null,existing.id,user.id));
+        }
+        if (upload && existing.upload_id!==upload.id) {
+          statements.push(socialMediaReferenceStatement(
+            env,upload.id,user.id,"profile_gallery",existing.id,"gallery:"+i
+          ));
+        }
+      } else {
+        if (!upload) return error("A new gallery image must be uploaded to SOCIAL first.",400);
+        const photoId=crypto.randomUUID();
+        statements.push(env.DB.prepare(
+          "INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order,upload_id) VALUES(?,?,?,?,?)"
+        ).bind(photoId,user.id,galleryInput[i],i,upload.id));
+        statements.push(socialMediaReferenceStatement(
+          env,upload.id,user.id,"profile_gallery",photoId,"gallery:"+i
+        ));
+      }
+    }
+    for (const existing of existingGallery.results||[]) {
+      if (!retainedPhotoIds.has(existing.id)) {
+        statements.push(env.DB.prepare("DELETE FROM social_profile_photos WHERE id=? AND user_id=?").bind(existing.id,user.id));
+      }
     }
   }
 
-  const profile = await getProfileByUsername(user.username, user.id, env);
-  return json({ success: true, profile });
+  await env.DB.batch(statements);
+  const profile=await getProfileByUsername(user.username,user.id,env);
+  return json({success:true,profile});
 }
 
 async function socialChangeUsername(request, env) {
@@ -1746,6 +1808,31 @@ async function socialSearch(request, env) {
   return json({ success: true, ...output });
 }
 
+const SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED = false;
+const SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS = [
+  "trg_social_media_reference_owner_guard","trg_social_media_deletion_job_owner_guard",
+  "trg_social_media_deletion_job_identity_immutable","trg_social_media_reference_identity_immutable",
+  "trg_social_media_reference_no_delete","trg_social_media_reference_insert_audit",
+  "trg_social_media_reference_release_audit","trg_social_media_deletion_job_audit",
+  "trg_social_media_deletion_job_mark_upload_pending",
+  "trg_social_media_audit_no_update","trg_social_media_audit_no_delete",
+  "trg_social_upload_lifecycle_state_guard","trg_social_upload_delete_guard","trg_social_posts_media_release",
+  "trg_social_stories_media_release","trg_social_profile_gallery_media_release",
+  "trg_social_profile_gallery_media_replace","trg_social_profile_avatar_media_release","trg_social_messages_media_release",
+  "trg_social_channel_posts_media_release"
+];
+async function socialMediaLifecycleSchemaReady(env) {
+  try {
+    const tables = await env.DB.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name IN ('social_media_references','social_media_deletion_jobs','social_media_lifecycle_audit')").first();
+    if (Number(tables?.count || 0) !== 3) return false;
+    const triggers = await env.DB.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ("+SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS.map(() => "?").join(",")+")").bind(...SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS).first();
+    return Number(triggers?.count || 0) === SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS.length;
+  } catch { return false; }
+}
+function socialMediaReferenceStatement(env, uploadId, ownerUserId, contentType, contentId, mediaSlot) {
+  return env.DB.prepare("INSERT OR IGNORE INTO social_media_references(id,upload_id,owner_user_id,content_type,content_id,media_slot) VALUES(?,?,?,?,?,?)")
+    .bind(crypto.randomUUID(),uploadId,ownerUserId,contentType,contentId,mediaSlot);
+}
 async function validatePostMedia(env, userId, media) {
   if (media === undefined || media === null) return [];
   if (!Array.isArray(media) || media.length > MAX_POST_MEDIA) return null;
@@ -1759,13 +1846,13 @@ async function validatePostMedia(env, userId, media) {
     if (!id || id.length > 150) return null;
 
     const row = await env.DB.prepare(`
-      SELECT id,name,mime_type,url,acl,status
+      SELECT id,name,mime_type,url,acl,status,lifecycle_managed
       FROM social_uploads
       WHERE id=? AND user_id=?
       LIMIT 1
     `).bind(id, userId).first();
 
-    if (!row || row.status !== "ready" || row.acl !== "public" || !row.url) {
+    if (!row || Number(row.lifecycle_managed) !== 1 || row.status !== "ready" || row.acl !== "public" || !row.url) {
       return null;
     }
 
@@ -1842,6 +1929,7 @@ async function formatPost(row, viewerId, env) {
 async function socialCreatePost(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   if (!await checkRateLimit(env, request, "post-create", 20, 3600, 600, user.id)) {
     return error("Too many posts. Try again later.", 429);
@@ -1864,10 +1952,13 @@ async function socialCreatePost(request, env) {
 
   const id = crypto.randomUUID();
 
-  await env.DB.prepare(`
-    INSERT INTO social_posts(id,user_id,content,media_json,visibility)
-    VALUES(?,?,?,?,?)
-  `).bind(id, user.id, content, JSON.stringify(media), visibility).run();
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT INTO social_posts(id,user_id,content,media_json,visibility)
+      VALUES(?,?,?,?,?)
+    `).bind(id,user.id,content,JSON.stringify(media),visibility),
+    ...media.map((item,index)=>socialMediaReferenceStatement(env,item.id,user.id,"post",id,"media:"+index))
+  ]);
 
   const row = await env.DB.prepare(
     "SELECT * FROM social_posts WHERE id=?"
@@ -1967,6 +2058,7 @@ async function socialUserPosts(request, env, username) {
 async function socialDeletePost(request, env, postId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const row = await env.DB.prepare(
     "SELECT id,user_id FROM social_posts WHERE id=?"
@@ -2671,6 +2763,7 @@ async function socialStories(request, env) {
 async function socialCreateStory(request, env) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
@@ -2684,11 +2777,11 @@ async function socialCreateStory(request, env) {
   // Stories must reference a ready public upload owned by the publisher.
   // This prevents arbitrary external URLs and cross-account media injection.
   const upload = await env.DB.prepare(`
-    SELECT id,url,mime_type,status,acl FROM social_uploads
+    SELECT id,url,mime_type,status,acl,lifecycle_managed FROM social_uploads
     WHERE user_id=? AND url=? LIMIT 1
   `).bind(user.id, mediaUrl).first();
   const expectedMime = mediaType === "video" ? "video/" : "image/";
-  if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+  if (!upload || Number(upload.lifecycle_managed) !== 1 || upload.status !== "ready" || upload.acl !== "public" ||
       !validHttpsUrl(upload.url) || !String(upload.mime_type || "").toLowerCase().startsWith(expectedMime)) {
     return error("Story media must be a ready image or video uploaded by your account.", 400);
   }
@@ -2696,17 +2789,13 @@ async function socialCreateStory(request, env) {
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-  await env.DB.prepare(`
-    INSERT INTO social_stories(id,user_id,media_url,media_type,caption,expires_at)
-    VALUES(?,?,?,?,?,?)
-  `).bind(
-    id,
-    user.id,
-    mediaUrl,
-    mediaType,
-    cleanText(body.caption, 500),
-    expiresAt
-  ).run();
+  await env.DB.batch([
+    env.DB.prepare(`
+      INSERT INTO social_stories(id,user_id,media_url,media_type,caption,expires_at,media_upload_id)
+      VALUES(?,?,?,?,?,?,?)
+    `).bind(id,user.id,mediaUrl,mediaType,cleanText(body.caption,500),expiresAt,upload.id),
+    socialMediaReferenceStatement(env,upload.id,user.id,"story",id,"primary")
+  ]);
 
   return json({
     success: true,
@@ -2717,6 +2806,7 @@ async function socialCreateStory(request, env) {
 async function socialDeleteStory(request, env, id) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const result = await env.DB.prepare(
     "DELETE FROM social_stories WHERE id=? AND user_id=?"
@@ -3308,6 +3398,7 @@ async function socialConversationMessages(request, env, conversationId) {
 async function socialSendMessage(request, env, conversationId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
   const member = await isConversationMember(env, conversationId, user.id);
   if (!member) return error("Conversation not found", 404);
   if (await isDirectConversationBlocked(env, conversationId, user.id)) {
@@ -3349,9 +3440,9 @@ async function socialSendMessage(request, env, conversationId) {
     if (item?.uploadId) {
       const uploadId = String(item.uploadId).slice(0, 150);
       const upload = await env.DB.prepare(
-        "SELECT id,name,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+        "SELECT id,name,mime_type,acl,status,lifecycle_managed FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
       ).bind(uploadId, user.id).first();
-      if (!upload || upload.status !== "ready" || upload.acl !== "private") {
+      if (!upload || Number(upload.lifecycle_managed) !== 1 || upload.status !== "ready" || upload.acl !== "private") {
         return error("Private attachment is unavailable or does not belong to your account.", 400);
       }
       media.push({
@@ -3360,7 +3451,11 @@ async function socialSendMessage(request, env, conversationId) {
         name: cleanText(item.name || upload.name, 180)
       });
     } else if (item && validHttpsUrl(item.url)) {
-      // Backward compatibility for existing public attachments.
+      const ownedUpload = await env.DB.prepare(
+        "SELECT id FROM social_uploads WHERE user_id=? AND url=? AND lifecycle_managed=1 LIMIT 1"
+      ).bind(user.id,item.url).first();
+      if (ownedUpload) return error("Use the uploadId field for your own uploaded media.",400);
+      // External/legacy public URLs remain supported, but are not managed uploads.
       media.push({
         url: item.url,
         type: cleanText(item.type || "", 100),
@@ -3401,9 +3496,10 @@ async function socialSendMessage(request, env, conversationId) {
       throw new Error("The message table is missing a required core column.");
     }
     sendStage = "message_insert";
-    await env.DB.prepare(
-      "INSERT INTO social_messages(" + insertColumns.join(",") + ") VALUES(" + insertColumns.map(() => "?").join(",") + ")"
-    ).bind(...insertValues).run();
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO social_messages(" + insertColumns.join(",") + ") VALUES(" + insertColumns.map(() => "?").join(",") + ")").bind(...insertValues),
+      ...media.filter(item=>item.uploadId).map((item,index)=>socialMediaReferenceStatement(env,item.uploadId,user.id,"message",id,"attachment:"+index))
+    ]);
     sendStage = "conversation_update";
     await env.DB.prepare("UPDATE social_conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(conversationId).run();
     // Notification delivery is best-effort and cannot invalidate a saved message.
@@ -3462,6 +3558,7 @@ async function socialEditMessage(request, env, messageId) {
 async function socialDeleteMessage(request, env, messageId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const result = await env.DB.prepare(`
     UPDATE social_messages
@@ -4087,6 +4184,7 @@ async function socialChannelPosts(request, env, channelId) {
 async function socialChannelPost(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const member = await getAccessibleChannelMembership(env, channelId, user.id);
 
@@ -4106,19 +4204,24 @@ async function socialChannelPost(request, env, channelId) {
     if (item?.uploadId) {
       const uploadId = String(item.uploadId).slice(0, 150);
       const upload = await env.DB.prepare(
-        "SELECT id,name,mime_type,acl,status,url FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+        "SELECT id,name,mime_type,acl,status,url,lifecycle_managed FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
       ).bind(uploadId, user.id).first();
-      if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+      if (!upload || Number(upload.lifecycle_managed) !== 1 || upload.status !== "ready" || upload.acl !== "public" ||
           !upload.url || !validHttpsUrl(upload.url)) {
         return error("Channel media must be a ready public upload owned by your account.", 400);
       }
       media.push({
+        uploadId: upload.id,
         url: upload.url,
         type: cleanText(item.type || upload.mime_type, 100),
         name: cleanText(item.name || upload.name, 180)
       });
     } else if (item && validHttpsUrl(item.url)) {
-      // Backward compatibility for previously supported externally hosted media.
+      const ownedUpload = await env.DB.prepare(
+        "SELECT id FROM social_uploads WHERE user_id=? AND url=? AND lifecycle_managed=1 LIMIT 1"
+      ).bind(user.id,item.url).first();
+      if (ownedUpload) return error("Use the uploadId field for your own uploaded media.",400);
+      // External/legacy URLs remain supported, but are not managed uploads.
       media.push({
         url: item.url,
         type: cleanText(item.type || "", 100),
@@ -4130,10 +4233,10 @@ async function socialChannelPost(request, env, channelId) {
   }
 
   const id = crypto.randomUUID();
-  await env.DB.prepare(`
-    INSERT INTO social_channel_posts(id,channel_id,sender_id,content,media_json)
-    VALUES(?,?,?,?,?)
-  `).bind(id, channelId, user.id, content, JSON.stringify(media)).run();
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO social_channel_posts(id,channel_id,sender_id,content,media_json) VALUES(?,?,?,?,?)").bind(id,channelId,user.id,content,JSON.stringify(media)),
+    ...media.filter(item=>item.uploadId).map((item,index)=>socialMediaReferenceStatement(env,item.uploadId,user.id,"channel_post",id,"media:"+index))
+  ]);
 
   // Channel announcements notify subscribers, while respecting each user's
   // group/channel notification preference. Delivery must never undo a post.
@@ -4176,11 +4279,12 @@ async function socialEditChannelPost(request, env, channelId, postId) {
 async function socialDeleteChannelPost(request, env, channelId, postId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
   const member = await getAccessibleChannelMembership(env, channelId, user.id);
   if (!member || !["owner", "admin"].includes(member.role)) return error("Admin permission required", 403);
   const post = await env.DB.prepare("SELECT id FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId).first();
   if (!post) return error("Channel post not found", 404);
-  // Delete only database references. Uploaded media files are intentionally retained.
+  // Database triggers release references and queue safe, inert per-file deletion jobs.
   await env.DB.batch([
     env.DB.prepare("DELETE FROM social_channel_pins WHERE channel_id=? AND post_id=?").bind(channelId, postId),
     env.DB.prepare("DELETE FROM social_channel_posts WHERE id=? AND channel_id=?").bind(postId, channelId)
@@ -4906,9 +5010,9 @@ async function socialCreateUpload(request, env) {
 
     await env.DB.prepare(`
       INSERT INTO social_uploads(
-        id,user_id,name,size,mime_type,acl,status,url
+        id,user_id,name,size,mime_type,acl,status,url,lifecycle_managed
       )
-      VALUES(?,?,?,?,?,?,'uploading',?)
+      VALUES(?,?,?,?,?,?,'uploading',?,1)
     `).bind(
       result.file.id,
       user.id,
@@ -4947,6 +5051,7 @@ async function socialCompleteUpload(request, env, id) {
   `).bind(id, user.id).first();
 
   if (!row) return error("File not found", 404);
+  if (row.status !== "uploading") return error("Upload is not awaiting completion.", 409);
 
   try {
     const result = await rapidfileRequest(
@@ -5041,31 +5146,26 @@ async function socialGetUploadUrl(request, env, id) {
 }
 
 async function socialDeleteUpload(request, env, id) {
-  const user = await getSocialUser(request, env);
-  if (!user) return error("Authentication required", 401);
-
-  const row = await env.DB.prepare(`
-    SELECT id FROM social_uploads WHERE id=? AND user_id=?
-  `).bind(id, user.id).first();
-
-  if (!row) return error("File not found", 404);
-
+  const user=await getSocialUser(request,env);
+  if (!user) return error("Authentication required",401);
+  if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.",503);
+  const row=await env.DB.prepare("SELECT id,lifecycle_managed,status FROM social_uploads WHERE id=? AND user_id=?").bind(id,user.id).first();
+  if (!row) return error("File not found",404);
+  if (Number(row.lifecycle_managed)!==1) return error("This legacy upload has not been reconciled and cannot be queued for automatic deletion.",409);
+  const existingJob=await env.DB.prepare("SELECT id FROM social_media_deletion_jobs WHERE upload_id=? AND status IN ('pending','retry') ORDER BY created_at DESC LIMIT 1").bind(id).first();
+  if (existingJob) return json({success:true,queued:true,alreadyQueued:true,deleted:false,executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED,jobId:existingJob.id,id},202);
+  if (row.status !== "ready") return error("Only ready uploads can be queued for deletion.",409);
+  const active=await env.DB.prepare("SELECT COUNT(*) AS count FROM social_media_references WHERE upload_id=? AND released_at IS NULL").bind(id).first();
+  if (Number(active?.count||0)>0) return error("This file is still used by SOCIAL content. Remove its references before requesting deletion.",409);
+  const jobId=crypto.randomUUID();
   try {
-    await rapidfileRequest(
-      env,
-      `/files/${encodeURIComponent(id)}`,
-      { method: "DELETE" }
-    );
-
-    await env.DB.prepare(
-      "DELETE FROM social_uploads WHERE id=? AND user_id=?"
-    ).bind(id, user.id).run();
-
-    return json({ success: true, deleted: true, id });
+    await env.DB.prepare("INSERT INTO social_media_deletion_jobs(id,batch_id,upload_id,owner_user_id,request_key,status) VALUES(?,?,?,?,?,'pending')")
+      .bind(jobId,crypto.randomUUID(),id,user.id,"owner-request:"+jobId).run();
   } catch (err) {
-    console.error("Upload deletion failed:", err);
-    return error("Could not delete file from storage", 502);
+    console.error("SOCIAL_MEDIA_DELETE_QUEUE_FAILURE",String(err?.message||err).slice(0,200));
+    return error("The file could not be safely queued. No provider deletion was attempted.",409);
   }
+  return json({success:true,queued:true,deleted:false,executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED,jobId,id},202);
 }
 
 async function fetchPiUser(accessToken) {
@@ -5579,191 +5679,16 @@ function formatProject(row) {
 }
 
 async function socialDeleteAccount(request, env) {
-  const user = await getSocialUser(request, env);
-  if (!user) return error("Authentication required", 401);
-  if (!await checkRateLimit(env, request, "account-delete", 3, 3600, 3600, user.id)) {
-    return error("Too many account deletion attempts. Try again later.", 429);
-  }
-
-  const body = await readBody(request);
-  if (!body) return error("Invalid request body");
-  const password = typeof body.password === "string" ? body.password : "";
-  const row = await env.DB.prepare(
-    "SELECT id,password_hash,firebase_uid,email FROM social_users WHERE id=? AND is_active=1"
-  ).bind(user.id).first();
-  if (!row) return error("Account is not active", 404);
-
-  let verified = false;
-  let providerIdToken = null;
-  if (password && password.length <= 128 && row.firebase_uid && row.email) {
-    try {
-      const response = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + FIREBASE_WEB_API_KEY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: row.email, password, returnSecureToken: true })
-      });
-      const loginIdentity = response.ok ? await response.json() : null;
-      if (loginIdentity && loginIdentity.localId === row.firebase_uid && typeof loginIdentity.idToken === "string") {
-        const lookupResponse = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken: loginIdentity.idToken })
-        });
-        const lookup = lookupResponse.ok ? await lookupResponse.json() : null;
-        const identity = lookup && Array.isArray(lookup.users) ? lookup.users[0] : null;
-        verified = Boolean(identity && identity.localId === row.firebase_uid &&
-          identity.emailVerified === true &&
-          cleanEmail(identity.email || "") === cleanEmail(row.email || ""));
-        if (verified) providerIdToken = loginIdentity.idToken;
-      }
-    } catch {}
-  } else if (password && password.length <= 128) {
-    try { verified = (await verifyPassword(password, row.password_hash)).valid; } catch {}
-  }
-  if (!verified) return error("Incorrect password. Verify your current sign-in password before deleting your account.", 403);
-
-  // Remove owned objects from the external media provider first. If storage refuses,
-  // keep the account and database records intact so the owner can retry.
-  const uploads = await env.DB.prepare(
-    "SELECT id FROM social_uploads WHERE user_id=? ORDER BY created_at ASC LIMIT 500"
-  ).bind(user.id).all();
-  const uploadRows = uploads.results || [];
-  if (uploadRows.length >= 500) {
-    return error("This account has too many stored files for one safe deletion pass. Contact support for assisted removal.", 409);
-  }
-  for (const upload of uploadRows) {
-    try {
-      await rapidfileRequest(env, `/files/${encodeURIComponent(upload.id)}`, { method: "DELETE" });
-    } catch (err) {
-      if (Number(err?.status) !== 404) {
-        console.error("Account media deletion failed:", String(err?.message || err).slice(0, 250));
-        return error("Could not remove all account media from storage. No account data was deleted; please retry later.", 502);
-      }
-    }
-  }
-
-  const uid = user.id;
-  const statements = [
-    // Transfer ownership to an existing active member before removing the owner.
-    env.DB.prepare(`UPDATE social_conversations
-      SET owner_id=(SELECT cm.user_id FROM social_conversation_members cm
-        JOIN social_users u ON u.id=cm.user_id
-        WHERE cm.conversation_id=social_conversations.id AND cm.user_id!=? AND u.is_active=1
-        ORDER BY CASE cm.role WHEN 'admin' THEN 0 ELSE 1 END,cm.joined_at ASC LIMIT 1),
-      updated_at=CURRENT_TIMESTAMP
-      WHERE owner_id=? AND EXISTS (SELECT 1 FROM social_conversation_members cm
-        JOIN social_users u ON u.id=cm.user_id
-        WHERE cm.conversation_id=social_conversations.id AND cm.user_id!=? AND u.is_active=1)`).bind(uid,uid,uid),
-    env.DB.prepare(`UPDATE social_conversation_members SET role='owner'
-      WHERE EXISTS (SELECT 1 FROM social_conversations c
-        WHERE c.id=social_conversation_members.conversation_id
-        AND c.type='group' AND c.owner_id=social_conversation_members.user_id)`),
-    env.DB.prepare(`UPDATE social_channels
-      SET owner_id=(SELECT cm.user_id FROM social_channel_members cm
-        JOIN social_users u ON u.id=cm.user_id
-        WHERE cm.channel_id=social_channels.id AND cm.user_id!=? AND u.is_active=1
-        ORDER BY CASE cm.role WHEN 'admin' THEN 0 ELSE 1 END,cm.joined_at ASC LIMIT 1)
-      WHERE owner_id=? AND EXISTS (SELECT 1 FROM social_channel_members cm
-        JOIN social_users u ON u.id=cm.user_id
-        WHERE cm.channel_id=social_channels.id AND cm.user_id!=? AND u.is_active=1)`).bind(uid,uid,uid),
-    env.DB.prepare(`UPDATE social_channel_members SET role='owner'
-      WHERE EXISTS (SELECT 1 FROM social_channels c
-        WHERE c.id=social_channel_members.channel_id
-        AND c.owner_id=social_channel_members.user_id)`),
-
-    // Remove orphaned groups/channels that have no eligible successor.
-    env.DB.prepare("DELETE FROM social_group_invites WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_signals WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group'))").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_participants WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group'))").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
-    env.DB.prepare("DELETE FROM social_message_reactions WHERE message_id IN (SELECT id FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group'))").bind(uid),
-    env.DB.prepare("DELETE FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
-    env.DB.prepare("DELETE FROM social_conversation_members WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type='group')").bind(uid),
-    env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=? AND type='group'").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_signals WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')))").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_participants WHERE call_id IN (SELECT id FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')))").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_sessions WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private'))").bind(uid),
-    env.DB.prepare("DELETE FROM social_message_reactions WHERE message_id IN (SELECT id FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')))").bind(uid),
-    env.DB.prepare("DELETE FROM social_messages WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private'))").bind(uid),
-    env.DB.prepare("DELETE FROM social_conversation_members WHERE conversation_id IN (SELECT id FROM social_conversations WHERE owner_id=? AND type IN ('direct','private'))").bind(uid),
-    env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=? AND type IN ('direct','private')").bind(uid),
-    env.DB.prepare("DELETE FROM social_channel_pins WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
-    env.DB.prepare("DELETE FROM social_channel_posts WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
-    env.DB.prepare("DELETE FROM social_channel_members WHERE channel_id IN (SELECT id FROM social_channels WHERE owner_id=?)").bind(uid),
-    env.DB.prepare("DELETE FROM social_channels WHERE owner_id=?").bind(uid),
-
-    // Remove the account's content and every engagement attached to it.
-    env.DB.prepare("DELETE FROM social_post_likes WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_comments WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_bookmarks WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_post_views WHERE user_id=? OR post_id IN (SELECT id FROM social_posts WHERE user_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_posts WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_story_views WHERE user_id=? OR story_id IN (SELECT id FROM social_stories WHERE user_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_story_reactions WHERE user_id=? OR story_id IN (SELECT id FROM social_stories WHERE user_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_stories WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_follows WHERE follower_id=? OR following_id=?").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_follow_requests WHERE requester_id=? OR target_id=?").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_blocks WHERE blocker_id=? OR blocked_id=?").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_notifications WHERE user_id=? OR actor_id=?").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_reports WHERE reporter_id=? OR (target_type='user' AND target_id=?)").bind(uid,uid),
-
-    // Remove messages and reactions authored by this account; preserve other members' messages.
-    env.DB.prepare("DELETE FROM social_message_reactions WHERE user_id=? OR message_id IN (SELECT id FROM social_messages WHERE sender_id=?)").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_messages WHERE sender_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_signals WHERE from_user_id=? OR to_user_id=?").bind(uid,uid),
-    env.DB.prepare("DELETE FROM social_call_participants WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_signals WHERE call_id IN (SELECT id FROM social_call_sessions WHERE host_id=?)").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_participants WHERE call_id IN (SELECT id FROM social_call_sessions WHERE host_id=?)").bind(uid),
-    env.DB.prepare("DELETE FROM social_call_sessions WHERE host_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_group_invites WHERE created_by=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_conversation_members WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_conversations WHERE owner_id=?").bind(uid),
-
-    // Remove authored channel posts, bots, private AI history and support data.
-    env.DB.prepare("DELETE FROM social_channel_pins WHERE post_id IN (SELECT id FROM social_channel_posts WHERE sender_id=?)").bind(uid),
-    env.DB.prepare("DELETE FROM social_channel_posts WHERE sender_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_channel_members WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_bots WHERE owner_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_ai_messages WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_support_tickets WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_user_settings WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_extended_settings WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_sessions WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_uploads WHERE user_id=?").bind(uid),
-    env.DB.prepare("DELETE FROM social_users WHERE id=?").bind(uid)
-  ];
-
-  try {
-    await env.DB.batch(statements);
-  } catch (err) {
-    console.error("SOCIAL_ACCOUNT_DELETE_FAILURE", String(err?.message || err).slice(0, 400));
-    return error("Account data cleanup could not be completed. Contact support before retrying.", 500);
-  }
-
-  let providerIdentityDeleted = null;
-  if (providerIdToken && row.firebase_uid) {
-    try {
-      const providerResponse = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:delete?key=" + FIREBASE_WEB_API_KEY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken: providerIdToken })
-      });
-      providerIdentityDeleted = providerResponse.ok;
-      if (!providerIdentityDeleted) {
-        const detail = await providerResponse.text().catch(() => "");
-        console.error("SOCIAL_FIREBASE_IDENTITY_DELETE_FAILURE", detail.slice(0, 300));
-      }
-    } catch (err) {
-      providerIdentityDeleted = false;
-      console.error("SOCIAL_FIREBASE_IDENTITY_DELETE_FAILURE", String(err?.message || err).slice(0, 300));
-    }
-  }
-  return json({ success: true, deleted: true, removedFiles: uploadRows.length, ownershipTransferred: true, providerIdentityDeleted });
+  const user=await getSocialUser(request,env);
+  if (!user) return error("Authentication required",401);
+  // Account deletion remains paused until a separately reviewed resumable cleanup workflow exists.
+  return error("Account deletion is temporarily paused while SOCIAL media lifecycle is being staged. No files or account data were deleted.",503);
 }
 
 export default {
   async scheduled(controller, env, ctx) {
+    // Staging and Production Intelligence execution remain intentionally inert.
+    return;
     const run = async () => {
       if (!env.DB) return;
       const runId = crypto.randomUUID();
@@ -5884,6 +5809,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
+        return error("Intelligence Agent execution is disabled.", 410);
         const configuredToken = typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "";
         const suppliedToken = getBearer(request);
         if (!configuredToken || configuredToken.length < 40 || !suppliedToken || suppliedToken.length > 200) {
