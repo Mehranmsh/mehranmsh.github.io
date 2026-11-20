@@ -4170,3 +4170,22 @@ await testMissingTaskExecutionGuardFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
 
+async function testPublicHealthRouteIsIpRateLimited() {
+  const { mf } = await createWorker(migrations.length);
+  const headers = { "CF-Connecting-IP": "198.51.100.77" };
+  try {
+    for (let i = 0; i < 30; i++) {
+      const allowed = await mf.dispatchFetch("http://localhost/health", { headers });
+      assert.equal(allowed.status, 200, `health request ${i + 1} should remain within the configured limit`);
+    }
+    const blocked = await mf.dispatchFetch("http://localhost/health", { headers });
+    assert.equal(blocked.status, 429);
+    const body = await blocked.json();
+    assert.match(body.error, /rate limit/i);
+    console.log("PASS: public staging health checks are IP-rate-limited");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testPublicHealthRouteIsIpRateLimited();
