@@ -3459,7 +3459,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
         .bind(id, findingId, ownerUid, "document", correlationKey, "c".repeat(64), now,
           "Correlation review metadata fixture", now).run();
     }
-    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+
     const beforeFindings = await db.prepare(
       "SELECT id,status FROM intelligence_findings WHERE owner_uid=? ORDER BY id"
     ).bind(ownerUid).all();
@@ -3474,7 +3474,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201);
     const afterDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeAudit.count) + 1,
+    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeOwnerReviewAudit.count) + 1,
       "decision insert must append exactly one audit event");
     const result = await created.json();
     assert.equal(result.outcome, "related");
@@ -3939,6 +3939,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       .bind("outsider-priority-review", outsiderUid, outsiderUid, outsiderFindingId, "security",
         "authentication", outsiderActionKey, "accepted", "Other owner's private review.",
         outsiderReviewSnapshot, outsiderReviewHash, now + 1, now + 1).run();
+    const beforeOwnerReviewAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
 
     const outsiderHistoryResponse = await mf.dispatchFetch(
       `http://localhost/intelligence/findings/priority-action-reviews?actionKey=${outsiderActionKey}`, { headers });
