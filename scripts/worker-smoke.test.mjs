@@ -1357,6 +1357,17 @@ test("SOCIAL bot owners can rotate active credentials and delete only their own 
   assert.doesNotMatch(list, /token_hash/);
 });
 
+test("SOCIAL account deletion UI explains the pause without collecting credentials or sending a request", () => {
+  const start=indexSource.indexOf("async function socialDeleteAccount(){");
+  const end=indexSource.indexOf("async function socialLogout(){",start);
+  assert.ok(start>=0 && end>start);
+  const handler=indexSource.slice(start,end);
+  assert.match(handler,/Account deletion is temporarily paused/);
+  assert.match(handler,/account and uploaded files remain untouched/);
+  assert.doesNotMatch(handler,/fetch\(SOCIAL_API/);
+  assert.doesNotMatch(handler,/socialDeletePassword.*value/);
+});
+
 test("SOCIAL account deletion remains fail-closed until resumable media cleanup is approved", () => {
   const start = workerSource.indexOf("async function socialDeleteAccount");
   const end = workerSource.indexOf("\n}\n\nexport default", start);
