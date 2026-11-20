@@ -94,6 +94,17 @@ try {
     /SOCIAL media reference upload ownership/i
   );
 
+  await insertUpload("old-gallery-file");
+  await insertUpload("new-gallery-file");
+  await db.prepare("INSERT INTO social_profile_photos(id,user_id,photo_url,upload_id) VALUES('gallery-photo','owner-a','https://cdn.example/old-gallery-file','old-gallery-file')").run();
+  await addRef("old-gallery-ref","old-gallery-file","profile_gallery","gallery-photo","gallery:0");
+  await db.prepare("UPDATE social_profile_photos SET photo_url='https://cdn.example/new-gallery-file',upload_id='new-gallery-file' WHERE id='gallery-photo'").run();
+  await addRef("new-gallery-ref","new-gallery-file","profile_gallery","gallery-photo","gallery:0");
+  assert.equal(await jobs("old-gallery-file"),1,"gallery replacement must queue only the released old upload");
+  assert.equal(await jobs("new-gallery-file"),0,"new gallery upload must remain active");
+  const newGalleryRef = await db.prepare("SELECT released_at FROM social_media_references WHERE upload_id='new-gallery-file'").first();
+  assert.equal(newGalleryRef.released_at,null);
+
   await insertUpload("private-file","owner-a",1,"private");
   await db.prepare("INSERT INTO social_messages(id,sender_id,media_json) VALUES('message-1','owner-a','[]')").run();
   await addRef("ref-message","private-file","message","message-1");
