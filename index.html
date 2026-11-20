@@ -1190,7 +1190,7 @@ async function api(path,options={}){if(path.startsWith("/intelligence/"))return 
 function getIntelligenceStagingToken(){return localStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
 async function intelligenceStagingRequest(path,options={}){
  if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error("Intelligence staging Worker is not configured. Production Worker access is disabled.");
- if(!path.startsWith("/intelligence/")&&path!=="/session")throw new Error("This route is outside the Intelligence staging allowlist.");
+ if(!path.startsWith("/intelligence/")&&path!=="/session"&&path!=="/health")throw new Error("This route is outside the Intelligence staging allowlist.");
  const {auth=true,...requestOptions}=options;
  const headers={"Accept":"application/json","Content-Type":"application/json",...(requestOptions.headers||{})};
  if(auth){const token=getIntelligenceStagingToken();if(!token)throw new Error("Connect with Pi to create a separate Intelligence staging session.");headers.Authorization="Bearer "+token;}
@@ -1209,6 +1209,8 @@ async function connectIntelligenceStagingSession(){
  const button=$("connectIntelStagingBtn");if(button)button.disabled=true;
  try{
   if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error("The dedicated staging Worker URL has not been verified or configured. No authentication request was sent.");
+  const health=await intelligenceStagingRequest("/health",{auth:false});
+  if(!health?.success||health.schemaReady!==true||health.executor!==false)throw new Error("The staging Worker is not healthy or does not confirm executor:false. Pi sign-in was not started.");
   if(typeof window.ensurePiReady==="function")await window.ensurePiReady();
   if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("Pi authentication is unavailable. Open MEHRAN MSH in Pi Browser.");
   updateIntelligenceStagingSessionUI("Waiting for your approval in the official Pi sign-in window...");
