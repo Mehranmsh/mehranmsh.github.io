@@ -66,4 +66,6 @@ The added `media_upload_id`, `avatar_upload_id`, and profile-photo `upload_id` c
 
 `python scripts/test-social-media-lifecycle-migration.py`
 
-This test uses disposable in-memory SQLite. It does not connect to D1 or Rapidfile.
+`node scripts/test-social-media-lifecycle-d1-runtime.mjs`
+
+Both tests use disposable local databases (SQLite and Miniflare D1). Neither connects to Remote D1 or Rapidfile.
