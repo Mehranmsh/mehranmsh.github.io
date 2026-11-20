@@ -291,6 +291,35 @@ BEGIN
   );
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_social_profile_gallery_media_replace
+AFTER UPDATE OF upload_id ON social_profile_photos
+WHEN OLD.upload_id IS NOT NEW.upload_id AND OLD.upload_id IS NOT NULL
+BEGIN
+  UPDATE social_media_references SET released_at=CURRENT_TIMESTAMP
+  WHERE content_type='profile_gallery' AND content_id=OLD.id
+    AND upload_id=OLD.upload_id AND released_at IS NULL;
+  INSERT INTO social_media_deletion_jobs(
+    id,batch_id,upload_id,owner_user_id,request_key,status
+  )
+  SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
+    'gallery-replace:'||u.id||':'||lower(hex(randomblob(16))),'pending'
+  FROM social_uploads u
+  WHERE u.lifecycle_managed=1 AND u.id=OLD.upload_id
+    AND EXISTS (
+      SELECT 1 FROM social_media_references r
+      WHERE r.upload_id=u.id AND r.content_type='profile_gallery'
+        AND r.content_id=OLD.id AND r.released_at IS NOT NULL
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM social_media_references r
+      WHERE r.upload_id=u.id AND r.released_at IS NULL
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM social_media_deletion_jobs j
+      WHERE j.upload_id=u.id AND j.status IN ('pending','retry')
+    );
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_social_profile_avatar_media_release
 AFTER UPDATE OF avatar_upload_id ON social_users
 WHEN OLD.avatar_upload_id IS NOT NEW.avatar_upload_id AND OLD.avatar_upload_id IS NOT NULL
