@@ -276,6 +276,7 @@ async function testPiSessionFailureAndCreationAtomicity() {
   const cases = [
     { name: "Pi upstream outage", fetch: async () => new Response("unavailable", { status: 503 }) },
     { name: "foreign Pi identity", fetch: async () => new Response(JSON.stringify({ uid: "foreign-owner", username: "mehranmsh" }), { status: 200, headers: { "Content-Type": "application/json" } }) },
+    { name: "owner UID with wrong Pi username", fetch: async () => new Response(JSON.stringify({ uid: ownerUid, username: "not-mehranmsh" }), { status: 200, headers: { "Content-Type": "application/json" } }) },
     { name: "malformed Pi identity", fetch: async () => new Response("{invalid", { status: 200, headers: { "Content-Type": "application/json" } }) },
   ];
   for (const scenario of cases) {
