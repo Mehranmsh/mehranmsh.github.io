@@ -190,6 +190,14 @@ BEGIN
   SELECT RAISE(ABORT,'SOCIAL media lifecycle audit is append-only');
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_social_upload_lifecycle_state_guard
+BEFORE UPDATE OF lifecycle_managed,status ON social_uploads
+WHEN NEW.lifecycle_managed IS NOT OLD.lifecycle_managed
+  OR (OLD.status='deletion_pending' AND NEW.status!='deletion_pending')
+BEGIN
+  SELECT RAISE(ABORT,'SOCIAL upload lifecycle state cannot be reversed or reclassified');
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_social_upload_delete_guard
 BEFORE DELETE ON social_uploads
 WHEN OLD.lifecycle_managed!=1 OR EXISTS (
