@@ -2633,3 +2633,70 @@ test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive 
   }),/round limit reached/);
   assert.equal(executions,2,"only the two bounded rounds may execute");
 });
+
+
+test("SOCIAL media lifecycle requires the staging registry and keeps provider deletion disabled", () => {
+  assert.match(workerSource,/const SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED = false/);
+  assert.match(workerSource,/async function socialMediaLifecycleSchemaReady\(env\)/);
+  assert.match(workerSource,/SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS/);
+  assert.match(workerSource,/return Number\(triggers\?\.count \|\| 0\) === SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS\.length/);
+  for (const route of ["socialCreatePost","socialCreateStory","socialUpdateProfile","socialSendMessage","socialChannelPost","socialDeleteUpload"]) {
+    const start=workerSource.indexOf("async function "+route+"(");
+    const end=workerSource.indexOf("\nasync function ",start+20);
+    assert.ok(start>=0 && end>start,route+" must be present");
+    assert.match(workerSource.slice(start,end),/socialMediaLifecycleSchemaReady\(env\)/,route+" must fail closed without migration triggers");
+  }
+});
+
+test("SOCIAL content writes register owned media references in the same D1 batch", () => {
+  assert.match(workerSource,/function socialMediaReferenceStatement\(env, uploadId, ownerUserId, contentType, contentId, mediaSlot\)/);
+  const postStart=workerSource.indexOf("async function socialCreatePost(");
+  const postEnd=workerSource.indexOf("\nasync function ",postStart+20);
+  const post=workerSource.slice(postStart,postEnd);
+  assert.match(post,/INSERT INTO social_posts/);
+  assert.match(post,/socialMediaReferenceStatement\(env, item\.id, user\.id, "post", id/);
+  assert.match(post,/await env\.DB\.batch\(statements\)/);
+
+  const storyStart=workerSource.indexOf("async function socialCreateStory(");
+  const storyEnd=workerSource.indexOf("\nasync function ",storyStart+20);
+  const story=workerSource.slice(storyStart,storyEnd);
+  assert.match(story,/media_upload_id/);
+  assert.match(story,/socialMediaReferenceStatement\(env, upload\.id, user\.id, "story", id/);
+
+  const messageStart=workerSource.indexOf("async function socialSendMessage(");
+  const messageEnd=workerSource.indexOf("\nasync function ",messageStart+20);
+  const message=workerSource.slice(messageStart,messageEnd);
+  assert.match(message,/socialMediaReferenceStatement\(env,item\.uploadId,user\.id,"message",id/);
+
+  const channelStart=workerSource.indexOf("async function socialChannelPost(");
+  const channelEnd=workerSource.indexOf("\nasync function ",channelStart+20);
+  const channel=workerSource.slice(channelStart,channelEnd);
+  assert.match(channel,/uploadId: upload\.id/);
+  assert.match(channel,/socialMediaReferenceStatement\(env,item\.uploadId,user\.id,"channel_post",id/);
+});
+
+test("SOCIAL profile media must be ready public uploads owned by the authenticated user", () => {
+  const start=workerSource.indexOf("async function socialUpdateProfile(");
+  const end=workerSource.indexOf("\nasync function ",start+20);
+  const profile=workerSource.slice(start,end);
+  assert.match(profile,/WHERE user_id=\? AND url=\? AND status='ready' AND acl='public'/);
+  assert.match(profile,/avatar_upload_id/);
+  assert.match(profile,/upload_id\) VALUES/);
+  assert.match(profile,/profile_gallery/);
+  assert.match(profile,/profile_avatar/);
+  assert.match(profile,/await env\.DB\.batch\(statements\)/);
+});
+
+test("SOCIAL upload deletion only queues inert work and account deletion fails closed", () => {
+  const start=workerSource.indexOf("async function socialDeleteUpload(");
+  const end=workerSource.indexOf("\nasync function ",start+20);
+  const deletion=workerSource.slice(start,end);
+  assert.match(deletion,/INSERT INTO social_media_deletion_jobs/);
+  assert.match(deletion,/executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED/);
+  assert.match(deletion,/\},202\)/);
+  assert.doesNotMatch(deletion,/rapidfileRequest\s*\(/);
+  const accountStart=workerSource.indexOf("async function socialDeleteAccount(");
+  const account=workerSource.slice(accountStart);
+  assert.match(account,/temporarily paused while SOCIAL media lifecycle is being staged/);
+  assert.doesNotMatch(account,/rapidfileRequest\s*\(/);
+});
