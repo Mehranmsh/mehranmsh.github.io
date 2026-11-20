@@ -5,6 +5,8 @@ import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
 import { buildEvidenceSnapshot } from "../intelligence-owner-evidence-review.mjs";
 import { buildEvidenceCorrelationReviewSnapshot } from "../intelligence-evidence-correlation-review.mjs";
+import { buildPriorityActionPlan } from "../intelligence-priority-action-plan.mjs";
+import { buildPriorityActionReviewSnapshot } from "../intelligence-priority-action-review.mjs";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -3897,6 +3899,65 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     assert.equal(integrity.summary.recordsScanned, 1);
     assert.equal(integrity.summary.integrityMatches, 1);
     assert.equal(integrity.decisionTruthVerified, false);
+
+    // A second owner's finding and review must remain invisible to this session.
+    const outsiderUid = "another-staging-owner";
+    const outsiderFindingId = "73000000-0000-4000-8000-000000000002";
+    await db.prepare(`INSERT INTO intelligence_findings
+      (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+       evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(outsiderFindingId, outsiderUid, "security", "authentication", "v1", "critical", "open",
+        "Other owner's finding", "Isolation test fixture", "missing", null, null, null,
+        now, now, outsiderUid).run();
+    const outsiderRows = await db.prepare(`
+      SELECT f.id, f.module_id, f.check_id, f.severity, f.status, f.title,
+             f.recommendation, f.evidence_state, f.review_due_at, f.updated_at,
+             COUNT(e.id) AS evidence_reference_count,
+             SUM(CASE WHEN e.id IS NOT NULL AND
+               (e.content_digest IS NULL OR e.observed_at IS NULL)
+               THEN 1 ELSE 0 END) AS incomplete_evidence_reference_count
+      FROM intelligence_findings f
+      LEFT JOIN intelligence_finding_evidence e
+        ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+      WHERE f.owner_uid = ? AND f.id = ?
+      GROUP BY f.id
+    `).bind(outsiderUid, outsiderFindingId).all();
+    const outsiderPlan = buildPriorityActionPlan(outsiderRows.results || [], 100);
+    const outsiderAction = outsiderPlan.actions[0];
+    assert.ok(outsiderAction, "outsider fixture should produce a separate action");
+    const outsiderSnapshot = buildPriorityActionReviewSnapshot(outsiderAction);
+    const outsiderActionKey = createHash("sha256").update(outsiderSnapshot.snapshotJson).digest("hex");
+    const outsiderReviewSnapshot = JSON.stringify({
+      findingId: outsiderFindingId, moduleId: "security", checkId: "authentication"
+    });
+    const outsiderReviewHash = createHash("sha256").update(outsiderReviewSnapshot).digest("hex");
+    await db.prepare(`INSERT INTO intelligence_priority_action_reviews
+      (id,owner_uid,reviewer_uid,finding_id,module_id,check_id,action_key_sha256,outcome,reason,
+       review_snapshot_json,review_snapshot_sha256,reviewed_at,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind("outsider-priority-review", outsiderUid, outsiderUid, outsiderFindingId, "security",
+        "authentication", outsiderActionKey, "accepted", "Other owner's private review.",
+        outsiderReviewSnapshot, outsiderReviewHash, now + 1, now + 1).run();
+
+    const outsiderHistoryResponse = await mf.dispatchFetch(
+      `http://localhost/intelligence/findings/priority-action-reviews?actionKey=${outsiderActionKey}`, { headers });
+    assert.equal(outsiderHistoryResponse.status, 200);
+    const outsiderHistory = await outsiderHistoryResponse.json();
+    assert.equal(outsiderHistory.items.length, 0, "history must not expose another owner's review");
+    const isolatedIntegrityResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews/integrity?limit=10", { headers });
+    assert.equal(isolatedIntegrityResponse.status, 200);
+    const isolatedIntegrity = await isolatedIntegrityResponse.json();
+    assert.equal(isolatedIntegrity.summary.recordsScanned, 1, "integrity scan must only include the authenticated owner");
+    assert.equal(isolatedIntegrity.items.some(item => item.id === "outsider-priority-review"), false);
+    const outsiderReviewAttempt = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify({
+        actionKey: outsiderActionKey, moduleId: "security", outcome: "accepted",
+        reason: "Attempt to review another owner's action."
+      }) });
+    assert.equal(outsiderReviewAttempt.status, 409, "owner must not review another owner's action");
 
     const afterFinding = await db.prepare("SELECT status,severity,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).first();
