@@ -1890,7 +1890,7 @@ async function handle(request, env) {
     const sourceRef = body.sourceRef == null ? null : clean(body.sourceRef, 1000);
     const confidenceScore = body.confidenceScore === undefined || body.confidenceScore === null ? null : body.confidenceScore;
     const kinds = ["general", "preference", "goal", "constraint", "decision", "project_context"];
-    const sourceTypes = ["owner_input", "knowledge_record", "system_observation"];
+    const sourceTypes = ["owner_input", "knowledge_record"];
     if (!category || typeof body.content !== "string" || !content || body.content.length > 4000 ||
         !kinds.includes(memoryKind) || !sourceTypes.includes(sourceType) ||
         (sourceRef !== null && (!sourceRef || /[\r\n]/.test(sourceRef))) ||
@@ -2183,7 +2183,8 @@ async function handle(request, env) {
           !parsedSourceUrl.username && !parsedSourceUrl.password;
       } catch { externalUrlValid = false; }
     }
-    if (!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType) ||
+    if (!["owner_input","external_url"].includes(sourceType) ||
+        (sourceType === "owner_input" && sourceRef !== "") ||
         typeof sourceRef !== "string" || sourceRef.length > 1000 ||
         typeof observedAt !== "string" || observedAt.length > 40 ||
         (observedAt && (!observedAt.includes("T") || !Number.isFinite(Date.parse(observedAt)) || !(observedAt.endsWith("Z") || /[+-]/.test(observedAt.slice(19))))) ||
