@@ -1989,21 +1989,9 @@ async function handle(request, env) {
 
   const memoryDeleteMatch = path.match(/^\/intelligence\/memory\/([0-9a-f-]{36})$/i);
   if (memoryDeleteMatch && method === "DELETE") {
-    const id = memoryDeleteMatch[1];
-    try {
-      const results = await env.DB.batch([
-        env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?")
-          .bind(id, owner.uid),
-        env.DB.prepare(`
-          INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
-          SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        `).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
-      ]);
-      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
-    } catch {
-      return fail("Owner memory deletion failed.", 503);
-    }
-    return response({ success: true, id, deleted: true });
+    // Hard deletion is disabled until the approval-tier capability is enforced
+    // by a server-side, one-time approval workflow. Archiving remains reversible.
+    return fail("Permanent memory deletion is disabled pending approval-gated controls. Archive the record instead.", 403);
   }
 
   if (path === "/intelligence/knowledge/review-queue" && method === "GET") {
