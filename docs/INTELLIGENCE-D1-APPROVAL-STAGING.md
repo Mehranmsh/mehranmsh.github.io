@@ -48,4 +48,4 @@ Do not change the production `DB` binding, production secrets, production Worker
 
 ## Owner memory API
 
-The isolated Worker exposes owner-scoped `GET/POST /intelligence/memory` and `PUT /intelligence/memory/:id` routes. Each write is paired with an audit record in the same D1 batch. Memory content is bounded to 4,000 characters per record.
+The isolated Worker currently exposes only owner-scoped `GET /intelligence/memory` and `POST /intelligence/memory`. Each create is paired with an audit record in the same D1 batch. Memory content is bounded to 4,000 characters per record. There is currently no memory update or delete route. The `memory.delete` capability name may appear in the approval policy inventory, but approval issuance/evaluation is advisory only and does not expose or execute a delete operation.
