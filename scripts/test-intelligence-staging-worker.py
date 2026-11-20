@@ -946,6 +946,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"/intelligence/findings/priority-action-reviews"', renderer)
         self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
 
+
+    def test_intelligence_ui_fails_closed_until_staging_worker_is_connected(self):
+        api_start = self.index_html.index("async function api(path,options={})")
+        api_end = self.index_html.index("\n\n", api_start)
+        api_helper = self.index_html[api_start:api_end]
+        guard = 'if(path.startsWith("/intelligence/"))throw new Error("Intelligence staging Worker is not connected. Production Worker access is disabled.");'
+        self.assertIn(guard, api_helper)
+        self.assertLess(api_helper.index(guard), api_helper.index('fetch(AUTH_WORKER+path'))
+        self.assertNotIn('path.startsWith("/intelligence/")||path==="/mcp"', api_helper)
+
     def test_priority_action_owner_review_ui_is_owner_scoped_and_non_executing(self):
         self.assertIn('id="refreshIntelPriorityActionReviewIntegrityBtn"', self.index_html)
         self.assertIn('id="intelPriorityActionReviewIntegrityStatus"', self.index_html)
