@@ -420,10 +420,39 @@ async function testCompleteSchemaReportsHealthy() {
     assert.equal(body.schemaReady, true, JSON.stringify(body));
     assert.deepEqual(body.missingTables, []);
     assert.deepEqual(body.missingTriggers, []);
+    assert.deepEqual(body.missingColumns, []);
     assert.equal(body.foreignKeysEnabled, true);
     assert.equal(body.foreignKeyViolations, 0);
     assert.equal(body.executor, false);
     console.log("PASS: staging Worker /health accepts the complete isolated D1 schema");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingKnowledgeProvenanceColumnsFailClosed() {
+  const { mf } = await createWorker(4);
+  try {
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingColumns, [
+      "intelligence_knowledge.source_type",
+      "intelligence_knowledge.source_ref",
+      "intelligence_knowledge.observed_at",
+      "intelligence_knowledge.confidence_score",
+      "intelligence_knowledge.verification_status",
+      "intelligence_owner_memory.memory_kind",
+      "intelligence_owner_memory.source_type",
+      "intelligence_owner_memory.source_ref",
+      "intelligence_owner_memory.confidence_score",
+      "intelligence_owner_memory.review_status",
+      "intelligence_owner_memory.reviewed_at",
+      "intelligence_owner_memory.archived_at"
+    ]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when provenance and owner-memory columns are missing");
   } finally {
     await mf.dispose();
   }
