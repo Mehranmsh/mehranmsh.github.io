@@ -55,6 +55,15 @@ Migrations 0000-0013 are committed on this draft branch. The owner manually appl
 
 There is no approval-consume endpoint and no task execution endpoint.
 
+## Dedicated Pi staging session flow
+
+- The Intelligence page has its own Connect with Pi flow and uses the official Pi SDK to obtain a short-lived access token for server-side verification.
+- Before opening the Pi approval prompt, the UI calls the staging `/health` route and requires `schemaReady=true` and `executor=false`.
+- The access token is sent only to the dedicated staging Worker's `POST /session`; it is not written to browser storage. Only the separate 12-hour staging bearer token is stored under `msh_intelligence_staging_session`.
+- Session restoration and revocation use only the staging Worker's `GET/DELETE /session` routes. The staging token is never copied into production admin or SOCIAL storage.
+- The frontend staging URL is intentionally an empty placeholder. Do not configure it until the staging Worker is deployed against the verified staging database and its owner UID secret and origin allowlist are confirmed.
+- The Intelligence page no longer loads production admin overview or production project data. Its API namespace is routed only to the dedicated staging URL.
+
 ## Frontend connection boundary
 
 - The shared dashboard API helper deliberately rejects every `/intelligence/` request before issuing a network request to the production `AUTH_WORKER`.
