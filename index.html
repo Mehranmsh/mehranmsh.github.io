@@ -2333,7 +2333,7 @@ const intelligenceMemoryLabels={company:"Company",decision:"Decision",preference
 async function loadIntelligenceMemory(){
 const status=$("intelMemoryStatus"),list=$("intelMemoryList");if(!status||!list)return;
 status.textContent="Loading private owner memory...";status.className="notice";
-try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.memory||[]);status.textContent=(data.memory||[]).length+" private notes loaded. These notes are included as context in Intelligence conversations.";status.className="notice success"}
+try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.items||[]);status.textContent=(data.items||[]).length+" private notes loaded. These notes are included as context in Intelligence conversations.";status.className="notice success"}
 catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 function renderIntelligenceMemory(items){
@@ -2375,7 +2375,7 @@ window.intelligenceKnowledgeCache=[];
 async function loadIntelligenceKnowledge(){
  const status=$("intelKnowledgeStatus"),list=$("intelKnowledgeList");if(!status||!list)return;
  status.textContent="Loading organizational knowledge...";status.className="notice";
- try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.knowledge||[]);status.textContent=(data.knowledge||[]).length+" knowledge entries loaded. Core entries are protected; owner entries can be edited or archived.";status.className="notice success"}
+ try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.items||[]);status.textContent=(data.items||[]).length+" knowledge entries loaded. Core entries are protected; owner entries can be edited or archived.";status.className="notice success"}
  catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 function renderIntelligenceKnowledge(items){
@@ -2582,7 +2582,7 @@ function updateApprovalBranchPreview(){
 async function loadIntelligenceApprovals(){
  const status=$("intelApprovalsStatus"),list=$("intelApprovalsList");if(!status||!list)return;
  status.textContent="Loading owner approval ledger...";status.className="notice";
- try{const data=await api("/intelligence/approvals");intelligenceApprovalCache=data.approvals||[];renderIntelligenceApprovals();status.textContent=intelligenceApprovalCache.length+" recent grants loaded. Issued grants can be revoked until they expire or are consumed.";status.className="notice success"}
+ try{const data=await api("/intelligence/approvals");intelligenceApprovalCache=data.items||[];renderIntelligenceApprovals();status.textContent=intelligenceApprovalCache.length+" recent grants loaded. Issued grants can be revoked until they expire or are consumed.";status.className="notice success"}
  catch(error){status.textContent="Approval ledger unavailable: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Sign in with the authorized owner account to view approval grants.</div>'}
 }
 function renderIntelligenceApprovals(){
