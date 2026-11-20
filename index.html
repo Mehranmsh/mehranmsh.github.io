@@ -1216,7 +1216,7 @@ async function connectIntelligenceStagingSession(){
   if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("Pi authentication is unavailable. Open MEHRAN MSH in Pi Browser.");
   updateIntelligenceStagingSessionUI("Waiting for your approval in the official Pi sign-in window...");
   const auth=await window.Pi.authenticate(["username"],async()=>{});
-  if(!auth?.accessToken||!auth?.user?.uid)throw new Error("Pi did not return a complete identity and access token.");
+  if(!auth?.accessToken||!auth?.user)throw new Error("Pi did not return a complete identity and access token.");
   updateIntelligenceStagingSessionUI("Verifying your Pi identity directly with the isolated staging Worker...");
   const issued=await intelligenceStagingRequest("/session",{method:"POST",auth:false,body:JSON.stringify({accessToken:auth.accessToken})});
   if(!issued?.success||!issued.token)throw new Error("The staging Worker did not issue a valid session.");
