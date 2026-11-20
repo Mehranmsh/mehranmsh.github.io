@@ -105,6 +105,20 @@ A future implementation requires isolated disposable-D1 runtime tests proving:
 
 Static tests must additionally assert that the AI-facing boundary has no owner token, DB binding, production binding, execution flag override, or direct canonical write route.
 
+
+## Untrusted evidence and prompt-injection resistance
+
+All model output, user-supplied text, external page content, uploaded content, and tool-returned text must be treated as untrusted data, never as executable instructions or authority. In particular:
+
+- The AI proposal producer has no tools, browser, arbitrary network fetch, shell, SQL, filesystem, GitHub write, or deployment capability.
+- A URL in a proposal is an inert reference until a separately authorized and reviewed ingestion service exists. Proposal intake must not fetch it, follow redirects, resolve private network addresses, or use it as a server-side fetch target.
+- If trusted evidence ingestion is later introduced, it must use a dedicated allowlisted fetcher with redirect limits, DNS/IP validation on every hop, private/link-local/loopback address denial, response-size and content-type limits, timeouts, and content hashing. It must not share the proposal service's authority.
+- Text extracted from evidence must be visibly separated from system instructions and model-generated summaries. Embedded instructions such as requests to reveal secrets, change policy, approve a proposal, or invoke tools are content only and must never alter permissions or workflow.
+- Render proposal text and evidence as text, not trusted HTML. Do not use `innerHTML`, execute scripts, render active markup, or automatically open untrusted links.
+- The owner review screen must show the exact proposed before/after values, the source references, which claims are model-generated, which facts were independently verified, and the payload hash. Truncation must be explicit; the owner must be able to inspect the full bounded payload before approval.
+- A model-generated explanation, confidence score, urgency label, or claimed citation is not independent verification. The server must verify any source identity or content digest it relies on and must preserve uncertainty where verification is unavailable.
+
+
 ## Implementation gate
 
 This design is not permission to implement or deploy the proposal service. Before any schema migration, new Worker route, AI provider binding, secret, or deployment is added, the owner must review the design and explicitly authorize that specific staging-only implementation step. Production changes and PR merge require separate explicit authorization. Until then, this document is the complete scope of work for the proposal-only concept.
