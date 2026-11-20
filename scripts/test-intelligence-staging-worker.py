@@ -211,7 +211,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
         # Parse JSONC after removing full-line comments and validate the actual
         # binding structure, not only the presence of expected text fragments.
-        parsed = json.loads(re.sub(r"(?m)^\\s*//.*$", "", self.config))
+        parsed = json.loads("\n".join(line for line in self.config.splitlines() if not line.lstrip().startswith("//")))
         self.assertEqual(parsed.get("name"), "mehran-intelligence-staging")
         self.assertEqual(parsed.get("main"), "intelligence-staging-worker.js")
         self.assertTrue(parsed.get("workers_dev"))
