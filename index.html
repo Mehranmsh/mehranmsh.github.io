@@ -1188,8 +1188,9 @@ async function api(path,options={}){if(path.startsWith("/intelligence/"))return 
 
 
 function getIntelligenceStagingToken(){return localStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
+function hasValidIntelligenceStagingUrl(){return /^https:\/\/mehran-intelligence-staging\.[a-z0-9-]+\.workers\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}
 async function intelligenceStagingRequest(path,options={}){
- if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error("Intelligence staging Worker is not configured. Production Worker access is disabled.");
+ if(!hasValidIntelligenceStagingUrl())throw new Error("A verified HTTPS mehran-intelligence-staging workers.dev URL is required. Production Worker access is disabled.");
  if(!path.startsWith("/intelligence/")&&path!=="/session"&&path!=="/health")throw new Error("This route is outside the Intelligence staging allowlist.");
  const {auth=true,...requestOptions}=options;
  const headers={"Accept":"application/json","Content-Type":"application/json",...(requestOptions.headers||{})};
@@ -1202,13 +1203,13 @@ async function intelligenceStagingRequest(path,options={}){
 function updateIntelligenceStagingSessionUI(message,kind="notice"){
  const status=$("intelStagingSessionStatus"),connect=$("connectIntelStagingBtn"),disconnect=$("disconnectIntelStagingBtn");
  if(status){status.textContent=message;status.className=kind;}
- if(connect)connect.disabled=!INTELLIGENCE_STAGING_WORKER_URL;
+ if(connect)connect.disabled=!hasValidIntelligenceStagingUrl();
  if(disconnect)disconnect.disabled=!getIntelligenceStagingToken();
 }
 async function connectIntelligenceStagingSession(){
  const button=$("connectIntelStagingBtn");if(button)button.disabled=true;
  try{
-  if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error("The dedicated staging Worker URL has not been verified or configured. No authentication request was sent.");
+  if(!hasValidIntelligenceStagingUrl())throw new Error("The dedicated staging Worker HTTPS URL has not been verified or configured. No authentication request was sent.");
   const health=await intelligenceStagingRequest("/health",{auth:false});
   if(!health?.success||health.schemaReady!==true||health.executor!==false)throw new Error("The staging Worker is not healthy or does not confirm executor:false. Pi sign-in was not started.");
   if(typeof window.ensurePiReady==="function")await window.ensurePiReady();
@@ -1228,13 +1229,13 @@ async function connectIntelligenceStagingSession(){
  }catch(error){
   localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI(error.message,"notice warn");
- }finally{if(button)button.disabled=!INTELLIGENCE_STAGING_WORKER_URL;}
+ }finally{if(button)button.disabled=!hasValidIntelligenceStagingUrl();}
 }
 async function disconnectIntelligenceStagingSession(){
  const button=$("disconnectIntelStagingBtn");if(button)button.disabled=true;
  const token=getIntelligenceStagingToken();
  try{
-  if(token&&INTELLIGENCE_STAGING_WORKER_URL)await intelligenceStagingRequest("/session",{method:"DELETE"});
+  if(token&&hasValidIntelligenceStagingUrl())await intelligenceStagingRequest("/session",{method:"DELETE"});
   localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI("Intelligence staging session revoked locally and, when connected, on the staging Worker.","notice");
  }catch(error){
@@ -1243,8 +1244,8 @@ async function disconnectIntelligenceStagingSession(){
 }
 async function restoreIntelligenceStagingSession(){
  const token=getIntelligenceStagingToken();
- if(!token){updateIntelligenceStagingSessionUI(INTELLIGENCE_STAGING_WORKER_URL?"Connect with Pi to open the separate Intelligence staging session.":"Staging Worker address is not configured. Intelligence remains disconnected and cannot access the production Worker.");return;}
- if(!INTELLIGENCE_STAGING_WORKER_URL){updateIntelligenceStagingSessionUI("A staging session token exists locally, but the dedicated Worker URL is not configured. No request was sent.","notice warn");return;}
+ if(!token){updateIntelligenceStagingSessionUI(hasValidIntelligenceStagingUrl()?"Connect with Pi to open the separate Intelligence staging session.":"Staging Worker HTTPS address is not configured. Intelligence remains disconnected and cannot access the production Worker.");return;}
+ if(!hasValidIntelligenceStagingUrl()){updateIntelligenceStagingSessionUI("A staging session token exists locally, but the dedicated HTTPS Worker URL is not configured. No request was sent.","notice warn");return;}
  try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success)throw new Error("Session verification failed.");updateIntelligenceStagingSessionUI("Private Intelligence staging session restored and verified.","notice success");}
  catch(error){if(error.status===401||error.status===403)localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);updateIntelligenceStagingSessionUI("Staging session could not be restored: "+error.message,"notice warn");}
 }
