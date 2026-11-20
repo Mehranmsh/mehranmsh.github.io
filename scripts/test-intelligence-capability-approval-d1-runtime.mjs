@@ -150,6 +150,46 @@ async function testSequentialSingleUse() {
   }
 }
 
+async function testConcurrentSingleUse() {
+  const { mf, db } = await createDatabase();
+  try {
+    // Two independently prepared transactions race for the same approval.
+    const attempts = await Promise.allSettled([
+      db.batch(statements(db, { operationId: "op-race-a" })),
+      db.batch(statements(db, { operationId: "op-race-b" })),
+    ]);
+    assert.deepEqual(
+      attempts.map(result => result.status).sort(),
+      ["fulfilled", "rejected"],
+      "exactly one overlapping transaction must consume the approval",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM protected_operations"),
+      1,
+      "exactly one protected operation may be committed",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE action='capability_approval_consumed' AND target_id='grant-valid'"),
+      1,
+      "exactly one consumption audit event may be committed",
+    );
+    const approval = await db.prepare(
+      "SELECT status, consumed_by FROM intelligence_capability_approvals WHERE id='grant-valid'"
+    ).first();
+    assert.equal(approval.status, "consumed");
+    assert.ok(
+      ["staging-operation:op-race-a", "staging-operation:op-race-b"].includes(approval.consumed_by),
+      "the committed approval must identify the winning transaction",
+    );
+    const operation = await db.prepare(
+      "SELECT id FROM protected_operations WHERE id IN ('op-race-a','op-race-b')"
+    ).first();
+    assert.equal(operation.id, approval.consumed_by.replace("staging-operation:", ""));
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testRollbackOnOperationFailure() {
   const { mf, db } = await createDatabase();
   try {
@@ -263,6 +303,8 @@ await testIssueTimestampGuardAndAuditAppendOnly();
 console.log("PASS: D1 rejects future-dated approval issuance and keeps audit history append-only");
 await testSequentialSingleUse();
 console.log("PASS: D1-runtime sequential one-time consumption and row-count guard");
+await testConcurrentSingleUse();
+console.log("PASS: D1-runtime concurrent one-time consumption allows exactly one winner");
 await testRollbackOnOperationFailure();
 console.log("PASS: D1-runtime rollback restores approval and trigger audit");
 await testRollbackWhenFinalAuditStatementFails();
