@@ -1224,6 +1224,7 @@ async function connectIntelligenceStagingSession(){
   if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");
   updateIntelligenceStagingSessionUI("Independent Pi identity verified. Private Intelligence staging session is active. Expires "+new Date(issued.expiresAt*1000).toLocaleString()+".","notice success");
   await loadIntelligenceTasks();
+  await Promise.all([loadIntelCompanyReadiness(),loadIntelPriorityActionPlan(),loadIntelDecisionIntegrity()]);
  }catch(error){
   localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI(error.message,"notice warn");
