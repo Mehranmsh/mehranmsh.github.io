@@ -166,6 +166,43 @@ def test_reference_and_audit_are_immutable_and_upload_delete_is_guarded():
     db.close()
 
 
+def test_reference_and_job_owner_guards():
+    db = build_db()
+    add_upload(db)
+    expect_integrity_error(
+        lambda: db.execute(
+            """INSERT INTO social_media_references(id,upload_id,owner_user_id,content_type,content_id)
+               VALUES('bad-owner-ref','file-a','user-b','post','post-x')"""
+        ),
+        "reference owner must match the upload owner",
+    )
+    db.execute("UPDATE social_uploads SET acl='private' WHERE id='file-a'")
+    expect_integrity_error(
+        lambda: add_ref(db, "file-a", "post", "post-private"),
+        "public content cannot reference a private upload",
+    )
+    expect_integrity_error(
+        lambda: db.execute(
+            """INSERT INTO social_media_deletion_jobs(
+                 id,batch_id,upload_id,owner_user_id,request_key,status
+               ) VALUES('bad-job','batch','file-a','user-b','bad-request','pending')"""
+        ),
+        "deletion job owner must match the upload owner",
+    )
+    db.execute("UPDATE social_uploads SET acl='public' WHERE id='file-a'")
+    db.execute("INSERT INTO social_posts(id,user_id) VALUES('post-active','user-a')")
+    add_ref(db, "file-a", "post", "post-active")
+    expect_integrity_error(
+        lambda: db.execute(
+            """INSERT INTO social_media_deletion_jobs(
+                 id,batch_id,upload_id,owner_user_id,request_key,status
+               ) VALUES('active-job','batch','file-a','user-a','active-request','pending')"""
+        ),
+        "deletion job must not be queued while an active reference exists",
+    )
+    db.close()
+
+
 def test_duplicate_active_reference_is_rejected():
     db = build_db()
     add_upload(db)
@@ -185,6 +222,7 @@ if __name__ == "__main__":
         test_legacy_untracked_urls_are_never_guessed,
         test_reference_and_audit_are_immutable_and_upload_delete_is_guarded,
         test_duplicate_active_reference_is_rejected,
+        test_reference_and_job_owner_guards,
     ]
     for test in tests:
         test()
