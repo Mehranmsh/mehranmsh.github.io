@@ -1168,6 +1168,13 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     assert.equal(issuedBody.executionEnabled, false);
     assert.equal(issuedBody.status, "issued");
 
+    const foreignApprovalId = "99999999-9999-4999-8999-999999999999";
+    await db.prepare(`
+      INSERT INTO intelligence_capability_approvals
+        (id,owner_uid,capability,scope,status,issued_at,expires_at)
+      VALUES(?,?,'memory.create','owner_staging','issued',?,?)
+    `).bind(foreignApprovalId, "different-owner-uid", now - 30, now + 300).run();
+
     const expiredId = "88888888-8888-4888-8888-888888888888";
     await db.prepare(`
       INSERT INTO intelligence_capability_approvals
@@ -1180,6 +1187,8 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     assert.equal(approvalList.status, 200);
     const approvalListBody = await approvalList.json();
     assert.equal(approvalListBody.items.find(item => item.id === expiredId).status, "expired");
+    assert.equal(approvalListBody.items.some(item => item.id === foreignApprovalId), false,
+      "approval listing must never expose another owner's approval");
     const expiredStored = await db.prepare(
       "SELECT status FROM intelligence_capability_approvals WHERE id=? AND owner_uid=?"
     ).bind(expiredId, ownerUid).first();
@@ -1208,10 +1217,12 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     const foreignAssessment = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.create", approvalId: "33333333-3333-4333-8333-333333333333" }),
+      body: JSON.stringify({ capability: "memory.create", approvalId: foreignApprovalId }),
     });
     assert.equal(foreignAssessment.status, 200);
     const foreignBody = await foreignAssessment.json();
+    assert.equal(foreignBody.assessment.reason, "owner_approval_required",
+      "an approval belonging to another owner must be invisible to capability assessment");
     assert.equal(foreignBody.operationPerformed, false);
     assert.equal(foreignBody.approvalConsumed, false);
 
