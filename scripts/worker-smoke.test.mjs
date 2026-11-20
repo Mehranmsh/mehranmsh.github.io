@@ -2657,7 +2657,7 @@ test("SOCIAL content writes register owned media references in the same D1 batch
   const post=workerSource.slice(postStart,postEnd);
   assert.match(post,/INSERT INTO social_posts/);
   assert.match(post,/socialMediaReferenceStatement\(env, item\.id, user\.id, "post", id/);
-  assert.match(post,/await env\.DB\.batch\(statements\)/);
+  assert.match(post,/await env\.DB\.batch\(\[/);
 
   const storyStart=workerSource.indexOf("async function socialCreateStory(");
   const storyEnd=workerSource.indexOf("\nasync function ",storyStart+20);
