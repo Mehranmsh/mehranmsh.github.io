@@ -128,6 +128,17 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, self.owner_review_module)
 
+    def test_capability_approval_issue_timestamp_guard_is_required(self):
+        migration = (ROOT / "migrations" / "0018_intelligence_capability_approval_issued_at_guard.sql").read_text(encoding="utf-8")
+        self.assertIn("trg_intelligence_capability_approval_issued_at_guard", migration)
+        self.assertIn("NEW.issued_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("NEW.expires_at > NEW.issued_at + 3600", migration)
+        self.assertIn('"trg_intelligence_capability_approval_issued_at_guard"', self.source)
+        lifecycle_query = next((line for line in self.source.splitlines() if "invalidCapabilityApprovalLifecycle =" in line), "")
+        self.assertIn("issued_at > ?", lifecycle_query)
+        self.assertIn("issued_at <= 0", lifecycle_query)
+        self.assertIn("invalidCapabilityApprovalLifecycleCount === 0", self.source)
+
     def test_no_executor_scheduler_or_production_binding(self):
         forbidden = [
             r'\bscheduled\s*\(',
