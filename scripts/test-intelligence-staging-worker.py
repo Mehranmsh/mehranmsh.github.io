@@ -1304,7 +1304,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertNotIn(forbidden, evaluation)
 
-        self.assertIn("export const EXECUTION_ENABLED = false;", self.policy_source)
+        policy = (ROOT / "intelligence-capability-policy.mjs").read_text(encoding="utf-8")
+        self.assertIn("export const EXECUTION_ENABLED = false;", policy)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
