@@ -2106,23 +2106,17 @@ test("Documentation patch proposals require owner approval and remain excluded f
 });
 
 
-test("Intelligence owner approval UI is scoped, owner-session-backed, and never executes code", () => {
-  for (const id of [
-    "intelApprovalPanel","intelApprovalForm","intelApprovalTask","intelApprovalPaths",
-    "intelApprovalBaseSha","intelApprovalExpiry","loadIntelBaseShaBtn",
-    "issueIntelApprovalBtn","intelApprovalsList","refreshIntelApprovalsBtn"
-  ]) assert.ok(indexSource.includes('id="'+id+'"'), "approval UI is missing: "+id);
+test("Intelligence staging approval UI is read-only except for revocation", () => {
+  for (const id of ["intelApprovalPanel","intelApprovalsList","refreshIntelApprovalsBtn"]) {
+    assert.ok(indexSource.includes('id="'+id+'"'), "approval history UI is missing: "+id);
+  }
   assert.match(indexSource, /api\("\/intelligence\/approvals"\)/);
-  assert.match(indexSource, /api\("\/intelligence\/approvals",\{method:"POST"/);
-  assert.match(indexSource, /api\("\/intelligence\/approvals\/"/);
-  assert.match(indexSource, /api\("\/intelligence\/approvals",\{method:"POST",body:JSON\.stringify\(\{taskId:task\.id,branch:approvalBranchForTask\(task\.id\),baseSha,paths,expiresInMinutes\}\)\}\)/);
-  assert.match(indexSource, /documentation_patch_proposal.*accepted/);
-  assert.match(indexSource, /paths\.length<1\|\|paths\.length>5/);
-  assert.match(indexSource, /window\.confirm\("Issue a "/);
+  assert.match(indexSource, /api\("\/intelligence\/approvals\/"[^\n]*method:"DELETE"/);
+  assert.match(indexSource, /Issuing new scoped grants is disabled in this staging workspace/);
+  assert.doesNotMatch(indexSource, /intelApprovalForm|issueIntelApprovalBtn|readIntelligenceBaseSha|issueIntelligenceApproval/);
+  assert.doesNotMatch(indexSource, /api\("\/intelligence\/approvals",\{method:"POST"/);
   assert.match(indexSource, /window\.confirm\("Revoke this issued grant\?/);
-  assert.match(indexSource, /fetch\("https:\/\/api\.github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/commits\/main"/);
-  assert.doesNotMatch(indexSource, /api\.github\.com[^\n]{0,200}(?:method:"POST"|method:"PUT"|method:"PATCH"|method:"DELETE")/);
-  assert.match(indexSource, /no executor can consume it and no code was changed/);
+  assert.match(indexSource, /no executor can consume a grant/);
 });
 
 
