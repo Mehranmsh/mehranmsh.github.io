@@ -2330,7 +2330,7 @@ async function loadIntelligenceMemory(){
 const status=$("intelMemoryStatus"),list=$("intelMemoryList");if(!status||!list)return;
 status.textContent="Loading private owner memory...";status.className="notice";
 try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.memory||[]);status.textContent=(data.memory||[]).length+" private notes loaded. These notes are included as context in Intelligence conversations.";status.className="notice success"}
-catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the administrator session is restored.</div>'}
+catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 function renderIntelligenceMemory(items){
 const list=$("intelMemoryList");if(!list)return;
@@ -2372,7 +2372,7 @@ async function loadIntelligenceKnowledge(){
  const status=$("intelKnowledgeStatus"),list=$("intelKnowledgeList");if(!status||!list)return;
  status.textContent="Loading organizational knowledge...";status.className="notice";
  try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.knowledge||[]);status.textContent=(data.knowledge||[]).length+" knowledge entries loaded. Core entries are protected; owner entries can be edited or archived.";status.className="notice success"}
- catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the administrator session is restored.</div>'}
+ catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 function renderIntelligenceKnowledge(items){
  const list=$("intelKnowledgeList");if(!list)return;window.intelligenceKnowledgeCache=Array.isArray(items)?items:[];
@@ -2427,7 +2427,7 @@ async function loadIntelligenceRelations(){
   status.textContent="Could not load knowledge relationships: "+error.message;
   status.className="notice warn";
   list.replaceChildren();
-  const empty=document.createElement("div");empty.className="empty";empty.textContent="Relationship storage may not yet be installed in this environment, or your administrator session has expired.";list.append(empty);
+  const empty=document.createElement("div");empty.className="empty";empty.textContent="Relationship storage may not yet be installed in this environment, or your Intelligence staging session has expired.";list.append(empty);
  }
 }
 function renderIntelligenceRelations(items){
@@ -2498,7 +2498,7 @@ try{const data=await api("/intelligence/events");const events=data.events||[];li
 if(!events.length){list.innerHTML='<div class="empty">No Intelligence activity has been recorded yet.</div>'}
 else events.forEach(item=>{const card=document.createElement("div");card.className="card";const head=document.createElement("div");head.className="section-title";const title=document.createElement("strong");title.textContent=intelligenceEventLabels[item.action]||String(item.action||"Intelligence event").replaceAll("_"," ");const time=document.createElement("span");time.className="small-text";time.textContent=item.createdAt||"";head.append(title,time);const target=document.createElement("div");target.className="small-text";target.textContent=[item.targetType,item.targetId].filter(Boolean).join(" · ");const details=document.createElement("p");details.textContent=item.details||"";details.style.whiteSpace="pre-wrap";card.append(head,target,details);list.append(card)});
 status.textContent=events.length+" recent Intelligence events loaded. The log is read-only.";status.className="notice success"}
-catch(error){status.textContent="Could not load Intelligence activity: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">The activity log is unavailable until the administrator session is restored.</div>'}
+catch(error){status.textContent="Could not load Intelligence activity: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">The activity log is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 $("refreshIntelEventsBtn")?.addEventListener("click",loadIntelligenceEvents);
 
@@ -2524,7 +2524,7 @@ await loadIntelligenceEvents();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
 status.className="notice warn";
-list.innerHTML='<div class="empty">The task queue is unavailable until the administrator session is restored.</div>';
+list.innerHTML='<div class="empty">The task queue is unavailable until the separate Intelligence staging session is restored.</div>';
 }
 }
 function renderIntelligenceTasks(tasks){
