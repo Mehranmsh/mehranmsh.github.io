@@ -1182,7 +1182,7 @@ async function api(path,options={}){if(path.startsWith("/intelligence/"))return 
 
 
 let intelligenceStagingConnecting=false;
-function getIntelligenceStagingToken(){return localStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
+function getIntelligenceStagingToken(){return sessionStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
 function hasValidIntelligenceStagingUrl(){return /^https:\/\/mehran-intelligence-staging\.[a-z0-9-]+\.workers\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}
 async function intelligenceStagingRequest(path,options={}){
  if(!hasValidIntelligenceStagingUrl())throw new Error("A verified HTTPS mehran-intelligence-staging workers.dev URL is required. Production Worker access is disabled.");
@@ -1217,13 +1217,13 @@ async function connectIntelligenceStagingSession(){
   updateIntelligenceStagingSessionUI("Verifying your Pi identity directly with the isolated staging Worker...");
   const issued=await intelligenceStagingRequest("/session",{method:"POST",auth:false,body:JSON.stringify({accessToken:auth.accessToken})});
   if(!issued?.success||!issued.token)throw new Error("The staging Worker did not issue a valid session.");
-  try{localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token);}catch{try{await intelligenceStagingRequest("/session",{method:"DELETE",tokenOverride:issued.token});}catch{}throw new Error("The staging session could not be stored securely in this browser; the server-side session revocation was attempted.");}
-  try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");}catch(verificationError){try{await intelligenceStagingRequest("/session",{method:"DELETE"});}catch{}localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);throw verificationError;}
+  try{sessionStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token);}catch{try{await intelligenceStagingRequest("/session",{method:"DELETE",tokenOverride:issued.token});}catch{}throw new Error("The staging session could not be stored securely in this browser; the server-side session revocation was attempted.");}
+  try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");}catch(verificationError){try{await intelligenceStagingRequest("/session",{method:"DELETE"});}catch{}sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);throw verificationError;}
   updateIntelligenceStagingSessionUI("Independent Pi identity verified. Private Intelligence staging session is active. Expires "+new Date(issued.expiresAt*1000).toLocaleString()+".","notice success");
   await loadIntelligenceTasks();
   await Promise.all([loadIntelCompanyReadiness(),loadIntelPriorityActionPlan(),loadIntelDecisionIntegrity()]);
  }catch(error){
-  localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
+  sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI(error.message,"notice warn");
  }finally{intelligenceStagingConnecting=false;if(button)button.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();}
 }
@@ -1232,7 +1232,7 @@ async function disconnectIntelligenceStagingSession(){
  const token=getIntelligenceStagingToken();
  try{
   if(token&&hasValidIntelligenceStagingUrl())await intelligenceStagingRequest("/session",{method:"DELETE"});
-  localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
+  sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI("Intelligence staging session revoked locally and, when connected, on the staging Worker.","notice");
  }catch(error){
   updateIntelligenceStagingSessionUI("Server revocation could not be confirmed: "+error.message+". The local token has been retained so revocation can be retried.","notice warn");
@@ -1243,7 +1243,7 @@ async function restoreIntelligenceStagingSession(){
  if(!token){updateIntelligenceStagingSessionUI(hasValidIntelligenceStagingUrl()?"Connect with Pi to open the separate Intelligence staging session.":"Staging Worker HTTPS address is not configured. Intelligence remains disconnected and cannot access the production Worker.");return;}
  if(!hasValidIntelligenceStagingUrl()){updateIntelligenceStagingSessionUI("A staging session token exists locally, but the dedicated HTTPS Worker URL is not configured. No request was sent.","notice warn");return;}
  try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success)throw new Error("Session verification failed.");updateIntelligenceStagingSessionUI("Private Intelligence staging session restored and verified.","notice success");}
- catch(error){if(error.status===401||error.status===403)localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);updateIntelligenceStagingSessionUI("Staging session could not be restored: "+error.message,"notice warn");}
+ catch(error){if(error.status===401||error.status===403)sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);updateIntelligenceStagingSessionUI("Staging session could not be restored: "+error.message,"notice warn");}
 }
 $("connectIntelStagingBtn")?.addEventListener("click",connectIntelligenceStagingSession);
 $("disconnectIntelStagingBtn")?.addEventListener("click",disconnectIntelligenceStagingSession);
