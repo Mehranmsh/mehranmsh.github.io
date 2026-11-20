@@ -24,7 +24,8 @@ def build_db():
         id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
         size INTEGER NOT NULL, mime_type TEXT NOT NULL, acl TEXT NOT NULL,
         status TEXT NOT NULL, url TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        lifecycle_managed INTEGER NOT NULL DEFAULT 0 CHECK (lifecycle_managed IN (0,1))
       );
       CREATE TABLE social_users(id TEXT PRIMARY KEY, avatar_url TEXT);
       CREATE TABLE social_posts(id TEXT PRIMARY KEY, user_id TEXT NOT NULL, media_json TEXT NOT NULL DEFAULT '[]');
@@ -37,10 +38,10 @@ def build_db():
     return db
 
 
-def add_upload(db, upload_id="file-a", owner="user-a"):
+def add_upload(db, upload_id="file-a", owner="user-a", managed=1):
     db.execute(
-        "INSERT INTO social_uploads(id,user_id,name,size,mime_type,acl,status,url) VALUES(?,?,?,?,?,?,?,?)",
-        (upload_id, owner, "photo.jpg", 1024, "image/jpeg", "public", "ready", "https://cdn.example/photo.jpg"),
+        "INSERT INTO social_uploads(id,user_id,name,size,mime_type,acl,status,url,lifecycle_managed) VALUES(?,?,?,?,?,?,?,?,?)",
+        (upload_id, owner, "photo.jpg", 1024, "image/jpeg", "public", "ready", "https://cdn.example/photo.jpg", managed),
     )
 
 
@@ -203,6 +204,24 @@ def test_reference_and_job_owner_guards():
     db.close()
 
 
+def test_unmanaged_legacy_uploads_are_never_queued_or_deleted():
+    db = build_db()
+    add_upload(db, "legacy-file", managed=0)
+    db.execute("INSERT INTO social_posts(id,user_id) VALUES('legacy-post','user-a')")
+    # Even a newly recorded reference to a pre-migration upload cannot make it eligible.
+    expect_integrity_error(
+        lambda: add_ref(db, "legacy-file", "post", "legacy-post"),
+        "pre-migration uploads must not enter managed reference tracking",
+    )
+    db.execute("DELETE FROM social_posts WHERE id='legacy-post'")
+    assert job_count(db, "legacy-file") == 0
+    expect_integrity_error(
+        lambda: db.execute("DELETE FROM social_uploads WHERE id='legacy-file'"),
+        "unmanaged legacy uploads must remain protected from deletion",
+    )
+    db.close()
+
+
 def test_duplicate_active_reference_is_rejected():
     db = build_db()
     add_upload(db)
@@ -223,6 +242,7 @@ if __name__ == "__main__":
         test_reference_and_audit_are_immutable_and_upload_delete_is_guarded,
         test_duplicate_active_reference_is_rejected,
         test_reference_and_job_owner_guards,
+        test_unmanaged_legacy_uploads_are_never_queued_or_deleted,
     ]
     for test in tests:
         test()
