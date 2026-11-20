@@ -2417,8 +2417,8 @@ async function loadIntelligenceRelations(){
  const filter=$("intelRelationStatusFilter")?.value||"";
  try{
   const data=await api("/intelligence/knowledge/relations"+(filter?"?status="+encodeURIComponent(filter):""));
-  renderIntelligenceRelations(data.relations||[]);
-  const count=(data.relations||[]).length;
+  renderIntelligenceRelations(data.items||[]);
+  const count=(data.items||[]).length;
   status.textContent=count+" relationship"+(count===1?"":"s")+" loaded. Only your records are shown.";
   status.className="notice success";
  }catch(error){
