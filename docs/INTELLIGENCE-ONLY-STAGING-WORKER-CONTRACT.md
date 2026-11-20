@@ -90,3 +90,14 @@ The isolated Worker, Wrangler staging config, separate Pi staging-session flow, 
 - `DELETE /intelligence/memory/:id`: deliberately fails closed with HTTP 403. Permanent deletion is disabled until a server-enforced, one-time approval workflow exists. The `memory.delete` capability is classified as approval-tier, but approval issuance/evaluation are advisory only and there is no approval-consumption route. Do not bypass this boundary or describe the delete capability as executable.
 
 No cross-owner memory mutation route is exposed.
+
+
+## Human owner actions versus AI/agent capabilities
+
+The current write APIs are owner-facing controls, not agent tools. Every route other than the public bootstrap/session routes passes the shared verifySession gate before route dispatch. The session is issued only after server-side Pi identity verification and a match to the separately configured staging owner UID. Mutating SQL statements additionally bind the authenticated owner.uid; caller-supplied owner IDs are not accepted as authority.
+
+Accordingly, the authenticated owner may manually create or review knowledge and memory, manage relationships, and archive/restore records through the owner UI. These actions are audited and owner-scoped. They do not represent autonomous AI permission and do not consume capability approvals.
+
+The capability policy is reserved for assessing future AI/agent-delegated requests. POST /intelligence/capabilities/evaluate loads any presented approval from D1 and returns an assessment only. It does not authorize a direct route, consume an approval, or perform the requested operation. Approval-tier labels therefore must not be described as a live approval gate on the owner's direct manual routes.
+
+There is currently no agent runtime, agent credential/session, agent polling route, tool bridge, approval-consumption route, or task-execution route in the staging Worker. The owner session must never be handed to an AI/agent. Before any future AI integration, add a separate agent identity and server-enforced capability boundary; do not reuse the owner's bearer token. Keep EXECUTION_ENABLED=false.
