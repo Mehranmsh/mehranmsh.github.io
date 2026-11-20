@@ -13,6 +13,7 @@ const migrationNames = [
   "0006_intelligence_owner_memory_confidence_integer",
   "0007_intelligence_approval_ledger_state_guards",
   "0008_intelligence_capability_approval_ledger",
+  "0016_intelligence_capability_approval_allowlist",
 ];
 
 const CONSUME = `
@@ -83,6 +84,19 @@ function statements(db, {
 async function count(db, sql) {
   const row = await db.prepare(sql).first();
   return Number(row.count);
+}
+
+async function testDatabaseRejectsDisabledMemoryDeleteCapability() {
+  const { mf, db } = await createDatabase();
+  try {
+    await assert.rejects(
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-delete','owner-a','memory.delete','owner_staging','issued',100,200)").run(),
+      /capability is not available for approval/i,
+    );
+    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE capability='memory.delete'"), 0);
+  } finally {
+    await mf.dispose();
+  }
 }
 
 async function testSequentialSingleUse() {
@@ -157,6 +171,8 @@ async function testExpiredAndRevokedApprovalsFailClosed() {
   console.log("PASS: D1-runtime expired and revoked approvals fail closed");
 }
 
+await testDatabaseRejectsDisabledMemoryDeleteCapability();
+console.log("PASS: D1 rejects capability approvals for permanently disabled memory deletion");
 await testSequentialSingleUse();
 console.log("PASS: D1-runtime sequential one-time consumption and row-count guard");
 await testRollbackOnOperationFailure();
