@@ -2637,6 +2637,8 @@ test("INTELLIGENCE tool loop fails closed on malformed, oversized and excessive 
 
 test("SOCIAL media lifecycle requires the staging registry and keeps provider deletion disabled", () => {
   assert.match(workerSource,/const SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED = false/);
+  assert.match(workerSource,/lifecycle_managed/);
+  assert.match(workerSource,/Number\(row\.lifecycle_managed\) !== 1/);
   assert.match(workerSource,/async function socialMediaLifecycleSchemaReady\(env\)/);
   assert.match(workerSource,/SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS/);
   assert.match(workerSource,/return Number\(triggers\?\.count \|\| 0\) === SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS\.length/);
