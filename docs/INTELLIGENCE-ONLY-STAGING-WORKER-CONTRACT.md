@@ -101,3 +101,12 @@ Accordingly, the authenticated owner may manually create or review knowledge and
 The capability policy is reserved for assessing future AI/agent-delegated requests. POST /intelligence/capabilities/evaluate loads any presented approval from D1 and returns an assessment only. It does not authorize a direct route, consume an approval, or perform the requested operation. Approval-tier labels therefore must not be described as a live approval gate on the owner's direct manual routes.
 
 There is currently no agent runtime, agent credential/session, agent polling route, tool bridge, approval-consumption route, or task-execution route in the staging Worker. The owner session must never be handed to an AI/agent. Before any future AI integration, add a separate agent identity and server-enforced capability boundary; do not reuse the owner's bearer token. Keep EXECUTION_ENABLED=false.
+
+
+## Owner-entered provenance limits
+
+Owner-facing create routes accept only provenance that the current interface can substantiate:
+
+- Memory accepts `owner_input` and an owner-scoped `knowledge_record` link. It does not accept `system_observation`.
+- Knowledge accepts `owner_input` and validated HTTPS `external_url`. It does not accept `system_observation` or `uploaded_document` until a server-verified observation or document-ingestion pipeline exists.
+- A manual owner payload cannot label its own content as a system observation or as an uploaded file. Such records require a future trusted server-side ingestion path with independently verified provenance.
