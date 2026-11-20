@@ -4130,7 +4130,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     assert.equal(Number(afterOwnerReviewAudit.count), Number(beforeAudit.count) + 1,
       "owner review insert must append exactly one audit event");
 
-    const saved = await db.prepare(`SELECT owner_uid,reviewer_uid,action_key_sha256,outcome,
+    const saved = await db.prepare(`SELECT owner_uid,reviewer_uid,action_key_sha256,outcome,reviewed_at,
       review_snapshot_json,review_snapshot_sha256 FROM intelligence_priority_action_reviews WHERE id=?`)
       .bind(result.id).first();
     assert.equal(saved.owner_uid, ownerUid);
