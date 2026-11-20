@@ -1159,6 +1159,22 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertNotIn(forbidden, self.source)
 
+
+    def test_ai_proposal_design_defines_immutable_snapshots_and_append_only_events(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "The proposal payload is immutable after intake.",
+            "separate append-only event ledger",
+            "transactionally maintained projection",
+            "pending to accepted, rejected, expired, or superseded",
+            "server-assigned timestamps",
+            "client-supplied authority fields are rejected",
+            "unique constraint or equivalent conditional write",
+        ]:
+            self.assertIn(fragment, design)
+        self.assertIn("## Implementation gate", design)
+        self.assertIn("explicitly authorize that specific staging-only implementation step", design)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
