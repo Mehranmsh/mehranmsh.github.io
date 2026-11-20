@@ -23,6 +23,7 @@ MIGRATIONS = [
     ROOT / "migrations" / "0014_intelligence_owner_identity_immutability.sql",
     ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql",
     ROOT / "migrations" / "0016_intelligence_capability_approval_allowlist.sql",
+    ROOT / "migrations" / "0017_intelligence_audit_immutability_and_approval_timestamps.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -442,6 +443,44 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertEqual(self.db.execute("""
             SELECT action FROM intelligence_staging_audit WHERE target_id='cap-f'
         """).fetchone()[0], 'capability_approval_expired')
+
+    def test_staging_audit_is_append_only(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_staging_audit
+                (id,owner_uid,action,target_type,target_id,details_json,created_at)
+            VALUES('audit-immutable','owner-a','test','test','target','{}',100)
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_staging_audit SET action='rewritten' WHERE id='audit-immutable'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("DELETE FROM intelligence_staging_audit WHERE id='audit-immutable'")
+        self.assertEqual(self.db.execute(
+            "SELECT action FROM intelligence_staging_audit WHERE id='audit-immutable'"
+        ).fetchone()[0], "test")
+
+    def test_capability_approval_terminal_timestamps_reject_future_and_preissue_values(self):
+        self.apply_chain()
+        now = int(__import__("time").time())
+        insert = """
+            INSERT INTO intelligence_capability_approvals
+                (id,owner_uid,capability,scope,status,issued_at,expires_at)
+            VALUES(?, 'owner-a','memory.create','owner_staging','issued',?,?)
+        """
+        self.db.execute(insert, ("future-revoke", now - 60, now + 600))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'",
+                (now + 3600,)
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'",
+                (now - 61,)
+            )
+        self.db.execute(insert, ("early-expiry", now - 60, now + 600))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET status='expired' WHERE id='early-expiry'")
 
     def test_linked_knowledge_content_guard_is_installed(self):
         self.apply_chain()
