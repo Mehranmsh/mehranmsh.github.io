@@ -5435,6 +5435,8 @@ async function socialDeleteAccount(request, env) {
 
 export default {
   async scheduled(controller, env, ctx) {
+    // Production Intelligence execution is intentionally disabled. Keep this handler inert even if an external cron is configured.
+    return;
     const run = async () => {
       if (!env.DB) return;
       const runId = crypto.randomUUID();
@@ -5551,6 +5553,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
+        return error("Production Intelligence Agent execution is disabled.", 410);
         const configuredToken = typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "";
         const suppliedToken = getBearer(request);
         if (!configuredToken || configuredToken.length < 40 || !suppliedToken || suppliedToken.length > 200) {
