@@ -999,7 +999,10 @@ test("SOCIAL uploads enforce per-user ownership and verify storage metadata befo
   const deleteEnd = workerSource.indexOf("async function fetchPiUser", deleteStart);
   const remove = workerSource.slice(deleteStart, deleteEnd);
   assert.match(remove, /SELECT id,lifecycle_managed FROM social_uploads WHERE id=\? AND user_id=\?/);
-  assert.match(remove, /DELETE FROM social_uploads WHERE id=\? AND user_id=\?/);
+  assert.match(remove, /INSERT INTO social_media_deletion_jobs/);
+  assert.match(remove, /executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED/);
+  assert.doesNotMatch(remove, /rapidfileRequest\s*\(/);
+  assert.doesNotMatch(remove, /DELETE FROM social_uploads/);
 });
 
 test("SOCIAL channel content and membership are hidden across block relationships", () => {
