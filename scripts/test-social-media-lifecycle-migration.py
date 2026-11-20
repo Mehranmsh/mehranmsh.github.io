@@ -84,6 +84,14 @@ def test_new_reference_cannot_reuse_upload_after_deletion_is_queued():
     assert job_count(db, "file-a") == 1
     upload_status = db.execute("SELECT status FROM social_uploads WHERE id='file-a'").fetchone()[0]
     assert upload_status == "deletion_pending", "queued upload must be frozen against new references"
+    expect_integrity_error(
+        lambda: db.execute("UPDATE social_uploads SET status='ready' WHERE id='file-a'"),
+        "deletion-pending state must not be reversible",
+    )
+    expect_integrity_error(
+        lambda: db.execute("UPDATE social_uploads SET lifecycle_managed=0 WHERE id='file-a'"),
+        "managed upload classification must be immutable",
+    )
     db.execute("INSERT INTO social_posts(id,user_id) VALUES('post-3','user-a')")
     expect_integrity_error(
         lambda: add_ref(db, "file-a", "post", "post-3"),
