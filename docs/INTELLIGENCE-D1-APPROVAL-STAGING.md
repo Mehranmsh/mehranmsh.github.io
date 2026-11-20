@@ -30,7 +30,7 @@ The Worker has bounded JSON bodies, origin restrictions, security headers, rate 
 
 The disposable SQLite migration tests validate the ordered migration chain through 0019, idempotence, expected tables, foreign-key wiring, runtime support tables, both approval-ledger consumption locks, and legacy approval timestamp guards. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
 
-These are repository-level checks, not a live D1 or Pi Browser integration test. The latest verified PR119 CI run at the time of this update is `44765591600` for head `eb92df570d93b308cf9299a48c419148d9c058f5`; it completed successfully, including 59 Python staging safety tests and 147 Worker smoke tests. This does not establish the remote D1 migration state or live Pi Browser integration.
+These are repository-level checks, not a live D1 or Pi Browser integration test. The latest fully successful PR119 CI run verified here is `44791229938` for head `ef3a585b8ccd8b52152000699c8be6f8a282faa4`; all 35 workflow steps completed successfully, including the dual-ledger D1 consumption-lock test, staging Worker health/runtime tests, and the complete disposable SQLite migration chain through 0019. This does not establish the remote D1 migration state or live Pi Browser integration.
 
 ## 4. Remaining staging steps
 
