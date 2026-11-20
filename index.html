@@ -1257,7 +1257,7 @@ restoreIntelligenceStagingSession();
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
-if(name==="admin"&&(!piUser||!piUser.isAdmin)){toast("Administrator access required.");return;}
+if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin)){toast("Administrator access required.");return;}
 document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
 const page=$("page-"+name);
 if(page)page.classList.add("active");
@@ -2319,6 +2319,7 @@ async function loadIntelligence(){
   $("intelligenceProjectsList").textContent="Production project data is intentionally not queried from this workspace.";
   $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
   await loadIntelligenceTasks();
+  await Promise.all([loadIntelCompanyReadiness(),loadIntelPriorityActionPlan(),loadIntelDecisionIntegrity()]);
  }catch(error){
   message.textContent="Intelligence staging data is unavailable: "+error.message;
   message.className="notice warn";
