@@ -55,9 +55,20 @@ END;
 
 CREATE TRIGGER trg_intelligence_project_complete_guard
 BEFORE UPDATE OF status ON intelligence_projects
-WHEN NEW.status='completed' AND EXISTS (
-  SELECT 1 FROM intelligence_tasks t
-  WHERE t.project_id=OLD.id AND t.status<>'completed'
+WHEN NEW.status='completed' AND (
+  EXISTS (
+    SELECT 1 FROM intelligence_tasks t
+    WHERE t.project_id=OLD.id AND t.status<>'completed'
+  )
+  OR EXISTS (
+    SELECT 1
+    FROM intelligence_tasks t
+    JOIN intelligence_task_dependencies d
+      ON d.task_id=t.id AND d.owner_uid=t.created_by
+    JOIN intelligence_tasks prerequisite
+      ON prerequisite.id=d.depends_on_task_id
+    WHERE t.project_id=OLD.id AND prerequisite.status<>'completed'
+  )
 )
 BEGIN
   SELECT RAISE(ABORT,'project has incomplete tasks');
@@ -162,6 +173,38 @@ WHEN NEW.status='completed' AND EXISTS (
 )
 BEGIN
   SELECT RAISE(ABORT,'task has incomplete prerequisites');
+END;
+
+-- Do not add or rewrite a dependency that would make an already-completed task
+-- depend on an incomplete prerequisite.
+CREATE TRIGGER trg_intelligence_task_dependency_completed_guard_insert
+BEFORE INSERT ON intelligence_task_dependencies
+WHEN EXISTS (
+  SELECT 1
+  FROM intelligence_tasks dependent
+  JOIN intelligence_tasks prerequisite ON prerequisite.id=NEW.depends_on_task_id
+  WHERE dependent.id=NEW.task_id
+    AND dependent.created_by=NEW.owner_uid
+    AND dependent.status='completed'
+    AND prerequisite.status<>'completed'
+)
+BEGIN
+  SELECT RAISE(ABORT,'completed task cannot gain an incomplete prerequisite');
+END;
+
+CREATE TRIGGER trg_intelligence_task_dependency_completed_guard_update
+BEFORE UPDATE OF owner_uid,task_id,depends_on_task_id ON intelligence_task_dependencies
+WHEN EXISTS (
+  SELECT 1
+  FROM intelligence_tasks dependent
+  JOIN intelligence_tasks prerequisite ON prerequisite.id=NEW.depends_on_task_id
+  WHERE dependent.id=NEW.task_id
+    AND dependent.created_by=NEW.owner_uid
+    AND dependent.status='completed'
+    AND prerequisite.status<>'completed'
+)
+BEGIN
+  SELECT RAISE(ABORT,'completed task cannot gain an incomplete prerequisite');
 END;
 
 -- Reopen completed dependents before reopening their completed prerequisite.
