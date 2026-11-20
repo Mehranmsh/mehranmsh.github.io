@@ -87,6 +87,9 @@ export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
     }
     const snapshotHashMatches = /^[0-9a-f]{64}$/.test(expectedHash) &&
       /^[0-9a-f]{64}$/.test(String(computedHash)) && expectedHash === computedHash;
+    const actionKeyHash = String(row.action_key_sha256 ?? "");
+    const actionKeyMatchesSnapshot = /^[0-9a-f]{64}$/.test(actionKeyHash) &&
+      /^[0-9a-f]{64}$/.test(String(computedHash)) && actionKeyHash === computedHash;
     const snapshotIdentityMatches = snapshotJsonValid &&
       snapshot.findingId === String(row.finding_id) &&
       snapshot.moduleId === String(row.module_id) &&
@@ -95,6 +98,7 @@ export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
     let status = "integrity_match";
     if (!snapshotJsonValid) status = "invalid_snapshot_json";
     else if (!snapshotHashMatches) status = "snapshot_hash_mismatch";
+    else if (!actionKeyMatchesSnapshot) status = "action_key_mismatch";
     else if (!snapshotIdentityMatches) status = "snapshot_identity_mismatch";
     else if (!reviewerMatchesOwner) status = "reviewer_owner_mismatch";
     items.push({
@@ -103,6 +107,7 @@ export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
       outcome: String(row.outcome),
       reviewedAt: Number(row.reviewed_at),
       snapshotHashMatches,
+      actionKeyMatchesSnapshot,
       snapshotIdentityMatches,
       reviewerMatchesOwner,
       status
@@ -114,6 +119,7 @@ export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
       recordsScanned: items.length,
       integrityMatches: items.filter(item => item.status === "integrity_match").length,
       snapshotHashMismatches: items.filter(item => item.status === "snapshot_hash_mismatch").length,
+      actionKeyMismatches: items.filter(item => item.status === "action_key_mismatch").length,
       invalidSnapshotJson: items.filter(item => item.status === "invalid_snapshot_json").length,
       snapshotIdentityMismatches: items.filter(item => item.status === "snapshot_identity_mismatch").length,
       reviewerOwnerMismatches: items.filter(item => item.status === "reviewer_owner_mismatch").length
