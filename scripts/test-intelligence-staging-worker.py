@@ -1090,7 +1090,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
 
     def test_intelligence_dashboard_loads_company_assessment_overview_automatically(self):
         start = self.index_html.index("async function loadIntelligence(){")
-        end = self.index_html.index("\nasync function testMcpConnection()", start)
+        end = self.index_html.index("\nasync function loadIntelligenceTasks()", start)
         loader = self.index_html[start:end]
         self.assertIn("loadIntelCompanyReadiness()", loader)
         self.assertIn("loadIntelPriorityActionPlan()", loader)
