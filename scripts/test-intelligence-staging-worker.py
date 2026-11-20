@@ -96,7 +96,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'if(taskDepsMatch&&method==="GET")',
             'if(taskDepsMatch&&method==="POST")',
             'if(depDeleteMatch&&method==="DELETE")',
-            'WHERE p.owner_uid = ?',
+            'const clauses=["p.owner_uid = ?"]',
             'WHERE id=? AND owner_uid=?',
             'WHERE id=? AND created_by=?',
             'task_dependency_added',
