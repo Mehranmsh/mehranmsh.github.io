@@ -112,3 +112,10 @@ Passing repository CI is necessary but does not satisfy these live gates.
 ## Current implementation boundary
 
 The current isolated staging Worker provides Pi owner verification, short-lived hashed sessions, session revocation, owner-scoped knowledge and relationships, deterministic review prioritization, private memory, approval records, audit writes, and task planning. It does not perform external source retrieval, semantic fact-checking, autonomous truth selection, AI reasoning, code execution, scheduling, production operations, or Pi asset transactions. Those capabilities must not be represented in the UI as available until implemented and separately validated.
+
+
+## Separate pre-existing production runner
+
+The repository also contains a separate, pre-existing production automation path on the main branch: `.github/workflows/intelligence-agent.yml` and `scripts/intelligence-agent.mjs`. It is distinct from this isolated staging Worker and is not introduced or modified by this staging work. The workflow is configured for a five-minute schedule and uses the production Worker endpoint when its repository secret is configured. Its current script contains a small allowlist of actions (repository quality checks and service health reporting), checks task claim ownership while running, and submits a bounded result.
+
+This staging PR does not disable, deploy, or change that production runner. Its existence means the statement "task execution is disabled" applies to the isolated staging implementation only, not necessarily to all pre-existing production automation. Any future change to the production runner, its schedule, credentials, task policy, or action allowlist requires a separate security review and explicit owner authorization. Do not copy its production endpoint, token, or task-claim mechanism into staging.
