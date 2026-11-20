@@ -522,6 +522,42 @@ async function testOwnerEvidenceReviewLedgerAPI() {
       ) VALUES(?,?,?,?,?,?,?,?,?)
     `).bind(evidenceId,findingId,ownerUid,"test_run","ci-run-123","a".repeat(64),now,"CI evidence reference",now).run();
 
+    const foreignFindingId = "00000000-0000-4000-8000-000000000103";
+    await db.prepare(`
+      INSERT INTO intelligence_findings(
+        id,owner_uid,module_id,check_id,blueprint_version,title,description,
+        created_at,updated_at,created_by
+      ) VALUES(?,?,?,?,?,?,?,?,?,?)
+    `).bind(foreignFindingId,"different-owner-uid","security","foreign-review","v1",
+      "Foreign finding","Must remain private",now,now,"different-owner").run();
+
+    const foreignReview = await mf.dispatchFetch(`http://localhost/intelligence/findings/${foreignFindingId}/reviews`, {
+      method: "POST", headers,
+      body: JSON.stringify({outcome:"accepted",reason:"Cross-owner review must be rejected."}),
+    });
+    assert.equal(foreignReview.status, 404,
+      "an owner must not review another owner's finding");
+    const foreignHistory = await mf.dispatchFetch(
+      `http://localhost/intelligence/findings/reviews?findingId=${foreignFindingId}&limit=10`, {headers});
+    assert.equal(foreignHistory.status, 200);
+    assert.equal((await foreignHistory.json()).items.length, 0,
+      "another owner's review history must not be disclosed");
+
+    await db.prepare(
+      "CREATE TRIGGER reject_finding_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='finding_evidence_review_recorded' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const auditFailure = await mf.dispatchFetch(`http://localhost/intelligence/findings/${findingId}/reviews`, {
+      method: "POST", headers,
+      body: JSON.stringify({outcome:"accepted",reason:"This review must roll back if audit fails."}),
+    });
+    assert.equal(auditFailure.status, 503);
+    const reviewCountAfterAuditFailure = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_finding_reviews WHERE finding_id=? AND owner_uid=?"
+    ).bind(findingId, ownerUid).first();
+    assert.equal(Number(reviewCountAfterAuditFailure.count), 0,
+      "failed audit insertion must roll back the evidence review");
+    await db.prepare("DROP TRIGGER reject_finding_review_audit").run();
+
     const post = await mf.dispatchFetch(`http://localhost/intelligence/findings/${findingId}/reviews`, {
       method: "POST", headers, body: JSON.stringify({outcome:"accepted",reason:"Reviewed the recorded CI reference."}),
     });
