@@ -2338,8 +2338,8 @@ items.forEach(item=>{
 const card=document.createElement("div");card.className="card";
 const heading=document.createElement("div");heading.className="section-title";
 const label=document.createElement("strong");label.textContent=intelligenceMemoryLabels[item.category]||"Memory";
-const remove=document.createElement("button");remove.type="button";remove.className="btn secondary small";remove.textContent="Delete";remove.dataset.deleteIntelMemory=item.id;
-heading.append(label,remove);
+const archive=document.createElement("button");archive.type="button";archive.className="btn secondary small";archive.textContent=item.archivedAt?"Archived":"Archive";archive.disabled=!!item.archivedAt;archive.dataset.archiveIntelMemory=item.id;
+heading.append(label,archive);
 const content=document.createElement("p");content.textContent=item.content;content.style.whiteSpace="pre-wrap";
 const date=document.createElement("div");date.className="small-text";date.textContent="Updated: "+(item.updatedAt||item.createdAt||"");
 card.append(heading,content,date);list.append(card);
@@ -2353,15 +2353,15 @@ try{await api("/intelligence/memory",{method:"POST",body:JSON.stringify({categor
 catch(error){status.textContent="Could not save note: "+error.message;status.className="notice warn"}
 finally{button.disabled=false}
 }
-async function deleteIntelligenceMemory(id,button){
-if(!id||!confirm("Delete this private Intelligence memory note?"))return;
+async function archiveIntelligenceMemory(id,button){
+if(!id||!confirm("Archive this private Intelligence memory note? It can be restored by the owner in the staging review workspace."))return;
 button.disabled=true;
-try{await api("/intelligence/memory/"+encodeURIComponent(id),{method:"DELETE"});$("intelMemoryStatus").textContent="Memory note deleted and deletion recorded in the audit log.";$("intelMemoryStatus").className="notice success";await loadIntelligenceMemory()}
-catch(error){$("intelMemoryStatus").textContent="Could not delete note: "+error.message;$("intelMemoryStatus").className="notice warn";button.disabled=false}
+try{await api("/intelligence/memory/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify({action:"archive"})});$("intelMemoryStatus").textContent="Memory note archived. It remains recoverable in the private staging review workspace.";$("intelMemoryStatus").className="notice success";await loadIntelligenceMemory()}
+catch(error){$("intelMemoryStatus").textContent="Could not archive note: "+error.message;$("intelMemoryStatus").className="notice warn";button.disabled=false}
 }
 $("intelMemoryForm")?.addEventListener("submit",saveIntelligenceMemory);
 $("refreshIntelMemoryBtn")?.addEventListener("click",loadIntelligenceMemory);
-$("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-delete-intel-memory]");if(button)deleteIntelligenceMemory(button.dataset.deleteIntelMemory,button)});
+$("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-archive-intel-memory]");if(button)archiveIntelligenceMemory(button.dataset.archiveIntelMemory,button)});
 
 
 const intelligenceKnowledgeLabels={company:"Company",module:"Module",decision:"Decision",goal:"Goal",procedure:"Procedure",project:"Project"};
