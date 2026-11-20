@@ -501,7 +501,7 @@ async function testAuditAppendOnlyAndApprovalTimestampGuards() {
     await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('future-revoke','staging-owner','memory.create','owner_staging','issued',?,?)").bind(now - 60, now + 600).run();
     await assert.rejects(
       db.prepare("UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'").bind(now + 3600).run(),
-      /invalid capability approval terminal timestamp/i,
+      /invalid capability approval terminal timestamp|revocation must precede expiry/i,
     );
     await assert.rejects(
       db.prepare("UPDATE intelligence_capability_approvals SET status='expired' WHERE id='future-revoke'").run(),
