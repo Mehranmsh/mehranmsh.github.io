@@ -951,6 +951,14 @@ async function testOwnerMemoryAuditIsolationAndProvenance() {
     const listedBody = await listed.json();
     assert.deepEqual(listedBody.items.map(item => item.id), [createdBody.id]);
 
+    const memoryReviewQueue = await mf.dispatchFetch("http://localhost/intelligence/memory/review-queue", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(memoryReviewQueue.status, 200);
+    const memoryReviewBody = await memoryReviewQueue.json();
+    assert.deepEqual(memoryReviewBody.items.map(item => item.id), [createdBody.id],
+      "memory review queue must not disclose another owner's unreviewed memory");
+
     await db.prepare(
       "CREATE TRIGGER reject_memory_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_confirmed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
     ).run();
@@ -1026,6 +1034,14 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
     assert.equal(listed.status, 200);
     const listBody = await listed.json();
     assert.deepEqual(listBody.items.map(item => item.id).sort(), [sourceId, targetId].sort());
+
+    const knowledgeReviewQueue = await mf.dispatchFetch("http://localhost/intelligence/knowledge/review-queue", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(knowledgeReviewQueue.status, 200);
+    const knowledgeReviewBody = await knowledgeReviewQueue.json();
+    assert.deepEqual(knowledgeReviewBody.items.map(item => item.id).sort(), [sourceId, targetId].sort(),
+      "knowledge review queue must not disclose another owner's knowledge");
 
     const relation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
       method: "POST",
