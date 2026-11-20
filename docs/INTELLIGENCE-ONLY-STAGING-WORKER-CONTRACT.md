@@ -83,8 +83,10 @@ The isolated Worker, Wrangler staging config, separate Pi staging-session flow, 
 
 ## Owner memory routes
 
-- `GET /intelligence/memory`: list only the authenticated owner's records.
-- `POST /intelligence/memory`: create a bounded memory record.
-- No `PUT` or `DELETE` memory route is currently implemented. Do not treat the `memory.delete` capability label as an available operation: approval issuance and evaluation are advisory only, and no approval-consumption or execution route exists.
+- `GET /intelligence/memory`: list only the authenticated owner's records, with active/archived/all filters and bounded pagination.
+- `POST /intelligence/memory`: create a bounded memory record with validated provenance and an atomic audit record.
+- `GET /intelligence/memory/review-queue`: list the authenticated owner's unreviewed or disputed active records.
+- `PUT /intelligence/memory/:id`: update category/content, or perform the explicit owner review transitions `confirm`, `dispute`, `unverify`, `archive`, and `restore`. Every successful mutation is owner-scoped and committed atomically with its audit record. Archive is reversible.
+- `DELETE /intelligence/memory/:id`: deliberately fails closed with HTTP 403. Permanent deletion is disabled until a server-enforced, one-time approval workflow exists. The `memory.delete` capability is classified as approval-tier, but approval issuance/evaluation are advisory only and there is no approval-consumption route. Do not bypass this boundary or describe the delete capability as executable.
 
-Memory creation is audited atomically with the data change. No cross-owner memory mutation route is exposed.
+No cross-owner memory mutation route is exposed.
