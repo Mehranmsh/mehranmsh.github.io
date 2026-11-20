@@ -991,9 +991,9 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <form id="intelTaskForm" class="card" autocomplete="off">
 <div class="field"><label for="intelTaskTitle">Task title</label><input id="intelTaskTitle" maxlength="120" required placeholder="مثلاً بررسی و تکمیل ماژول SOCIAL"></div>
 <div class="field"><label for="intelTaskDescription">Task details</label><textarea id="intelTaskDescription" rows="3" maxlength="3000" required placeholder="هدف، محدوده و نتیجهٔ مورد انتظار را بنویس..."></textarea></div>
-<div class="field"><label for="intelTaskActionType">Execution type</label><select id="intelTaskActionType"><option value="">Manual task · no automatic execution</option><option value="project_status_report">Project status report</option><option value="social_metrics_report">SOCIAL metrics report</option><option value="service_health_report">Service health report</option><option value="repository_quality_check">Repository quality checks</option><option value="documentation_patch_proposal">Documentation patch proposal · owner approval</option></select><div class="small-text">All task types are stored as queued plans only. No scheduler, agent poller or executor is active in staging. Documentation proposals remain separately approval-gated.</div></div>
+<div class="small-text">This creates a private task plan only. No person, agent, scheduler or executor is assigned or activated by saving it.</div>
 <div class="grid">
-<div class="field"><label for="intelTaskAssignee">Assign to</label><select id="intelTaskAssignee"><option value="mehran_intelligence">MEHRAN INTELLIGENCE</option><option value="chatgpt">ChatGPT</option><option value="shared">Shared collaboration</option></select></div>
+
 <div class="field"><label for="intelTaskPriority">Priority</label><select id="intelTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
 </div>
 <label class="check-row"><input id="intelTaskApproval" type="checkbox"> Requires owner approval before execution</label>
@@ -2551,7 +2551,7 @@ const title=$("intelTaskTitle").value.trim(),description=$("intelTaskDescription
 if(!title||!description){status.textContent="Enter a title and task details.";status.className="notice warn";return}
 button.disabled=true;status.textContent="Saving task to the shared queue...";status.className="notice";
 try{
-await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,assignedTo:$("intelTaskAssignee").value,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked,actionType:$("intelTaskActionType").value})});
+await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked})});
 form.reset();
 status.textContent="Task added to the shared queue. No external action was executed.";
 status.className="notice success";
