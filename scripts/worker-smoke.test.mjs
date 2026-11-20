@@ -2691,6 +2691,9 @@ test("SOCIAL profile media must be ready public uploads owned by the authenticat
   assert.match(profile,/upload_id\) VALUES/);
   assert.match(profile,/profile_gallery/);
   assert.match(profile,/profile_avatar/);
+  assert.match(profile,/existingByUrl/);
+  assert.match(profile,/retainedPhotoIds/);
+  assert.doesNotMatch(profile,/DELETE FROM social_profile_photos WHERE user_id/);
   assert.match(profile,/await env\.DB\.batch\(statements\)/);
 });
 
