@@ -225,6 +225,83 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             self.db.execute("DELETE FROM intelligence_evidence_decision_reviews WHERE id=?", (good[0],))
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
 
+    def test_review_audit_failure_rolls_back_all_three_owner_decision_ledgers(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_findings(
+                id,owner_uid,module_id,check_id,blueprint_version,title,description,
+                created_at,updated_at,created_by
+            ) VALUES(
+                '00000000-0000-4000-8000-000000000001','owner-a','security',
+                'auditability','v1','Audit rollback fixture','Verify atomic audit behavior',
+                500,500,'owner-a'
+            )
+        """)
+        self.db.execute("""
+            CREATE TRIGGER reject_review_audit
+            BEFORE INSERT ON intelligence_staging_audit
+            BEGIN SELECT RAISE(ABORT, 'simulated review audit outage'); END
+        """)
+
+        with self.subTest(ledger="correlation"):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("""
+                    INSERT INTO intelligence_evidence_correlation_reviews(
+                        id,owner_uid,reviewer_uid,correlation_type,correlation_key_sha256,
+                        outcome,reason,correlation_snapshot_json,correlation_snapshot_sha256,
+                        reference_count,reviewed_at,created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    "rollback-correlation","owner-a","owner-a","shared_digest","a"*64,
+                    "related","Audit must be atomic.",
+                    '[{"evidenceId":"20000000-0000-4000-8000-000000000001","findingId":"10000000-0000-4000-8000-000000000001"},{"evidenceId":"20000000-0000-4000-8000-000000000002","findingId":"10000000-0000-4000-8000-000000000002"}]',
+                    "b"*64,2,501,501
+                ))
+
+        with self.subTest(ledger="decision"):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("""
+                    INSERT INTO intelligence_evidence_decision_reviews(
+                        id,owner_uid,reviewer_uid,review_key_sha256,source_type,source_id,
+                        outcome,reason,review_snapshot_json,review_snapshot_sha256,
+                        reviewed_at,created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    "rollback-decision","owner-a","owner-a","c"*64,"finding_metadata",
+                    "finding-1","accepted","Audit must be atomic.",
+                    '{"sourceType":"finding_metadata","sourceId":"finding-1"}',
+                    "d"*64,502,502
+                ))
+
+        with self.subTest(ledger="priority_action"):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("""
+                    INSERT INTO intelligence_priority_action_reviews(
+                        id,owner_uid,reviewer_uid,finding_id,module_id,check_id,
+                        action_key_sha256,outcome,reason,review_snapshot_json,
+                        review_snapshot_sha256,reviewed_at,created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    "rollback-priority","owner-a","owner-a",
+                    "00000000-0000-4000-8000-000000000001","security","auditability",
+                    "e"*64,"accepted","Audit must be atomic.",
+                    '{"findingId":"00000000-0000-4000-8000-000000000001","moduleId":"security","checkId":"auditability"}',
+                    "f"*64,503,503
+                ))
+
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_evidence_correlation_reviews"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_evidence_decision_reviews"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_priority_action_reviews"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0], 0)
+
     def test_approval_ledger_rejects_unknown_task(self):
         self.apply_chain()
         with self.assertRaises(sqlite3.IntegrityError):
