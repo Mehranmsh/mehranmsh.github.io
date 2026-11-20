@@ -28,6 +28,7 @@ const migrations = [
   "0015_intelligence_task_execution_disabled",
   "0016_intelligence_capability_approval_allowlist",
   "0017_intelligence_audit_immutability_and_approval_timestamps",
+  "0018_intelligence_capability_approval_issued_at_guard",
 ];
 
 async function applyMigrations(db, names) {
@@ -457,7 +458,7 @@ async function testHealthRejectsPreexistingTaskExecutionState() {
 
 await testHealthRejectsPreexistingTaskExecutionState();
 await testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows();
-await testAuditAppendOnlyAndApprovalTimestampGuards();
+await testAuditAppendOnlyAndApprovalTimestampGuards();\nawait testHealthRejectsLegacyFutureIssuedApproval();
 async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows() {
   const { mf, db } = await createWorker(migrations.length);
   try {
@@ -505,6 +506,27 @@ async function testAuditAppendOnlyAndApprovalTimestampGuards() {
       /invalid capability approval terminal timestamp/i,
     );
     console.log("PASS: D1 audit history is append-only and approval terminal timestamps are bounded");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testHealthRejectsLegacyFutureIssuedApproval() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_issued_at_guard").run();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('legacy-future','staging-owner','memory.create','owner_staging','issued',?,?)").bind(future, future + 60).run();
+    const source = await readFile(new URL("migrations/0018_intelligence_capability_approval_issued_at_guard.sql", ROOT), "utf8");
+    const sql = source.split("\\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\\s+/g, " ").trim();
+    await db.exec(sql);
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.equal(body.invalidCapabilityApprovalLifecycleCount, 1);
+    assert.deepEqual(body.missingTriggers, []);
+    console.log("PASS: staging health rejects legacy future-dated approval issuance");
   } finally {
     await mf.dispose();
   }
