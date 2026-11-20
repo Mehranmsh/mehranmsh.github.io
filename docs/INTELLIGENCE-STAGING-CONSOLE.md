@@ -25,7 +25,11 @@
 - Read-only schema health diagnostics.
 - Owner-scoped knowledge review queue with explicit Verify, Dispute, and Reset review actions.
 - Knowledge creation with provenance metadata. New knowledge always starts as unreviewed.
-- Owner-scoped task planning. Tasks remain queued; execution is disabled.
+- Owner-scoped project create/list/detail/update/archive/restore with progress and blocker summaries.
+- Task-to-project assignment and detachment.
+- Owner-scoped dependency list/add/remove. The database rejects cycles and cross-owner or cross-project edges.
+- Manual task completion, reopening, or cancellation with audit records. Completion requires all prerequisites to be complete; reopening a prerequisite requires completed dependents to be reopened first.
+- Owner-scoped task planning. No task execution endpoint is exposed; execution remains disabled.
 - Owner-scoped private memory create/list.
 
 ## Explicitly excluded
@@ -37,6 +41,6 @@
 
 ## Validation
 
-The HTML inline JavaScript is included in `scripts/quality-check.py` syntax validation. `scripts/test-intelligence-staging-ui.py` checks the staging URL placeholder, Pi owner login flow, server-side session routes, allowed staging endpoints, and absence of production API references.
+The HTML inline JavaScript is included in `scripts/quality-check.py` syntax validation. The separate `intelligence-project-api.mjs` module is syntax-checked independently. `scripts/test-intelligence-staging-ui.py` checks the staging URL placeholder, Pi owner login flow, server-side session routes, allowed staging endpoints, and absence of production API references, plus the private project and dependency controls.
 
 This page is not live until the isolated staging Worker has been separately configured and deployed with explicit owner authorization. A passing CI run does not establish a live Cloudflare connection.
