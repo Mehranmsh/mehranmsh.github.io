@@ -1,18 +1,21 @@
 # INTELLIGENCE project and task coordination proposal
 
-Status: design proposal only. No schema migration, Worker route, scheduler, executor, or production change is included.
+Status: migration 0005 and owner-scoped project/dependency API routes are implemented in the isolated staging branch and covered by disposable SQLite and static contract tests. Migration 0005 has not been applied to live Cloudflare D1. No staging deployment, production change, scheduler, or executor is included.
 
 ## 1. Current baseline
 
-The isolated staging schema currently contains `intelligence_tasks`, owner-scoped knowledge and knowledge relations, approval records, staging sessions, audit, rate-limit records, and owner memory.
+The isolated staging schema chain 0000-0005 defines `intelligence_tasks`, `intelligence_projects`, `intelligence_task_dependencies`, owner-scoped knowledge and knowledge relations, approval records, staging sessions, audit, rate-limit records, and owner memory. Migration 0005 is repository-only until the separate live staging database is positively identified and the owner authorizes applying it.
 
-The current staging task API supports only:
+The staging API currently supports:
 - Owner-scoped task listing, limited to 100 rows.
 - Task planning with title, description, priority, and an approval flag.
+- Project create/list/detail/update/archive/restore, with owner-scoped task summaries.
+- Task-to-project association and detachment.
+- Dependency list/add/remove, with database-enforced same-owner/same-project scope and cycle prevention.
 - New tasks enter `queued`.
 - Responses explicitly return `executionEnabled: false`.
 
-The current task row already has `assigned_to`, `action_type`, `action_payload`, `requires_approval`, `status`, and claim-related columns inherited from the baseline. The staging API does not expose action payloads or claim operations. No project table or task-dependency relation currently exists.
+The current task row already has `assigned_to`, `action_type`, `action_payload`, `requires_approval`, `status`, and claim-related columns inherited from the baseline. The staging API does not expose action payloads or claim operations. Project and dependency records are planning metadata only; the API exposes no task executor or action payload.
 
 ## 2. Goals
 
@@ -29,7 +32,7 @@ Non-goals:
 - No automatic task completion based only on dependency state.
 - No automatic truth decisions from knowledge relations.
 
-## 3. Proposed data model
+## 3. Data model implemented by migration 0005
 
 ### A. `intelligence_projects`
 
@@ -92,7 +95,7 @@ Execution-boundary note: the inspected production Worker currently has an uncond
 
 The API should return derived blocker summaries, not persist a duplicate `blocked` flag that can drift out of sync with dependency rows.
 
-## 5. Proposed read/write API
+## 5. Read/write API implemented in the staging Worker
 
 Owner-authenticated, staging-only routes:
 - `GET /intelligence/projects` with bounded filters and pagination.
@@ -124,7 +127,7 @@ Project membership does not grant authority. A task's `assigned_to` value is rou
 
 Module keys must come from a server-side allowlist, initially including the known MEHRAN MSH modules. A project in one module must not gain access to another module's private records merely because it is linked to a shared project. Cross-module visibility should be explicit and read-only by default.
 
-## 8. Migration and validation plan
+## 8. Migration and validation
 
 Do not write or apply a migration until the proposal is reviewed against all current production and staging task writers/readers.
 
@@ -139,16 +142,16 @@ Required tests in disposable SQLite:
 8. Existing task planning, approval ledger, knowledge, session, and owner-isolation tests remain green.
 9. Staging UI displays project progress and blockers without offering an execution control.
 
-## 9. Delivery sequence
+## 9. Delivery sequence and remaining gates
 
-1. Complete review of this proposal and current task status vocabulary.
-2. Add disposable SQLite schema tests for proposed constraints.
-3. Add additive migration only after tests and review pass.
-4. Add owner-scoped read routes.
-5. Add audited project/task/dependency writes.
-6. Add a private staging UI view.
-7. Run full CI and review the diff.
-8. Only then consider a separate, explicitly authorized staging D1 migration and deployment.
+1. Migration 0005 is committed and covered by disposable SQLite tests.
+2. Project/task/dependency routes are implemented with owner scoping and atomic audit writes.
+3. Full CI must pass on the latest PR head.
+4. Add project progress and blocker visibility to the private staging UI.
+5. Confirm the exact D1 ID for `mehran-msh-intelligence-staging`.
+6. Obtain separate explicit authorization before applying migration 0005 to live staging D1.
+7. Obtain separate explicit authorization before any staging deployment.
+8. Run live Pi authentication, session, owner isolation, audit atomicity, and project/dependency integration tests.
 
 ## 10. Safety decision
 
