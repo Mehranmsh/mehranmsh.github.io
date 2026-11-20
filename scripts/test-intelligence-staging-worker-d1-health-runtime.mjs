@@ -1056,7 +1056,7 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
       INSERT INTO intelligence_capability_approvals
         (id,owner_uid,capability,scope,status,issued_at,expires_at)
       VALUES(?,?,?,'owner_staging','issued',?,?)
-    `).bind(expiredId, ownerUid, "memory.delete", now - 120, now - 60).run();
+    `).bind(expiredId, ownerUid, "knowledge.create", now - 120, now - 60).run();
     const approvalList = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -2011,7 +2011,7 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
     for (const [id, owner] of [[approvalId, ownerUid], [foreignApprovalId, foreignUid]]) {
       await db.prepare(
         "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-      ).bind(id, owner, "memory.delete", now, now + 1800).run();
+      ).bind(id, owner, "knowledge.create", now, now + 1800).run();
     }
 
     const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
@@ -2019,11 +2019,11 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
       method: "POST",
       headers,
       body: JSON.stringify({
-        capability: "memory.delete",
+        capability: "knowledge.create",
         approval: {
           serverVerified: true,
           ownerId: ownerUid,
-          capability: "memory.delete",
+          capability: "knowledge.create",
           scope: "owner_staging",
           status: "issued",
           expiresAt: now + 1800,
@@ -2039,7 +2039,7 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
     const foreign = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId: foreignApprovalId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId: foreignApprovalId }),
     });
     assert.equal(foreign.status, 200);
     const foreignBody = await foreign.json();
@@ -2051,7 +2051,7 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
     const valid = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId }),
     });
     assert.equal(valid.status, 200);
     const validBody = await valid.json();
@@ -2111,13 +2111,13 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
 
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(validId, ownerUid, "memory.delete", now, now + 600).run();
+    ).bind(validId, ownerUid, "knowledge.create", now, now + 600).run();
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(expiredId, ownerUid, "memory.delete", now - 3600, now - 1).run();
+    ).bind(expiredId, ownerUid, "knowledge.create", now - 3600, now - 1).run();
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(revokedId, ownerUid, "memory.delete", now, now + 600).run();
+    ).bind(revokedId, ownerUid, "knowledge.create", now, now + 600).run();
     await db.prepare(
       "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id=?"
     ).bind(now, revokedId).run();
@@ -2130,7 +2130,7 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
     const auditFailure = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId: validId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId: validId }),
     });
     assert.equal(auditFailure.status, 503, "assessment must fail closed when its audit cannot be written");
     const unchangedAfterFailure = await db.prepare(
@@ -2149,7 +2149,7 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
     const evaluate = approvalId => mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId }),
     });
     const unknown = await evaluate(unknownId);
     assert.equal(unknown.status, 200);
@@ -2209,7 +2209,7 @@ async function testCapabilityApprovalRevocationOwnerAndExpiryBoundaries() {
     ]) {
       await db.prepare(
         "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-      ).bind(id, owner, "memory.delete", issuedAt, expiresAt).run();
+      ).bind(id, owner, "knowledge.create", issuedAt, expiresAt).run();
     }
 
     const headers = { Authorization: "Bearer " + token };
@@ -4093,7 +4093,7 @@ async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity()
     ).bind("session-capability-management", tokenHash(token), ownerUid, now, now + 3600).run();
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(foreignId, foreignUid, "memory.delete", now, now + 1800).run();
+    ).bind(foreignId, foreignUid, "knowledge.create", now, now + 1800).run();
 
     const headers = { Origin: "https://mehranmsh.github.io", Authorization: "Bearer " + token, "Content-Type": "application/json" };
     const issued = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
