@@ -465,7 +465,8 @@ async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows
     );
     await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_capability_guard").run();
     await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('legacy-delete','staging-owner','memory.delete','owner_staging','issued',100,200)").run();
-    const migration = await readFile(new URL("migrations/0016_intelligence_capability_approval_allowlist.sql", ROOT), "utf8");
+    const migrationSource = await readFile(new URL("migrations/0016_intelligence_capability_approval_allowlist.sql", ROOT), "utf8");
+    const migration = migrationSource.split("\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\s+/g, " ").trim();
     await db.exec(migration);
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
