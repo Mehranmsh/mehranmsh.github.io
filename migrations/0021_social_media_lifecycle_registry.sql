@@ -5,6 +5,7 @@
 ALTER TABLE social_stories ADD COLUMN media_upload_id TEXT;
 ALTER TABLE social_users ADD COLUMN avatar_upload_id TEXT;
 ALTER TABLE social_profile_photos ADD COLUMN upload_id TEXT;
+ALTER TABLE social_uploads ADD COLUMN lifecycle_managed INTEGER NOT NULL DEFAULT 0 CHECK (lifecycle_managed IN (0,1));
 
 CREATE TABLE IF NOT EXISTS social_media_references (
   id TEXT PRIMARY KEY,
@@ -71,7 +72,7 @@ CREATE TRIGGER IF NOT EXISTS trg_social_media_reference_owner_guard
 BEFORE INSERT ON social_media_references
 WHEN NOT EXISTS (
   SELECT 1 FROM social_uploads u
-  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready'
+  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready' AND u.lifecycle_managed=1 AND u.lifecycle_managed=1
     AND (
       (NEW.content_type='message' AND u.acl='private')
       OR (NEW.content_type!='message' AND u.acl='public')
@@ -179,7 +180,7 @@ END;
 
 CREATE TRIGGER IF NOT EXISTS trg_social_upload_delete_guard
 BEFORE DELETE ON social_uploads
-WHEN EXISTS (
+WHEN OLD.lifecycle_managed!=1 OR EXISTS (
   SELECT 1 FROM social_media_references
   WHERE upload_id=OLD.id AND released_at IS NULL
 ) OR EXISTS (
@@ -203,7 +204,7 @@ BEGIN
   SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
     'post-release:'||u.id||':'||lower(hex(randomblob(16))),'pending'
   FROM social_uploads u
-  WHERE EXISTS (
+  WHERE u.lifecycle_managed=1 AND EXISTS (
     SELECT 1 FROM social_media_references r
     WHERE r.upload_id=u.id AND r.content_type='post' AND r.content_id=OLD.id
       AND r.released_at IS NOT NULL
@@ -283,7 +284,7 @@ BEGIN
   SELECT lower(hex(randomblob(16))),lower(hex(randomblob(16))),u.id,u.user_id,
     'avatar-release:'||u.id||':'||lower(hex(randomblob(16))),'pending'
   FROM social_uploads u
-  WHERE u.id=OLD.avatar_upload_id
+  WHERE u.lifecycle_managed=1 AND u.id=OLD.avatar_upload_id
     AND NOT EXISTS (
       SELECT 1 FROM social_media_references r
       WHERE r.upload_id=u.id AND r.released_at IS NULL
