@@ -13,6 +13,7 @@ on:
       - "worker.js"
       - "intelligence-staging-worker.js"
       - "intelligence-review-queue.mjs"
+      - "intelligence-project-api.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
