@@ -266,6 +266,8 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
   assert.doesNotMatch(indexSource, /data-intel-task-status=/);
+  assert.doesNotMatch(indexSource, /intelTaskActionType|intelTaskAssignee/);
+  assert.match(indexSource, /body:JSON\.stringify\(\{title,description,priority:\$\("intelTaskPriority"\)\.value,requiresApproval:\$\("intelTaskApproval"\)\.checked\}\)/);
   assert.doesNotMatch(indexSource, /updateIntelligenceTask\(/);
 });
 
