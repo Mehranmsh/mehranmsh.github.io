@@ -14,6 +14,7 @@ const migrationNames = [
   "0007_intelligence_approval_ledger_state_guards",
   "0008_intelligence_capability_approval_ledger",
   "0016_intelligence_capability_approval_allowlist",
+  "0017_intelligence_audit_immutability_and_approval_timestamps",
 ];
 
 const CONSUME = `
