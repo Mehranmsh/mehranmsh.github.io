@@ -4989,9 +4989,9 @@ async function socialCreateUpload(request, env) {
 
     await env.DB.prepare(`
       INSERT INTO social_uploads(
-        id,user_id,name,size,mime_type,acl,status,url
+        id,user_id,name,size,mime_type,acl,status,url,lifecycle_managed
       )
-      VALUES(?,?,?,?,?,?,'uploading',?)
+      VALUES(?,?,?,?,?,?,'uploading',?,1)
     `).bind(
       result.file.id,
       user.id,
@@ -5129,9 +5129,12 @@ async function socialDeleteUpload(request, env, id) {
   if (!await socialMediaLifecycleSchemaReady(env)) return error("SOCIAL media lifecycle schema is not ready.", 503);
 
   const row = await env.DB.prepare(
-    "SELECT id FROM social_uploads WHERE id=? AND user_id=?"
+    "SELECT id,lifecycle_managed FROM social_uploads WHERE id=? AND user_id=?"
   ).bind(id,user.id).first();
   if (!row) return error("File not found",404);
+  if (Number(row.lifecycle_managed) !== 1) {
+    return error("This legacy upload has not been reconciled and cannot be queued for automatic deletion.",409);
+  }
 
   const active = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM social_media_references WHERE upload_id=? AND released_at IS NULL"
