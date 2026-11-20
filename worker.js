@@ -1591,12 +1591,12 @@ async function socialUpdateProfile(request, env) {
   }
   let avatarUpload=null;
   if (avatarUrl) {
-    avatarUpload=await env.DB.prepare("SELECT id,url FROM social_uploads WHERE user_id=? AND url=? AND status='ready' AND acl='public' LIMIT 1").bind(user.id,avatarUrl).first();
+    avatarUpload=await env.DB.prepare("SELECT id,url FROM social_uploads WHERE user_id=? AND url=? AND status='ready' AND acl='public' AND lifecycle_managed=1 LIMIT 1").bind(user.id,avatarUrl).first();
     if (!avatarUpload) return error("Avatar must be a ready public upload owned by your account.",400);
   }
   const galleryUploads=[];
   if (galleryInput) for (const url of galleryInput) {
-    const upload=await env.DB.prepare("SELECT id,url FROM social_uploads WHERE user_id=? AND url=? AND status='ready' AND acl='public' LIMIT 1").bind(user.id,url).first();
+    const upload=await env.DB.prepare("SELECT id,url FROM social_uploads WHERE user_id=? AND url=? AND status='ready' AND acl='public' AND lifecycle_managed=1 LIMIT 1").bind(user.id,url).first();
     if (!upload) return error("Every gallery image must be a ready public upload owned by your account.",400);
     galleryUploads.push(upload);
   }
@@ -1786,13 +1786,13 @@ async function validatePostMedia(env, userId, media) {
     if (!id || id.length > 150) return null;
 
     const row = await env.DB.prepare(`
-      SELECT id,name,mime_type,url,acl,status
+      SELECT id,name,mime_type,url,acl,status,lifecycle_managed
       FROM social_uploads
       WHERE id=? AND user_id=?
       LIMIT 1
     `).bind(id, userId).first();
 
-    if (!row || row.status !== "ready" || row.acl !== "public" || !row.url) {
+    if (!row || Number(row.lifecycle_managed) !== 1 || row.status !== "ready" || row.acl !== "public" || !row.url) {
       return null;
     }
 
@@ -2716,11 +2716,11 @@ async function socialCreateStory(request, env) {
   // Stories must reference a ready public upload owned by the publisher.
   // This prevents arbitrary external URLs and cross-account media injection.
   const upload = await env.DB.prepare(`
-    SELECT id,url,mime_type,status,acl FROM social_uploads
+    SELECT id,url,mime_type,status,acl,lifecycle_managed FROM social_uploads
     WHERE user_id=? AND url=? LIMIT 1
   `).bind(user.id, mediaUrl).first();
   const expectedMime = mediaType === "video" ? "video/" : "image/";
-  if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+  if (!upload || Number(upload.lifecycle_managed) !== 1 || upload.status !== "ready" || upload.acl !== "public" ||
       !validHttpsUrl(upload.url) || !String(upload.mime_type || "").toLowerCase().startsWith(expectedMime)) {
     return error("Story media must be a ready image or video uploaded by your account.", 400);
   }
@@ -3378,9 +3378,9 @@ async function socialSendMessage(request, env, conversationId) {
     if (item?.uploadId) {
       const uploadId = String(item.uploadId).slice(0, 150);
       const upload = await env.DB.prepare(
-        "SELECT id,name,mime_type,acl,status FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+        "SELECT id,name,mime_type,acl,status,lifecycle_managed FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
       ).bind(uploadId, user.id).first();
-      if (!upload || upload.status !== "ready" || upload.acl !== "private") {
+      if (!upload || Number(upload.lifecycle_managed) !== 1 || upload.status !== "ready" || upload.acl !== "private") {
         return error("Private attachment is unavailable or does not belong to your account.", 400);
       }
       media.push({
@@ -3389,7 +3389,11 @@ async function socialSendMessage(request, env, conversationId) {
         name: cleanText(item.name || upload.name, 180)
       });
     } else if (item && validHttpsUrl(item.url)) {
-      // Backward compatibility for existing public attachments.
+      const ownedUpload = await env.DB.prepare(
+        "SELECT id FROM social_uploads WHERE user_id=? AND url=? AND lifecycle_managed=1 LIMIT 1"
+      ).bind(user.id,item.url).first();
+      if (ownedUpload) return error("Use the uploadId field for your own uploaded media.",400);
+      // External/legacy public URLs remain supported, but are not managed uploads.
       media.push({
         url: item.url,
         type: cleanText(item.type || "", 100),
@@ -4137,9 +4141,9 @@ async function socialChannelPost(request, env, channelId) {
     if (item?.uploadId) {
       const uploadId = String(item.uploadId).slice(0, 150);
       const upload = await env.DB.prepare(
-        "SELECT id,name,mime_type,acl,status,url FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
+        "SELECT id,name,mime_type,acl,status,url,lifecycle_managed FROM social_uploads WHERE id=? AND user_id=? LIMIT 1"
       ).bind(uploadId, user.id).first();
-      if (!upload || upload.status !== "ready" || upload.acl !== "public" ||
+      if (!upload || Number(upload.lifecycle_managed) !== 1 || upload.status !== "ready" || upload.acl !== "public" ||
           !upload.url || !validHttpsUrl(upload.url)) {
         return error("Channel media must be a ready public upload owned by your account.", 400);
       }
