@@ -4435,12 +4435,13 @@ async function testPriorityActionReviewIntegrityDetectsActionKeyMismatch() {
     check_id: "authentication",
     action_key_sha256: "f".repeat(64),
     outcome: "accepted",
-    reviewed_at: Math.floor(Date.now() / 1000),
+    reviewed_at: 1000,
+    created_at: 1000,
     review_snapshot_json: snapshotJson,
     review_snapshot_sha256: snapshotHash
   };
   const inspect = rows => buildPriorityActionReviewIntegrity(rows, async value =>
-    createHash("sha256").update(value).digest("hex"));
+    createHash("sha256").update(value).digest("hex"), 1000);
   const mismatch = await inspect([row]);
   assert.equal(mismatch.summary.actionKeyMismatches, 1);
   assert.equal(mismatch.items[0].actionKeyMatchesSnapshot, false);
@@ -4450,7 +4451,19 @@ async function testPriorityActionReviewIntegrityDetectsActionKeyMismatch() {
   const valid = await inspect([row]);
   assert.equal(valid.summary.integrityMatches, 1);
   assert.equal(valid.items[0].actionKeyMatchesSnapshot, true);
-  console.log("PASS: priority action review integrity detects action-key/snapshot hash mismatches");
+
+  row.reviewed_at = 1001;
+  row.created_at = 1001;
+  const future = await inspect([row]);
+  assert.equal(future.summary.invalidReviewTimestamps, 1);
+  assert.equal(future.items[0].status, "invalid_review_timestamp");
+
+  row.reviewed_at = 1000;
+  row.created_at = 999;
+  const mismatched = await inspect([row]);
+  assert.equal(mismatched.summary.invalidReviewTimestamps, 1);
+  assert.equal(mismatched.items[0].reviewTimestampValid, false);
+  console.log("PASS: priority action review integrity detects action-key and timestamp mismatches");
 }
 
 await testPublicHealthRouteIsIpRateLimited();
