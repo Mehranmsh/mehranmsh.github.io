@@ -139,6 +139,26 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("issued_at <= 0", lifecycle_query)
         self.assertIn("invalidCapabilityApprovalLifecycleCount === 0", self.source)
 
+    def test_both_approval_ledgers_require_consumption_locks_and_legacy_timestamp_guards(self):
+        migration = (ROOT / "migrations" / "0019_intelligence_approval_consumption_lock_and_legacy_timestamps.sql").read_text(encoding="utf-8")
+        for trigger in (
+            "trg_intelligence_approval_issued_at_guard",
+            "trg_intelligence_approval_terminal_timestamp_guard",
+            "trg_intelligence_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_consumption_disabled",
+        ):
+            self.assertIn(trigger, migration)
+            self.assertIn(f'"{trigger}"', self.source)
+        self.assertIn("NEW.status = 'consumed'", migration)
+        self.assertIn("NEW.revoked_at < OLD.issued_at", migration)
+        self.assertIn("NEW.revoked_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("OLD.expires_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("status='consumed'", self.source)
+        self.assertIn("invalidLegacyApprovalLifecycleCount === 0", self.source)
+        lifecycle_query = next((line for line in self.source.splitlines() if "invalidLegacyApprovalLifecycle =" in line), "")
+        for fragment in ("issued_at <= 0", "expires_at <= issued_at", "expires_at > issued_at + 3600", "status='consumed'"):
+            self.assertIn(fragment, lifecycle_query)
+
     def test_no_executor_scheduler_or_production_binding(self):
         forbidden = [
             r'\bscheduled\s*\(',
