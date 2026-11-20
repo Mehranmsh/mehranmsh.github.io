@@ -27,6 +27,7 @@ const migrations = [
   "0014_intelligence_owner_identity_immutability",
   "0015_intelligence_task_execution_disabled",
   "0016_intelligence_capability_approval_allowlist",
+  "0017_intelligence_audit_immutability_and_approval_timestamps",
 ];
 
 async function applyMigrations(db, names) {
@@ -456,6 +457,7 @@ async function testHealthRejectsPreexistingTaskExecutionState() {
 
 await testHealthRejectsPreexistingTaskExecutionState();
 await testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows();
+await testAuditAppendOnlyAndApprovalTimestampGuards();
 async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows() {
   const { mf, db } = await createWorker(migrations.length);
   try {
@@ -475,6 +477,34 @@ async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows
     assert.equal(body.invalidCapabilityApprovalCount, 1);
     assert.ok(body.missingTriggers.includes("trg_intelligence_capability_approval_capability_guard") === false);
     console.log("PASS: D1 rejects disabled approval capability and health blocks legacy rows");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testAuditAppendOnlyAndApprovalTimestampGuards() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) VALUES('audit-protected','staging-owner','test','test','target','{}',100)").run();
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_staging_audit SET action='rewritten' WHERE id='audit-protected'").run(),
+      /staging audit records are append-only/i,
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_staging_audit WHERE id='audit-protected'").run(),
+      /staging audit records are append-only/i,
+    );
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('future-revoke','staging-owner','memory.create','owner_staging','issued',?,?)").bind(now - 60, now + 600).run();
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'").bind(now + 3600).run(),
+      /invalid capability approval terminal timestamp/i,
+    );
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_capability_approvals SET status='expired' WHERE id='future-revoke'").run(),
+      /invalid capability approval terminal timestamp/i,
+    );
+    console.log("PASS: D1 audit history is append-only and approval terminal timestamps are bounded");
   } finally {
     await mf.dispose();
   }
