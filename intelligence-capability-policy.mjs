@@ -16,7 +16,6 @@ const CAPABILITIES = Object.freeze({
   "knowledge.create": { tier: "approval", effects: ["write"], scope: "owner_staging" },
   "memory.create": { tier: "approval", effects: ["write"], scope: "owner_staging" },
   "knowledge.review": { tier: "approval", effects: ["change_review_state"], scope: "owner_staging" },
-  "memory.delete": { tier: "approval", effects: ["delete"], scope: "owner_staging" },
   "task.execute": { tier: "forbidden", effects: ["external_or_mutating"], scope: "none" },
   "production.write": { tier: "forbidden", effects: ["production_mutation"], scope: "none" },
   "credential.read": { tier: "forbidden", effects: ["secret_access"], scope: "none" },
