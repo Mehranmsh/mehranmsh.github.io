@@ -549,7 +549,7 @@ for marker in [
 chat_message_function = public_page.split("function socialRenderChatMessage(m)", 1)[1].split("\nasync function socialStartCall", 1)[0]
 assert 'safeSocialMediaSource(item.url,type)' in chat_message_function, "Chat attachments must validate URLs before href/src rendering."
 assert 'const type=String(item.type||"").toLowerCase(),url=sx(safeSocialMediaSource(item.url,type));' in chat_message_function
-assert 'href="'+url+'"' in chat_message_function and 'src="'+url+'"' in chat_message_function
+assert "href=\"'+url+'\"" in chat_message_function and "src=\"'+url+'\"" in chat_message_function
 
 for marker in [
     'safeSocialMediaSource(story.mediaUrl,"video")',
