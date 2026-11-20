@@ -963,7 +963,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('const INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session"', self.index_html)
         self.assertNotIn('fetch(AUTH_WORKER+path', staging)
         load_start = self.index_html.index("async function loadIntelligence(){")
-        load_end = self.index_html.index("\nasync function testMcpConnection()", load_start)
+        load_end = self.index_html.index("\nasync function loadIntelligenceTasks()", load_start)
         load_ui = self.index_html[load_start:load_end]
         self.assertIn('intelligenceStagingRequest("/session")', load_ui)
         self.assertNotIn('api("/admin/overview")', load_ui)
