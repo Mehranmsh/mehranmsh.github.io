@@ -204,6 +204,22 @@ def test_reference_and_job_owner_guards():
     db.close()
 
 
+def test_completed_provider_deletion_prevents_new_references():
+    db = build_db()
+    add_upload(db)
+    db.execute("INSERT INTO social_posts(id,user_id) VALUES('post-before-delete','user-a')")
+    add_ref(db, "file-a", "post", "post-before-delete")
+    db.execute("DELETE FROM social_posts WHERE id='post-before-delete'")
+    job_id = db.execute("SELECT id FROM social_media_deletion_jobs WHERE upload_id='file-a'").fetchone()[0]
+    db.execute("UPDATE social_media_deletion_jobs SET status='completed',completed_at=CURRENT_TIMESTAMP WHERE id=?", (job_id,))
+    db.execute("INSERT INTO social_posts(id,user_id) VALUES('post-after-delete','user-a')")
+    expect_integrity_error(
+        lambda: add_ref(db, "file-a", "post", "post-after-delete"),
+        "a provider-deleted upload must never receive a new reference",
+    )
+    db.close()
+
+
 def test_unmanaged_legacy_uploads_are_never_queued_or_deleted():
     db = build_db()
     add_upload(db, "legacy-file", managed=0)
@@ -243,6 +259,7 @@ if __name__ == "__main__":
         test_duplicate_active_reference_is_rejected,
         test_reference_and_job_owner_guards,
         test_unmanaged_legacy_uploads_are_never_queued_or_deleted,
+        test_completed_provider_deletion_prevents_new_references,
     ]
     for test in tests:
         test()
