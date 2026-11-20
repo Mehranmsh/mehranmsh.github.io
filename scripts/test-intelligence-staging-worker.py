@@ -955,10 +955,10 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         staging_start = self.index_html.index("async function intelligenceStagingRequest")
         staging_end = self.index_html.index("\nfunction updateIntelligenceStagingSessionUI", staging_start)
         staging = self.index_html[staging_start:staging_end]
-        self.assertIn('if(!INTELLIGENCE_STAGING_WORKER_URL)throw new Error(', staging)
+        self.assertIn('if(!hasValidIntelligenceStagingUrl())throw new Error(', staging)
         self.assertIn('function hasValidIntelligenceStagingUrl(){return /^https:\\/\\/mehran-intelligence-staging\\.[a-z0-9-]+\\.workers\\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}', self.index_html)
         self.assertIn('tokenOverride', staging)
-        self.assertLess(staging.index('if(!INTELLIGENCE_STAGING_WORKER_URL)'), staging.index('fetch(INTELLIGENCE_STAGING_WORKER_URL+path'))
+        self.assertLess(staging.index('if(!hasValidIntelligenceStagingUrl())'), staging.index('fetch(INTELLIGENCE_STAGING_WORKER_URL+path'))
         self.assertIn('const INTELLIGENCE_STAGING_WORKER_URL=""', self.index_html)
         self.assertIn('const INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session"', self.index_html)
         self.assertNotIn('fetch(AUTH_WORKER+path', staging)
