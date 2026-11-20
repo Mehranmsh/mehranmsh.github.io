@@ -343,6 +343,10 @@ async function handle(request, env) {
   if (!env.DB) return fail("Staging database binding is unavailable.", 503);
 
   if (path === "/health" && method === "GET") {
+    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (!await rateLimit(env.DB, `ip:${clientIp}`, "health")) {
+      return fail("Health check rate limit exceeded.", 429);
+    }
     try {
       const required = [
         "intelligence_tasks", "intelligence_knowledge", "intelligence_approval_ledger",
