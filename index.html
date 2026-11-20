@@ -2323,6 +2323,203 @@ async function loadIntelligence(){
  }finally{if(button)button.disabled=false}
 }
 
+
+
+const intelligenceMemoryLabels={company:"Company",decision:"Decision",preference:"Preference",security:"Security",project:"Project"};
+async function loadIntelligenceMemory(){
+const status=$("intelMemoryStatus"),list=$("intelMemoryList");if(!status||!list)return;
+status.textContent="Loading private owner memory...";status.className="notice";
+try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.memory||[]);status.textContent=(data.memory||[]).length+" private notes loaded. These notes are included as context in Intelligence conversations.";status.className="notice success"}
+catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the administrator session is restored.</div>'}
+}
+function renderIntelligenceMemory(items){
+const list=$("intelMemoryList");if(!list)return;
+if(!items.length){list.innerHTML='<div class="empty">No saved notes yet. Add only durable facts or decisions that Intelligence should retain.</div>';return}
+list.replaceChildren();
+items.forEach(item=>{
+const card=document.createElement("div");card.className="card";
+const heading=document.createElement("div");heading.className="section-title";
+const label=document.createElement("strong");label.textContent=intelligenceMemoryLabels[item.category]||"Memory";
+const remove=document.createElement("button");remove.type="button";remove.className="btn secondary small";remove.textContent="Delete";remove.dataset.deleteIntelMemory=item.id;
+heading.append(label,remove);
+const content=document.createElement("p");content.textContent=item.content;content.style.whiteSpace="pre-wrap";
+const date=document.createElement("div");date.className="small-text";date.textContent="Updated: "+(item.updatedAt||item.createdAt||"");
+card.append(heading,content,date);list.append(card);
+});
+}
+async function saveIntelligenceMemory(event){
+event.preventDefault();const status=$("intelMemoryStatus"),button=$("intelMemorySaveBtn"),content=$("intelMemoryContent").value.trim(),category=$("intelMemoryCategory").value;
+if(content.length<3){status.textContent="Write at least 3 characters.";status.className="notice warn";return}
+button.disabled=true;
+try{await api("/intelligence/memory",{method:"POST",body:JSON.stringify({category,content})});$("intelMemoryContent").value="";status.textContent="Private note saved and added to the audit log.";status.className="notice success";await loadIntelligenceMemory()}
+catch(error){status.textContent="Could not save note: "+error.message;status.className="notice warn"}
+finally{button.disabled=false}
+}
+async function deleteIntelligenceMemory(id,button){
+if(!id||!confirm("Delete this private Intelligence memory note?"))return;
+button.disabled=true;
+try{await api("/intelligence/memory/"+encodeURIComponent(id),{method:"DELETE"});$("intelMemoryStatus").textContent="Memory note deleted and deletion recorded in the audit log.";$("intelMemoryStatus").className="notice success";await loadIntelligenceMemory()}
+catch(error){$("intelMemoryStatus").textContent="Could not delete note: "+error.message;$("intelMemoryStatus").className="notice warn";button.disabled=false}
+}
+$("intelMemoryForm")?.addEventListener("submit",saveIntelligenceMemory);
+$("refreshIntelMemoryBtn")?.addEventListener("click",loadIntelligenceMemory);
+$("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-delete-intel-memory]");if(button)deleteIntelligenceMemory(button.dataset.deleteIntelMemory,button)});
+
+
+const intelligenceKnowledgeLabels={company:"Company",module:"Module",decision:"Decision",goal:"Goal",procedure:"Procedure",project:"Project"};
+window.intelligenceKnowledgeCache=[];
+async function loadIntelligenceKnowledge(){
+ const status=$("intelKnowledgeStatus"),list=$("intelKnowledgeList");if(!status||!list)return;
+ status.textContent="Loading organizational knowledge...";status.className="notice";
+ try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.knowledge||[]);status.textContent=(data.knowledge||[]).length+" knowledge entries loaded. Core entries are protected; owner entries can be edited or archived.";status.className="notice success"}
+ catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the administrator session is restored.</div>'}
+}
+function renderIntelligenceKnowledge(items){
+ const list=$("intelKnowledgeList");if(!list)return;window.intelligenceKnowledgeCache=Array.isArray(items)?items:[];
+ if(!items.length){list.innerHTML='<div class="empty">No organizational knowledge is available.</div>';return}
+ list.replaceChildren();
+ items.forEach(item=>{
+  const card=document.createElement("article");card.className="card";
+  const head=document.createElement("div");head.className="section-title";
+  const title=document.createElement("strong");title.textContent=item.title||intelligenceKnowledgeLabels[item.category]||"Knowledge";
+  const meta=document.createElement("span");meta.className="small-text";meta.textContent=(intelligenceKnowledgeLabels[item.category]||"Knowledge")+" · "+(item.importance||"normal")+(item.source==="system"?" · Core":" · Owner");
+  head.append(title,meta);const content=document.createElement("p");content.textContent=item.content||"";content.style.whiteSpace="pre-wrap";card.append(head,content);
+  if(item.source==="owner"){const actions=document.createElement("div");actions.className="hero-actions";const edit=document.createElement("button");edit.type="button";edit.className="btn secondary small";edit.textContent="Edit";edit.dataset.editIntelKnowledge=item.id;const archive=document.createElement("button");archive.type="button";archive.className="btn secondary small";archive.textContent="Archive";archive.dataset.archiveIntelKnowledge=item.id;actions.append(edit,archive);card.append(actions)}
+  list.append(card);
+ });
+}
+function resetIntelKnowledgeForm(){$("intelKnowledgeEditingId").value="";$("intelKnowledgeForm").reset();$("intelKnowledgeSaveBtn").textContent="Save knowledge";$("intelKnowledgeCancelBtn").hidden=true}
+async function saveIntelligenceKnowledge(event){
+ event.preventDefault();const status=$("intelKnowledgeStatus"),button=$("intelKnowledgeSaveBtn"),id=$("intelKnowledgeEditingId").value;
+ const body={category:$("intelKnowledgeCategory").value,importance:$("intelKnowledgeImportance").value,title:$("intelKnowledgeTitle").value.trim(),content:$("intelKnowledgeContent").value.trim()};
+ if(body.title.length<3||body.content.length<3){status.textContent="Enter a title and knowledge text.";status.className="notice warn";return}
+ button.disabled=true;
+ try{await api(id?"/intelligence/knowledge/"+encodeURIComponent(id):"/intelligence/knowledge",{method:id?"PUT":"POST",body:JSON.stringify(body)});resetIntelKnowledgeForm();status.textContent=id?"Knowledge updated and audit event recorded.":"Knowledge saved and audit event recorded.";status.className="notice success";await loadIntelligenceKnowledge()}
+ catch(error){status.textContent="Could not save knowledge: "+error.message;status.className="notice warn"}finally{button.disabled=false}
+}
+async function archiveIntelligenceKnowledge(id,button){
+ if(!id||!confirm("Archive this owner knowledge entry?"))return;button.disabled=true;
+ try{await api("/intelligence/knowledge/"+encodeURIComponent(id),{method:"DELETE"});$("intelKnowledgeStatus").textContent="Knowledge archived and audit event recorded.";$("intelKnowledgeStatus").className="notice success";await loadIntelligenceKnowledge()}
+ catch(error){$("intelKnowledgeStatus").textContent="Could not archive knowledge: "+error.message;$("intelKnowledgeStatus").className="notice warn";button.disabled=false}
+}
+function editIntelligenceKnowledge(id){
+ const item=window.intelligenceKnowledgeCache.find(x=>x.id===id&&x.source==="owner");if(!item)return;
+ $("intelKnowledgeEditingId").value=item.id;$("intelKnowledgeCategory").value=item.category;$("intelKnowledgeImportance").value=item.importance;$("intelKnowledgeTitle").value=item.title;$("intelKnowledgeContent").value=item.content;$("intelKnowledgeSaveBtn").textContent="Update knowledge";$("intelKnowledgeCancelBtn").hidden=false;$("intelKnowledgeForm").scrollIntoView({behavior:"smooth",block:"center"});
+}
+$("intelKnowledgeForm")?.addEventListener("submit",saveIntelligenceKnowledge);
+$("intelKnowledgeCancelBtn")?.addEventListener("click",resetIntelKnowledgeForm);
+$("refreshIntelKnowledgeBtn")?.addEventListener("click",loadIntelligenceKnowledge);
+$("intelKnowledgeList")?.addEventListener("click",event=>{const a=event.target.closest("[data-archive-intel-knowledge]"),e=event.target.closest("[data-edit-intel-knowledge]");if(a)archiveIntelligenceKnowledge(a.dataset.archiveIntelKnowledge,a);if(e)editIntelligenceKnowledge(e.dataset.editIntelKnowledge)});
+
+const intelligenceRelationLabels={conflicts_with:"Potential conflict",supersedes:"May replace",supports:"Supports"};
+const intelligenceRelationStatusLabels={candidate:"Needs owner review",confirmed:"Owner confirmed",dismissed:"Dismissed",resolved:"Owner resolved"};
+async function loadIntelligenceRelations(){
+ const status=$("intelRelationsStatus"),list=$("intelRelationsList");if(!status||!list)return;
+ status.textContent="Loading owner-scoped knowledge relationships...";status.className="notice";
+ const filter=$("intelRelationStatusFilter")?.value||"";
+ try{
+  const data=await api("/intelligence/knowledge/relations"+(filter?"?status="+encodeURIComponent(filter):""));
+  renderIntelligenceRelations(data.relations||[]);
+  const count=(data.relations||[]).length;
+  status.textContent=count+" relationship"+(count===1?"":"s")+" loaded. Only your records are shown.";
+  status.className="notice success";
+ }catch(error){
+  status.textContent="Could not load knowledge relationships: "+error.message;
+  status.className="notice warn";
+  list.replaceChildren();
+  const empty=document.createElement("div");empty.className="empty";empty.textContent="Relationship storage may not yet be installed in this environment, or your administrator session has expired.";list.append(empty);
+ }
+}
+function renderIntelligenceRelations(items){
+ const list=$("intelRelationsList");if(!list)return;
+ list.replaceChildren();
+ if(!Array.isArray(items)||!items.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No relationships match this filter. AI suggestions will appear here when available.";list.append(empty);return}
+ items.forEach(item=>{
+  const card=document.createElement("article");card.className="card";
+  const head=document.createElement("div");head.className="section-title";
+  const title=document.createElement("strong");title.textContent=intelligenceRelationLabels[item.relation_type]||item.relation_type||"Knowledge relationship";
+  const status=document.createElement("span");status.className="small-text";status.textContent=intelligenceRelationStatusLabels[item.status]||item.status||"Unknown";
+  head.append(title,status);card.append(head);
+  const source=document.createElement("h3");source.textContent=item.source_title||"Source knowledge";
+  const sourceEvidence=document.createElement("p");sourceEvidence.textContent="Evidence: "+(item.source_evidence||"");sourceEvidence.style.whiteSpace="pre-wrap";
+  const target=document.createElement("h3");target.textContent=item.target_title||"Target knowledge";
+  const targetEvidence=document.createElement("p");targetEvidence.textContent="Evidence: "+(item.target_evidence||"");targetEvidence.style.whiteSpace="pre-wrap";
+  card.append(source,sourceEvidence);
+  const sourceRecord=(window.intelligenceKnowledgeCache||[]).find(entry=>entry.id===item.source_knowledge_id);
+  if(sourceRecord){const details=document.createElement("details");const summary=document.createElement("summary");summary.textContent="Review full source record";const full=document.createElement("p");full.textContent=sourceRecord.content||"";full.style.whiteSpace="pre-wrap";details.append(summary,full);card.append(details)}
+  card.append(target,targetEvidence);
+  const targetRecord=(window.intelligenceKnowledgeCache||[]).find(entry=>entry.id===item.target_knowledge_id);
+  if(targetRecord){const details=document.createElement("details");const summary=document.createElement("summary");summary.textContent="Review full target record";const full=document.createElement("p");full.textContent=targetRecord.content||"";full.style.whiteSpace="pre-wrap";details.append(summary,full);card.append(details)}
+  const meta=document.createElement("div");meta.className="small-text";meta.textContent="Relationship updated: "+(item.updated_at||"Not available")+(sourceRecord?.updated_at?" · Source updated: "+sourceRecord.updated_at:"")+(targetRecord?.updated_at?" · Target updated: "+targetRecord.updated_at:"");card.append(meta);
+  const actions=document.createElement("div");actions.className="hero-actions";
+  if(item.status==="candidate"){
+   const confirmButton=document.createElement("button");confirmButton.type="button";confirmButton.className="btn small";confirmButton.textContent="Confirm relationship";confirmButton.dataset.intelRelationAction="confirm";confirmButton.dataset.relationId=item.id;
+   const dismissButton=document.createElement("button");dismissButton.type="button";dismissButton.className="btn secondary small";dismissButton.textContent="Dismiss suggestion";dismissButton.dataset.intelRelationAction="dismiss";dismissButton.dataset.relationId=item.id;
+   actions.append(confirmButton,dismissButton);
+  }else if(item.status==="confirmed"&&item.relation_type==="conflicts_with"){
+   const chooseSource=document.createElement("button");chooseSource.type="button";chooseSource.className="btn secondary small";chooseSource.textContent="Resolve: keep source";chooseSource.dataset.intelRelationAction="resolve";chooseSource.dataset.relationId=item.id;chooseSource.dataset.resolvedKnowledgeId=item.source_knowledge_id;
+   const chooseTarget=document.createElement("button");chooseTarget.type="button";chooseTarget.className="btn secondary small";chooseTarget.textContent="Resolve: keep target";chooseTarget.dataset.intelRelationAction="resolve";chooseTarget.dataset.relationId=item.id;chooseTarget.dataset.resolvedKnowledgeId=item.target_knowledge_id;
+   actions.append(chooseSource,chooseTarget);
+  }
+  if(actions.childElementCount)card.append(actions);
+  if(item.status==="resolved"&&item.resolved_knowledge_id){const resolution=document.createElement("div");resolution.className="notice success";resolution.textContent="Owner-selected record: "+(item.resolved_knowledge_id===item.source_knowledge_id?(item.source_title||"Source"):(item.target_title||"Target"));card.append(resolution)}
+  list.append(card);
+ });
+}
+async function updateIntelligenceRelation(button){
+ const id=button.dataset.relationId,action=button.dataset.intelRelationAction;
+ if(!id||!["confirm","dismiss","resolve"].includes(action))return;
+ const resolvedKnowledgeId=button.dataset.resolvedKnowledgeId||"";
+ const prompts={confirm:"Confirm this relationship based on the evidence shown?",dismiss:"Dismiss this AI suggestion?",resolve:"Record this as your selected knowledge entry for the conflict? Neither source record will be deleted."};
+ if(!confirm(prompts[action]))return;
+ const card=button.closest(".card");const buttons=card?.querySelectorAll("button")||[];buttons.forEach(b=>b.disabled=true);
+ const status=$("intelRelationsStatus");
+ try{
+  const body={action};if(action==="resolve")body.resolvedKnowledgeId=resolvedKnowledgeId;
+  await api("/intelligence/knowledge/relations/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify(body)});
+  status.textContent=action==="confirm"?"Relationship confirmed by owner.":action==="dismiss"?"Suggestion dismissed.":"Conflict resolution recorded. Both source records remain unchanged.";
+  status.className="notice success";
+  await loadIntelligenceRelations();
+  await loadIntelligenceEvents();
+ }catch(error){
+  status.textContent="Could not update relationship: "+error.message;status.className="notice warn";
+  buttons.forEach(b=>b.disabled=false);
+ }
+}
+$("refreshIntelRelationsBtn")?.addEventListener("click",loadIntelligenceRelations);
+$("intelRelationStatusFilter")?.addEventListener("change",loadIntelligenceRelations);
+$("intelRelationsList")?.addEventListener("click",event=>{const button=event.target.closest("[data-intel-relation-action]");if(button)updateIntelligenceRelation(button)});
+
+const intelligenceEventLabels={intelligence_task_proposed:"Task proposed",intelligence_task_created:"Task created",collaboration_task_updated:"Task updated",intelligence_approval_issued:"Approval issued",intelligence_approval_revoked:"Approval revoked",intelligence_memory_created:"Memory note saved",intelligence_memory_deleted:"Memory note deleted",intelligence_knowledge_created:"Knowledge entry saved",intelligence_knowledge_updated:"Knowledge entry updated",intelligence_knowledge_archived:"Knowledge entry archived",intelligence_knowledge_relation_ai_proposed:"AI relationship suggestion created",intelligence_knowledge_relation_proposed:"Relationship suggestion created",intelligence_knowledge_relation_confirmed:"Knowledge relationship confirmed",intelligence_knowledge_relation_dismissed:"Knowledge relationship dismissed",intelligence_knowledge_relation_resolved:"Knowledge conflict resolved"};
+async function loadIntelligenceEvents(){
+const status=$("intelEventsStatus"),list=$("intelEventsList");if(!status||!list)return;
+status.textContent="Loading private Intelligence activity...";status.className="notice";
+try{const data=await api("/intelligence/events");const events=data.events||[];list.replaceChildren();
+if(!events.length){list.innerHTML='<div class="empty">No Intelligence activity has been recorded yet.</div>'}
+else events.forEach(item=>{const card=document.createElement("div");card.className="card";const head=document.createElement("div");head.className="section-title";const title=document.createElement("strong");title.textContent=intelligenceEventLabels[item.action]||String(item.action||"Intelligence event").replaceAll("_"," ");const time=document.createElement("span");time.className="small-text";time.textContent=item.createdAt||"";head.append(title,time);const target=document.createElement("div");target.className="small-text";target.textContent=[item.targetType,item.targetId].filter(Boolean).join(" · ");const details=document.createElement("p");details.textContent=item.details||"";details.style.whiteSpace="pre-wrap";card.append(head,target,details);list.append(card)});
+status.textContent=events.length+" recent Intelligence events loaded. The log is read-only.";status.className="notice success"}
+catch(error){status.textContent="Could not load Intelligence activity: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">The activity log is unavailable until the administrator session is restored.</div>'}
+}
+$("refreshIntelEventsBtn")?.addEventListener("click",loadIntelligenceEvents);
+
+async function sendIntelligenceMessage(){
+const input=$("intelQuestion"),button=$("intelSendBtn"),reply=$("intelReply"),status=$("intelChatStatus");
+const message=(input.value||"").trim();if(!message){status.textContent="Write a question first.";status.className="notice warn";return}
+button.disabled=true;status.textContent="MEHRAN INTELLIGENCE is analyzing the available company data...";status.className="notice";
+reply.style.display="none";
+try{
+const data=await api("/intelligence/chat",{method:"POST",body:JSON.stringify({message})});
+reply.textContent=data.reply||"No response returned.";reply.style.display="block";
+$("intelQuota").textContent="Today: "+(data.usage?.dailyRequests??"—")+"/"+(data.usage?.dailyLimit??10)+" requests · Hourly limit: "+(data.usage?.hourlyLimit??3);
+status.textContent="Analysis complete. No company data was changed.";status.className="notice success";
+}catch(error){status.textContent="Assistant unavailable: "+error.message;status.className="notice warn"}
+finally{button.disabled=false}
+}
+$("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
+$("intelQuestion")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendIntelligenceMessage()}});
+$("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
+
+
 async function loadIntelligenceTasks(){
 const status=$("intelTasksStatus"),list=$("intelTasksList");
 if(!status||!list)return;
