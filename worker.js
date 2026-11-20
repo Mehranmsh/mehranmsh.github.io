@@ -1783,6 +1783,7 @@ const SOCIAL_MEDIA_LIFECYCLE_REQUIRED_TRIGGERS = [
   "trg_social_media_reference_owner_guard","trg_social_media_deletion_job_owner_guard",
   "trg_social_media_deletion_job_identity_immutable","trg_social_media_reference_identity_immutable",
   "trg_social_media_reference_no_delete","trg_social_media_reference_insert_audit",
+  "trg_social_media_reference_release_audit",
   "trg_social_media_deletion_job_audit","trg_social_media_audit_no_update",
   "trg_social_media_audit_no_delete","trg_social_upload_delete_guard",
   "trg_social_posts_media_release","trg_social_stories_media_release",
@@ -5137,6 +5138,16 @@ async function socialDeleteUpload(request, env, id) {
   ).bind(id).first();
   if (Number(active?.count || 0) > 0) {
     return error("This file is still used by SOCIAL content. Remove its references before requesting deletion.",409);
+  }
+
+  const existingJob = await env.DB.prepare(`
+    SELECT id FROM social_media_deletion_jobs
+    WHERE upload_id=? AND status IN ('pending','retry')
+    ORDER BY created_at DESC LIMIT 1
+  `).bind(id).first();
+  if (existingJob) {
+    return json({success:true,queued:true,alreadyQueued:true,deleted:false,
+      executionEnabled:SOCIAL_MEDIA_DELETION_EXECUTION_ENABLED,jobId:existingJob.id,id},202);
   }
 
   const jobId=crypto.randomUUID();
