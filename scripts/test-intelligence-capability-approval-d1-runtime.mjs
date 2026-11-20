@@ -110,6 +110,7 @@ async function testIssueTimestampGuardAndAuditAppendOnly() {
       /invalid capability approval issue or expiry timestamp/i,
       "future-dated issuance must be rejected by D1",
     );
+    await db.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) VALUES('audit-protected','owner-a','test','approval','grant-valid','{}',150)").run();
     await assert.rejects(
       db.prepare("UPDATE intelligence_staging_audit SET details_json='tampered' WHERE target_id='grant-valid'").run(),
       /append-only/i,
@@ -120,7 +121,7 @@ async function testIssueTimestampGuardAndAuditAppendOnly() {
       /append-only/i,
       "audit deletion must be rejected",
     );
-    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid'"), 0);
+    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid'"), 1);
   } finally {
     await mf.dispose();
   }
