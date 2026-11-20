@@ -150,6 +150,34 @@ BEGIN
   ) THEN RAISE(ABORT,'task dependency cycle') END;
 END;
 
+-- A task can be completed only after every recorded prerequisite is completed.
+CREATE TRIGGER trg_intelligence_task_completion_dependency_guard
+BEFORE UPDATE OF status ON intelligence_tasks
+WHEN NEW.status='completed' AND EXISTS (
+  SELECT 1 FROM intelligence_task_dependencies d
+  JOIN intelligence_tasks prerequisite ON prerequisite.id=d.depends_on_task_id
+  WHERE d.owner_uid=OLD.created_by
+    AND d.task_id=OLD.id
+    AND prerequisite.status<>'completed'
+)
+BEGIN
+  SELECT RAISE(ABORT,'task has incomplete prerequisites');
+END;
+
+-- Reopen completed dependents before reopening their completed prerequisite.
+CREATE TRIGGER trg_intelligence_task_reopen_dependency_guard
+BEFORE UPDATE OF status ON intelligence_tasks
+WHEN OLD.status='completed' AND NEW.status<>'completed' AND EXISTS (
+  SELECT 1 FROM intelligence_task_dependencies d
+  JOIN intelligence_tasks dependent ON dependent.id=d.task_id
+  WHERE d.owner_uid=OLD.created_by
+    AND d.depends_on_task_id=OLD.id
+    AND dependent.status='completed'
+)
+BEGIN
+  SELECT RAISE(ABORT,'completed dependent tasks must be reopened first');
+END;
+
 -- Moving a task cannot silently invalidate already-recorded dependency edges.
 CREATE TRIGGER trg_intelligence_task_dependency_consistency_update
 BEFORE UPDATE OF project_id,created_by ON intelligence_tasks
