@@ -4044,6 +4044,94 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
   }
 }
 
+async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "capability-management-owner";
+  const foreignUid = "capability-management-foreign";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const foreignId = "44444444-4444-4444-8444-444444444444";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-capability-management", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(
+      "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+    ).bind(foreignId, foreignUid, "memory.delete", now, now + 1800).run();
+
+    const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    const issued = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST", headers,
+      body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
+    });
+    assert.equal(issued.status, 201);
+    const issuedBody = await issued.json();
+    assert.equal(issuedBody.executionEnabled, false);
+    assert.equal(issuedBody.status, "issued");
+
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", { headers });
+    assert.equal(listed.status, 200);
+    const listBody = await listed.json();
+    assert.equal(listBody.items.some(item => item.id === issuedBody.id), true);
+    assert.equal(listBody.items.some(item => item.id === foreignId), false,
+      "capability approval list must be owner-scoped");
+
+    const foreignRevoke = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${foreignId}`,
+      { method: "DELETE", headers });
+    assert.equal(foreignRevoke.status, 409);
+    const foreignRow = await db.prepare("SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?")
+      .bind(foreignId).first();
+    assert.equal(foreignRow.status, "issued");
+    assert.equal(foreignRow.revoked_at, null);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_revoke_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_approval_revoked' BEGIN SELECT RAISE(ABORT, 'simulated capability audit outage'); END"
+    ).run();
+    const failedRevoke = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${issuedBody.id}`,
+      { method: "DELETE", headers });
+    assert.equal(failedRevoke.status, 503);
+    const afterFailedRevoke = await db.prepare("SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?")
+      .bind(issuedBody.id).first();
+    assert.equal(afterFailedRevoke.status, "issued",
+      "failed revocation audit must roll back the approval state transition");
+    assert.equal(afterFailedRevoke.revoked_at, null);
+    await db.prepare("DROP TRIGGER reject_capability_revoke_audit").run();
+
+    const revoked = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${issuedBody.id}`,
+      { method: "DELETE", headers });
+    assert.equal(revoked.status, 200);
+    const finalRow = await db.prepare("SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?")
+      .bind(issuedBody.id).first();
+    assert.equal(finalRow.status, "revoked");
+    assert.ok(finalRow.revoked_at);
+    const revokeAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND target_id=? AND action='capability_approval_revoked'"
+    ).bind(ownerUid, issuedBody.id).first();
+    assert.equal(Number(revokeAudit.count), 1);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_issue_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_approval_issued' BEGIN SELECT RAISE(ABORT, 'simulated issue audit outage'); END"
+    ).run();
+    const failedIssue = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST", headers,
+      body: JSON.stringify({ capability: "knowledge.create", expiresInSeconds: 300 }),
+    });
+    assert.equal(failedIssue.status, 503);
+    const orphaned = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE owner_uid=? AND capability='knowledge.create'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(orphaned.count), 0,
+      "approval issuance must roll back when its audit record cannot be written");
+    console.log("PASS: capability approval management is owner-scoped and issue/revoke audit failures roll back atomically");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
 await testMissingSecurityTriggerFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
