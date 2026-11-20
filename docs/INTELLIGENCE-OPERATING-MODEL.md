@@ -114,12 +114,16 @@ Passing repository CI is necessary but does not satisfy these live gates.
 The current isolated staging Worker provides Pi owner verification, short-lived hashed sessions, session revocation, owner-scoped knowledge and relationships, deterministic review prioritization, private memory, approval records, audit writes, and task planning. It does not perform external source retrieval, semantic fact-checking, autonomous truth selection, AI reasoning, code execution, scheduling, production operations, or Pi asset transactions. Those capabilities must not be represented in the UI as available until implemented and separately validated.
 
 
-## Legacy agent artifacts and actual production status
+## Legacy agent artifacts and actual production execution status
 
-The repository contains a legacy `scripts/intelligence-agent.mjs` file on the default `main` branch. A similarly named scheduled workflow, `.github/workflows/intelligence-agent.yml`, is present on the development branch used by this PR, but was not present in the inspected default-branch tree. Therefore, that five-minute schedule is not currently established as an active default-branch schedule.
+The repository contains a legacy `scripts/intelligence-agent.mjs` file on the default `main` branch. A similarly named scheduled workflow, `.github/workflows/intelligence-agent.yml`, is present on the development branch used by this PR, but was not present in the inspected default-branch tree. The default-branch `wrangler.jsonc` also contains no scheduled trigger declaration.
 
-More importantly, the production `worker.js` on `main` explicitly returns HTTP 410 ("Production Intelligence Agent execution is disabled.") for every `/agent/v1/` path before the older agent endpoint code below that guard. The legacy script still contains calls to those endpoints, but the current production Worker guard prevents those calls from claiming tasks or submitting results.
+The production `worker.js` on `main` has two separate execution boundaries:
+- Every `/agent/v1/` API path is explicitly rejected with HTTP 410 ("Production Intelligence Agent execution is disabled.") before the legacy endpoint implementation.
+- The Worker's `scheduled()` handler immediately returns before reaching its older task-processing code. That older code is unreachable while the unconditional return remains.
 
-**Verified conclusion:** the inspected repository state does not show an active production task executor. The legacy script and development-branch workflow are dormant artifacts, not evidence of live task execution. This is a source-code inspection, not a live runtime or secret-configuration audit.
+The scheduled handler therefore does not currently process tasks in the inspected source. Even if a Cloudflare dashboard trigger exists outside the repository configuration, the current handler returns without doing work. The legacy script still contains calls to the disabled API, and the development-branch workflow is not evidence of an active default-branch schedule.
 
-Do not remove the 410 guard, move/enable the scheduled workflow on `main`, configure agent credentials, or restore the legacy endpoint code as part of staging work. Any such activation requires a separate threat review, explicit owner authorization, and narrowly scoped action policy. The isolated staging Worker remains executor-free.
+**Verified conclusion:** source code on `main` explicitly disables both the legacy agent API and the scheduled task executor. This is a source-code/configuration inspection, not a live Cloudflare dashboard, deployed-version, secret, or runtime audit. Do not infer deployed state solely from the repository.
+
+Do not remove the HTTP 410 guard, remove the early return in `scheduled()`, move/enable the development workflow on `main`, configure agent credentials, or restore legacy execution code as part of staging work. Any such activation requires a separate threat review, explicit owner authorization, and narrowly scoped action policy. The isolated staging Worker remains executor-free.
