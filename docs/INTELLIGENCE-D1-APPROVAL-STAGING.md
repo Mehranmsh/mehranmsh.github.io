@@ -64,3 +64,8 @@ The staging Worker distinguishes the owner acting directly from a future AI/agen
 - No agent runtime, agent credential/session, agent polling route, tool bridge, approval-consumption route, or task-execution route exists. Never give the owner bearer session to an AI/agent. A future agent integration must use a separate identity and a server-enforced, one-time capability approval flow.
 
 This distinction is intentional: the owner can operate the private staging workspace directly, while Intelligence itself remains unable to exercise those privileges autonomously. EXECUTION_ENABLED=false remains mandatory.
+
+
+## Provenance cannot be self-asserted as system output
+
+The current owner forms and API cannot create records labelled `system_observation`. Knowledge creation also rejects `uploaded_document` until a server-verified upload ingestion path exists. Current accepted manual sources are owner input, owner-linked knowledge records for memory, and validated HTTPS URLs for knowledge. Future system observations and uploaded documents must be created only by dedicated trusted server-side ingestion paths, never by accepting a client-supplied source label.
