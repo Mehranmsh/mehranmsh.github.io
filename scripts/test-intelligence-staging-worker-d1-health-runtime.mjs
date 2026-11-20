@@ -3964,7 +3964,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       .bind(findingId, ownerUid).first();
     assert.deepEqual(afterFinding, beforeFinding, "owner review must not change finding state");
     const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1);
+    assert.equal(Number(afterAudit.count), Number(beforeOwnerReviewAudit.count) + 1);
 
     await assert.rejects(
       db.prepare("UPDATE intelligence_priority_action_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
