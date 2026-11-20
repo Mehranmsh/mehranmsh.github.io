@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+const intelligenceStagingWorkerSource = await readFile(new URL("../intelligence-staging-worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const agentWorkflowSource = await readFile(new URL("../.github/workflows/intelligence-agent.yml", import.meta.url), "utf8");
@@ -269,10 +270,10 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.doesNotMatch(indexSource, /intelTaskActionType|intelTaskAssignee/);
   assert.match(indexSource, /body:JSON\.stringify\(\{title,description,priority:\$\("intelTaskPriority"\)\.value,requiresApproval:\$\("intelTaskApproval"\)\.checked\}\)/);
   assert.match(indexSource, /renderIntelligenceTasks\(data\.items\|\|\[\]\)/);
-  assert.match(workerSource, /items: \(rows\.results \|\| \[\]\)\.map\(row => \(\{ id: row\.id, title: row\.title, description: row\.description, assignedTo: row\.assigned_to/);
-  assert.match(workerSource, /requiresApproval: Number\(row\.requires_approval\) === 1/);
-  assert.match(workerSource, /path === "\/intelligence\/events" && method === "GET"/);
-  assert.match(workerSource, /WHERE owner_uid = \?/);
+  assert.match(intelligenceStagingWorkerSource, /items: \(rows\.results \|\| \[\]\)\.map\(row => \(\{ id: row\.id, title: row\.title, description: row\.description, assignedTo: row\.assigned_to/);
+  assert.match(intelligenceStagingWorkerSource, /requiresApproval: Number\(row\.requires_approval\) === 1/);
+  assert.match(intelligenceStagingWorkerSource, /path === "\/intelligence\/events" && method === "GET"/);
+  assert.match(intelligenceStagingWorkerSource, /WHERE owner_uid = \?/);
   assert.match(indexSource, /renderIntelligenceMemory\(data\.items\|\|\[\]\)/);
   assert.match(indexSource, /renderIntelligenceKnowledge\(data\.items\|\|\[\]\)/);
   assert.match(indexSource, /renderIntelligenceRelations\(data\.items\|\|\[\]\)/);
