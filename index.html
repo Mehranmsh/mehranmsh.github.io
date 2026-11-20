@@ -2568,39 +2568,10 @@ const labels={queued:"Plan queued",accepted:"Plan accepted",in_progress:"Unexpec
 const actionTypes={project_status_report:"Project status report",social_metrics_report:"SOCIAL metrics report",service_health_report:"Service health report",repository_quality_check:"Repository quality checks",documentation_patch_proposal:"Documentation patch proposal"};
 list.innerHTML=tasks.map(task=>{
 const status=labels[task.status]||task.status;
-const next=null;
-const actionLabel="";
-const action=next?'<button class="btn '+(next==="cancelled"?'danger':'secondary')+' small" type="button" data-intel-task-status="'+escapeHTML(task.id)+'" data-next-status="'+next+'">'+actionLabel+'</button>':"";
 const executionNote=task.actionType==="documentation_patch_proposal"?(task.status==="awaiting_approval"?"This proposal is held for owner approval and cannot enter the active agent queue.":task.status==="accepted"?"Owner review recorded. Execution remains disabled.":""):(task.status==="accepted"?"Accepted plan only. No agent or scheduler can claim it.":task.status==="queued"?"Queued plan only. No automatic execution is enabled.":task.status==="in_progress"?"Unexpected running state. Investigate before proceeding.":"");
-return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(executionNote?'<div class="small-text">'+escapeHTML(executionNote)+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'<div class="hero-actions" style="margin-top:10px">'+action+'</div></article>';
+return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(executionNote?'<div class="small-text">'+escapeHTML(executionNote)+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'</article>';
 }).join("");
 }
-async function loadIntelligenceSchedulerRuns(){
-const status=$("intelRunsStatus"),list=$("intelRunsList");
-if(!status||!list)return;
-status.textContent="Loading recent scheduled runs...";
-try{
-const data=await api("/intelligence/scheduler/runs?limit=10");
-const runs=data.runs||[];
-if(!runs.length){
-status.textContent="No scheduled runs have been recorded yet. The history will populate after the next hourly trigger.";
-list.innerHTML='<div class="empty">No execution history yet.</div>';
-return;
-}
-status.textContent=runs.length+" recent scheduler runs.";
-const labels={completed:"Completed",failed:"Failed",running:"Running"};
-list.innerHTML=runs.map(run=>{
-const state=labels[run.status]||run.status||"Unknown";
-const stamp=run.startedAt?new Date(run.startedAt).toLocaleString():"Time unavailable";
-const error=run.error?'<div class="notice warn">'+escapeHTML(run.error)+'</div>':"";
-return '<article class="card"><div class="eyebrow">'+escapeHTML(state)+' · '+escapeHTML(stamp)+'</div><div class="small-text">Processed: '+Number(run.processed||0)+' · Completed: '+Number(run.completed||0)+' · Blocked: '+Number(run.blocked||0)+'</div>'+error+'</article>';
-}).join("");
-}catch(error){
-status.textContent="Scheduler history unavailable: "+error.message;
-list.innerHTML='<div class="empty">Sign in with the authorized administrator account to view private execution history.</div>';
-}
-}
-$("refreshIntelRunsBtn")?.addEventListener("click",loadIntelligenceSchedulerRuns);
 
 async function createIntelligenceTask(event){
 event.preventDefault();
@@ -2617,21 +2588,9 @@ await loadIntelligenceTasks();
 }catch(error){status.textContent="Task could not be saved: "+error.message;status.className="notice warn"}
 finally{button.disabled=false}
 }
-async function updateIntelligenceTask(id,nextStatus){
-const status=$("intelTasksStatus");
-status.textContent="Updating task status...";status.className="notice";
-try{
-await api("/intelligence/tasks/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({status:nextStatus})});
-status.textContent="Task status updated.";status.className="notice success";
-await loadIntelligenceTasks();
-}catch(error){status.textContent="Task update failed: "+error.message;status.className="notice warn"}
-}
+
 $("intelTaskForm")?.addEventListener("submit",createIntelligenceTask);
 $("refreshIntelTasksBtn")?.addEventListener("click",loadIntelligenceTasks);
-$("intelTasksList")?.addEventListener("click",event=>{
-const button=event.target.closest("[data-intel-task-status]");
-if(button)updateIntelligenceTask(button.dataset.intelTaskStatus,button.dataset.nextStatus);
-});
 let intelligenceTaskCache=[];
 let intelligenceApprovalCache=[];
 function formatApprovalTime(seconds){return seconds?new Date(Number(seconds)*1000).toLocaleString():"—"}
