@@ -271,6 +271,12 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(indexSource, /renderIntelligenceTasks\(data\.items\|\|\[\]\)/);
   assert.match(workerSource, /items: \(rows\.results \|\| \[\]\)\.map\(row => \(\{ id: row\.id, title: row\.title, description: row\.description, assignedTo: row\.assigned_to/);
   assert.match(workerSource, /requiresApproval: Number\(row\.requires_approval\) === 1/);
+  assert.match(workerSource, /path === "\/intelligence\/events" && method === "GET"/);
+  assert.match(workerSource, /WHERE owner_uid = \?/);
+  assert.match(indexSource, /renderIntelligenceMemory\(data\.items\|\|\[\]\)/);
+  assert.match(indexSource, /renderIntelligenceKnowledge\(data\.items\|\|\[\]\)/);
+  assert.match(indexSource, /renderIntelligenceRelations\(data\.items\|\|\[\]\)/);
+  assert.match(indexSource, /intelligenceApprovalCache=data\.items\|\|\[\]/);
   assert.doesNotMatch(indexSource, /updateIntelligenceTask\(/);
 });
 
