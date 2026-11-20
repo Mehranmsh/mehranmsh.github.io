@@ -30,6 +30,7 @@ const migrations = [
   "0017_intelligence_audit_immutability_and_approval_timestamps",
   "0018_intelligence_capability_approval_issued_at_guard",
   "0019_intelligence_approval_consumption_lock_and_legacy_timestamps",
+  "0020_intelligence_priority_action_review_timestamp_guard",
 ];
 
 async function applyMigrations(db, names) {
