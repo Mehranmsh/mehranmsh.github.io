@@ -1041,6 +1041,9 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
     assert.equal(relation.status, 201);
     const relationId = (await relation.json()).id;
 
+    const relationCountBeforeCrossOwnerAttempt = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_knowledge_relations WHERE owner_uid=?"
+    ).bind(ownerUid).first();
     const crossOwnerRelation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
       method: "POST",
       headers,
@@ -1057,8 +1060,8 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
     const crossOwnerRelationCount = await db.prepare(
       "SELECT COUNT(*) AS count FROM intelligence_knowledge_relations WHERE owner_uid=?"
     ).bind(ownerUid).first();
-    assert.equal(Number(crossOwnerRelationCount.count), 0,
-      "a rejected cross-owner relationship must not be persisted");
+    assert.equal(Number(crossOwnerRelationCount.count), Number(relationCountBeforeCrossOwnerAttempt.count),
+      "a rejected cross-owner relationship must not change the owner's relation set");
 
     const foreignRelation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations/cccccccc-cccc-4ccc-8ccc-cccccccccccc", {
       method: "PUT",
