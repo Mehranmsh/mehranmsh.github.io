@@ -310,6 +310,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(fragment, self.source)
         self.assertIn('trg_intelligence_owner_memory_provenance_immutable', (ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql").read_text(encoding="utf-8"))
 
+    def test_database_migration_enforces_append_only_audit_and_approval_timestamp_guards(self):
+        migration = (ROOT / "migrations" / "0017_intelligence_audit_immutability_and_approval_timestamps.sql").read_text(encoding="utf-8")
+        self.assertIn("trg_intelligence_staging_audit_no_update", migration)
+        self.assertIn("trg_intelligence_staging_audit_no_delete", migration)
+        self.assertIn("trg_intelligence_capability_approval_terminal_timestamp_guard", migration)
+        self.assertIn("trg_intelligence_staging_audit_no_update", self.source)
+        self.assertIn("trg_intelligence_staging_audit_no_delete", self.source)
+        self.assertIn("invalidCapabilityApprovalLifecycleCount", self.source)
+        self.assertIn("invalidCapabilityApprovalLifecycleCount === 0", self.source)
+
     def test_database_capability_approval_allowlist_blocks_memory_delete_and_health_checks_legacy_rows(self):
         migration = (ROOT / "migrations" / "0016_intelligence_capability_approval_allowlist.sql").read_text(encoding="utf-8")
         self.assertIn("trg_intelligence_capability_approval_capability_guard", migration)
@@ -1123,7 +1133,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
         self.assertIn('"database_name": "mehran-msh-intelligence-staging"', self.config)
         self.assertIn('"database_id": "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID"', self.config)
-        self.assertIn("migrations through 0016", self.config)
+        self.assertIn("migrations through 0017", self.config)
         self.assertNotIn('"mehran-msh-db"', self.config)
         self.assertNotIn('"ai":', self.config)
         self.assertNotRegex(self.config, r'"crons"\s*:')
