@@ -1187,6 +1187,7 @@ function toast(message,duration=3200){const el=$("toast");el.textContent=String(
 async function api(path,options={}){if(path.startsWith("/intelligence/"))return intelligenceStagingRequest(path,options);const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||"Request failed ("+response.status+")");error.status=response.status;throw error}return data}
 
 
+let intelligenceStagingConnecting=false;
 function getIntelligenceStagingToken(){return localStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
 function hasValidIntelligenceStagingUrl(){return /^https:\/\/mehran-intelligence-staging\.[a-z0-9-]+\.workers\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}
 async function intelligenceStagingRequest(path,options={}){
@@ -1203,10 +1204,12 @@ async function intelligenceStagingRequest(path,options={}){
 function updateIntelligenceStagingSessionUI(message,kind="notice"){
  const status=$("intelStagingSessionStatus"),connect=$("connectIntelStagingBtn"),disconnect=$("disconnectIntelStagingBtn");
  if(status){status.textContent=message;status.className=kind;}
- if(connect)connect.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();
+ if(connect)connect.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken()||intelligenceStagingConnecting;
  if(disconnect)disconnect.disabled=!getIntelligenceStagingToken();
 }
 async function connectIntelligenceStagingSession(){
+ if(intelligenceStagingConnecting||getIntelligenceStagingToken())return;
+ intelligenceStagingConnecting=true;
  const button=$("connectIntelStagingBtn");if(button)button.disabled=true;
  try{
   if(!hasValidIntelligenceStagingUrl())throw new Error("The dedicated staging Worker HTTPS URL has not been verified or configured. No authentication request was sent.");
@@ -1228,7 +1231,7 @@ async function connectIntelligenceStagingSession(){
  }catch(error){
   localStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
   updateIntelligenceStagingSessionUI(error.message,"notice warn");
- }finally{if(button)button.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();}
+ }finally{intelligenceStagingConnecting=false;if(button)button.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();}
 }
 async function disconnectIntelligenceStagingSession(){
  const button=$("disconnectIntelStagingBtn");if(button)button.disabled=true;
