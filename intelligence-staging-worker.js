@@ -452,6 +452,28 @@ async function handle(request, env) {
   if (!owner) return fail("Authentication required.", 401);
   if (!await rateLimit(env.DB, owner.uid, `${method}:${path.split("/").slice(1,3).join("/")}`)) return fail("Rate limit exceeded.", 429);
 
+  if (path === "/intelligence/events" && method === "GET") {
+    const rows = await env.DB.prepare(`
+      SELECT action, target_type, target_id, details_json, created_at
+      FROM intelligence_staging_audit
+      WHERE owner_uid = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT 100
+    `).bind(owner.uid).all();
+    const events = (rows.results || []).map(row => {
+      let details = "";
+      try { details = JSON.stringify(JSON.parse(row.details_json || "{}")); } catch { details = "Audit details unavailable"; }
+      return {
+        action: row.action,
+        targetType: row.target_type,
+        targetId: row.target_id,
+        details,
+        createdAt: Number.isFinite(Number(row.created_at)) ? new Date(Number(row.created_at) * 1000).toISOString() : ""
+      };
+    });
+    return response({ success: true, events, readOnly: true });
+  }
+
   if (path === "/intelligence/overview" && method === "GET") {
     const now = Math.floor(Date.now() / 1000);
     try {
@@ -1850,7 +1872,7 @@ async function handle(request, env) {
     `).bind(owner.uid, state, state, state, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
-    return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
+    return response({ success: true, state, items: items.map(row => ({ id: row.id, category: row.category, content: row.content, memoryKind: row.memory_kind, sourceType: row.source_type, sourceRef: row.source_ref, confidenceScore: row.confidence_score, reviewStatus: row.review_status, reviewedAt: row.reviewed_at, archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at })), offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
   }
 
   if (path === "/intelligence/memory" && method === "POST") {
@@ -2062,7 +2084,7 @@ async function handle(request, env) {
     const scanned = rows.results || [];
     const items = scanned.slice(0, limit);
     return response({
-      success: true, state, items, offset, limit,
+      success: true, state, items: items.map(row => ({ id: row.id, category: row.category, title: row.title, content: row.content, importance: row.importance, source: "owner", createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at, sourceType: row.source_type, sourceRef: row.source_ref, observedAt: row.observed_at, confidenceScore: row.confidence_score, verificationStatus: row.verification_status })), offset, limit,
       hasMore: scanned.length > limit,
       nextOffset: offset + items.length
     });
@@ -2403,7 +2425,7 @@ async function handle(request, env) {
       FROM intelligence_approval_ledger WHERE owner_uid=?
       ORDER BY issued_at DESC LIMIT 100
     `).bind(now, owner.uid).all();
-    return response({ success: true, items: rows.results || [] });
+    return response({ success: true, items: (rows.results || []).map(row => ({ id: row.id, taskId: row.task_id, repository: row.repository, branch: row.branch, baseSha: row.base_sha, scope: (() => { try { return JSON.parse(row.scope_json); } catch { return {}; } })(), status: row.status, issuedAt: row.issued_at, expiresAt: row.expires_at, revokedAt: row.revoked_at, consumedAt: row.consumed_at, consumedBy: row.consumed_by })) });
   }
 
   if (path === "/intelligence/approvals" && method === "POST") {
