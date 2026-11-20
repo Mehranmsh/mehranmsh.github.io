@@ -1,7 +1,8 @@
 {
   // INTELLIGENCE-only staging Worker.
   // DO NOT DEPLOY until database_id is replaced with the verified ID of
-  // mehran-msh-intelligence-staging and all required staging migrations through 0017 are applied there.
+  // mehran-msh-intelligence-staging and all required staging migrations through 0019 are applied there.
+  // CI uses disposable SQLite/D1 databases only; it does not verify or migrate the remote staging database.
   // This config must never be used with the production database.
   "name": "mehran-intelligence-staging",
   "main": "intelligence-staging-worker.js",
