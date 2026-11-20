@@ -36,7 +36,7 @@ Migrations 0000-0013 are committed on this draft branch. A read-only inventory o
 
 ## Implemented route allowlist
 
-- `GET /health`: checks all 15 required tables, verifies the D1 foreign-key setting and checks for foreign-key violations; returns 503 when the schema is incomplete or invalid.
+- `GET /health`: public bootstrap check that validates all required tables, triggers, columns, the D1 foreign-key setting, and foreign-key violations; returns 503 when the schema is incomplete or invalid. Requests are rate-limited per client IP (30 per 60-second window) so the unauthenticated bootstrap route cannot be used for unbounded schema-query load.
 - `POST /session`, `GET /session`, `DELETE /session`
 - `GET/POST /intelligence/tasks`: creates and lists owner-scoped queued plans only; execution is disabled.
 - `GET /intelligence/capabilities`: returns the static capability policy inventory only.
