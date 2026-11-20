@@ -77,6 +77,10 @@ WHEN NOT EXISTS (
       (NEW.content_type='message' AND u.acl='private')
       OR (NEW.content_type!='message' AND u.acl='public')
     )
+    AND NOT EXISTS (
+      SELECT 1 FROM social_media_deletion_jobs j
+      WHERE j.upload_id=NEW.upload_id AND j.status='completed'
+    )
 )
 BEGIN
   SELECT RAISE(ABORT,'SOCIAL media reference upload ownership, readiness, or visibility mismatch');
