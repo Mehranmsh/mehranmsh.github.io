@@ -1226,6 +1226,20 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertNotIn(forbidden, self.source)
 
 
+
+    def test_ai_proposal_design_specifies_canonical_hash_encoding(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "RFC 8785 JSON Canonicalization Scheme (JCS)",
+            "Reject duplicate object member names",
+            "UTF-8",
+            "SHA-256",
+            "canonicalization version",
+            "Never hash client-provided canonical JSON",
+            "Unicode edge cases, duplicate keys, numeric boundary cases",
+        ]:
+            self.assertIn(fragment, design)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
