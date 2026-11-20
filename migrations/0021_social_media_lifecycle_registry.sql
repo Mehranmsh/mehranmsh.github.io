@@ -72,7 +72,7 @@ CREATE TRIGGER IF NOT EXISTS trg_social_media_reference_owner_guard
 BEFORE INSERT ON social_media_references
 WHEN NOT EXISTS (
   SELECT 1 FROM social_uploads u
-  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready' AND u.lifecycle_managed=1 AND u.lifecycle_managed=1
+  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready' AND u.lifecycle_managed=1
     AND (
       (NEW.content_type='message' AND u.acl='private')
       OR (NEW.content_type!='message' AND u.acl='public')
@@ -86,7 +86,7 @@ CREATE TRIGGER IF NOT EXISTS trg_social_media_deletion_job_owner_guard
 BEFORE INSERT ON social_media_deletion_jobs
 WHEN NOT EXISTS (
   SELECT 1 FROM social_uploads u
-  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready'
+  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready' AND u.lifecycle_managed=1
 ) OR NEW.status!='pending' OR NEW.attempts!=0 OR EXISTS (
   SELECT 1 FROM social_media_references r
   WHERE r.upload_id=NEW.upload_id AND r.released_at IS NULL
