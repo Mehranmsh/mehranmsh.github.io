@@ -67,8 +67,9 @@ export function buildPriorityActionReviewHistory(rows) {
   };
 }
 
-export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
-  if (!Array.isArray(rows) || rows.length > 100 || typeof sha256Hex !== "function") {
+export async function buildPriorityActionReviewIntegrity(rows, sha256Hex, nowSeconds = Math.floor(Date.now() / 1000)) {
+  if (!Array.isArray(rows) || rows.length > 100 || typeof sha256Hex !== "function" ||
+      !Number.isSafeInteger(nowSeconds) || nowSeconds <= 0) {
     throw new RangeError("Priority action review integrity requires at most 100 rows and a SHA-256 function.");
   }
   const items = [];
@@ -95,17 +96,24 @@ export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
       snapshot.moduleId === String(row.module_id) &&
       snapshot.checkId === String(row.check_id);
     const reviewerMatchesOwner = String(row.reviewer_uid) === String(row.owner_uid);
+    const reviewedAt = Number(row.reviewed_at);
+    const createdAt = Number(row.created_at);
+    const reviewTimestampValid = Number.isSafeInteger(reviewedAt) && reviewedAt > 0 &&
+      reviewedAt <= nowSeconds && Number.isSafeInteger(createdAt) && createdAt === reviewedAt;
     let status = "integrity_match";
     if (!snapshotJsonValid) status = "invalid_snapshot_json";
     else if (!snapshotHashMatches) status = "snapshot_hash_mismatch";
     else if (!actionKeyMatchesSnapshot) status = "action_key_mismatch";
     else if (!snapshotIdentityMatches) status = "snapshot_identity_mismatch";
     else if (!reviewerMatchesOwner) status = "reviewer_owner_mismatch";
+    else if (!reviewTimestampValid) status = "invalid_review_timestamp";
     items.push({
       id: String(row.id),
       findingId: String(row.finding_id),
       outcome: String(row.outcome),
-      reviewedAt: Number(row.reviewed_at),
+      reviewedAt,
+      createdAt,
+      reviewTimestampValid,
       snapshotHashMatches,
       actionKeyMatchesSnapshot,
       snapshotIdentityMatches,
@@ -122,7 +130,8 @@ export async function buildPriorityActionReviewIntegrity(rows, sha256Hex) {
       actionKeyMismatches: items.filter(item => item.status === "action_key_mismatch").length,
       invalidSnapshotJson: items.filter(item => item.status === "invalid_snapshot_json").length,
       snapshotIdentityMismatches: items.filter(item => item.status === "snapshot_identity_mismatch").length,
-      reviewerOwnerMismatches: items.filter(item => item.status === "reviewer_owner_mismatch").length
+      reviewerOwnerMismatches: items.filter(item => item.status === "reviewer_owner_mismatch").length,
+      invalidReviewTimestamps: items.filter(item => item.status === "invalid_review_timestamp").length
     },
     assessment: "stored_priority_action_review_snapshot_metadata_integrity_only",
     decisionTruthVerified: false,
