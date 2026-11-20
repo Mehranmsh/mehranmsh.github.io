@@ -139,6 +139,20 @@ This design is not permission to implement or deploy the proposal service. Befor
 This separation prevents an apparently append-only history from being undermined by mutable proposal payloads or editable decision rows.
 
 
+
+
+## D1 transaction and conditional-write requirements
+
+The future implementation must not confuse a transactional batch with proof that every conditional mutation succeeded. A D1 batch can keep statements atomic, but an `UPDATE` that matches zero rows is still a successful SQL statement unless the database explicitly turns that failed precondition into an error.
+
+- Define the acceptance operation as one database-enforced transaction. Every precondition (pending proposal, unused approval, matching owner, payload hash, capability, target version, and unexpired timestamps) must be checked as part of the transaction, not only in Worker JavaScript before the write.
+- Use database constraints, guarded statements, and/or triggers that abort the transaction when any required compare-and-swap transition does not affect exactly one row. Do not rely on checking `meta.changes` after a D1 batch has already committed; a post-commit check cannot roll back a partial logical acceptance.
+- Canonical record creation/update, approval consumption, proposal state projection, append-only decision event, and audit event must either all commit or all roll back. A failed guard must produce no partial effects.
+- Enforce uniqueness in the schema for one terminal acceptance per proposal snapshot and one consumption per approval. Application-level pre-checks alone are race-prone.
+- The implementation must document the exact D1/SQLite transaction primitive and prove its rollback behavior with disposable-D1 runtime tests, including a deliberately failing final statement after earlier writes have been attempted.
+- Concurrency tests must use genuinely overlapping requests against the same disposable database, not sequential calls presented as a concurrency test. Assert exactly one accepted event, one consumed approval, and one canonical mutation.
+- If the selected D1 primitive cannot express a reliable all-or-nothing guarded operation, do not implement acceptance on that primitive. Keep proposals review-only until a safe transaction design is demonstrated.
+
 ## Canonical payload encoding
 
 The phrase "canonical payload hash" must identify one byte-level representation, otherwise two services can hash semantically similar but byte-different objects or disagree about ambiguous input.
