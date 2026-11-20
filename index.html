@@ -1908,13 +1908,13 @@ if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profi
 else el.textContent=profileInitial();
 }
 window.socialProfileGallery=[];
-function profileAvatarMarkup(url,fallback){return url?'<img src="'+sx(url)+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
+function profileAvatarMarkup(url,fallback){const source=sx(safeSocialMediaSource(url,"image"));return source?'<img src="'+source+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
 function renderProfilePosts(){
 const panel=$("profilePostsPanel");if(!panel)return;
 const mine=posts.filter(p=>String(p.author||"").toLowerCase()===String(socialUser?.username||"").toLowerCase());
 $("profileHeroPosts").textContent=profileData?.counts?.posts??mine.length;
 if(!mine.length){panel.innerHTML='<div class="profile-empty-posts">Your story is waiting for its first post. Share a thought, a photo or a moment with the community.<br><br><button class="btn" onclick="openCreate()">＋ Create your first post</button></div>';return}
-panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class="profile-post-tile">'+(media?'<div class="profile-post-media">'+(media.type==="video"?'<video src="'+sx(media.data)+'" controls playsinline></video>':'<img src="'+sx(media.data)+'" alt="Post">')+'</div>':'')+'<p>'+sx(p.text||"")+'</p><small>'+sx(p.date||"")+' · '+Number(p.likesCount||0)+' likes</small></article>'}).join("");
+panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class="profile-post-tile">'+(media?'<div class="profile-post-media">'+(media.type==="video"?'<video src="'+sx(safeSocialMediaSource(media.data,media.type))+'" controls playsinline></video>':'<img src="'+sx(safeSocialMediaSource(media.data,media.type))+'" alt="Post">')+'</div>':'')+'<p>'+sx(p.text||"")+'</p><small>'+sx(p.date||"")+' · '+Number(p.likesCount||0)+' likes</small></article>'}).join("");
 }
 function renderProfileGallery(){
  const editor=$("profileGalleryEditor"),publicGrid=$("profileGalleryPublic");
@@ -1923,7 +1923,7 @@ function renderProfileGallery(){
  if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+sx(p.url)+'" alt="Profile gallery photo '+(i+1)+'"></button>').join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
 }
 window.removeProfileGalleryPhoto=function(index){window.socialProfileGallery.splice(index,1);renderProfileGallery()};
-window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=item.url;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(item.url,"_blank","noopener")};
+window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=safeSocialMediaSource(item.url,"image");box.classList.add("open");document.body.style.overflow="hidden";}else window.open(safeSocialMediaSource(item.url,"image"),"_blank","noopener")};
 function updateProfilePreview(){
 const name=$("profileDisplayName")?.value.trim()||socialUser?.displayName||socialUser?.username||"Your name";
 const bio=$("profileBio")?.value||"";
@@ -1984,7 +1984,7 @@ const liked=!!post.liked||(post.likes||[]).includes(currentUsername());
 const identityLabel=socialAccountTypeLabel(post.accountType);const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(typeof c.author==="string"?c.author:(c.author?.displayName||c.author?.username||"Member"))+'</strong>'+(socialAccountTypeLabel(c.accountType||c.author?.accountType)?'<small style="color:#78dfff;font-weight:700;margin-left:6px">'+socialAccountTypeLabel(c.accountType||c.author?.accountType)+'</small>':'')+': '+socialRenderCustomEmoji(c.text||c.content||"")+'</div>').join("");
 const media=getPostMedia(post),first=media[0];let mediaHTML="";
 if(first)mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
-return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl?'<img src="'+sx(post.avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
+return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl?'<img src="'+sx(safeSocialMediaSource(post.avatarUrl,"image"))+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
 }).join("");
 }
 function renderExplore(){
@@ -2995,9 +2995,11 @@ updateAuthMode();
 let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false,socialConversationRefreshBusy=false,socialChatRefreshTick=0;
 const sx=v=>escapeHTML(String(v??""));
 function safeSocialMediaSource(value,type="image"){
- const raw=String(value??"").trim();
- const dataType=type==="video"?/^data:video[/](?:mp4|webm|ogg);base64,[a-z0-9+/=]+$/i:/^data:image[/](?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i;
- if(dataType.test(raw))return raw;
+ const raw=String(value??"").trim(),kind=String(type||"").toLowerCase();
+ const isVideo=kind==="video"||kind.startsWith("video/");
+ const isImage=kind==="image"||kind.startsWith("image/")||!kind;
+ if(isVideo&&/^data:video[/](?:mp4|webm|ogg);base64,[a-z0-9+/=]+$/i.test(raw))return raw;
+ if(isImage&&/^data:image[/](?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i.test(raw))return raw;
  try{const parsed=new URL(raw,window.location.origin);return parsed.protocol==="https:"?parsed.href:""}catch{return ""}
 }
 async function socialUploadFile(file){
@@ -3106,7 +3108,7 @@ async function socialOpenStory(id){
   document.getElementById("socialStoryAvatar").textContent=(story.author?.username||"S").slice(0,1).toUpperCase();
   document.getElementById("socialStoryCaption").textContent=story.caption||"";
   document.getElementById("socialStoryProgress").style.background="linear-gradient(90deg,#32d9ff "+Math.round((index+1)/Math.max(1,(socialStoriesCache||[]).length)*100)+"%,#ffffff30 0)";
-  media.innerHTML=story.mediaType==="video"?'<video src="'+sx(story.mediaUrl)+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+sx(story.mediaUrl)+'" alt="Story" style="width:100%;height:100%;object-fit:contain">';
+  media.innerHTML=story.mediaType==="video"?'<video src="'+sx(safeSocialMediaSource(story.mediaUrl,"video"))+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+sx(safeSocialMediaSource(story.mediaUrl,"image"))+'" alt="Story" style="width:100%;height:100%;object-fit:contain">';
   try{await socialRequest("/stories/"+encodeURIComponent(story.id)+"/view",{method:"POST"});}catch(err){console.warn("Story view could not be recorded",err);}
   document.body.style.overflow="hidden";
  }
@@ -3534,7 +3536,7 @@ function socialRenderChatMessage(m){
  const receipt=isMine&&readers.length?(active?.type==="group"?" · Seen by "+readers.length:" · Seen"):"";
  const media=(m.media||[]).map(item=>{
   if(item.unavailable)return '<span class="small-text">Attachment unavailable. It may have expired or been removed.</span>';
-  const url=sx(item.url||"");const type=String(item.type||"").toLowerCase();
+  const type=String(item.type||"").toLowerCase(),url=sx(safeSocialMediaSource(item.url,type));
   if(window.socialExtendedSettingsCache?.chat?.autoDownload===false){
    const label=type.startsWith("image")?"View image":type.startsWith("video")?"Open video":(type.startsWith("audio")||type.includes("voice"))?"Play voice message":"Open attachment";
    return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text" style="display:inline-block;margin-top:8px">⬇ '+label+'</a>';
