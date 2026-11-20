@@ -64,6 +64,58 @@ BEGIN
   SELECT RAISE(ABORT,'task project owner mismatch');
 END;
 
+CREATE TRIGGER trg_intelligence_project_owner_immutable_with_tasks
+BEFORE UPDATE OF owner_uid ON intelligence_projects
+WHEN EXISTS (SELECT 1 FROM intelligence_tasks t WHERE t.project_id=OLD.id)
+BEGIN
+  SELECT RAISE(ABORT,'project owner cannot change while tasks are attached');
+END;
+
+CREATE TRIGGER trg_intelligence_project_complete_guard
+BEFORE UPDATE OF status ON intelligence_projects
+WHEN NEW.status='completed' AND EXISTS (
+  SELECT 1 FROM intelligence_tasks t
+  WHERE t.project_id=OLD.id AND t.status<>'completed'
+)
+BEGIN
+  SELECT RAISE(ABORT,'project has incomplete tasks');
+END;
+
+CREATE TRIGGER trg_intelligence_task_completed_project_guard_insert
+BEFORE INSERT ON intelligence_tasks
+WHEN NEW.project_id IS NOT NULL AND EXISTS (
+  SELECT 1 FROM intelligence_projects p
+  WHERE p.id=NEW.project_id AND p.status='completed'
+) AND NEW.status<>'completed'
+BEGIN
+  SELECT RAISE(ABORT,'cannot add incomplete task to completed project');
+END;
+
+CREATE TRIGGER trg_intelligence_task_completed_project_guard_update
+BEFORE UPDATE OF project_id,status ON intelligence_tasks
+WHEN NEW.project_id IS NOT NULL AND NEW.status<>'completed' AND EXISTS (
+  SELECT 1 FROM intelligence_projects p
+  WHERE p.id=NEW.project_id AND p.status='completed'
+)
+BEGIN
+  SELECT RAISE(ABORT,'cannot place incomplete task in completed project');
+END;
+
+CREATE TRIGGER trg_intelligence_task_dependency_consistency_update
+BEFORE UPDATE OF project_id,created_by ON intelligence_tasks
+WHEN EXISTS (
+  SELECT 1
+  FROM intelligence_task_dependencies d
+  JOIN intelligence_tasks other
+    ON other.id = CASE WHEN d.task_id=OLD.id THEN d.depends_on_task_id ELSE d.task_id END
+  WHERE (d.task_id=OLD.id OR d.depends_on_task_id=OLD.id)
+    AND (other.created_by<>NEW.created_by
+      OR COALESCE(other.project_id,'')<>COALESCE(NEW.project_id,''))
+)
+BEGIN
+  SELECT RAISE(ABORT,'task move would invalidate dependency scope');
+END;
+
 CREATE TABLE intelligence_task_dependencies (
   id TEXT PRIMARY KEY,
   owner_uid TEXT NOT NULL,
@@ -172,6 +224,31 @@ class ProjectTaskDesignTests(unittest.TestCase):
         self.task("t-c")
         self.db.execute("UPDATE intelligence_tasks SET project_id='p-a' WHERE id='t-c'")
         self.db.execute("UPDATE intelligence_tasks SET project_id=NULL WHERE id='t-c'")
+
+    def test_project_owner_and_completion_are_protected(self):
+        self.project("p-a")
+        self.task("queued-task", project_id="p-a")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_projects SET status='completed' WHERE id='p-a'")
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='queued-task'")
+        self.db.execute("UPDATE intelligence_projects SET status='completed' WHERE id='p-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_projects SET owner_uid='owner-b' WHERE id='p-a'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.task("new-incomplete", project_id="p-a")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='queued-task'")
+
+    def test_task_move_cannot_break_existing_dependency_scope(self):
+        self.project("p-a")
+        self.project("p-b")
+        self.task("a", project_id="p-a")
+        self.task("b", project_id="p-a")
+        self.edge("a-needs-b", "a", "b")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_tasks SET project_id='p-b' WHERE id='a'")
+        self.db.execute("DELETE FROM intelligence_task_dependencies WHERE id='a-needs-b'")
+        self.db.execute("UPDATE intelligence_tasks SET project_id='p-b' WHERE id='a'")
 
     def test_dependency_requires_same_owner_and_same_project(self):
         self.project("p-a")
