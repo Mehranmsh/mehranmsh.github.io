@@ -85,8 +85,8 @@ CREATE TRIGGER IF NOT EXISTS trg_social_media_deletion_job_owner_guard
 BEFORE INSERT ON social_media_deletion_jobs
 WHEN NOT EXISTS (
   SELECT 1 FROM social_uploads u
-  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id
-) OR EXISTS (
+  WHERE u.id=NEW.upload_id AND u.user_id=NEW.owner_user_id AND u.status='ready'
+) OR NEW.status!='pending' OR NEW.attempts!=0 OR EXISTS (
   SELECT 1 FROM social_media_references r
   WHERE r.upload_id=NEW.upload_id AND r.released_at IS NULL
 )
@@ -120,6 +120,18 @@ WHEN NEW.id IS NOT OLD.id
   OR (NEW.released_at IS NOT NULL AND NEW.released_at > CURRENT_TIMESTAMP)
 BEGIN
   SELECT RAISE(ABORT,'SOCIAL media reference identity is immutable');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_social_media_reference_release_audit
+AFTER UPDATE OF released_at ON social_media_references
+WHEN OLD.released_at IS NULL AND NEW.released_at IS NOT NULL
+BEGIN
+  INSERT INTO social_media_lifecycle_audit(
+    id,upload_id,owner_user_id,event_type,reference_id,details
+  ) VALUES(
+    lower(hex(randomblob(16))),NEW.upload_id,NEW.owner_user_id,
+    'reference_released',NEW.id,NEW.content_type||':'||NEW.content_id||':'||NEW.media_slot
+  );
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_social_media_reference_no_delete
@@ -172,7 +184,7 @@ WHEN EXISTS (
   WHERE upload_id=OLD.id AND released_at IS NULL
 ) OR EXISTS (
   SELECT 1 FROM social_media_deletion_jobs
-  WHERE upload_id=OLD.id AND status!='completed'
+  WHERE upload_id=OLD.id AND status IN ('pending','retry')
 )
 BEGIN
   SELECT RAISE(ABORT,'SOCIAL upload cannot be deleted before references are released and provider deletion is confirmed');
