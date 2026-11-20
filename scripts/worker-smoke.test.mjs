@@ -1291,21 +1291,22 @@ test("generated lyrics return transparent language and section-structure review 
   assert.match(workerSource, /qualityWarnings, provider: "cloudflare"/);
 });
 
-test("MEHRAN Intelligence scheduled runner executes only owner-approved allowlisted reports", () => {
-  assert.match(workerSource, /async scheduled\(controller, env, ctx\)/);
-  assert.match(workerSource, /status='accepted' AND requires_approval=0/);
-  assert.match(workerSource, /action_type IN \('project_status_report','social_metrics_report','service_health_report'\)/);
-  assert.match(workerSource, /SET status='in_progress'/);
-  assert.match(workerSource, /SET status='completed',result_text=/);
-  assert.match(workerSource, /SET status='blocked',result_text=/);
-  assert.match(workerSource, /for \(let n = 0; n < 5; n\+\+\)/);
-  assert.match(workerSource, /actionType:\s*row\.action_type/);
-  assert.match(workerSource, /actionType:\{type:"string",enum:\["project_status_report","social_metrics_report","service_health_report","repository_quality_check"\]\}/);
-  assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_type/);
-  assert.match(workerSource, /ALTER TABLE intelligence_tasks ADD COLUMN action_payload/);
+test("Production Intelligence scheduler and Agent execution remain disabled", async () => {
+  const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 500);
+  assert.ok(scheduledStart >= 0, "scheduled handler remains present as an inert safety barrier");
+  assert.match(scheduledBody, /return;/);
+  assert.ok(scheduledBody.indexOf("return;") < scheduledBody.indexOf("const run = async"),
+    "scheduler must return before any execution logic");
+  assert.match(workerSource, /if \(path\.startsWith\("\/agent\/v1\/"\)\)\s*\{\s*return error\("Production Intelligence Agent execution is disabled\.", 410\);/);
+  let dbCalls = 0;
+  let backgroundTasks = 0;
+  const db = { prepare() { dbCalls++; throw new Error("disabled scheduler must not access D1"); } };
+  worker.scheduled({}, { DB: db }, { waitUntil() { backgroundTasks++; } });
+  await Promise.resolve();
+  assert.equal(dbCalls, 0, "disabled scheduler must not access the database");
+  assert.equal(backgroundTasks, 0, "disabled scheduler must not register background execution");
 });
-
-
 test("Intelligence scheduler history is private, bounded and stores execution counters", () => {
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs/);
   assert.match(workerSource, /idx_intelligence_scheduler_runs_started/);
@@ -1338,45 +1339,6 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
   assert.equal(payload.error, "Admin authentication required");
 });
 
-test("Intelligence scheduled runner records an empty successful run", async () => {
-  const state = { inserted: null, finished: null, candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("INSERT INTO intelligence_scheduler_runs")) {
-            state.inserted = { id: values[0], startedAt: values[1] };
-          }
-          if (sql.includes("UPDATE intelligence_scheduler_runs SET finished_at")) {
-            state.finished = {
-              finishedAt: values[0], processed: values[1],
-              completed: values[2], blocked: values[3], id: values[4]
-            };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return null;
-          }
-          throw new Error("Unexpected scheduler history SQL: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.ok(state.inserted?.id);
-  assert.ok(state.inserted?.startedAt);
-  assert.equal(state.finished?.id, state.inserted.id);
-  assert.equal(state.finished?.processed, 0);
-  assert.equal(state.finished?.completed, 0);
-  assert.equal(state.finished?.blocked, 0);
-});
 
 test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
   const html = indexSource;
@@ -1393,60 +1355,6 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
 
 
 
-test("MEHRAN Intelligence scheduled runner completes an approved project report and stores its result", async () => {
-  const state = { status: "accepted", requiresApproval: 0, result: "", candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) {
-            if (state.status !== "accepted" || state.requiresApproval !== 0) return { meta: { changes: 0 } };
-            state.status = "in_progress";
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='completed',result_text=")) {
-            state.status = "completed";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='blocked',result_text=")) {
-            state.status = "blocked";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return state.candidateReads === 1
-              ? { id: "task-project-report", action_type: "project_status_report" }
-              : null;
-          }
-          if (sql.includes("SELECT COUNT(*) AS total FROM projects")) return { total: 2 };
-          throw new Error("Unexpected scheduled report SQL: " + sql);
-        },
-        async all() {
-          if (sql.includes("FROM projects ORDER BY created_at DESC LIMIT 50")) {
-            return { results: [{ name: "MEHRAN MSH", status: "Active", description: "Central hub", updated_at: "2026-11-18 10:00:00" }] };
-          }
-          throw new Error("Unexpected scheduled report query: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  assert.ok(scheduledPromise, "scheduled runner must register its background task");
-  await scheduledPromise;
-  assert.equal(state.status, "completed");
-  const report = JSON.parse(state.result);
-  assert.equal(report.type, "project_status_report");
-  assert.equal(report.projects.length, 1);
-  assert.equal(report.projects[0].name, "MEHRAN MSH");
-});
 
 test("MEHRAN Intelligence scheduled runner does not claim tasks that still require approval", async () => {
   const state = { status: "accepted", requiresApproval: 1, candidateReads: 0, claimed: false };
@@ -1478,108 +1386,7 @@ test("MEHRAN Intelligence scheduled runner does not claim tasks that still requi
 });
 
 
-test("MEHRAN Intelligence scheduled runner stores SOCIAL metrics without exposing user data", async () => {
-  const state = { status: "accepted", result: "", candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) {
-            if (state.status !== "accepted") return { meta: { changes: 0 } };
-            state.status = "in_progress";
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='completed',result_text=")) {
-            state.status = "completed";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='blocked',result_text=")) {
-            state.status = "blocked";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return state.candidateReads === 1
-              ? { id: "task-social-metrics", action_type: "social_metrics_report" }
-              : null;
-          }
-          if (sql.includes("COUNT(*) AS total FROM social_users WHERE is_active=1")) return { total: 7 };
-          if (sql.includes("COUNT(*) AS total FROM social_users")) return { total: 9 };
-          if (sql.includes("COUNT(*) AS total FROM social_posts")) return { total: 23 };
-          if (sql.includes("COUNT(*) AS total FROM social_reports WHERE status='open'")) return { total: 2 };
-          throw new Error("Unexpected SOCIAL metrics SQL: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.equal(state.status, "completed");
-  const report = JSON.parse(state.result);
-  assert.equal(report.type, "social_metrics_report");
-  assert.equal(report.registeredUsers, 9);
-  assert.equal(report.activeUsers, 7);
-  assert.equal(report.posts, 23);
-  assert.equal(report.openReports, 2);
-  assert.equal(Object.hasOwn(report, "users"), false, "report must not include user-level records");
-});
 
-test("MEHRAN Intelligence scheduled runner records database health checks", async () => {
-  const state = { status: "accepted", result: "", candidateReads: 0 };
-  const db = {
-    prepare(sql) {
-      let values = [];
-      return {
-        bind(...args) { values = args; return this; },
-        async run() {
-          if (sql.includes("SET status='in_progress'")) {
-            if (state.status !== "accepted") return { meta: { changes: 0 } };
-            state.status = "in_progress";
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='completed',result_text=")) {
-            state.status = "completed";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          if (sql.includes("SET status='blocked',result_text=")) {
-            state.status = "blocked";
-            state.result = values[0];
-            return { meta: { changes: 1 } };
-          }
-          return { meta: { changes: 1 } };
-        },
-        async first() {
-          if (sql.includes("SELECT id,action_type FROM intelligence_tasks")) {
-            state.candidateReads++;
-            return state.candidateReads === 1
-              ? { id: "task-service-health", action_type: "service_health_report" }
-              : null;
-          }
-          if (sql.includes("SELECT 1 AS healthy")) return { healthy: 1 };
-          if (sql.includes("SELECT COUNT(*) AS total FROM projects")) return { total: 4 };
-          throw new Error("Unexpected service health SQL: " + sql);
-        }
-      };
-    }
-  };
-  let scheduledPromise;
-  worker.scheduled({}, { DB: db }, { waitUntil(promise) { scheduledPromise = promise; } });
-  await scheduledPromise;
-  assert.equal(state.status, "completed");
-  const report = JSON.parse(state.result);
-  assert.equal(report.type, "service_health_report");
-  assert.equal(report.database, "healthy");
-  assert.equal(report.projectRecords, 4);
-});
 
 test("automated Intelligence task transitions are owner-approval-only and execution results cannot be forged", () => {
   const routeStart = workerSource.indexOf('if(intelligenceTaskMatch&&method==="PATCH")');
