@@ -30,7 +30,7 @@ required = [
     'content.textContent=String(item.content||"").slice(0,360)',
 
     'refreshEvaluationsBtn',
-    'request("/intelligence/memory/"+encodeURIComponent(id),{method:"DELETE"})',
+    'await request("/intelligence/memory/"+encodeURIComponent(id),{method:"PUT",body:{action}})',
     'body:{action}',
     'memoryKind',
     'sourceType',
@@ -148,6 +148,10 @@ def test_staging_ui_escapes_untrusted_content_before_html_insertion():
         'body.textContent=item.content',
     ]:
         assert marker in page, f"Server-controlled UI content must be escaped or assigned as text: {marker}"
+
+assert 'Delete permanently' not in page
+assert 'value="memory.delete"' not in page
+assert 'method:"DELETE"' not in page.split("async function memoryAction", 1)[1].split("async function loadMemoryReviewQueue", 1)[0]
 
 if "REPLACE_WITH_VERIFIED_STAGING_WORKER_URL" not in page:
     raise SystemExit("Staging Worker URL must remain an explicit unconfigured placeholder.")
