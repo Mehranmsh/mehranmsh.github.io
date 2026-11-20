@@ -2516,8 +2516,8 @@ status.textContent="Loading the shared task queue...";
 status.className="notice";
 try{
 const data=await api("/intelligence/tasks");
-renderIntelligenceTasks(data.tasks||[]);
-status.textContent=(data.tasks||[]).length+" task plans loaded. No scheduler or executor is enabled in staging.";
+renderIntelligenceTasks(data.items||[]);
+status.textContent=(data.items||[]).length+" task plans loaded. No scheduler or executor is enabled in staging.";
 status.className="notice success";
  // The isolated staging Worker has no scheduler or scheduled-run endpoint.
 await loadIntelligenceApprovals();
