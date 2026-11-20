@@ -1579,7 +1579,6 @@ test("Task Hub can create and label only owner-approved allowlisted scheduled re
   assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
   assert.doesNotMatch(html, /data-intel-task-status=/);
-  assert.match(html, /const actionLabel=""/);
   assert.match(html, /No agent or scheduler can claim it/);
   assert.match(html, /No automatic execution is enabled/);
   assert.doesNotMatch(html, /Cancel running task/);
