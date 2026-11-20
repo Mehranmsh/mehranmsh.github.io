@@ -58,7 +58,7 @@ Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revoca
 
 ## Current status
 
-The isolated Worker, Wrangler config template, and D1-runtime test suite are committed on the open draft PR51 chain. The config's D1 ID and the staging console's Worker URL are deliberately placeholders. CI exercises the Worker against disposable Miniflare D1, including owner isolation, session revocation, rate limits, audit atomicity, knowledge relations, and capability approval lifecycle. The staging database ID has not been positively verified in this repository workflow; migrations 0003-0008 remain unapplied remotely. Cloudflare binding, live Pi verification, and staging deployment are not done. No production database or Worker has been changed.
+The isolated Worker, Wrangler staging config, expanded Intelligence review APIs, owner review ledgers, and D1-runtime test suite are present on open Draft PR119. The config still contains `REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID`; the exact staging database ID has not been positively verified in this workflow. The owner previously applied migrations 0000-0002 manually; remote application status for migrations 0003-0013 is unverified and must be checked in the Cloudflare D1 console before any migration action. CI for commit `53497cd7c2293de0a417fc07a934d2a5da3baa98` passed all 34 steps using disposable test databases. This does not establish live D1 schema state or live Pi authentication. Cloudflare binding, live Pi verification, and staging deployment are not done. No production database or Worker has been changed. PR119 remains Draft/open/unmerged.
 
 ## Owner memory routes
 
