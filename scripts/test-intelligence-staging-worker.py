@@ -486,6 +486,12 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('Permanent memory deletion is disabled pending approval-gated controls.', self.source)
         self.assertNotIn('DELETE FROM intelligence_owner_memory', self.source)
 
+    def test_main_memory_ui_uses_reversible_archive_instead_of_permanent_delete(self):
+        self.assertIn('data-archive-intel-memory', self.index_html)
+        self.assertIn('body:JSON.stringify({action:"archive"})', self.index_html)
+        self.assertNotIn('data-delete-intel-memory', self.index_html)
+        self.assertNotIn('deleteIntelligenceMemory', self.index_html)
+
     def test_approval_expiry_uses_strict_tested_parser(self):
         self.assertIn('import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";', self.source)
         self.assertIn('const approvalLifetime = parseApprovalLifetime(body.expiresInSeconds);', self.source)
