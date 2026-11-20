@@ -19,6 +19,8 @@ MIGRATIONS = [
     ROOT / "migrations" / "0010_intelligence_finding_review_ledger.sql",
     ROOT / "migrations" / "0011_intelligence_evidence_correlation_reviews.sql",
     ROOT / "migrations" / "0012_intelligence_evidence_decision_reviews.sql",
+    ROOT / "migrations" / "0013_intelligence_priority_action_reviews.sql",
+    ROOT / "migrations" / "0014_intelligence_owner_identity_immutability.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -70,6 +72,33 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertTrue(any(row[2] == "intelligence_tasks" for row in approval_fks))
         self.assertTrue(any(row[2] == "intelligence_knowledge" for row in relation_fks))
 
+
+
+
+    def test_knowledge_and_memory_owner_identity_is_immutable(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES('owner-lock-knowledge','owner-a','Private','Owner-bound knowledge','owner-a')
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_owner_memory(id,owner_uid,category,content)
+            VALUES('owner-lock-memory','owner-a','general','Owner-bound memory')
+        """)
+        for table, record_id in (
+            ('intelligence_knowledge', 'owner-lock-knowledge'),
+            ('intelligence_owner_memory', 'owner-lock-memory'),
+        ):
+            with self.subTest(table=table):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(
+                        f"UPDATE {table} SET owner_uid='owner-b' WHERE id=?",
+                        (record_id,),
+                    )
+                owner = self.db.execute(
+                    f"SELECT owner_uid FROM {table} WHERE id=?", (record_id,)
+                ).fetchone()[0]
+                self.assertEqual(owner, 'owner-a')
 
     def test_owner_finding_review_ledger_is_append_only_scoped_and_audited(self):
         self.apply_chain()
