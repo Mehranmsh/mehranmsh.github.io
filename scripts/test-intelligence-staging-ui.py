@@ -531,3 +531,30 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in overview_function, f"Evidence Intelligence overview must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in overview_function and '.append(' in overview_function
 assert 'Promise.allSettled' in overview_function, "Overview must show partial results if an individual engine is unavailable."
+
+
+# Priority Action Review integrity UI: every server-detected failure must be visible and affect status.
+review_integrity_function = page.split("async function loadIntelPriorityActionReviewIntegrity()", 1)[1].split('$("refreshIntelPriorityActionReviewIntegrityBtn")', 1)[0]
+for marker in [
+    'stats.snapshotHashMismatches',
+    'stats.actionKeyMismatches',
+    'stats.invalidSnapshotJson',
+    'stats.snapshotIdentityMismatches',
+    'stats.reviewerOwnerMismatches',
+    'stats.invalidReviewTimestamps',
+]:
+    assert marker in review_integrity_function, f"Priority Action Review integrity UI does not surface: {marker}"
+
+for marker in [
+    'Number(stats.snapshotHashMismatches||0)',
+    'Number(stats.actionKeyMismatches||0)',
+    'Number(stats.invalidSnapshotJson||0)',
+    'Number(stats.snapshotIdentityMismatches||0)',
+    'Number(stats.reviewerOwnerMismatches||0)',
+    'Number(stats.invalidReviewTimestamps||0)',
+    'integrityProblems===0&&!incompleteScan',
+]:
+    assert marker in review_integrity_function, f"Priority Action Review integrity status ignores: {marker}"
+
+for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in review_integrity_function, f"Priority Action Review integrity UI must render safely: {forbidden}"
