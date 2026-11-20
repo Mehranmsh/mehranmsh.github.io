@@ -1586,8 +1586,9 @@ async function socialUpdateProfile(request, env) {
   const avatarUrl = String(body.avatarUrl || "").trim();
   const galleryInput = Array.isArray(body.gallery) ? body.gallery : null;
   if (avatarUrl && !validHttpsUrl(avatarUrl)) return error("Avatar must be a valid HTTPS URL");
-  if (galleryInput && (galleryInput.length>20 || galleryInput.some(url=>typeof url!=="string"||!validHttpsUrl(url)))) {
-    return error("Gallery must contain up to 20 valid HTTPS image URLs");
+  if (galleryInput && (galleryInput.length>20 || new Set(galleryInput).size!==galleryInput.length ||
+      galleryInput.some(url=>typeof url!=="string"||!validHttpsUrl(url)))) {
+    return error("Gallery must contain up to 20 unique valid HTTPS image URLs");
   }
   let avatarUpload=null;
   if (avatarUrl) {
@@ -1600,15 +1601,34 @@ async function socialUpdateProfile(request, env) {
     if (!upload) return error("Every gallery image must be a ready public upload owned by your account.",400);
     galleryUploads.push(upload);
   }
+  const existingGallery = galleryInput
+    ? await env.DB.prepare("SELECT id,photo_url,upload_id,sort_order FROM social_profile_photos WHERE user_id=?").bind(user.id).all()
+    : { results: [] };
+  const existingByUrl = new Map((existingGallery.results || []).map(row => [row.photo_url,row]));
+  const retainedPhotoIds = new Set();
   const statements=[env.DB.prepare("UPDATE social_users SET display_name=?,bio=?,avatar_url=?,avatar_upload_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
     .bind(displayName,bio,avatarUrl,avatarUpload?.id||null,user.id)];
   if (avatarUpload) statements.push(socialMediaReferenceStatement(env,avatarUpload.id,user.id,"profile_avatar",user.id,"avatar"));
   if (galleryInput) {
-    statements.push(env.DB.prepare("DELETE FROM social_profile_photos WHERE user_id=?").bind(user.id));
     for (let i=0;i<galleryUploads.length;i++) {
-      const photoId=crypto.randomUUID();
-      statements.push(env.DB.prepare("INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order,upload_id) VALUES(?,?,?,?,?)").bind(photoId,user.id,galleryInput[i],i,galleryUploads[i].id));
-      statements.push(socialMediaReferenceStatement(env,galleryUploads[i].id,user.id,"profile_gallery",photoId,"gallery:"+i));
+      const existing = existingByUrl.get(galleryInput[i]);
+      if (existing) {
+        retainedPhotoIds.add(existing.id);
+        statements.push(env.DB.prepare(
+          "UPDATE social_profile_photos SET sort_order=? WHERE id=? AND user_id=?"
+        ).bind(i,existing.id,user.id));
+      } else {
+        const photoId=crypto.randomUUID();
+        statements.push(env.DB.prepare(
+          "INSERT INTO social_profile_photos(id,user_id,photo_url,sort_order,upload_id) VALUES(?,?,?,?,?)"
+        ).bind(photoId,user.id,galleryInput[i],i,galleryUploads[i].id));
+        statements.push(socialMediaReferenceStatement(env,galleryUploads[i].id,user.id,"profile_gallery",photoId,"gallery:"+i));
+      }
+    }
+    for (const existing of existingGallery.results || []) {
+      if (!retainedPhotoIds.has(existing.id)) {
+        statements.push(env.DB.prepare("DELETE FROM social_profile_photos WHERE id=? AND user_id=?").bind(existing.id,user.id));
+      }
     }
   }
   await env.DB.batch(statements);
