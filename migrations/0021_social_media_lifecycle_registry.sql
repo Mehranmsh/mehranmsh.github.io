@@ -170,6 +170,14 @@ BEGIN
   );
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_social_media_deletion_job_mark_upload_pending
+AFTER INSERT ON social_media_deletion_jobs
+BEGIN
+  UPDATE social_uploads
+  SET status='deletion_pending',updated_at=CURRENT_TIMESTAMP
+  WHERE id=NEW.upload_id AND user_id=NEW.owner_user_id AND status='ready';
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_social_media_audit_no_update
 BEFORE UPDATE ON social_media_lifecycle_audit
 BEGIN
