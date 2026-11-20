@@ -144,6 +144,21 @@ class ProjectTaskDesignTests(unittest.TestCase):
         self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='dependent'")
         self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
 
+    def test_completed_task_cannot_gain_unmet_dependency_and_project_checks_blockers(self):
+        self.project("p-a")
+        self.task("dependent", project_id="p-a")
+        self.task("prerequisite", project_id="p-a")
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='dependent'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.edge("late-edge", "dependent", "prerequisite")
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='prerequisite'")
+        self.edge("valid-late-edge", "dependent", "prerequisite")
+        self.db.execute("DELETE FROM intelligence_task_dependencies WHERE id='valid-late-edge'")
+        self.edge("project-edge", "dependent", "prerequisite")
+        self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_projects SET status='completed' WHERE id='p-a'")
+
     def test_project_delete_is_restricted_while_tasks_reference_it(self):
         self.project("p-a")
         self.task("a", project_id="p-a")
