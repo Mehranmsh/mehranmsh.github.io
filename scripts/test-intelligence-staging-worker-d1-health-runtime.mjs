@@ -4142,6 +4142,7 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     const integrity = await integrityResponse.json();
     assert.equal(integrity.summary.recordsScanned, 1);
     assert.equal(integrity.summary.integrityMatches, 1);
+    assert.equal(integrity.items[0].actionKeyMatchesSnapshot, true);
     assert.equal(integrity.decisionTruthVerified, false);
 
     // A second owner's finding and review must remain invisible to this session.
