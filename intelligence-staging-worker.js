@@ -1,3 +1,4 @@
+import { handleProjectApi } from "./intelligence-project-api.mjs";
 import { buildKnowledgeReviewItem } from "./intelligence-review-queue.mjs";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
@@ -256,6 +257,9 @@ async function handle(request, env) {
   const owner = await verifySession(request, env);
   if (!owner) return fail("Authentication required.", 401);
   if (!await rateLimit(env.DB, owner.uid, `${method}:${path.split("/").slice(1,3).join("/")}`)) return fail("Rate limit exceeded.", 429);
+
+  const projectApiResponse = await handleProjectApi({ request, env, owner, url, path, method, helpers: { response, fail, readJson, clean, randomId, audit, uuid } });
+  if (projectApiResponse) return projectApiResponse;
 
   if (path === "/intelligence/tasks" && method === "GET") {
     const rows = await env.DB.prepare(`
