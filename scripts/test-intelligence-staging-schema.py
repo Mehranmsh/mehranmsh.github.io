@@ -24,6 +24,8 @@ MIGRATIONS = [
     ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql",
     ROOT / "migrations" / "0016_intelligence_capability_approval_allowlist.sql",
     ROOT / "migrations" / "0017_intelligence_audit_immutability_and_approval_timestamps.sql",
+    ROOT / "migrations" / "0018_intelligence_capability_approval_issued_at_guard.sql",
+    ROOT / "migrations" / "0019_intelligence_approval_consumption_lock_and_legacy_timestamps.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -902,6 +904,112 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 VALUES('s2','hash-1','owner-b',100,200)
             """)
 
+
+    def test_both_approval_ledgers_block_consumption_and_guard_timestamps(self):
+        self.apply_chain()
+        now = self.db.execute("SELECT CAST(strftime('%s','now') AS INTEGER)").fetchone()[0]
+        issued_at = now - 120
+        expires_at = now + 300
+        for task_id in ("approval-task-main", "approval-task-expired", "approval-task-future"):
+            self.db.execute(
+                "INSERT INTO intelligence_tasks(id,title,created_by) VALUES(?,?,?)",
+                (task_id, "Approval guard fixture", "owner-a"),
+            )
+
+        def insert_legacy(approval_id, task_id, issued, expiry):
+            self.db.execute("""
+                INSERT INTO intelligence_approval_ledger(
+                    id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                    scope_json,scope_sha256,status,issued_at,expires_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)
+            """, (
+                approval_id, task_id, "owner-a", "mehranmsh",
+                "Mehranmsh/mehranmsh.github.io", "intelligence/staging-test",
+                "a" * 40, "{}", "b" * 64, issued, expiry,
+            ))
+
+        insert_legacy("legacy-main", "approval-task-main", issued_at, expires_at)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_approval_ledger
+                SET status='consumed',consumed_at=?,consumed_by='executor'
+                WHERE id='legacy-main'
+            """, (now,))
+        row = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE id='legacy-main'"
+        ).fetchone()
+        self.assertEqual(row, ("issued", None, None))
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
+                (issued_at - 1,),
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
+                (now + 60,),
+            )
+        self.db.execute(
+            "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
+            (now,),
+        )
+
+        insert_legacy("legacy-expired", "approval-task-expired", issued_at, now - 1)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'"
+            )
+        self.db.execute(
+            "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'"
+        )
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "invalid legacy approval issue"):
+            insert_legacy("legacy-future", "approval-task-future", now + 60, now + 120)
+
+        self.db.execute("""
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES('capability-main','owner-a','memory.create','owner_staging','issued',?,?)
+        """, (issued_at, expires_at))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_capability_approvals
+                SET status='consumed',consumed_at=?,consumed_by='executor'
+                WHERE id='capability-main'
+            """, (now,))
+        capability = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id='capability-main'"
+        ).fetchone()
+        self.assertEqual(capability, ("issued", None, None))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-main'",
+                (issued_at - 1,),
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-main'",
+                (now + 60,),
+            )
+
+        consumed_audits = self.db.execute("""
+            SELECT COUNT(*) FROM intelligence_staging_audit
+            WHERE action IN ('approval_consumed','capability_approval_consumed')
+        """).fetchone()[0]
+        self.assertEqual(consumed_audits, 0)
+        required_triggers = {
+            "trg_intelligence_approval_issued_at_guard",
+            "trg_intelligence_approval_terminal_timestamp_guard",
+            "trg_intelligence_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_consumption_disabled",
+        }
+        found_triggers = {
+            row[0] for row in self.db.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger'"
+            )
+        }
+        self.assertTrue(required_triggers.issubset(found_triggers))
 
     def test_task_records_are_plan_only_and_execution_fields_are_locked(self):
         self.apply_chain()
