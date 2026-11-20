@@ -76,15 +76,17 @@ Constraints and indexes:
 
 ## 4. Task lifecycle and dependency semantics
 
-Keep existing task status values compatible with the current task API and existing production task vocabulary. Before migration, inventory every status currently written or consumed by the Worker and UI. Do not silently rename statuses.
+Keep the existing task status vocabulary compatible with the inspected production Worker. Its collaboration tools explicitly allow `queued`, `accepted`, `in_progress`, `blocked`, `awaiting_approval`, `completed`, and `cancelled`. Some older internal execution paths also write `failed` for scheduler-run records, but that is not an established task status in the current collaboration-tool allowlist. Do not add a database CHECK constraint or rename statuses until every task writer, reader, admin UI, and legacy API has been inventoried. Treat `failed` as a possible legacy task value only if a full data/schema audit confirms it exists.
 
 Dependency semantics:
-- A task is blocked while any prerequisite task is not in a terminal success state.
+- A prerequisite counts as successfully satisfied only when its task status is `completed`.
+- A prerequisite in `queued`, `accepted`, `in_progress`, `awaiting_approval`, `blocked`, or `cancelled` is not satisfied. A blocked/cancelled prerequisite should surface an explicit owner decision, not trigger automatic execution or silent dependency removal.
 - A dependency edge is descriptive coordination metadata, not permission to execute.
-- A task with a failed, cancelled, or blocked prerequisite remains blocked for planning purposes until an owner explicitly changes the plan.
-- Marking a project completed must be rejected if any non-archived task remains non-terminal or has unresolved blockers.
+- Marking a project completed must be rejected if any non-archived task is not `completed` or has unresolved blockers.
 - Completing a task is a manual owner action in this phase and must be audited.
 - Reopening a completed task is also a manual, audited action.
+
+Execution-boundary note: the inspected production Worker currently has an unconditional early return at the start of its `scheduled()` handler and returns HTTP 410 for `/agent/v1/` API paths. The older scheduler processing code remains below the return but is unreachable in the current source. This source inspection is not a live deployed-runtime audit. The project/task proposal must not remove or bypass either guard.
 
 The API should return derived blocker summaries, not persist a duplicate `blocked` flag that can drift out of sync with dependency rows.
 
