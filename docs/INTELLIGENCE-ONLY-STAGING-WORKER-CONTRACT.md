@@ -55,6 +55,13 @@ Migrations 0000-0013 are committed on this draft branch. The owner manually appl
 
 There is no approval-consume endpoint and no task execution endpoint.
 
+## Frontend connection boundary
+
+- The shared dashboard API helper deliberately rejects every `/intelligence/` request before issuing a network request to the production `AUTH_WORKER`.
+- The production admin session token must never be reused as a staging Intelligence session. The staging Worker requires its own Pi `POST /session` verification and separately stored, revocable session token.
+- Keep this fail-closed UI guard until a dedicated staging Worker URL and separate Pi-session lifecycle are implemented and reviewed. Do not route Intelligence requests through the production Worker as a temporary workaround.
+- Existing production admin and project API requests remain separate; this boundary applies specifically to the `/intelligence/` API namespace.
+
 ## Required security tests
 
 Test missing owner UID, invalid/expired Pi token, wrong owner UID, hashed/revocable sessions, future/invalid session timestamps, strict JSON media types, owner-scoped reads and writes, audit atomicity, fail-closed rate limits, missing-schema 503 behavior, approval expiry/revocation/duplicate issue, bounded request bodies, database-level session/rate/memory constraints, and static absence of cron/executor/production resources.
