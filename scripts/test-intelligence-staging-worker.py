@@ -8,12 +8,14 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "intelligence-staging-worker.js"
 CONFIG = ROOT / "wrangler.intelligence-staging.jsonc"
+PROJECT_API = ROOT / "intelligence-project-api.mjs"
 
 class StagingWorkerSafetyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = SOURCE.read_text(encoding="utf-8")
         cls.config = CONFIG.read_text(encoding="utf-8")
+        cls.project_api = PROJECT_API.read_text(encoding="utf-8")
 
     def test_pi_identity_is_verified_server_side(self):
         self.assertIn('https://api.minepi.com/v2/me', self.source)
@@ -81,6 +83,33 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('path === "/intelligence/tasks"', self.source)
         self.assertIn('executionEnabled: false', self.source)
         self.assertIn("VALUES (?,?,?,'mehran_intelligence',?,'queued',?,?)", self.source)
+
+    def test_project_api_is_owner_scoped_audited_and_non_executing(self):
+        self.assertIn('import { handleProjectApi } from "./intelligence-project-api.mjs";', self.source)
+        self.assertIn('handleProjectApi({ request, env, owner, url, path, method', self.source)
+        for fragment in [
+            'path==="/intelligence/projects"&&method==="GET"',
+            'path==="/intelligence/projects"&&method==="POST"',
+            'if(projectMatch&&method==="GET")',
+            'if(projectMatch&&method==="PUT")',
+            'if(taskProjectMatch&&method==="PUT")',
+            'if(taskDepsMatch&&method==="GET")',
+            'if(taskDepsMatch&&method==="POST")',
+            'if(depDeleteMatch&&method==="DELETE")',
+            'WHERE p.owner_uid = ?',
+            'WHERE id=? AND owner_uid=?',
+            'WHERE id=? AND created_by=?',
+            'task_dependency_added',
+            'task_dependency_removed',
+            'project_created',
+            'project_archived',
+            'project_restored',
+            'executionEnabled:false',
+        ]:
+            self.assertIn(fragment, self.project_api)
+        self.assertNotIn('action_payload', self.project_api)
+        self.assertNotIn('fetch(', self.project_api)
+        self.assertNotIn('scheduled(', self.project_api)
 
     def test_archived_knowledge_can_be_listed_without_cross_owner_access(self):
         self.assertIn('const state = clean(url.searchParams.get("state") || "active", 16)', self.source)
