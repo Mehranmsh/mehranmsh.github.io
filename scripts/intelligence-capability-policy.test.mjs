@@ -17,6 +17,12 @@ test("unknown capabilities fail closed", () => {
   assert.equal(evaluateCapabilityRequest({ ...base, capability: "shell.run" }).decision, "assessment_only_denied");
 });
 
+test("permanently disabled memory deletion is not an approvable capability", () => {
+  const result = evaluateCapabilityRequest({ ...base, capability: "memory.delete" });
+  assert.equal(result.decision, "assessment_only_denied");
+  assert.equal(result.reason, "unknown_capability");
+});
+
 test("forbidden capabilities cannot be approved into existence", () => {
   const result = evaluateCapabilityRequest({ ...base, capability: "production.write", approval: { serverVerified: true, ownerId: "owner-1", capability: "production.write", scope: "owner_staging", expiresAt: Date.now()+60000 } });
   assert.equal(result.reason, "capability_forbidden");
@@ -28,14 +34,14 @@ test("automatic read and planning capabilities require authenticated owner stagi
 });
 
 test("mutations require a server-verified owner approval", () => {
-  const request = { ...base, capability: "memory.delete" };
+  const request = { ...base, capability: "knowledge.create" };
   assert.equal(evaluateCapabilityRequest(request).decision, "assessment_only_approval_required");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { serverVerified: false } }).decision, "assessment_only_approval_required");
 });
 
 test("approval must match owner, capability, scope and expiry", () => {
-  const request = { ...base, capability: "memory.delete" };
-  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
+  const request = { ...base, capability: "knowledge.create" };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "knowledge.create", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
   const validated = evaluateCapabilityRequest({ ...request, approval: good }, 1000);
   assert.equal(validated.decision, "assessment_only_approval_validated");
   assert.equal(validated.assessmentOnly, true);
@@ -46,8 +52,8 @@ test("approval must match owner, capability, scope and expiry", () => {
 });
 
 test("approval metadata must be explicit safe integers and an explicit active state", () => {
-  const request = { ...base, capability: "memory.delete" };
-  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
+  const request = { ...base, capability: "knowledge.create" };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "knowledge.create", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, revoked: undefined } }, 1000).decision, "assessment_only_denied");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: 2000.5 } }, 1000).decision, "assessment_only_denied");
   assert.equal(evaluateCapabilityRequest({ ...request, approval: { ...good, expiresAt: Number.MAX_SAFE_INTEGER + 1 } }, 1000).decision, "assessment_only_denied");
@@ -64,8 +70,8 @@ test("policy inventory keeps execution and privilege escalation forbidden", () =
 });
 
 test("approval must still be issued and have no terminal ledger metadata", () => {
-  const request = { ...base, capability: "memory.delete" };
-  const good = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
+  const request = { ...base, capability: "knowledge.create" };
+  const good = { serverVerified: true, ownerId: "owner-1", capability: "knowledge.create", scope: "owner_staging", status: "issued", expiresAt: 2000, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
   for (const approval of [
     { ...good, status: "revoked" },
     { ...good, status: "expired" },
@@ -81,8 +87,8 @@ test("approval must still be issued and have no terminal ledger metadata", () =>
 });
 
 test("approval expiry timestamps use Unix seconds like the D1 ledger", () => {
-  const request = { ...base, capability: "memory.delete" };
-  const approval = { serverVerified: true, ownerId: "owner-1", capability: "memory.delete", scope: "owner_staging", status: "issued", expiresAt: 101, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
+  const request = { ...base, capability: "knowledge.create" };
+  const approval = { serverVerified: true, ownerId: "owner-1", capability: "knowledge.create", scope: "owner_staging", status: "issued", expiresAt: 101, revoked: false, revokedAt: null, consumedAt: null, consumedBy: null };
   const originalNow = Date.now;
   Date.now = () => 100_000;
   try {
