@@ -110,6 +110,8 @@ jobs:
 
       - name: Test capability approval transaction on D1 runtime
         run: node scripts/test-intelligence-capability-approval-d1-runtime.mjs
+      - name: Test disabled approval consumption on both ledgers in D1 runtime
+        run: node scripts/test-intelligence-approval-consumption-lock-d1-runtime.mjs
 
       - name: Test staging Worker health against D1 runtime
         run: node scripts/test-intelligence-staging-worker-d1-health-runtime.mjs

@@ -30,7 +30,7 @@ required = [
     'content.textContent=String(item.content||"").slice(0,360)',
 
     'refreshEvaluationsBtn',
-    'request("/intelligence/memory/"+encodeURIComponent(id),{method:"DELETE"})',
+    'await request("/intelligence/memory/"+encodeURIComponent(id),{method:"PUT",body:{action}})',
     'body:{action}',
     'memoryKind',
     'sourceType',
@@ -148,6 +148,10 @@ def test_staging_ui_escapes_untrusted_content_before_html_insertion():
         'body.textContent=item.content',
     ]:
         assert marker in page, f"Server-controlled UI content must be escaped or assigned as text: {marker}"
+
+assert 'Delete permanently' not in page
+assert 'value="memory.delete"' not in page
+assert 'method:"DELETE"' not in page.split("async function memoryAction", 1)[1].split("async function loadMemoryReviewQueue", 1)[0]
 
 if "REPLACE_WITH_VERIFIED_STAGING_WORKER_URL" not in page:
     raise SystemExit("Staging Worker URL must remain an explicit unconfigured placeholder.")
@@ -527,3 +531,77 @@ for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', 'innerHTML
     assert forbidden not in overview_function, f"Evidence Intelligence overview must remain read-only and avoid HTML injection: {forbidden}"
 assert 'findingsElement(' in overview_function and '.append(' in overview_function
 assert 'Promise.allSettled' in overview_function, "Overview must show partial results if an individual engine is unavailable."
+
+
+
+# SOCIAL media URL policy: untrusted remote and attachment URLs must be HTTPS-only.
+public_page = (ROOT / "index.html").read_text(encoding="utf-8")
+social_media_helper = public_page.split("function safeSocialMediaSource(value,type=\"image\")", 1)[1].split("\nasync function socialUploadFile", 1)[0]
+for marker in [
+    'kind.startsWith("video/")',
+    'kind.startsWith("image/")',
+    'parsed.protocol==="https:"',
+    'data:video[/](?:mp4|webm|ogg)',
+    'data:image[/](?:png|jpeg|gif|webp|avif)',
+]:
+    assert marker in social_media_helper, f"SOCIAL media URL validation is missing: {marker}"
+
+chat_message_function = public_page.split("function socialRenderChatMessage(m)", 1)[1].split("\nasync function socialStartCall", 1)[0]
+assert 'safeSocialMediaSource(item.url,type)' in chat_message_function, "Chat attachments must validate URLs before href/src rendering."
+assert 'const type=String(item.type||"").toLowerCase(),url=sx(safeSocialMediaSource(item.url,type));' in chat_message_function
+assert "href=\"'+url+'\"" in chat_message_function and "src=\"'+url+'\"" in chat_message_function
+
+for marker in [
+    'safeSocialMediaSource(story.mediaUrl,"video")',
+    'safeSocialMediaSource(story.mediaUrl,"image")',
+    'safeSocialMediaSource(media.data,media.type)',
+    'safeSocialMediaSource(post.avatarUrl,"image")',
+]:
+    assert marker in public_page, f"SOCIAL profile/story media must use the safe URL policy: {marker}"
+
+avatar_renderer = public_page.split("function renderAvatar(id){", 1)[1].split("window.socialProfileGallery", 1)[0]
+assert 'safeSocialMediaSource(localProfile.photo,"image")' in avatar_renderer, "Locally stored profile avatars must pass the same safe media URL policy."
+
+gallery_renderer = public_page.split("function renderProfileGallery(){", 1)[1].split("window.removeProfileGalleryPhoto", 1)[0]
+assert 'safeSocialMediaSource(p.url,"image")' in gallery_renderer, "Profile gallery editor and preview must validate every photo URL."
+
+open_gallery_function = public_page.split("window.openProfileGalleryPhoto=function(index)", 1)[1].split("\nfunction updateProfilePreview", 1)[0]
+assert 'const source=safeSocialMediaSource(item.url,"image");if(!source)return;' in open_gallery_function, "Invalid gallery URLs must never be opened."
+assert 'Photo unavailable' in gallery_renderer, "Invalid profile gallery media must degrade to a safe placeholder."
+
+assert 'p.gallery.map((photo,i)=>{const source=sx(safeSocialMediaSource(photo.url,"image"));' in public_page, "Public profile galleries must validate URLs before both href and src insertion."
+assert 'sx(safeSocialMediaSource(u.avatarUrl,"image"))' in public_page, "Contact-list avatars must validate their URL."
+assert public_page.count('sx(safeSocialMediaSource(other.avatarUrl,"image"))') >= 2, "Conversation avatars must validate their URL."
+story_editor = public_page.split("async function socialCreateStory()", 1)[1].split("async function socialPublishStory", 1)[0]
+assert 'src="\'+sx(fileUrl)+\'"' in story_editor, "Story previews must use only the browser-created local object URL."
+assert 'safeSocialMediaSource(fileUrl' not in story_editor, "The remote media URL policy must not reject locally-created object URLs."
+assert 'safeSocialMediaSource(data,"image")' in public_page, "Profile image previews must validate data URLs."
+assert 'status.innerHTML=\'Saved successfully.' not in public_page, "Generated image URLs must not be inserted as raw HTML links."
+assert 'if(!url)return \'<span class="small-text">Attachment unavailable or blocked.</span>\';' in chat_message_function, "Invalid chat attachment URLs must not render empty clickable links."
+
+# Priority Action Review integrity UI: every server-detected failure must be visible and affect status.
+public_page = (ROOT / "index.html").read_text(encoding="utf-8")
+review_integrity_function = public_page.split("async function loadIntelPriorityActionReviewIntegrity()", 1)[1].split('\n$("refreshIntelPriorityActionReviewIntegrityBtn")?.addEventListener', 1)[0]
+for marker in [
+    'stats.snapshotHashMismatches',
+    'stats.actionKeyMismatches',
+    'stats.invalidSnapshotJson',
+    'stats.snapshotIdentityMismatches',
+    'stats.reviewerOwnerMismatches',
+    'stats.invalidReviewTimestamps',
+]:
+    assert marker in review_integrity_function, f"Priority Action Review integrity UI does not surface: {marker}"
+
+for marker in [
+    'Number(stats.snapshotHashMismatches||0)',
+    'Number(stats.actionKeyMismatches||0)',
+    'Number(stats.invalidSnapshotJson||0)',
+    'Number(stats.snapshotIdentityMismatches||0)',
+    'Number(stats.reviewerOwnerMismatches||0)',
+    'Number(stats.invalidReviewTimestamps||0)',
+    'integrityProblems===0&&!incompleteScan',
+]:
+    assert marker in review_integrity_function, f"Priority Action Review integrity status ignores: {marker}"
+
+for forbidden in ['innerHTML', 'insertAdjacentHTML', 'eval(']:
+    assert forbidden not in review_integrity_function, f"Priority Action Review integrity UI must render safely: {forbidden}"

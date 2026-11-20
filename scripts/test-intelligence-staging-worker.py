@@ -42,7 +42,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn("intelligence_finding_reviews", required_tables)
         self.assertIn("intelligence_evidence_correlation_reviews", required_tables)
         self.assertIn("intelligence_evidence_decision_reviews", required_tables)
-        self.assertIn("const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0", self.source)
+        health_line = next((line.strip() for line in self.source.splitlines() if "const schemaReady =" in line), "")
+        self.assertIn("missing.length === 0", health_line)
+        self.assertIn("missingTriggers.length === 0", health_line)
+        self.assertIn("missingColumns.length === 0", health_line)
+        self.assertIn("foreignKeysEnabled", health_line)
+        self.assertIn("violationCount === 0", health_line)
+        self.assertIn('intelligence_knowledge: ["source_type", "source_ref", "observed_at", "confidence_score", "verification_status"]', self.source)
+        self.assertIn('intelligence_owner_memory: ["memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"]', self.source)
+        self.assertIn("missingTriggers", self.source)
+        self.assertIn("missingColumns", self.source)
 
     def test_pi_identity_is_verified_server_side(self):
         self.assertIn('https://api.minepi.com/v2/me', self.source)
@@ -118,6 +127,41 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             'executionEnabled: false',
         ]:
             self.assertIn(fragment, self.owner_review_module)
+
+    def test_capability_approval_issue_timestamp_guard_is_required(self):
+        migration = (ROOT / "migrations" / "0018_intelligence_capability_approval_issued_at_guard.sql").read_text(encoding="utf-8")
+        self.assertIn("trg_intelligence_capability_approval_issued_at_guard", migration)
+        self.assertIn("NEW.issued_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("NEW.expires_at > NEW.issued_at + 3600", migration)
+        self.assertIn('"trg_intelligence_capability_approval_issued_at_guard"', self.source)
+        lifecycle_query = next((line for line in self.source.splitlines() if "invalidCapabilityApprovalLifecycle =" in line), "")
+        self.assertIn("issued_at > ?", lifecycle_query)
+        self.assertIn("issued_at <= 0", lifecycle_query)
+        self.assertIn("invalidCapabilityApprovalLifecycleCount === 0", self.source)
+
+    def test_both_approval_ledgers_require_consumption_locks_and_legacy_timestamp_guards(self):
+        migration = (ROOT / "migrations" / "0019_intelligence_approval_consumption_lock_and_legacy_timestamps.sql").read_text(encoding="utf-8")
+        for trigger in (
+            "trg_intelligence_approval_issued_at_guard",
+            "trg_intelligence_approval_terminal_timestamp_guard",
+            "trg_intelligence_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_revocation_before_expiry_guard",
+        ):
+            self.assertIn(trigger, migration)
+            self.assertIn(f'"{trigger}"', self.source)
+        self.assertIn("NEW.status = 'consumed'", migration)
+        self.assertIn("NEW.revoked_at < OLD.issued_at", migration)
+        self.assertIn("NEW.revoked_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("NEW.revoked_at >= OLD.expires_at", migration)
+        self.assertIn("trg_intelligence_capability_approval_revocation_before_expiry_guard", migration)
+        self.assertIn("revoked_at >= expires_at", self.source)
+        self.assertIn("OLD.expires_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("status='consumed'", self.source)
+        self.assertIn("invalidLegacyApprovalLifecycleCount === 0", self.source)
+        lifecycle_query = next((line for line in self.source.splitlines() if "invalidLegacyApprovalLifecycle =" in line), "")
+        for fragment in ("issued_at <= 0", "expires_at <= issued_at", "expires_at > issued_at + 3600", "status='consumed'"):
+            self.assertIn(fragment, lifecycle_query)
 
     def test_no_executor_scheduler_or_production_binding(self):
         forbidden = [
@@ -258,6 +302,17 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotIn('DELETE ', route)
         self.assertIn('path === "/intelligence/findings"', self.source)
 
+    def test_task_execution_lockout_covers_all_claim_fields_and_health_checks_legacy_rows(self):
+        migration = (ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql").read_text(encoding="utf-8")
+        for field in ["status", "assigned_to", "requires_approval", "result_text", "action_type", "action_payload", "agent_claimed_at", "agent_claim_id", "scheduler_claimed_at", "scheduler_claim_id"]:
+            self.assertIn(field, migration)
+        self.assertIn("trg_intelligence_task_insert_plan_only", migration)
+        self.assertIn("trg_intelligence_task_execution_state_immutable", migration)
+        self.assertIn("trg_intelligence_task_identity_immutable", migration)
+        self.assertIn("invalidTaskExecutionStateCount", self.source)
+        self.assertIn("invalidTaskExecutionStateCount === 0", self.source)
+        self.assertIn("intelligence_tasks: [\"status\", \"assigned_to\", \"requires_approval\", \"result_text\", \"action_type\", \"action_payload\", \"agent_claimed_at\", \"agent_claim_id\", \"scheduler_claimed_at\", \"scheduler_claim_id\"]", self.source)
+
     def test_route_allowlist_has_no_task_execution_endpoint(self):
         self.assertIn('path === "/health"', self.source)
         self.assertIn('path === "/session"', self.source)
@@ -289,6 +344,30 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, self.source)
         self.assertIn('trg_intelligence_owner_memory_provenance_immutable', (ROOT / "migrations" / "0005_intelligence_owner_memory_governance.sql").read_text(encoding="utf-8"))
+
+    def test_database_migration_enforces_append_only_audit_and_approval_timestamp_guards(self):
+        migration = (ROOT / "migrations" / "0017_intelligence_audit_immutability_and_approval_timestamps.sql").read_text(encoding="utf-8")
+        self.assertIn("trg_intelligence_staging_audit_no_update", migration)
+        self.assertIn("trg_intelligence_staging_audit_no_delete", migration)
+        self.assertIn("trg_intelligence_capability_approval_terminal_timestamp_guard", migration)
+        self.assertIn("trg_intelligence_staging_audit_no_update", self.source)
+        self.assertIn("trg_intelligence_staging_audit_no_delete", self.source)
+        self.assertIn("invalidCapabilityApprovalLifecycleCount", self.source)
+        self.assertIn("invalidCapabilityApprovalLifecycleCount === 0", self.source)
+
+    def test_database_capability_approval_allowlist_blocks_memory_delete_and_health_checks_legacy_rows(self):
+        migration = (ROOT / "migrations" / "0016_intelligence_capability_approval_allowlist.sql").read_text(encoding="utf-8")
+        self.assertIn("trg_intelligence_capability_approval_capability_guard", migration)
+        self.assertIn("'knowledge.create', 'memory.create', 'knowledge.review'", migration)
+        self.assertIn("trg_intelligence_capability_approval_capability_guard", self.source)
+        self.assertIn("invalidCapabilityApprovalCount", self.source)
+        self.assertIn("invalidCapabilityApprovalCount === 0", self.source)
+
+    def test_permanently_disabled_memory_delete_cannot_receive_a_capability_approval(self):
+        self.assertIn('const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review"]);', self.source)
+        self.assertNotIn('"memory.delete"', self.source)
+        policy = (ROOT / "intelligence-capability-policy.mjs").read_text(encoding="utf-8")
+        self.assertNotIn('"memory.delete"', policy)
 
     def test_capability_policy_routes_are_owner_scoped_and_assessment_only(self):
         self.assertIn('import { evaluateCapabilityRequest, listCapabilityPolicy } from "./intelligence-capability-policy.mjs";', self.source)
@@ -426,11 +505,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         ]:
             self.assertIn(fragment, self.source)
 
-    def test_memory_deletion_is_owner_scoped_and_audited(self):
+    def test_permanent_memory_deletion_fails_closed_until_approval_gating_exists(self):
         self.assertIn('if (memoryDeleteMatch && method === "DELETE")', self.source)
-        self.assertIn('DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?', self.source)
-        self.assertIn('"owner_memory_deleted"', self.source)
-        self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes() = 1', self.source)
+        self.assertIn('Permanent memory deletion is disabled pending approval-gated controls.', self.source)
+        self.assertNotIn('DELETE FROM intelligence_owner_memory', self.source)
+
+    def test_main_memory_ui_uses_reversible_archive_instead_of_permanent_delete(self):
+        self.assertIn('data-archive-intel-memory', self.index_html)
+        self.assertIn('body:JSON.stringify({action:"archive"})', self.index_html)
+        self.assertNotIn('data-delete-intel-memory', self.index_html)
+        self.assertNotIn('deleteIntelligenceMemory', self.index_html)
 
     def test_approval_expiry_uses_strict_tested_parser(self):
         self.assertIn('import { parseApprovalLifetime } from "./intelligence-approval-input.mjs";', self.source)
@@ -783,17 +867,21 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('data.truncated?', self.index_html)
         self.assertIn('evidence content, source availability, authenticity, correctness, or decision truth', self.index_html)
         start = self.index_html.index("function renderIntelDecisionIntegritySummary(")
-        end = self.index_html.index("async function loadProjects()", start)
-        panel_code = self.index_html[start:end]
+        loader_start = self.index_html.index("async function loadIntelDecisionIntegrity()", start)
+        end = self.index_html.index("function renderIntelCompanyReadiness(", loader_start)
+        renderer_code = self.index_html[start:loader_start]
+        loader_code = self.index_html[loader_start:end]
         for fragment in [
             "document.createElement(",
             "textContent",
             "replaceChildren()",
             "addEventListener(\"click\",loadIntelDecisionIntegrity)",
         ]:
-            self.assertIn(fragment, panel_code)
-        for forbidden in ["innerHTML", "insertAdjacentHTML", "method:\"POST\"", "method:\"PUT\"", "method:\"DELETE\""]:
-            self.assertNotIn(forbidden, panel_code)
+            self.assertIn(fragment, renderer_code + loader_code)
+        for forbidden in ["innerHTML", "insertAdjacentHTML"]:
+            self.assertNotIn(forbidden, renderer_code + loader_code)
+        for forbidden in ["method:\"POST\"", "method:\"PUT\"", "method:\"DELETE\""]:
+            self.assertNotIn(forbidden, loader_code)
         self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
 
     def test_evidence_decision_review_api_is_owner_scoped_current_and_append_only(self):
@@ -830,6 +918,11 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             self.assertIn(trigger, migration_source)
 
     def test_company_assessment_overview_is_owner_only_read_only_and_partial_failure_safe(self):
+        registry_start = self.source.index('if (path === "/intelligence/company/modules"')
+        registry_end = self.source.index('if (path === "/intelligence/company/assessment-coverage"', registry_start)
+        registry_route = self.source[registry_start:registry_end]
+        self.assertEqual(registry_route.count("success: true"), 1)
+        self.assertIn('scope: "authenticated_owner_staging_only"', registry_route)
         for element_id in [
             "intelCompanyReadinessPanel",
             "refreshIntelCompanyReadinessBtn",
@@ -852,6 +945,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             "/intelligence/findings/evidence-decision-reviews/integrity?limit=100",
         ]:
             self.assertIn(endpoint, panel_code)
+        self.assertIn('if(data.scope!=="authenticated_owner_staging_only")', panel_code)
         for fragment in [
             "Promise.allSettled",
             "authenticated_owner_staging_only",
@@ -866,8 +960,13 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             "addEventListener(\"click\",loadIntelCompanyReadiness)",
         ]:
             self.assertIn(fragment, panel_code)
-        for forbidden in ["innerHTML", "insertAdjacentHTML", 'method:"POST"', 'method:"PUT"', 'method:"DELETE"']:
+        for forbidden in ["innerHTML", "insertAdjacentHTML"]:
             self.assertNotIn(forbidden, panel_code)
+        company_loader_start = self.index_html.index("async function loadIntelCompanyReadiness()")
+        company_loader_end = self.index_html.index('$("refreshIntelCompanyReadinessBtn")?.addEventListener', company_loader_start)
+        company_loader = self.index_html[company_loader_start:company_loader_end]
+        for forbidden in ['method:"POST"', 'method:"PUT"', 'method:"DELETE"', "innerHTML", "insertAdjacentHTML"]:
+            self.assertNotIn(forbidden, company_loader)
         self.assertIn('if((name==="admin"||name==="intelligence")&&(!piUser||!piUser.isAdmin))', self.index_html)
 
     def test_priority_action_plan_is_owner_scoped_bounded_and_advisory(self):
@@ -918,8 +1017,101 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('authenticated_owner_staging_only', renderer)
         self.assertNotIn("innerHTML", renderer)
         self.assertNotIn("insertAdjacentHTML", renderer)
-        self.assertNotIn('method:"POST"', renderer)
+        self.assertIn('method:"POST"', renderer)
+        self.assertIn('"/intelligence/findings/priority-action-reviews"', renderer)
         self.assertIn("loadIntelPriorityActionPlan()", self.index_html)
+
+
+    def test_intelligence_ui_fails_closed_until_staging_worker_is_connected(self):
+        api_start = self.index_html.index("async function api(path,options={})")
+        api_end = self.index_html.index("\n\n", api_start)
+        api_helper = self.index_html[api_start:api_end]
+        self.assertIn('if(path.startsWith("/intelligence/"))return intelligenceStagingRequest(path,options);', api_helper)
+        staging_start = self.index_html.index("async function intelligenceStagingRequest")
+        staging_end = self.index_html.index("\nfunction updateIntelligenceStagingSessionUI", staging_start)
+        staging = self.index_html[staging_start:staging_end]
+        self.assertIn('if(!hasValidIntelligenceStagingUrl())throw new Error(', staging)
+        self.assertIn('function hasValidIntelligenceStagingUrl(){return /^https:\\/\\/mehran-intelligence-staging\\.[a-z0-9-]+\\.workers\\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}', self.index_html)
+        self.assertIn('tokenOverride', staging)
+        self.assertLess(staging.index('if(!hasValidIntelligenceStagingUrl())'), staging.index('fetch(INTELLIGENCE_STAGING_WORKER_URL+path'))
+        self.assertIn('const INTELLIGENCE_STAGING_WORKER_URL=""', self.index_html)
+        self.assertIn('INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session"', self.index_html)
+        self.assertNotIn('fetch(AUTH_WORKER+path', staging)
+        load_start = self.index_html.index("async function loadIntelligence(){")
+        load_end = self.index_html.index("\nasync function loadIntelligenceTasks()", load_start)
+        load_ui = self.index_html[load_start:load_end]
+        self.assertIn('intelligenceStagingRequest("/session")', load_ui)
+        self.assertNotIn('api("/admin/overview")', load_ui)
+        self.assertNotIn('api("/projects")', load_ui)
+
+    def test_intelligence_module_has_no_production_admin_mcp_or_scheduler_calls(self):
+        start = self.index_html.index("async function loadIntelligence(){")
+        end = self.index_html.index("\nasync function loadProjects()", start)
+        module = self.index_html[start:end]
+        for forbidden in ['api("/admin/', 'api("/projects"', 'api("/mcp"', 'fetch(AUTH_WORKER', 'loadIntelligenceSchedulerRuns', 'updateIntelligenceTask']:
+            self.assertNotIn(forbidden, module)
+        self.assertIn("No production MCP request is sent from this page", self.index_html)
+        self.assertNotIn("sendIntelligenceMessage", self.index_html)
+        self.assertIn('id="intelSendBtn" disabled', self.index_html)
+        self.assertNotIn('path === "/intelligence/chat"', self.source)
+
+    def test_staging_branch_does_not_reintroduce_the_intelligence_agent_workflow(self):
+        workflow = ROOT / ".github" / "workflows" / "intelligence-agent.yml"
+        self.assertFalse(workflow.exists(), "The disabled Intelligence Agent workflow must stay absent from staging branches.")
+
+    def test_intelligence_pi_session_is_separate_and_access_token_is_not_persisted(self):
+        connect_start = self.index_html.index("async function connectIntelligenceStagingSession")
+        connect_end = self.index_html.index("\nasync function disconnectIntelligenceStagingSession", connect_start)
+        connect = self.index_html[connect_start:connect_end]
+        self.assertIn('intelligenceStagingRequest("/health",{auth:false})', connect)
+        self.assertIn('health.schemaReady!==true||health.executor!==false', connect)
+        self.assertIn('method:"DELETE",tokenOverride:issued.token', connect)
+        self.assertLess(connect.index('intelligenceStagingRequest("/health",{auth:false})'), connect.index('window.Pi.authenticate(["username"]'))
+        self.assertIn("let intelligenceStagingConnecting=false", self.index_html)
+        self.assertIn("if(intelligenceStagingConnecting||getIntelligenceStagingToken())return;", connect)
+        self.assertIn("intelligenceStagingConnecting=true", connect)
+        self.assertIn('window.Pi.authenticate(["username"]', connect)
+        self.assertIn('intelligenceStagingRequest("/session",{method:"POST",auth:false', connect)
+        self.assertIn('body:JSON.stringify({accessToken:auth.accessToken})', connect)
+        self.assertIn('sessionStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token)', connect)
+        self.assertNotIn('localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token)', connect)
+        self.assertNotIn('localStorage.setItem(ADMIN_SESSION_KEY', connect)
+        self.assertNotIn('localStorage.setItem(SOCIAL_TOKEN_KEY', connect)
+        self.assertNotIn('localStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,auth.accessToken)', connect)
+        self.assertIn('intelligenceStagingRequest("/session")', connect)
+        self.assertIn('intelligenceStagingRequest("/session",{method:"DELETE"})', self.index_html)
+
+    def test_priority_action_owner_review_ui_is_owner_scoped_and_non_executing(self):
+        self.assertIn('id="refreshIntelPriorityActionReviewIntegrityBtn"', self.index_html)
+        self.assertIn('id="intelPriorityActionReviewIntegrityStatus"', self.index_html)
+        start = self.index_html.index("async function loadIntelPriorityActionReviewHistory")
+        end = self.index_html.index("async function loadIntelPriorityActionPlan()", start)
+        ui = self.index_html[start:end]
+        renderer_start = self.index_html.index("function renderIntelPriorityActionPlan(data)")
+        renderer_end = self.index_html.index("async function loadIntelPriorityActionReviewHistory", renderer_start)
+        renderer = self.index_html[renderer_start:renderer_end]
+        for fragment in [
+            '"/intelligence/findings/priority-action-reviews?actionKey="',
+            '"/intelligence/findings/priority-action-reviews/integrity?limit=100"',
+            'authenticated_owner_staging_only',
+            "Boolean(data.truncated)",
+            "older records were not included",
+            "integrityProblems===0&&!incompleteScan",
+            'textContent'
+        ]:
+            self.assertIn(fragment, ui)
+        for fragment in [
+            'method:"POST"',
+            'actionKey:action.actionKey',
+            'moduleId:action.moduleId',
+            'outcome:outcome.value',
+            'reasonInput.value.trim()',
+            '"/intelligence/findings/priority-action-reviews"',
+            'Execution: disabled.'
+        ]:
+            self.assertIn(fragment, renderer)
+        self.assertNotIn("innerHTML", ui + renderer)
+        self.assertNotIn("insertAdjacentHTML", ui + renderer)
 
     def test_priority_action_review_is_owner_scoped_append_only_and_stale_safe(self):
         self.assertIn('"intelligence_priority_action_reviews"', self.source)
@@ -983,12 +1175,162 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
         self.assertIn('"database_name": "mehran-msh-intelligence-staging"', self.config)
         self.assertIn('"database_id": "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID"', self.config)
-        self.assertIn("migrations 0000-0008", self.config)
+        self.assertIn("migrations through 0020", self.config)
+        self.assertIn("CI uses disposable SQLite/D1 databases only", self.config)
         self.assertNotIn('"mehran-msh-db"', self.config)
         self.assertNotIn('"ai":', self.config)
         self.assertNotRegex(self.config, r'"crons"\s*:')
         self.assertNotRegex(self.config, r'"queues"\s*:')
         self.assertNotRegex(self.config, r'"routes"\s*:')
+
+    def test_intelligence_dashboard_loads_company_assessment_overview_automatically(self):
+        start = self.index_html.index("async function loadIntelligence(){")
+        end = self.index_html.index("\nasync function loadIntelligenceTasks()", start)
+        loader = self.index_html[start:end]
+        self.assertIn("loadIntelCompanyReadiness()", loader)
+        self.assertIn("loadIntelPriorityActionPlan()", loader)
+        self.assertIn("loadIntelDecisionIntegrity()", loader)
+
+
+    def test_ai_proposal_design_defines_immutable_snapshots_and_append_only_events(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "The proposal payload is immutable after intake.",
+            "separate append-only event ledger",
+            "transactionally maintained projection",
+            "pending to accepted, rejected, expired, or superseded",
+            "server-assigned timestamps",
+            "client-supplied authority fields are rejected",
+            "unique constraint or equivalent conditional write",
+        ]:
+            self.assertIn(fragment, design)
+        self.assertIn("## Implementation gate", design)
+        self.assertIn("explicitly authorize that specific staging-only implementation step", design)
+
+
+    def test_owner_manual_writes_are_separate_from_future_agent_capabilities(self):
+        # All business routes are behind the Pi-verified staging owner session.
+        gate = 'const owner = await verifySession(request, env);'
+        self.assertIn(gate, self.source)
+        gate_positions = [match.start() for match in re.finditer(re.escape(gate), self.source)]
+        self.assertGreaterEqual(len(gate_positions), 3)
+        # The third occurrence is the shared gate after the session-only routes.
+        gate_index = gate_positions[2]
+        auth_check = self.source.index('if (!owner) return fail("Authentication required.", 401);', gate_index)
+        for marker in [
+            'if (path === "/intelligence/memory" && method === "POST")',
+            'if (path === "/intelligence/knowledge" && method === "POST")',
+            'if (path === "/intelligence/knowledge/relations" && method === "POST")',
+        ]:
+            self.assertGreater(self.source.index(marker), auth_check)
+            route = self.route_block(marker)
+            self.assertIn("owner.uid", route)
+
+        # Capability evaluation only assesses a server-side approval.
+        evaluation = self.route_block('if (path === "/intelligence/capabilities/evaluate" && method === "POST")')
+        for fragment in [
+            'WHERE id=? AND owner_uid=?',
+            'serverVerified: true',
+            'assessmentOnly: true',
+            'operationPerformed: false',
+            'executionEnabled: false',
+            'capability_assessed',
+        ]:
+            self.assertIn(fragment, evaluation)
+        for forbidden in ['consumed_at =', 'consumed_by =', 'executeTask(', 'claimTask(']:
+            self.assertNotIn(forbidden, evaluation)
+
+        policy = (ROOT / "intelligence-capability-policy.mjs").read_text(encoding="utf-8")
+        self.assertIn("future AI/agent-delegated requests", policy)
+        self.assertIn("Current owner-facing write routes are direct, human-initiated actions", policy)
+        self.assertIn("export const EXECUTION_ENABLED = false;", policy)
+
+        # Staging exposes no agent identity, agent session, or agent route.
+        for forbidden in [
+            'path.startsWith("/agent/',
+            'path === "/agent/',
+            'agentSession',
+            'AGENT_TOKEN',
+            'env.AI',
+            'scheduled(',
+            'waitUntil(',
+        ]:
+            self.assertNotIn(forbidden, self.source)
+
+
+
+    def test_ai_proposal_design_specifies_canonical_hash_encoding(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "RFC 8785 JSON Canonicalization Scheme (JCS)",
+            "Reject duplicate object member names",
+            "UTF-8",
+            "SHA-256",
+            "canonicalization version",
+            "Never hash client-provided canonical JSON",
+            "Unicode edge cases, duplicate keys, numeric boundary cases",
+        ]:
+            self.assertIn(fragment, design)
+
+
+    def test_ai_proposal_design_blocks_untrusted_url_fetch_and_double_acceptance(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "A URL in a proposal is an inert reference",
+            "must not fetch it, follow redirects",
+            "private network addresses",
+            "DNS/IP validation on every hop",
+            "two concurrent accept attempts result in exactly one successful commit",
+            "compare-and-swap",
+            "If any condition fails, no canonical record",
+            "payload change, or target-version change",
+        ]:
+            self.assertIn(fragment, design)
+
+    def test_ai_proposal_design_requires_database_enforced_atomic_acceptance(self):
+        design = (ROOT / "docs" / "INTELLIGENCE-AI-PROPOSAL-ONLY-DESIGN.md").read_text(encoding="utf-8")
+        for fragment in [
+            "D1 batch can keep statements atomic",
+            "UPDATE",
+            "matches zero rows is still a successful SQL statement",
+            "Do not rely on checking `meta.changes` after a D1 batch has already committed",
+            "all roll back",
+            "Enforce uniqueness in the schema",
+            "genuinely overlapping requests",
+            "deliberately failing final statement",
+            "Keep proposals review-only",
+        ]:
+            self.assertIn(fragment, design)
+
+
+    def test_approval_ledgers_have_no_consumption_write_path(self):
+        # Both staging approval ledgers permit issue, read, revoke, and assessment only.
+        # Neither ledger may be consumed or execute a task under the current staging contract.
+        for pattern in [
+            r"\bSET\s+consumed_at\s*=",
+            r"\bSET\s+consumed_by\s*=",
+            r"\bSET\s+status\s*=\s*'consumed'",
+            r"\bUPDATE\s+(?:intelligence_capability_approvals|intelligence_approval_ledger)\b[\s\S]{0,500}\bconsumed_(?:at|by)\s*=",
+        ]:
+            self.assertIsNone(
+                re.search(pattern, self.source, re.IGNORECASE),
+                f"Capability approval consumption must remain unimplemented: {pattern}",
+            )
+
+        evaluation = self.route_block('if (path === "/intelligence/capabilities/evaluate" && method === "POST")')
+        for forbidden in [
+            "INSERT INTO",
+            "UPDATE ",
+            "DELETE FROM",
+            "executeTask(",
+            "claimTask(",
+            "consumed_at =",
+            "consumed_by =",
+        ]:
+            self.assertNotIn(forbidden, evaluation)
+
+        policy = (ROOT / "intelligence-capability-policy.mjs").read_text(encoding="utf-8")
+        self.assertIn("export const EXECUTION_ENABLED = false;", policy)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

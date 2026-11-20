@@ -3,6 +3,9 @@ import { readFile } from "node:fs/promises";
 import { Miniflare } from "miniflare";
 
 const ROOT = new URL("../", import.meta.url);
+// Design-only transaction harness for a future, separately approved executor. It intentionally
+// stops at migration 0018; current staging schema applies 0019 and blocks consumption.
+// The active dual-ledger lock is tested by test-intelligence-approval-consumption-lock-d1-runtime.mjs.
 const migrationNames = [
   "0000_intelligence_staging_baseline",
   "0001_intelligence_approval_ledger",
@@ -13,6 +16,9 @@ const migrationNames = [
   "0006_intelligence_owner_memory_confidence_integer",
   "0007_intelligence_approval_ledger_state_guards",
   "0008_intelligence_capability_approval_ledger",
+  "0016_intelligence_capability_approval_allowlist",
+  "0017_intelligence_audit_immutability_and_approval_timestamps",
+  "0018_intelligence_capability_approval_issued_at_guard",
 ];
 
 const CONSUME = `
@@ -85,6 +91,45 @@ async function count(db, sql) {
   return Number(row.count);
 }
 
+async function testDatabaseRejectsDisabledMemoryDeleteCapability() {
+  const { mf, db } = await createDatabase();
+  try {
+    await assert.rejects(
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-delete','owner-a','memory.delete','owner_staging','issued',100,200)").run(),
+      /capability is not available for approval/i,
+    );
+    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE capability='memory.delete'"), 0);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testIssueTimestampGuardAndAuditAppendOnly() {
+  const { mf, db } = await createDatabase();
+  try {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    await assert.rejects(
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-future','owner-a','memory.create','owner_staging','issued',?,?)").bind(future, future + 60).run(),
+      /invalid capability approval issue or expiry timestamp/i,
+      "future-dated issuance must be rejected by D1",
+    );
+    await db.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) VALUES('audit-protected','owner-a','test','approval','grant-valid','{}',150)").run();
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_staging_audit SET details_json='tampered' WHERE target_id='grant-valid'").run(),
+      /append-only/i,
+      "audit updates must be rejected",
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_staging_audit WHERE target_id='grant-valid'").run(),
+      /append-only/i,
+      "audit deletion must be rejected",
+    );
+    assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid'"), 1);
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testSequentialSingleUse() {
   const { mf, db } = await createDatabase();
   try {
@@ -105,6 +150,46 @@ async function testSequentialSingleUse() {
   }
 }
 
+async function testConcurrentSingleUse() {
+  const { mf, db } = await createDatabase();
+  try {
+    // Two independently prepared transactions race for the same approval.
+    const attempts = await Promise.allSettled([
+      db.batch(statements(db, { operationId: "op-race-a" })),
+      db.batch(statements(db, { operationId: "op-race-b" })),
+    ]);
+    assert.deepEqual(
+      attempts.map(result => result.status).sort(),
+      ["fulfilled", "rejected"],
+      "exactly one overlapping transaction must consume the approval",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM protected_operations"),
+      1,
+      "exactly one protected operation may be committed",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE action='capability_approval_consumed' AND target_id='grant-valid'"),
+      1,
+      "exactly one consumption audit event may be committed",
+    );
+    const approval = await db.prepare(
+      "SELECT status, consumed_by FROM intelligence_capability_approvals WHERE id='grant-valid'"
+    ).first();
+    assert.equal(approval.status, "consumed");
+    assert.ok(
+      ["staging-operation:op-race-a", "staging-operation:op-race-b"].includes(approval.consumed_by),
+      "the committed approval must identify the winning transaction",
+    );
+    const operation = await db.prepare(
+      "SELECT id FROM protected_operations WHERE id IN ('op-race-a','op-race-b')"
+    ).first();
+    assert.equal(operation.id, approval.consumed_by.replace("staging-operation:", ""));
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testRollbackOnOperationFailure() {
   const { mf, db } = await createDatabase();
   try {
@@ -115,6 +200,61 @@ async function testRollbackOnOperationFailure() {
     assert.equal(approval.consumed_by, null);
     assert.equal(await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid'"), 0);
     assert.equal(await count(db, "SELECT COUNT(*) AS count FROM protected_operations"), 0);
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testRollbackWhenFinalAuditStatementFails() {
+  const { mf, db } = await createDatabase();
+  try {
+    // Fail only the final statement. Earlier statements consume the approval,
+    // write the operation, and create the normal trigger-owned consumption audit.
+    await db.prepare(`
+      CREATE TRIGGER reject_atomic_test_audit
+      BEFORE INSERT ON intelligence_staging_audit
+      WHEN NEW.id = 'atomic-fail-last'
+      BEGIN
+        SELECT RAISE(ABORT, 'intentional final audit failure');
+      END
+    `).run();
+
+    const batch = statements(db, { operationId: "op-final-audit-failure" });
+    batch[batch.length - 1] = db.prepare(`
+      INSERT INTO intelligence_staging_audit
+        (id,owner_uid,action,target_type,target_id,details_json,created_at)
+      VALUES ('atomic-fail-last','owner-a','atomic_test','test','grant-valid','{}',150)
+    `);
+
+    await assert.rejects(
+      db.batch(batch),
+      /intentional final audit failure/i,
+      "a failure in the final batch statement must abort the complete batch",
+    );
+
+    const approval = await db.prepare(
+      "SELECT status, consumed_at, consumed_by FROM intelligence_capability_approvals WHERE id='grant-valid'"
+    ).first();
+    assert.deepEqual(
+      [approval.status, approval.consumed_at, approval.consumed_by],
+      ["issued", null, null],
+      "the approval consumption must roll back after final-statement failure",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM protected_operations WHERE id='op-final-audit-failure'"),
+      0,
+      "the operation write must roll back after final-statement failure",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE target_id='grant-valid' AND action='capability_approval_consumed'"),
+      0,
+      "the trigger-owned consumption audit must roll back after final-statement failure",
+    );
+    assert.equal(
+      await count(db, "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE id='atomic-fail-last'"),
+      0,
+      "the deliberately failing final audit row must not persist",
+    );
   } finally {
     await mf.dispose();
   }
@@ -157,10 +297,18 @@ async function testExpiredAndRevokedApprovalsFailClosed() {
   console.log("PASS: D1-runtime expired and revoked approvals fail closed");
 }
 
+await testDatabaseRejectsDisabledMemoryDeleteCapability();
+console.log("PASS: D1 rejects capability approvals for permanently disabled memory deletion");
+await testIssueTimestampGuardAndAuditAppendOnly();
+console.log("PASS: D1 rejects future-dated approval issuance and keeps audit history append-only");
 await testSequentialSingleUse();
 console.log("PASS: D1-runtime sequential one-time consumption and row-count guard");
+await testConcurrentSingleUse();
+console.log("PASS: D1-runtime concurrent one-time consumption allows exactly one winner");
 await testRollbackOnOperationFailure();
 console.log("PASS: D1-runtime rollback restores approval and trigger audit");
+await testRollbackWhenFinalAuditStatementFails();
+console.log("PASS: D1-runtime final-statement failure rolls back approval, operation, and trigger audit");
 await testWrongOwnerFailsClosed();
 console.log("PASS: D1-runtime wrong-owner attempt fails closed");
 await testExpiredAndRevokedApprovalsFailClosed();

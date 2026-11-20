@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute the Intelligence approval-ledger migration against disposable SQLite."""
+"""Verify the original 0001 legacy ledger baseline in disposable SQLite.\n\nThis intentionally predates migration 0019; current dual-ledger lock behavior is\ncovered by test-intelligence-staging-schema.py and the D1 lock runtime test.\n"""
 from pathlib import Path
 import sqlite3
 import unittest
@@ -122,7 +122,7 @@ class ApprovalLedgerMigrationTests(unittest.TestCase):
         )
 
 
-    def test_approval_consumption_is_bound_and_one_time(self):
+    def test_pre_lock_baseline_consumption_model_is_bound_and_one_time(self):
         self.apply_migration()
         self.insert_grant("grant-consume")
         now = 150

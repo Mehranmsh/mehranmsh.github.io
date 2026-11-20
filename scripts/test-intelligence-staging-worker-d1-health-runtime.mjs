@@ -5,6 +5,8 @@ import { Miniflare } from "miniflare";
 import { createHash, randomBytes } from "node:crypto";
 import { buildEvidenceSnapshot } from "../intelligence-owner-evidence-review.mjs";
 import { buildEvidenceCorrelationReviewSnapshot } from "../intelligence-evidence-correlation-review.mjs";
+import { buildPriorityActionPlan } from "../intelligence-priority-action-plan.mjs";
+import { buildPriorityActionReviewSnapshot, buildPriorityActionReviewIntegrity } from "../intelligence-priority-action-review.mjs";
 
 const ROOT = new URL("../", import.meta.url);
 const migrations = [
@@ -22,6 +24,13 @@ const migrations = [
   "0011_intelligence_evidence_correlation_reviews",
   "0012_intelligence_evidence_decision_reviews",
   "0013_intelligence_priority_action_reviews",
+  "0014_intelligence_owner_identity_immutability",
+  "0015_intelligence_task_execution_disabled",
+  "0016_intelligence_capability_approval_allowlist",
+  "0017_intelligence_audit_immutability_and_approval_timestamps",
+  "0018_intelligence_capability_approval_issued_at_guard",
+  "0019_intelligence_approval_consumption_lock_and_legacy_timestamps",
+  "0020_intelligence_priority_action_review_timestamp_guard",
 ];
 
 async function applyMigrations(db, names) {
@@ -274,6 +283,7 @@ async function testPiSessionFailureAndCreationAtomicity() {
   const cases = [
     { name: "Pi upstream outage", fetch: async () => new Response("unavailable", { status: 503 }) },
     { name: "foreign Pi identity", fetch: async () => new Response(JSON.stringify({ uid: "foreign-owner", username: "mehranmsh" }), { status: 200, headers: { "Content-Type": "application/json" } }) },
+    { name: "owner UID with wrong Pi username", fetch: async () => new Response(JSON.stringify({ uid: ownerUid, username: "not-mehranmsh" }), { status: 200, headers: { "Content-Type": "application/json" } }) },
     { name: "malformed Pi identity", fetch: async () => new Response("{invalid", { status: 200, headers: { "Content-Type": "application/json" } }) },
   ];
   for (const scenario of cases) {
@@ -419,6 +429,8 @@ async function testCompleteSchemaReportsHealthy() {
     assert.equal(body.service, "mehran-intelligence-staging");
     assert.equal(body.schemaReady, true, JSON.stringify(body));
     assert.deepEqual(body.missingTables, []);
+    assert.deepEqual(body.missingTriggers, []);
+    assert.deepEqual(body.missingColumns, []);
     assert.equal(body.foreignKeysEnabled, true);
     assert.equal(body.foreignKeyViolations, 0);
     assert.equal(body.executor, false);
@@ -428,8 +440,165 @@ async function testCompleteSchemaReportsHealthy() {
   }
 }
 
+async function testHealthRejectsPreexistingTaskExecutionState() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_task_insert_plan_only").run();
+    await db.prepare("INSERT INTO intelligence_tasks(id,title,created_by,status) VALUES('legacy-executing-task','Legacy task','staging-owner','in_progress')").run();
+    await applyMigrations(db, ["0015_intelligence_task_execution_disabled"]);
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.equal(body.invalidTaskExecutionStateCount, 1);
+    assert.deepEqual(body.missingTriggers, []);
+    console.log("PASS: staging health fails closed when pre-existing task rows contain execution state");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testHealthRejectsPreexistingTaskExecutionState();
+await testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows();
+await testAuditAppendOnlyAndApprovalTimestampGuards();
+await testHealthRejectsLegacyFutureIssuedApproval();
+async function testCapabilityApprovalAllowlistGuardRejectsDirectSqlAndLegacyRows() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await assert.rejects(
+      db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('grant-delete','staging-owner','memory.delete','owner_staging','issued',100,200)").run(),
+      /capability is not available for approval/i,
+    );
+    await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_capability_guard").run();
+    await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('legacy-delete','staging-owner','memory.delete','owner_staging','issued',100,200)").run();
+    const migrationSource = await readFile(new URL("migrations/0016_intelligence_capability_approval_allowlist.sql", ROOT), "utf8");
+    const migration = migrationSource.split("\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\s+/g, " ").trim();
+    await db.exec(migration);
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.equal(body.invalidCapabilityApprovalCount, 1);
+    assert.ok(body.missingTriggers.includes("trg_intelligence_capability_approval_capability_guard") === false);
+    console.log("PASS: D1 rejects disabled approval capability and health blocks legacy rows");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testAuditAppendOnlyAndApprovalTimestampGuards() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) VALUES('audit-protected','staging-owner','test','test','target','{}',100)").run();
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_staging_audit SET action='rewritten' WHERE id='audit-protected'").run(),
+      /staging audit records are append-only/i,
+    );
+    await assert.rejects(
+      db.prepare("DELETE FROM intelligence_staging_audit WHERE id='audit-protected'").run(),
+      /staging audit records are append-only/i,
+    );
+    const now = Math.floor(Date.now() / 1000);
+    await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('future-revoke','staging-owner','memory.create','owner_staging','issued',?,?)").bind(now - 60, now + 600).run();
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'").bind(now + 3600).run(),
+      /invalid capability approval terminal timestamp|revocation must precede expiry/i,
+    );
+    await assert.rejects(
+      db.prepare("UPDATE intelligence_capability_approvals SET status='expired' WHERE id='future-revoke'").run(),
+      /invalid capability approval terminal timestamp/i,
+    );
+    console.log("PASS: D1 audit history is append-only and approval terminal timestamps are bounded");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testHealthRejectsLegacyFutureIssuedApproval() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_issued_at_guard").run();
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    await db.prepare("INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES('legacy-future','staging-owner','memory.create','owner_staging','issued',?,?)").bind(future, future + 60).run();
+    const source = await readFile(new URL("migrations/0018_intelligence_capability_approval_issued_at_guard.sql", ROOT), "utf8");
+    const sql = source.split("\n").filter(line => !line.trim().startsWith("--")).join(" ").replace(/\s+/g, " ").trim();
+    await db.exec(sql);
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.equal(body.invalidCapabilityApprovalLifecycleCount, 1);
+    assert.deepEqual(body.missingTriggers, []);
+    console.log("PASS: staging health rejects legacy future-dated approval issuance");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingKnowledgeProvenanceColumnsFailClosed() {
+  const { mf } = await createWorker(4);
+  try {
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingColumns, [
+      "intelligence_knowledge.source_type",
+      "intelligence_knowledge.source_ref",
+      "intelligence_knowledge.observed_at",
+      "intelligence_knowledge.confidence_score",
+      "intelligence_knowledge.verification_status",
+      "intelligence_owner_memory.memory_kind",
+      "intelligence_owner_memory.source_type",
+      "intelligence_owner_memory.source_ref",
+      "intelligence_owner_memory.confidence_score",
+      "intelligence_owner_memory.review_status",
+      "intelligence_owner_memory.reviewed_at",
+      "intelligence_owner_memory.archived_at"
+    ]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when provenance and owner-memory columns are missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingSecurityTriggerFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    const requiredTrigger = "trg_intelligence_priority_action_review_no_delete";
+    await db.prepare(`DROP TRIGGER ${requiredTrigger}`).run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingTriggers, [requiredTrigger]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when a required security trigger is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingPriorityReviewTimestampGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    const requiredTrigger = "trg_intelligence_priority_action_review_timestamp_guard";
+    await db.prepare(`DROP TRIGGER ${requiredTrigger}`).run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingTriggers, [requiredTrigger]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when the priority review timestamp guard is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
 async function testMissingCapabilityLedgerFailsClosed() {
-  const { mf } = await createWorker(migrations.length - 6);
+  const { mf } = await createWorker(migrations.indexOf("0008_intelligence_capability_approval_ledger"));
   try {
     const response = await mf.dispatchFetch("http://localhost/health");
     const body = await response.json();
@@ -470,6 +639,42 @@ async function testOwnerEvidenceReviewLedgerAPI() {
         id,finding_id,owner_uid,kind,source_ref,content_digest,observed_at,note,created_at
       ) VALUES(?,?,?,?,?,?,?,?,?)
     `).bind(evidenceId,findingId,ownerUid,"test_run","ci-run-123","a".repeat(64),now,"CI evidence reference",now).run();
+
+    const foreignFindingId = "00000000-0000-4000-8000-000000000103";
+    await db.prepare(`
+      INSERT INTO intelligence_findings(
+        id,owner_uid,module_id,check_id,blueprint_version,title,description,
+        created_at,updated_at,created_by
+      ) VALUES(?,?,?,?,?,?,?,?,?,?)
+    `).bind(foreignFindingId,"different-owner-uid","security","foreign-review","v1",
+      "Foreign finding","Must remain private",now,now,"different-owner").run();
+
+    const foreignReview = await mf.dispatchFetch(`http://localhost/intelligence/findings/${foreignFindingId}/reviews`, {
+      method: "POST", headers,
+      body: JSON.stringify({outcome:"accepted",reason:"Cross-owner review must be rejected."}),
+    });
+    assert.equal(foreignReview.status, 404,
+      "an owner must not review another owner's finding");
+    const foreignHistory = await mf.dispatchFetch(
+      `http://localhost/intelligence/findings/reviews?findingId=${foreignFindingId}&limit=10`, {headers});
+    assert.equal(foreignHistory.status, 200);
+    assert.equal((await foreignHistory.json()).items.length, 0,
+      "another owner's review history must not be disclosed");
+
+    await db.prepare(
+      "CREATE TRIGGER reject_finding_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='finding_evidence_review_recorded' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const auditFailure = await mf.dispatchFetch(`http://localhost/intelligence/findings/${findingId}/reviews`, {
+      method: "POST", headers,
+      body: JSON.stringify({outcome:"accepted",reason:"This review must roll back if audit fails."}),
+    });
+    assert.equal(auditFailure.status, 503);
+    const reviewCountAfterAuditFailure = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_finding_reviews WHERE finding_id=? AND owner_uid=?"
+    ).bind(findingId, ownerUid).first();
+    assert.equal(Number(reviewCountAfterAuditFailure.count), 0,
+      "failed audit insertion must roll back the evidence review");
+    await db.prepare("DROP TRIGGER reject_finding_review_audit").run();
 
     const post = await mf.dispatchFetch(`http://localhost/intelligence/findings/${findingId}/reviews`, {
       method: "POST", headers, body: JSON.stringify({outcome:"accepted",reason:"Reviewed the recorded CI reference."}),
@@ -728,6 +933,14 @@ async function testOwnerMemoryAuditIsolationAndProvenance() {
     ).bind(ownerUid).first();
     assert.equal(Number(crossOwnerCount.count), 0);
 
+    const forgedSystemObservation = await mf.dispatchFetch("http://localhost/intelligence/memory", {
+      method: "POST", headers,
+      body: JSON.stringify({ content: "Untrusted system observation claim", memoryKind: "general", sourceType: "system_observation" }),
+    });
+    assert.equal(forgedSystemObservation.status, 400, "owner input cannot impersonate a system-generated observation");
+    const afterForgedObservation = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_owner_memory WHERE owner_uid=?").bind(ownerUid).first();
+    assert.equal(Number(afterForgedObservation.count), 0, "rejected provenance must not create a memory row");
+
     const created = await mf.dispatchFetch("http://localhost/intelligence/memory", {
       method: "POST",
       headers,
@@ -756,6 +969,14 @@ async function testOwnerMemoryAuditIsolationAndProvenance() {
     assert.equal(listed.status, 200);
     const listedBody = await listed.json();
     assert.deepEqual(listedBody.items.map(item => item.id), [createdBody.id]);
+
+    const memoryReviewQueue = await mf.dispatchFetch("http://localhost/intelligence/memory/review-queue", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(memoryReviewQueue.status, 200);
+    const memoryReviewBody = await memoryReviewQueue.json();
+    assert.deepEqual(memoryReviewBody.items.map(item => item.id), [createdBody.id],
+      "memory review queue must not disclose another owner's unreviewed memory");
 
     await db.prepare(
       "CREATE TRIGGER reject_memory_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_confirmed' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
@@ -808,6 +1029,17 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
       assert.equal(response.status, 201);
       return (await response.json()).id;
     };
+    const forgedSystemObservation = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+      method: "POST", headers,
+      body: JSON.stringify({ title: "Forged observation", content: "Untrusted system observation claim", sourceType: "system_observation" }),
+    });
+    assert.equal(forgedSystemObservation.status, 400, "owner input cannot impersonate a system-generated observation");
+    const forgedUpload = await mf.dispatchFetch("http://localhost/intelligence/knowledge", {
+      method: "POST", headers,
+      body: JSON.stringify({ title: "Forged upload", content: "No verified upload exists", sourceType: "uploaded_document" }),
+    });
+    assert.equal(forgedUpload.status, 400, "upload provenance requires a future verified ingestion path");
+
     const sourceId = await createKnowledge("Evidence source A", "Verified phrase alpha");
     const targetId = await createKnowledge("Evidence source B", "Verified phrase beta");
 
@@ -822,6 +1054,14 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
     const listBody = await listed.json();
     assert.deepEqual(listBody.items.map(item => item.id).sort(), [sourceId, targetId].sort());
 
+    const knowledgeReviewQueue = await mf.dispatchFetch("http://localhost/intelligence/knowledge/review-queue", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(knowledgeReviewQueue.status, 200);
+    const knowledgeReviewBody = await knowledgeReviewQueue.json();
+    assert.deepEqual(knowledgeReviewBody.items.map(item => item.id).sort(), [sourceId, targetId].sort(),
+      "knowledge review queue must not disclose another owner's knowledge");
+
     const relation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
       method: "POST",
       headers,
@@ -835,6 +1075,46 @@ async function testKnowledgeOwnershipEvidenceAndAuditAtomicity() {
     });
     assert.equal(relation.status, 201);
     const relationId = (await relation.json()).id;
+
+    const foreignSourceId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const foreignTargetId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    await db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)")
+      .bind(foreignSourceId, "different-owner-uid", "Foreign source", "Foreign source evidence", "different-owner-uid").run();
+    await db.prepare("INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by) VALUES(?,?,?,?,?)")
+      .bind(foreignTargetId, "different-owner-uid", "Foreign target", "Foreign target evidence", "different-owner-uid").run();
+    const foreignRelationId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    await db.prepare("INSERT INTO intelligence_knowledge_relations(id,owner_uid,source_knowledge_id,target_knowledge_id,relation_type,status,source_evidence,target_evidence) VALUES(?,?,?,? ,'supports','candidate',?,?)")
+      .bind(foreignRelationId, "different-owner-uid", foreignSourceId, foreignTargetId, "Foreign source evidence", "Foreign target evidence").run();
+
+    const relationList = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(relationList.status, 200);
+    const relationListBody = await relationList.json();
+    assert.deepEqual(relationListBody.items.map(item => item.id), [relationId],
+      "relationship listing must not disclose another owner's relationship");
+
+    const relationCountBeforeCrossOwnerAttempt = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_knowledge_relations WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    const crossOwnerRelation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        sourceId,
+        targetId: "22222222-2222-4222-8222-222222222222",
+        relationType: "supports",
+        sourceEvidence: "Verified phrase alpha",
+        targetEvidence: "Private",
+      }),
+    });
+    assert.equal(crossOwnerRelation.status, 404,
+      "a relationship must not connect owner knowledge to another owner's record");
+    const crossOwnerRelationCount = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_knowledge_relations WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(crossOwnerRelationCount.count), Number(relationCountBeforeCrossOwnerAttempt.count),
+      "a rejected cross-owner relationship must not change the owner's relation set");
 
     const foreignRelation = await mf.dispatchFetch("http://localhost/intelligence/knowledge/relations/cccccccc-cccc-4ccc-8ccc-cccccccccccc", {
       method: "PUT",
@@ -944,18 +1224,27 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     assert.equal(issuedBody.executionEnabled, false);
     assert.equal(issuedBody.status, "issued");
 
+    const foreignApprovalId = "99999999-9999-4999-8999-999999999999";
+    await db.prepare(`
+      INSERT INTO intelligence_capability_approvals
+        (id,owner_uid,capability,scope,status,issued_at,expires_at)
+      VALUES(?,?,'memory.create','owner_staging','issued',?,?)
+    `).bind(foreignApprovalId, "different-owner-uid", now - 30, now + 300).run();
+
     const expiredId = "88888888-8888-4888-8888-888888888888";
     await db.prepare(`
       INSERT INTO intelligence_capability_approvals
         (id,owner_uid,capability,scope,status,issued_at,expires_at)
       VALUES(?,?,?,'owner_staging','issued',?,?)
-    `).bind(expiredId, ownerUid, "memory.delete", now - 120, now - 60).run();
+    `).bind(expiredId, ownerUid, "knowledge.create", now - 120, now - 60).run();
     const approvalList = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
       headers: { Authorization: `Bearer ${token}` },
     });
     assert.equal(approvalList.status, 200);
     const approvalListBody = await approvalList.json();
     assert.equal(approvalListBody.items.find(item => item.id === expiredId).status, "expired");
+    assert.equal(approvalListBody.items.some(item => item.id === foreignApprovalId), false,
+      "approval listing must never expose another owner's approval");
     const expiredStored = await db.prepare(
       "SELECT status FROM intelligence_capability_approvals WHERE id=? AND owner_uid=?"
     ).bind(expiredId, ownerUid).first();
@@ -984,10 +1273,12 @@ async function testCapabilityApprovalLifecycleIsAssessmentOnly() {
     const foreignAssessment = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.create", approvalId: "33333333-3333-4333-8333-333333333333" }),
+      body: JSON.stringify({ capability: "memory.create", approvalId: foreignApprovalId }),
     });
     assert.equal(foreignAssessment.status, 200);
     const foreignBody = await foreignAssessment.json();
+    assert.equal(foreignBody.assessment.reason, "owner_approval_required",
+      "an approval belonging to another owner must be invisible to capability assessment");
     assert.equal(foreignBody.operationPerformed, false);
     assert.equal(foreignBody.approvalConsumed, false);
 
@@ -1142,34 +1433,22 @@ async function testOwnerSensitiveMutationAuditAndIsolation() {
     const foreignDelete = await mf.dispatchFetch(`http://localhost/intelligence/memory/${foreignMemoryId}`, {
       method: "DELETE", headers,
     });
-    assert.equal(foreignDelete.status, 404);
+    assert.equal(foreignDelete.status, 403);
     const foreignStillExists = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
       .bind(foreignMemoryId).first();
     assert.ok(foreignStillExists);
 
-    await db.prepare(
-      "CREATE TRIGGER reject_memory_delete_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='owner_memory_deleted' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
-    ).run();
-    const deleteAuditFailure = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
+    const permanentDeleteDisabled = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
       method: "DELETE", headers,
     });
-    assert.equal(deleteAuditFailure.status, 503);
-    const memoryAfterFailure = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
+    assert.equal(permanentDeleteDisabled.status, 403);
+    const memoryAfterDeniedDelete = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
       .bind(memoryId).first();
-    assert.ok(memoryAfterFailure, "memory deletion must roll back if audit insertion fails");
-    await db.prepare("DROP TRIGGER reject_memory_delete_audit").run();
-
-    const deleted = await mf.dispatchFetch(`http://localhost/intelligence/memory/${memoryId}`, {
-      method: "DELETE", headers,
-    });
-    assert.equal(deleted.status, 200);
-    const deletedRow = await db.prepare("SELECT id FROM intelligence_owner_memory WHERE id=?")
-      .bind(memoryId).first();
-    assert.equal(deletedRow, null);
+    assert.ok(memoryAfterDeniedDelete, "permanent memory deletion must remain disabled");
     const deleteAudit = await db.prepare(
       "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND action='owner_memory_deleted' AND target_id=?"
     ).bind(ownerUid, memoryId).first();
-    assert.equal(Number(deleteAudit.count), 1);
+    assert.equal(Number(deleteAudit.count), 0);
 
     const knowledgeId = "66666666-6666-4666-8666-666666666666";
     await db.prepare(
@@ -1916,7 +2195,7 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
     for (const [id, owner] of [[approvalId, ownerUid], [foreignApprovalId, foreignUid]]) {
       await db.prepare(
         "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-      ).bind(id, owner, "memory.delete", now, now + 1800).run();
+      ).bind(id, owner, "knowledge.create", now, now + 1800).run();
     }
 
     const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
@@ -1924,11 +2203,11 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
       method: "POST",
       headers,
       body: JSON.stringify({
-        capability: "memory.delete",
+        capability: "knowledge.create",
         approval: {
           serverVerified: true,
           ownerId: ownerUid,
-          capability: "memory.delete",
+          capability: "knowledge.create",
           scope: "owner_staging",
           status: "issued",
           expiresAt: now + 1800,
@@ -1944,7 +2223,7 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
     const foreign = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId: foreignApprovalId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId: foreignApprovalId }),
     });
     assert.equal(foreign.status, 200);
     const foreignBody = await foreign.json();
@@ -1956,7 +2235,7 @@ async function testCapabilityAssessmentRejectsClientApprovalClaimsAndNeverConsum
     const valid = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId }),
     });
     assert.equal(valid.status, 200);
     const validBody = await valid.json();
@@ -2016,13 +2295,13 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
 
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(validId, ownerUid, "memory.delete", now, now + 600).run();
+    ).bind(validId, ownerUid, "knowledge.create", now, now + 600).run();
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(expiredId, ownerUid, "memory.delete", now - 3600, now - 1).run();
+    ).bind(expiredId, ownerUid, "knowledge.create", now - 3600, now - 1).run();
     await db.prepare(
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-    ).bind(revokedId, ownerUid, "memory.delete", now, now + 600).run();
+    ).bind(revokedId, ownerUid, "knowledge.create", now, now + 600).run();
     await db.prepare(
       "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id=?"
     ).bind(now, revokedId).run();
@@ -2035,7 +2314,7 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
     const auditFailure = await mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId: validId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId: validId }),
     });
     assert.equal(auditFailure.status, 503, "assessment must fail closed when its audit cannot be written");
     const unchangedAfterFailure = await db.prepare(
@@ -2054,7 +2333,7 @@ async function testCapabilityAssessmentFailureAndApprovalStateSafety() {
     const evaluate = approvalId => mf.dispatchFetch("http://localhost/intelligence/capabilities/evaluate", {
       method: "POST",
       headers,
-      body: JSON.stringify({ capability: "memory.delete", approvalId }),
+      body: JSON.stringify({ capability: "knowledge.create", approvalId }),
     });
     const unknown = await evaluate(unknownId);
     assert.equal(unknown.status, 200);
@@ -2114,7 +2393,7 @@ async function testCapabilityApprovalRevocationOwnerAndExpiryBoundaries() {
     ]) {
       await db.prepare(
         "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
-      ).bind(id, owner, "memory.delete", issuedAt, expiresAt).run();
+      ).bind(id, owner, "knowledge.create", issuedAt, expiresAt).run();
     }
 
     const headers = { Authorization: "Bearer " + token };
@@ -3410,10 +3689,11 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
         .bind(id, findingId, ownerUid, "document", correlationKey, "c".repeat(64), now,
           "Correlation review metadata fixture", now).run();
     }
-    const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+
     const beforeFindings = await db.prepare(
       "SELECT id,status FROM intelligence_findings WHERE owner_uid=? ORDER BY id"
     ).bind(ownerUid).all();
+    const beforeDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const body = {
       correlationType: "shared_source_reference",
       correlationKey,
@@ -3425,7 +3705,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201);
     const afterDecisionInsertAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeAudit.count) + 1,
+    assert.equal(Number(afterDecisionInsertAudit.count), Number(beforeDecisionInsertAudit.count) + 1,
       "decision insert must append exactly one audit event");
     const result = await created.json();
     assert.equal(result.outcome, "related");
@@ -3469,7 +3749,7 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
     ).bind(ownerUid).all();
     assert.deepEqual(afterFindings.results, beforeFindings.results, "correlation review must not change finding state");
     const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1, "review insert must append exactly one audit event");
+    assert.equal(Number(afterAudit.count), Number(beforeDecisionInsertAudit.count) + 1, "review insert must append exactly one audit event");
     await assert.rejects(
       db.prepare("UPDATE intelligence_evidence_correlation_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
       /append-only/i
@@ -3478,10 +3758,14 @@ async function testOwnerEvidenceCorrelationReviewLedgerRuntime() {
       db.prepare("DELETE FROM intelligence_evidence_correlation_reviews WHERE id=?").bind(result.id).run(),
       /retained/i
     );
+    // A review request for a correlation pattern that is no longer present must fail closed.
+    // Evidence rows are immutable by design, so this exercises the absent-pattern guard without
+    // attempting an update that the database correctly rejects.
     const stale = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-correlations/reviews",
-      { method:"POST", headers, body:JSON.stringify({...body,correlationKey:"doc:stale"}) });
-    assert.equal(stale.status, 409);
+      { method:"POST", headers, body:JSON.stringify({...body, correlationKey:"doc:stale"}) });
+    assert.equal(stale.status, 409,
+      "a correlation pattern absent from the current owner-scoped analysis must reject review");
     const spoof = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-correlations/reviews",
       { method:"POST", headers, body:JSON.stringify({...body,ownerUid:"spoof"}) });
@@ -3618,6 +3902,18 @@ async function testOwnerEvidenceDecisionReviewWorkflowRuntime() {
       outcome: "accepted",
       reason: "I reviewed the recommendation and accept the proposed next step."
     };
+    await db.prepare(
+      "CREATE TRIGGER reject_decision_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='evidence_decision_review_recorded' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedDecision = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/evidence-decision-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(failedDecision.status, 503, "decision review must fail closed when audit insertion fails");
+    const rolledBackDecision = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_evidence_decision_reviews WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(rolledBackDecision.count), 0, "failed audit must roll back the decision review row");
+    await db.prepare("DROP TRIGGER reject_decision_review_audit").run();
     const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const created = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/evidence-decision-reviews",
@@ -3801,12 +4097,26 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
       outcome: "accepted",
       reason: "I reviewed this advisory action and accept it for planning."
     };
+    await db.prepare(
+      "CREATE TRIGGER reject_priority_review_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='priority_action_review_recorded' BEGIN SELECT RAISE(ABORT, 'simulated audit outage'); END"
+    ).run();
+    const failedPriorityReview = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify(body) });
+    assert.equal(failedPriorityReview.status, 503, "priority review must fail closed when audit insertion fails");
+    const rolledBackPriorityReview = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_priority_action_reviews WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(rolledBackPriorityReview.count), 0, "failed audit must roll back the priority review row");
+    await db.prepare("DROP TRIGGER reject_priority_review_audit").run();
     const beforeAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
     const created = await mf.dispatchFetch(
       "http://localhost/intelligence/findings/priority-action-reviews",
       { method: "POST", headers, body: JSON.stringify(body) });
     assert.equal(created.status, 201, await created.clone().text());
     const result = await created.json();
+    assert.equal(result.success, true);
+    assert.equal(result.scope, "authenticated_owner_staging_only");
     assert.equal(result.findingId, findingId);
     assert.equal(result.moduleId, "security");
     assert.equal(result.reviewerUid, ownerUid);
@@ -3816,8 +4126,11 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     assert.equal(result.executionEnabled, false);
     assert.equal(result.operationPerformed, true);
     assert.match(result.snapshotSha256, /^[0-9a-f]{64}$/);
+    const afterOwnerReviewAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+    assert.equal(Number(afterOwnerReviewAudit.count), Number(beforeAudit.count) + 1,
+      "owner review insert must append exactly one audit event");
 
-    const saved = await db.prepare(`SELECT owner_uid,reviewer_uid,action_key_sha256,outcome,
+    const saved = await db.prepare(`SELECT owner_uid,reviewer_uid,action_key_sha256,outcome,reviewed_at,
       review_snapshot_json,review_snapshot_sha256 FROM intelligence_priority_action_reviews WHERE id=?`)
       .bind(result.id).first();
     assert.equal(saved.owner_uid, ownerUid);
@@ -3826,6 +4139,27 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     assert.equal(saved.outcome, "accepted");
     assert.equal(JSON.parse(saved.review_snapshot_json).findingId, findingId);
     assert.equal(createHash("sha256").update(saved.review_snapshot_json).digest("hex"), saved.review_snapshot_sha256);
+
+    const insertReviewSelect = "INSERT INTO intelligence_priority_action_reviews " +
+      "(id,owner_uid,reviewer_uid,finding_id,module_id,check_id,action_key_sha256,outcome,reason," +
+      "review_snapshot_json,review_snapshot_sha256,reviewed_at,created_at) " +
+      "SELECT ?,owner_uid,reviewer_uid,finding_id,module_id,check_id,action_key_sha256,outcome,reason," +
+      "review_snapshot_json,review_snapshot_sha256,?,? " +
+      "FROM intelligence_priority_action_reviews WHERE id=?";
+    const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
+    await assert.rejects(db.prepare(insertReviewSelect)
+      .bind("future-priority-review", futureTimestamp, futureTimestamp, result.id).run(),
+      /priority action review timestamps cannot be in the future/i);
+    await assert.rejects(db.prepare(insertReviewSelect)
+      .bind("future-created-priority-review", saved.reviewed_at, futureTimestamp, result.id).run(),
+      /priority action review timestamps cannot be in the future/i);
+    await assert.rejects(db.prepare(insertReviewSelect)
+      .bind("mismatched-created-priority-review", saved.reviewed_at, saved.reviewed_at - 1, result.id).run());
+    const reviewCountAfterRejectedInserts = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_priority_action_reviews WHERE owner_uid=?"
+    ).bind(ownerUid).first();
+    assert.equal(Number(reviewCountAfterRejectedInserts.count), 1,
+      "invalid direct inserts must not create priority review rows");
 
     const audit = await db.prepare("SELECT action FROM intelligence_staging_audit WHERE target_id=?")
       .bind(result.id).first();
@@ -3847,13 +4181,74 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
     const integrity = await integrityResponse.json();
     assert.equal(integrity.summary.recordsScanned, 1);
     assert.equal(integrity.summary.integrityMatches, 1);
+    assert.equal(integrity.items[0].actionKeyMatchesSnapshot, true);
     assert.equal(integrity.decisionTruthVerified, false);
+
+    // A second owner's finding and review must remain invisible to this session.
+    const outsiderUid = "another-staging-owner";
+    const outsiderFindingId = "73000000-0000-4000-8000-000000000002";
+    await db.prepare(`INSERT INTO intelligence_findings
+      (id,owner_uid,module_id,check_id,blueprint_version,severity,status,title,description,
+       evidence_state,recommendation,status_reason,review_due_at,created_at,updated_at,created_by)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(outsiderFindingId, outsiderUid, "security", "authentication", "v1", "critical", "open",
+        "Other owner's finding", "Isolation test fixture", "missing", null, null, null,
+        now, now, outsiderUid).run();
+    const outsiderRows = await db.prepare(`
+      SELECT f.id, f.module_id, f.check_id, f.severity, f.status, f.title,
+             f.recommendation, f.evidence_state, f.review_due_at, f.updated_at,
+             COUNT(e.id) AS evidence_reference_count,
+             SUM(CASE WHEN e.id IS NOT NULL AND
+               (e.content_digest IS NULL OR e.observed_at IS NULL)
+               THEN 1 ELSE 0 END) AS incomplete_evidence_reference_count
+      FROM intelligence_findings f
+      LEFT JOIN intelligence_finding_evidence e
+        ON e.finding_id = f.id AND e.owner_uid = f.owner_uid
+      WHERE f.owner_uid = ? AND f.id = ?
+      GROUP BY f.id
+    `).bind(outsiderUid, outsiderFindingId).all();
+    const outsiderPlan = buildPriorityActionPlan(outsiderRows.results || [], 100);
+    const outsiderAction = outsiderPlan.actions[0];
+    assert.ok(outsiderAction, "outsider fixture should produce a separate action");
+    const outsiderSnapshot = buildPriorityActionReviewSnapshot(outsiderAction);
+    const outsiderActionKey = createHash("sha256").update(outsiderSnapshot.snapshotJson).digest("hex");
+    const outsiderReviewSnapshot = JSON.stringify({
+      findingId: outsiderFindingId, moduleId: "security", checkId: "authentication"
+    });
+    const outsiderReviewHash = createHash("sha256").update(outsiderReviewSnapshot).digest("hex");
+    await db.prepare(`INSERT INTO intelligence_priority_action_reviews
+      (id,owner_uid,reviewer_uid,finding_id,module_id,check_id,action_key_sha256,outcome,reason,
+       review_snapshot_json,review_snapshot_sha256,reviewed_at,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind("outsider-priority-review", outsiderUid, outsiderUid, outsiderFindingId, "security",
+        "authentication", outsiderActionKey, "accepted", "Other owner's private review.",
+        outsiderReviewSnapshot, outsiderReviewHash, now, now).run();
+    const beforeOwnerReviewAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
+
+    const outsiderHistoryResponse = await mf.dispatchFetch(
+      `http://localhost/intelligence/findings/priority-action-reviews?actionKey=${outsiderActionKey}`, { headers });
+    assert.equal(outsiderHistoryResponse.status, 200);
+    const outsiderHistory = await outsiderHistoryResponse.json();
+    assert.equal(outsiderHistory.items.length, 0, "history must not expose another owner's review");
+    const isolatedIntegrityResponse = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews/integrity?limit=10", { headers });
+    assert.equal(isolatedIntegrityResponse.status, 200);
+    const isolatedIntegrity = await isolatedIntegrityResponse.json();
+    assert.equal(isolatedIntegrity.summary.recordsScanned, 1, "integrity scan must only include the authenticated owner");
+    assert.equal(isolatedIntegrity.items.some(item => item.id === "outsider-priority-review"), false);
+    const outsiderReviewAttempt = await mf.dispatchFetch(
+      "http://localhost/intelligence/findings/priority-action-reviews",
+      { method: "POST", headers, body: JSON.stringify({
+        actionKey: outsiderActionKey, moduleId: "security", outcome: "accepted",
+        reason: "Attempt to review another owner's action."
+      }) });
+    assert.equal(outsiderReviewAttempt.status, 409, "owner must not review another owner's action");
 
     const afterFinding = await db.prepare("SELECT status,severity,evidence_state FROM intelligence_findings WHERE id=? AND owner_uid=?")
       .bind(findingId, ownerUid).first();
     assert.deepEqual(afterFinding, beforeFinding, "owner review must not change finding state");
     const afterAudit = await db.prepare("SELECT COUNT(*) AS count FROM intelligence_staging_audit").first();
-    assert.equal(Number(afterAudit.count), Number(beforeAudit.count) + 1);
+    assert.equal(Number(afterAudit.count), Number(beforeOwnerReviewAudit.count), "cross-owner reads and rejected review must not append audit events");
 
     await assert.rejects(
       db.prepare("UPDATE intelligence_priority_action_reviews SET reason='rewritten' WHERE id=?").bind(result.id).run(),
@@ -3891,5 +4286,225 @@ async function testPriorityActionOwnerReviewWorkflowRuntime() {
   }
 }
 
+async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity() {
+  const { mf, db } = await createWorker(migrations.length);
+  const ownerUid = "staging-owner-test-uid";
+  const foreignUid = "capability-management-foreign";
+  const now = Math.floor(Date.now() / 1000);
+  const token = randomBytes(32).toString("base64url");
+  const foreignId = "44444444-4444-4444-8444-444444444444";
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_sessions(id,token_hash,owner_uid,created_at,expires_at) VALUES(?,?,?,?,?)"
+    ).bind("session-capability-management", tokenHash(token), ownerUid, now, now + 3600).run();
+    await db.prepare(
+      "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
+    ).bind(foreignId, foreignUid, "knowledge.create", now, now + 1800).run();
+
+    const headers = { Origin: "https://mehranmsh.github.io", Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    const issued = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST", headers,
+      body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
+    });
+    assert.equal(issued.status, 201);
+    const issuedBody = await issued.json();
+    assert.equal(issuedBody.executionEnabled, false);
+    assert.equal(issuedBody.status, "issued");
+
+    const listed = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", { headers });
+    assert.equal(listed.status, 200);
+    const listBody = await listed.json();
+    assert.equal(listBody.items.some(item => item.id === issuedBody.id), true);
+    assert.equal(listBody.items.some(item => item.id === foreignId), false,
+      "capability approval list must be owner-scoped");
+
+    const foreignRevoke = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${foreignId}`,
+      { method: "DELETE", headers });
+    assert.equal(foreignRevoke.status, 409);
+    const foreignRow = await db.prepare("SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?")
+      .bind(foreignId).first();
+    assert.equal(foreignRow.status, "issued");
+    assert.equal(foreignRow.revoked_at, null);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_revoke_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_approval_revoked' BEGIN SELECT RAISE(ABORT, 'simulated capability audit outage'); END"
+    ).run();
+    const failedRevoke = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${issuedBody.id}`,
+      { method: "DELETE", headers });
+    assert.equal(failedRevoke.status, 503);
+    const afterFailedRevoke = await db.prepare("SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?")
+      .bind(issuedBody.id).first();
+    assert.equal(afterFailedRevoke.status, "issued",
+      "failed revocation audit must roll back the approval state transition");
+    assert.equal(afterFailedRevoke.revoked_at, null);
+    await db.prepare("DROP TRIGGER reject_capability_revoke_audit").run();
+
+    const revoked = await mf.dispatchFetch(
+      `http://localhost/intelligence/capability-approvals/${issuedBody.id}`,
+      { method: "DELETE", headers });
+    assert.equal(revoked.status, 200);
+    const finalRow = await db.prepare("SELECT status,revoked_at FROM intelligence_capability_approvals WHERE id=?")
+      .bind(issuedBody.id).first();
+    assert.equal(finalRow.status, "revoked");
+    assert.ok(finalRow.revoked_at);
+    const revokeAudit = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_staging_audit WHERE owner_uid=? AND target_id=? AND action='capability_approval_revoked'"
+    ).bind(ownerUid, issuedBody.id).first();
+    assert.equal(Number(revokeAudit.count), 1);
+
+    await db.prepare(
+      "CREATE TRIGGER reject_capability_issue_audit BEFORE INSERT ON intelligence_staging_audit WHEN NEW.action='capability_approval_issued' BEGIN SELECT RAISE(ABORT, 'simulated issue audit outage'); END"
+    ).run();
+    const failedIssue = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
+      method: "POST", headers,
+      body: JSON.stringify({ capability: "knowledge.create", expiresInSeconds: 300 }),
+    });
+    assert.equal(failedIssue.status, 503);
+    const orphaned = await db.prepare(
+      "SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE owner_uid=? AND capability='knowledge.create'"
+    ).bind(ownerUid).first();
+    assert.equal(Number(orphaned.count), 0,
+      "approval issuance must roll back when its audit record cannot be written");
+    console.log("PASS: capability approval management is owner-scoped and issue/revoke audit failures roll back atomically");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingApprovalConsumptionGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_approval_consumption_disabled").run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.ok(body.missingTriggers.includes("trg_intelligence_approval_consumption_disabled"));
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when an approval consumption lock is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingApprovalRevocationExpiryGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_capability_approval_revocation_before_expiry_guard").run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.ok(body.missingTriggers.includes("trg_intelligence_capability_approval_revocation_before_expiry_guard"));
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when the approval revocation expiry guard is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+async function testMissingTaskExecutionGuardFailsClosed() {
+  const { mf, db } = await createWorker(migrations.length);
+  try {
+    await db.prepare("DROP TRIGGER trg_intelligence_task_execution_state_immutable").run();
+    const response = await mf.dispatchFetch("http://localhost/health");
+    const body = await response.json();
+    assert.equal(response.status, 503, JSON.stringify(body));
+    assert.equal(body.schemaReady, false);
+    assert.deepEqual(body.missingTriggers, ["trg_intelligence_task_execution_state_immutable"]);
+    assert.equal(body.executor, false);
+    console.log("PASS: staging Worker /health fails closed when task execution guard is missing");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+await testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity();
+await testMissingSecurityTriggerFailsClosed();
+await testMissingPriorityReviewTimestampGuardFailsClosed();
+await testMissingTaskExecutionGuardFailsClosed();
+await testMissingApprovalConsumptionGuardFailsClosed();
+await testMissingApprovalRevocationExpiryGuardFailsClosed();
 await testOwnerEvidenceDecisionReviewWorkflowRuntime();
 await testPriorityActionOwnerReviewWorkflowRuntime();
+
+async function testPublicHealthRouteIsIpRateLimited() {
+  const { mf, db } = await createWorker(migrations.length);
+  const blockedIp = "198.51.100.77";
+  const allowedIp = "198.51.100.78";
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    await db.prepare(
+      "INSERT INTO intelligence_staging_rate_limits(rate_key,window_started_at,request_count,blocked_until) VALUES(?,?,?,NULL)"
+    ).bind(tokenHash(`ip:${blockedIp}:health`), now, 30).run();
+
+    const blocked = await mf.dispatchFetch("http://localhost/health", {
+      headers: { "CF-Connecting-IP": blockedIp },
+    });
+    assert.equal(blocked.status, 429);
+    const body = await blocked.json();
+    assert.match(body.error, /rate limit/i);
+
+    const isolated = await mf.dispatchFetch("http://localhost/health", {
+      headers: { "CF-Connecting-IP": allowedIp },
+    });
+    assert.equal(isolated.status, 200,
+      "one client's health-check limit must not block another client IP");
+    console.log("PASS: public staging health checks enforce an isolated per-IP rate limit");
+  } finally {
+    await mf.dispose();
+  }
+}
+
+
+async function testPriorityActionReviewIntegrityDetectsActionKeyMismatch() {
+  const snapshotJson = JSON.stringify({
+    findingId: "73000000-0000-4000-8000-000000000099",
+    moduleId: "security",
+    checkId: "authentication"
+  });
+  const snapshotHash = createHash("sha256").update(snapshotJson).digest("hex");
+  const row = {
+    id: "forged-priority-review",
+    owner_uid: "staging-owner-test-uid",
+    reviewer_uid: "staging-owner-test-uid",
+    finding_id: "73000000-0000-4000-8000-000000000099",
+    module_id: "security",
+    check_id: "authentication",
+    action_key_sha256: "f".repeat(64),
+    outcome: "accepted",
+    reviewed_at: 1000,
+    created_at: 1000,
+    review_snapshot_json: snapshotJson,
+    review_snapshot_sha256: snapshotHash
+  };
+  const inspect = rows => buildPriorityActionReviewIntegrity(rows, async value =>
+    createHash("sha256").update(value).digest("hex"), 1000);
+  const mismatch = await inspect([row]);
+  assert.equal(mismatch.summary.actionKeyMismatches, 1);
+  assert.equal(mismatch.items[0].actionKeyMatchesSnapshot, false);
+  assert.equal(mismatch.items[0].status, "action_key_mismatch");
+
+  row.action_key_sha256 = snapshotHash;
+  const valid = await inspect([row]);
+  assert.equal(valid.summary.integrityMatches, 1);
+  assert.equal(valid.items[0].actionKeyMatchesSnapshot, true);
+
+  row.reviewed_at = 1001;
+  row.created_at = 1001;
+  const future = await inspect([row]);
+  assert.equal(future.summary.invalidReviewTimestamps, 1);
+  assert.equal(future.items[0].status, "invalid_review_timestamp");
+
+  row.reviewed_at = 1000;
+  row.created_at = 999;
+  const mismatched = await inspect([row]);
+  assert.equal(mismatched.summary.invalidReviewTimestamps, 1);
+  assert.equal(mismatched.items[0].reviewTimestampValid, false);
+  console.log("PASS: priority action review integrity detects action-key and timestamp mismatches");
+}
+
+await testPublicHealthRouteIsIpRateLimited();
+await testPriorityActionReviewIntegrityDetectsActionKeyMismatch();

@@ -19,6 +19,13 @@ MIGRATIONS = [
     ROOT / "migrations" / "0010_intelligence_finding_review_ledger.sql",
     ROOT / "migrations" / "0011_intelligence_evidence_correlation_reviews.sql",
     ROOT / "migrations" / "0012_intelligence_evidence_decision_reviews.sql",
+    ROOT / "migrations" / "0013_intelligence_priority_action_reviews.sql",
+    ROOT / "migrations" / "0014_intelligence_owner_identity_immutability.sql",
+    ROOT / "migrations" / "0015_intelligence_task_execution_disabled.sql",
+    ROOT / "migrations" / "0016_intelligence_capability_approval_allowlist.sql",
+    ROOT / "migrations" / "0017_intelligence_audit_immutability_and_approval_timestamps.sql",
+    ROOT / "migrations" / "0018_intelligence_capability_approval_issued_at_guard.sql",
+    ROOT / "migrations" / "0019_intelligence_approval_consumption_lock_and_legacy_timestamps.sql",
 ]
 
 class IntelligenceStagingSchemaTests(unittest.TestCase):
@@ -70,6 +77,50 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertTrue(any(row[2] == "intelligence_tasks" for row in approval_fks))
         self.assertTrue(any(row[2] == "intelligence_knowledge" for row in relation_fks))
 
+
+
+
+    def test_capability_approval_database_allowlist_rejects_memory_delete(self):
+        self.apply_chain()
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("""
+                INSERT INTO intelligence_capability_approvals(
+                    id,owner_uid,capability,scope,status,issued_at,expires_at
+                ) VALUES('grant-delete','owner-a','memory.delete','owner_staging','issued',100,200)
+            """)
+        self.db.execute("""
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES('grant-create','owner-a','memory.create','owner_staging','issued',100,200)
+        """)
+        self.assertEqual(self.db.execute(
+            "SELECT capability FROM intelligence_capability_approvals WHERE id='grant-create'"
+        ).fetchone()[0], "memory.create")
+
+    def test_knowledge_and_memory_owner_identity_is_immutable(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_knowledge(id,owner_uid,title,content,created_by)
+            VALUES('owner-lock-knowledge','owner-a','Private','Owner-bound knowledge','owner-a')
+        """)
+        self.db.execute("""
+            INSERT INTO intelligence_owner_memory(id,owner_uid,category,content)
+            VALUES('owner-lock-memory','owner-a','general','Owner-bound memory')
+        """)
+        for table, record_id in (
+            ('intelligence_knowledge', 'owner-lock-knowledge'),
+            ('intelligence_owner_memory', 'owner-lock-memory'),
+        ):
+            with self.subTest(table=table):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(
+                        f"UPDATE {table} SET owner_uid='owner-b' WHERE id=?",
+                        (record_id,),
+                    )
+                owner = self.db.execute(
+                    f"SELECT owner_uid FROM {table} WHERE id=?", (record_id,)
+                ).fetchone()[0]
+                self.assertEqual(owner, 'owner-a')
 
     def test_owner_finding_review_ledger_is_append_only_scoped_and_audited(self):
         self.apply_chain()
@@ -195,6 +246,86 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
             self.db.execute("DELETE FROM intelligence_evidence_decision_reviews WHERE id=?", (good[0],))
         self.assertEqual(self.db.execute("PRAGMA foreign_key_check").fetchall(), [])
 
+    def test_review_audit_failure_rolls_back_all_three_owner_decision_ledgers(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_findings(
+                id,owner_uid,module_id,check_id,blueprint_version,title,description,
+                created_at,updated_at,created_by
+            ) VALUES(
+                '00000000-0000-4000-8000-000000000001','owner-a','security',
+                'auditability','v1','Audit rollback fixture','Verify atomic audit behavior',
+                500,500,'owner-a'
+            )
+        """)
+        audit_count_before = self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0]
+        self.db.execute("""
+            CREATE TRIGGER reject_review_audit
+            BEFORE INSERT ON intelligence_staging_audit
+            BEGIN SELECT RAISE(ABORT, 'simulated review audit outage'); END
+        """)
+
+        with self.subTest(ledger="correlation"):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("""
+                    INSERT INTO intelligence_evidence_correlation_reviews(
+                        id,owner_uid,reviewer_uid,correlation_type,correlation_key_sha256,
+                        outcome,reason,correlation_snapshot_json,correlation_snapshot_sha256,
+                        reference_count,reviewed_at,created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    "rollback-correlation","owner-a","owner-a","shared_digest","a"*64,
+                    "related","Audit must be atomic.",
+                    '[{"evidenceId":"20000000-0000-4000-8000-000000000001","findingId":"10000000-0000-4000-8000-000000000001"},{"evidenceId":"20000000-0000-4000-8000-000000000002","findingId":"10000000-0000-4000-8000-000000000002"}]',
+                    "b"*64,2,501,501
+                ))
+
+        with self.subTest(ledger="decision"):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("""
+                    INSERT INTO intelligence_evidence_decision_reviews(
+                        id,owner_uid,reviewer_uid,review_key_sha256,source_type,source_id,
+                        outcome,reason,review_snapshot_json,review_snapshot_sha256,
+                        reviewed_at,created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    "rollback-decision","owner-a","owner-a","c"*64,"finding_metadata",
+                    "finding-1","accepted","Audit must be atomic.",
+                    '{"sourceType":"finding_metadata","sourceId":"finding-1"}',
+                    "d"*64,502,502
+                ))
+
+        with self.subTest(ledger="priority_action"):
+            with self.assertRaises(sqlite3.IntegrityError):
+                self.db.execute("""
+                    INSERT INTO intelligence_priority_action_reviews(
+                        id,owner_uid,reviewer_uid,finding_id,module_id,check_id,
+                        action_key_sha256,outcome,reason,review_snapshot_json,
+                        review_snapshot_sha256,reviewed_at,created_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    "rollback-priority","owner-a","owner-a",
+                    "00000000-0000-4000-8000-000000000001","security","auditability",
+                    "e"*64,"accepted","Audit must be atomic.",
+                    '{"findingId":"00000000-0000-4000-8000-000000000001","moduleId":"security","checkId":"auditability"}',
+                    "f"*64,503,503
+                ))
+
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_evidence_correlation_reviews"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_evidence_decision_reviews"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_priority_action_reviews"
+        ).fetchone()[0], 0)
+        self.assertEqual(self.db.execute(
+            "SELECT COUNT(*) FROM intelligence_staging_audit"
+        ).fetchone()[0], audit_count_before)
+
     def test_approval_ledger_rejects_unknown_task(self):
         self.apply_chain()
         with self.assertRaises(sqlite3.IntegrityError):
@@ -247,15 +378,17 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.db.execute(insert, consumed)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE intelligence_approval_ledger SET status='consumed' WHERE id='guard-c'")
-        self.db.execute("""
-            UPDATE intelligence_approval_ledger
-            SET status='consumed',consumed_at=150,consumed_by='staging-test'
-            WHERE id='guard-c'
-        """)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.execute("UPDATE intelligence_approval_ledger SET consumed_by='other' WHERE id='guard-c'")
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-c'")
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_approval_ledger
+                SET status='consumed',consumed_at=150,consumed_by='staging-test'
+                WHERE id='guard-c'
+            """)
+        guard_c = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE id='guard-c'"
+        ).fetchone()
+        self.assertEqual(guard_c, ('issued',None,None))
+        self.db.execute("UPDATE intelligence_approval_ledger SET status='expired' WHERE id='guard-c'")
 
         expired = ('guard-d','guard-task','owner-a','mehranmsh','owner/repo','main',
                    'e'*40,'{"paths":["tests/"]}','f'*64,'issued',100,200)
@@ -272,7 +405,7 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 id,owner_uid,capability,scope,status,issued_at,expires_at
             ) VALUES(?,?,?,?,?,?,?)
         """
-        good = ('cap-a','owner-a','memory.delete','owner_staging','issued',100,200)
+        good = ('cap-a','owner-a','memory.create','owner_staging','issued',100,200)
         self.db.execute(insert, good)
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute(insert, ('cap-b','owner-a','task.execute','owner_staging','issued',100,200))
@@ -297,16 +430,19 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
 
         consumed = ('cap-e','owner-a','knowledge.review','owner_staging','issued',100,200)
         self.db.execute(insert, consumed)
-        self.db.execute("""
-            UPDATE intelligence_capability_approvals
-            SET status='consumed',consumed_at=160,consumed_by='staging-test'
-            WHERE id='cap-e'
-        """)
-        with self.assertRaises(sqlite3.IntegrityError):
-            self.db.execute("UPDATE intelligence_capability_approvals SET consumed_by='other' WHERE id='cap-e'")
-        self.assertEqual(self.db.execute("""
-            SELECT action FROM intelligence_staging_audit WHERE target_id='cap-e'
-        """).fetchone()[0], 'capability_approval_consumed')
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_capability_approvals
+                SET status='consumed',consumed_at=160,consumed_by='staging-test'
+                WHERE id='cap-e'
+            """)
+        cap_e = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id='cap-e'"
+        ).fetchone()
+        self.assertEqual(cap_e, ('issued',None,None))
+        self.assertIsNone(self.db.execute(
+            "SELECT action FROM intelligence_staging_audit WHERE target_id='cap-e'"
+        ).fetchone())
 
         expired = ('cap-f','owner-a','memory.create','owner_staging','issued',100,200)
         self.db.execute(insert, expired)
@@ -314,6 +450,44 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
         self.assertEqual(self.db.execute("""
             SELECT action FROM intelligence_staging_audit WHERE target_id='cap-f'
         """).fetchone()[0], 'capability_approval_expired')
+
+    def test_staging_audit_is_append_only(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_staging_audit
+                (id,owner_uid,action,target_type,target_id,details_json,created_at)
+            VALUES('audit-immutable','owner-a','test','test','target','{}',100)
+        """)
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_staging_audit SET action='rewritten' WHERE id='audit-immutable'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("DELETE FROM intelligence_staging_audit WHERE id='audit-immutable'")
+        self.assertEqual(self.db.execute(
+            "SELECT action FROM intelligence_staging_audit WHERE id='audit-immutable'"
+        ).fetchone()[0], "test")
+
+    def test_capability_approval_terminal_timestamps_reject_future_and_preissue_values(self):
+        self.apply_chain()
+        now = int(__import__("time").time())
+        insert = """
+            INSERT INTO intelligence_capability_approvals
+                (id,owner_uid,capability,scope,status,issued_at,expires_at)
+            VALUES(?, 'owner-a','memory.create','owner_staging','issued',?,?)
+        """
+        self.db.execute(insert, ("future-revoke", now - 60, now + 600))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'",
+                (now + 3600,)
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='future-revoke'",
+                (now - 61,)
+            )
+        self.db.execute(insert, ("early-expiry", now - 60, now + 600))
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_capability_approvals SET status='expired' WHERE id='early-expiry'")
 
     def test_linked_knowledge_content_guard_is_installed(self):
         self.apply_chain()
@@ -734,6 +908,175 @@ class IntelligenceStagingSchemaTests(unittest.TestCase):
                 (id,token_hash,owner_uid,created_at,expires_at)
                 VALUES('s2','hash-1','owner-b',100,200)
             """)
+
+
+    def test_both_approval_ledgers_block_consumption_and_guard_timestamps(self):
+        self.apply_chain()
+        now = self.db.execute("SELECT CAST(strftime('%s','now') AS INTEGER)").fetchone()[0]
+        issued_at = now - 120
+        expires_at = now + 300
+        for task_id in ("approval-task-main", "approval-task-expired", "approval-task-future"):
+            self.db.execute(
+                "INSERT INTO intelligence_tasks(id,title,created_by) VALUES(?,?,?)",
+                (task_id, "Approval guard fixture", "owner-a"),
+            )
+
+        def insert_legacy(approval_id, task_id, issued, expiry):
+            self.db.execute("""
+                INSERT INTO intelligence_approval_ledger(
+                    id,task_id,owner_uid,owner_username,repository,branch,base_sha,
+                    scope_json,scope_sha256,status,issued_at,expires_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,'issued',?,?)
+            """, (
+                approval_id, task_id, "owner-a", "mehranmsh",
+                "Mehranmsh/mehranmsh.github.io", "intelligence/staging-test",
+                "a" * 40, '{"paths":["src/"]}', "b" * 64, issued, expiry,
+            ))
+
+        insert_legacy("legacy-main", "approval-task-main", issued_at, expires_at)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_approval_ledger
+                SET status='consumed',consumed_at=?,consumed_by='executor'
+                WHERE id='legacy-main'
+            """, (now,))
+        row = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_approval_ledger WHERE id='legacy-main'"
+        ).fetchone()
+        self.assertEqual(row, ("issued", None, None))
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-main'"
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
+                (issued_at - 1,),
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
+                (now + 60,),
+            )
+        self.db.execute(
+            "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-main'",
+            (now,),
+        )
+
+        insert_legacy("legacy-expired", "approval-task-expired", issued_at, now - 1)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_approval_ledger SET status='revoked',revoked_at=? WHERE id='legacy-expired'",
+                (now,),
+            )
+        self.db.execute(
+            "UPDATE intelligence_approval_ledger SET status='expired' WHERE id='legacy-expired'"
+        )
+        self.assertEqual(self.db.execute(
+            "SELECT status FROM intelligence_approval_ledger WHERE id='legacy-expired'"
+        ).fetchone()[0], "expired")
+
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "invalid legacy approval issue"):
+            insert_legacy("legacy-future", "approval-task-future", now + 60, now + 120)
+
+        self.db.execute("""
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES('capability-main','owner-a','memory.create','owner_staging','issued',?,?)
+        """, (issued_at, expires_at))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "consumption is disabled"):
+            self.db.execute("""
+                UPDATE intelligence_capability_approvals
+                SET status='consumed',consumed_at=?,consumed_by='executor'
+                WHERE id='capability-main'
+            """, (now,))
+        capability = self.db.execute(
+            "SELECT status,consumed_at,consumed_by FROM intelligence_capability_approvals WHERE id='capability-main'"
+        ).fetchone()
+        self.assertEqual(capability, ("issued", None, None))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-main'",
+                (issued_at - 1,),
+            )
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "terminal timestamp"):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-main'",
+                (now + 60,),
+            )
+        self.db.execute("""
+            INSERT INTO intelligence_capability_approvals(
+                id,owner_uid,capability,scope,status,issued_at,expires_at
+            ) VALUES('capability-expired-revoke','owner-a','knowledge.review','owner_staging','issued',?,?)
+        """, (issued_at, now - 60))
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "revocation must precede expiry"):
+            self.db.execute(
+                "UPDATE intelligence_capability_approvals SET status='revoked',revoked_at=? WHERE id='capability-expired-revoke'",
+                (now - 30,),
+            )
+
+        consumed_audits = self.db.execute("""
+            SELECT COUNT(*) FROM intelligence_staging_audit
+            WHERE action IN ('approval_consumed','capability_approval_consumed')
+        """).fetchone()[0]
+        self.assertEqual(consumed_audits, 0)
+        required_triggers = {
+            "trg_intelligence_approval_issued_at_guard",
+            "trg_intelligence_approval_terminal_timestamp_guard",
+            "trg_intelligence_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_revocation_before_expiry_guard",
+            "trg_intelligence_capability_approval_revocation_before_expiry_guard",
+        }
+        found_triggers = {
+            row[0] for row in self.db.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger'"
+            )
+        }
+        self.assertTrue(required_triggers.issubset(found_triggers))
+
+    def test_task_records_are_plan_only_and_execution_fields_are_locked(self):
+        self.apply_chain()
+        self.db.execute("""
+            INSERT INTO intelligence_tasks(id,title,created_by)
+            VALUES('plan-only-task','Plan only','owner-a')
+        """)
+        blocked_updates = [
+            "UPDATE intelligence_tasks SET status='in_progress' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET assigned_to='external_executor' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET result_text='executed' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET action_type='shell' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET action_payload='{\"command\":\"run\"}' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET agent_claimed_at='now' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET scheduler_claim_id='claim-1' WHERE id='plan-only-task'",
+        ]
+        for statement in blocked_updates:
+            with self.subTest(statement=statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(statement)
+        for statement in (
+            "UPDATE intelligence_tasks SET created_by='owner-b' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET id='transferred-task' WHERE id='plan-only-task'",
+            "UPDATE intelligence_tasks SET created_at='changed' WHERE id='plan-only-task'",
+        ):
+            with self.subTest(statement=statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(statement)
+        for statement in (
+            "INSERT INTO intelligence_tasks(id,title,created_by,status) VALUES('bad-status','Bad','owner-a','in_progress')",
+            "INSERT INTO intelligence_tasks(id,title,created_by,action_type) VALUES('bad-action','Bad','owner-a','shell')",
+            "INSERT INTO intelligence_tasks(id,title,created_by,agent_claim_id) VALUES('bad-claim','Bad','owner-a','claim-1')",
+            "INSERT INTO intelligence_tasks(id,title,created_by,requires_approval) VALUES('bad-approval','Bad','owner-a',2)",
+        ):
+            with self.subTest(statement=statement):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(statement)
+        row = self.db.execute(
+            "SELECT status,assigned_to,result_text,action_type,action_payload,created_by FROM intelligence_tasks WHERE id='plan-only-task'"
+        ).fetchone()
+        self.assertEqual(row, ('queued','mehran_intelligence','','','{}','owner-a'))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

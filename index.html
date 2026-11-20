@@ -966,7 +966,13 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="panel"><h2>Admin Settings</h2><div id="adminSettingsMessage" class="notice">Loading protected administration settings...</div></div></section>
 
 <section class="page" id="page-intelligence">
-<div class="page-heading"><h1>Intelligence</h1><p>Your private company analysis and AI workspace.</p></div>
+<div class="page-heading"><h1>Intelligence</h1><p>Your private company analysis workspace.</p></div>
+<div class="panel" id="intelStagingAuthPanel">
+ <div class="section-title"><div><h2>Private Intelligence Session</h2><div class="small-text">Independent Pi verification and a separate, revocable staging session. The production administrator session is never reused.</div></div></div>
+ <div id="intelStagingSessionStatus" class="notice warn" role="status" aria-live="polite">Staging Worker address is not configured. Intelligence remains disconnected and cannot access the production Worker.</div>
+ <div class="hero-actions" style="margin-top:0"><button class="btn" id="connectIntelStagingBtn" type="button" disabled>Connect with Pi</button><button class="btn secondary" id="disconnectIntelStagingBtn" type="button" disabled>Revoke staging session</button></div>
+ <div class="small-text">Connection stays disabled until the dedicated staging Worker is deployed with its verified staging database, owner UID secret and origin allowlist.</div>
+</div>
 <div class="panel intelligence-overview">
 <div class="section-title"><div><h2>Company Overview</h2><div class="small-text">A concise snapshot of MEHRAN MSH</div></div><button class="btn secondary small" id="refreshIntelligenceBtn">Refresh</button></div>
 <div class="grid intelligence-stats">
@@ -977,33 +983,27 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 </div><div id="intelligenceMessage" class="notice" aria-live="polite">Sign in with the authorized administrator account to load company data.</div>
 </div>
 <div class="panel intelligence-tasks">
-<div class="section-title"><div><h2>Collaboration Task Hub</h2><div class="small-text">A shared work queue for ChatGPT and MEHRAN INTELLIGENCE.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
-<div id="intelTasksStatus" class="notice">Tasks are stored securely in MEHRAN MSH. Creating a task records and assigns it, it does not execute external actions.</div>
-<div class="section-title" style="margin-top:18px"><div><h3>Scheduled execution history</h3><div class="small-text">Recent hourly runs and their results.</div></div><button class="btn secondary small" id="refreshIntelRunsBtn" type="button">Refresh history</button></div>
-<div id="intelRunsStatus" class="small-text" aria-live="polite">Loading scheduler history...</div>
-<div id="intelRunsList" class="grid"><div class="empty">Scheduler history will appear here after the next scheduled run.</div></div>
+<div class="section-title"><div><h2>Private Task Planner</h2><div class="small-text">Private owner task planner. Records plans only, with no agent assignment or execution.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
+<div id="intelTasksStatus" class="notice">Task plans are stored in the isolated staging database. Saving a plan does not assign work or execute an action.</div>
+<div class="section-title" style="margin-top:18px"><div><h3>Execution boundary</h3><div class="small-text">Staging has no scheduler, queue consumer or executor.</div></div></div>
+<div id="intelRunsStatus" class="small-text" aria-live="polite">Scheduled execution is disabled in staging. Queued records are plans only.</div>
+<div id="intelRunsList" class="grid"><div class="empty">No scheduled runs exist. No background execution is enabled.</div></div>
 <form id="intelTaskForm" class="card" autocomplete="off">
 <div class="field"><label for="intelTaskTitle">Task title</label><input id="intelTaskTitle" maxlength="120" required placeholder="مثلاً بررسی و تکمیل ماژول SOCIAL"></div>
 <div class="field"><label for="intelTaskDescription">Task details</label><textarea id="intelTaskDescription" rows="3" maxlength="3000" required placeholder="هدف، محدوده و نتیجهٔ مورد انتظار را بنویس..."></textarea></div>
-<div class="field"><label for="intelTaskActionType">Execution type</label><select id="intelTaskActionType"><option value="">Manual task · no automatic execution</option><option value="project_status_report">Project status report</option><option value="social_metrics_report">SOCIAL metrics report</option><option value="service_health_report">Service health report</option><option value="repository_quality_check">Repository quality checks</option><option value="documentation_patch_proposal">Documentation patch proposal · owner approval</option></select><div class="small-text">Read-only reports and quality checks assigned to MEHRAN INTELLIGENCE or Shared run automatically. Documentation proposals always require owner approval and remain outside the active agent queue.</div></div>
+<div class="small-text">This creates a private task plan only. The record is stored for tracking only. No agent, scheduler or executor is activated.</div>
 <div class="grid">
-<div class="field"><label for="intelTaskAssignee">Assign to</label><select id="intelTaskAssignee"><option value="mehran_intelligence">MEHRAN INTELLIGENCE</option><option value="chatgpt">ChatGPT</option><option value="shared">Shared collaboration</option></select></div>
+
 <div class="field"><label for="intelTaskPriority">Priority</label><select id="intelTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
 </div>
-<label class="check-row"><input id="intelTaskApproval" type="checkbox"> Requires owner approval before execution</label>
-<div class="hero-actions" style="margin-top:12px"><button class="btn" id="intelTaskCreateBtn" type="submit">Add to shared queue</button></div>
+<label class="check-row"><input id="intelTaskApproval" type="checkbox"> Mark plan as requiring owner review</label>
+<div class="hero-actions" style="margin-top:12px"><button class="btn" id="intelTaskCreateBtn" type="submit">Save task plan</button></div>
 </form>
 <div id="intelTasksList" class="grid" aria-live="polite"><div class="empty">Loading collaboration tasks...</div></div>
 <div class="panel" id="intelApprovalPanel">
  <div class="section-title"><div><h3>Scoped documentation approvals</h3><div class="small-text">Issue or revoke a short-lived grant for one accepted documentation proposal. This does not execute code.</div></div><button class="btn secondary small" id="refreshIntelApprovalsBtn" type="button">Refresh grants</button></div>
  <div class="notice warn">Grants are limited to 1–5 Markdown files under docs/, one branch and one pinned base commit, for 5–60 minutes. No code executor is enabled.</div>
- <form id="intelApprovalForm" class="card" autocomplete="off">
-  <div class="field"><label for="intelApprovalTask">Accepted documentation proposal</label><select id="intelApprovalTask" required><option value="">Select an accepted proposal</option></select></div>
-  <div class="field"><label for="intelApprovalPaths">Allowed documentation paths, one per line</label><textarea id="intelApprovalPaths" rows="4" maxlength="1000" required placeholder="docs/INTELLIGENCE-NEXT-STEPS.md"></textarea><div class="small-text">Only safe .md files inside docs/ are accepted. Maximum 5 paths.</div></div>
-  <div class="form-grid"><div class="field"><label for="intelApprovalBaseSha">Pinned base commit SHA</label><input id="intelApprovalBaseSha" maxlength="40" spellcheck="false" placeholder="40-character Git commit SHA" required></div><div class="field"><label for="intelApprovalExpiry">Grant duration</label><select id="intelApprovalExpiry"><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="5">5 minutes</option><option value="60">60 minutes</option></select></div></div>
-  <div class="hero-actions" style="margin-top:0"><button class="btn secondary small" id="loadIntelBaseShaBtn" type="button">Read current main SHA</button><button class="btn" id="issueIntelApprovalBtn" type="submit">Issue scoped grant</button></div>
-  <div class="small-text" id="intelApprovalBranchPreview">The isolated branch name will be generated from the selected task.</div>
- </form>
+ <div class="card"><div class="notice warn">Issuing new scoped grants is disabled in this staging workspace. Existing owner grants remain visible below and can be revoked. No executor can consume a grant.</div></div>
  <div id="intelApprovalsStatus" class="notice" aria-live="polite">Approval ledger has not been loaded.</div>
  <div id="intelApprovalsList" class="grid"><div class="empty">No approval grants loaded.</div></div>
 </div>
@@ -1031,7 +1031,11 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelPriorityActionPlanStatus" class="notice" aria-live="polite">Priority action plan has not been loaded.</div>
  <div id="intelPriorityActionPlanSummary" class="grid intelligence-stats" aria-live="polite"></div>
  <div id="intelPriorityActionPlanList" class="grid"><div class="empty">Refresh to load the owner-scoped advisory action plan.</div></div>
- <div class="notice warn">This is deterministic triage, not a risk verdict or certification. Evidence metadata does not prove evidence contents or correctness. No task, approval, owner decision, finding update, or company operation is created here. Execution remains disabled.</div>
+ <div class="section-title"><h3>Owner review integrity</h3><button class="btn secondary small" id="refreshIntelPriorityActionReviewIntegrityBtn" type="button">Check review integrity</button></div>
+ <div id="intelPriorityActionReviewIntegrityStatus" class="notice" aria-live="polite">Review snapshot integrity has not been checked.</div>
+ <div id="intelPriorityActionReviewIntegritySummary" class="grid intelligence-stats" aria-live="polite"></div>
+ <div class="notice warn">This is a metadata-integrity check of stored review snapshots, not proof that a decision is true or evidence is correct. Reviews are append-only and do not execute actions.</div>
+ <div class="notice warn">This is deterministic triage, not a risk verdict or certification. Evidence metadata does not prove evidence contents or correctness. No task, approval, finding update, or company operation is created here. Execution remains disabled.</div>
 </div>
 <div class="panel intelligence-memory">
  <div class="section-title"><div><h2>Private Intelligence Memory</h2><div class="small-text">Owner-curated notes used as context in future Intelligence conversations. Nothing is saved automatically.</div></div><button class="btn secondary small" id="refreshIntelMemoryBtn" type="button">Refresh memory</button></div>
@@ -1069,16 +1073,16 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
  <div id="intelEventsList" class="grid"><div class="empty">No activity loaded.</div></div>
 </div>
 <div class="panel intelligence-assistant">
-<div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">Ask about company status, problems and next steps.</div></div><span class="pill">Private · Beta</span></div>
-<div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
-<div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً مهم‌ترین قدم بعدی شرکت چیه؟"></textarea></div>
-<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 3/day</span></div>
+<div class="section-title"><div><h2>MEHRAN AI Assistant</h2><div class="small-text">AI responses are disabled in staging until a separate budget guard and AI binding are implemented and reviewed.</div></div><span class="pill">Private · Beta</span></div>
+<div id="intelChatStatus" class="notice">No AI model is connected to the staging Worker. No model request or external action can be triggered from this panel.</div>
+<div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" disabled placeholder="AI connection is pending the separate budget and safety review."></textarea></div>
+<div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn" disabled>AI connection pending security review</button><span class="small-text" id="intelQuota">AI binding not configured</span></div>
 <div id="intelReply" class="card intelligence-reply" aria-live="polite"></div>
 </div>
 <details class="panel intelligence-advanced"><summary>Technical connections and project data</summary>
 <div class="grid">
-<div class="card"><div class="eyebrow">AI CORE</div><h3>Cloudflare AI · Llama 3.3</h3><p>Private assistant model connection.</p></div>
-<div class="card"><div class="eyebrow">MCP GATEWAY</div><h3>Company tools</h3><p>Authenticated company data and shared collaboration task tools.</p><div class="notice" id="mcpStatus">Connection test has not been run.</div><button class="btn secondary small" id="testMcpBtn" type="button">Test MCP connection</button></div>
+<div class="card"><div class="eyebrow">AI CORE · DISABLED</div><h3>Budget guard pending</h3><p>No AI binding is present in the staging Worker. Add one only after a separate budget guard is implemented and reviewed.</p></div>
+<div class="card"><div class="eyebrow">INTEGRATION BOUNDARY</div><h3>Production connectors</h3><p>Production MCP and administrator connectors are intentionally unavailable inside the isolated Intelligence staging workspace.</p><div class="notice warn">No production MCP request is sent from this page.</div></div>
 <div class="card"><div class="eyebrow">SECURITY</div><h3>Administrator access</h3><p>Company information is protected by the MEHRAN administrator session.</p></div>
 </div>
 <div class="section-title"><h2>Project data</h2><span class="small-text">Read-only technical view</span></div>
@@ -1166,6 +1170,7 @@ const AUTH_WORKER="https://mehran-msh-auth.mehran79mehran.workers.dev";
 const SOCIAL_API=AUTH_WORKER+"/social";
 const PI_CLIENT_ID="4BZbp3mqGZw_SL2lBu72C1AZi9FByyKa0TStJsmpl78";
 const SOCIAL_TOKEN_KEY="msh_social_token",SOCIAL_PROFILE_KEY="msh_social_local_profile",SOCIAL_POSTS_KEY="msh_social_local_posts",ADMIN_SESSION_KEY="msh_admin_session";
+const INTELLIGENCE_STAGING_WORKER_URL="",INTELLIGENCE_STAGING_SESSION_KEY="msh_intelligence_staging_session";
 let piUser=null,adminSessionRestoring=true,socialUser=null,socialSessionVerified=false,socialMePromise=null,localProfile=readJSON(SOCIAL_PROFILE_KEY,{}),posts=readJSON(SOCIAL_POSTS_KEY,[]),projects=[],currentLanguage="en",authMode="register",draftFiles=[];
 let profileTab="posts",profileData=null;
 function $(id){return document.getElementById(id)}
@@ -1173,7 +1178,76 @@ function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))
 function saveJSON(key,value){localStorage.setItem(key,JSON.stringify(value))}
 function escapeHTML(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function toast(message,duration=3200){const el=$("toast");el.textContent=String(message??"");el.title="Tap to copy";el.onclick=()=>{const value=el.textContent; if(navigator.clipboard?.writeText){navigator.clipboard.writeText(value).then(()=>{el.textContent="Copied: "+value;}).catch(()=>{});}};el.classList.add("show");clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove("show"),duration)}
-async function api(path,options={}){const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path.startsWith("/intelligence/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||"Request failed ("+response.status+")");error.status=response.status;throw error}return data}
+async function api(path,options={}){if(path.startsWith("/intelligence/"))return intelligenceStagingRequest(path,options);const method=String(options.method||"GET").toUpperCase();const headers={"Content-Type":"application/json",...(options.headers||{})};if((path.startsWith("/projects")&&method!=="GET")||path.startsWith("/admin/")||path==="/mcp"){const adminToken=localStorage.getItem(ADMIN_SESSION_KEY)||"";if(adminToken&&!headers.Authorization)headers.Authorization="Bearer "+adminToken}const response=await fetch(AUTH_WORKER+path,{...options,headers});const data=await response.json().catch(()=>({}));if(!response.ok){const error=new Error(data.message||data.error||"Request failed ("+response.status+")");error.status=response.status;throw error}return data}
+
+
+let intelligenceStagingConnecting=false;
+function getIntelligenceStagingToken(){return sessionStorage.getItem(INTELLIGENCE_STAGING_SESSION_KEY)||""}
+function hasValidIntelligenceStagingUrl(){return /^https:\/\/mehran-intelligence-staging\.[a-z0-9-]+\.workers\.dev$/.test(INTELLIGENCE_STAGING_WORKER_URL)}
+async function intelligenceStagingRequest(path,options={}){
+ if(!hasValidIntelligenceStagingUrl())throw new Error("A verified HTTPS mehran-intelligence-staging workers.dev URL is required. Production Worker access is disabled.");
+ if(!path.startsWith("/intelligence/")&&path!=="/session"&&path!=="/health")throw new Error("This route is outside the Intelligence staging allowlist.");
+ const {auth=true,tokenOverride,...requestOptions}=options;
+ const headers={"Accept":"application/json","Content-Type":"application/json",...(requestOptions.headers||{})};
+ if(auth){const token=tokenOverride||getIntelligenceStagingToken();if(!token)throw new Error("Connect with Pi to create a separate Intelligence staging session.");headers.Authorization="Bearer "+token;}
+ const response=await fetch(INTELLIGENCE_STAGING_WORKER_URL+path,{...requestOptions,headers,cache:"no-store",redirect:"error"});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok){const error=new Error(data.message||data.error||"Intelligence staging request failed ("+response.status+")");error.status=response.status;throw error;}
+ return data;
+}
+function updateIntelligenceStagingSessionUI(message,kind="notice"){
+ const status=$("intelStagingSessionStatus"),connect=$("connectIntelStagingBtn"),disconnect=$("disconnectIntelStagingBtn");
+ if(status){status.textContent=message;status.className=kind;}
+ if(connect)connect.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken()||intelligenceStagingConnecting;
+ if(disconnect)disconnect.disabled=!getIntelligenceStagingToken();
+}
+async function connectIntelligenceStagingSession(){
+ if(intelligenceStagingConnecting||getIntelligenceStagingToken())return;
+ intelligenceStagingConnecting=true;
+ const button=$("connectIntelStagingBtn");if(button)button.disabled=true;
+ try{
+  if(!hasValidIntelligenceStagingUrl())throw new Error("The dedicated staging Worker HTTPS URL has not been verified or configured. No authentication request was sent.");
+  const health=await intelligenceStagingRequest("/health",{auth:false});
+  if(!health?.success||health.schemaReady!==true||health.executor!==false)throw new Error("The staging Worker is not healthy or does not confirm executor:false. Pi sign-in was not started.");
+  if(typeof window.ensurePiReady==="function")await window.ensurePiReady();
+  if(!window.Pi||typeof window.Pi.authenticate!=="function")throw new Error("Pi authentication is unavailable. Open MEHRAN MSH in Pi Browser.");
+  updateIntelligenceStagingSessionUI("Waiting for your approval in the official Pi sign-in window...");
+  const auth=await window.Pi.authenticate(["username"],async()=>{});
+  if(!auth?.accessToken||!auth?.user)throw new Error("Pi did not return a complete identity and access token.");
+  updateIntelligenceStagingSessionUI("Verifying your Pi identity directly with the isolated staging Worker...");
+  const issued=await intelligenceStagingRequest("/session",{method:"POST",auth:false,body:JSON.stringify({accessToken:auth.accessToken})});
+  if(!issued?.success||!issued.token)throw new Error("The staging Worker did not issue a valid session.");
+  try{sessionStorage.setItem(INTELLIGENCE_STAGING_SESSION_KEY,issued.token);}catch{try{await intelligenceStagingRequest("/session",{method:"DELETE",tokenOverride:issued.token});}catch{}throw new Error("The staging session could not be stored securely in this browser; the server-side session revocation was attempted.");}
+  try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success||!verified.ownerUid)throw new Error("The new staging session could not be verified.");}catch(verificationError){try{await intelligenceStagingRequest("/session",{method:"DELETE"});}catch{}sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);throw verificationError;}
+  updateIntelligenceStagingSessionUI("Independent Pi identity verified. Private Intelligence staging session is active. Expires "+new Date(issued.expiresAt*1000).toLocaleString()+".","notice success");
+  await loadIntelligenceTasks();
+  await Promise.all([loadIntelCompanyReadiness(),loadIntelPriorityActionPlan(),loadIntelDecisionIntegrity()]);
+ }catch(error){
+  sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
+  updateIntelligenceStagingSessionUI(error.message,"notice warn");
+ }finally{intelligenceStagingConnecting=false;if(button)button.disabled=!hasValidIntelligenceStagingUrl()||!!getIntelligenceStagingToken();}
+}
+async function disconnectIntelligenceStagingSession(){
+ const button=$("disconnectIntelStagingBtn");if(button)button.disabled=true;
+ const token=getIntelligenceStagingToken();
+ try{
+  if(token&&hasValidIntelligenceStagingUrl())await intelligenceStagingRequest("/session",{method:"DELETE"});
+  sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);
+  updateIntelligenceStagingSessionUI("Intelligence staging session revoked locally and, when connected, on the staging Worker.","notice");
+ }catch(error){
+  updateIntelligenceStagingSessionUI("Server revocation could not be confirmed: "+error.message+". The local token has been retained so revocation can be retried.","notice warn");
+ }finally{if(button)button.disabled=!getIntelligenceStagingToken();}
+}
+async function restoreIntelligenceStagingSession(){
+ const token=getIntelligenceStagingToken();
+ if(!token){updateIntelligenceStagingSessionUI(hasValidIntelligenceStagingUrl()?"Connect with Pi to open the separate Intelligence staging session.":"Staging Worker HTTPS address is not configured. Intelligence remains disconnected and cannot access the production Worker.");return;}
+ if(!hasValidIntelligenceStagingUrl()){updateIntelligenceStagingSessionUI("A staging session token exists locally, but the dedicated HTTPS Worker URL is not configured. No request was sent.","notice warn");return;}
+ try{const verified=await intelligenceStagingRequest("/session");if(!verified?.success)throw new Error("Session verification failed.");updateIntelligenceStagingSessionUI("Private Intelligence staging session restored and verified.","notice success");}
+ catch(error){if(error.status===401||error.status===403)sessionStorage.removeItem(INTELLIGENCE_STAGING_SESSION_KEY);updateIntelligenceStagingSessionUI("Staging session could not be restored: "+error.message,"notice warn");}
+}
+$("connectIntelStagingBtn")?.addEventListener("click",connectIntelligenceStagingSession);
+$("disconnectIntelStagingBtn")?.addEventListener("click",disconnectIntelligenceStagingSession);
+restoreIntelligenceStagingSession();
 
 document.querySelectorAll("[data-page]").forEach(btn=>btn.addEventListener("click",()=>showPage(btn.dataset.page)));
 function showPage(name){
@@ -1830,26 +1904,27 @@ function currentUsername(){return socialUser?.username||socialUser?.displayName|
 function profileInitial(){return(localProfile.displayName||currentUsername()).trim().charAt(0).toUpperCase()||"M"}
 function renderAvatar(id){
 const el=$(id);if(!el)return;
-if(localProfile.photo)el.innerHTML='<img src="'+localProfile.photo+'" alt="Profile">';
+const source=safeSocialMediaSource(localProfile.photo,"image");
+if(source)el.innerHTML='<img src="'+sx(source)+'" alt="Profile">';
 else el.textContent=profileInitial();
 }
 window.socialProfileGallery=[];
-function profileAvatarMarkup(url,fallback){return url?'<img src="'+sx(url)+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
+function profileAvatarMarkup(url,fallback){const source=sx(safeSocialMediaSource(url,"image"));return source?'<img src="'+source+'" alt="Profile photo">':sx((fallback||"M").trim().charAt(0).toUpperCase())}
 function renderProfilePosts(){
 const panel=$("profilePostsPanel");if(!panel)return;
 const mine=posts.filter(p=>String(p.author||"").toLowerCase()===String(socialUser?.username||"").toLowerCase());
 $("profileHeroPosts").textContent=profileData?.counts?.posts??mine.length;
 if(!mine.length){panel.innerHTML='<div class="profile-empty-posts">Your story is waiting for its first post. Share a thought, a photo or a moment with the community.<br><br><button class="btn" onclick="openCreate()">＋ Create your first post</button></div>';return}
-panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class="profile-post-tile">'+(media?'<div class="profile-post-media">'+(media.type==="video"?'<video src="'+sx(media.data)+'" controls playsinline></video>':'<img src="'+sx(media.data)+'" alt="Post">')+'</div>':'')+'<p>'+sx(p.text||"")+'</p><small>'+sx(p.date||"")+' · '+Number(p.likesCount||0)+' likes</small></article>'}).join("");
+panel.innerHTML=mine.map(p=>{const media=(p.media||[])[0];return '<article class="profile-post-tile">'+(media?'<div class="profile-post-media">'+(media.type==="video"?'<video src="'+sx(safeSocialMediaSource(media.data,media.type))+'" controls playsinline></video>':'<img src="'+sx(safeSocialMediaSource(media.data,media.type))+'" alt="Post">')+'</div>':'')+'<p>'+sx(p.text||"")+'</p><small>'+sx(p.date||"")+' · '+Number(p.likesCount||0)+' likes</small></article>'}).join("");
 }
 function renderProfileGallery(){
  const editor=$("profileGalleryEditor"),publicGrid=$("profileGalleryPublic");
  const items=Array.isArray(window.socialProfileGallery)?window.socialProfileGallery:[];
- if(editor)editor.innerHTML=items.length?items.map((p,i)=>'<div class="profile-gallery-thumb"><img src="'+sx(p.url)+'" alt="Gallery photo '+(i+1)+'"><button type="button" aria-label="Remove photo" onclick="removeProfileGalleryPhoto('+i+')">×</button><span>'+(i===0?'Photo 1':'Photo '+(i+1))+'</span></div>').join(''):'<div class="profile-gallery-empty">Your gallery is empty. Add a few moments that tell your story.</div>';
- if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+sx(p.url)+'" alt="Profile gallery photo '+(i+1)+'"></button>').join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
+ if(editor)editor.innerHTML=items.length?items.map((p,i)=>{const source=sx(safeSocialMediaSource(p.url,"image"));return '<div class="profile-gallery-thumb">'+(source?'<img src="'+source+'" alt="Gallery photo '+(i+1)+'">':'<span class="small-text">Photo unavailable</span>')+'<button type="button" aria-label="Remove photo" onclick="removeProfileGalleryPhoto('+i+')">×</button><span>'+(i===0?'Photo 1':'Photo '+(i+1))+'</span></div>'}).join(''):'<div class="profile-gallery-empty">Your gallery is empty. Add a few moments that tell your story.</div>';
+ if(publicGrid)publicGrid.innerHTML=items.length?items.map((p,i)=>{const source=sx(safeSocialMediaSource(p.url,"image"));return source?'<button type="button" class="profile-gallery-view" onclick="openProfileGalleryPhoto('+i+')"><img src="'+source+'" alt="Profile gallery photo '+(i+1)+'"></button>':'<div class="profile-gallery-empty">Photo unavailable</div>'}).join(''):'<div class="profile-gallery-empty">No gallery photos yet.</div>';
 }
 window.removeProfileGalleryPhoto=function(index){window.socialProfileGallery.splice(index,1);renderProfileGallery()};
-window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=item.url;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(item.url,"_blank","noopener")};
+window.openProfileGalleryPhoto=function(index){const item=window.socialProfileGallery[index];if(!item?.url)return;const source=safeSocialMediaSource(item.url,"image");if(!source)return;const box=$("socialAvatarLightbox"),img=$("socialAvatarLightboxImage");if(box&&img){img.src=source;box.classList.add("open");document.body.style.overflow="hidden";}else window.open(source,"_blank","noopener")};
 function updateProfilePreview(){
 const name=$("profileDisplayName")?.value.trim()||socialUser?.displayName||socialUser?.username||"Your name";
 const bio=$("profileBio")?.value||"";
@@ -1900,7 +1975,7 @@ renderAvatar("sideAvatar");
 renderFeed();renderExplore();renderReels();
 }
 function getPostMedia(post){if(Array.isArray(post.media)&&post.media.length)return post.media;if(post.image)return[{type:"image",data:post.image}];return[]}
-function mediaMarkup(item){if(item.type==="video")return '<video src="'+item.data+'" controls playsinline preload="metadata"></video>';return '<img src="'+item.data+'" alt="Post media">'}
+function mediaMarkup(item){const source=sx(safeSocialMediaSource(item.data,item.type));if(!source)return '<div class="empty">Media unavailable</div>';if(item.type==="video")return '<video src="'+source+'" controls playsinline preload="metadata"></video>';return '<img src="'+source+'" alt="Post media">'}
 function renderFeed(){
 const list=$("feedList");if(!list)return;
 $("feedCount").textContent=posts.length+" posts";
@@ -1910,7 +1985,7 @@ const liked=!!post.liked||(post.likes||[]).includes(currentUsername());
 const identityLabel=socialAccountTypeLabel(post.accountType);const comments=(post.comments||[]).map(c=>'<div class="comment"><strong>'+escapeHTML(typeof c.author==="string"?c.author:(c.author?.displayName||c.author?.username||"Member"))+'</strong>'+(socialAccountTypeLabel(c.accountType||c.author?.accountType)?'<small style="color:#78dfff;font-weight:700;margin-left:6px">'+socialAccountTypeLabel(c.accountType||c.author?.accountType)+'</small>':'')+': '+socialRenderCustomEmoji(c.text||c.content||"")+'</div>').join("");
 const media=getPostMedia(post),first=media[0];let mediaHTML="";
 if(first)mediaHTML='<div class="post-media-stage" id="postmedia-'+post.id+'">'+mediaMarkup(first)+'<span class="media-indicator">1 / '+media.length+'</span>'+(media.length>1?'<button class="media-nav prev" onclick="changePostMedia(\''+post.id+'\',-1)">‹</button><button class="media-nav next" onclick="changePostMedia(\''+post.id+'\',1)">›</button>':'')+'</div>';
-return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl?'<img src="'+sx(post.avatarUrl)+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
+return '<article class="social-card" id="post-'+post.id+'"><div class="post-head"><div class="avatar">'+(post.avatarUrl?'<img src="'+sx(safeSocialMediaSource(post.avatarUrl,"image"))+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">':escapeHTML((post.author||"M").charAt(0).toUpperCase()))+'</div><div class="user-info"><strong>'+escapeHTML(post.displayName||post.author)+'</strong>'+(identityLabel?'<small style="color:#78dfff;font-weight:700">'+identityLabel+'</small>':'')+'<small>'+escapeHTML(post.date||"")+'</small></div>'+(socialUser&&post.author===currentUsername()?'<button class="post-action" onclick="deletePost(\''+post.id+'\')">Delete</button>':'')+'</div>'+(post.text?'<div class="post-text">'+socialRenderCustomEmoji(post.text)+'</div>':'')+mediaHTML+'<div class="post-actions"><button class="post-action '+(liked?"liked":"")+'" onclick="toggleLike(\''+post.id+'\')">♡ '+Number(post.likesCount??(post.likes||[]).length)+' Likes</button><span class="small-text">'+Number(post.commentsCount??(post.comments||[]).length)+' comments</span><button class="post-action" onclick="socialBookmark(\''+post.id+'\',false)">☆ Save</button><button class="post-action" onclick="socialShare(\''+post.id+'\')">↗ Share</button><button class="post-action" onclick="socialTrackView(\''+post.id+'\')">◉ View</button></div><div class="comment-list">'+comments+'</div><div class="comment-form"><button type="button" class="btn secondary small" data-social-emoji-trigger data-emoji-target="comment-'+post.id+'">☺</button><input id="comment-'+post.id+'" placeholder="Write a comment..." onclick="if(!socialUser)requireAuth(\'comment\')"><button class="btn secondary small" onclick="addComment(\''+post.id+'\')">Send</button></div></article>';
 }).join("");
 }
 function renderExplore(){
@@ -1921,7 +1996,7 @@ $("exploreEmpty").classList.toggle("hidden",filtered.length>0);
 grid.innerHTML=filtered.map(p=>{
 const m=getPostMedia(p)[0];
 if(!m)return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">✧</button></div>';
-return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+m.data+'" muted></video>':'<img src="'+m.data+'" alt="Explore post">')+'</button></div>';
+return '<div class="explore-item"><button onclick="switchSocial(\'feed\')">'+(m.type==="video"?'<video src="'+sx(safeSocialMediaSource(m.data,m.type))+'" muted></video>':'<img src="'+sx(safeSocialMediaSource(m.data,m.type))+'" alt="Explore post">')+'</button></div>';
 }).join("");
 }
 $("exploreSearch").addEventListener("input",renderExplore);
@@ -1931,7 +2006,7 @@ const videos=posts.filter(p=>getPostMedia(p).some(m=>m.type==="video"));
 if(!videos.length){box.innerHTML='<div class="empty">No video posts are available on this device yet.</div>';return}
 box.innerHTML=videos.map(p=>{
 const m=getPostMedia(p).find(x=>x.type==="video");
-return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+m.data+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
+return '<article class="social-card"><div class="post-head"><div class="avatar">'+escapeHTML((p.author||"M")[0].toUpperCase())+'</div><div class="user-info"><strong>'+escapeHTML(p.displayName||p.author)+'</strong><small>'+escapeHTML(p.date||"")+'</small></div></div><video src="'+sx(safeSocialMediaSource(m.data,m.type))+'" controls playsinline style="width:100%;max-height:650px;background:#000;border-radius:12px"></video><p class="post-text">'+escapeHTML(p.text||"")+'</p></article>';
 }).join("");
 }
 window.changePostMedia=function(id,delta){
@@ -2003,7 +2078,7 @@ const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readA
 draftFiles.push({type:file.type.startsWith("video/")?"video":"image",data,name:file.name,file});
 }catch{toast("Could not read "+file.name)}
 }
-$("uploadPreview").innerHTML=draftFiles.map(m=>m.type==="video"?'<video src="'+m.data+'" controls></video>':'<img src="'+m.data+'" alt="Preview">').join("");
+$("uploadPreview").innerHTML=draftFiles.map(m=>{const source=sx(safeSocialMediaSource(m.data,m.type));return m.type==="video"?'<video src="'+source+'" controls></video>':'<img src="'+source+'" alt="Preview">'}).join("");
 $("postFileStatus").textContent=draftFiles.length?draftFiles.length+" ready to share · "+draftFiles.map(m=>m.name).join(", "):"No supported files selected. Try an image or video under 700 KB each.";$("postFileStatus").classList.toggle("has-files",draftFiles.length>0);
 });
 $("postCaption").addEventListener("input",()=>$("captionCount").textContent=$("postCaption").value.length+" / 2200");
@@ -2221,56 +2296,40 @@ await loadAdminUsers();
 });
 
 async function loadIntelligence(){
-const message=$("intelligenceMessage");
-message.textContent="Checking administrator session and loading live company data...";
-message.className="notice";
-$("refreshIntelligenceBtn").disabled=true;
-try{
-const [overview,projectData]=await Promise.all([api("/admin/overview"),api("/projects")]);
-const stats=overview.stats||{};
-const list=Array.isArray(projectData.projects)?projectData.projects:[];
-$("intelProjects").textContent=String(list.length);
-$("intelUsers").textContent=String(stats.users??0);
-$("intelActiveUsers").textContent=String(stats.activeUsers??0);
-$("intelOpenReports").textContent=String(stats.openReports??0);
-$("intelligenceProjectsList").innerHTML=list.length?'<div class="grid">'+list.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="small-text" style="margin-top:10px">Updated: '+escapeHTML(p.updatedAt||p.updated_at||"Not available")+'</div></div>').join("")+'</div>':'<div class="empty">No registered projects yet.</div>';
-message.textContent="Live company data loaded successfully. Updated "+new Date().toLocaleString()+".";
-message.className="notice success";
-}catch(error){
-message.textContent="Company data could not be loaded: "+error.message+". Sign in again with the authorized Pi administrator account if your session has expired.";
-message.className="notice warn";
-$("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
-$("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
-}finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks();loadIntelDecisionIntegrity();loadIntelPriorityActionPlan()}
+ const message=$("intelligenceMessage");
+ const button=$("refreshIntelligenceBtn");
+ if(button)button.disabled=true;
+ try{
+  if(!getIntelligenceStagingToken()){
+   message.textContent="Intelligence is isolated from the production Worker. Connect with Pi using the dedicated staging session above to load private data.";
+   message.className="notice warn";
+   $("intelligenceProjectsList").textContent="No production project or administrator data is loaded in this workspace.";
+   $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
+   return;
+  }
+  const session=await intelligenceStagingRequest("/session");
+  if(!session?.success)throw new Error("The independent staging session is not valid.");
+  message.textContent="Independent Intelligence staging session verified. Loading owner-scoped staging records only.";
+  message.className="notice success";
+  $("intelligenceProjectsList").textContent="Production project data is intentionally not queried from this workspace.";
+  $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
+  await loadIntelligenceTasks();
+  await Promise.all([loadIntelCompanyReadiness(),loadIntelPriorityActionPlan(),loadIntelDecisionIntegrity()]);
+ }catch(error){
+  message.textContent="Intelligence staging data is unavailable: "+error.message;
+  message.className="notice warn";
+  $("intelligenceProjectsList").textContent="No production data was requested.";
+ }finally{if(button)button.disabled=false}
 }
-async function testMcpConnection(){
-const button=$("testMcpBtn"),status=$("mcpStatus");
-if(!button||!status)return;
-button.disabled=true;status.textContent="Checking authenticated MCP handshake...";
-status.className="notice";
-try{
-const initialized=await api("/mcp",{method:"POST",body:JSON.stringify({jsonrpc:"2.0",id:1,method:"initialize",params:{protocolVersion:"2025-06-18",capabilities:{},clientInfo:{name:"mehran-msh-dashboard",version:"1.0.0"}}})});
-if(initialized.error)throw new Error(initialized.error.message||"MCP initialization failed");
-await api("/mcp",{method:"POST",body:JSON.stringify({jsonrpc:"2.0",method:"notifications/initialized"})});
-const listed=await api("/mcp",{method:"POST",body:JSON.stringify({jsonrpc:"2.0",id:2,method:"tools/list",params:{}})});
-if(listed.error)throw new Error(listed.error.message||"MCP tools/list failed");
-const tools=listed.result?.tools||[];
-if(!initialized.result?.serverInfo||!tools.length)throw new Error("MCP server returned an incomplete handshake");
-status.textContent="MCP connected · "+initialized.result.serverInfo.name+" · "+tools.length+" read-only tools available.";
-status.className="notice success";
-}catch(error){
-status.textContent="MCP connection failed: "+error.message+". Sign in with the administrator account and retry.";
-status.className="notice warn";
-}finally{button.disabled=false}
-}
-$("testMcpBtn")?.addEventListener("click",testMcpConnection);
+
+
 
 const intelligenceMemoryLabels={company:"Company",decision:"Decision",preference:"Preference",security:"Security",project:"Project"};
 async function loadIntelligenceMemory(){
 const status=$("intelMemoryStatus"),list=$("intelMemoryList");if(!status||!list)return;
 status.textContent="Loading private owner memory...";status.className="notice";
-try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.memory||[]);status.textContent=(data.memory||[]).length+" private notes loaded. These notes are included as context in Intelligence conversations.";status.className="notice success"}
-catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the administrator session is restored.</div>'}
+try{const data=await api("/intelligence/memory");renderIntelligenceMemory(data.items||[]);status.textContent=(data.items||[]).length+" private notes loaded. These notes remain private staging records and are not sent to an AI model.";status.className="notice success"}
+catch(error){status.textContent="Could not load private memory: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Private memory is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 function renderIntelligenceMemory(items){
 const list=$("intelMemoryList");if(!list)return;
@@ -2280,8 +2339,8 @@ items.forEach(item=>{
 const card=document.createElement("div");card.className="card";
 const heading=document.createElement("div");heading.className="section-title";
 const label=document.createElement("strong");label.textContent=intelligenceMemoryLabels[item.category]||"Memory";
-const remove=document.createElement("button");remove.type="button";remove.className="btn secondary small";remove.textContent="Delete";remove.dataset.deleteIntelMemory=item.id;
-heading.append(label,remove);
+const archive=document.createElement("button");archive.type="button";archive.className="btn secondary small";archive.textContent=item.archivedAt?"Archived":"Archive";archive.disabled=!!item.archivedAt;archive.dataset.archiveIntelMemory=item.id;
+heading.append(label,archive);
 const content=document.createElement("p");content.textContent=item.content;content.style.whiteSpace="pre-wrap";
 const date=document.createElement("div");date.className="small-text";date.textContent="Updated: "+(item.updatedAt||item.createdAt||"");
 card.append(heading,content,date);list.append(card);
@@ -2295,15 +2354,15 @@ try{await api("/intelligence/memory",{method:"POST",body:JSON.stringify({categor
 catch(error){status.textContent="Could not save note: "+error.message;status.className="notice warn"}
 finally{button.disabled=false}
 }
-async function deleteIntelligenceMemory(id,button){
-if(!id||!confirm("Delete this private Intelligence memory note?"))return;
+async function archiveIntelligenceMemory(id,button){
+if(!id||!confirm("Archive this private Intelligence memory note? It can be restored by the owner in the staging review workspace."))return;
 button.disabled=true;
-try{await api("/intelligence/memory/"+encodeURIComponent(id),{method:"DELETE"});$("intelMemoryStatus").textContent="Memory note deleted and deletion recorded in the audit log.";$("intelMemoryStatus").className="notice success";await loadIntelligenceMemory()}
-catch(error){$("intelMemoryStatus").textContent="Could not delete note: "+error.message;$("intelMemoryStatus").className="notice warn";button.disabled=false}
+try{await api("/intelligence/memory/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify({action:"archive"})});$("intelMemoryStatus").textContent="Memory note archived. It remains recoverable in the private staging review workspace.";$("intelMemoryStatus").className="notice success";await loadIntelligenceMemory()}
+catch(error){$("intelMemoryStatus").textContent="Could not archive note: "+error.message;$("intelMemoryStatus").className="notice warn";button.disabled=false}
 }
 $("intelMemoryForm")?.addEventListener("submit",saveIntelligenceMemory);
 $("refreshIntelMemoryBtn")?.addEventListener("click",loadIntelligenceMemory);
-$("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-delete-intel-memory]");if(button)deleteIntelligenceMemory(button.dataset.deleteIntelMemory,button)});
+$("intelMemoryList")?.addEventListener("click",event=>{const button=event.target.closest("[data-archive-intel-memory]");if(button)archiveIntelligenceMemory(button.dataset.archiveIntelMemory,button)});
 
 
 const intelligenceKnowledgeLabels={company:"Company",module:"Module",decision:"Decision",goal:"Goal",procedure:"Procedure",project:"Project"};
@@ -2311,8 +2370,8 @@ window.intelligenceKnowledgeCache=[];
 async function loadIntelligenceKnowledge(){
  const status=$("intelKnowledgeStatus"),list=$("intelKnowledgeList");if(!status||!list)return;
  status.textContent="Loading organizational knowledge...";status.className="notice";
- try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.knowledge||[]);status.textContent=(data.knowledge||[]).length+" knowledge entries loaded. Core entries are protected; owner entries can be edited or archived.";status.className="notice success"}
- catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the administrator session is restored.</div>'}
+ try{const data=await api("/intelligence/knowledge");renderIntelligenceKnowledge(data.items||[]);status.textContent=(data.items||[]).length+" knowledge entries loaded. Owner entries can be edited or archived.";status.className="notice success"}
+ catch(error){status.textContent="Could not load organizational knowledge: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Knowledge is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 function renderIntelligenceKnowledge(items){
  const list=$("intelKnowledgeList");if(!list)return;window.intelligenceKnowledgeCache=Array.isArray(items)?items:[];
@@ -2359,21 +2418,21 @@ async function loadIntelligenceRelations(){
  const filter=$("intelRelationStatusFilter")?.value||"";
  try{
   const data=await api("/intelligence/knowledge/relations"+(filter?"?status="+encodeURIComponent(filter):""));
-  renderIntelligenceRelations(data.relations||[]);
-  const count=(data.relations||[]).length;
+  renderIntelligenceRelations(data.items||[]);
+  const count=(data.items||[]).length;
   status.textContent=count+" relationship"+(count===1?"":"s")+" loaded. Only your records are shown.";
   status.className="notice success";
  }catch(error){
   status.textContent="Could not load knowledge relationships: "+error.message;
   status.className="notice warn";
   list.replaceChildren();
-  const empty=document.createElement("div");empty.className="empty";empty.textContent="Relationship storage may not yet be installed in this environment, or your administrator session has expired.";list.append(empty);
+  const empty=document.createElement("div");empty.className="empty";empty.textContent="Relationship storage may not yet be installed in this environment, or your Intelligence staging session has expired.";list.append(empty);
  }
 }
 function renderIntelligenceRelations(items){
  const list=$("intelRelationsList");if(!list)return;
  list.replaceChildren();
- if(!Array.isArray(items)||!items.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No relationships match this filter. AI suggestions will appear here when available.";list.append(empty);return}
+ if(!Array.isArray(items)||!items.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No relationships match this filter. No AI relationship suggestions are generated in staging.";list.append(empty);return}
  items.forEach(item=>{
   const card=document.createElement("article");card.className="card";
   const head=document.createElement("div");head.className="section-title";
@@ -2438,38 +2497,24 @@ try{const data=await api("/intelligence/events");const events=data.events||[];li
 if(!events.length){list.innerHTML='<div class="empty">No Intelligence activity has been recorded yet.</div>'}
 else events.forEach(item=>{const card=document.createElement("div");card.className="card";const head=document.createElement("div");head.className="section-title";const title=document.createElement("strong");title.textContent=intelligenceEventLabels[item.action]||String(item.action||"Intelligence event").replaceAll("_"," ");const time=document.createElement("span");time.className="small-text";time.textContent=item.createdAt||"";head.append(title,time);const target=document.createElement("div");target.className="small-text";target.textContent=[item.targetType,item.targetId].filter(Boolean).join(" · ");const details=document.createElement("p");details.textContent=item.details||"";details.style.whiteSpace="pre-wrap";card.append(head,target,details);list.append(card)});
 status.textContent=events.length+" recent Intelligence events loaded. The log is read-only.";status.className="notice success"}
-catch(error){status.textContent="Could not load Intelligence activity: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">The activity log is unavailable until the administrator session is restored.</div>'}
+catch(error){status.textContent="Could not load Intelligence activity: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">The activity log is unavailable until the separate Intelligence staging session is restored.</div>'}
 }
 $("refreshIntelEventsBtn")?.addEventListener("click",loadIntelligenceEvents);
 
-async function sendIntelligenceMessage(){
-const input=$("intelQuestion"),button=$("intelSendBtn"),reply=$("intelReply"),status=$("intelChatStatus");
-const message=(input.value||"").trim();if(!message){status.textContent="Write a question first.";status.className="notice warn";return}
-button.disabled=true;status.textContent="MEHRAN INTELLIGENCE is analyzing the available company data...";status.className="notice";
-reply.style.display="none";
-try{
-const data=await api("/intelligence/chat",{method:"POST",body:JSON.stringify({message})});
-reply.textContent=data.reply||"No response returned.";reply.style.display="block";
-$("intelQuota").textContent="Today: "+(data.usage?.dailyRequests??"—")+"/"+(data.usage?.dailyLimit??10)+" requests · Hourly limit: "+(data.usage?.hourlyLimit??3);
-status.textContent="Analysis complete. No company data was changed.";status.className="notice success";
-}catch(error){status.textContent="Assistant unavailable: "+error.message;status.className="notice warn"}
-finally{button.disabled=false}
-}
-$("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
-$("intelQuestion")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendIntelligenceMessage()}});
 $("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
+
 
 async function loadIntelligenceTasks(){
 const status=$("intelTasksStatus"),list=$("intelTasksList");
 if(!status||!list)return;
-status.textContent="Loading the shared task queue...";
+status.textContent="Loading private owner task plans...";
 status.className="notice";
 try{
 const data=await api("/intelligence/tasks");
-renderIntelligenceTasks(data.tasks||[]);
-status.textContent=(data.tasks||[]).length+" recent tasks loaded. Pre-authorized read-only reports and quality checks run automatically; sensitive actions require approval.";
+renderIntelligenceTasks(data.items||[]);
+status.textContent=(data.items||[]).length+" task plans loaded. No scheduler or executor is enabled in staging.";
 status.className="notice success";
-await loadIntelligenceSchedulerRuns();
+ // The isolated staging Worker has no scheduler or scheduled-run endpoint.
 await loadIntelligenceApprovals();
 await loadIntelligenceMemory();
 await loadIntelligenceKnowledge();
@@ -2478,103 +2523,46 @@ await loadIntelligenceEvents();
 }catch(error){
 status.textContent="Could not load tasks: "+error.message;
 status.className="notice warn";
-list.innerHTML='<div class="empty">The task queue is unavailable until the administrator session is restored.</div>';
+list.innerHTML='<div class="empty">The task queue is unavailable until the separate Intelligence staging session is restored.</div>';
 }
 }
 function renderIntelligenceTasks(tasks){
-intelligenceTaskCache=Array.isArray(tasks)?tasks:[];refreshApprovalTaskOptions();
+
 const list=$("intelTasksList");if(!list)return;
 if(!tasks.length){list.innerHTML='<div class="empty">No collaboration tasks yet. Add the first task above.</div>';return}
-const labels={queued:"Queued",accepted:"Accepted",in_progress:"In progress",blocked:"Blocked",awaiting_approval:"Awaiting approval",completed:"Completed",cancelled:"Cancelled"};
+const labels={queued:"Plan queued",accepted:"Plan accepted",in_progress:"Unexpected running state",blocked:"Blocked",awaiting_approval:"Awaiting owner review",completed:"Recorded",cancelled:"Cancelled"};
 const actionTypes={project_status_report:"Project status report",social_metrics_report:"SOCIAL metrics report",service_health_report:"Service health report",repository_quality_check:"Repository quality checks",documentation_patch_proposal:"Documentation patch proposal"};
 list.innerHTML=tasks.map(task=>{
 const status=labels[task.status]||task.status;
-const canCancelActive=task.status==="in_progress"&&Boolean(task.actionType)&&(task.agentClaimed===true||task.schedulerClaimed===true)&&["mehran_intelligence","shared"].includes(task.assignedTo);
-const next=task.status==="awaiting_approval"?"accepted":(["queued","accepted"].includes(task.status)||canCancelActive?"cancelled":null);
-const actionLabel=task.status==="awaiting_approval"?"Approve task":canCancelActive?"Cancel running task":next==="cancelled"?"Cancel queued task":"";
-const action=next?'<button class="btn '+(next==="cancelled"?'danger':'secondary')+' small" type="button" data-intel-task-status="'+escapeHTML(task.id)+'" data-next-status="'+next+'">'+actionLabel+'</button>':"";
-const executionNote=task.actionType==="documentation_patch_proposal"?(task.status==="awaiting_approval"?"This proposal is held for owner approval and cannot enter the active agent queue.":task.status==="accepted"?"Owner approved. A narrowly scoped approval can be issued, but no code executor is enabled.":""):(task.status==="accepted"&&task.actionType?"Pre-authorized · waiting for MEHRAN INTELLIGENCE to claim this task.":task.status==="queued"?"Waiting in the task queue.":task.status==="in_progress"?"Execution is in progress. You can cancel this active task.":"");
-return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Assigned: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(executionNote?'<div class="small-text">'+escapeHTML(executionNote)+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'<div class="hero-actions" style="margin-top:10px">'+action+'</div></article>';
+const executionNote=task.actionType==="documentation_patch_proposal"?(task.status==="awaiting_approval"?"This proposal is held for owner approval and cannot enter the active agent queue.":task.status==="accepted"?"Owner review recorded. Execution remains disabled.":""):(task.status==="accepted"?"Accepted plan only. No agent or scheduler can claim it.":task.status==="queued"?"Queued plan only. No automatic execution is enabled.":task.status==="in_progress"?"Unexpected running state. Investigate before proceeding.":"");
+return '<article class="card"><div class="eyebrow">'+escapeHTML(String(task.priority||"normal").toUpperCase())+' · '+escapeHTML(status)+'</div><h3>'+escapeHTML(task.title)+'</h3><p>'+escapeHTML(task.description||"")+'</p><div class="small-text">Plan label: '+escapeHTML(task.assignedTo||"—")+(task.requiresApproval?' · Owner approval required':'')+'</div>'+(task.actionType?'<div class="small-text">Execution: '+escapeHTML(actionTypes[task.actionType]||"Restricted action")+'</div>':'')+(executionNote?'<div class="small-text">'+escapeHTML(executionNote)+'</div>':'')+(task.result?'<div class="notice">'+escapeHTML(task.result)+'</div>':'')+'</article>';
 }).join("");
 }
-async function loadIntelligenceSchedulerRuns(){
-const status=$("intelRunsStatus"),list=$("intelRunsList");
-if(!status||!list)return;
-status.textContent="Loading recent scheduled runs...";
-try{
-const data=await api("/intelligence/scheduler/runs?limit=10");
-const runs=data.runs||[];
-if(!runs.length){
-status.textContent="No scheduled runs have been recorded yet. The history will populate after the next hourly trigger.";
-list.innerHTML='<div class="empty">No execution history yet.</div>';
-return;
-}
-status.textContent=runs.length+" recent scheduler runs.";
-const labels={completed:"Completed",failed:"Failed",running:"Running"};
-list.innerHTML=runs.map(run=>{
-const state=labels[run.status]||run.status||"Unknown";
-const stamp=run.startedAt?new Date(run.startedAt).toLocaleString():"Time unavailable";
-const error=run.error?'<div class="notice warn">'+escapeHTML(run.error)+'</div>':"";
-return '<article class="card"><div class="eyebrow">'+escapeHTML(state)+' · '+escapeHTML(stamp)+'</div><div class="small-text">Processed: '+Number(run.processed||0)+' · Completed: '+Number(run.completed||0)+' · Blocked: '+Number(run.blocked||0)+'</div>'+error+'</article>';
-}).join("");
-}catch(error){
-status.textContent="Scheduler history unavailable: "+error.message;
-list.innerHTML='<div class="empty">Sign in with the authorized administrator account to view private execution history.</div>';
-}
-}
-$("refreshIntelRunsBtn")?.addEventListener("click",loadIntelligenceSchedulerRuns);
 
 async function createIntelligenceTask(event){
 event.preventDefault();
 const form=$("intelTaskForm"),button=$("intelTaskCreateBtn"),status=$("intelTasksStatus");
 const title=$("intelTaskTitle").value.trim(),description=$("intelTaskDescription").value.trim();
 if(!title||!description){status.textContent="Enter a title and task details.";status.className="notice warn";return}
-button.disabled=true;status.textContent="Saving task to the shared queue...";status.className="notice";
+button.disabled=true;status.textContent="Saving private task plan...";status.className="notice";
 try{
-await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,assignedTo:$("intelTaskAssignee").value,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked,actionType:$("intelTaskActionType").value})});
+await api("/intelligence/tasks",{method:"POST",body:JSON.stringify({title,description,priority:$("intelTaskPriority").value,requiresApproval:$("intelTaskApproval").checked})});
 form.reset();
-status.textContent="Task added to the shared queue. No external action was executed.";
+status.textContent="Task plan saved in the owner-scoped staging database. No external action was executed.";
 status.className="notice success";
 await loadIntelligenceTasks();
 }catch(error){status.textContent="Task could not be saved: "+error.message;status.className="notice warn"}
 finally{button.disabled=false}
 }
-async function updateIntelligenceTask(id,nextStatus){
-const status=$("intelTasksStatus");
-status.textContent="Updating task status...";status.className="notice";
-try{
-await api("/intelligence/tasks/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify({status:nextStatus})});
-status.textContent="Task status updated.";status.className="notice success";
-await loadIntelligenceTasks();
-}catch(error){status.textContent="Task update failed: "+error.message;status.className="notice warn"}
-}
+
 $("intelTaskForm")?.addEventListener("submit",createIntelligenceTask);
 $("refreshIntelTasksBtn")?.addEventListener("click",loadIntelligenceTasks);
-$("intelTasksList")?.addEventListener("click",event=>{
-const button=event.target.closest("[data-intel-task-status]");
-if(button)updateIntelligenceTask(button.dataset.intelTaskStatus,button.dataset.nextStatus);
-});
-let intelligenceTaskCache=[];
 let intelligenceApprovalCache=[];
 function formatApprovalTime(seconds){return seconds?new Date(Number(seconds)*1000).toLocaleString():"—"}
-function approvalBranchForTask(taskId){return "intelligence/patch-"+String(taskId||"").replace(/[^A-Za-z0-9_-]/g,"").replace(/-/g,"").slice(0,12)}
-function refreshApprovalTaskOptions(){
- const select=$("intelApprovalTask");if(!select)return;
- const eligible=intelligenceTaskCache.filter(t=>t.actionType==="documentation_patch_proposal"&&t.status==="accepted"&&["mehran_intelligence","shared"].includes(t.assignedTo)&&!t.requiresApproval);
- const current=select.value;
- select.innerHTML='<option value="">Select an accepted proposal</option>'+eligible.map(t=>'<option value="'+escapeHTML(t.id)+'">'+escapeHTML(t.title)+' · '+escapeHTML(String(t.id).slice(0,8))+'</option>').join("");
- if(eligible.some(t=>t.id===current))select.value=current;
- updateApprovalBranchPreview();
-}
-function updateApprovalBranchPreview(){
- const task=intelligenceTaskCache.find(t=>t.id===$("intelApprovalTask")?.value);
- const preview=$("intelApprovalBranchPreview");
- if(preview)preview.textContent=task?"Isolated branch: "+approvalBranchForTask(task.id):"Select an accepted proposal to generate its isolated branch.";
-}
 async function loadIntelligenceApprovals(){
  const status=$("intelApprovalsStatus"),list=$("intelApprovalsList");if(!status||!list)return;
  status.textContent="Loading owner approval ledger...";status.className="notice";
- try{const data=await api("/intelligence/approvals");intelligenceApprovalCache=data.approvals||[];renderIntelligenceApprovals();status.textContent=intelligenceApprovalCache.length+" recent grants loaded. Issued grants can be revoked until they expire or are consumed.";status.className="notice success"}
+ try{const data=await api("/intelligence/approvals");intelligenceApprovalCache=data.items||[];renderIntelligenceApprovals();status.textContent=intelligenceApprovalCache.length+" recent grants loaded. Issued grants can be revoked until they expire or are consumed.";status.className="notice success"}
  catch(error){status.textContent="Approval ledger unavailable: "+error.message;status.className="notice warn";list.innerHTML='<div class="empty">Sign in with the authorized owner account to view approval grants.</div>'}
 }
 function renderIntelligenceApprovals(){
@@ -2587,35 +2575,12 @@ function renderIntelligenceApprovals(){
   return '<article class="card"><div class="eyebrow">'+escapeHTML(labels[grant.status]||grant.status)+'</div><h3>'+escapeHTML(String(grant.taskId||"").slice(0,12))+'</h3><p>'+paths.map(escapeHTML).join("<br>")+'</p><div class="small-text">Branch: '+escapeHTML(grant.branch||"—")+'</div><div class="small-text">Base: <code>'+escapeHTML(grant.baseSha||"—")+'</code></div><div class="small-text">Expires: '+escapeHTML(formatApprovalTime(grant.expiresAt))+'</div>'+(grant.consumedAt?'<div class="small-text">Consumed: '+escapeHTML(formatApprovalTime(grant.consumedAt))+'</div>':'')+(active?'<div class="hero-actions"><button class="btn danger small" type="button" data-revoke-intel-approval="'+escapeHTML(grant.id)+'">Revoke grant</button></div>':'')+'</article>';
  }).join("");
 }
-async function readIntelligenceBaseSha(){
- const button=$("loadIntelBaseShaBtn"),input=$("intelApprovalBaseSha"),status=$("intelApprovalsStatus");if(!button||!input)return;
- button.disabled=true;status.textContent="Reading the public main branch commit from GitHub...";status.className="notice";
- try{const response=await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main",{headers:{Accept:"application/vnd.github+json"}});if(!response.ok)throw new Error("GitHub returned HTTP "+response.status);const commit=await response.json();if(!/^[0-9a-f]{40}$/i.test(commit.sha||""))throw new Error("GitHub did not return a valid commit SHA");input.value=commit.sha.toLowerCase();status.textContent="Pinned base loaded from public main: "+commit.sha+". Verify it before issuing the grant.";status.className="notice success"}
- catch(error){status.textContent="Could not read main commit: "+error.message;status.className="notice warn"}finally{button.disabled=false}
-}
-async function issueIntelligenceApproval(event){
- event.preventDefault();
- const form=$("intelApprovalForm"),button=$("issueIntelApprovalBtn"),status=$("intelApprovalsStatus");
- const task=intelligenceTaskCache.find(t=>t.id===$("intelApprovalTask").value);
- const paths=$("intelApprovalPaths").value.split(/\r?\n/).map(p=>p.trim()).filter(Boolean);
- const baseSha=$("intelApprovalBaseSha").value.trim().toLowerCase(),expiresInMinutes=Number($("intelApprovalExpiry").value);
- if(!task||task.actionType!=="documentation_patch_proposal"||task.status!=="accepted"||task.requiresApproval||!["mehran_intelligence","shared"].includes(task.assignedTo)){status.textContent="Choose an accepted documentation proposal assigned to MEHRAN INTELLIGENCE or Shared.";status.className="notice warn";return}
- if(paths.length<1||paths.length>5||!paths.every(p=>/^docs\/[A-Za-z0-9._/-]+\.md$/.test(p))){status.textContent="Enter 1–5 valid Markdown paths under docs/, one per line.";status.className="notice warn";return}
- if(!/^[0-9a-f]{40}$/.test(baseSha)){status.textContent="Enter or load a valid 40-character base commit SHA.";status.className="notice warn";return}
- if(!window.confirm("Issue a "+expiresInMinutes+"-minute grant for "+paths.length+" documentation file(s) on branch "+approvalBranchForTask(task.id)+"? This does not execute code."))return;
- button.disabled=true;status.textContent="Issuing the owner-scoped grant...";status.className="notice";
- try{const data=await api("/intelligence/approvals",{method:"POST",body:JSON.stringify({taskId:task.id,branch:approvalBranchForTask(task.id),baseSha,paths,expiresInMinutes})});if(!data.success||!data.approval)throw new Error("The approval service did not confirm issuance.");status.textContent="Scoped grant issued. It is recorded in the ledger, but no executor can consume it and no code was changed.";status.className="notice success";form.reset();refreshApprovalTaskOptions();await loadIntelligenceApprovals()}
- catch(error){status.textContent="Grant was not issued: "+error.message;status.className="notice warn"}finally{button.disabled=false}
-}
 async function revokeIntelligenceApproval(id,button){
  const status=$("intelApprovalsStatus");if(!window.confirm("Revoke this issued grant? This cannot be undone."))return;if(button)button.disabled=true;
  status.textContent="Revoking approval grant...";status.className="notice";
  try{await api("/intelligence/approvals/"+encodeURIComponent(id),{method:"DELETE"});status.textContent="Grant revoked. No code execution occurred.";status.className="notice success";await loadIntelligenceApprovals()}
  catch(error){status.textContent="Grant could not be revoked: "+error.message;status.className="notice warn";if(button)button.disabled=false}
 }
-$("intelApprovalTask")?.addEventListener("change",updateApprovalBranchPreview);
-$("intelApprovalForm")?.addEventListener("submit",issueIntelligenceApproval);
-$("loadIntelBaseShaBtn")?.addEventListener("click",readIntelligenceBaseSha);
 $("refreshIntelApprovalsBtn")?.addEventListener("click",loadIntelligenceApprovals);
 $("intelApprovalsList")?.addEventListener("click",event=>{const button=event.target.closest("[data-revoke-intel-approval]");if(button)revokeIntelligenceApproval(button.dataset.revokeIntelApproval,button)});
 
@@ -2753,11 +2718,79 @@ function renderIntelPriorityActionPlan(data){
   card.append(heading,meta,status,reason,recommendation,evidence);
   intelAppendTextList(card,"Suggested steps",action.suggestedSteps);
   intelAppendTextList(card,"Validation to perform",action.requiredValidation);
-  const approval=document.createElement("div");approval.className="notice warn";
-  approval.textContent="Owner approval required. This panel records no decision and cannot execute the recommendation.";
-  card.append(approval);list.append(card);
+  const review=document.createElement("section");review.className="intel-action-review";
+  const reviewTitle=document.createElement("h4");reviewTitle.textContent="Owner review";
+  const reviewNote=document.createElement("p");reviewNote.className="small-text";reviewNote.textContent="Record your decision about this advisory action. This does not change the finding or execute remediation.";
+  const outcome=document.createElement("select");outcome.setAttribute("aria-label","Owner review outcome");
+  for(const [value,label] of [["accepted","Accepted"],["rejected","Rejected"],["needs_more_info","Needs more information"]]){const option=document.createElement("option");option.value=value;option.textContent=label;outcome.append(option);}
+  const reasonInput=document.createElement("textarea");reasonInput.maxLength=1000;reasonInput.rows=2;reasonInput.placeholder="Reason for this decision (required, up to 1,000 characters)";reasonInput.setAttribute("aria-label","Reason for owner review");
+  const save=document.createElement("button");save.type="button";save.className="btn small";save.textContent="Save owner review";
+  const feedback=document.createElement("div");feedback.className="notice";feedback.setAttribute("aria-live","polite");feedback.textContent="No review submitted in this session.";
+  const historyTitle=document.createElement("h5");historyTitle.textContent="Review history";
+  const history=document.createElement("div");history.className="intel-action-review-history";history.textContent="Loading owner review history...";
+  review.append(reviewTitle,reviewNote,outcome,reasonInput,save,feedback,historyTitle,history);
+  save.addEventListener("click",async()=>{
+   const reason=reasonInput.value.trim();
+   if(!reason||reason.length>1000){feedback.textContent="Enter a reason between 1 and 1,000 characters.";feedback.className="notice warn";return;}
+   if(!/^[0-9a-f]{64}$/.test(String(action.actionKey||""))){feedback.textContent="This action has no valid review key. Refresh the action plan.";feedback.className="notice error";return;}
+   save.disabled=true;feedback.textContent="Verifying the current action and recording your owner review...";feedback.className="notice";
+   try{
+    const result=await api("/intelligence/findings/priority-action-reviews",{method:"POST",body:JSON.stringify({actionKey:action.actionKey,moduleId:action.moduleId,outcome:outcome.value,reason})});
+    if(result.success!==true||result.scope!=="authenticated_owner_staging_only")throw new Error("The owner-scoped review response could not be verified.");
+    reasonInput.value="";
+    feedback.textContent="Owner review recorded. Finding state changed: No. Company state changed: No. Execution: disabled.";
+    feedback.className="notice success";
+    await loadIntelPriorityActionReviewHistory(action.actionKey,history);
+    await loadIntelPriorityActionReviewIntegrity();
+   }catch(error){feedback.textContent="Review not recorded: "+error.message;feedback.className="notice warn";}
+   finally{save.disabled=false;}
+  });
+  card.append(review);list.append(card);
+  if(/^[0-9a-f]{64}$/.test(String(action.actionKey||"")))loadIntelPriorityActionReviewHistory(action.actionKey,history);
+  else history.textContent="Review history unavailable because this action has no valid review key.";
  }
 }
+async function loadIntelPriorityActionReviewHistory(actionKey,container){
+ if(!container)return;
+ container.textContent="Loading owner review history...";
+ try{
+  const data=await api("/intelligence/findings/priority-action-reviews?actionKey="+encodeURIComponent(actionKey)+"&limit=10");
+  if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+  const items=Array.isArray(data.items)?data.items:[];
+  container.replaceChildren();
+  if(!items.length){const empty=document.createElement("div");empty.className="small-text";empty.textContent="No owner reviews recorded for this action.";container.append(empty);return;}
+  for(const item of items){
+   const entry=document.createElement("article");entry.className="intel-review-history-item";
+   const heading=document.createElement("strong");heading.textContent=String(item.outcome||"review");
+   const date=document.createElement("small");date.textContent=item.reviewedAt?new Date(Number(item.reviewedAt)*1000).toLocaleString():"Date unavailable";
+   const reason=document.createElement("p");reason.textContent=String(item.reason||"No reason supplied.");
+   const meta=document.createElement("small");meta.textContent="Reviewer: Owner · Snapshot SHA-256: "+String(item.snapshotSha256||"unavailable");
+   entry.append(heading,date,reason,meta);container.append(entry);
+  }
+ }catch(error){container.textContent="Review history unavailable: "+error.message;}
+}
+async function loadIntelPriorityActionReviewIntegrity(){
+ const status=$("intelPriorityActionReviewIntegrityStatus"),summary=$("intelPriorityActionReviewIntegritySummary"),button=$("refreshIntelPriorityActionReviewIntegrityBtn");
+ if(!status||!summary)return;
+ if(button)button.disabled=true;
+ status.textContent="Checking owner-scoped review snapshot metadata...";
+ status.className="notice";
+ try{
+  const data=await api("/intelligence/findings/priority-action-reviews/integrity?limit=100");
+  if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
+  const stats=data.summary||{};summary.replaceChildren();
+  for(const [label,value] of [["Records scanned",stats.recordsScanned??0],["Integrity matches",stats.integrityMatches??0],["Snapshot hash mismatches",stats.snapshotHashMismatches??0],["Action key mismatches",stats.actionKeyMismatches??0],["Invalid snapshots",stats.invalidSnapshotJson??0],["Identity mismatches",stats.snapshotIdentityMismatches??0],["Reviewer mismatches",stats.reviewerOwnerMismatches??0],["Invalid review timestamps",stats.invalidReviewTimestamps??0]]){
+   const item=document.createElement("div");item.className="stat-card";const name=document.createElement("div");name.className="small-text";name.textContent=label;const number=document.createElement("strong");number.textContent=String(value);item.append(name,number);summary.append(item);
+  }
+  const integrityProblems=Number(stats.snapshotHashMismatches||0)+Number(stats.actionKeyMismatches||0)+Number(stats.invalidSnapshotJson||0)+Number(stats.snapshotIdentityMismatches||0)+Number(stats.reviewerOwnerMismatches||0)+Number(stats.invalidReviewTimestamps||0);
+  const incompleteScan=Boolean(data.truncated);
+  status.textContent="Checked "+String(stats.recordsScanned??0)+" owner review records. "+(incompleteScan?"The 100-record scan limit was reached; older records were not included. ":"")+"This verifies stored snapshot metadata only; decision truth is not verified.";
+  status.className=integrityProblems===0&&!incompleteScan?"notice success":"notice warn";
+ }catch(error){status.textContent="Review integrity check unavailable: "+error.message;status.className="notice warn";summary.replaceChildren();}
+ finally{if(button)button.disabled=false;}
+}
+$("refreshIntelPriorityActionReviewIntegrityBtn")?.addEventListener("click",loadIntelPriorityActionReviewIntegrity);
+
 async function loadIntelPriorityActionPlan(){
  const status=$("intelPriorityActionPlanStatus"),button=$("refreshIntelPriorityActionPlanBtn");
  if(!status)return;
@@ -2779,6 +2812,7 @@ async function loadIntelPriorityActionPlan(){
   const data=await api("/intelligence/findings/priority-action-plan"+query);
   if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
   renderIntelPriorityActionPlan(data);
+  loadIntelPriorityActionReviewIntegrity();
   const count=data.summary?.returnedCount??0;
   status.textContent=count+" advisory actions loaded. "+(data.summary?.candidateCount??0)+" recorded findings considered within the bounded candidate set.";
   status.className="notice success";
@@ -2815,12 +2849,19 @@ async function loadIntelCompanyReadiness(){
    {key:"gaps",module:module.id,label:"Gap and test strategy · "+module.name,path:"/intelligence/company/gap-test-strategy?module="+encodeURIComponent(module.id),note:"Blueprint-based test recommendations; unrecorded tests are not assumed failed."}
   ]);
   const sources=[...fixed,...moduleSources];
-  const settled=await Promise.allSettled(sources.map(source=>api(source.path)));
+  // Keep the owner dashboard from flooding the staging Worker when many modules are registered.
+  // Each batch is bounded; outcomes retain source order for deterministic rendering.
+  const settled=[];
+  const batchSize=4;
+  for(let offset=0;offset<sources.length;offset+=batchSize){
+   const batch=await Promise.allSettled(sources.slice(offset,offset+batchSize).map(source=>api(source.path)));
+   settled.push(...batch);
+  }
   const outcomes=settled.map((result,index)=>{
    const source=sources[index];
    if(result.status!=="fulfilled")return {...source,ok:false,error:result.reason?.message||"Request failed"};
    const data=result.value||{};
-   if(data.scope&&data.scope!=="authenticated_owner_staging_only")return {...source,ok:false,error:"Unexpected response scope"};
+   if(data.scope!=="authenticated_owner_staging_only")return {...source,ok:false,error:"Unexpected response scope"};
    if(data.success===false)return {...source,ok:false,error:data.error||"Source reported failure"};
    return {...source,ok:true,data,detail:intelReadinessDetail(source.key,data)};
   });
@@ -2954,6 +2995,14 @@ updateAuthMode();
 <script>
 let socialActiveConversation=null,socialConversations=[],socialStoriesCache=[],socialActiveChannel=null,socialSearchTimer=null,socialChatRefreshTimer=null,socialChatRefreshBusy=false,socialChatSendBusy=false,socialPresenceTimer=null,socialPresenceBusy=false,socialConversationRefreshBusy=false,socialChatRefreshTick=0;
 const sx=v=>escapeHTML(String(v??""));
+function safeSocialMediaSource(value,type="image"){
+ const raw=String(value??"").trim(),kind=String(type||"").toLowerCase();
+ const isVideo=kind==="video"||kind.startsWith("video/");
+ const isImage=kind==="image"||kind.startsWith("image/")||!kind;
+ if(isVideo&&/^data:video[/](?:mp4|webm|ogg);base64,[a-z0-9+/=]+$/i.test(raw))return raw;
+ if(isImage&&/^data:image[/](?:png|jpeg|gif|webp|avif);base64,[a-z0-9+/=]+$/i.test(raw))return raw;
+ try{const parsed=new URL(raw,window.location.origin);return parsed.protocol==="https:"?parsed.href:""}catch{return ""}
+}
 async function socialUploadFile(file){
  const created=await socialRequest("/uploads/create",{method:"POST",body:JSON.stringify({name:file.name,size:file.size,type:file.type,visibility:"public"})});
  const id=created.file?.id,target=created.upload;
@@ -2992,8 +3041,8 @@ async function socialCreateStory(){
   editor.querySelectorAll("[data-editor-close]").forEach(b=>b.addEventListener("click",close));
   const media=$e("storyEditMedia"),layer=$e("storyStickerLayer");
   const fileUrl=URL.createObjectURL(file);if(!isVideo)imageObject=fileUrl;
-  if(isVideo){media.innerHTML='<video src="'+fileUrl+'" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>';$e("storyFilterTools").style.display="none";$e("storyStickerTools").style.display="none";$e("storyVideoNote").style.display="block";}
-  else{media.innerHTML='<img id="storyEditImage" src="'+fileUrl+'" alt="Story preview" style="width:100%;height:100%;object-fit:contain;filter:none">';}
+  if(isVideo){media.innerHTML='<video src="'+sx(fileUrl)+'" controls playsinline style="width:100%;height:100%;object-fit:contain"></video>';$e("storyFilterTools").style.display="none";$e("storyStickerTools").style.display="none";$e("storyVideoNote").style.display="block";}
+  else{media.innerHTML='<img id="storyEditImage" src="'+sx(fileUrl)+'" alt="Story preview" style="width:100%;height:100%;object-fit:contain;filter:none">';}
   const filterById=id=>filters.find(x=>x.id===id)?.css||"none";
   const paintLayer=()=>{layer.innerHTML=stickers.map((x,i)=>'<div style="position:absolute;left:50%;top:'+(28+i*13)+'%;transform:translate(-50%,-50%);max-width:90%;padding:5px 10px;border-radius:10px;background:#07101a66;color:white;font-size:'+(x.length>8?22:36)+'px;font-weight:800;text-shadow:0 2px 8px #000;text-align:center;white-space:pre-wrap">'+sx(x)+'</div>').join("");};
   editor.querySelectorAll("[data-story-filter]").forEach(btn=>btn.addEventListener("click",()=>{selectedFilter=btn.dataset.storyFilter;const img=$e("storyEditImage");if(img)img.style.filter=filterById(selectedFilter);editor.querySelectorAll("[data-story-filter]").forEach(x=>x.style.background=x===btn?"#17415a":"#17263a");}));
@@ -3060,7 +3109,7 @@ async function socialOpenStory(id){
   document.getElementById("socialStoryAvatar").textContent=(story.author?.username||"S").slice(0,1).toUpperCase();
   document.getElementById("socialStoryCaption").textContent=story.caption||"";
   document.getElementById("socialStoryProgress").style.background="linear-gradient(90deg,#32d9ff "+Math.round((index+1)/Math.max(1,(socialStoriesCache||[]).length)*100)+"%,#ffffff30 0)";
-  media.innerHTML=story.mediaType==="video"?'<video src="'+sx(story.mediaUrl)+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+sx(story.mediaUrl)+'" alt="Story" style="width:100%;height:100%;object-fit:contain">';
+  media.innerHTML=story.mediaType==="video"?'<video src="'+sx(safeSocialMediaSource(story.mediaUrl,"video"))+'" controls autoplay playsinline style="width:100%;height:100%;object-fit:contain"></video>':'<img src="'+sx(safeSocialMediaSource(story.mediaUrl,"image"))+'" alt="Story" style="width:100%;height:100%;object-fit:contain">';
   try{await socialRequest("/stories/"+encodeURIComponent(story.id)+"/view",{method:"POST"});}catch(err){console.warn("Story view could not be recorded",err);}
   document.body.style.overflow="hidden";
  }
@@ -3097,7 +3146,7 @@ function socialRenderContacts(){
  const box=$("contactsResults");if(!box)return;
  const q=($("contactsSearchInput")?.value||"").trim().toLowerCase();
  const users=socialContactsCache.filter(u=>(u.username||"").toLowerCase().includes(q)||(u.displayName||"").toLowerCase().includes(q));
- box.innerHTML=users.map(u=>'<button type="button" class="social-result" data-contact-user="'+sx(u.username)+'" style="display:flex;width:100%;align-items:center;gap:12px;text-align:left;margin:8px 0;padding:12px"><span class="avatar">'+(u.avatarUrl?'<img src="'+sx(u.avatarUrl)+'" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover">':sx((u.displayName||u.username||"?").slice(0,1).toUpperCase()))+'</span><span style="flex:1"><strong>'+sx(u.displayName||u.username)+'</strong><span class="small-text" style="display:block">@'+sx(u.username)+'</span></span><span class="small-text">Chat ›</span></button>').join("")||'<div class="empty">'+(socialContactsCache.length?"No contacts match this filter.":"No contacts yet. Follow people or let people follow you to see them here.")+'</div>';
+ box.innerHTML=users.map(u=>'<button type="button" class="social-result" data-contact-user="'+sx(u.username)+'" style="display:flex;width:100%;align-items:center;gap:12px;text-align:left;margin:8px 0;padding:12px"><span class="avatar">'+(u.avatarUrl?'<img src="'+sx(safeSocialMediaSource(u.avatarUrl,"image"))+'" alt="" style="width:42px;height:42px;border-radius:50%;object-fit:cover">':sx((u.displayName||u.username||"?").slice(0,1).toUpperCase()))+'</span><span style="flex:1"><strong>'+sx(u.displayName||u.username)+'</strong><span class="small-text" style="display:block">@'+sx(u.username)+'</span></span><span class="small-text">Chat ›</span></button>').join("")||'<div class="empty">'+(socialContactsCache.length?"No contacts match this filter.":"No contacts yet. Follow people or let people follow you to see them here.")+'</div>';
 }
 async function socialLoadContacts(){
  const box=$("contactsResults");if(!box)return;
@@ -3124,7 +3173,7 @@ function socialRenderConversationRows(){
  list.innerHTML=rows.map(c=>{
   const other=(c.members||[]).find(x=>x.username!==currentUsername())||(c.members||[])[0];
   const title=c.title||other?.displayName||other?.username||(c.type==="group"?"Group":"Direct message");
-  const avatar=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
+  const avatar=other?.avatarUrl?'<img src="'+sx(safeSocialMediaSource(other.avatarUrl,"image"))+'" alt="">':sx((title.trim()[0]||"S").toUpperCase());
   const preview=c.lastMessage|| (c.type==="group"?"Group conversation":"No messages yet");
   const stamp=c.lastMessageAt?new Date(c.lastMessageAt).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"";
   const unread=Number(c.unreadCount||0);const identityLabel=socialAccountTypeLabel(other?.accountType);
@@ -3332,7 +3381,7 @@ async function socialOpenConversation(id){
  $("chatTitle").textContent=c?.title||other?.displayName||other?.username||"Conversation";
  const inbox=$("chatInboxView"),thread=$("chatThreadView"),avatar=$("chatThreadAvatar");
  if(inbox)inbox.classList.add("hidden");if(thread)thread.classList.remove("hidden");
- if(avatar)avatar.innerHTML=other?.avatarUrl?'<img src="'+sx(other.avatarUrl)+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
+ if(avatar)avatar.innerHTML=other?.avatarUrl?'<img src="'+sx(safeSocialMediaSource(other.avatarUrl,"image"))+'" alt="">':sx((($("chatTitle").textContent||"S").trim()[0]||"S").toUpperCase());
  const status=$("chatThreadStatus");if(status){const presence=other?.lastSeenAt?socialPresenceLabel(other.lastSeenAt):"SOCIAL chat";status.textContent=c?.type==="group"?"Group conversation":presence;}
  socialRenderGroupManagement(c);
  ["chatInput","sendChatBtn","voiceChatBtn","chatAttachBtn","chatEmojiBtn"].forEach(key=>{const el=$(key);if(el)el.disabled=false;});
@@ -3488,7 +3537,8 @@ function socialRenderChatMessage(m){
  const receipt=isMine&&readers.length?(active?.type==="group"?" · Seen by "+readers.length:" · Seen"):"";
  const media=(m.media||[]).map(item=>{
   if(item.unavailable)return '<span class="small-text">Attachment unavailable. It may have expired or been removed.</span>';
-  const url=sx(item.url||"");const type=String(item.type||"").toLowerCase();
+  const type=String(item.type||"").toLowerCase(),url=sx(safeSocialMediaSource(item.url,type));
+  if(!url)return '<span class="small-text">Attachment unavailable or blocked.</span>';
   if(window.socialExtendedSettingsCache?.chat?.autoDownload===false){
    const label=type.startsWith("image")?"View image":type.startsWith("video")?"Open video":(type.startsWith("audio")||type.includes("voice"))?"Play voice message":"Open attachment";
    return '<a href="'+url+'" target="_blank" rel="noopener" class="small-text" style="display:inline-block;margin-top:8px">⬇ '+label+'</a>';
@@ -3875,7 +3925,7 @@ async function socialDownloadGeneratedImage(){
 async function socialSaveGeneratedImage(){
  if(!socialGeneratedImageFile)return;
  const button=$("imageStudioSaveBtn"),status=$("imageStudioSaveStatus");button.disabled=true;status.textContent="Saving to your uploads...";
- try{const url=await socialUploadFile(socialGeneratedImageFile);status.innerHTML='Saved successfully. <a href="'+sx(url)+'" target="_blank" rel="noopener">Open saved image</a>'; }
+ try{const url=await socialUploadFile(socialGeneratedImageFile);const safeUrl=sx(safeSocialMediaSource(url,"image"));status.textContent=safeUrl?"Saved successfully. ":"Saved, but the returned image link was blocked.";if(safeUrl){const link=document.createElement("a");link.href=safeUrl;link.target="_blank";link.rel="noopener";link.textContent="Open saved image";status.append(link);} }
  catch(e){status.textContent=e.message||"Could not save image.";}
  finally{button.disabled=false;}
 }
@@ -4060,7 +4110,7 @@ async function socialCreateBot(){
  }catch(e){toast(e.message)}
 }
 async function socialSearch(q){if(!socialUser||q.trim().length<2){$("searchResults").innerHTML="";return}try{const d=await socialRequest("/search?q="+encodeURIComponent(q));const users=(d.users||[]).map(u=>'<div class="social-result"><strong>'+sx(u.displayName||u.username)+' @'+sx(u.username)+'</strong> <button class="btn secondary small" data-profile="'+sx(u.username)+'">Profile</button> <button class="btn small" data-follow="'+sx(u.username)+'">Follow</button> <button class="btn secondary small" data-dm="'+sx(u.username)+'">Message</button></div>').join("");const posts=(d.posts||[]).map(p=>'<div class="social-result"><strong>@'+sx(p.author?.username||"Member")+'</strong><p>'+sx(p.content||"")+'</p><small>'+sx(p.createdAt||"")+'</small></div>').join("");const groups=(d.groups||[]).map(g=>'<div class="social-result"><strong>Group: '+sx(g.title)+'</strong><p><button class="btn secondary small" data-conversation="'+sx(g.id)+'">Open group</button></p></div>').join("");const channels=(d.channels||[]).map(c=>'<div class="social-result"><strong>Channel: '+sx(c.title)+'</strong><p>'+sx(c.description||"")+'</p><button class="btn secondary small" data-channel="'+sx(c.id)+'">Open channel</button></div>').join("");$("searchResults").innerHTML='<h3>People</h3>'+(users||'<p>No matching people.</p>')+'<h3>Posts</h3>'+(posts||'<p>No matching posts.</p>')+'<h3>Your groups</h3>'+(groups||'<p>No matching groups in your memberships.</p>')+'<h3>Your channels</h3>'+(channels||'<p>No matching channels in your memberships.</p>');}catch(e){$("searchResults").textContent=e.message}}
-async function socialViewProfile(username){try{const d=await socialRequest("/profile/"+encodeURIComponent(username));const p=d.profile;if(!p)return;switchSocial("profile");$("ownProfileView").classList.add("hidden");$("profileLoginNotice").classList.add("hidden");$("profileEditor").classList.add("hidden");$("publicProfile").classList.remove("hidden");const same=String(username).toLowerCase()===String(socialUser?.username||"").toLowerCase();$("publicProfile").innerHTML='<div class="profile-identity-card"><div class="profile-cover-art"><span class="cover-orbit orbit-one"></span><span class="cover-orbit orbit-two"></span><span class="cover-glow"></span><div class="cover-caption">SOCIAL · MEMBER PROFILE</div></div><div class="profile-identity-body"><div class="profile-avatar-wrap"><div class="profile-avatar-large">'+profileAvatarMarkup(p.avatarUrl,p.displayName||p.username)+'</div></div><div class="profile-main-info"><div class="profile-name-line"><h1>'+sx(p.displayName||p.username)+'</h1>'+(socialAccountTypeLabel(p.accountType)?'<span class="profile-creator-badge">'+socialAccountTypeLabel(p.accountType)+'</span>':'')+(p.piVerified?'<span class="profile-creator-badge">✓ Pi verified</span>':'')+'</div><div class="profile-handle">@'+sx(p.username)+'</div><p class="profile-bio-text">'+sx(p.bio||"")+'</p></div><div class="profile-header-actions">'+(same?'<button class="btn secondary" onclick="renderProfile()">My profile</button>':'<button class="btn" data-follow="'+sx(p.username)+'">'+(p.isFollowing?"Following":p.requestPending?"Requested":"＋ Follow")+'</button><button class="btn secondary" data-dm="'+sx(p.username)+'">✉ Message</button>')+'</div></div><div class="profile-stat-strip"><div><strong>'+Number(p.counts?.posts||0)+'</strong><span>Posts</span></div><div><strong>'+Number(p.counts?.followers||0)+'</strong><span>Followers</span></div><div><strong>'+Number(p.counts?.following||0)+'</strong><span>Following</span></div></div></div>'+(Array.isArray(p.gallery)&&p.gallery.length?'<section class="profile-content-card profile-gallery-public-card" style="margin-top:16px"><div class="profile-content-head"><div><span class="profile-kicker">PHOTO COLLECTION</span><h2>Gallery</h2></div></div><div class="profile-gallery-public">'+p.gallery.map((photo,i)=>'<button type="button" class="profile-gallery-view" onclick="window.open(\''+sx(photo.url)+'\',\'_blank\',\'noopener\')"><img src="'+sx(photo.url)+'" alt="Gallery photo '+(i+1)+'"></button>').join('')+'</div></section>':'')+(p.privateContent?'<div class="notice warn" style="margin-top:15px">This account is private. Follow to request access to their posts.</div>':'')+(!same?'<div class="profile-editor-actions" style="margin-top:15px"><button class="btn secondary" data-block="'+sx(p.username)+'">Block</button><button class="btn secondary" data-report="'+sx(p.username)+'">Report</button></div>':'');}catch(e){toast(e.message)}}
+async function socialViewProfile(username){try{const d=await socialRequest("/profile/"+encodeURIComponent(username));const p=d.profile;if(!p)return;switchSocial("profile");$("ownProfileView").classList.add("hidden");$("profileLoginNotice").classList.add("hidden");$("profileEditor").classList.add("hidden");$("publicProfile").classList.remove("hidden");const same=String(username).toLowerCase()===String(socialUser?.username||"").toLowerCase();$("publicProfile").innerHTML='<div class="profile-identity-card"><div class="profile-cover-art"><span class="cover-orbit orbit-one"></span><span class="cover-orbit orbit-two"></span><span class="cover-glow"></span><div class="cover-caption">SOCIAL · MEMBER PROFILE</div></div><div class="profile-identity-body"><div class="profile-avatar-wrap"><div class="profile-avatar-large">'+profileAvatarMarkup(p.avatarUrl,p.displayName||p.username)+'</div></div><div class="profile-main-info"><div class="profile-name-line"><h1>'+sx(p.displayName||p.username)+'</h1>'+(socialAccountTypeLabel(p.accountType)?'<span class="profile-creator-badge">'+socialAccountTypeLabel(p.accountType)+'</span>':'')+(p.piVerified?'<span class="profile-creator-badge">✓ Pi verified</span>':'')+'</div><div class="profile-handle">@'+sx(p.username)+'</div><p class="profile-bio-text">'+sx(p.bio||"")+'</p></div><div class="profile-header-actions">'+(same?'<button class="btn secondary" onclick="renderProfile()">My profile</button>':'<button class="btn" data-follow="'+sx(p.username)+'">'+(p.isFollowing?"Following":p.requestPending?"Requested":"＋ Follow")+'</button><button class="btn secondary" data-dm="'+sx(p.username)+'">✉ Message</button>')+'</div></div><div class="profile-stat-strip"><div><strong>'+Number(p.counts?.posts||0)+'</strong><span>Posts</span></div><div><strong>'+Number(p.counts?.followers||0)+'</strong><span>Followers</span></div><div><strong>'+Number(p.counts?.following||0)+'</strong><span>Following</span></div></div></div>'+(Array.isArray(p.gallery)&&p.gallery.length?'<section class="profile-content-card profile-gallery-public-card" style="margin-top:16px"><div class="profile-content-head"><div><span class="profile-kicker">PHOTO COLLECTION</span><h2>Gallery</h2></div></div><div class="profile-gallery-public">'+p.gallery.map((photo,i)=>{const source=sx(safeSocialMediaSource(photo.url,"image"));return source?'<a class="profile-gallery-view" href="'+source+'" target="_blank" rel="noopener"><img src="'+source+'" alt="Gallery photo '+(i+1)+'"></a>':'<div class="profile-gallery-empty">Photo unavailable</div>'}).join('')+'</div></section>':'')+(p.privateContent?'<div class="notice warn" style="margin-top:15px">This account is private. Follow to request access to their posts.</div>':'')+(!same?'<div class="profile-editor-actions" style="margin-top:15px"><button class="btn secondary" data-block="'+sx(p.username)+'">Block</button><button class="btn secondary" data-report="'+sx(p.username)+'">Report</button></div>':'');}catch(e){toast(e.message)}}
 async function socialFollow(username){try{const d=await socialRequest("/follow/"+encodeURIComponent(username),{method:"POST"});toast(d.requestPending?"Follow request sent":"Following");}catch(e){toast(e.message)}}
 async function socialBlock(username){if(!confirm("Block @"+username+"?"))return;try{await socialRequest("/block/"+encodeURIComponent(username),{method:"POST"});toast("Account blocked");}catch(e){toast(e.message)}}
 async function socialReport(username){const reason=prompt("Report reason");if(!reason)return;try{await socialRequest("/reports",{method:"POST",body:JSON.stringify({targetType:"user",targetId:username,reason})});toast("Report submitted");}catch(e){toast(e.message)}}
@@ -4230,7 +4280,7 @@ $("openProfileEditor")?.addEventListener("click",()=>{$("profileEditor").classLi
 $("closeProfileEditor")?.addEventListener("click",()=>$("profileEditor").classList.add("hidden"));
 $("profileDisplayName")?.addEventListener("input",updateProfilePreview);
 $("profileBio")?.addEventListener("input",updateProfilePreview);
-$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No new profile photo selected";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>5*1024*1024){e.target.value="";$("profileFileStatus").textContent="Choose an image under 5 MB.";return;}$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");try{const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+data+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
+$("profilePhoto")?.addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file){$("profileFileStatus").textContent="No new profile photo selected";$("profileFileStatus").classList.remove("has-files");return;}if(file.size>5*1024*1024){e.target.value="";$("profileFileStatus").textContent="Choose an image under 5 MB.";return;}$("profileFileStatus").textContent="Selected: "+file.name;$("profileFileStatus").classList.add("has-files");try{const data=await readImage(file,700*1024);$("profilePreviewAvatar").innerHTML='<img src="'+sx(safeSocialMediaSource(data,"image"))+'" alt="Preview">';}catch(err){$("profileMessage").textContent=err.message;}});
 $("profileGalleryInput")?.addEventListener("change",e=>{const files=Array.from(e.target.files||[]);for(const file of files){if(!file.type.startsWith("image/")||file.size>5*1024*1024){$("profileMessage").textContent="Each gallery image must be an image under 5 MB.";continue;}window.socialProfileGallery.push({file,name:file.name,localUrl:URL.createObjectURL(file)});}renderProfileGallery();e.target.value="";});
 $("profileShareBtn")?.addEventListener("click",async()=>{const url=location.origin+location.pathname+"#social-profile";try{if(navigator.share)await navigator.share({title:"SOCIAL profile",url});else{await navigator.clipboard.writeText(url);toast("Profile link copied");}}catch(e){}});
 document.querySelectorAll("[data-profile-tab]").forEach(btn=>btn.addEventListener("click",()=>{profileTab=btn.dataset.profileTab;document.querySelectorAll("[data-profile-tab]").forEach(b=>b.classList.toggle("active",b===btn));$("profilePostsPanel").classList.toggle("hidden",profileTab!=="posts");$("profileAboutPanel").classList.toggle("hidden",profileTab!=="about");}));
@@ -4572,6 +4622,8 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 #social-prompt-creator .prompt-folder-subtitle{margin:0 0 12px;color:var(--muted);font-size:11px}
 #social-prompt-creator .prompt-folder-grid[hidden],#social-prompt-creator .prompt-folder-view[hidden],#social-prompt-creator .prompt-gallery-grid[hidden],#social-prompt-creator .prompt-gallery-grid .prompt-template[hidden]{display:none!important}
 @media(max-width:600px){#social-prompt-creator .prompt-folder-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#social-prompt-creator .prompt-folder{min-height:75px;padding:9px;gap:8px}#social-prompt-creator .prompt-folder-icon{width:35px;height:35px;flex-basis:35px;font-size:18px}}
+
+.intel-action-review{display:grid;gap:9px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}.intel-action-review h4,.intel-action-review h5{margin:0;font-size:13px}.intel-action-review select,.intel-action-review textarea{width:100%;background:#080f1b;border:1px solid #263b56;color:white;border-radius:9px;padding:10px;font:inherit;font-size:12px}.intel-action-review-history{display:grid;gap:8px}.intel-review-history-item{display:grid;gap:5px;padding:11px;border:1px solid var(--line);border-radius:10px;background:#0b1422}.intel-review-history-item strong{font-size:12px}.intel-review-history-item small{font-size:10px;color:var(--muted);overflow-wrap:anywhere}.intel-review-history-item p{font-size:12px;line-height:1.6;margin:2px 0;overflow-wrap:anywhere}
 </style>
 <script id="prompt-gallery-category-filter-script">
 (()=>{

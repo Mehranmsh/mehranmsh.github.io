@@ -343,6 +343,10 @@ async function handle(request, env) {
   if (!env.DB) return fail("Staging database binding is unavailable.", 503);
 
   if (path === "/health" && method === "GET") {
+    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (!await rateLimit(env.DB, `ip:${clientIp}`, "health")) {
+      return fail("Health check rate limit exceeded.", 429);
+    }
     try {
       const required = [
         "intelligence_tasks", "intelligence_knowledge", "intelligence_approval_ledger",
@@ -356,15 +360,43 @@ async function handle(request, env) {
       ).bind(...required).all();
       const found = new Set((rows.results || []).map(row => row.name));
       const missing = required.filter(name => !found.has(name));
+      const requiredTriggers = ["trg_intelligence_approval_scope_guard","trg_intelligence_approval_expiry_audit","trg_intelligence_knowledge_content_immutable_with_relations","trg_intelligence_knowledge_provenance_guard_insert","trg_intelligence_knowledge_provenance_guard_update","trg_intelligence_owner_memory_knowledge_source_insert","trg_intelligence_owner_memory_knowledge_source_update","trg_intelligence_owner_memory_provenance_immutable","trg_intelligence_owner_memory_owner_input_source_insert","trg_intelligence_owner_memory_owner_input_source_update","trg_intelligence_owner_memory_confidence_integer_insert","trg_intelligence_owner_memory_confidence_integer_update","trg_intelligence_approval_insert_issued_only","trg_intelligence_approval_insert_metadata","trg_intelligence_approval_state_transition","trg_intelligence_approval_scope_immutable","trg_intelligence_approval_terminal_metadata","trg_intelligence_approval_terminal_metadata_immutable","trg_intelligence_capability_approval_insert_guard","trg_intelligence_capability_approval_identity_immutable","trg_intelligence_capability_approval_transition_guard","trg_intelligence_capability_approval_terminal_metadata_immutable","trg_intelligence_capability_approval_audit","trg_intelligence_capability_approval_capability_guard","trg_intelligence_staging_audit_no_update","trg_intelligence_staging_audit_no_delete","trg_intelligence_capability_approval_terminal_timestamp_guard","trg_intelligence_capability_approval_issued_at_guard","trg_intelligence_approval_issued_at_guard","trg_intelligence_approval_terminal_timestamp_guard","trg_intelligence_approval_consumption_disabled","trg_intelligence_capability_approval_consumption_disabled","trg_intelligence_capability_approval_revocation_before_expiry_guard","trg_intelligence_finding_no_initial_sufficient_evidence","trg_intelligence_finding_sufficient_requires_evidence","trg_intelligence_finding_resolved_requires_evidence","trg_intelligence_finding_transition_requires_sufficient_evidence","trg_intelligence_finding_identity_immutable","trg_intelligence_finding_updated_at_monotonic","trg_intelligence_finding_transition_reason","trg_intelligence_finding_severity_reason","trg_intelligence_finding_audit_insert","trg_intelligence_finding_audit_update","trg_intelligence_finding_no_delete","trg_intelligence_finding_evidence_audit_insert","trg_intelligence_finding_evidence_immutable","trg_intelligence_finding_evidence_no_delete","trg_intelligence_finding_review_audit_insert","trg_intelligence_finding_review_immutable","trg_intelligence_finding_review_no_delete","trg_intelligence_correlation_review_audit_insert","trg_intelligence_correlation_review_immutable","trg_intelligence_correlation_review_no_delete","trg_intelligence_decision_review_audit_insert","trg_intelligence_decision_review_immutable","trg_intelligence_decision_review_no_delete","trg_intelligence_priority_action_review_audit_insert","trg_intelligence_priority_action_review_immutable","trg_intelligence_priority_action_review_no_delete","trg_intelligence_priority_action_review_timestamp_guard","trg_intelligence_knowledge_owner_uid_immutable","trg_intelligence_owner_memory_owner_uid_immutable","trg_intelligence_task_insert_plan_only","trg_intelligence_task_execution_state_immutable","trg_intelligence_task_identity_immutable"];
+      const triggerRows = await env.DB.prepare(
+        `SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (${requiredTriggers.map(() => "?").join(",")})`
+      ).bind(...requiredTriggers).all();
+      const foundTriggers = new Set((triggerRows.results || []).map(row => row.name));
+      const missingTriggers = requiredTriggers.filter(name => !foundTriggers.has(name));
+      const requiredColumns = {
+        intelligence_tasks: ["status", "assigned_to", "requires_approval", "result_text", "action_type", "action_payload", "agent_claimed_at", "agent_claim_id", "scheduler_claimed_at", "scheduler_claim_id"],
+        intelligence_knowledge: ["source_type", "source_ref", "observed_at", "confidence_score", "verification_status"],
+        intelligence_owner_memory: ["memory_kind", "source_type", "source_ref", "confidence_score", "review_status", "reviewed_at", "archived_at"]
+      };
+      const missingColumns = [];
+      for (const [table, expectedColumns] of Object.entries(requiredColumns)) {
+        const columnRows = await env.DB.prepare(`PRAGMA table_info(${table})`).all();
+        const actualColumns = new Set((columnRows.results || []).map(column => column.name));
+        for (const column of expectedColumns) {
+          if (!actualColumns.has(column)) missingColumns.push(`${table}.${column}`);
+        }
+      }
+      const taskExecutionState = await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks WHERE status IS NOT 'queued' OR assigned_to IS NOT 'mehran_intelligence' OR requires_approval IS NULL OR requires_approval NOT IN (0,1) OR result_text IS NOT '' OR action_type IS NOT '' OR action_payload IS NOT '{}' OR agent_claimed_at IS NOT NULL OR agent_claim_id IS NOT NULL OR scheduler_claimed_at IS NOT NULL OR scheduler_claim_id IS NOT NULL").first();
+      const invalidTaskExecutionStateCount = Number(taskExecutionState?.count || 0);
+      const invalidCapabilityApprovalState = found.has("intelligence_capability_approvals") ? await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE capability NOT IN ('knowledge.create', 'memory.create', 'knowledge.review')").first() : { count: 0 };
+      const invalidCapabilityApprovalCount = Number(invalidCapabilityApprovalState?.count || 0);
+      const now = Math.floor(Date.now() / 1000);
+      const invalidCapabilityApprovalLifecycle = found.has("intelligence_capability_approvals") ? await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE issued_at > ? OR issued_at <= 0 OR status='consumed' OR (status='issued' AND (revoked_at IS NOT NULL OR consumed_at IS NOT NULL OR consumed_by IS NOT NULL)) OR (status='revoked' AND (revoked_at IS NULL OR revoked_at < issued_at OR revoked_at >= expires_at OR revoked_at > ? OR consumed_at IS NOT NULL OR consumed_by IS NOT NULL)) OR (status='expired' AND (expires_at > ? OR revoked_at IS NOT NULL OR consumed_at IS NOT NULL OR consumed_by IS NOT NULL))").bind(now, now, now).first() : { count: 0 };
+      const invalidLegacyApprovalLifecycle = found.has("intelligence_approval_ledger") ? await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_approval_ledger WHERE issued_at <= 0 OR issued_at > ? OR expires_at <= issued_at OR expires_at > issued_at + 3600 OR status='consumed' OR (status='issued' AND (revoked_at IS NOT NULL OR consumed_at IS NOT NULL OR consumed_by IS NOT NULL)) OR (status='revoked' AND (revoked_at IS NULL OR revoked_at < issued_at OR revoked_at >= expires_at OR revoked_at > ? OR consumed_at IS NOT NULL OR consumed_by IS NOT NULL)) OR (status='expired' AND (expires_at > ? OR revoked_at IS NOT NULL OR consumed_at IS NOT NULL OR consumed_by IS NOT NULL))").bind(now, now, now).first() : { count: 0 };
+      const invalidLegacyApprovalLifecycleCount = Number(invalidLegacyApprovalLifecycle?.count || 0);
+      const invalidCapabilityApprovalLifecycleCount = Number(invalidCapabilityApprovalLifecycle?.count || 0);
       const foreignKeyState = await env.DB.prepare("PRAGMA foreign_keys").first();
       const foreignKeyViolations = await env.DB.prepare("PRAGMA foreign_key_check").all();
       const foreignKeysEnabled = Number(foreignKeyState?.foreign_keys) === 1;
       const violationCount = (foreignKeyViolations.results || []).length;
-      const schemaReady = missing.length === 0 && foreignKeysEnabled && violationCount === 0;
+      const schemaReady = missing.length === 0 && missingTriggers.length === 0 && missingColumns.length === 0 && invalidTaskExecutionStateCount === 0 && invalidCapabilityApprovalCount === 0 && invalidCapabilityApprovalLifecycleCount === 0 && invalidLegacyApprovalLifecycleCount === 0 && foreignKeysEnabled && violationCount === 0;
       return response({
         success: true, service: "mehran-intelligence-staging",
-        schemaReady, missingTables: missing, foreignKeysEnabled,
-        foreignKeyViolations: violationCount, executor: false
+        schemaReady, missingTables: missing, missingTriggers, missingColumns, foreignKeysEnabled,
+        invalidTaskExecutionStateCount, invalidCapabilityApprovalCount, invalidCapabilityApprovalLifecycleCount, invalidLegacyApprovalLifecycleCount, foreignKeyViolations: violationCount, executor: false
       }, schemaReady ? 200 : 503);
     } catch {
       return fail("Staging schema is unavailable.", 503);
@@ -433,6 +465,28 @@ async function handle(request, env) {
   const owner = await verifySession(request, env);
   if (!owner) return fail("Authentication required.", 401);
   if (!await rateLimit(env.DB, owner.uid, `${method}:${path.split("/").slice(1,3).join("/")}`)) return fail("Rate limit exceeded.", 429);
+
+  if (path === "/intelligence/events" && method === "GET") {
+    const rows = await env.DB.prepare(`
+      SELECT action, target_type, target_id, details_json, created_at
+      FROM intelligence_staging_audit
+      WHERE owner_uid = ?
+      ORDER BY created_at DESC, id DESC
+      LIMIT 100
+    `).bind(owner.uid).all();
+    const events = (rows.results || []).map(row => {
+      let details = "";
+      try { details = JSON.stringify(JSON.parse(row.details_json || "{}")); } catch { details = "Audit details unavailable"; }
+      return {
+        action: row.action,
+        targetType: row.target_type,
+        targetId: row.target_id,
+        details,
+        createdAt: Number.isFinite(Number(row.created_at)) ? new Date(Number(row.created_at) * 1000).toISOString() : ""
+      };
+    });
+    return response({ success: true, events, readOnly: true });
+  }
 
   if (path === "/intelligence/overview" && method === "GET") {
     const now = Math.floor(Date.now() / 1000);
@@ -576,6 +630,7 @@ async function handle(request, env) {
     return response({
       success: true,
       company: "MEHRAN MSH",
+      scope: "authenticated_owner_staging_only",
       registryVersion: 1,
       source: "owner_declared_architecture",
       assessment: "module_inventory_only",
@@ -855,7 +910,7 @@ async function handle(request, env) {
         ...buildPriorityActionReviewHistory(rows.results || [])
       });
     } catch {
-      return fail("Priority action review history is unavailable. Confirm staging migration 0013 is present.", 503);
+      return fail("Priority action review history is unavailable. Check the required staging review schema and database guards.", 503);
     }
   }
 
@@ -872,7 +927,7 @@ async function handle(request, env) {
     try {
       const result = await env.DB.prepare(`
         SELECT id, owner_uid, reviewer_uid, finding_id, module_id, check_id, outcome,
-               reviewed_at, review_snapshot_json, review_snapshot_sha256
+               action_key_sha256, reviewed_at, created_at, review_snapshot_json, review_snapshot_sha256
         FROM intelligence_priority_action_reviews
         WHERE owner_uid = ?
         ORDER BY reviewed_at DESC, id DESC
@@ -890,7 +945,7 @@ async function handle(request, env) {
         ...integrity
       });
     } catch {
-      return fail("Priority action review integrity analysis is unavailable. Confirm staging migration 0013 is present.", 503);
+      return fail("Priority action review integrity analysis is unavailable. Check the required staging review schema and database guards.", 503);
     }
   }
 
@@ -958,6 +1013,7 @@ async function handle(request, env) {
       ).run();
       return response({
         success: true,
+        scope: "authenticated_owner_staging_only",
         id: reviewId,
         actionKey: body.actionKey,
         findingId: selected.findingId,
@@ -975,7 +1031,7 @@ async function handle(request, env) {
         operationPerformed: true
       }, 201);
     } catch {
-      return fail("Priority action review could not be recorded. Confirm staging migration 0013 is present and the action is current.", 503);
+      return fail("Priority action review could not be recorded. Check the required staging review schema and database guards, then confirm the action is current.", 503);
     }
   }
 
@@ -1662,7 +1718,7 @@ async function handle(request, env) {
 
   if (path === "/intelligence/capability-approvals" && method === "POST") {
     const body = await readJson(request);
-    const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review", "memory.delete"]);
+    const allowed = new Set(["knowledge.create", "memory.create", "knowledge.review"]);
     if (!body || Object.keys(body).some(key => !["capability", "expiresInSeconds"].includes(key)) ||
         typeof body.capability !== "string" || !allowed.has(body.capability)) {
       return fail("A known approval-tier capability is required.");
@@ -1784,7 +1840,7 @@ async function handle(request, env) {
       WHERE created_by = ?
       ORDER BY created_at DESC LIMIT 100
     `).bind(owner.uid).all();
-    return response({ success: true, executionEnabled: false, items: rows.results || [] });
+    return response({ success: true, executionEnabled: false, items: (rows.results || []).map(row => ({ id: row.id, title: row.title, description: row.description, assignedTo: row.assigned_to, priority: row.priority, status: row.status, requiresApproval: Number(row.requires_approval) === 1, createdAt: row.created_at, updatedAt: row.updated_at })) });
   }
 
   if (path === "/intelligence/tasks" && method === "POST") {
@@ -1830,7 +1886,7 @@ async function handle(request, env) {
     `).bind(owner.uid, state, state, state, offset).all();
     const scanned = rows.results || [];
     const items = scanned.slice(0, 100);
-    return response({ success: true, state, items, offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
+    return response({ success: true, state, items: items.map(row => ({ id: row.id, category: row.category, content: row.content, memoryKind: row.memory_kind, sourceType: row.source_type, sourceRef: row.source_ref, confidenceScore: row.confidence_score, reviewStatus: row.review_status, reviewedAt: row.reviewed_at, archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at })), offset, limit: 100, hasMore: scanned.length > 100 && offset + items.length < 10000, nextOffset: scanned.length > 100 && offset + items.length < 10000 ? offset + items.length : null });
   }
 
   if (path === "/intelligence/memory" && method === "POST") {
@@ -1844,7 +1900,7 @@ async function handle(request, env) {
     const sourceRef = body.sourceRef == null ? null : clean(body.sourceRef, 1000);
     const confidenceScore = body.confidenceScore === undefined || body.confidenceScore === null ? null : body.confidenceScore;
     const kinds = ["general", "preference", "goal", "constraint", "decision", "project_context"];
-    const sourceTypes = ["owner_input", "knowledge_record", "system_observation"];
+    const sourceTypes = ["owner_input", "knowledge_record"];
     if (!category || typeof body.content !== "string" || !content || body.content.length > 4000 ||
         !kinds.includes(memoryKind) || !sourceTypes.includes(sourceType) ||
         (sourceRef !== null && (!sourceRef || /[\r\n]/.test(sourceRef))) ||
@@ -1947,21 +2003,9 @@ async function handle(request, env) {
 
   const memoryDeleteMatch = path.match(/^\/intelligence\/memory\/([0-9a-f-]{36})$/i);
   if (memoryDeleteMatch && method === "DELETE") {
-    const id = memoryDeleteMatch[1];
-    try {
-      const results = await env.DB.batch([
-        env.DB.prepare("DELETE FROM intelligence_owner_memory WHERE id=? AND owner_uid=?")
-          .bind(id, owner.uid),
-        env.DB.prepare(`
-          INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at)
-          SELECT ?,?,?,?,?,?,? WHERE changes() = 1
-        `).bind(randomId(), owner.uid, "owner_memory_deleted", "memory", id, "{}", Math.floor(Date.now()/1000))
-      ]);
-      if (!Number(results?.[0]?.meta?.changes || 0)) return fail("Memory record not found.", 404);
-    } catch {
-      return fail("Owner memory deletion failed.", 503);
-    }
-    return response({ success: true, id, deleted: true });
+    // Hard deletion is disabled until the approval-tier capability is enforced
+    // by a server-side, one-time approval workflow. Archiving remains reversible.
+    return fail("Permanent memory deletion is disabled pending approval-gated controls. Archive the record instead.", 403);
   }
 
   if (path === "/intelligence/knowledge/review-queue" && method === "GET") {
@@ -2042,7 +2086,7 @@ async function handle(request, env) {
     const scanned = rows.results || [];
     const items = scanned.slice(0, limit);
     return response({
-      success: true, state, items, offset, limit,
+      success: true, state, items: items.map(row => ({ id: row.id, category: row.category, title: row.title, content: row.content, importance: row.importance, source: "owner", createdAt: row.created_at, updatedAt: row.updated_at, archivedAt: row.archived_at, sourceType: row.source_type, sourceRef: row.source_ref, observedAt: row.observed_at, confidenceScore: row.confidence_score, verificationStatus: row.verification_status })), offset, limit,
       hasMore: scanned.length > limit,
       nextOffset: offset + items.length
     });
@@ -2149,7 +2193,8 @@ async function handle(request, env) {
           !parsedSourceUrl.username && !parsedSourceUrl.password;
       } catch { externalUrlValid = false; }
     }
-    if (!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType) ||
+    if (!["owner_input","external_url"].includes(sourceType) ||
+        (sourceType === "owner_input" && sourceRef !== "") ||
         typeof sourceRef !== "string" || sourceRef.length > 1000 ||
         typeof observedAt !== "string" || observedAt.length > 40 ||
         (observedAt && (!observedAt.includes("T") || !Number.isFinite(Date.parse(observedAt)) || !(observedAt.endsWith("Z") || /[+-]/.test(observedAt.slice(19))))) ||
@@ -2383,7 +2428,7 @@ async function handle(request, env) {
       FROM intelligence_approval_ledger WHERE owner_uid=?
       ORDER BY issued_at DESC LIMIT 100
     `).bind(now, owner.uid).all();
-    return response({ success: true, items: rows.results || [] });
+    return response({ success: true, items: (rows.results || []).map(row => ({ id: row.id, taskId: row.task_id, repository: row.repository, branch: row.branch, baseSha: row.base_sha, scope: (() => { try { return JSON.parse(row.scope_json); } catch { return {}; } })(), status: row.status, issuedAt: row.issued_at, expiresAt: row.expires_at, revokedAt: row.revoked_at, consumedAt: row.consumed_at, consumedBy: row.consumed_by })) });
   }
 
   if (path === "/intelligence/approvals" && method === "POST") {

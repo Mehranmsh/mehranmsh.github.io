@@ -1,6 +1,10 @@
 /**
- * Deterministic capability boundary for INTELLIGENCE.
- * This module classifies requests only. It never performs an operation.
+ * Deterministic capability policy for future AI/agent-delegated requests.
+ * It classifies eligibility only and never performs an operation.
+ * Current owner-facing write routes are direct, human-initiated actions:
+ * they require the dedicated Pi-verified owner session and owner-scoped SQL,
+ * but do not consume an AI capability approval.
+ * No AI/agent runtime, credentials, or execution route exists in staging.
  * Execution remains disabled in the staging Worker.
  */
 export const EXECUTION_ENABLED = false;
@@ -12,7 +16,6 @@ const CAPABILITIES = Object.freeze({
   "knowledge.create": { tier: "approval", effects: ["write"], scope: "owner_staging" },
   "memory.create": { tier: "approval", effects: ["write"], scope: "owner_staging" },
   "knowledge.review": { tier: "approval", effects: ["change_review_state"], scope: "owner_staging" },
-  "memory.delete": { tier: "approval", effects: ["delete"], scope: "owner_staging" },
   "task.execute": { tier: "forbidden", effects: ["external_or_mutating"], scope: "none" },
   "production.write": { tier: "forbidden", effects: ["production_mutation"], scope: "none" },
   "credential.read": { tier: "forbidden", effects: ["secret_access"], scope: "none" },
