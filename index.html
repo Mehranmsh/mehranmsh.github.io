@@ -2778,10 +2778,10 @@ async function loadIntelPriorityActionReviewIntegrity(){
   const data=await api("/intelligence/findings/priority-action-reviews/integrity?limit=100");
   if(data.scope!=="authenticated_owner_staging_only")throw new Error("Unexpected response scope");
   const stats=data.summary||{};summary.replaceChildren();
-  for(const [label,value] of [["Records scanned",stats.recordsScanned??0],["Integrity matches",stats.integrityMatches??0],["Hash mismatches",stats.snapshotHashMismatches??0],["Invalid snapshots",stats.invalidSnapshotJson??0],["Identity mismatches",stats.snapshotIdentityMismatches??0],["Reviewer mismatches",stats.reviewerOwnerMismatches??0]]){
+  for(const [label,value] of [["Records scanned",stats.recordsScanned??0],["Integrity matches",stats.integrityMatches??0],["Snapshot hash mismatches",stats.snapshotHashMismatches??0],["Action key mismatches",stats.actionKeyMismatches??0],["Invalid snapshots",stats.invalidSnapshotJson??0],["Identity mismatches",stats.snapshotIdentityMismatches??0],["Reviewer mismatches",stats.reviewerOwnerMismatches??0],["Invalid review timestamps",stats.invalidReviewTimestamps??0]]){
    const item=document.createElement("div");item.className="stat-card";const name=document.createElement("div");name.className="small-text";name.textContent=label;const number=document.createElement("strong");number.textContent=String(value);item.append(name,number);summary.append(item);
   }
-  const integrityProblems=Number(stats.snapshotHashMismatches||0)+Number(stats.invalidSnapshotJson||0)+Number(stats.snapshotIdentityMismatches||0)+Number(stats.reviewerOwnerMismatches||0);
+  const integrityProblems=Number(stats.snapshotHashMismatches||0)+Number(stats.actionKeyMismatches||0)+Number(stats.invalidSnapshotJson||0)+Number(stats.snapshotIdentityMismatches||0)+Number(stats.reviewerOwnerMismatches||0)+Number(stats.invalidReviewTimestamps||0);
   const incompleteScan=Boolean(data.truncated);
   status.textContent="Checked "+String(stats.recordsScanned??0)+" owner review records. "+(incompleteScan?"The 100-record scan limit was reached; older records were not included. ":"")+"This verifies stored snapshot metadata only; decision truth is not verified.";
   status.className=integrityProblems===0&&!incompleteScan?"notice success":"notice warn";
