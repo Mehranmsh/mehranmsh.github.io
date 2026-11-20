@@ -121,6 +121,9 @@ jobs:
 
       - name: Test complete Intelligence staging migration chain in disposable SQLite
         run: python scripts/test-intelligence-staging-schema.py
+ 
+      - name: Test SOCIAL media lifecycle migration in disposable SQLite
+        run: python scripts/test-social-media-lifecycle-migration.py
 
       - name: Test Findings schema constraints in disposable SQLite
         run: python scripts/test-intelligence-findings-schema.py
