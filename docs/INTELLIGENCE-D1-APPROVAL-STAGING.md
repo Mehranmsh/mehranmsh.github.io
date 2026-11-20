@@ -51,3 +51,16 @@ Do not change the production `DB` binding, production secrets, production Worker
 The isolated Worker exposes owner-scoped `GET /intelligence/memory`, `POST /intelligence/memory`, `GET /intelligence/memory/review-queue`, and `PUT /intelligence/memory/:id`. PUT supports bounded category/content edits and the explicit `confirm`, `dispute`, `unverify`, `archive`, and `restore` transitions. Successful create/update/review/archive/restore operations are paired with audit records in the same D1 batch. Memory content is bounded to 4,000 characters per record. Archiving is reversible.
 
 `DELETE /intelligence/memory/:id` is recognized but intentionally returns HTTP 403 without changing data. The capability policy classifies `memory.delete` as approval-tier, while approval issuance/evaluation remain advisory and there is no one-time approval-consumption workflow. Permanent deletion must remain disabled until that server-enforced approval boundary is implemented and tested.
+
+
+## Human owner actions versus AI/agent capabilities
+
+The staging Worker distinguishes the owner acting directly from a future AI/agent acting under delegated authority:
+
+- Direct owner mutations are available only after the shared Pi-verified staging owner-session gate. SQL reads and writes are scoped to the authenticated owner.uid, and successful mutations are audited atomically.
+- The owner may manually create/edit/review/archive/restore their own knowledge and memory records. These are explicit owner actions, not autonomous agent operations.
+- Capability approval records currently support policy assessment only. POST /intelligence/capabilities/evaluate loads an approval from D1 when supplied, but never consumes it or performs a write.
+- The policy's approval tier describes the future AI/agent delegation boundary. It is not currently enforced as an extra approval step on the owner's direct manual routes.
+- No agent runtime, agent credential/session, agent polling route, tool bridge, approval-consumption route, or task-execution route exists. Never give the owner bearer session to an AI/agent. A future agent integration must use a separate identity and a server-enforced, one-time capability approval flow.
+
+This distinction is intentional: the owner can operate the private staging workspace directly, while Intelligence itself remains unable to exercise those privileges autonomously. EXECUTION_ENABLED=false remains mandatory.
