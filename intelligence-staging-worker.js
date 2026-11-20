@@ -381,7 +381,7 @@ async function handle(request, env) {
       }
       const taskExecutionState = await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_tasks WHERE status IS NOT 'queued' OR assigned_to IS NOT 'mehran_intelligence' OR requires_approval IS NULL OR requires_approval NOT IN (0,1) OR result_text IS NOT '' OR action_type IS NOT '' OR action_payload IS NOT '{}' OR agent_claimed_at IS NOT NULL OR agent_claim_id IS NOT NULL OR scheduler_claimed_at IS NOT NULL OR scheduler_claim_id IS NOT NULL").first();
       const invalidTaskExecutionStateCount = Number(taskExecutionState?.count || 0);
-      const invalidCapabilityApprovalState = await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE capability NOT IN ('knowledge.create', 'memory.create', 'knowledge.review')").first();
+      const invalidCapabilityApprovalState = found.has("intelligence_capability_approvals") ? await env.DB.prepare("SELECT COUNT(*) AS count FROM intelligence_capability_approvals WHERE capability NOT IN ('knowledge.create', 'memory.create', 'knowledge.review')").first() : { count: 0 };
       const invalidCapabilityApprovalCount = Number(invalidCapabilityApprovalState?.count || 0);
       const foreignKeyState = await env.DB.prepare("PRAGMA foreign_keys").first();
       const foreignKeyViolations = await env.DB.prepare("PRAGMA foreign_key_check").all();
