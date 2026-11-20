@@ -131,6 +131,19 @@ class ProjectTaskDesignTests(unittest.TestCase):
                 "UPDATE intelligence_task_dependencies SET owner_uid='owner-b' WHERE id='a-needs-b'"
             )
 
+    def test_task_completion_requires_prerequisites_and_reopen_order(self):
+        self.task("prerequisite")
+        self.task("dependent")
+        self.edge("dependent-needs-prerequisite", "dependent", "prerequisite")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='dependent'")
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='prerequisite'")
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='dependent'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
+        self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='dependent'")
+        self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
+
     def test_project_delete_is_restricted_while_tasks_reference_it(self):
         self.project("p-a")
         self.task("a", project_id="p-a")
