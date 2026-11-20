@@ -88,6 +88,8 @@ export async function handleProjectApi({request,env,owner,url,path,method,helper
     if(Object.hasOwn(body,"status")){
       if(!PROJECT_STATUSES.includes(body.status))return fail("Invalid project status.");
       sets.push("status=?");values.push(body.status);changed.push("status");
+      if(body.status==="archived"){sets.push("archived_at=CURRENT_TIMESTAMP");changed.push("archivedAt");}
+      else {sets.push("archived_at=NULL");changed.push("archivedAt");}
     }
     const existing=await env.DB.prepare("SELECT id,status FROM intelligence_projects WHERE id=? AND owner_uid=?").bind(id,owner.uid).first();
     if(!existing)return fail("Project not found.",404);
@@ -119,11 +121,14 @@ export async function handleProjectApi({request,env,owner,url,path,method,helper
       if(!project)return fail("Project not found.",404);
     }
     try{
-      await env.DB.batch([
+      const results=await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_tasks SET project_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND created_by=?")
           .bind(projectId,taskId,owner.uid),
-        audit(env.DB,owner.uid,projectId?"task_project_assigned":"task_project_unassigned","task",taskId,{projectId})
+        env.DB.prepare("INSERT INTO intelligence_staging_audit(id,owner_uid,action,target_type,target_id,details_json,created_at) "+
+          "SELECT ?,?,?,?,?,?,? WHERE changes()=1")
+          .bind(randomId(),owner.uid,projectId?"task_project_assigned":"task_project_unassigned","task",taskId,JSON.stringify({projectId}),Math.floor(Date.now()/1000))
       ]);
+      if(!Number(results?.[0]?.meta?.changes||0))return fail("Task not found.",404);
     }catch{return fail("Task project assignment violates a dependency or project constraint.",409);}
     return response({success:true,taskId,projectId});
   }
