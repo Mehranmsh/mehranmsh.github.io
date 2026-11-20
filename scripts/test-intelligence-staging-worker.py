@@ -146,12 +146,16 @@ class StagingWorkerSafetyTests(unittest.TestCase):
             "trg_intelligence_approval_terminal_timestamp_guard",
             "trg_intelligence_approval_consumption_disabled",
             "trg_intelligence_capability_approval_consumption_disabled",
+            "trg_intelligence_capability_approval_revocation_before_expiry_guard",
         ):
             self.assertIn(trigger, migration)
             self.assertIn(f'"{trigger}"', self.source)
         self.assertIn("NEW.status = 'consumed'", migration)
         self.assertIn("NEW.revoked_at < OLD.issued_at", migration)
         self.assertIn("NEW.revoked_at > CAST(strftime('%s','now') AS INTEGER)", migration)
+        self.assertIn("NEW.revoked_at >= OLD.expires_at", migration)
+        self.assertIn("trg_intelligence_capability_approval_revocation_before_expiry_guard", migration)
+        self.assertIn("revoked_at >= expires_at", self.source)
         self.assertIn("OLD.expires_at > CAST(strftime('%s','now') AS INTEGER)", migration)
         self.assertIn("status='consumed'", self.source)
         self.assertIn("invalidLegacyApprovalLifecycleCount === 0", self.source)
