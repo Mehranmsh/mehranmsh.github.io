@@ -4059,7 +4059,7 @@ async function testCapabilityApprovalManagementOwnerIsolationAndAuditAtomicity()
       "INSERT INTO intelligence_capability_approvals(id,owner_uid,capability,scope,status,issued_at,expires_at) VALUES(?,?,?,'owner_staging','issued',?,?)"
     ).bind(foreignId, foreignUid, "memory.delete", now, now + 1800).run();
 
-    const headers = { Authorization: "Bearer " + token, "Content-Type": "application/json" };
+    const headers = { Origin: "https://mehranmsh.github.io", Authorization: "Bearer " + token, "Content-Type": "application/json" };
     const issued = await mf.dispatchFetch("http://localhost/intelligence/capability-approvals", {
       method: "POST", headers,
       body: JSON.stringify({ capability: "memory.create", expiresInSeconds: 300 }),
