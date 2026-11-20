@@ -87,7 +87,7 @@ The isolated Worker, Wrangler staging config, separate Pi staging-session flow, 
 - `POST /intelligence/memory`: create a bounded memory record with validated provenance and an atomic audit record.
 - `GET /intelligence/memory/review-queue`: list the authenticated owner's unreviewed or disputed active records.
 - `PUT /intelligence/memory/:id`: update category/content, or perform the explicit owner review transitions `confirm`, `dispute`, `unverify`, `archive`, and `restore`. Every successful mutation is owner-scoped and committed atomically with its audit record. Archive is reversible.
-- `DELETE /intelligence/memory/:id`: deliberately fails closed with HTTP 403. Permanent deletion is disabled until a server-enforced, one-time approval workflow exists. The `memory.delete` capability is absent from the policy and Worker allowlists. Migration 0016 adds a D1 insert trigger that rejects it even for direct SQL writes, and `/health` fails closed if a legacy row with a disallowed capability exists. There is no approval-consumption route.
+- `DELETE /intelligence/memory/:id`: deliberately fails closed with HTTP 403. Permanent deletion remains disabled; approval records are not an authorization path for deletion. The `memory.delete` capability is absent from the policy and Worker allowlists. Migration 0016 adds a D1 insert trigger that rejects it even for direct SQL writes, and `/health` fails closed if a legacy row with a disallowed capability exists. There is no approval-consumption route.
 
 No cross-owner memory mutation route is exposed.
 
