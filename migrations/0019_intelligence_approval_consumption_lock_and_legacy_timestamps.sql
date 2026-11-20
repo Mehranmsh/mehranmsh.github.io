@@ -21,6 +21,7 @@ WHEN OLD.status = 'issued'
    (NEW.status = 'revoked' AND (
      NEW.revoked_at IS NULL
      OR NEW.revoked_at < OLD.issued_at
+     OR NEW.revoked_at >= OLD.expires_at
      OR NEW.revoked_at > CAST(strftime('%s','now') AS INTEGER)
      OR NEW.consumed_at IS NOT NULL
      OR NEW.consumed_by IS NOT NULL
@@ -35,6 +36,17 @@ WHEN OLD.status = 'issued'
  )
 BEGIN
   SELECT RAISE(ABORT, 'invalid legacy approval terminal timestamp or transition');
+END;
+
+
+CREATE TRIGGER IF NOT EXISTS trg_intelligence_capability_approval_revocation_before_expiry_guard
+BEFORE UPDATE OF status, revoked_at
+ON intelligence_capability_approvals
+WHEN OLD.status = 'issued'
+ AND NEW.status = 'revoked'
+ AND NEW.revoked_at >= OLD.expires_at
+BEGIN
+  SELECT RAISE(ABORT, 'capability approval revocation must precede expiry');
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_intelligence_approval_consumption_disabled
