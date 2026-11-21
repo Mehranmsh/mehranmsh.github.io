@@ -3,10 +3,15 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+const intelligenceProjectApiSource = await readFile(new URL("../intelligence-production-project-api.mjs", import.meta.url), "utf8");
+const workerExecutableSource = workerSource.replace(
+  'import { handleProductionIntelligenceProjectApi } from "./intelligence-production-project-api.mjs";',
+  intelligenceProjectApiSource.replace("export async function handleProductionIntelligenceProjectApi", "async function handleProductionIntelligenceProjectApi")
+);
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const workerModule = await import(
-  "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
+  "data:text/javascript;base64," + Buffer.from(workerExecutableSource).toString("base64")
 );
 const worker = workerModule.default;
 
