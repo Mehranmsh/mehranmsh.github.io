@@ -153,6 +153,9 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
   assert.ok(start >= 0 && end > start, "MCP route must exist before the AI chat route");
   const route = workerSource.slice(start, end);
+  assert.match(route, /checkRateLimit\(env, request, "intelligence-mcp-auth", 120, 60, 60\)/);
+  assert.ok(route.indexOf('"intelligence-mcp-auth"') < route.indexOf("verifyAdmin(request, env)"),
+    "MCP source-IP throttling must run before credential verification");
   assert.match(route, /verifyAdmin\(request, env\)/);
   assert.match(route, /checkRateLimit\(env, request, "intelligence-mcp", 60, 60, 60, admin\.uid\)/);
   assert.match(route, /rpc\.method === "initialize"/);
