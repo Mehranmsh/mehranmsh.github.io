@@ -1,0 +1,79 @@
+name: MEHRAN ChatGPT Bridge (public-safe reports)
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  public-safe-report:
+    if: github.event.label.name == 'chatgpt-bridge' && contains(github.event.issue.body, '<!-- MEHRAN-CHATGPT-BRIDGE:v1 -->')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Request allowlisted report from MEHRAN MCP
+        uses: actions/github-script@v7
+        env:
+          MEHRAN_MCP_TOKEN: ${{ secrets.MEHRAN_MCP_TOKEN }}
+          MEHRAN_MCP_URL: https://mehran-msh-auth.mehran79mehran.workers.dev/mcp
+        with:
+          script: |
+            const token = process.env.MEHRAN_MCP_TOKEN || "";
+            if (token.length < 40 || token.length > 200) {
+              throw new Error("MEHRAN_MCP_TOKEN repository secret is missing or invalid.");
+            }
+            const body = context.payload.issue.body || "";
+            const match = body.match(/^Report:\s*(service_health|project_status|social_metrics)\s*$/im);
+            if (!match) throw new Error("Issue must request one allowlisted public-safe report.");
+            const toolByReport = {
+              service_health: "get_service_health",
+              project_status: "get_project_status",
+              social_metrics: "get_social_metrics"
+            };
+            const tool = toolByReport[match[1].toLowerCase()];
+            const response = await fetch(process.env.MEHRAN_MCP_URL, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream"
+              },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: `gh-issue-${context.issue.number}`,
+                method: "tools/call",
+                params: { name: tool, arguments: {} }
+              }),
+              signal: AbortSignal.timeout(20000)
+            });
+            const raw = await response.text();
+            if (!response.ok) throw new Error(`MEHRAN MCP returned HTTP ${response.status}: ${raw.slice(0, 300)}`);
+            let payload;
+            try { payload = JSON.parse(raw); }
+            catch { throw new Error("MCP response was not JSON: " + raw.slice(0, 300)); }
+            if (payload.error) throw new Error(payload.error.message || "MCP tool call failed.");
+            const result = payload.result?.structuredContent
+              || payload.result?.content?.map(x => x.text || "").join("\n")
+              || payload.result;
+            const rendered = typeof result === "string" ? result : JSON.stringify(result, null, 2);
+            const safe = rendered.slice(0, 12000);
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: [
+                "## MEHRAN INTELLIGENCE bridge result",
+                "",
+                `- Report: ${match[1]}`,
+                `- Source: authenticated MEHRAN MCP`,
+                `- Generated: ${new Date().toISOString()}`,
+                "",
+                "```json",
+                safe.replace(/```/g, "` ` `"),
+                "```",
+                "",
+                "_This bridge is read-only and limited to public-safe aggregate/status reports. It does not execute arbitrary tasks._"
+              ].join("\n")
+            });
