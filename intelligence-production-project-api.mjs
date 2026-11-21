@@ -52,12 +52,6 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
   const depsMatch=path.match(/^\/intelligence\/tasks\/([0-9a-f-]{36})\/dependencies$/i);
   const depDeleteMatch=path.match(/^\/intelligence\/tasks\/([0-9a-f-]{36})\/dependencies\/([0-9a-f-]{36})$/i);
   const ownerUid=admin.uid;
-  const audit=async(action,type,id,details={})=>{
-    await env.DB.prepare(
-      "INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)"
-    ).bind(crypto.randomUUID(),admin.uid,admin.username,action,type,id,JSON.stringify(details)).run();
-  };
-
   if(path==="/intelligence/projects" && method==="GET"){
     const status=url.searchParams.get("status")||"", moduleKey=url.searchParams.get("moduleKey")||"";
     const limit=Math.min(100,Math.max(1,Number(url.searchParams.get("limit"))||50));
@@ -88,7 +82,7 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
       await env.DB.batch([
         env.DB.prepare("INSERT INTO intelligence_projects(id,owner_uid,name,description,module_key,status) VALUES(?,?,?,?,?,'planned')")
           .bind(id,ownerUid,name,description,moduleKey),
-        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0")
           .bind(crypto.randomUUID(),admin.uid,admin.username,"project_created","intelligence_project",id,JSON.stringify({moduleKey}))
       ]);
     } catch { return fail("Project could not be created. Check that the production migration is installed.",503); }
@@ -122,7 +116,7 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     try{
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_projects SET "+sets.join(",")+" WHERE id=? AND owner_uid=?").bind(...values),
-        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0")
           .bind(crypto.randomUUID(),admin.uid,admin.username,"project_updated","intelligence_project",id,JSON.stringify({fields:changed}))
       ]);
     } catch{return fail("Project update or its audit record could not be committed.",409);}
@@ -140,7 +134,7 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     try{
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_tasks SET project_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(projectId,taskId,ownerUid),
-        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0")
           .bind(crypto.randomUUID(),admin.uid,admin.username,"task_project_changed","intelligence_task",taskId,JSON.stringify({projectId}))
       ]);
     } catch{return fail("Task project assignment or its audit record could not be committed.",409);}
@@ -170,7 +164,7 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?")
           .bind(body.status,body.result===undefined?(task.result_text||""):clean(body.result,3000),taskId,ownerUid),
-        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0")
           .bind(crypto.randomUUID(),admin.uid,admin.username,"task_status_changed","intelligence_task",taskId,JSON.stringify({status:body.status}))
       ]);
     } catch{return fail("Task status or its audit record could not be committed.",409);}
@@ -201,7 +195,7 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     const id=crypto.randomUUID();
     try{await env.DB.batch([
       env.DB.prepare("INSERT INTO intelligence_task_dependencies(id,owner_uid,task_id,depends_on_task_id,dependency_type) VALUES(?,?,?,?,'blocks')").bind(id,ownerUid,taskId,body.dependsOnTaskId),
-      env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)").bind(crypto.randomUUID(),admin.uid,admin.username,"task_dependency_added","intelligence_task_dependency",id,JSON.stringify({taskId,dependsOnTaskId:body.dependsOnTaskId}))
+      env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0").bind(crypto.randomUUID(),admin.uid,admin.username,"task_dependency_added","intelligence_task_dependency",id,JSON.stringify({taskId,dependsOnTaskId:body.dependsOnTaskId}))
     ]);}catch{return fail("Dependency conflicts with an existing edge, cycle, or task constraint.",409);}
     return reply({success:true,id,taskId,dependsOnTaskId:body.dependsOnTaskId},201);
   }
