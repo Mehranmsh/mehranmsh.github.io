@@ -6364,6 +6364,73 @@ export default {
         await ensureAdminSessionTable(env);
       }
 
+      if (path === "/intelligence/migration/legacy-tasks/preview" || path === "/intelligence/migration/legacy-tasks/confirm") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const isPreview = path.endsWith("/preview") && method === "GET";
+        const isConfirm = path.endsWith("/confirm") && method === "POST";
+        if (!isPreview && !isConfirm) return error("Method not allowed.", 405);
+        if (!await checkRateLimit(env, request, "intelligence-legacy-owner-migration", isPreview ? 10 : 2, 3600, 1800, admin.uid)) {
+          return error("Legacy ownership migration rate limit reached.", 429);
+        }
+        await ensureIntelligenceTaskTable(env);
+        if (!await intelligenceOwnershipSchemaReady(env)) {
+          return error("Intelligence ownership migration is not installed. No legacy tasks were changed.", 503);
+        }
+        if (isPreview) {
+          const counts = await env.DB.prepare(
+            "SELECT " +
+            "SUM(CASE WHEN owner_uid IS NULL AND created_by=? THEN 1 ELSE 0 END) AS eligible, " +
+            "SUM(CASE WHEN owner_uid IS NULL AND created_by<>? THEN 1 ELSE 0 END) AS excluded, " +
+            "SUM(CASE WHEN owner_uid IS NOT NULL THEN 1 ELSE 0 END) AS already_owned " +
+            "FROM intelligence_tasks"
+          ).bind(admin.username, admin.username).first();
+          return json({
+            success:true,
+            preview:true,
+            eligible:Number(counts?.eligible || 0),
+            excludedOtherCreators:Number(counts?.excluded || 0),
+            alreadyOwned:Number(counts?.already_owned || 0),
+            ownerUidSuffix:String(admin.uid || "").slice(-6),
+            changesMade:false,
+            executionEnabled:false
+          });
+        }
+        const body = await readBody(request);
+        if (!body || Object.keys(body).length !== 1 || body.confirmation !== "ASSIGN_LEGACY_TASKS_TO_MY_PI_UID") {
+          return error("Explicit migration confirmation is required.", 400);
+        }
+        try {
+          const results = await env.DB.batch([
+            env.DB.prepare(
+              "UPDATE intelligence_tasks SET owner_uid=?,updated_at=CURRENT_TIMESTAMP " +
+              "WHERE owner_uid IS NULL AND created_by=?"
+            ).bind(admin.uid, admin.username),
+            env.DB.prepare(
+              "INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) " +
+              "SELECT ?,?,?,?,?,?,? WHERE EXISTS (" +
+              "SELECT 1 FROM intelligence_tasks WHERE owner_uid=? AND created_by=?" +
+              ")"
+            ).bind(
+              crypto.randomUUID(), admin.uid, admin.username,
+              "legacy_task_ownership_backfilled", "intelligence_task", "legacy-batch",
+              "Assigned only unowned legacy tasks whose created_by matches the authenticated admin username.",
+              admin.uid, admin.username
+            )
+          ]);
+          const changed = Number(results?.[0]?.meta?.changes || 0);
+          return json({
+            success:true,
+            migrated:changed,
+            alreadyCompleted:changed===0,
+            ownerUidSuffix:String(admin.uid || "").slice(-6),
+            executionEnabled:false
+          });
+        } catch {
+          return error("Legacy ownership migration and its audit record could not be committed.", 503);
+        }
+      }
+
       const intelligenceProjectApiPath =
         path === "/intelligence/projects" ||
         /^\/intelligence\/projects\/[0-9a-f-]{36}$/i.test(path) ||
