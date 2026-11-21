@@ -15,6 +15,7 @@ const workerExecutableSource = workerWithProjectApi.replace(
 );
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const intelligenceUiSource = await readFile(new URL("../intelligence-knowledge-ui.js", import.meta.url), "utf8");
+const intelligenceProjectsUiSource = await readFile(new URL("../intelligence-projects-ui.js", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 test("Intelligence knowledge and memory UI is wired to the protected owner APIs", () => {
   assert.match(indexSource, /src=["']\.\/intelligence-knowledge-ui\.js["']/);
@@ -31,6 +32,24 @@ test("Intelligence knowledge and memory UI is wired to the protected owner APIs"
     assert.ok(intelligenceUiSource.includes(marker), "Missing Intelligence UI safety or workflow marker: " + marker);
   }
   assert.match(intelligenceUiSource, /const esc=value=>String\(value\?\?""\)\.replace/);
+});
+
+test("Intelligence project workspace is wired to owner-scoped project and task APIs", () => {
+  assert.match(indexSource, /src=["']\.\/intelligence-projects-ui\.js["']/);
+  for (const marker of [
+    '"/intelligence/projects?limit=100"',
+    '"/intelligence/projects/"',
+    '"/intelligence/tasks"',
+    '"/project"',
+    '"/status"',
+    'data-ip-action=',
+    'const esc=value',
+    'execution'
+  ]) {
+    assert.ok(intelligenceProjectsUiSource.includes(marker), "Missing Intelligence project UI marker: " + marker);
+  }
+  assert.match(workerSource, /projectId: row\.project_id \|\| null/);
+  assert.match(intelligenceProjectApiSource, /t\.action_type,t\.result_text/);
 });
 
 const workerModule = await import(
