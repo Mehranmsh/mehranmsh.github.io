@@ -49,11 +49,28 @@ function requireAbsent(rows, names, label) {
   if (present.length) throw new Error(`${label} already exist; refusing to continue: ${present.join(", ")}`);
 }
 
+function requireExactColumnNames(rows, expected, label) {
+  const actual = rows.map((row) => row.name);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${label} columns differ from the reviewed schema. Found: ${actual.join(",")}`);
+  }
+}
+
 const taskBaseColumns = [
   "id","title","description","assigned_to","priority","status",
   "requires_approval","result_text","created_by","action_type",
   "action_payload","created_at","updated_at","agent_claimed_at",
 ];
+const taskMigratedColumns = [...taskBaseColumns.slice(0, 9), "action_type", "action_payload", "agent_claimed_at", "created_at", "updated_at", "owner_uid", "project_id"];
+const projectColumns = ["id","owner_uid","name","description","module_key","status","created_at","updated_at","archived_at"];
+const dependencyColumns = ["id","owner_uid","task_id","depends_on_task_id","dependency_type","created_at"];
+const knowledgeColumns = [
+  "id","owner_uid","category","title","content","importance","source_type","source_ref",
+  "source_title","source_excerpt","observed_at","recorded_confidence","verification_status",
+  "reviewed_by","reviewed_at","created_at","updated_at","archived_at",
+];
+const memoryColumns = ["id","owner_uid","memory_type","category","content","importance","created_at","updated_at","archived_at"];
+
 const projectTriggers = [
   "trg_intelligence_task_project_owner_insert",
   "trg_intelligence_task_project_owner_update",
@@ -113,8 +130,9 @@ if (mode === "preflight-0001") {
 
 if (mode === "preflight-0002") {
   requireNames(tables, ["intelligence_projects","intelligence_task_dependencies"], "Migration 0001 tables");
-  const taskCols = (await columns("intelligence_tasks")).map((row) => row.name);
-  requireNames(taskCols.map((name) => ({name})), ["owner_uid","project_id"], "Migration 0001 task columns");
+  requireExactColumnNames(await columns("intelligence_tasks"), taskMigratedColumns, "intelligence_tasks");
+  requireExactColumnNames(await columns("intelligence_projects"), projectColumns, "intelligence_projects");
+  requireExactColumnNames(await columns("intelligence_task_dependencies"), dependencyColumns, "intelligence_task_dependencies");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   requireAbsent(tables, ["intelligence_knowledge","intelligence_owner_memory"], "Migration 0002 tables");
@@ -128,8 +146,9 @@ if (mode === "preflight-0002") {
 
 if (mode === "verify-0001") {
   requireNames(tables, ["intelligence_projects","intelligence_task_dependencies"], "Migration 0001 tables");
-  const taskCols = (await columns("intelligence_tasks")).map((row) => row.name);
-  requireNames(taskCols.map((name) => ({name})), ["owner_uid","project_id"], "Migration 0001 task columns");
+  requireExactColumnNames(await columns("intelligence_tasks"), taskMigratedColumns, "intelligence_tasks");
+  requireExactColumnNames(await columns("intelligence_projects"), projectColumns, "intelligence_projects");
+  requireExactColumnNames(await columns("intelligence_task_dependencies"), dependencyColumns, "intelligence_task_dependencies");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   const fk = await query("PRAGMA foreign_key_check");
@@ -146,15 +165,7 @@ if (mode === "verify-0002") {
   requireNames(triggers, knowledgeTriggers, "Migration 0002 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
-  const knowledgeCols = (await columns("intelligence_knowledge")).map((row) => row.name);
-  requireNames(knowledgeCols.map((name) => ({name})), [
-    "id","owner_uid","category","title","content","importance","source_type","source_ref",
-    "source_title","source_excerpt","observed_at","recorded_confidence","verification_status",
-    "reviewed_by","reviewed_at","created_at","updated_at","archived_at",
-  ], "Knowledge columns");
-  const memoryCols = (await columns("intelligence_owner_memory")).map((row) => row.name);
-  requireNames(memoryCols.map((name) => ({name})), [
-    "id","owner_uid","memory_type","category","content","importance","created_at","updated_at","archived_at",
-  ], "Memory columns");
+  requireExactColumnNames(await columns("intelligence_knowledge"), knowledgeColumns, "intelligence_knowledge");
+  requireExactColumnNames(await columns("intelligence_owner_memory"), memoryColumns, "intelligence_owner_memory");
   console.log("PASS: migration 0002 tables, columns, indexes, and owner immutability triggers verified.");
 }
