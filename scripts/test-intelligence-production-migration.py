@@ -173,20 +173,21 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         )
 
     def test_critical_trigger_index_sql_and_foreign_keys_match_reviewed_migrations(self):
+        import re
+
         def normalize(sql):
             return " ".join((sql or "").replace("IF NOT EXISTS", "").split()).rstrip(";").lower()
 
         def migration_object(source, object_type, name):
-            import re
             starts = list(re.finditer(
-                r"(?im)^CREATE\\s+(?:UNIQUE\\s+)?(?:TABLE|INDEX|TRIGGER)\\b",
+                r"(?im)^CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|TRIGGER)\b",
                 source,
             ))
             for index, match in enumerate(starts):
                 end = starts[index + 1].start() if index + 1 < len(starts) else len(source)
                 statement = source[match.start():end].strip()
                 if re.match(
-                    rf"(?is)^CREATE\\s+(?:UNIQUE\\s+)?{object_type}\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?{re.escape(name)}\\b",
+                    rf"(?is)^CREATE\s+(?:UNIQUE\s+)?{object_type}\s+(?:IF\s+NOT\s+EXISTS\s+)?{re.escape(name)}\b",
                     statement,
                 ):
                     return statement
