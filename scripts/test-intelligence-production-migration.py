@@ -72,6 +72,16 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
+    def test_rollout_checker_requires_exact_migrated_columns_and_foreign_key_integrity(self):
+        checker = (ROOT / "scripts" / "intelligence-production-d1-check.mjs").read_text(encoding="utf-8")
+        self.assertIn("requireExactColumnNames(await columns(\"intelligence_tasks\"), taskMigratedColumns", checker)
+        self.assertIn("requireExactColumnNames(await columns(\"intelligence_projects\"), projectColumns", checker)
+        self.assertIn("requireExactColumnNames(await columns(\"intelligence_task_dependencies\"), dependencyColumns", checker)
+        self.assertIn("requireExactColumnNames(await columns(\"intelligence_knowledge\"), knowledgeColumns", checker)
+        self.assertIn("requireExactColumnNames(await columns(\"intelligence_owner_memory\"), memoryColumns", checker)
+        self.assertGreaterEqual(checker.count('query("PRAGMA foreign_key_check")'), 2)
+        self.assertIn('const taskMigratedColumns = [...taskBaseColumns, "owner_uid", "project_id"]', checker)
+
     def test_migration_preserves_existing_production_indexes_and_schema(self):
         indexes = {
             row[0] for row in self.db.execute(
