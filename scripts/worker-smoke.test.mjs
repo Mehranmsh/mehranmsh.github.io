@@ -3,10 +3,106 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+const intelligenceProjectApiSource = await readFile(new URL("../intelligence-production-project-api.mjs", import.meta.url), "utf8");
+const intelligenceKnowledgeApiSource = await readFile(new URL("../intelligence-production-knowledge-api.mjs", import.meta.url), "utf8");
+const workerWithProjectApi = workerSource.replace(
+  'import { handleProductionIntelligenceProjectApi } from "./intelligence-production-project-api.mjs";',
+  `const handleProductionIntelligenceProjectApi = (() => {\n${intelligenceProjectApiSource.replace("export async function handleProductionIntelligenceProjectApi", "async function handleProductionIntelligenceProjectApi")}\nreturn handleProductionIntelligenceProjectApi;\n})();`
+);
+const workerExecutableSource = workerWithProjectApi.replace(
+  'import { handleProductionIntelligenceKnowledgeApi } from "./intelligence-production-knowledge-api.mjs";',
+  `const handleProductionIntelligenceKnowledgeApi = (() => {\n${intelligenceKnowledgeApiSource.replace("export async function handleProductionIntelligenceKnowledgeApi", "async function handleProductionIntelligenceKnowledgeApi")}\nreturn handleProductionIntelligenceKnowledgeApi;\n})();`
+);
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const intelligenceUiSource = await readFile(new URL("../intelligence-knowledge-ui.js", import.meta.url), "utf8");
+const intelligenceProjectsUiSource = await readFile(new URL("../intelligence-projects-ui.js", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
+test("Intelligence knowledge and memory UI is wired to the protected owner APIs", () => {
+  assert.match(indexSource, /src=["']\.\/intelligence-knowledge-ui\.js["']/);
+  for (const marker of [
+    '"/intelligence/knowledge?state="',
+    '"/intelligence/memory"',
+    '"/intelligence/knowledge/"',
+    '"/intelligence/memory/"',
+    'data-k-action=',
+    'data-k-action=',
+    'Recorded confidence',
+    'const esc=value'
+  ]) {
+    assert.ok(intelligenceUiSource.includes(marker), "Missing Intelligence UI safety or workflow marker: " + marker);
+  }
+  assert.match(intelligenceUiSource, /const esc=value=>String\(value\?\?""\)\.replace/);
+});
+
+test("Intelligence project workspace is wired to owner-scoped project and task APIs", () => {
+  assert.match(indexSource, /src=["']\.\/intelligence-projects-ui\.js["']/);
+  for (const marker of [
+    '"/intelligence/projects?limit=100"',
+    '"/intelligence/projects/"',
+    '"/intelligence/tasks"',
+    '"/project"',
+    '"/status"',
+    'data-ip-action=',
+    'id="ipTaskForm"',
+    'async function createTask(event)',
+    'assignedTo:$("ipTaskAssignee").value',
+    'requiresApproval:false',
+    '/dependencies',
+    'data-ip-action="add-dependency"',
+    'data-ip-action="remove-dependency"',
+    'dependencies[t.id]',
+    'id="ipSummary"',
+    'id="ipPerformance"',
+    'function renderPerformance()',
+    'Open older than 7 days',
+    'Aging is measured from task creation',
+    't.createdAt||t.created_at',
+    'const blocked=tasks.filter(t=>t.status==="blocked").length',
+    'role="progressbar"',
+    'aria-valuenow=',
+    'const esc=value',
+    'execution'
+  ]) {
+    assert.ok(intelligenceProjectsUiSource.includes(marker), "Missing Intelligence project UI marker: " + marker);
+  }
+  assert.match(workerSource, /projectId: row\.project_id \|\| null/);
+  assert.match(intelligenceProjectApiSource, /t\.action_type,t\.result_text/);
+  assert.ok(intelligenceProjectApiSource.includes("cannot be completed until every prerequisite is completed"));
+  assert.ok(intelligenceProjectApiSource.includes("cannot be reopened while dependent tasks remain completed"));
+});
+
+test("Production Intelligence readiness fails closed unless ownership and knowledge guard triggers exist", () => {
+  for (const trigger of [
+    "trg_intelligence_task_project_owner_insert",
+    "trg_intelligence_task_project_owner_update",
+    "trg_intelligence_task_dependency_guard_insert",
+    "trg_intelligence_task_dependency_guard_update",
+    "trg_intelligence_task_completion_dependency_guard",
+    "trg_intelligence_task_reopen_dependency_guard",
+    "trg_intelligence_task_dependency_consistency_update"
+  ]) assert.ok(workerSource.includes(trigger), "Missing required ownership guard: " + trigger);
+  assert.match(workerSource, /requiredTriggers\.every\(name => triggerNames\.has\(name\)\)/);
+  assert.match(workerSource, /PRAGMA table_info\(" \+ table \+ "\)/);
+  for (const column of ["owner_uid","project_id","depends_on_task_id","verification_status","recorded_confidence","archived_at"]) {
+    assert.ok(workerSource.includes('"'+column+'"'), "Schema readiness must require column: " + column);
+  }
+  assert.match(workerSource, /trg_intelligence_knowledge_owner_immutable/);
+  assert.match(workerSource, /trg_intelligence_memory_owner_immutable/);
+});
+
+test("Legacy task PATCH enforces prerequisite and dependent completion guards", () => {
+  const start=workerSource.indexOf('if(intelligenceTaskMatch&&method==="PATCH")');
+  const end=workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")',start);
+  assert.ok(start>=0&&end>start,"Legacy task PATCH route must exist");
+  const route=workerSource.slice(start,end);
+  assert.match(route,/body\.status==="completed"[\s\S]*?intelligence_task_dependencies[\s\S]*?prerequisite\.status<>'completed'/);
+  assert.match(route,/existing\.status==="completed"&&body\.status!=="completed"[\s\S]*?dependent\.status='completed'/);
+  assert.match(route,/cannot be completed until every prerequisite is completed/);
+  assert.match(route,/cannot be reopened while dependent tasks remain completed/);
+});
+
 const workerModule = await import(
-  "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
+  "data:text/javascript;base64," + Buffer.from(workerExecutableSource).toString("base64")
 );
 const worker = workerModule.default;
 
@@ -132,6 +228,12 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.match(payload.error, /Admin authentication required/);
 });
 
+test("Production Intelligence knowledge and memory module is included in Worker smoke-test bundle", () => {
+  assert.match(workerSource, /handleProductionIntelligenceKnowledgeApi/);
+  assert.match(workerExecutableSource, /async function handleProductionIntelligenceKnowledgeApi/);
+  assert.doesNotMatch(workerExecutableSource, /from ["']\.\/intelligence-production-(?:project|knowledge)-api\.mjs["']/);
+});
+
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
   assert.match(workerSource, /const MAX_BODY_BYTES = 100000;/);
   assert.match(workerSource, /origin !== ALLOWED_ORIGIN/);
@@ -162,16 +264,33 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
     assert.ok(route.includes(tool), `missing MCP tool: ${tool}`);
   }
   assert.match(route, /additionalProperties:false/);
-  assert.match(route, /ensureIntelligenceTaskTable\(env\)/);
-  assert.match(route, /writeAdminAudit\(env,admin/);
+  assert.doesNotMatch(route, /ensureIntelligenceTaskTable\(env\)/);
+  assert.match(route, /adminAuditStatement\(env,admin/);
+  assert.match(route, /await env\.DB\.batch\(\[/);
+  assert.match(workerSource, /function adminAuditStatement\(env, admin/);
+  const auditStart = workerSource.indexOf("function adminAuditStatement(env, admin");
+  const auditEnd = workerSource.indexOf("async function writeAdminAudit", auditStart);
+  assert.ok(auditStart >= 0 && auditEnd > auditStart, "batched audit helper must exist");
+  assert.match(workerSource.slice(auditStart,auditEnd),/SELECT \?,\?,\?,\?,\?,\?,\? WHERE changes\(\)>0/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_tasks/);
   assert.match(workerSource, /path === "\/intelligence\/tasks"/);
   assert.match(workerSource, /intelligenceTaskMatch/);
   assert.match(route, /No external action was executed/);
+  assert.match(route, /This task cannot be completed until every prerequisite is completed/);
+  assert.match(route, /This prerequisite cannot be reopened while dependent tasks remain completed/);
   assert.match(workerSource, /args\.requiresApproval\?'awaiting_approval':'queued'/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
+});
+
+test("Intelligence task CRUD fails closed without initializing or altering the task schema", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "task CRUD routes must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /intelligenceOwnershipSchemaReady\(env\)/);
+  assert.doesNotMatch(route, /ensureIntelligenceTaskTable\(env\)/);
 });
 
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
@@ -192,22 +311,6 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.equal(response.status, 403);
   const payload = await response.json();
   assert.match(payload.error, /Admin authentication required/);
-});
-
-test("MEHRAN Intelligence agent API is separately scoped and approval-gated", () => {
-  assert.match(workerSource, /path\.startsWith\("\/agent\/v1\/"\)/);
-  assert.match(workerSource, /env\.MEHRAN_AGENT_TOKEN/);
-  assert.match(workerSource, /requires_approval=0/);
-  assert.match(workerSource, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
-  assert.match(workerSource, /status IN \('queued','accepted'\)/);
-  assert.match(workerSource, /status='in_progress'/);
-  assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.match(workerSource, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(workerSource, /agent_claimed_at=NULL/);
-  assert.match(workerSource, /\["completed","blocked"\]/);
-  assert.match(workerSource, /Agent authentication required/);
-  assert.match(workerSource, /Agent service identity is not configured/);
 });
 
 test("MEHRAN Intelligence agent API remains disabled even when a service secret is absent or present", async () => {
@@ -1293,12 +1396,12 @@ test("generated lyrics return transparent language and section-structure review 
 });
 
 test("Production Intelligence scheduler and Agent execution remain disabled", async () => {
-  const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const scheduledStart = workerSource.indexOf("async scheduled()");
   const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 500);
   assert.ok(scheduledStart >= 0, "scheduled handler remains present as an inert safety barrier");
   assert.match(scheduledBody, /return;/);
-  assert.ok(scheduledBody.indexOf("return;") < scheduledBody.indexOf("const run = async"),
-    "scheduler must return before any execution logic");
+  assert.doesNotMatch(scheduledBody, /const run = async|waitUntil\(/,
+    "disabled scheduler must contain no dormant execution path");
   assert.match(workerSource, /if \(path\.startsWith\("\/agent\/v1\/"\)\)\s*\{\s*return error\("Production Intelligence Agent execution is disabled\.", 410\);/);
   let dbCalls = 0;
   let backgroundTasks = 0;
@@ -1308,7 +1411,7 @@ test("Production Intelligence scheduler and Agent execution remain disabled", as
   assert.equal(dbCalls, 0, "disabled scheduler must not access the database");
   assert.equal(backgroundTasks, 0, "disabled scheduler must not register background execution");
 });
-test("Intelligence scheduler history is private, bounded and stores execution counters", () => {
+test("Intelligence scheduler history remains private and bounded while execution is disabled", () => {
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs/);
   assert.match(workerSource, /idx_intelligence_scheduler_runs_started/);
   assert.match(workerSource, /path === "\/intelligence\/scheduler\/runs" && method === "GET"/);
@@ -1318,9 +1421,8 @@ test("Intelligence scheduler history is private, bounded and stores execution co
   assert.ok(route.includes("verifyAdmin(request, env)"));
   assert.ok(route.includes("safeLimit(url.searchParams.get(\"limit\"), 20, 50)"));
   assert.ok(route.includes("ORDER BY started_at DESC LIMIT ?"));
-  assert.match(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/);
-  assert.match(workerSource, /processed_count=\?,completed_count=\?,blocked_count=\?/);
-  assert.match(workerSource, /status='failed'/);
+  assert.doesNotMatch(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/,
+    "disabled scheduler must not create execution history");
 });
 
 test("Intelligence scheduler history endpoint rejects unauthenticated requests", async () => {
@@ -1341,20 +1443,20 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
 });
 
 
-test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
+test("Task Hub exposes allowlisted reports but requires explicit owner approval for every automated task", () => {
   const html = indexSource;
   const worker = workerSource;
   for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
-    assert.ok(html.includes(action), `Task Hub exposes ${action}`);
-    assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
+    assert.ok(html.includes(action), "Task Hub exposes " + action)
+    assert.ok(worker.includes(String.fromCharCode(34) + action + String.fromCharCode(34)), "Worker allowlists " + action)
   }
-  assert.match(worker, /const autoApproved=preapprovedReadOnlyActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
-  assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(worker, /action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
+  assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|actionType\)/);
+  assert.match(worker, /Every action, including read-only reports, requires explicit owner approval/);
+  assert.match(worker, /requiresApproval\?'awaiting_approval':'queued'/);
+  assert.doesNotMatch(worker, /preapprovedReadOnlyActions|autoApproved/);
+  assert.match(worker, /owner_uid,action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
-
-
 
 
 test("automated Intelligence task transitions are owner-approval-only and execution results cannot be forged", () => {
@@ -1367,19 +1469,19 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
   assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
   assert.match(route, /requires_approval=CASE WHEN \?=\x27accepted\x27 THEN 0 ELSE requires_approval END/);
-  assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
+  assert.match(route, /adminAuditStatement\(env,admin,"collaboration_task_updated"/);
 });
 
 
 
-test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
-  const start = workerSource.indexOf('const preapprovedReadOnlyActions=');
-  const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
-  assert.ok(start >= 0 && end > start, "task creation must define the read-only pre-approval policy");
+test("MEHRAN Intelligence never auto-approves automated read-only tasks", () => {
+  const start = workerSource.indexOf("const allowedActionTypes=");
+  const end = workerSource.indexOf("const id=crypto.randomUUID()", start);
+  assert.ok(start >= 0 && end > start, "task creation must define an explicit action allowlist");
   const policy = workerSource.slice(start, end);
   assert.match(policy, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
-  assert.match(policy, /\["mehran_intelligence","shared"\]\.includes\(assignedTo\)/);
-  assert.match(policy, /body\.requiresApproval!==true/);
-  assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+  assert.match(policy, /const requiresApproval=Boolean\(body\.requiresApproval\|\|actionType\)/);
+  assert.doesNotMatch(policy, /preapprovedReadOnlyActions|autoApproved/);
+  assert.match(workerSource, /Automated task approval and execution remain controlled by the owner approval flow/);
+  assert.match(workerSource, /Automated task results can only be recorded by the execution service/);
 });

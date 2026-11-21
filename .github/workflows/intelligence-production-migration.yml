@@ -1,0 +1,30 @@
+name: MEHRAN INTELLIGENCE Production Migration Tests
+
+on:
+  pull_request:
+    paths:
+      - "migrations/production/**"
+      - "scripts/test-intelligence-production-migration.py"
+      - ".github/workflows/intelligence-production-migration.yml"
+      - "scripts/intelligence-production-d1-check.mjs"
+      - ".github/workflows/intelligence-production-d1-rollout.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Test production-shaped D1 schema migration
+        run: python scripts/test-intelligence-production-migration.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate production D1 rollout checker syntax
+        run: node --check scripts/intelligence-production-d1-check.mjs
