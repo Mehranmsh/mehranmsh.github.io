@@ -6385,6 +6385,8 @@ export default {
         if (rpc.method === "tools/list") {
           return rpcReply({tools:[
             {name:"get_project_status",description:"List MEHRAN projects and their current status. Read-only.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+            {name:"get_company_map",description:"Return the complete MEHRAN MSH company module map, including STUDIO and cross-module relationships. Read-only.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
+            {name:"get_module_status",description:"Read project records associated with one MEHRAN MSH module. Read-only.",inputSchema:{type:"object",properties:{module:{type:"string",enum:["dashboard","admin","user_center","intelligence","projects","services","music","studio","ai","social","instruments","security","governance","logistics","customer_experience","labs","data","robot_operations","robotics"]}},required:["module"],additionalProperties:false}},
             {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics. No personal user data is returned.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_service_health",description:"Report configured service dependencies. Does not perform external health probes.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
@@ -6399,6 +6401,63 @@ export default {
           if (!args || typeof args !== "object" || Array.isArray(args)) return rpcError(-32602,"Tool arguments must be an object.");
           const replyData = data => rpcReply({content:[{type:"text",text:JSON.stringify(data)}],structuredContent:data,isError:false});
           let data;
+          if (name === "get_company_map") {
+            if (Object.keys(args).length) return rpcError(-32602,"This tool accepts no arguments.");
+            const modules = [
+              {key:"dashboard",name:"Dashboard",scope:"Company-wide overview, KPIs and operational visibility",related:["projects","services","intelligence"]},
+              {key:"admin",name:"Admin",scope:"Owner controls, approvals, access and administration",related:["security","governance"]},
+              {key:"user_center",name:"User Center",scope:"Pioneer-facing identity, account and service access",related:["social","services"]},
+              {key:"intelligence",name:"INTELLIGENCE",scope:"Company-wide analysis, task coordination, reporting and assisted operations",related:["all_modules"]},
+              {key:"projects",name:"Projects",scope:"Portfolio tracking, milestones, dependencies and delivery",related:["all_modules"]},
+              {key:"services",name:"Services",scope:"Public service directory and service operations",related:["music","studio","ai","social","instruments"]},
+              {key:"music",name:"Mehran Music",scope:"Music releases, artist presence, catalog and music services",related:["studio","ai","instruments"]},
+              {key:"studio",name:"STUDIO",scope:"Recording, production, arrangement, mixing, mastering, artist projects, session assets and audio archives",related:["music","ai","instruments","labs"]},
+              {key:"ai",name:"Mehran AI",scope:"AI products, assistants and creative/operational AI workflows",related:["studio","intelligence","labs"]},
+              {key:"social",name:"SOCIAL",scope:"Profiles, posts, stories, discovery, messaging, groups and channels",related:["user_center","security"]},
+              {key:"instruments",name:"Mehran Instruments",scope:"Global instrument and professional studio-equipment trade, catalog and logistics",related:["studio","logistics","customer_experience"]},
+              {key:"security",name:"SECURITY",scope:"Identity, authentication, authorization, audit, abuse prevention and incident handling",related:["admin","social","data"]},
+              {key:"governance",name:"GOVERNANCE",scope:"Policies, approvals, accountability and company decision records",related:["admin","intelligence","security"]},
+              {key:"logistics",name:"LOGISTICS",scope:"Procurement, inventory movement, fulfillment and supply coordination",related:["instruments","customer_experience"]},
+              {key:"customer_experience",name:"CUSTOMER EXPERIENCE",scope:"Customer support, service journeys, feedback and retention",related:["services","social","logistics"]},
+              {key:"labs",name:"LABS",scope:"Research, experiments, prototypes and validation",related:["ai","studio","robotics","intelligence"]},
+              {key:"data",name:"DATA",scope:"Company data governance, analytics, reporting and retention",related:["intelligence","security","all_modules"]},
+              {key:"robot_operations",name:"ROBOT OPERATIONS",scope:"Robot fleet operations, monitoring, maintenance and task coordination",related:["robotics","ai","security","logistics"]},
+              {key:"robotics",name:"Mehran Robotics",scope:"Future robotics products, hardware/software integration and deployment planning",related:["robot_operations","labs","ai"]}
+            ];
+            const rows = await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 100").all();
+            data = {company:"MEHRAN MSH",network:"Pi Network",modules,projectRecords:(rows.results||[]).map(p=>({name:p.name,status:p.status,description:String(p.description||"").slice(0,500),updatedAt:p.updated_at||null})),coverageNote:"This is the central company map. A module's presence here describes its intended company scope, not proof that every feature is already implemented or live."};
+            return replyData(data);
+          }
+          if (name === "get_module_status") {
+            if (Object.keys(args).some(k=>k!=="module")) return rpcError(-32602,"Unknown module filter.");
+            const moduleKey=cleanText(args.module,40).toLowerCase();
+            const catalog = {
+              dashboard:["Dashboard","company overview metrics"],
+              admin:["Admin","owner controls approvals and administration"],
+              user_center:["User Center","user identity and service access"],
+              intelligence:["INTELLIGENCE","analysis task coordination and reporting"],
+              projects:["Projects","project portfolio milestones and delivery"],
+              services:["Services","service directory and operations"],
+              music:["Mehran Music","music artist releases and catalog"],
+              studio:["STUDIO","recording production arrangement mixing mastering studio sessions audio assets"],
+              ai:["Mehran AI","artificial intelligence assistants and workflows"],
+              social:["SOCIAL","profiles posts stories messaging groups channels"],
+              instruments:["Mehran Instruments","musical instruments studio equipment trade"],
+              security:["SECURITY","authentication authorization audit access control"],
+              governance:["GOVERNANCE","policies approvals accountability"],
+              logistics:["LOGISTICS","procurement inventory fulfillment supply"],
+              customer_experience:["CUSTOMER EXPERIENCE","customer support feedback service journey"],
+              labs:["LABS","research experiments prototypes validation"],
+              data:["DATA","analytics data governance reporting"],
+              robot_operations:["ROBOT OPERATIONS","robot fleet monitoring maintenance"],
+              robotics:["Mehran Robotics","robotics hardware software products"]
+            };
+            if (!catalog[moduleKey]) return rpcError(-32602,"Unknown MEHRAN MSH module.");
+            const [label,terms]=catalog[moduleKey];
+            const rows=await env.DB.prepare("SELECT name,status,description,updated_at FROM projects WHERE lower(name) LIKE ? OR lower(description) LIKE ? ORDER BY updated_at DESC LIMIT 30").bind("%"+label.toLowerCase()+"%","%"+terms.split(" ").slice(0,3).join("%")+"%").all();
+            data={module:moduleKey,label,matchingProjects:(rows.results||[]).map(p=>({name:p.name,status:p.status,description:String(p.description||"").slice(0,500),updatedAt:p.updated_at||null})),note:"No matching project record does not mean the module is unavailable; it means no project row matched this module's name/keywords."};
+            return replyData(data);
+          }
           if (name === "get_project_status" || name === "get_social_metrics" || name === "get_service_health" || name === "get_management_report") {
             if (Object.keys(args).length) return rpcError(-32602,"This tool accepts no arguments.");
             if (name === "get_project_status") {
