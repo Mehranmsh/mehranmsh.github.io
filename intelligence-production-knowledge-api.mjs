@@ -6,10 +6,20 @@ async function readBody(request){
   try{
     const type=(request.headers.get("Content-Type")||"").split(";")[0].trim().toLowerCase();
     const length=Number(request.headers.get("Content-Length")||0);
-    if(type!=="application/json"||length>20000)return null;
-    const raw=await request.text();
-    if(new TextEncoder().encode(raw).byteLength>20000)return null;
-    const value=JSON.parse(raw);
+    if(type!=="application/json"||!Number.isFinite(length)||length>20000||!request.body)return null;
+    const reader=request.body.getReader(),chunks=[];
+    let total=0;
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>20000){await reader.cancel();return null;}
+      chunks.push(value);
+    }
+    const bytes=new Uint8Array(total);
+    let offset=0;
+    for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    const value=JSON.parse(new TextDecoder().decode(bytes));
     return value&&typeof value==="object"&&!Array.isArray(value)?value:null;
   }catch{return null;}
 }
