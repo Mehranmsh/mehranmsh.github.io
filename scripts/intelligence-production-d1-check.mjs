@@ -61,7 +61,7 @@ const taskBaseColumns = [
   "requires_approval","result_text","created_by","action_type",
   "action_payload","created_at","updated_at","agent_claimed_at",
 ];
-const taskMigratedColumns = [...taskBaseColumns.slice(0, 9), "action_type", "action_payload", "agent_claimed_at", "created_at", "updated_at", "owner_uid", "project_id"];
+const taskMigratedColumns = [...taskBaseColumns, "owner_uid", "project_id"];
 const projectColumns = ["id","owner_uid","name","description","module_key","status","created_at","updated_at","archived_at"];
 const dependencyColumns = ["id","owner_uid","task_id","depends_on_task_id","dependency_type","created_at"];
 const knowledgeColumns = [
