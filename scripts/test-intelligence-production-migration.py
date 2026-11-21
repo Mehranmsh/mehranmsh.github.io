@@ -465,5 +465,32 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         db.close()
 
 
+    def test_automated_task_approval_is_a_single_owner_transition_and_never_executes(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        patch_start = worker.index('const intelligenceTaskMatch=path.match')
+        patch_end = worker.index('if (path === "/intelligence/chat"', patch_start)
+        patch_route = worker[patch_start:patch_end]
+
+        self.assertIn('body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1', patch_route)
+        self.assertIn('body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status)', patch_route)
+        self.assertIn('Object.prototype.hasOwnProperty.call(body,"result")', patch_route)
+        self.assertIn('Automated task results can only be recorded by the execution service.', patch_route)
+        self.assertIn('adminAuditStatement(env,admin,"collaboration_task_updated"', patch_route)
+        self.assertIn('requires_approval=CASE WHEN ?=\'accepted\' THEN 0 ELSE requires_approval END', patch_route)
+
+        mcp_start = worker.index('if (name === "update_collaboration_task")')
+        mcp_end = worker.index('return rpcError(-32601,"Method not found.")', mcp_start)
+        mcp_route = worker[mcp_start:mcp_end]
+        self.assertIn('args.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1', mcp_route)
+        self.assertIn('Object.prototype.hasOwnProperty.call(args,"result")', mcp_route)
+        self.assertIn('Automated task results can only be recorded by the execution service.', mcp_route)
+        self.assertIn('adminAuditStatement(env,admin,"collaboration_task_updated"', mcp_route)
+
+        self.assertIn('async scheduled() {', worker)
+        self.assertIn('Production Intelligence automation remains disabled', worker)
+        self.assertIn('if (path.startsWith("/agent/v1/"))', worker)
+        self.assertIn('Production Intelligence Agent execution is disabled.', worker)
+
+
 if __name__ == "__main__":
     unittest.main()
