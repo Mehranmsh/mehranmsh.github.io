@@ -168,7 +168,12 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(workerSource, /path === "\/intelligence\/tasks"/);
   assert.match(workerSource, /intelligenceTaskMatch/);
   assert.match(route, /No external action was executed/);
-  assert.match(workerSource, /args\.requiresApproval\?'awaiting_approval':'queued'/);
+  assert.match(route, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
+  assert.match(route, /requiresApproval\?'awaiting_approval':'queued'/);
+  assert.match(route, /MEHRAN_MCP_TOKEN/);
+  assert.match(route, /get_company_map/);
+  assert.match(route, /get_module_status/);
+  assert.match(route, /key:"studio",name:"STUDIO"/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
