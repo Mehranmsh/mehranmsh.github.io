@@ -1130,7 +1130,7 @@ if(name==="admin"){loadAdminOverview();loadAdminUsers();loadAdminReports();loadA
 if(name==="social")renderSocial();
 window.scrollTo({top:0,behavior:"smooth"});
 }
-$("chatSearchInput")?.addEventListener("input",socialRenderConversationRows);
+$("chatSearchInput")?.addEventListener("input",event=>{if(typeof socialRenderConversationRows==="function")socialRenderConversationRows(event);});
 document.addEventListener("click",e=>{if(e.target.closest("#copyChatErrorBtn"))socialCopyChatError();if(e.target.closest("#dismissChatErrorBtn"))$("chatErrorPanel")?.classList.add("hidden")});
 // SOCIAL navigation is delegated once at document level after the final switchSocial wrapper is installed.
 function socialOpenStudioPrompt(type){
