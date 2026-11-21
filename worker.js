@@ -5201,6 +5201,13 @@ function formatIntelligenceTask(row) {
   };
 }
 
+function adminAuditStatement(env, admin, action, targetType = "", targetId = "", details = "") {
+  return env.DB.prepare(`
+    INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details)
+    VALUES(?,?,?,?,?,?,?)
+  `).bind(crypto.randomUUID(), admin.uid, admin.username, action, targetType, String(targetId || "").slice(0,150), String(details || "").slice(0,1000));
+}
+
 async function writeAdminAudit(env, admin, action, targetType = "", targetId = "", details = "") {
   await env.DB.prepare(`
     INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details)
@@ -6559,8 +6566,10 @@ export default {
             if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
             if (!await intelligenceOwnershipSchemaReady(env)) return rpcError(-32000,"Intelligence ownership migration is not installed.",503);
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username,admin.uid).run();
-            await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
+            await env.DB.batch([
+              env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username,admin.uid),
+              adminAuditStatement(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}))
+            ]);
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
           }
@@ -6596,8 +6605,10 @@ export default {
               if(Object.prototype.hasOwnProperty.call(args,"result")) return rpcError(-32000,"Automated task results can only be recorded by the execution service.",409);
             }
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(args.status,nextResult,args.status,id,admin.uid).run();
-            await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
+            await env.DB.batch([
+              env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(args.status,nextResult,args.status,id,admin.uid),
+              adminAuditStatement(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}))
+            ]);
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task record updated. No external action was executed."});
           }
@@ -6657,8 +6668,10 @@ export default {
         const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
         if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
         const id=crypto.randomUUID();
-        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid,action_type) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,admin.uid,actionType).run();
-        await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
+        await env.DB.batch([
+          env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid,action_type) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,admin.uid,actionType),
+          adminAuditStatement(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}))
+        ]);
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
       }
@@ -6685,8 +6698,10 @@ export default {
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(body.status,nextResult,body.status,id,admin.uid).run();
-        await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
+        await env.DB.batch([
+          env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(body.status,nextResult,body.status,id,admin.uid),
+          adminAuditStatement(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}))
+        ]);
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
         return json({success:true,task:formatIntelligenceTask(row)});
       }
