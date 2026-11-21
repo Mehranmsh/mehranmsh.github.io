@@ -227,7 +227,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
     def test_all_interactive_task_reads_and_updates_are_owner_scoped(self):
         worker = (ROOT / "worker.js").read_text(encoding="utf-8")
         self.assertGreaterEqual(worker.count('SELECT * FROM intelligence_tasks WHERE owner_uid=?'), 3)
-        self.assertIn('SELECT id,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
+        self.assertIn('SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
         self.assertIn('SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
         self.assertIn('WHERE id=? AND owner_uid=?").bind(args.status', worker)
         self.assertIn('WHERE id=? AND owner_uid=?").bind(body.status', worker)
