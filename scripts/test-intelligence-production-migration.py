@@ -224,5 +224,15 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertGreaterEqual(worker.count("admin.username,admin.uid"), 3)
         self.assertIn("Intelligence ownership migration is not installed", worker)
 
+    def test_intelligence_api_responses_include_cors_and_security_headers(self):
+        for filename in ("intelligence-production-project-api.mjs", "intelligence-production-knowledge-api.mjs"):
+            api = (ROOT / filename).read_text(encoding="utf-8")
+            self.assertIn('"Access-Control-Allow-Origin":"https://mehranmsh.github.io"', api)
+            self.assertIn('"Access-Control-Allow-Methods":"GET, POST, PUT, DELETE, OPTIONS"', api)
+            self.assertIn('"Access-Control-Allow-Headers":"Content-Type, Authorization"', api)
+            self.assertIn('"X-Content-Type-Options":"nosniff"', api)
+            self.assertIn('"Referrer-Policy":"no-referrer"', api)
+            self.assertIn('"X-Frame-Options":"DENY"', api)
+
 if __name__ == "__main__":
     unittest.main()
