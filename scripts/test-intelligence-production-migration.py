@@ -235,6 +235,11 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn('const approvalTransition=args.status==="accepted"&&existing.status==="awaiting_approval"', worker)
         self.assertIn('Automated task results can only be recorded by the execution service.', worker)
 
+    def test_manual_task_status_change_preserves_existing_result_when_omitted(self):
+        api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
+        self.assertIn("SELECT id,status,action_type,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?", api)
+        self.assertIn("body.result===undefined?(task.result_text||\"\"):clean(body.result,3000)", api)
+
     def test_intelligence_api_responses_include_cors_and_security_headers(self):
         for filename in ("intelligence-production-project-api.mjs", "intelligence-production-knowledge-api.mjs"):
             api = (ROOT / filename).read_text(encoding="utf-8")
