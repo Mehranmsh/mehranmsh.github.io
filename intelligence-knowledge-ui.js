@@ -38,7 +38,9 @@ function mount(){
  <p class="small-text">Source metadata and recorded confidence are descriptive, not proof of truth. External URLs are stored as references only and are not fetched. Records are archived rather than permanently deleted.</p>`;
  if(overview)overview.insertAdjacentElement("afterend",root);else page.prepend(root);
  $("intelKmRefresh").addEventListener("click",loadAll);
- document.querySelectorAll('[data-page="intelligence"]').forEach(btn=>btn.addEventListener("click",loadAll));
+ document.querySelectorAll("[onclick*=\"showPage('intelligence')\"]").forEach(btn=>btn.addEventListener("click",loadAll));
+ $("refreshIntelligenceBtn")?.addEventListener("click",loadAll);
+
  $("ikState").addEventListener("change",loadKnowledge);
  $("intelKnowledgeForm").addEventListener("submit",saveKnowledge);
  $("intelMemoryForm").addEventListener("submit",saveMemory);
