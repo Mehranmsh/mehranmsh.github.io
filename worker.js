@@ -1,3 +1,5 @@
+import { handleProductionIntelligenceProjectApi } from "./intelligence-production-project-api.mjs";
+
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
 const PI_ME_URL = "https://api.minepi.com/v2/me";
@@ -5143,6 +5145,21 @@ async function ensureIntelligenceTaskTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
 }
 
+async function intelligenceOwnershipSchemaReady(env) {
+  try {
+    const columns = await env.DB.prepare("PRAGMA table_info(intelligence_tasks)").all();
+    const names = new Set((columns.results || []).map(row => row.name));
+    if (!names.has("owner_uid") || !names.has("project_id")) return false;
+    const tables = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('intelligence_projects','intelligence_task_dependencies')"
+    ).all();
+    const found = new Set((tables.results || []).map(row => row.name));
+    return found.has("intelligence_projects") && found.has("intelligence_task_dependencies");
+  } catch {
+    return false;
+  }
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
@@ -6347,6 +6364,24 @@ export default {
         await ensureAdminSessionTable(env);
       }
 
+      const intelligenceProjectApiPath =
+        path === "/intelligence/projects" ||
+        /^\/intelligence\/projects\/[0-9a-f-]{36}$/i.test(path) ||
+        /^\/intelligence\/tasks\/[0-9a-f-]{36}\/(project|status|dependencies)$/i.test(path) ||
+        /^\/intelligence\/tasks\/[0-9a-f-]{36}\/dependencies\/[0-9a-f-]{36}$/i.test(path);
+      if (intelligenceProjectApiPath) {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceTaskTable(env);
+        if (!await intelligenceOwnershipSchemaReady(env)) {
+          return error("Intelligence project migration is not installed. No database changes were made by this request.", 503);
+        }
+        const result = await handleProductionIntelligenceProjectApi({
+          request, env, admin, url, path, method
+        });
+        if (result) return result;
+      }
+
       if (path === "/mcp" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
@@ -6420,8 +6455,9 @@ export default {
             const assignedTo=args.assignedTo||"mehran_intelligence", priority=args.priority||"normal";
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000) return rpcError(-32602,"A task title and description are required.");
             if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
+            if (!await intelligenceOwnershipSchemaReady(env)) return rpcError(-32000,"Intelligence ownership migration is not installed.",503);
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username).run();
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username,admin.uid).run();
             await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
@@ -6508,8 +6544,9 @@ export default {
         const preapprovedReadOnlyActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
         const autoApproved=preapprovedReadOnlyActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
         const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
+        if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
         const id=crypto.randomUUID();
-        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType).run();
+        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid,action_type) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,admin.uid,actionType).run();
         await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
@@ -6621,8 +6658,9 @@ export default {
             const assignedTo=args.assignedTo||"mehran_intelligence",priority=args.priority||"normal",actionType=args.actionType||"";
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000||!description)throw new Error("A valid task title and description are required.");
             if(!["mehran_intelligence","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)||!["","project_status_report","social_metrics_report","service_health_report","repository_quality_check"].includes(actionType))throw new Error("Invalid task assignment, priority or action type.");
+            if (!await intelligenceOwnershipSchemaReady(env)) throw new Error("Intelligence ownership migration is not installed.");
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,actionType,"{}").run();
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid,action_type,action_payload) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,admin.uid,actionType,"{}").run();
             await writeAdminAudit(env,admin,"intelligence_task_proposed","intelligence_task",id,JSON.stringify({assignedTo,priority,source:"intelligence_chat"}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return {task:formatIntelligenceTask(row),message:"Task proposal created and is awaiting owner approval. No execution was performed."};
