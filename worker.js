@@ -5459,6 +5459,9 @@ async function ingestGitHubIntelligenceInbox(env) {
       if (typeof issue.body !== "string" || !issue.body.includes(marker)) continue;
       const title = cleanText(rawTitle.slice("[MEHRAN TASK]".length), 120);
       const body = issue.body.replace(marker, "").trim();
+      // The repository is public. Never import a task unless its author explicitly
+      // marks the complete issue content as safe for public visibility.
+      if (!/^Visibility:\s*public-safe\s*$/im.test(body)) continue;
       const priorityMatch = body.match(/^Priority:\s*(low|normal|high)\s*$/im);
       const priority = priorityMatch ? priorityMatch[1].toLowerCase() : "normal";
       // Only these explicit read-only report actions can be queued for execution.
@@ -5470,6 +5473,7 @@ async function ingestGitHubIntelligenceInbox(env) {
         : "";
       const description = cleanText(
         body
+          .replace(/^Visibility:\s*public-safe\s*$/im, "")
           .replace(/^Priority:\s*(low|normal|high)\s*$/im, "")
           .replace(/^Action:\s*[a-z_]+\s*$/im, "")
           .trim() +
