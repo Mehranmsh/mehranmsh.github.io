@@ -250,5 +250,44 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
             self.assertIn('"Referrer-Policy":"no-referrer"', api)
             self.assertIn('"X-Frame-Options":"DENY"', api)
 
+
+    def test_completed_dependent_prevents_reopening_prerequisite(self):
+        self.add_project()
+        self.add_task("prerequisite")
+        self.add_task("dependent")
+        self.db.execute(
+            """INSERT INTO intelligence_task_dependencies
+               (id,owner_uid,task_id,depends_on_task_id)
+               VALUES('dep-1','pi-owner-1','dependent','prerequisite')"""
+        )
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='prerequisite'")
+        self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='dependent'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
+
+    def test_completed_task_cannot_gain_incomplete_prerequisite(self):
+        self.add_project()
+        self.add_task("prerequisite")
+        self.add_task("dependent", status="completed")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                """INSERT INTO intelligence_task_dependencies
+                   (id,owner_uid,task_id,depends_on_task_id)
+                   VALUES('dep-1','pi-owner-1','dependent','prerequisite')"""
+            )
+
+    def test_task_cannot_move_projects_while_dependency_exists(self):
+        self.add_project("p1")
+        self.add_project("p2")
+        self.add_task("prerequisite", project="p1")
+        self.add_task("dependent", project="p1")
+        self.db.execute(
+            """INSERT INTO intelligence_task_dependencies
+               (id,owner_uid,task_id,depends_on_task_id)
+               VALUES('dep-1','pi-owner-1','dependent','prerequisite')"""
+        )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_tasks SET project_id='p2' WHERE id='dependent'")
+
 if __name__ == "__main__":
     unittest.main()
