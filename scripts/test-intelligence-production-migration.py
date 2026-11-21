@@ -109,5 +109,18 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='prerequisite'")
         self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='dependent'")
 
+    def test_production_api_uses_verified_owner_uid(self):
+        api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
+        self.assertIn("const ownerUid=admin.uid", api)
+        self.assertIn("t.owner_uid=p.owner_uid", api)
+        self.assertIn("WHERE id=? AND owner_uid=?", api)
+        self.assertNotIn("intelligence_staging_audit", api)
+        self.assertNotIn("created_by=?", api)
+
+    def test_production_api_keeps_execution_disabled(self):
+        api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
+        self.assertIn("executionEnabled:false", api)
+        self.assertIn("Automated task approval and execution remain controlled", api)
+
 if __name__ == "__main__":
     unittest.main()
