@@ -1,0 +1,73 @@
+name: MEHRAN ChatGPT Bridge (public-safe health only)
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  public-safe-health:
+    if: contains(github.event.issue.body, '<!-- MEHRAN-CHATGPT-BRIDGE:v1 -->')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Request public-safe health report from MEHRAN MCP
+        uses: actions/github-script@v7
+        env:
+          MEHRAN_MCP_TOKEN: ${{ secrets.MEHRAN_MCP_TOKEN }}
+          MEHRAN_MCP_URL: https://mehran-msh-auth.mehran79mehran.workers.dev/mcp
+        with:
+          script: |
+            const token = process.env.MEHRAN_MCP_TOKEN || "";
+            if (token.length < 40 || token.length > 200) {
+              throw new Error("MEHRAN_MCP_TOKEN repository secret is missing or invalid.");
+            }
+            const response = await fetch(process.env.MEHRAN_MCP_URL, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+              },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: `gh-issue-${context.issue.number}`,
+                method: "tools/call",
+                params: { name: "get_service_health", arguments: {} }
+              }),
+              signal: AbortSignal.timeout(20000)
+            });
+            const raw = await response.text();
+            if (!response.ok) throw new Error(`MEHRAN MCP returned HTTP ${response.status}: ${raw.slice(0, 200)}`);
+            let payload;
+            try { payload = JSON.parse(raw); }
+            catch { throw new Error("MCP response was not JSON."); }
+            if (payload.error) throw new Error(payload.error.message || "MCP tool call failed.");
+            const result = payload.result?.structuredContent;
+            if (!result || typeof result !== "object") throw new Error("MCP returned no structured health result.");
+            const safeResult = {
+              worker: result.worker,
+              databaseBinding: result.databaseBinding,
+              aiBinding: result.aiBinding,
+              mcp: result.mcp,
+              note: result.note
+            };
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: [
+                "## MEHRAN INTELLIGENCE bridge result",
+                "",
+                `- Generated: ${new Date().toISOString()}`,
+                "- Report: public-safe service health",
+                "",
+                "```json",
+                JSON.stringify(safeResult, null, 2),
+                "```",
+                "",
+                "_Read-only configuration check. No project descriptions, user data, secrets, or private task content are returned._"
+              ].join("\n")
+            });
