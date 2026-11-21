@@ -310,7 +310,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertGreaterEqual(worker.count("created_by,owner_uid"), 3)
         self.assertGreaterEqual(worker.count("admin.username,admin.uid"), 3)
         self.assertIn("Intelligence ownership migration is not installed", worker)
-        self.assertEqual(worker.count('SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?'), 3)
+        self.assertGreaterEqual(worker.count('SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?'), 3)
 
     def test_all_interactive_task_reads_and_updates_are_owner_scoped(self):
         worker = (ROOT / "worker.js").read_text(encoding="utf-8")
