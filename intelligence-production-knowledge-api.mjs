@@ -70,7 +70,7 @@ export async function handleProductionIntelligenceKnowledgeApi({request,env,admi
   if(knowledgeMatch&&(method==="PUT"||method==="DELETE")){
     const id=knowledgeMatch[1];
     if(!uuidPattern.test(id))return fail("Invalid record ID.");
-    const existing=await env.DB.prepare("SELECT id FROM intelligence_knowledge WHERE id=? AND owner_uid=?").bind(id,owner).first();
+    const existing=await env.DB.prepare("SELECT id FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL").bind(id,owner).first();
     if(!existing)return fail("Knowledge record not found.",404);
     if(method==="DELETE"){
       try{await env.DB.batch([
