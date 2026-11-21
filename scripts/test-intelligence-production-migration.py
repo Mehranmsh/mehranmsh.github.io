@@ -122,5 +122,18 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("executionEnabled:false", api)
         self.assertIn("Automated task approval and execution remain controlled", api)
 
+    def test_worker_routes_projects_only_after_schema_gate(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        self.assertIn('import { handleProductionIntelligenceProjectApi }', worker)
+        self.assertIn("intelligenceOwnershipSchemaReady(env)", worker)
+        self.assertIn("const result = await handleProductionIntelligenceProjectApi", worker)
+        self.assertIn("Admin authentication required", worker)
+
+    def test_new_task_creation_persists_verified_pi_uid(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        self.assertGreaterEqual(worker.count("created_by,owner_uid"), 3)
+        self.assertGreaterEqual(worker.count("admin.username,admin.uid"), 3)
+        self.assertIn("Intelligence ownership migration is not installed", worker)
+
 if __name__ == "__main__":
     unittest.main()
