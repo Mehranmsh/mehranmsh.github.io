@@ -1,4 +1,5 @@
 import { handleProductionIntelligenceProjectApi } from "./intelligence-production-project-api.mjs";
+import { handleProductionIntelligenceKnowledgeApi } from "./intelligence-production-knowledge-api.mjs";
 
 const ALLOWED_ORIGIN = "https://mehranmsh.github.io";
 const FIREBASE_WEB_API_KEY = "AIzaSyBNezoCzAUXi1D7vC_stoUnQuN_JHR-rDM";
@@ -5160,6 +5161,18 @@ async function intelligenceOwnershipSchemaReady(env) {
   }
 }
 
+async function intelligenceKnowledgeSchemaReady(env) {
+  try {
+    const tables = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('intelligence_knowledge','intelligence_owner_memory')"
+    ).all();
+    const found = new Set((tables.results || []).map(row => row.name));
+    return found.has("intelligence_knowledge") && found.has("intelligence_owner_memory");
+  } catch {
+    return false;
+  }
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
@@ -6447,6 +6460,27 @@ export default {
           return error("Intelligence project migration is not installed. No database changes were made by this request.", 503);
         }
         const result = await handleProductionIntelligenceProjectApi({
+          request, env, admin, url, path, method
+        });
+        if (result) return result;
+      }
+
+      const intelligenceKnowledgeApiPath =
+        path === "/intelligence/knowledge" ||
+        /^\\/intelligence\\/knowledge\\/[0-9a-f-]{36}$/i.test(path) ||
+        path === "/intelligence/memory" ||
+        /^\\/intelligence\\/memory\\/[0-9a-f-]{36}$/i.test(path);
+      if (intelligenceKnowledgeApiPath) {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        const apiLimit = method === "GET" ? 120 : 30;
+        if (!await checkRateLimit(env, request, "intelligence-knowledge-memory-api", apiLimit, 3600, 600, admin.uid)) {
+          return error("MEHRAN Intelligence knowledge/memory rate limit reached.", 429);
+        }
+        if (!await intelligenceKnowledgeSchemaReady(env)) {
+          return error("Intelligence knowledge and memory migration 0002 is not installed. No database changes were made.", 503);
+        }
+        const result = await handleProductionIntelligenceKnowledgeApi({
           request, env, admin, url, path, method
         });
         if (result) return result;
