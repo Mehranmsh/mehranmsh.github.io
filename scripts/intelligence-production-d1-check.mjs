@@ -68,24 +68,18 @@ function requireExactColumnDefinitions(rows, expected, label) {
 }
 
 function normalizeSql(sql) {
-  return String(sql || "").replace(/\\bIF\\s+NOT\\s+EXISTS\\b/i, "")
-    .replace(/\\s+/g, " ").trim().replace(/;+$/, "").toLowerCase();
+  return String(sql || "").replace(/\bIF\s+NOT\s+EXISTS\b/i, "")
+    .replace(/\s+/g, " ").trim().replace(/;+$/, "").toLowerCase();
 }
 
 function extractMigrationObjectSql(source, type, name) {
-  const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\function requireExactColumnDefinitions(rows, expected, label) {
-  const actual = rows.map((row) => [
-    row.name, String(row.type || "").toUpperCase(), Number(row.notnull),
-    row.dflt_value === null ? null : String(row.dflt_value), Number(row.pk),
-  ]);
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    throw new Error(`${label} column definitions differ from the reviewed schema: ${JSON.stringify(actual)}`);
-  }
-}");
-  const startPattern = new RegExp(`^CREATE\\s+(?:UNIQUE\\s+)?${type}\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${escaped}\\b`, "im");
+  const startPattern = new RegExp(
+    "^CREATE\\s+(?:UNIQUE\\s+)?"+type+"\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?"+name+"\\b",
+    "im",
+  );
   const match = startPattern.exec(source);
-  if (!match) throw new Error(`Migration source is missing ${type.toLowerCase()} ${name}.`);
-  const nextPattern = /^\\s*CREATE\\s+(?:UNIQUE\\s+)?(?:TABLE|INDEX|TRIGGER)\\b/gim;
+  if (!match) throw new Error("Migration source is missing "+type.toLowerCase()+" "+name+".");
+  const nextPattern = /^\s*CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|TRIGGER)\b/gim;
   nextPattern.lastIndex = match.index + match[0].length;
   const next = nextPattern.exec(source);
   return source.slice(match.index, next ? next.index : source.length).trim();
@@ -97,28 +91,26 @@ function requireExactMigrationSql(rows, source, type, names, label) {
     const actual = byName.get(name);
     const expected = extractMigrationObjectSql(source, type, name);
     if (!actual || normalizeSql(actual) !== normalizeSql(expected)) {
-      throw new Error(`${label} definition differs from the reviewed migration source: ${name}`);
+      throw new Error(label+" definition differs from the reviewed migration source: "+name);
     }
   }
 }
 
 function requireExactForeignKeys(rows, expected, label) {
   const signature = (items) => items.map((row) =>
-    [row.table, row.from, row.to, String(row.on_delete || "").toUpperCase()]
-      .join("|")
+    [row.table, row.from, row.to, String(row.on_delete || "").toUpperCase()].join("|")
   ).sort();
   if (JSON.stringify(signature(rows)) !== JSON.stringify(signature(expected))) {
-    throw new Error(`${label} foreign-key relationships differ from the reviewed schema: ${JSON.stringify(rows)}`);
+    throw new Error(label+" foreign-key relationships differ from the reviewed schema: "+JSON.stringify(rows));
   }
 }
 
 async function foreignKeys(table) {
-  return query(`PRAGMA foreign_key_list('${table}')`);
+  return query("PRAGMA foreign_key_list('" + table + "')");
 }
 
 const migration0001Sql = readFileSync(new URL("../migrations/production/0001_intelligence_owner_projects.sql", import.meta.url), "utf8");
 const migration0002Sql = readFileSync(new URL("../migrations/production/0002_intelligence_knowledge_memory.sql", import.meta.url), "utf8");
-
 
 const taskBaseColumns = [
   "id","title","description","assigned_to","priority","status",
