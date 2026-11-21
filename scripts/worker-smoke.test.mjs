@@ -47,6 +47,10 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
     'async function createTask(event)',
     'assignedTo:$("ipTaskAssignee").value',
     'requiresApproval:false',
+    '/dependencies',
+    'data-ip-action="add-dependency"',
+    'data-ip-action="remove-dependency"',
+    'dependencies[t.id]',
     'const esc=value',
     'execution'
   ]) {
