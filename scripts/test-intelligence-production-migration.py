@@ -289,5 +289,26 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE intelligence_tasks SET project_id='p2' WHERE id='dependent'")
 
+
+    def test_knowledge_and_memory_audit_rows_require_a_successful_active_record_change(self):
+        api = (ROOT / "intelligence-production-knowledge-api.mjs").read_text(encoding="utf-8")
+        self.assertIn("SELECT ?,?,?,?,?,?,? WHERE changes()>0", api)
+        self.assertIn("archived_at IS NULL", api)
+        self.assertIn("UPDATE intelligence_knowledge SET verification_status=?", api)
+        self.assertIn("UPDATE intelligence_knowledge SET "+'"+sets.join(",")+"', api)
+        self.assertIn("UPDATE intelligence_owner_memory SET "+'"+sets.join(",")+"', api)
+
+        db = sqlite3.connect(":memory:")
+        db.execute("CREATE TABLE records(id TEXT PRIMARY KEY, archived_at TEXT)")
+        db.execute("CREATE TABLE audit(action TEXT)")
+        db.execute("INSERT INTO records(id) VALUES('active')")
+        db.execute("UPDATE records SET archived_at='now' WHERE id='active' AND archived_at IS NULL")
+        db.execute("INSERT INTO audit(action) SELECT 'archive' WHERE changes()>0")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM audit").fetchone()[0], 0)
+        db.execute("UPDATE records SET archived_at='now' WHERE id='active' AND archived_at IS NULL")
+        db.execute("INSERT INTO audit(action) SELECT 'archive' WHERE changes()>0")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM audit").fetchone()[0], 0)
+        db.close()
+
 if __name__ == "__main__":
     unittest.main()
