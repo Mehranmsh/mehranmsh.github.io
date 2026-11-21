@@ -1,4 +1,5 @@
 import process from "node:process";
+import { readFileSync } from "node:fs";
 
 const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const databaseId = process.env.CLOUDFLARE_D1_DATABASE_ID || "2ee71f12-042b-4dba-8bf0-a0b577ace519";
@@ -65,6 +66,59 @@ function requireExactColumnDefinitions(rows, expected, label) {
     throw new Error(`${label} column definitions differ from the reviewed schema: ${JSON.stringify(actual)}`);
   }
 }
+
+function normalizeSql(sql) {
+  return String(sql || "").replace(/\\bIF\\s+NOT\\s+EXISTS\\b/i, "")
+    .replace(/\\s+/g, " ").trim().replace(/;+$/, "").toLowerCase();
+}
+
+function extractMigrationObjectSql(source, type, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\function requireExactColumnDefinitions(rows, expected, label) {
+  const actual = rows.map((row) => [
+    row.name, String(row.type || "").toUpperCase(), Number(row.notnull),
+    row.dflt_value === null ? null : String(row.dflt_value), Number(row.pk),
+  ]);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${label} column definitions differ from the reviewed schema: ${JSON.stringify(actual)}`);
+  }
+}");
+  const startPattern = new RegExp(`^CREATE\\s+(?:UNIQUE\\s+)?${type}\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${escaped}\\b`, "im");
+  const match = startPattern.exec(source);
+  if (!match) throw new Error(`Migration source is missing ${type.toLowerCase()} ${name}.`);
+  const nextPattern = /^\\s*CREATE\\s+(?:UNIQUE\\s+)?(?:TABLE|INDEX|TRIGGER)\\b/gim;
+  nextPattern.lastIndex = match.index + match[0].length;
+  const next = nextPattern.exec(source);
+  return source.slice(match.index, next ? next.index : source.length).trim();
+}
+
+function requireExactMigrationSql(rows, source, type, names, label) {
+  const byName = new Map(rows.map((row) => [row.name, row.sql]));
+  for (const name of names) {
+    const actual = byName.get(name);
+    const expected = extractMigrationObjectSql(source, type, name);
+    if (!actual || normalizeSql(actual) !== normalizeSql(expected)) {
+      throw new Error(`${label} definition differs from the reviewed migration source: ${name}`);
+    }
+  }
+}
+
+function requireExactForeignKeys(rows, expected, label) {
+  const signature = (items) => items.map((row) =>
+    [row.table, row.from, row.to, String(row.on_delete || "").toUpperCase()]
+      .join("|")
+  ).sort();
+  if (JSON.stringify(signature(rows)) !== JSON.stringify(signature(expected))) {
+    throw new Error(`${label} foreign-key relationships differ from the reviewed schema: ${JSON.stringify(rows)}`);
+  }
+}
+
+async function foreignKeys(table) {
+  return query(`PRAGMA foreign_key_list('${table}')`);
+}
+
+const migration0001Sql = readFileSync(new URL("../migrations/production/0001_intelligence_owner_projects.sql", import.meta.url), "utf8");
+const migration0002Sql = readFileSync(new URL("../migrations/production/0002_intelligence_knowledge_memory.sql", import.meta.url), "utf8");
+
 
 const taskBaseColumns = [
   "id","title","description","assigned_to","priority","status",
@@ -185,6 +239,15 @@ if (mode === "preflight-0002") {
   requireExactColumnDefinitions(await columns("intelligence_task_dependencies"), dependencyDefinitions, "intelligence_task_dependencies");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
+  requireExactMigrationSql(triggers, migration0001Sql, "TRIGGER", projectTriggers, "Migration 0001 trigger");
+  requireExactMigrationSql(indexes, migration0001Sql, "INDEX", projectIndexes, "Migration 0001 index");
+  requireExactForeignKeys(await foreignKeys("intelligence_tasks"), [
+    { table: "intelligence_projects", from: "project_id", to: "id", on_delete: "RESTRICT" },
+  ], "intelligence_tasks");
+  requireExactForeignKeys(await foreignKeys("intelligence_task_dependencies"), [
+    { table: "intelligence_tasks", from: "task_id", to: "id", on_delete: "RESTRICT" },
+    { table: "intelligence_tasks", from: "depends_on_task_id", to: "id", on_delete: "RESTRICT" },
+  ], "intelligence_task_dependencies");
   requireAbsent(tables, ["intelligence_knowledge","intelligence_owner_memory"], "Migration 0002 tables");
   requireAbsent(indexes, [
     "idx_intelligence_knowledge_owner_active","idx_intelligence_knowledge_owner_category",
@@ -206,6 +269,15 @@ if (mode === "verify-0001") {
   requireExactColumnDefinitions(await columns("intelligence_task_dependencies"), dependencyDefinitions, "intelligence_task_dependencies");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
+  requireExactMigrationSql(triggers, migration0001Sql, "TRIGGER", projectTriggers, "Migration 0001 trigger");
+  requireExactMigrationSql(indexes, migration0001Sql, "INDEX", projectIndexes, "Migration 0001 index");
+  requireExactForeignKeys(await foreignKeys("intelligence_tasks"), [
+    { table: "intelligence_projects", from: "project_id", to: "id", on_delete: "RESTRICT" },
+  ], "intelligence_tasks");
+  requireExactForeignKeys(await foreignKeys("intelligence_task_dependencies"), [
+    { table: "intelligence_tasks", from: "task_id", to: "id", on_delete: "RESTRICT" },
+    { table: "intelligence_tasks", from: "depends_on_task_id", to: "id", on_delete: "RESTRICT" },
+  ], "intelligence_task_dependencies");
   const fk = await query("PRAGMA foreign_key_check");
   if (fk.length) throw new Error(`Foreign key violations after migration 0001: ${JSON.stringify(fk)}`);
   console.log("PASS: migration 0001 tables, columns, triggers, and foreign keys verified.");
@@ -218,6 +290,21 @@ if (mode === "verify-0002") {
     "idx_intelligence_memory_owner_active",
   ], "Migration 0002 indexes");
   requireNames(triggers, knowledgeTriggers, "Migration 0002 triggers");
+  requireExactMigrationSql(triggers, migration0002Sql, "TRIGGER", knowledgeTriggers, "Migration 0002 trigger");
+  requireExactMigrationSql(indexes, migration0002Sql, "INDEX", [
+    "idx_intelligence_knowledge_owner_active",
+    "idx_intelligence_knowledge_owner_category",
+    "idx_intelligence_memory_owner_active",
+  ], "Migration 0002 index");
+  requireExactMigrationSql(triggers, migration0001Sql, "TRIGGER", projectTriggers, "Migration 0001 trigger");
+  requireExactMigrationSql(indexes, migration0001Sql, "INDEX", projectIndexes, "Migration 0001 index");
+  requireExactForeignKeys(await foreignKeys("intelligence_tasks"), [
+    { table: "intelligence_projects", from: "project_id", to: "id", on_delete: "RESTRICT" },
+  ], "intelligence_tasks");
+  requireExactForeignKeys(await foreignKeys("intelligence_task_dependencies"), [
+    { table: "intelligence_tasks", from: "task_id", to: "id", on_delete: "RESTRICT" },
+    { table: "intelligence_tasks", from: "depends_on_task_id", to: "id", on_delete: "RESTRICT" },
+  ], "intelligence_task_dependencies");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireExactColumnNames(await columns("intelligence_knowledge"), knowledgeColumns, "intelligence_knowledge");
