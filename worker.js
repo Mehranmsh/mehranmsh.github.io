@@ -5148,14 +5148,16 @@ async function ensureIntelligenceTaskTable(env) {
 
 async function intelligenceOwnershipSchemaReady(env) {
   try {
-    const columns = await env.DB.prepare("PRAGMA table_info(intelligence_tasks)").all();
-    const names = new Set((columns.results || []).map(row => row.name));
-    if (!names.has("owner_uid") || !names.has("project_id")) return false;
-    const tables = await env.DB.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('intelligence_projects','intelligence_task_dependencies')"
-    ).all();
-    const found = new Set((tables.results || []).map(row => row.name));
-    if (!found.has("intelligence_projects") || !found.has("intelligence_task_dependencies")) return false;
+    const requiredColumns = {
+      intelligence_tasks: ["id","title","description","assigned_to","priority","status","requires_approval","result_text","created_by","action_type","owner_uid","project_id","created_at","updated_at"],
+      intelligence_projects: ["id","owner_uid","name","description","module_key","status","created_at","updated_at","archived_at"],
+      intelligence_task_dependencies: ["id","owner_uid","task_id","depends_on_task_id","dependency_type","created_at"]
+    };
+    for (const [table, expected] of Object.entries(requiredColumns)) {
+      const columns = await env.DB.prepare("PRAGMA table_info(" + table + ")").all();
+      const names = new Set((columns.results || []).map(row => row.name));
+      if (!expected.every(name => names.has(name))) return false;
+    }
     const requiredTriggers = [
       "trg_intelligence_task_project_owner_insert",
       "trg_intelligence_task_project_owner_update",
@@ -5184,11 +5186,11 @@ async function intelligenceOwnershipSchemaReady(env) {
 
 async function intelligenceKnowledgeSchemaReady(env) {
   try {
-    const required = {
-      intelligence_knowledge: ["owner_uid","source_type","source_ref","verification_status","archived_at"],
-      intelligence_owner_memory: ["owner_uid","memory_type","importance","archived_at"]
+    const requiredColumns = {
+      intelligence_knowledge: ["id","owner_uid","category","title","content","importance","source_type","source_ref","source_title","source_excerpt","observed_at","recorded_confidence","verification_status","reviewed_by","reviewed_at","created_at","updated_at","archived_at"],
+      intelligence_owner_memory: ["id","owner_uid","memory_type","category","content","importance","created_at","updated_at","archived_at"]
     };
-    for (const [table, expected] of Object.entries(required)) {
+    for (const [table, expected] of Object.entries(requiredColumns)) {
       const columns = await env.DB.prepare("PRAGMA table_info(" + table + ")").all();
       const names = new Set((columns.results || []).map(row => row.name));
       if (!expected.every(name => names.has(name))) return false;
