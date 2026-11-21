@@ -34,7 +34,7 @@ async function readBody(request){
   }catch{return null;}
 }
 async function audit(env,admin,action,type,id,details={}){
-  return env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) VALUES(?,?,?,?,?,?,?)")
+  return env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) SELECT ?,?,?,?,?,?,? WHERE changes()>0")
     .bind(crypto.randomUUID(),admin.uid,admin.username,action,type,id,JSON.stringify(details).slice(0,1000));
 }
 export async function handleProductionIntelligenceKnowledgeApi({request,env,admin,url,path,method}){
