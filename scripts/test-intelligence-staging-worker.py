@@ -265,7 +265,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertIn('"name": "mehran-intelligence-staging"', self.config)
         self.assertIn('"main": "intelligence-staging-worker.js"', self.config)
         self.assertIn('"database_name": "mehran-msh-intelligence-staging"', self.config)
-        self.assertIn('"database_id": "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID"', self.config)
+        self.assertIn('"database_id": "8810bcb3-83e9-4297-9e07-4c2a33c4b8db"', self.config)
         self.assertNotIn('"mehran-msh-db"', self.config)
         self.assertNotIn('"ai":', self.config)
         self.assertNotRegex(self.config, r'"crons"\s*:')
@@ -288,7 +288,7 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertEqual(len(bindings), 1)
         self.assertEqual(bindings[0].get("binding"), "DB")
         self.assertEqual(bindings[0].get("database_name"), "mehran-msh-intelligence-staging")
-        self.assertEqual(bindings[0].get("database_id"), "REPLACE_WITH_VERIFIED_STAGING_DATABASE_ID")
+        self.assertEqual(bindings[0].get("database_id"), "8810bcb3-83e9-4297-9e07-4c2a33c4b8db")
         self.assertEqual(set(bindings[0].keys()), {"binding", "database_name", "database_id"})
 
 if __name__ == "__main__":
