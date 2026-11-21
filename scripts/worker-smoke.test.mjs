@@ -71,6 +71,33 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
   assert.ok(intelligenceProjectApiSource.includes("cannot be reopened while dependent tasks remain completed"));
 });
 
+test("Production Intelligence readiness fails closed unless ownership and knowledge guard triggers exist", () => {
+  for (const trigger of [
+    "trg_intelligence_task_project_owner_insert",
+    "trg_intelligence_task_project_owner_update",
+    "trg_intelligence_task_dependency_guard_insert",
+    "trg_intelligence_task_dependency_guard_update",
+    "trg_intelligence_task_completion_dependency_guard",
+    "trg_intelligence_task_reopen_dependency_guard",
+    "trg_intelligence_task_dependency_consistency_update"
+  ]) assert.ok(workerSource.includes(trigger), "Missing required ownership guard: " + trigger);
+  assert.match(workerSource, /requiredTriggers\.every\(name => triggerNames\.has\(name\)\)/);
+  assert.match(workerSource, /PRAGMA table_info\(" \+ table \+ "\)/);
+  assert.match(workerSource, /trg_intelligence_knowledge_owner_immutable/);
+  assert.match(workerSource, /trg_intelligence_memory_owner_immutable/);
+});
+
+test("Legacy task PATCH enforces prerequisite and dependent completion guards", () => {
+  const start=workerSource.indexOf('if(intelligenceTaskMatch&&method==="PATCH")');
+  const end=workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")',start);
+  assert.ok(start>=0&&end>start,"Legacy task PATCH route must exist");
+  const route=workerSource.slice(start,end);
+  assert.match(route,/body\.status==="completed"[\s\S]*?intelligence_task_dependencies[\s\S]*?prerequisite\.status<>'completed'/);
+  assert.match(route,/existing\.status==="completed"&&body\.status!=="completed"[\s\S]*?dependent\.status='completed'/);
+  assert.match(route,/cannot be completed until every prerequisite is completed/);
+  assert.match(route,/cannot be reopened while dependent tasks remain completed/);
+});
+
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerExecutableSource).toString("base64")
 );
