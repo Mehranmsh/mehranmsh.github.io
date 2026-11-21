@@ -5433,10 +5433,60 @@ async function socialDeleteAccount(request, env) {
   return json({ success: true, deleted: true, removedFiles: uploadRows.length, ownershipTransferred: true, providerIdentityDeleted });
 }
 
+async function ingestGitHubIntelligenceInbox(env) {
+  // Public GitHub Issues are a one-way task inbox. Imported items are untrusted
+  // and remain awaiting owner approval; no action type is assigned.
+  const marker = "<!-- MEHRAN-MSH-INTELLIGENCE-INBOX:v1 -->";
+  const endpoint = "https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/issues?state=open&per_page=100";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  let imported = 0;
+  try {
+    const response = await fetch(endpoint, {
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
+      },
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error("GitHub inbox returned HTTP " + response.status);
+    const issues = await response.json();
+    if (!Array.isArray(issues)) throw new Error("GitHub inbox response was not a list");
+    for (const issue of issues) {
+      if (!issue || issue.pull_request || !Number.isInteger(issue.number)) continue;
+      const rawTitle = cleanText(issue.title, 160);
+      if (!rawTitle.startsWith("[MEHRAN TASK]")) continue;
+      if (typeof issue.body !== "string" || !issue.body.includes(marker)) continue;
+      const title = cleanText(rawTitle.slice("[MEHRAN TASK]".length), 120);
+      const body = issue.body.replace(marker, "").trim();
+      const priorityMatch = body.match(/^Priority:\s*(low|normal|high)\s*$/im);
+      const priority = priorityMatch ? priorityMatch[1].toLowerCase() : "normal";
+      const description = cleanText(
+        body.replace(/^Priority:\s*(low|normal|high)\s*$/im, "").trim() +
+        (issue.html_url ? "\n\nSource issue: " + issue.html_url : ""),
+        3000
+      );
+      if (title.length < 4 || !description) continue;
+      const taskId = "github-issue-" + issue.number;
+      const result = await env.DB.prepare(`
+        INSERT OR IGNORE INTO intelligence_tasks(
+          id,title,description,assigned_to,priority,status,requires_approval,
+          created_by,action_type,action_payload
+        ) VALUES(?,?,?,'shared',?,'awaiting_approval',1,'github-inbox','','{}')
+      `).bind(taskId,title,description,priority).run();
+      imported += Number(result?.meta?.changes || 0);
+    }
+  } catch (err) {
+    console.error("INTELLIGENCE_GITHUB_INBOX_FAILURE", String(err?.message || err).slice(0,300));
+  } finally {
+    clearTimeout(timeout);
+  }
+  return imported;
+}
+
 export default {
   async scheduled(controller, env, ctx) {
-    // Production Intelligence execution is intentionally disabled. Keep this handler inert even if an external cron is configured.
-    return;
+    // Only owner-approved, allowlisted read-only reports are processed by this scheduler.
     const run = async () => {
       if (!env.DB) return;
       const runId = crypto.randomUUID();
@@ -5448,6 +5498,7 @@ export default {
       try {
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceSchedulerRunsTable(env);
+        await ingestGitHubIntelligenceInbox(env);
         await env.DB.prepare(
           "INSERT INTO intelligence_scheduler_runs(id,started_at,status) VALUES(?,?,'running')"
         ).bind(runId,startedAt).run();
