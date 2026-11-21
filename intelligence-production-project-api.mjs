@@ -154,6 +154,18 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     const task=await env.DB.prepare("SELECT id,status,action_type,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(taskId,ownerUid).first();
     if(!task)return fail("Task not found.",404);
     if(task.action_type)return fail("Automated task approval and execution remain controlled by the existing approval flow.",409);
+    if(body.status==="completed"){
+      const pending=await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM intelligence_task_dependencies d JOIN intelligence_tasks prerequisite ON prerequisite.id=d.depends_on_task_id AND prerequisite.owner_uid=d.owner_uid WHERE d.owner_uid=? AND d.task_id=? AND prerequisite.status<>'completed'"
+      ).bind(ownerUid,taskId).first();
+      if(Number(pending?.count||0)>0)return fail("This task cannot be completed until every prerequisite is completed.",409);
+    }
+    if(task.status==="completed"&&body.status!=="completed"){
+      const completedDependents=await env.DB.prepare(
+        "SELECT COUNT(*) AS count FROM intelligence_task_dependencies d JOIN intelligence_tasks dependent ON dependent.id=d.task_id AND dependent.owner_uid=d.owner_uid WHERE d.owner_uid=? AND d.depends_on_task_id=? AND dependent.status='completed'"
+      ).bind(ownerUid,taskId).first();
+      if(Number(completedDependents?.count||0)>0)return fail("This prerequisite cannot be reopened while dependent tasks remain completed.",409);
+    }
     try{
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?")
