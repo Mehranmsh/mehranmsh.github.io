@@ -6348,6 +6348,11 @@ export default {
       }
 
       if (path === "/mcp" && method === "POST") {
+        // Rate-limit every MCP attempt by source IP before checking credentials.
+        // This prevents unauthenticated callers from brute-forcing the bridge token.
+        if (!await checkRateLimit(env, request, "intelligence-mcp-auth", 120, 60, 60)) {
+          return error("MEHRAN MCP authentication attempts are temporarily rate limited.", 429);
+        }
         const adminSession = await verifyAdmin(request, env);
         const suppliedBridgeToken = getBearer(request);
         const configuredBridgeToken = typeof env.MEHRAN_MCP_TOKEN === "string" ? env.MEHRAN_MCP_TOKEN : "";
