@@ -6611,7 +6611,7 @@ export default {
         return rpcError(-32601,"Method not found.");
       }
 
-      const publicBridgeResultMatch = path.match(/^\\/intelligence\\/bridge\\/results\\/(\\d{1,10})$/);
+      const publicBridgeResultMatch = path.match(/^\/intelligence\/bridge\/results\/(\d{1,10})$/);
       if (publicBridgeResultMatch && method === "GET") {
         if (!env.DB) return error("Database binding is missing", 503);
         if (!await checkRateLimit(env, request, "intelligence-public-bridge-result", 60, 3600, 300)) {
