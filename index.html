@@ -1220,7 +1220,13 @@ const withTimeout=(promise,label,ms=60000)=>{
  let timer;
  return Promise.race([Promise.resolve(promise),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label+" is taking too long. Check Pi Browser and retry.")),ms);})]).finally(()=>clearTimeout(timer));
 };
-if(piLoginInFlight||button.disabled)return;
+if(button.disabled){show("The Pi sign-in button is temporarily unavailable. Refresh the page and try again.","notice warn");return;}
+if(piLoginInFlight){
+  // A live attempt always disables this button. If the button is clickable,
+  // the in-flight flag is stale and can be safely recovered.
+  console.warn("Recovering stale Pi sign-in lock.");
+  piLoginInFlight=false;
+}
 piLoginInFlight=true;button.disabled=true;button.textContent="Connecting...";
 show("Preparing the official Pi connection...","notice");
 try{
