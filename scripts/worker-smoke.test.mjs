@@ -14,7 +14,26 @@ const workerExecutableSource = workerWithProjectApi.replace(
   `const handleProductionIntelligenceKnowledgeApi = (() => {\n${intelligenceKnowledgeApiSource.replace("export async function handleProductionIntelligenceKnowledgeApi", "async function handleProductionIntelligenceKnowledgeApi")}\nreturn handleProductionIntelligenceKnowledgeApi;\n})();`
 );
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const intelligenceUiSource = await readFile(new URL("../intelligence-knowledge-ui.js", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
+test("Intelligence knowledge and memory UI is wired to the protected owner APIs", () => {
+  assert.match(indexSource, /src=["']\.\/intelligence-knowledge-ui\.js["']/);
+  for (const marker of [
+    '"/intelligence/knowledge?state="',
+    '"/intelligence/memory"',
+    '"/intelligence/knowledge/"',
+    '"/intelligence/memory/"',
+    'data-k-action="verify"',
+    'data-k-action="dispute"',
+    'recorded confidence',
+    'escape'
+  ]) {
+    assert.ok(intelligenceUiSource.includes(marker), "Missing Intelligence UI safety or workflow marker: " + marker);
+  }
+  assert.match(intelligenceUiSource, /const esc=value=>String\(value\?\?""\)\.replace/);
+  assert.match(intelligenceUiSource, /Authorization/);
+});
+
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerExecutableSource).toString("base64")
 );
