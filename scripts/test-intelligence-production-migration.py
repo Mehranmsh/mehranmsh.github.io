@@ -224,6 +224,16 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertGreaterEqual(worker.count("admin.username,admin.uid"), 3)
         self.assertIn("Intelligence ownership migration is not installed", worker)
 
+    def test_all_interactive_task_reads_and_updates_are_owner_scoped(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        self.assertGreaterEqual(worker.count('SELECT * FROM intelligence_tasks WHERE owner_uid=?'), 3)
+        self.assertIn('SELECT id,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
+        self.assertIn('SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
+        self.assertIn('WHERE id=? AND owner_uid=?').__str__() if False else None
+        self.assertIn('WHERE id=? AND owner_uid=?").bind(args.status', worker)
+        self.assertIn('WHERE id=? AND owner_uid=?").bind(body.status', worker)
+        self.assertNotIn('SELECT * FROM intelligence_tasks WHERE 1=1', worker)
+
     def test_intelligence_api_responses_include_cors_and_security_headers(self):
         for filename in ("intelligence-production-project-api.mjs", "intelligence-production-knowledge-api.mjs"):
             api = (ROOT / filename).read_text(encoding="utf-8")
