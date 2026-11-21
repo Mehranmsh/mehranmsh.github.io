@@ -128,6 +128,17 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn('"project_updated","intelligence_project"', api)
         self.assertIn('"task_project_changed","intelligence_task"', api)
         self.assertIn('"task_status_changed","intelligence_task"', api)
+        self.assertEqual(api.count("SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0"), 5)
+        self.assertNotIn("const audit=async", api)
+
+    def test_new_intelligence_routes_do_not_mutate_schema_before_readiness(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        migration_route = worker[worker.index('path === "/intelligence/migration/legacy-tasks/preview"'):worker.index("const intelligenceProjectApiPath")]
+        project_route = worker[worker.index("if (intelligenceProjectApiPath)"):worker.index("const intelligenceKnowledgeApiPath")]
+        self.assertIn("intelligenceOwnershipSchemaReady(env)", migration_route)
+        self.assertIn("intelligenceOwnershipSchemaReady(env)", project_route)
+        self.assertNotIn("ensureIntelligenceTaskTable(env)", migration_route)
+        self.assertNotIn("ensureIntelligenceTaskTable(env)", project_route)
 
     def test_legacy_owner_backfill_is_authenticated_confirmed_and_idempotent(self):
         worker = (ROOT / "worker.js").read_text(encoding="utf-8")
