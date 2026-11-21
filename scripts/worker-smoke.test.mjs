@@ -199,7 +199,7 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(route, /ensureIntelligenceTaskTable\(env\)/);
   assert.match(route, /adminAuditStatement\(env,admin/);
   assert.match(route, /await env\.DB\.batch\(\[/);
-  assert.match(route, /function adminAuditStatement\(env, admin/);
+  assert.match(workerSource, /function adminAuditStatement\(env, admin/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_tasks/);
   assert.match(workerSource, /path === "\/intelligence\/tasks"/);
   assert.match(workerSource, /intelligenceTaskMatch/);
