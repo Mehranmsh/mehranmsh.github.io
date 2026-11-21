@@ -43,6 +43,10 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
     '"/project"',
     '"/status"',
     'data-ip-action=',
+    'id="ipTaskForm"',
+    'async function createTask(event)',
+    'assignedTo:$("ipTaskAssignee").value',
+    'requiresApproval:false',
     'const esc=value',
     'execution'
   ]) {
