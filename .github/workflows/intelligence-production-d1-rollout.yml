@@ -70,8 +70,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: "2ee71f12-042b-4dba-8bf0-a0b577ace519"
+        env:
+          ROLLOUT_ACTION: ${{ inputs.action }}
         run: |
-          if [ "${{ inputs.action }}" = "preflight-0001" ] || [ "${{ inputs.action }}" = "apply-0001" ]; then
+          set -euo pipefail
+          if [ "$ROLLOUT_ACTION" = "preflight-0001" ] || [ "$ROLLOUT_ACTION" = "apply-0001" ]; then
             node scripts/intelligence-production-d1-check.mjs preflight-0001
           else
             node scripts/intelligence-production-d1-check.mjs preflight-0002
@@ -82,11 +85,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        env:
+          ROLLOUT_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
-          test "${{ inputs.confirmation }}" = "APPLY-INTELLIGENCE-0001-TO-PRODUCTION" || {
+          set -euo pipefail
+          if [ "$ROLLOUT_CONFIRMATION" != "APPLY-INTELLIGENCE-0001-TO-PRODUCTION" ]; then
             echo "Exact confirmation phrase missing. No migration executed."
             exit 1
-          }
+          fi
           npx --yes wrangler@4 d1 execute mehran-msh-db --remote --file=migrations/production/0001_intelligence_owner_projects.sql
           node scripts/intelligence-production-d1-check.mjs verify-0001
 
@@ -95,11 +101,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        env:
+          ROLLOUT_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
-          test "${{ inputs.confirmation }}" = "APPLY-INTELLIGENCE-0002-TO-PRODUCTION" || {
+          set -euo pipefail
+          if [ "$ROLLOUT_CONFIRMATION" != "APPLY-INTELLIGENCE-0002-TO-PRODUCTION" ]; then
             echo "Exact confirmation phrase missing. No migration executed."
             exit 1
-          }
+          fi
           npx --yes wrangler@4 d1 execute mehran-msh-db --remote --file=migrations/production/0002_intelligence_knowledge_memory.sql
           node scripts/intelligence-production-d1-check.mjs verify-0002
 
@@ -109,4 +118,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: "2ee71f12-042b-4dba-8bf0-a0b577ace519"
-        run: node scripts/intelligence-production-d1-check.mjs "${{ inputs.action }}"
+        env:
+          ROLLOUT_ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          node scripts/intelligence-production-d1-check.mjs "$ROLLOUT_ACTION"
