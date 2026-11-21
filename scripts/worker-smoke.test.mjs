@@ -7,11 +7,11 @@ const intelligenceProjectApiSource = await readFile(new URL("../intelligence-pro
 const intelligenceKnowledgeApiSource = await readFile(new URL("../intelligence-production-knowledge-api.mjs", import.meta.url), "utf8");
 const workerWithProjectApi = workerSource.replace(
   'import { handleProductionIntelligenceProjectApi } from "./intelligence-production-project-api.mjs";',
-  intelligenceProjectApiSource.replace("export async function handleProductionIntelligenceProjectApi", "async function handleProductionIntelligenceProjectApi")
+  `const handleProductionIntelligenceProjectApi = (() => {\n${intelligenceProjectApiSource.replace("export async function handleProductionIntelligenceProjectApi", "async function handleProductionIntelligenceProjectApi")}\nreturn handleProductionIntelligenceProjectApi;\n})();`
 );
 const workerExecutableSource = workerWithProjectApi.replace(
   'import { handleProductionIntelligenceKnowledgeApi } from "./intelligence-production-knowledge-api.mjs";',
-  intelligenceKnowledgeApiSource.replace("export async function handleProductionIntelligenceKnowledgeApi", "async function handleProductionIntelligenceKnowledgeApi")
+  `const handleProductionIntelligenceKnowledgeApi = (() => {\n${intelligenceKnowledgeApiSource.replace("export async function handleProductionIntelligenceKnowledgeApi", "async function handleProductionIntelligenceKnowledgeApi")}\nreturn handleProductionIntelligenceKnowledgeApi;\n})();`
 );
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
