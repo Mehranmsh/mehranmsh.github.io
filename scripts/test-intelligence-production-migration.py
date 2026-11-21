@@ -229,7 +229,6 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertGreaterEqual(worker.count('SELECT * FROM intelligence_tasks WHERE owner_uid=?'), 3)
         self.assertIn('SELECT id,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
         self.assertIn('SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?', worker)
-        self.assertIn('WHERE id=? AND owner_uid=?').__str__() if False else None
         self.assertIn('WHERE id=? AND owner_uid=?").bind(args.status', worker)
         self.assertIn('WHERE id=? AND owner_uid=?").bind(body.status', worker)
         self.assertNotIn('SELECT * FROM intelligence_tasks WHERE 1=1', worker)
