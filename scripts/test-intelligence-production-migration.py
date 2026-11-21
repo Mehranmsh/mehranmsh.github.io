@@ -356,6 +356,13 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("executionEnabled:false", api)
         self.assertIn("Automated task approval and execution remain controlled", api)
 
+    def test_every_automated_action_requires_explicit_owner_approval(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("const requiresApproval=Boolean(body.requiresApproval||actionType);", worker)
+        self.assertNotIn("preapprovedReadOnlyActions", worker)
+        self.assertNotIn("autoApproved=", worker)
+        self.assertIn("Production Intelligence automation remains disabled", worker)
+
     def test_worker_routes_projects_only_after_schema_gate(self):
         worker = (ROOT / "worker.js").read_text(encoding="utf-8")
         self.assertIn('import { handleProductionIntelligenceProjectApi }', worker)
