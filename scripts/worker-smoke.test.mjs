@@ -278,6 +278,15 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
 });
 
+test("Intelligence task CRUD fails closed without initializing or altering the task schema", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "task CRUD routes must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /intelligenceOwnershipSchemaReady\(env\)/);
+  assert.doesNotMatch(route, /ensureIntelligenceTaskTable\(env\)/);
+});
+
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
