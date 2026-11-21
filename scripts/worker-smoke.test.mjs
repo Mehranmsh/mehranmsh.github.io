@@ -1300,21 +1300,18 @@ test("generated lyrics return transparent language and section-structure review 
   assert.match(workerSource, /qualityWarnings, provider: "cloudflare"/);
 });
 
-test("Production Intelligence scheduler and Agent execution remain disabled", async () => {
+test("Production Intelligence scheduler runs only approved read-only reports and imports GitHub tasks for owner approval", () => {
   const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
-  const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 500);
-  assert.ok(scheduledStart >= 0, "scheduled handler remains present as an inert safety barrier");
-  assert.match(scheduledBody, /return;/);
-  assert.ok(scheduledBody.indexOf("return;") < scheduledBody.indexOf("const run = async"),
-    "scheduler must return before any execution logic");
-  assert.match(workerSource, /if \(path\.startsWith\("\/agent\/v1\/"\)\)\s*\{\s*return error\("Production Intelligence Agent execution is disabled\.", 410\);/);
-  let dbCalls = 0;
-  let backgroundTasks = 0;
-  const db = { prepare() { dbCalls++; throw new Error("disabled scheduler must not access D1"); } };
-  worker.scheduled({}, { DB: db }, { waitUntil() { backgroundTasks++; } });
-  await Promise.resolve();
-  assert.equal(dbCalls, 0, "disabled scheduler must not access the database");
-  assert.equal(backgroundTasks, 0, "disabled scheduler must not register background execution");
+  const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 9000);
+  assert.ok(scheduledStart >= 0, "scheduled handler remains present");
+  assert.ok(scheduledBody.indexOf("const run = async") >= 0, "scheduler has a background runner");
+  assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
+  assert.match(scheduledBody, /status='accepted' AND requires_approval=0/);
+  assert.match(scheduledBody, /action_type IN \('project_status_report','social_metrics_report','service_health_report'\)/);
+  assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
+  assert.match(workerSource, /'shared',\?,'awaiting_approval',1,'github-inbox'/);
+  assert.match(workerSource, /Production Intelligence Agent execution is disabled\./);
+  assert.match(workerSource, /github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/issues\?state=open&per_page=100/);
 });
 test("Intelligence scheduler history is private, bounded and stores execution counters", () => {
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs/);
