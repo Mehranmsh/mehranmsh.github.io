@@ -54,6 +54,8 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
     'id="ipSummary"',
     'id="ipPerformance"',
     'function renderPerformance()',
+    'cannot be completed until every prerequisite is completed',
+    'cannot be reopened while dependent tasks remain completed',
     'Open older than 7 days',
     'Aging is measured from task creation',
     'const blocked=tasks.filter(t=>t.status==="blocked").length',
