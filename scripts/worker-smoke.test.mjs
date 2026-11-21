@@ -1439,20 +1439,20 @@ test("Intelligence scheduler history endpoint rejects unauthenticated requests",
 });
 
 
-test("Task Hub can create and label only owner-approved allowlisted scheduled reports", () => {
+test("Task Hub exposes allowlisted reports but requires explicit owner approval for every automated task", () => {
   const html = indexSource;
   const worker = workerSource;
   for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
-    assert.ok(html.includes(action), `Task Hub exposes ${action}`);
-    assert.ok(worker.includes(`"${action}"`), `Worker allowlists ${action}`);
+    assert.ok(html.includes(action), \`Task Hub exposes \${action}\`);
+    assert.ok(worker.includes(\`"\${action}"\`), \`Worker allowlists \${action}\`);
   }
-  assert.match(worker, /const autoApproved=preapprovedReadOnlyActions\.includes\(actionType\)&&\["mehran_intelligence","shared"\]\.includes\(assignedTo\)&&body\.requiresApproval!==true/);
-  assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
+  assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|actionType\)/);
+  assert.match(worker, /Every action, including read-only reports, requires explicit owner approval/);
+  assert.match(worker, /requiresApproval\?'awaiting_approval':'queued'/);
+  assert.doesNotMatch(worker, /preapprovedReadOnlyActions|autoApproved/);
   assert.match(worker, /owner_uid,action_type\) VALUES\(\?,\?,\?,\?,\?,\?,\?,\?,\?,\?\)/);
   assert.match(html, /actionTypes\[task\.actionType\]/);
 });
-
-
 
 
 test("automated Intelligence task transitions are owner-approval-only and execution results cannot be forged", () => {
@@ -1470,14 +1470,14 @@ test("automated Intelligence task transitions are owner-approval-only and execut
 
 
 
-test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
-  const start = workerSource.indexOf('const preapprovedReadOnlyActions=');
-  const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
-  assert.ok(start >= 0 && end > start, "task creation must define the read-only pre-approval policy");
+test("MEHRAN Intelligence never auto-approves automated read-only tasks", () => {
+  const start = workerSource.indexOf("const allowedActionTypes=");
+  const end = workerSource.indexOf("const id=crypto.randomUUID()", start);
+  assert.ok(start >= 0 && end > start, "task creation must define an explicit action allowlist");
   const policy = workerSource.slice(start, end);
   assert.match(policy, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
-  assert.match(policy, /\["mehran_intelligence","shared"\]\.includes\(assignedTo\)/);
-  assert.match(policy, /body\.requiresApproval!==true/);
-  assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
-  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+  assert.match(policy, /const requiresApproval=Boolean\(body\.requiresApproval\|\|actionType\)/);
+  assert.doesNotMatch(policy, /preapprovedReadOnlyActions|autoApproved/);
+  assert.match(workerSource, /Automated task approval and execution remain controlled by the owner approval flow/);
+  assert.match(workerSource, /Automated task results can only be recorded by the execution service/);
 });
