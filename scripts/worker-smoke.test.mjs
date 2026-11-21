@@ -58,6 +58,7 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
     'cannot be reopened while dependent tasks remain completed',
     'Open older than 7 days',
     'Aging is measured from task creation',
+    't.createdAt||t.created_at',
     'const blocked=tasks.filter(t=>t.status==="blocked").length',
     'role="progressbar"',
     'aria-valuenow=',
