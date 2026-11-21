@@ -118,6 +118,33 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotIn('fetch(', self.project_api)
         self.assertNotIn('scheduled(', self.project_api)
 
+    def test_project_api_dispatch_occurs_after_session_auth_and_rate_limit(self):
+        auth_index = self.source.index("const owner = await verifySession(request, env);", self.source.index("const owner = await verifySession(request, env);") + 1)
+        rate_index = self.source.index("if (!await rateLimit(env.DB, owner.uid")
+        dispatch_index = self.source.index("const projectApiResponse = await handleProjectApi")
+        self.assertLess(auth_index, rate_index)
+        self.assertLess(rate_index, dispatch_index)
+        self.assertIn("owner, url, path, method", self.source[dispatch_index:dispatch_index + 250])
+
+    def test_project_api_rejects_unexpected_payload_fields_and_uses_bound_owner_scopes(self):
+        for fragment in [
+            'Object.keys(body).some(k=>!["name","description","moduleKey"].includes(k))',
+            'Object.keys(body).some(k=>!allowed.includes(k))',
+            'Object.keys(body).some(k=>!["status","result"].includes(k))',
+            'Object.keys(body).some(k=>k!=="projectId")',
+            'Object.keys(body).some(k=>k!=="dependsOnTaskId")',
+            'WHERE id=? AND owner_uid=?',
+            'WHERE id=? AND created_by=?',
+            'WHERE d.owner_uid=? AND d.task_id=?',
+            'WHERE d.owner_uid=? AND d.depends_on_task_id=?',
+            '.bind(id,owner.uid)',
+            '.bind(taskId,owner.uid)',
+        ]:
+            self.assertIn(fragment, self.project_api)
+        self.assertNotRegex(self.project_api, r"(?:SELECT|UPDATE|DELETE|INSERT)[^\\n]*\\+\\s*owner\\.uid")
+        self.assertNotIn('fetch(', self.project_api)
+        self.assertNotIn('eval(', self.project_api)
+
     def test_archived_knowledge_can_be_listed_without_cross_owner_access(self):
         self.assertIn('const state = clean(url.searchParams.get("state") || "active", 16)', self.source)
         self.assertIn('["active","archived","all"].includes(state)', self.source)
