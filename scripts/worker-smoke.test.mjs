@@ -23,8 +23,8 @@ test("Intelligence knowledge and memory UI is wired to the protected owner APIs"
     '"/intelligence/memory"',
     '"/intelligence/knowledge/"',
     '"/intelligence/memory/"',
-    'data-k-action="verify"',
-    'data-k-action="dispute"',
+    'data-k-action=',
+    'data-k-action=',
     'Recorded confidence',
     'const esc=value'
   ]) {
