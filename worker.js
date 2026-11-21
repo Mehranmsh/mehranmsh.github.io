@@ -5240,7 +5240,7 @@ function formatIntelligenceTask(row) {
 function adminAuditStatement(env, admin, action, targetType = "", targetId = "", details = "") {
   return env.DB.prepare(`
     INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details)
-    VALUES(?,?,?,?,?,?,?)
+    SELECT ?,?,?,?,?,?,? WHERE changes()>0
   `).bind(crypto.randomUUID(), admin.uid, admin.username, action, targetType, String(targetId || "").slice(0,150), String(details || "").slice(0,1000));
 }
 
