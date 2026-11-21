@@ -309,22 +309,6 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.match(payload.error, /Admin authentication required/);
 });
 
-test("MEHRAN Intelligence agent API is separately scoped and approval-gated", () => {
-  assert.match(workerSource, /path\.startsWith\("\/agent\/v1\/"\)/);
-  assert.match(workerSource, /env\.MEHRAN_AGENT_TOKEN/);
-  assert.match(workerSource, /requires_approval=0/);
-  assert.match(workerSource, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
-  assert.match(workerSource, /status IN \('queued','accepted'\)/);
-  assert.match(workerSource, /status='in_progress'/);
-  assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.match(workerSource, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(workerSource, /agent_claimed_at=NULL/);
-  assert.match(workerSource, /\["completed","blocked"\]/);
-  assert.match(workerSource, /Agent authentication required/);
-  assert.match(workerSource, /Agent service identity is not configured/);
-});
-
 test("MEHRAN Intelligence agent API remains disabled even when a service secret is absent or present", async () => {
   const response = await request("/agent/v1/tasks/next", {}, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "x".repeat(64) });
   assert.equal(response.status, 410);
@@ -1412,8 +1396,8 @@ test("Production Intelligence scheduler and Agent execution remain disabled", as
   const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 500);
   assert.ok(scheduledStart >= 0, "scheduled handler remains present as an inert safety barrier");
   assert.match(scheduledBody, /return;/);
-  assert.ok(scheduledBody.indexOf("return;") < scheduledBody.indexOf("const run = async"),
-    "scheduler must return before any execution logic");
+  assert.doesNotMatch(scheduledBody, /const run = async|waitUntil\(/,
+    "disabled scheduler must contain no dormant execution path");
   assert.match(workerSource, /if \(path\.startsWith\("\/agent\/v1\/"\)\)\s*\{\s*return error\("Production Intelligence Agent execution is disabled\.", 410\);/);
   let dbCalls = 0;
   let backgroundTasks = 0;
