@@ -1403,7 +1403,7 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.match(route, /if\(!approvalTransition&&!cancelTransition\)return error\([\s\S]*?409\)/);
   assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
   assert.match(route, /requires_approval=CASE WHEN \?=\x27accepted\x27 THEN 0 ELSE requires_approval END/);
-  assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
+  assert.match(route, /adminAuditStatement\(env,admin,"collaboration_task_updated"/);
 });
 
 
