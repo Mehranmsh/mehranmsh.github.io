@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "migrations" / "production" / "0001_intelligence_owner_projects.sql"
+KNOWLEDGE_MIGRATION = ROOT / "migrations" / "production" / "0002_intelligence_knowledge_memory.sql"
 
 BASE_SCHEMA = """
 CREATE TABLE intelligence_tasks (
@@ -33,6 +34,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
             "INSERT INTO intelligence_tasks(id,title,created_by) VALUES('legacy-1','Legacy task','mehranmsh')"
         )
         self.db.executescript(MIGRATION.read_text(encoding="utf-8"))
+        self.db.executescript(KNOWLEDGE_MIGRATION.read_text(encoding="utf-8"))
 
     def tearDown(self):
         self.db.close()
@@ -141,6 +143,57 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("executionEnabled:false", route)
         self.assertNotIn("request.body.owner_uid", route)
         self.assertNotIn("request.body.uid", route)
+
+    def test_knowledge_and_memory_are_owner_scoped_and_provenance_aware(self):
+        self.db.execute(
+            """INSERT INTO intelligence_knowledge
+               (id,owner_uid,title,content,source_type,source_ref)
+               VALUES('k1','pi-owner-1','Owner note','Private content','owner_input','')"""
+        )
+        self.db.execute(
+            """INSERT INTO intelligence_owner_memory
+               (id,owner_uid,memory_type,category,content)
+               VALUES('m1','pi-owner-1','preference','workstyle','Keep steps concise')"""
+        )
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM intelligence_knowledge WHERE owner_uid='another-owner'").fetchone()[0],
+            0
+        )
+        self.assertEqual(
+            self.db.execute("SELECT verification_status FROM intelligence_knowledge WHERE id='k1'").fetchone()[0],
+            "unreviewed"
+        )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_knowledge SET owner_uid='another-owner' WHERE id='k1'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute("UPDATE intelligence_owner_memory SET owner_uid='another-owner' WHERE id='m1'")
+
+    def test_knowledge_provenance_constraints_reject_unknown_source_types(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                """INSERT INTO intelligence_knowledge
+                   (id,owner_uid,title,content,source_type)
+                   VALUES('bad-source','pi-owner-1','Bad','Content','untrusted_magic')"""
+            )
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.db.execute(
+                """INSERT INTO intelligence_knowledge
+                   (id,owner_uid,title,content,recorded_confidence)
+                   VALUES('bad-score','pi-owner-1','Bad','Content',101)"""
+            )
+
+    def test_knowledge_and_memory_api_are_admin_gated_and_owner_scoped(self):
+        api = (ROOT / "intelligence-production-knowledge-api.mjs").read_text(encoding="utf-8")
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        self.assertIn("const owner=admin.uid", api)
+        self.assertIn("WHERE owner_uid=?", api)
+        self.assertIn("verification_status", api)
+        self.assertIn("source_excerpt", api)
+        self.assertIn("intelligence_memory_created", api)
+        self.assertIn('import { handleProductionIntelligenceKnowledgeApi }', worker)
+        self.assertIn("intelligenceKnowledgeSchemaReady(env)", worker)
+        self.assertIn("handleProductionIntelligenceKnowledgeApi", worker)
+        self.assertIn("Admin authentication required", worker)
 
     def test_production_api_keeps_execution_disabled(self):
         api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
