@@ -69,6 +69,14 @@ const projectTriggers = [
   "trg_intelligence_task_reopen_dependency_guard",
   "trg_intelligence_task_dependency_consistency_update",
 ];
+const projectIndexes = [
+  "idx_intelligence_projects_owner_status",
+  "idx_intelligence_projects_owner_module",
+  "idx_intelligence_tasks_owner_project_status",
+  "idx_intelligence_tasks_project_legacy",
+  "idx_intelligence_task_dependencies_task",
+  "idx_intelligence_task_dependencies_prerequisite",
+];
 const knowledgeTriggers = [
   "trg_intelligence_knowledge_owner_immutable",
   "trg_intelligence_memory_owner_immutable",
@@ -108,6 +116,7 @@ if (mode === "preflight-0002") {
   const taskCols = (await columns("intelligence_tasks")).map((row) => row.name);
   requireNames(taskCols.map((name) => ({name})), ["owner_uid","project_id"], "Migration 0001 task columns");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
+  requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   requireAbsent(tables, ["intelligence_knowledge","intelligence_owner_memory"], "Migration 0002 tables");
   requireAbsent(indexes, [
     "idx_intelligence_knowledge_owner_active","idx_intelligence_knowledge_owner_category",
@@ -122,6 +131,7 @@ if (mode === "verify-0001") {
   const taskCols = (await columns("intelligence_tasks")).map((row) => row.name);
   requireNames(taskCols.map((name) => ({name})), ["owner_uid","project_id"], "Migration 0001 task columns");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
+  requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   const fk = await query("PRAGMA foreign_key_check");
   if (fk.length) throw new Error(`Foreign key violations after migration 0001: ${JSON.stringify(fk)}`);
   console.log("PASS: migration 0001 tables, columns, triggers, and foreign keys verified.");
@@ -134,6 +144,8 @@ if (mode === "verify-0002") {
     "idx_intelligence_memory_owner_active",
   ], "Migration 0002 indexes");
   requireNames(triggers, knowledgeTriggers, "Migration 0002 triggers");
+  requireNames(indexes, projectIndexes, "Migration 0001 indexes");
+  requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   const knowledgeCols = (await columns("intelligence_knowledge")).map((row) => row.name);
   requireNames(knowledgeCols.map((name) => ({name})), [
     "id","owner_uid","category","title","content","importance","source_type","source_ref",
