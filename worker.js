@@ -6372,6 +6372,10 @@ export default {
       if (intelligenceProjectApiPath) {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
+        const apiLimit = method === "GET" ? 120 : 30;
+        if (!await checkRateLimit(env, request, "intelligence-project-api", apiLimit, 3600, 600, admin.uid)) {
+          return error("MEHRAN Intelligence project API rate limit reached.", 429);
+        }
         await ensureIntelligenceTaskTable(env);
         if (!await intelligenceOwnershipSchemaReady(env)) {
           return error("Intelligence project migration is not installed. No database changes were made by this request.", 503);
