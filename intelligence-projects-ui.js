@@ -5,7 +5,7 @@ const esc=value=>String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;
 const request=(path,options={})=>api(path,{...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});
 const modules=[["security","Security"],["intelligence","Intelligence"],["logistics","Logistics"],["customer_experience","Customer Experience"],["labs","Labs"],["governance","Governance"],["data","Data"],["robot_operations","Robot Operations"],["social","SOCIAL"],["music","Music"],["ai","AI"],["instruments","Instruments"],["robotics","Robotics"]];
 const statuses=["planned","active","paused","completed","archived"];
-let projects=[],tasks=[],selected=null,detail=null;
+let projects=[],tasks=[],selected=null,detail=null,dependencies={};
 function note(message,kind=""){const el=$("intelProjectStatus");if(el){el.textContent=message;el.className="notice"+(kind?" "+kind:"");}}
 function moduleName(key){return modules.find(x=>x[0]===key)?.[1]||key;}
 function mount(){
@@ -90,7 +90,7 @@ async function createTask(event){
 async function openProject(id){
  try{
   const data=await request("/intelligence/projects/"+encodeURIComponent(id));
-  selected=id;detail=data;renderDetail();
+  selected=id;detail=data;dependencies={};await Promise.all((data.tasks||[]).map(async task=>{try{const d=await request("/intelligence/tasks/"+encodeURIComponent(task.id)+"/dependencies");dependencies[task.id]=d.prerequisites||[];}catch(e){dependencies[task.id]=[];}}));renderDetail();
  }catch(e){note("Could not open project: "+e.message,"warn");}
 }
 function renderDetail(){
@@ -109,9 +109,11 @@ function renderDetail(){
   <div class="eyebrow">${esc(t.priority)} · ${esc(t.status)} ${t.action_type?"· AUTOMATED ACTION":""}</div>
   <h4>${esc(t.title)}</h4><p>${esc(t.description||"")}</p>
   ${t.result_text?`<div class="small-text">Result: ${esc(t.result_text)}</div>`:""}
+  <div class="field"><label>Blocked by</label>${(dependencies[t.id]||[]).length?(dependencies[t.id]||[]).map(d=>`<div class="small-text">${esc(d.title)} · ${esc(d.status)} <button class="btn secondary small" data-ip-action="remove-dependency" data-id="${esc(t.id)}" data-dependency-id="${esc(d.id)}" type="button">Remove link</button></div>`).join(""):'<div class="small-text">No prerequisites linked.</div>'}</div>
+  ${attached.some(other=>other.id!==t.id)?`<div class="field"><label for="ipPrereq-${esc(t.id)}">Add prerequisite</label><select id="ipPrereq-${esc(t.id)}"><option value="">Choose a task that must finish first</option>${attached.filter(other=>other.id!==t.id&&!(dependencies[t.id]||[]).some(d=>d.taskId===other.id)).map(other=>`<option value="${esc(other.id)}">${esc(other.title)} · ${esc(other.status)}</option>`).join("")}</select><button class="btn secondary small" data-ip-action="add-dependency" data-id="${esc(t.id)}" type="button">Add dependency</button></div>`:""}
   ${!t.action_type?`<button class="btn secondary small" data-ip-action="task-status" data-id="${esc(t.id)}" data-status="${t.status==="completed"?"queued":"completed"}" type="button">${t.status==="completed"?"Reopen task":"Mark completed"}</button>`:"<div class='small-text'>Automated task status is controlled by its approval workflow.</div>"}
  </article>`).join(""):'<div class="empty">No tasks assigned to this project yet.</div>'}</div>
- <div class="small-text">Task dependencies and execution are controlled separately. No task is executed by changing its status.</div>`;
+ <div class="small-text">Dependencies are project-scoped. The server rejects self-links, cross-project links and cycles. No task is executed by changing its status.</div>`;
 }
 async function projectAction(event){
  const b=event.target.closest("[data-ip-action]");if(!b)return;
@@ -132,6 +134,14 @@ async function detailAction(event){
   }else if(action==="task-status"){
    await request("/intelligence/tasks/"+encodeURIComponent(b.dataset.id)+"/status",{method:"PUT",body:JSON.stringify({status:b.dataset.status})});
    await loadAll();await openProject(selected);note("Task status updated.","success");
+  }else if(action==="add-dependency"){
+   const taskId=b.dataset.id,prerequisiteId=$("ipPrereq-"+taskId)?.value;
+   if(!prerequisiteId){note("Choose a prerequisite task first.","warn");return;}
+   await request("/intelligence/tasks/"+encodeURIComponent(taskId)+"/dependencies",{method:"POST",body:JSON.stringify({dependsOnTaskId:prerequisiteId})});
+   await openProject(selected);note("Task dependency added.","success");
+  }else if(action==="remove-dependency"){
+   await request("/intelligence/tasks/"+encodeURIComponent(b.dataset.id)+"/dependencies/"+encodeURIComponent(b.dataset.dependencyId),{method:"DELETE"});
+   await openProject(selected);note("Task dependency removed.","success");
   }
  }catch(e){note("Action failed: "+e.message,"warn");}
 }
