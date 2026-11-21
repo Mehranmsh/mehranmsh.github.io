@@ -1310,6 +1310,8 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(scheduledBody, /action_type IN \('project_status_report','social_metrics_report','service_health_report'\)/);
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
+  assert.match(workerSource, /Visibility:\\s\*public-safe/);
+  assert.match(workerSource, /if \(!\/\^Visibility:/);
   assert.match(workerSource, /const actionMatch = body\.match\(\/\^Action:/);
   assert.match(workerSource, /const allowedActions = \["project_status_report","social_metrics_report","service_health_report"\]/);
   assert.match(workerSource, /status='accepted' AND requires_approval=0/);
