@@ -19,7 +19,7 @@ The staging database ID has not yet been independently recorded. No Worker has b
 A separate Worker source file now exists at `intelligence-staging-worker.js`. It is not the production Worker and is not deployed.
 
 Implemented routes:
-- `GET /health`: verifies the complete eight-table schema.
+- `GET /health`: verifies the complete ten-table schema.
 - `POST/GET/DELETE /session`: server-side Pi identity verification, hashed bearer sessions, expiry and revocation.
 - `GET/POST /intelligence/tasks`: owner-scoped task planning only. New tasks remain queued; response explicitly reports `executionEnabled: false`.
 - Owner-scoped knowledge list/create with source type, source reference, observed timestamp, confidence assessment, and explicit owner verification/dispute/reset actions.
@@ -32,12 +32,12 @@ The Worker has bounded JSON bodies, origin restrictions, security headers, rate 
 
 The disposable SQLite migration tests validate the ordered migration chain, idempotence, expected tables, foreign-key wiring, and runtime support tables. A dedicated static Worker safety test checks Pi verification, hashed sessions, expiry/revocation, owner scoping, audit batching, bounded bodies, rate limits, and absence of production bindings/executor code. The general quality check also parses the staging Worker JavaScript.
 
-These are repository-level checks, not a live D1 or Pi Browser integration test. The newest CI run must be checked after the latest commit before calling this code validated.
+These are repository-level checks, not a live D1 or Pi Browser integration test. The latest repository CI run, 44841275237, passed all 15 steps on commit 0aa7cf359bb84cdba131a074f7ee48c4d6129ded. This validates repository checks only, not a live D1 or Pi Browser integration.
 
 ## 4. Remaining staging steps
 
 1. Confirm the exact ID of `mehran-msh-intelligence-staging`.
-2. Create a separate `wrangler.intelligence-staging.jsonc` using only that ID and a separate Worker name.
+2. Replace the staging config's database ID only with the verified ID for this exact staging database; retain the separate Worker name and binding.
 3. Apply migrations 0003, 0004, and 0005 in order, only to that confirmed staging database, and only after separate explicit authorization for each live migration operation.
 4. Configure a staging-only owner UID secret; never reuse the production owner secret.
 5. Deploy only after explicit owner authorization and complete code review.
