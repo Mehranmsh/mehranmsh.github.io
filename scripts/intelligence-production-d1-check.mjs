@@ -141,7 +141,9 @@ if (mode === "preflight-0002") {
     "idx_intelligence_memory_owner_active",
   ], "Migration 0002 indexes");
   requireAbsent(triggers, knowledgeTriggers, "Migration 0002 triggers");
-  console.log("PASS: migration 0001 schema is present; migration 0002 target objects are absent.");
+  const fk = await query("PRAGMA foreign_key_check");
+  if (fk.length) throw new Error(`Foreign key violations before migration 0002: ${JSON.stringify(fk)}`);
+  console.log("PASS: migration 0001 schema is present and internally consistent; migration 0002 target objects are absent.");
 }
 
 if (mode === "verify-0001") {
