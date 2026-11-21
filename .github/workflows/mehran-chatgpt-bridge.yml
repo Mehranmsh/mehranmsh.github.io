@@ -2,7 +2,7 @@ name: MEHRAN ChatGPT Bridge (public-safe health only)
 
 on:
   issues:
-    types: [labeled]
+    types: [opened]
 
 permissions:
   issues: write
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   public-safe-health:
-    if: github.event.label.name == 'chatgpt-bridge' && contains(github.event.issue.body, '<!-- MEHRAN-CHATGPT-BRIDGE:v1 -->')
+    if: contains(github.event.issue.body, '<!-- MEHRAN-CHATGPT-BRIDGE:v1 -->')
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
