@@ -6421,13 +6421,11 @@ export default {
             ).bind(admin.uid, admin.username),
             env.DB.prepare(
               "INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) " +
-              "SELECT ?,?,?,?,?,?,? WHERE changes()>0" +
-              ")"
+              "VALUES(?,?,?,?,?,?,?)"
             ).bind(
               crypto.randomUUID(), admin.uid, admin.username,
-              "legacy_task_ownership_backfilled", "intelligence_task", "legacy-batch",
-              "Assigned only unowned legacy tasks whose created_by matches the authenticated admin username.",
-              admin.uid, admin.username
+              "legacy_task_ownership_backfill_confirmed", "intelligence_task", "legacy-batch",
+              "Owner-confirmed backfill request. Updated only unowned tasks whose created_by matches the authenticated admin username; the response reports the exact changed-row count."
             )
           ]);
           const changed = Number(results?.[0]?.meta?.changes || 0);
