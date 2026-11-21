@@ -15,9 +15,22 @@ const fail = (message,status=400) => reply({success:false,error:message},status)
 
 async function bodyOf(request) {
   try {
+    const type=(request.headers.get("Content-Type")||"").split(";")[0].trim().toLowerCase();
     const length=Number(request.headers.get("Content-Length")||0);
-    if(length>20000 || !request.headers.get("Content-Type")?.toLowerCase().includes("application/json")) return null;
-    const value=await request.json();
+    if(type!=="application/json" || !Number.isFinite(length) || length>20000 || !request.body) return null;
+    const reader=request.body.getReader(),chunks=[];
+    let total=0;
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>20000){await reader.cancel();return null;}
+      chunks.push(value);
+    }
+    const bytes=new Uint8Array(total);
+    let offset=0;
+    for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    const value=JSON.parse(new TextDecoder().decode(bytes));
     return value && typeof value==="object" && !Array.isArray(value) ? value : null;
   } catch { return null; }
 }
