@@ -8,8 +8,11 @@ import sys
 import json
 
 ROOT = Path(__file__).resolve().parents[1]
-HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html"]
+HTML_FILES = [ROOT / "index.html", ROOT / "music-studio.html", ROOT / "intelligence-staging.html"]
 WORKER_FILE = ROOT / "worker.js"
+STAGING_WORKER_FILE = ROOT / "intelligence-staging-worker.js"
+REVIEW_QUEUE_FILE = ROOT / "intelligence-review-queue.mjs"
+PROJECT_API_FILE = ROOT / "intelligence-project-api.mjs"
 ENGINE_FILE = ROOT / "engine" / "server.py"
 SAMPLER_FILE = ROOT / "instrument-sampler.js"
 SAMPLE_MANIFEST = ROOT / "assets" / "instruments" / "manifest.json"
@@ -41,12 +44,18 @@ def run_node_check(path):
         raise SystemExit(result.returncode)
 
 def main():
-    for path in (*HTML_FILES, WORKER_FILE):
+    for path in (*HTML_FILES, WORKER_FILE, STAGING_WORKER_FILE, REVIEW_QUEUE_FILE, PROJECT_API_FILE):
         if not path.is_file():
             raise SystemExit(f"Required project file is missing: {path.name}")
 
     print("1/3 Checking Cloudflare Worker JavaScript syntax...")
     run_node_check(WORKER_FILE)
+    print("Checking isolated Intelligence staging Worker JavaScript syntax...")
+    run_node_check(STAGING_WORKER_FILE)
+    print("Checking Intelligence review queue module syntax...")
+    run_node_check(REVIEW_QUEUE_FILE)
+    print("Checking isolated Intelligence project API module syntax...")
+    run_node_check(PROJECT_API_FILE)
     for path in (SAMPLER_FILE, SAMPLE_MANIFEST):
         if not path.is_file():
             raise SystemExit(f"Required recorded-instrument asset file is missing: {path.relative_to(ROOT)}")

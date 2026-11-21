@@ -1,0 +1,17 @@
+{
+  // INTELLIGENCE-only staging Worker.
+  // DO NOT DEPLOY until migrations 0000-0005 are applied and staging is validated.
+  // This config must never be used with the production database.
+  "name": "mehran-intelligence-staging",
+  "main": "intelligence-staging-worker.js",
+  "compatibility_date": "2026-11-03",
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mehran-msh-intelligence-staging",
+      "database_id": "8810bcb3-83e9-4297-9e07-4c2a33c4b8db"
+    }
+  ]
+}

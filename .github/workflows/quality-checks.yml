@@ -8,8 +8,15 @@ on:
       - intelligence/integrated-knowledge-approval-staging-v1
     paths:
       - "index.html"
+      - "intelligence-staging.html"
       - "music-studio.html"
       - "worker.js"
+      - "intelligence-staging-worker.js"
+      - "intelligence-review-queue.mjs"
+      - "intelligence-project-api.mjs"
+      - "wrangler.intelligence-staging.jsonc"
+      - "migrations/000*.sql"
+      - "docs/INTELLIGENCE-*.md"
       - "scripts/**"
       - "engine/**"
       - "instrument-sampler.js"
@@ -19,8 +26,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "index.html"
+      - "intelligence-staging.html"
       - "music-studio.html"
       - "worker.js"
+      - "intelligence-staging-worker.js"
+      - "intelligence-project-api.mjs"
+      - "wrangler.intelligence-staging.jsonc"
+      - "migrations/000*.sql"
+      - "docs/INTELLIGENCE-*.md"
       - "scripts/**"
       - "engine/**"
       - "instrument-sampler.js"
@@ -55,8 +68,23 @@ jobs:
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
 
+      - name: Test deterministic Intelligence review queue prioritization
+        run: node --test scripts/intelligence-review-queue.test.mjs
+
       - name: Execute D1 migration schema contract in disposable SQLite
         run: python scripts/test-intelligence-approval-migration.py
+
+      - name: Test complete Intelligence staging migration chain in disposable SQLite
+        run: python scripts/test-intelligence-staging-schema.py
+
+      - name: Test proposed Intelligence project and task dependency constraints
+        run: python scripts/test-intelligence-project-task-design.py
+
+      - name: Test isolated Intelligence staging Worker security contract
+        run: python scripts/test-intelligence-staging-worker.py
+
+      - name: Test isolated Intelligence staging UI safety contract
+        run: python scripts/test-intelligence-staging-ui.py
 
       - name: Test Intelligence knowledge and memory owner isolation in disposable SQLite
         run: python scripts/test-intelligence-knowledge-isolation.py
