@@ -5461,8 +5461,18 @@ async function ingestGitHubIntelligenceInbox(env) {
       const body = issue.body.replace(marker, "").trim();
       const priorityMatch = body.match(/^Priority:\s*(low|normal|high)\s*$/im);
       const priority = priorityMatch ? priorityMatch[1].toLowerCase() : "normal";
+      // Only these explicit read-only report actions can be queued for execution.
+      // All other issue content remains a plain proposal and can never become code or commands.
+      const actionMatch = body.match(/^Action:\s*([a-z_]+)\s*$/im);
+      const allowedActions = ["project_status_report","social_metrics_report","service_health_report"];
+      const actionType = actionMatch && allowedActions.includes(actionMatch[1].toLowerCase())
+        ? actionMatch[1].toLowerCase()
+        : "";
       const description = cleanText(
-        body.replace(/^Priority:\s*(low|normal|high)\s*$/im, "").trim() +
+        body
+          .replace(/^Priority:\s*(low|normal|high)\s*$/im, "")
+          .replace(/^Action:\s*[a-z_]+\s*$/im, "")
+          .trim() +
         (issue.html_url ? "\n\nSource issue: " + issue.html_url : ""),
         3000
       );
@@ -5472,8 +5482,8 @@ async function ingestGitHubIntelligenceInbox(env) {
         INSERT OR IGNORE INTO intelligence_tasks(
           id,title,description,assigned_to,priority,status,requires_approval,
           created_by,action_type,action_payload
-        ) VALUES(?,?,?,'shared',?,'awaiting_approval',1,'github-inbox','','{}')
-      `).bind(taskId,title,description,priority).run();
+        ) VALUES(?,?,?,'shared',?,'awaiting_approval',1,'github-inbox',?,'{}')
+      `).bind(taskId,title,description,priority,actionType).run();
       imported += Number(result?.meta?.changes || 0);
     }
   } catch (err) {
