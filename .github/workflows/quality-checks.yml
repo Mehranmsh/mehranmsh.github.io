@@ -30,6 +30,7 @@ on:
       - "music-studio.html"
       - "worker.js"
       - "intelligence-staging-worker.js"
+      - "intelligence-project-api.mjs"
       - "wrangler.intelligence-staging.jsonc"
       - "migrations/000*.sql"
       - "docs/INTELLIGENCE-*.md"
