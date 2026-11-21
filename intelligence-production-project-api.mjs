@@ -174,10 +174,16 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
   if(depDeleteMatch && method==="DELETE"){
     const taskId=depDeleteMatch[1],dependencyId=depDeleteMatch[2];
     try{
-      const result=await env.DB.prepare("DELETE FROM intelligence_task_dependencies WHERE id=? AND task_id=? AND owner_uid=?").bind(dependencyId,taskId,ownerUid).run();
-      if(!Number(result.meta?.changes||0))return fail("Dependency not found.",404);
-      await audit("task_dependency_removed","intelligence_task_dependency",dependencyId,{taskId});
-    }catch{return fail("Dependency could not be removed.",503);}
+      const results=await env.DB.batch([
+        env.DB.prepare("DELETE FROM intelligence_task_dependencies WHERE id=? AND task_id=? AND owner_uid=?")
+          .bind(dependencyId,taskId,ownerUid),
+        env.DB.prepare(
+          "INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) " +
+          "SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0"
+        ).bind(crypto.randomUUID(),admin.uid,admin.username,"task_dependency_removed","intelligence_task_dependency",dependencyId,JSON.stringify({taskId}))
+      ]);
+      if(!Number(results?.[0]?.meta?.changes||0))return fail("Dependency not found.",404);
+    }catch{return fail("Dependency removal and its audit record could not be committed.",503);}
     return reply({success:true,id:dependencyId,deleted:true});
   }
   return null;
