@@ -6565,6 +6565,7 @@ export default {
             return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
           }
           if (name === "list_collaboration_tasks") {
+            if (!await intelligenceOwnershipSchemaReady(env)) throw new Error("Intelligence ownership migration is not installed.");
             const allowed=["status","assignedTo"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown filter.");
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
@@ -6580,6 +6581,7 @@ export default {
             return replyData({tasks:(rows.results||[]).map(formatIntelligenceTask)});
           }
           if (name === "update_collaboration_task") {
+            if (!await intelligenceOwnershipSchemaReady(env)) return rpcError(-32000,"Intelligence ownership migration is not installed.",503);
             const allowed=["taskId","status","result"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
@@ -6622,6 +6624,7 @@ export default {
         if(!admin)return error("Admin authentication required",403);
         await ensureIntelligenceTaskTable(env);
         if(method==="GET"){
+          if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
           const url=new URL(request.url), status=url.searchParams.get("status"), assignedTo=url.searchParams.get("assignedTo");
           const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
           const assignments=["mehran_intelligence","chatgpt","shared"];
@@ -6659,6 +6662,7 @@ export default {
         const admin=await verifyAdmin(request,env);
         if(!admin)return error("Admin authentication required",403);
         await ensureIntelligenceTaskTable(env);
+        if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
         if(!await checkRateLimit(env,request,"intelligence-task-write",30,3600,900,admin.uid))return error("Too many task changes. Try again later.",429);
         const id=decodeURIComponent(intelligenceTaskMatch[1]);
         if(!id||id.length>80)return error("Invalid task ID.");
@@ -6769,12 +6773,13 @@ export default {
             return {registeredUsers:Number(rows[0]?.total||0),activeUsers:Number(rows[1]?.total||0),posts:Number(rows[2]?.total||0),openReports:Number(rows[3]?.total||0)};
           }
           if (name === "list_collaboration_tasks") {
+            if (!await intelligenceOwnershipSchemaReady(env)) throw new Error("Intelligence ownership migration is not installed.");
             if (Object.keys(args).some(k=>!["status","assignedTo"].includes(k))) throw new Error("Unknown task filter.");
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const assignments=["mehran_intelligence","chatgpt","shared"];
             if(args.status&&!statuses.includes(args.status))throw new Error("Invalid task status.");
             if(args.assignedTo&&!assignments.includes(args.assignedTo))throw new Error("Invalid task assignment.");
-            let sql="SELECT * FROM intelligence_tasks WHERE 1=1",binds=[];
+            let sql="SELECT * FROM intelligence_tasks WHERE owner_uid=?",binds=[admin.uid];
             if(args.status){sql+=" AND status=?";binds.push(args.status)}
             if(args.assignedTo){sql+=" AND assigned_to=?";binds.push(args.assignedTo)}
             sql+=" ORDER BY created_at DESC LIMIT 20";
