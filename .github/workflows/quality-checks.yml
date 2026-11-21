@@ -9,6 +9,10 @@ on:
       - "index.html"
       - "music-studio.html"
       - "worker.js"
+      - "intelligence-production-knowledge-api.mjs"
+      - "intelligence-production-project-api.mjs"
+      - "intelligence-knowledge-ui.js"
+      - "intelligence-projects-ui.js"
       - "scripts/**"
       - "engine/**"
       - "instrument-sampler.js"
@@ -19,6 +23,10 @@ on:
       - "index.html"
       - "music-studio.html"
       - "worker.js"
+      - "intelligence-production-knowledge-api.mjs"
+      - "intelligence-production-project-api.mjs"
+      - "intelligence-knowledge-ui.js"
+      - "intelligence-projects-ui.js"
       - "scripts/**"
       - "engine/**"
       - "instrument-sampler.js"
@@ -52,6 +60,9 @@ jobs:
 
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
+
+      - name: Run Intelligence knowledge and memory validation tests
+        run: node --test scripts/intelligence-knowledge-validation.test.mjs
 
       - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
