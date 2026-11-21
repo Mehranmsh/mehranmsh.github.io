@@ -83,6 +83,9 @@ test("Production Intelligence readiness fails closed unless ownership and knowle
   ]) assert.ok(workerSource.includes(trigger), "Missing required ownership guard: " + trigger);
   assert.match(workerSource, /requiredTriggers\.every\(name => triggerNames\.has\(name\)\)/);
   assert.match(workerSource, /PRAGMA table_info\(" \+ table \+ "\)/);
+  for (const column of ["owner_uid","project_id","depends_on_task_id","verification_status","recorded_confidence","archived_at"]) {
+    assert.ok(workerSource.includes('"'+column+'"'), "Schema readiness must require column: " + column);
+  }
   assert.match(workerSource, /trg_intelligence_knowledge_owner_immutable/);
   assert.match(workerSource, /trg_intelligence_memory_owner_immutable/);
 });
