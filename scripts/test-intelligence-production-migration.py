@@ -232,6 +232,8 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn('WHERE id=? AND owner_uid=?").bind(args.status', worker)
         self.assertIn('WHERE id=? AND owner_uid=?").bind(body.status', worker)
         self.assertNotIn('SELECT * FROM intelligence_tasks WHERE 1=1', worker)
+        self.assertIn('const approvalTransition=args.status==="accepted"&&existing.status==="awaiting_approval"', worker)
+        self.assertIn('Automated task results can only be recorded by the execution service.', worker)
 
     def test_intelligence_api_responses_include_cors_and_security_headers(self):
         for filename in ("intelligence-production-project-api.mjs", "intelligence-production-knowledge-api.mjs"):
