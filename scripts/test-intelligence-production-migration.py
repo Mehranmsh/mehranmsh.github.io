@@ -200,6 +200,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("const owner=admin.uid", api)
         self.assertIn("WHERE owner_uid=?", api)
         self.assertIn("verification_status", api)
+        self.assertIn("SELECT id FROM intelligence_knowledge WHERE id=? AND owner_uid=? AND archived_at IS NULL", api)
         self.assertIn("source_excerpt", api)
         self.assertIn("intelligence_memory_created", api)
         self.assertIn('import { handleProductionIntelligenceKnowledgeApi }', worker)
