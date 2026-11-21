@@ -5454,6 +5454,8 @@ async function ingestGitHubIntelligenceInbox(env) {
     if (!Array.isArray(issues)) throw new Error("GitHub inbox response was not a list");
     for (const issue of issues) {
       if (!issue || issue.pull_request || !Number.isInteger(issue.number)) continue;
+      // Only the repository owner may submit inbox work through this public bridge.
+      if (String(issue.user?.login || "").trim().toLowerCase() !== "mehranmsh") continue;
       const rawTitle = cleanText(issue.title, 160);
       if (!rawTitle.startsWith("[MEHRAN TASK]")) continue;
       if (typeof issue.body !== "string" || !issue.body.includes(marker)) continue;
@@ -5482,12 +5484,17 @@ async function ingestGitHubIntelligenceInbox(env) {
       );
       if (title.length < 4 || !description) continue;
       const taskId = "github-issue-" + issue.number;
+      // A service-health report is read-only and returns only a public-safe summary,
+      // so it may run automatically. Other report types remain owner-approval-only.
+      const autoApproved = actionType === "service_health_report";
+      const initialStatus = autoApproved ? "accepted" : "awaiting_approval";
+      const requiresApproval = autoApproved ? 0 : 1;
       const result = await env.DB.prepare(`
         INSERT OR IGNORE INTO intelligence_tasks(
           id,title,description,assigned_to,priority,status,requires_approval,
           created_by,action_type,action_payload
-        ) VALUES(?,?,?,'shared',?,'awaiting_approval',1,'github-inbox',?,'{}')
-      `).bind(taskId,title,description,priority,actionType).run();
+        ) VALUES(?,?,?,'shared',?, ?, ?,'github-inbox',?,'{}')
+      `).bind(taskId,title,description,priority,initialStatus,requiresApproval,actionType).run();
       imported += Number(result?.meta?.changes || 0);
     }
   } catch (err) {
@@ -6602,6 +6609,31 @@ export default {
           return rpcError(-32602,"Unknown tool.");
         }
         return rpcError(-32601,"Method not found.");
+      }
+
+      const publicBridgeResultMatch = path.match(/^\\/intelligence\\/bridge\\/results\\/(\\d{1,10})$/);
+      if (publicBridgeResultMatch && method === "GET") {
+        if (!env.DB) return error("Database binding is missing", 503);
+        if (!await checkRateLimit(env, request, "intelligence-public-bridge-result", 60, 3600, 300)) {
+          return error("Too many public bridge result requests. Try again later.", 429);
+        }
+        await ensureIntelligenceTaskTable(env);
+        const issueNumber = publicBridgeResultMatch[1];
+        const task = await env.DB.prepare(`
+          SELECT id,title,status,result_text,updated_at
+          FROM intelligence_tasks
+          WHERE id=? AND created_by='github-inbox' AND action_type='service_health_report'
+          LIMIT 1
+        `).bind("github-issue-" + issueNumber).first();
+        if (!task) return error("Public-safe bridge result not found.", 404);
+        return json({
+          success:true,
+          issueNumber:Number(issueNumber),
+          title:task.title,
+          status:task.status,
+          result:task.status === "completed" ? (task.result_text || "") : "",
+          updatedAt:task.updated_at || null
+        });
       }
 
       if (path === "/intelligence/scheduler/runs" && method === "GET") {
