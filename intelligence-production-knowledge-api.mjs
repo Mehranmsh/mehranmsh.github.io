@@ -1,6 +1,16 @@
 const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const clean=(v,max)=>typeof v==="string"?v.replace(/[\u0000-\u001f\u007f]/g," ").trim().slice(0,max):"";
-const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{
+  "Content-Type":"application/json; charset=utf-8",
+  "Access-Control-Allow-Origin":"https://mehranmsh.github.io",
+  "Access-Control-Allow-Methods":"GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":"Content-Type, Authorization",
+  "Vary":"Origin",
+  "Cache-Control":"no-store",
+  "X-Content-Type-Options":"nosniff",
+  "Referrer-Policy":"no-referrer",
+  "X-Frame-Options":"DENY"
+}});
 const fail=(message,status=400)=>reply({success:false,error:message},status);
 async function readBody(request){
   try{
