@@ -1392,7 +1392,7 @@ test("generated lyrics return transparent language and section-structure review 
 });
 
 test("Production Intelligence scheduler and Agent execution remain disabled", async () => {
-  const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const scheduledStart = workerSource.indexOf("async scheduled()");
   const scheduledBody = workerSource.slice(scheduledStart, scheduledStart + 500);
   assert.ok(scheduledStart >= 0, "scheduled handler remains present as an inert safety barrier");
   assert.match(scheduledBody, /return;/);
@@ -1407,7 +1407,7 @@ test("Production Intelligence scheduler and Agent execution remain disabled", as
   assert.equal(dbCalls, 0, "disabled scheduler must not access the database");
   assert.equal(backgroundTasks, 0, "disabled scheduler must not register background execution");
 });
-test("Intelligence scheduler history is private, bounded and stores execution counters", () => {
+test("Intelligence scheduler history remains private and bounded while execution is disabled", () => {
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs/);
   assert.match(workerSource, /idx_intelligence_scheduler_runs_started/);
   assert.match(workerSource, /path === "\/intelligence\/scheduler\/runs" && method === "GET"/);
@@ -1417,9 +1417,8 @@ test("Intelligence scheduler history is private, bounded and stores execution co
   assert.ok(route.includes("verifyAdmin(request, env)"));
   assert.ok(route.includes("safeLimit(url.searchParams.get(\"limit\"), 20, 50)"));
   assert.ok(route.includes("ORDER BY started_at DESC LIMIT ?"));
-  assert.match(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/);
-  assert.match(workerSource, /processed_count=\?,completed_count=\?,blocked_count=\?/);
-  assert.match(workerSource, /status='failed'/);
+  assert.doesNotMatch(workerSource, /INSERT INTO intelligence_scheduler_runs\(id,started_at,status\)/,
+    "disabled scheduler must not create execution history");
 });
 
 test("Intelligence scheduler history endpoint rejects unauthenticated requests", async () => {
