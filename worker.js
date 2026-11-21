@@ -6587,10 +6587,16 @@ export default {
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
+            const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             if(!existing) return rpcError(-32602,"Task not found.");
+            if(existing.action_type){
+              const approvalTransition=args.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
+              const cancelTransition=args.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
+              if(!approvalTransition&&!cancelTransition) return rpcError(-32000,"Automated task approval and execution remain controlled by the owner approval flow.",409);
+              if(Object.prototype.hasOwnProperty.call(args,"result")) return rpcError(-32000,"Automated task results can only be recorded by the execution service.",409);
+            }
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(args.status,nextResult,id,admin.uid).run();
+            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(args.status,nextResult,args.status,id,admin.uid).run();
             await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task record updated. No external action was executed."});
