@@ -6408,8 +6408,7 @@ export default {
             ).bind(admin.uid, admin.username),
             env.DB.prepare(
               "INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details) " +
-              "SELECT ?,?,?,?,?,?,? WHERE EXISTS (" +
-              "SELECT 1 FROM intelligence_tasks WHERE owner_uid=? AND created_by=?" +
+              "SELECT ?,?,?,?,?,?,? WHERE changes()>0" +
               ")"
             ).bind(
               crypto.randomUUID(), admin.uid, admin.username,
