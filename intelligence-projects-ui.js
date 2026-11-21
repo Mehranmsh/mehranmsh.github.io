@@ -34,6 +34,7 @@ function mount(){
   <div class="small-text">New tasks are records only. No external action or automated execution is started.</div>
  </form>
  <div class="grid" id="ipSummary" aria-live="polite"></div>
+ <section class="card" id="ipPerformance" aria-live="polite"><h3>Performance report</h3><div class="small-text">Waiting for task data...</div></section>
  <div class="grid" id="ipProjectList"></div>
  <div id="ipDetail" class="card" hidden></div>
  <p class="small-text">Project records and task assignments are private to the authenticated owner. Automated execution remains disabled; status changes do not execute external actions.</p>`;
@@ -57,6 +58,30 @@ async function loadAll(){
   note(projects.length+" projects loaded. "+tasks.length+" tasks available.", "success");
  }catch(e){note("Could not load project workspace: "+e.message,"warn");}
 }
+function renderPerformance(){
+ const host=$("ipPerformance");if(!host)return;
+ const open=tasks.filter(t=>!["completed","cancelled"].includes(t.status));
+ const completed=tasks.filter(t=>t.status==="completed");
+ const priorities=["high","normal","low"].map(priority=>({priority,count:open.filter(t=>t.priority===priority).length}));
+ const now=Date.now(),age=t=>{const stamp=Date.parse(t.created_at||"");return Number.isFinite(stamp)?Math.max(0,now-stamp):null;};
+ const day=86400000;
+ const dated=open.map(t=>({task:t,age:age(t)})).filter(x=>x.age!==null);
+ const aging={underDay:dated.filter(x=>x.age<day).length,oneToSeven:dated.filter(x=>x.age>=day&&x.age<7*day).length,overSeven:dated.filter(x=>x.age>=7*day).length,unknown:open.length-dated.length};
+ const oldest=dated.sort((a,b)=>b.age-a.age).slice(0,5);
+ const ageLabel=ms=>{const days=Math.floor(ms/day);return days<1?"Less than 1 day":days+" day"+(days===1?"":"s");};
+ const pct=tasks.length?Math.round(completed.length/tasks.length*100):0;
+ host.innerHTML=`<h3>Performance report</h3>
+ <div class="grid">
+  <article class="card"><div class="eyebrow">Completion rate</div><h3>${pct}%</h3><div class="small-text">${completed.length} of ${tasks.length} tasks</div></article>
+  <article class="card"><div class="eyebrow">High priority open</div><h3>${priorities[0].count}</h3></article>
+  <article class="card"><div class="eyebrow">Open older than 7 days</div><h3>${aging.overSeven}</h3></article>
+ </div>
+ <h4>Open task priority</h4><div class="small-text">${priorities.map(x=>esc(x.priority)+": "+x.count).join(" · ")}</div>
+ <h4>Task age (based on creation date)</h4><div class="small-text">Under 1 day: ${aging.underDay} · 1 to 7 days: ${aging.oneToSeven} · Over 7 days: ${aging.overSeven} · Date unavailable: ${aging.unknown}</div>
+ <h4>Oldest open tasks</h4>
+ ${oldest.length?oldest.map(x=>`<div class="small-text">${esc(x.task.title)} · ${esc(x.task.status)} · ${ageLabel(x.age)}</div>`).join(""):'<div class="small-text">No dated open tasks.</div>'}
+ <div class="small-text">Aging is measured from task creation, not a due date. No overdue status is inferred.</div>`;
+}
 function renderProjects(){
  const host=$("ipProjectList"),summary=$("ipSummary");if(!host||!summary)return;
  const completed=tasks.filter(t=>t.status==="completed").length;
@@ -66,6 +91,7 @@ function renderProjects(){
   ["Projects",projects.length],["Open tasks",tasks.filter(t=>!["completed","cancelled"].includes(t.status)).length],
   ["In progress",active],["Blocked",blocked],["Completed",completed]
  ].map(([label,value])=>`<article class="card"><div class="eyebrow">${esc(label)}</div><h3>${Number(value)||0}</h3></article>`).join("");
+ renderPerformance();
  if(!projects.length){host.innerHTML='<div class="empty">No Intelligence projects yet. Create the first one above.</div>';return;}
  host.innerHTML=projects.map(p=>{
   const total=Number(p.task_count)||0,done=Number(p.completed_task_count)||0;
