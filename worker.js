@@ -6673,7 +6673,6 @@ export default {
       if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
         const admin=await verifyAdmin(request,env);
         if(!admin)return error("Admin authentication required",403);
-        await ensureIntelligenceTaskTable(env);
         if(method==="GET"){
           if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
           const url=new URL(request.url), status=url.searchParams.get("status"), assignedTo=url.searchParams.get("assignedTo");
@@ -6714,7 +6713,6 @@ export default {
       if(intelligenceTaskMatch&&method==="PATCH"){
         const admin=await verifyAdmin(request,env);
         if(!admin)return error("Admin authentication required",403);
-        await ensureIntelligenceTaskTable(env);
         if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
         if(!await checkRateLimit(env,request,"intelligence-task-write",30,3600,900,admin.uid))return error("Too many task changes. Try again later.",429);
         const id=decodeURIComponent(intelligenceTaskMatch[1]);
