@@ -1,0 +1,14 @@
+name: MEHRAN Bridge Health Check
+description: Request a read-only public-safe health report from MEHRAN INTELLIGENCE.
+title: "[MEHRAN BRIDGE] Health check"
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This issue triggers a read-only health check through the authenticated MEHRAN MCP bridge. Do not include secrets or private data.
+  - type: markdown
+    attributes:
+      value: |
+        <!-- MEHRAN-CHATGPT-BRIDGE:v1 -->
+        Report: service_health
