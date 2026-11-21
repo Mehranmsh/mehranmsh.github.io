@@ -1,7 +1,7 @@
 import process from "node:process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 
-const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+let accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
 const databaseId = process.env.CLOUDFLARE_D1_DATABASE_ID || "2ee71f12-042b-4dba-8bf0-a0b577ace519";
 const token = process.env.CLOUDFLARE_API_TOKEN;
 
@@ -21,21 +21,9 @@ async function verifyApiToken() {
   console.log("PASS: Cloudflare API token is active.");
 }
 
-async function verifyAccountToken() {
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const payload = await response.json();
-  if (!response.ok || payload.success !== true || payload.result?.status !== "active") {
-    throw new Error("Cloudflare token is active but could not be verified for the configured account. Check that CLOUDFLARE_ACCOUNT_ID matches the account that owns mehran-msh-db. No D1 query or migration was executed.");
-  }
-  console.log("PASS: Cloudflare API token is active for the configured account.");
-}
-
-async function query(sql) {
+async function query(sql, accountOverride = accountId) {
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`,
+    `https://api.cloudflare.com/client/v4/accounts/${accountOverride}/d1/database/${databaseId}/query`,
     {
       method: "POST",
       headers: {
@@ -56,6 +44,60 @@ async function query(sql) {
   const first = payload.result?.[0];
   if (!first?.success) throw new Error(`D1 statement failed: ${JSON.stringify(first?.meta || first)}`);
   return first.results || [];
+}
+
+async function selectAuthorizedAccount() {
+  const candidates = [
+    ["secret", process.env.CLOUDFLARE_ACCOUNT_ID_SECRET],
+    ["variable", process.env.CLOUDFLARE_ACCOUNT_ID_VARIABLE],
+    ["selected", accountId],
+  ].filter(([, value]) => Boolean(value));
+  const unique = [];
+  const seen = new Set();
+  for (const [source, value] of candidates) {
+    if (!seen.has(value)) {
+      seen.add(value);
+      unique.push({ source, value });
+    }
+  }
+
+  let accountVerified = false;
+  const accessible = [];
+  for (const candidate of unique) {
+    try {
+      const response = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${candidate.value}/tokens/verify`,
+        { method: "GET", headers: { Authorization: `Bearer ${token}` } },
+      );
+      const payload = await response.json();
+      if (response.ok && payload.success === true && payload.result?.status === "active") {
+        accountVerified = true;
+      }
+    } catch {
+      // The D1 query below remains the authoritative permission check.
+    }
+
+    try {
+      await query("SELECT 1 AS preflight_account_probe", candidate.value);
+      accessible.push(candidate);
+    } catch {
+      // Try the next configured account ID without exposing either value.
+    }
+  }
+
+  if (!accessible.length) {
+    if (accountVerified) {
+      throw new Error("The token is active for a configured account, but D1 access is denied. Grant D1 Read for preflight and D1 Write for later migrations on that same account, and confirm the database ID belongs to it. No migration was executed.");
+    }
+    throw new Error("Neither the configured Account ID secret nor variable is authorized for this token and D1 database. The Account ID/token pair does not match the database account. No migration was executed.");
+  }
+
+  const chosen = accessible.find((item) => item.value === accountId) || accessible[0];
+  accountId = chosen.value;
+  if (process.env.GITHUB_ENV) {
+    appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_ACCOUNT_ID=${accountId}\\n`);
+  }
+  console.log(`PASS: D1 access verified using the repository Account ID ${chosen.source}.`);
 }
 
 async function objects() {
@@ -226,7 +268,7 @@ if (!["preflight-0001","preflight-0002","verify-0001","verify-0002"].includes(mo
 }
 
 await verifyApiToken();
-await verifyAccountToken();
+await selectAuthorizedAccount();
 const all = await objects();
 const tables = all.filter((row) => row.type === "table");
 const indexes = all.filter((row) => row.type === "index");
