@@ -6637,6 +6637,18 @@ export default {
               if(!approvalTransition&&!cancelTransition) return rpcError(-32000,"Automated task approval and execution remain controlled by the owner approval flow.",409);
               if(Object.prototype.hasOwnProperty.call(args,"result")) return rpcError(-32000,"Automated task results can only be recorded by the execution service.",409);
             }
+            if(args.status==="completed"){
+              const pending=await env.DB.prepare(
+                "SELECT COUNT(*) AS count FROM intelligence_task_dependencies d JOIN intelligence_tasks prerequisite ON prerequisite.id=d.depends_on_task_id AND prerequisite.owner_uid=d.owner_uid WHERE d.owner_uid=? AND d.task_id=? AND prerequisite.status<>'completed'"
+              ).bind(admin.uid,id).first();
+              if(Number(pending?.count||0)>0)return rpcError(-32000,"This task cannot be completed until every prerequisite is completed.",409);
+            }
+            if(existing.status==="completed"&&args.status!=="completed"){
+              const completedDependents=await env.DB.prepare(
+                "SELECT COUNT(*) AS count FROM intelligence_task_dependencies d JOIN intelligence_tasks dependent ON dependent.id=d.task_id AND dependent.owner_uid=d.owner_uid WHERE d.owner_uid=? AND d.depends_on_task_id=? AND dependent.status='completed'"
+              ).bind(admin.uid,id).first();
+              if(Number(completedDependents?.count||0)>0)return rpcError(-32000,"This prerequisite cannot be reopened while dependent tasks remain completed.",409);
+            }
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
             await env.DB.batch([
               env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(args.status,nextResult,args.status,id,admin.uid),
