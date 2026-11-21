@@ -22,6 +22,17 @@ function mount(){
   <button class="btn" id="ipCreate" type="submit">Create project</button>
  </form>
  <div id="intelProjectStatus" class="notice" aria-live="polite">Loading owner projects...</div>
+ <form class="card" id="ipTaskForm" autocomplete="off">
+  <h3>New task</h3>
+  <div class="field"><label for="ipTaskTitle">Task title</label><input id="ipTaskTitle" maxlength="120" minlength="4" required placeholder="For example, review SOCIAL security"></div>
+  <div class="field"><label for="ipTaskDescription">Description</label><textarea id="ipTaskDescription" rows="2" maxlength="3000" required placeholder="Describe the expected work"></textarea></div>
+  <div class="grid">
+   <div class="field"><label for="ipTaskAssignee">Assign to</label><select id="ipTaskAssignee"><option value="mehran_intelligence">MEHRAN Intelligence</option><option value="chatgpt">ChatGPT</option><option value="shared">Shared</option></select></div>
+   <div class="field"><label for="ipTaskPriority">Priority</label><select id="ipTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
+  </div>
+  <button class="btn" id="ipTaskCreate" type="submit">Create task</button>
+  <div class="small-text">New tasks are records only. No external action or automated execution is started.</div>
+ </form>
  <div class="grid" id="ipProjectList"></div>
  <div id="ipDetail" class="card" hidden></div>
  <p class="small-text">Project records and task assignments are private to the authenticated owner. Automated execution remains disabled; status changes do not execute external actions.</p>`;
@@ -30,6 +41,7 @@ function mount(){
  $("refreshIntelligenceBtn")?.addEventListener("click",loadAll);
  $("refreshIntelTasksBtn")?.addEventListener("click",loadAll);
  $("ipCreateForm").addEventListener("submit",createProject);
+ $("ipTaskForm").addEventListener("submit",createTask);
  $("ipProjectList").addEventListener("click",projectAction);
  $("ipDetail").addEventListener("click",detailAction);
  loadAll();
@@ -60,6 +72,19 @@ async function createProject(event){
   const result=await request("/intelligence/projects",{method:"POST",body:JSON.stringify({name:$("ipName").value,description:$("ipDescription").value,moduleKey:$("ipModule").value})});
   $("ipCreateForm").reset();note("Project created. Loading its workspace...","success");await loadAll();if(result.id)await openProject(result.id);
  }catch(e){note("Project could not be created: "+e.message,"warn");}
+ finally{button.disabled=false;}
+}
+async function createTask(event){
+ event.preventDefault();const button=$("ipTaskCreate");button.disabled=true;
+ try{
+  await request("/intelligence/tasks",{method:"POST",body:JSON.stringify({
+   title:$("ipTaskTitle").value,description:$("ipTaskDescription").value,
+   assignedTo:$("ipTaskAssignee").value,priority:$("ipTaskPriority").value,
+   requiresApproval:false,actionType:""
+  })});
+  $("ipTaskForm").reset();note("Task created. You can attach it to a project from the project workspace.","success");
+  await loadAll();
+ }catch(e){note("Task could not be created: "+e.message,"warn");}
  finally{button.disabled=false;}
 }
 async function openProject(id){
