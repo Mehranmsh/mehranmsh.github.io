@@ -54,8 +54,6 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
     'id="ipSummary"',
     'id="ipPerformance"',
     'function renderPerformance()',
-    'cannot be completed until every prerequisite is completed',
-    'cannot be reopened while dependent tasks remain completed',
     'Open older than 7 days',
     'Aging is measured from task creation',
     't.createdAt||t.created_at',
@@ -69,6 +67,8 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
   }
   assert.match(workerSource, /projectId: row\.project_id \|\| null/);
   assert.match(intelligenceProjectApiSource, /t\.action_type,t\.result_text/);
+  assert.ok(intelligenceProjectApiSource.includes("cannot be completed until every prerequisite is completed"));
+  assert.ok(intelligenceProjectApiSource.includes("cannot be reopened while dependent tasks remain completed"));
 });
 
 const workerModule = await import(
