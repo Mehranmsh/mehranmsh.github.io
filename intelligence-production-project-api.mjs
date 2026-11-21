@@ -96,8 +96,13 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     const exists=await env.DB.prepare("SELECT id FROM intelligence_projects WHERE id=? AND owner_uid=?").bind(id,ownerUid).first();
     if(!exists)return fail("Project not found.",404);
     sets.push("updated_at=CURRENT_TIMESTAMP");values.push(id,ownerUid);
-    try{await env.DB.prepare("UPDATE intelligence_projects SET "+sets.join(",")+" WHERE id=? AND owner_uid=?").bind(...values).run();await audit("project_updated","intelligence_project",id,{fields:changed});}
-    catch{return fail("Project update conflicts with task constraints.",409);}
+    try{
+      await env.DB.batch([
+        env.DB.prepare("UPDATE intelligence_projects SET "+sets.join(",")+" WHERE id=? AND owner_uid=?").bind(...values),
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+          .bind(crypto.randomUUID(),admin.uid,admin.username,"project_updated","intelligence_project",id,JSON.stringify({fields:changed}))
+      ]);
+    } catch{return fail("Project update or its audit record could not be committed.",409);}
     return reply({success:true,id});
   }
 
@@ -109,8 +114,13 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     const task=await env.DB.prepare("SELECT id,project_id FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(taskId,ownerUid).first();
     if(!task)return fail("Task not found.",404);
     if(projectId!==null&&!await env.DB.prepare("SELECT id FROM intelligence_projects WHERE id=? AND owner_uid=?").bind(projectId,ownerUid).first())return fail("Project not found.",404);
-    try{await env.DB.prepare("UPDATE intelligence_tasks SET project_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(projectId,taskId,ownerUid).run();await audit("task_project_changed","intelligence_task",taskId,{projectId});}
-    catch{return fail("Task project assignment conflicts with dependency constraints.",409);}
+    try{
+      await env.DB.batch([
+        env.DB.prepare("UPDATE intelligence_tasks SET project_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(projectId,taskId,ownerUid),
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+          .bind(crypto.randomUUID(),admin.uid,admin.username,"task_project_changed","intelligence_task",taskId,JSON.stringify({projectId}))
+      ]);
+    } catch{return fail("Task project assignment or its audit record could not be committed.",409);}
     return reply({success:true,taskId,projectId});
   }
 
@@ -121,9 +131,14 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     const task=await env.DB.prepare("SELECT id,status,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(taskId,ownerUid).first();
     if(!task)return fail("Task not found.",404);
     if(task.action_type)return fail("Automated task approval and execution remain controlled by the existing approval flow.",409);
-    try{await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?")
-      .bind(body.status,clean(body.result||"",3000),taskId,ownerUid).run();await audit("task_status_changed","intelligence_task",taskId,{status:body.status});}
-    catch{return fail("Task status violates a prerequisite or project constraint.",409);}
+    try{
+      await env.DB.batch([
+        env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?")
+          .bind(body.status,clean(body.result||"",3000),taskId,ownerUid),
+        env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
+          .bind(crypto.randomUUID(),admin.uid,admin.username,"task_status_changed","intelligence_task",taskId,JSON.stringify({status:body.status}))
+      ]);
+    } catch{return fail("Task status or its audit record could not be committed.",409);}
     return reply({success:true,id:taskId,status:body.status,executionEnabled:false});
   }
 
