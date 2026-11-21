@@ -1316,7 +1316,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(workerSource, /const allowedActions = \["project_status_report","social_metrics_report","service_health_report"\]/);
   assert.match(workerSource, /issue\.user\?\.login/);
   assert.match(workerSource, /const autoApproved = actionType === "service_health_report"/);
-  assert.match(workerSource, /path\.match\(\/\^\\\\\/intelligence/);
+  assert.match(workerSource, /publicBridgeResultMatch = path\.match/);
   assert.match(workerSource, /created_by='github-inbox' AND action_type='service_health_report'/);
   assert.match(workerSource, /result:task\.status === "completed"/);
   assert.match(workerSource, /status='accepted' AND requires_approval=0/);
