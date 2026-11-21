@@ -21,6 +21,18 @@ async function verifyApiToken() {
   console.log("PASS: Cloudflare API token is active.");
 }
 
+async function verifyAccountToken() {
+  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.success !== true || payload.result?.status !== "active") {
+    throw new Error("Cloudflare token is active but could not be verified for the configured account. Check that CLOUDFLARE_ACCOUNT_ID matches the account that owns mehran-msh-db. No D1 query or migration was executed.");
+  }
+  console.log("PASS: Cloudflare API token is active for the configured account.");
+}
+
 async function query(sql) {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`,
@@ -214,6 +226,7 @@ if (!["preflight-0001","preflight-0002","verify-0001","verify-0002"].includes(mo
 }
 
 await verifyApiToken();
+await verifyAccountToken();
 const all = await objects();
 const tables = all.filter((row) => row.type === "table");
 const indexes = all.filter((row) => row.type === "index");
