@@ -6531,7 +6531,6 @@ export default {
         if (!await checkRateLimit(env, request, "intelligence-mcp", 60, 60, 60, admin.uid)) {
           return error("MEHRAN MCP request limit reached. Try again shortly.", 429);
         }
-        await ensureIntelligenceTaskTable(env);
         const rpc = await readBody(request);
         const rpcId = rpc && Object.prototype.hasOwnProperty.call(rpc, "id") ? rpc.id : undefined;
         const rpcReply = (result, status = 200) => json({jsonrpc:"2.0",id:rpcId,result}, status);
