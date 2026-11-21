@@ -1447,8 +1447,8 @@ test("Task Hub exposes allowlisted reports but requires explicit owner approval 
   const html = indexSource;
   const worker = workerSource;
   for (const action of ["project_status_report", "social_metrics_report", "service_health_report", "repository_quality_check"]) {
-    assert.ok(html.includes(action), \`Task Hub exposes \${action}\`);
-    assert.ok(worker.includes(\`"\${action}"\`), \`Worker allowlists \${action}\`);
+    assert.ok(html.includes(action), "Task Hub exposes " + action)
+    assert.ok(worker.includes(String.fromCharCode(34) + action + String.fromCharCode(34)), "Worker allowlists " + action)
   }
   assert.match(worker, /const requiresApproval=Boolean\(body\.requiresApproval\|\|actionType\)/);
   assert.match(worker, /Every action, including read-only reports, requires explicit owner approval/);
