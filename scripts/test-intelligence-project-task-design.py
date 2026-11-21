@@ -140,10 +140,8 @@ class ProjectTaskDesignTests(unittest.TestCase):
         self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='prerequisite'")
         self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='dependent'")
         with self.assertRaises(sqlite3.IntegrityError):
-            # Reopen the dependent first; the schema intentionally prevents
-        # reopening a prerequisite while completed dependents still exist.
-        self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='dependent'")
-        self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
+            self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
+        # Reopen the dependent first, then its prerequisite.
         self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='dependent'")
         self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
 
@@ -156,8 +154,8 @@ class ProjectTaskDesignTests(unittest.TestCase):
             self.edge("late-edge", "dependent", "prerequisite")
         self.db.execute("UPDATE intelligence_tasks SET status='completed' WHERE id='prerequisite'")
         self.edge("valid-late-edge", "dependent", "prerequisite")
-        self.db.execute("DELETE FROM intelligence_task_dependencies WHERE id='valid-late-edge'")
-        self.edge("project-edge", "dependent", "prerequisite")
+        # Reopen dependent before prerequisite, preserving the dependency guard.
+        self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='dependent'")
         self.db.execute("UPDATE intelligence_tasks SET status='queued' WHERE id='prerequisite'")
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("UPDATE intelligence_projects SET status='completed' WHERE id='p-a'")
