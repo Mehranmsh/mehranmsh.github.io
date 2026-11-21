@@ -27,6 +27,8 @@ function mount(){
  <p class="small-text">Project records and task assignments are private to the authenticated owner. Automated execution remains disabled; status changes do not execute external actions.</p>`;
  if(anchor)anchor.insertAdjacentElement("afterend",root);else page.append(root);
  $("ipRefresh").addEventListener("click",loadAll);
+ $("refreshIntelligenceBtn")?.addEventListener("click",loadAll);
+ $("refreshIntelTasksBtn")?.addEventListener("click",loadAll);
  $("ipCreateForm").addEventListener("submit",createProject);
  $("ipProjectList").addEventListener("click",projectAction);
  $("ipDetail").addEventListener("click",detailAction);
