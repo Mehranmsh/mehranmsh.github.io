@@ -1309,7 +1309,17 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(scheduledBody, /status='accepted' AND requires_approval=0/);
   assert.match(scheduledBody, /action_type IN \('project_status_report','social_metrics_report','service_health_report'\)/);
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
-  assert.match(workerSource, /'shared',\?,'awaiting_approval',1,'github-inbox'/);
+  assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
+  assert.match(workerSource, /Visibility:\\s\*public-safe/);
+  assert.match(workerSource, /if \(!\/\^Visibility:/);
+  assert.match(workerSource, /const actionMatch = body\.match\(\/\^Action:/);
+  assert.match(workerSource, /const allowedActions = \["project_status_report","social_metrics_report","service_health_report"\]/);
+  assert.match(workerSource, /issue\.user\?\.login/);
+  assert.match(workerSource, /const autoApproved = actionType === "service_health_report"/);
+  assert.match(workerSource, /publicBridgeResultMatch = path\.match/);
+  assert.match(workerSource, /created_by='github-inbox' AND action_type='service_health_report'/);
+  assert.match(workerSource, /result:task\.status === "completed"/);
+  assert.match(workerSource, /status='accepted' AND requires_approval=0/);
   assert.match(workerSource, /Production Intelligence Agent execution is disabled\./);
   assert.match(workerSource, /github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/issues\?state=open&per_page=100/);
 });
