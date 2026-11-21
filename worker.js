@@ -5155,7 +5155,28 @@ async function intelligenceOwnershipSchemaReady(env) {
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('intelligence_projects','intelligence_task_dependencies')"
     ).all();
     const found = new Set((tables.results || []).map(row => row.name));
-    return found.has("intelligence_projects") && found.has("intelligence_task_dependencies");
+    if (!found.has("intelligence_projects") || !found.has("intelligence_task_dependencies")) return false;
+    const requiredTriggers = [
+      "trg_intelligence_task_project_owner_insert",
+      "trg_intelligence_task_project_owner_update",
+      "trg_intelligence_project_owner_immutable_with_tasks",
+      "trg_intelligence_project_complete_guard",
+      "trg_intelligence_task_completed_project_guard_insert",
+      "trg_intelligence_task_completed_project_guard_update",
+      "trg_intelligence_task_dependency_guard_insert",
+      "trg_intelligence_task_dependency_guard_update",
+      "trg_intelligence_task_completion_dependency_guard",
+      "trg_intelligence_task_dependency_completed_guard_insert",
+      "trg_intelligence_task_dependency_completed_guard_update",
+      "trg_intelligence_task_reopen_dependency_guard",
+      "trg_intelligence_task_dependency_consistency_update"
+    ];
+    const placeholders = requiredTriggers.map(() => "?").join(",");
+    const triggerRows = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (" + placeholders + ")"
+    ).bind(...requiredTriggers).all();
+    const triggerNames = new Set((triggerRows.results || []).map(row => row.name));
+    return requiredTriggers.every(name => triggerNames.has(name));
   } catch {
     return false;
   }
@@ -5163,11 +5184,24 @@ async function intelligenceOwnershipSchemaReady(env) {
 
 async function intelligenceKnowledgeSchemaReady(env) {
   try {
-    const tables = await env.DB.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('intelligence_knowledge','intelligence_owner_memory')"
-    ).all();
-    const found = new Set((tables.results || []).map(row => row.name));
-    return found.has("intelligence_knowledge") && found.has("intelligence_owner_memory");
+    const required = {
+      intelligence_knowledge: ["owner_uid","source_type","source_ref","verification_status","archived_at"],
+      intelligence_owner_memory: ["owner_uid","memory_type","importance","archived_at"]
+    };
+    for (const [table, expected] of Object.entries(required)) {
+      const columns = await env.DB.prepare("PRAGMA table_info(" + table + ")").all();
+      const names = new Set((columns.results || []).map(row => row.name));
+      if (!expected.every(name => names.has(name))) return false;
+    }
+    const requiredTriggers = [
+      "trg_intelligence_knowledge_owner_immutable",
+      "trg_intelligence_memory_owner_immutable"
+    ];
+    const triggerRows = await env.DB.prepare(
+      "SELECT name FROM sqlite_master WHERE type='trigger' AND name IN (?,?)"
+    ).bind(...requiredTriggers).all();
+    const triggerNames = new Set((triggerRows.results || []).map(row => row.name));
+    return requiredTriggers.every(name => triggerNames.has(name));
   } catch {
     return false;
   }
@@ -6696,6 +6730,18 @@ export default {
           const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
           if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
+        }
+        if(body.status==="completed"){
+          const pending=await env.DB.prepare(
+            "SELECT COUNT(*) AS count FROM intelligence_task_dependencies d JOIN intelligence_tasks prerequisite ON prerequisite.id=d.depends_on_task_id AND prerequisite.owner_uid=d.owner_uid WHERE d.owner_uid=? AND d.task_id=? AND prerequisite.status<>'completed'"
+          ).bind(admin.uid,id).first();
+          if(Number(pending?.count||0)>0)return error("This task cannot be completed until every prerequisite is completed.",409);
+        }
+        if(existing.status==="completed"&&body.status!=="completed"){
+          const completedDependents=await env.DB.prepare(
+            "SELECT COUNT(*) AS count FROM intelligence_task_dependencies d JOIN intelligence_tasks dependent ON dependent.id=d.task_id AND dependent.owner_uid=d.owner_uid WHERE d.owner_uid=? AND d.depends_on_task_id=? AND dependent.status='completed'"
+          ).bind(admin.uid,id).first();
+          if(Number(completedDependents?.count||0)>0)return error("This prerequisite cannot be reopened while dependent tasks remain completed.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
         await env.DB.batch([
