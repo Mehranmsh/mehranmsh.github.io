@@ -6571,7 +6571,7 @@ export default {
             const assignments=["mehran_intelligence","chatgpt","shared"];
             if(args.status&&!statuses.includes(args.status)) return rpcError(-32602,"Invalid status filter.");
             if(args.assignedTo&&!assignments.includes(args.assignedTo)) return rpcError(-32602,"Invalid assignment filter.");
-            let sql="SELECT * FROM intelligence_tasks WHERE 1=1", binds=[];
+            let sql="SELECT * FROM intelligence_tasks WHERE owner_uid=?", binds=[admin.uid];
             if(args.status){sql+=" AND status=?";binds.push(args.status)}
             if(args.assignedTo){sql+=" AND assigned_to=?";binds.push(args.assignedTo)}
             sql+=" ORDER BY created_at DESC LIMIT 50";
@@ -6585,12 +6585,12 @@ export default {
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
             const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
             if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,result_text FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const existing=await env.DB.prepare("SELECT id,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             if(!existing) return rpcError(-32602,"Task not found.");
             const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(args.status,nextResult,id).run();
+            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(args.status,nextResult,id,admin.uid).run();
             await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
-            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task record updated. No external action was executed."});
           }
           return rpcError(-32602,"Unknown tool.");
@@ -6627,7 +6627,7 @@ export default {
           const assignments=["mehran_intelligence","chatgpt","shared"];
           if(status&&!statuses.includes(status))return error("Invalid task status filter.");
           if(assignedTo&&!assignments.includes(assignedTo))return error("Invalid task assignment filter.");
-          let sql="SELECT * FROM intelligence_tasks WHERE 1=1",binds=[];
+          let sql="SELECT * FROM intelligence_tasks WHERE owner_uid=?",binds=[admin.uid];
           if(status){sql+=" AND status=?";binds.push(status)}
           if(assignedTo){sql+=" AND assigned_to=?";binds.push(assignedTo)}
           sql+=" ORDER BY created_at DESC LIMIT 50";
@@ -6666,7 +6666,7 @@ export default {
         const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
         const result=typeof body.result==="string"?body.result:"";
         if(!statuses.includes(body.status)||result.length>3000)return error("Invalid task status or result.");
-        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
         if(!existing)return error("Task not found.",404);
         if(existing.action_type){
           const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
@@ -6675,9 +6675,9 @@ export default {
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
         const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
+        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?").bind(body.status,nextResult,body.status,id,admin.uid).run();
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
-        const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
         return json({success:true,task:formatIntelligenceTask(row)});
       }
 
