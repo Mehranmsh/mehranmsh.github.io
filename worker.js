@@ -6429,7 +6429,6 @@ export default {
         if (!await checkRateLimit(env, request, "intelligence-legacy-owner-migration", isPreview ? 10 : 2, 3600, 1800, admin.uid)) {
           return error("Legacy ownership migration rate limit reached.", 429);
         }
-        await ensureIntelligenceTaskTable(env);
         if (!await intelligenceOwnershipSchemaReady(env)) {
           return error("Intelligence ownership migration is not installed. No legacy tasks were changed.", 503);
         }
@@ -6496,7 +6495,6 @@ export default {
         if (!await checkRateLimit(env, request, "intelligence-project-api", apiLimit, 3600, 600, admin.uid)) {
           return error("MEHRAN Intelligence project API rate limit reached.", 429);
         }
-        await ensureIntelligenceTaskTable(env);
         if (!await intelligenceOwnershipSchemaReady(env)) {
           return error("Intelligence project migration is not installed. No database changes were made by this request.", 503);
         }
