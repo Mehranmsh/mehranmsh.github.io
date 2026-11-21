@@ -4061,28 +4061,6 @@ const prevMe=window.socialMe;window.socialMe=async function(){await prevMe();soc
 </script>
 
 
-<script id="pi-signin-fallback">
-(function(){
-  function bindPiSignIn(){
-    const button=document.getElementById("piLoginBtn");
-    if(!button || button.dataset.piClickBound==="true") return;
-    button.dataset.piClickBound="true";
-    button.addEventListener("click",function(event){
-      event.preventDefault();
-      const message=document.getElementById("piMessage");
-      if(message){message.textContent="Pi sign-in button received the click. Starting authentication...";message.className="notice";}
-      if(typeof window.piLogin==="function"){
-        window.piLogin();
-      }else if(message){
-        message.textContent="The Pi sign-in script did not load correctly. Please reload the page.";
-        message.className="notice error";
-      }
-    });
-  }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bindPiSignIn,{once:true});
-  else bindPiSignIn();
-})();
-</script>
 
 </body>
 </html>
