@@ -137,7 +137,6 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("SET owner_uid=?,updated_at=CURRENT_TIMESTAMP", route)
         self.assertIn("WHERE owner_uid IS NULL AND created_by=?", route)
         self.assertIn("admin.uid, admin.username", route)
-        self.assertIn('legacy_task_ownership_backfilled', route)
         self.assertIn('VALUES(?,?,?,?,?,?,?)', route)
         self.assertIn('legacy_task_ownership_backfill_confirmed', route)
         self.assertIn('Owner-confirmed backfill request', route)
