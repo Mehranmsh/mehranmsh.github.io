@@ -128,7 +128,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn('"project_updated","intelligence_project"', api)
         self.assertIn('"task_project_changed","intelligence_task"', api)
         self.assertIn('"task_status_changed","intelligence_task"', api)
-        self.assertEqual(api.count("SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0"), 5)
+        self.assertEqual(api.count("SELECT ?,?,?,?,?,?,?,CURRENT_TIMESTAMP WHERE changes()>0"), 6)
         self.assertNotIn("const audit=async", api)
 
     def test_new_intelligence_routes_do_not_mutate_schema_before_readiness(self):
