@@ -497,8 +497,7 @@ async function createSocialTables(db) {
     `CREATE TABLE IF NOT EXISTS social_notifications(
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
-      actor_id TEXT,
-      type TEXT NOT NULL,
+      actor_id TEXT,      type TEXT NOT NULL,
       target_id TEXT,
       message TEXT NOT NULL DEFAULT '',
       is_read INTEGER NOT NULL DEFAULT 0,
@@ -998,7 +997,6 @@ async function socialLogin(request, env) {
   if (!await checkRateLimit(env, request, "login", 10, 900, 900)) {
     return error("Too many login attempts. Try again later.", 429);
   }
-
   const body = await readBody(request);
   if (!body) return error("Invalid request body");
 
@@ -1497,8 +1495,7 @@ async function getProfileByUsername(username, viewerId, env) {
   const gallery = (galleryResult.results || []).map(row => ({
     id: row.id,
     url: row.photo_url,
-    sortOrder: Number(row.sort_order || 0),
-    createdAt: row.created_at
+    sortOrder: Number(row.sort_order || 0),    createdAt: row.created_at
   }));
 
   return {
@@ -1997,7 +1994,6 @@ async function socialDeletePost(request, env, postId) {
 async function socialLikePost(request, env, postId, shouldLike) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
-
   const post = await env.DB.prepare(
     "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
@@ -2497,8 +2493,7 @@ async function socialBlock(request, env, username, block) {
         "INSERT OR IGNORE INTO social_blocks(blocker_id,blocked_id) VALUES(?,?)"
       ).bind(user.id, target.id),
       env.DB.prepare(
-        "DELETE FROM social_follows WHERE follower_id=? AND following_id=?"
-      ).bind(user.id, target.id),
+        "DELETE FROM social_follows WHERE follower_id=? AND following_id=?"      ).bind(user.id, target.id),
       env.DB.prepare(
         "DELETE FROM social_follows WHERE follower_id=? AND following_id=?"
       ).bind(target.id, user.id),
@@ -2997,8 +2992,7 @@ async function socialStartConversation(request, env) {
   }
 
   const existing = await env.DB.prepare(`
-    SELECT c.id
-    FROM social_conversations c
+    SELECT c.id    FROM social_conversations c
     JOIN social_conversation_members a ON a.conversation_id=c.id
     JOIN social_conversation_members b ON b.conversation_id=c.id
     WHERE c.type IN ('direct','private')
@@ -3497,8 +3491,7 @@ async function socialTransferGroupOwnership(request, env, conversationId) {
   if (!Number(results?.[0]?.meta?.changes || 0) || !Number(results?.[1]?.meta?.changes || 0) || !Number(results?.[2]?.meta?.changes || 0)) {
     return error("Ownership transfer could not be completed. Refresh and try again.", 409);
   }
-  return json({ success: true, transferred: true, ownerId: targetUserId });
-}
+  return json({ success: true, transferred: true, ownerId: targetUserId });}
 
 async function socialLeaveGroup(request, env, conversationId) {
   const user = await getSocialUser(request, env);
@@ -3997,7 +3990,6 @@ async function socialManageChannelMember(request, env, channelId, targetUserId, 
 
   return error("Unsupported channel member action", 400);
 }
-
 async function socialRotateChannelInvite(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -4497,8 +4489,7 @@ async function socialGenerateAssistantImage(request, env) {
       try {
         result = await Promise.race([
           env.AI.run(model, {
-            multipart: {
-              body: multipartRequest.body,
+            multipart: {              body: multipartRequest.body,
               contentType: multipartRequest.headers.get("content-type")
             }
           }),
@@ -4997,8 +4988,7 @@ async function socialGetUploadUrl(request, env, id) {
   if (!user) return error("Authentication required", 401);
 
   const row = await env.DB.prepare(`
-    SELECT * FROM social_uploads WHERE id=? AND user_id=?
-  `).bind(id, user.id).first();
+    SELECT * FROM social_uploads WHERE id=? AND user_id=?  `).bind(id, user.id).first();
 
   if (!row) return error("File not found", 404);
   if (row.status !== "ready") return error("File is not ready", 409);
@@ -5435,8 +5425,7 @@ async function socialDeleteAccount(request, env) {
 
 export default {
   async scheduled(controller, env, ctx) {
-    // Production Intelligence execution is intentionally disabled. Keep this handler inert even if an external cron is configured.
-    return;
+    // Only owner-approved, allowlisted read-only reports are processed by this scheduler.
     const run = async () => {
       if (!env.DB) return;
       const runId = crypto.randomUUID();
@@ -5497,8 +5486,7 @@ export default {
           await env.DB.prepare(
             "UPDATE intelligence_scheduler_runs SET finished_at=?,status='completed',processed_count=?,completed_count=?,blocked_count=?,error_text='' WHERE id=?"
           ).bind(new Date().toISOString(),processed,completed,blocked,runId).run();
-        }
-      } catch (err) {
+        }      } catch (err) {
         const errorText = String(err?.message || err || "Unknown scheduler error").slice(0,1000);
         if (runRecordCreated) {
           try {
@@ -5997,8 +5985,7 @@ export default {
           );
         }
 
-        const blockMatch = path.match(/^\/social\/block\/([^/]+)$/);
-        if (blockMatch && method === "POST") {
+        const blockMatch = path.match(/^\/social\/block\/([^/]+)$/);        if (blockMatch && method === "POST") {
           return await socialBlock(
             request,
             env,
@@ -6497,8 +6484,7 @@ export default {
             const assignedTo=args.assignedTo||"mehran_intelligence", priority=args.priority||"normal";
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000) return rpcError(-32602,"A task title and description are required.");
             if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
-            const id=crypto.randomUUID();
-            const requiresApproval = bridgeAuthorized ? true : Boolean(args.requiresApproval);
+            const id=crypto.randomUUID();            const requiresApproval = bridgeAuthorized ? true : Boolean(args.requiresApproval);
             await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username).run();
             await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
@@ -6997,7 +6983,6 @@ export default {
         if (!project || !project.id || project.id.length > 100) {
           return error("Invalid project data");
         }
-
         await env.DB.prepare(`
           INSERT INTO projects(id,name,description,fa_description,url,status)
           VALUES(?,?,?,?,?,?)
