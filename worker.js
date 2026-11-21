@@ -6480,7 +6480,7 @@ export default {
               env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username,admin.uid),
               adminAuditStatement(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}))
             ]);
-            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
           }
           if (name === "list_collaboration_tasks") {
@@ -6593,7 +6593,7 @@ export default {
           env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid,action_type) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,admin.uid,actionType),
           adminAuditStatement(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}))
         ]);
-        const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+        const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
       }
 
@@ -6750,7 +6750,7 @@ export default {
             const id=crypto.randomUUID();
             await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,owner_uid,action_type,action_payload) VALUES(?,?,?,?,?,'awaiting_approval',1,?,?,?,?)").bind(id,title,description,assignedTo,priority,admin.username,admin.uid,actionType,"{}").run();
             await writeAdminAudit(env,admin,"intelligence_task_proposed","intelligence_task",id,JSON.stringify({assignedTo,priority,source:"intelligence_chat"}));
-            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(id,admin.uid).first();
             return {task:formatIntelligenceTask(row),message:"Task proposal created and is awaiting owner approval. No execution was performed."};
           }
           throw new Error("Tool is not available.");
