@@ -5192,7 +5192,7 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 
 function formatIntelligenceTask(row) {
   return {
-    id: row.id, title: row.title, description: row.description || "",
+    id: row.id, title: row.title, description: row.description || "", projectId: row.project_id || null,
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
