@@ -119,8 +119,8 @@ class StagingWorkerSafetyTests(unittest.TestCase):
         self.assertNotIn('scheduled(', self.project_api)
 
     def test_project_api_dispatch_occurs_after_session_auth_and_rate_limit(self):
-        auth_index = self.source.index("const owner = await verifySession(request, env);", self.source.index("const owner = await verifySession(request, env);") + 1)
-        rate_index = self.source.index("if (!await rateLimit(env.DB, owner.uid")
+        auth_index = self.source.rindex("const owner = await verifySession(request, env);")
+        rate_index = self.source.index("if (!await rateLimit(env.DB, owner.uid, `${method}:")
         dispatch_index = self.source.index("const projectApiResponse = await handleProjectApi")
         self.assertLess(auth_index, rate_index)
         self.assertLess(rate_index, dispatch_index)
