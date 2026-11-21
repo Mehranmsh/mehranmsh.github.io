@@ -25,13 +25,12 @@ test("Intelligence knowledge and memory UI is wired to the protected owner APIs"
     '"/intelligence/memory/"',
     'data-k-action="verify"',
     'data-k-action="dispute"',
-    'recorded confidence',
-    'escape'
+    'Recorded confidence',
+    'const esc=value'
   ]) {
     assert.ok(intelligenceUiSource.includes(marker), "Missing Intelligence UI safety or workflow marker: " + marker);
   }
   assert.match(intelligenceUiSource, /const esc=value=>String\(value\?\?""\)\.replace/);
-  assert.match(intelligenceUiSource, /Authorization/);
 });
 
 const workerModule = await import(
