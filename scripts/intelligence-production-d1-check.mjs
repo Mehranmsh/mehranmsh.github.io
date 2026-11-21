@@ -56,6 +56,16 @@ function requireExactColumnNames(rows, expected, label) {
   }
 }
 
+function requireExactColumnDefinitions(rows, expected, label) {
+  const actual = rows.map((row) => [
+    row.name, String(row.type || "").toUpperCase(), Number(row.notnull),
+    row.dflt_value === null ? null : String(row.dflt_value), Number(row.pk),
+  ]);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${label} column definitions differ from the reviewed schema: ${JSON.stringify(actual)}`);
+  }
+}
+
 const taskBaseColumns = [
   "id","title","description","assigned_to","priority","status",
   "requires_approval","result_text","created_by","action_type",
@@ -70,6 +80,43 @@ const knowledgeColumns = [
   "reviewed_by","reviewed_at","created_at","updated_at","archived_at",
 ];
 const memoryColumns = ["id","owner_uid","memory_type","category","content","importance","created_at","updated_at","archived_at"];
+
+const taskMigratedDefinitions = [
+  ["id","TEXT",0,null,1],["title","TEXT",1,null,0],["description","TEXT",1,"''",0],
+  ["assigned_to","TEXT",1,"'mehran_intelligence'",0],["priority","TEXT",1,"'normal'",0],
+  ["status","TEXT",1,"'queued'",0],["requires_approval","INTEGER",1,"0",0],
+  ["result_text","TEXT",1,"''",0],["created_by","TEXT",1,null,0],["action_type","TEXT",1,"''",0],
+  ["action_payload","TEXT",1,"'{}'",0],["created_at","TEXT",1,"CURRENT_TIMESTAMP",0],
+  ["updated_at","TEXT",1,"CURRENT_TIMESTAMP",0],["agent_claimed_at","TEXT",0,null,0],
+  ["owner_uid","TEXT",0,null,0],["project_id","TEXT",0,null,0],
+];
+const projectDefinitions = [
+  ["id","TEXT",0,null,1],["owner_uid","TEXT",1,null,0],["name","TEXT",1,null,0],
+  ["description","TEXT",1,"''",0],["module_key","TEXT",1,null,0],["status","TEXT",1,"'planned'",0],
+  ["created_at","TEXT",1,"CURRENT_TIMESTAMP",0],["updated_at","TEXT",1,"CURRENT_TIMESTAMP",0],
+  ["archived_at","TEXT",0,null,0],
+];
+const dependencyDefinitions = [
+  ["id","TEXT",0,null,1],["owner_uid","TEXT",1,null,0],["task_id","TEXT",1,null,0],
+  ["depends_on_task_id","TEXT",1,null,0],["dependency_type","TEXT",1,"'blocks'",0],
+  ["created_at","TEXT",1,"CURRENT_TIMESTAMP",0],
+];
+const knowledgeDefinitions = [
+  ["id","TEXT",0,null,1],["owner_uid","TEXT",1,null,0],["category","TEXT",1,"'company'",0],
+  ["title","TEXT",1,null,0],["content","TEXT",1,null,0],["importance","TEXT",1,"'normal'",0],
+  ["source_type","TEXT",1,"'owner_input'",0],["source_ref","TEXT",1,"''",0],
+  ["source_title","TEXT",1,"''",0],["source_excerpt","TEXT",1,"''",0],
+  ["observed_at","TEXT",0,null,0],["recorded_confidence","INTEGER",0,null,0],
+  ["verification_status","TEXT",1,"'unreviewed'",0],["reviewed_by","TEXT",0,null,0],
+  ["reviewed_at","TEXT",0,null,0],["created_at","TEXT",1,"CURRENT_TIMESTAMP",0],
+  ["updated_at","TEXT",1,"CURRENT_TIMESTAMP",0],["archived_at","TEXT",0,null,0],
+];
+const memoryDefinitions = [
+  ["id","TEXT",0,null,1],["owner_uid","TEXT",1,null,0],["memory_type","TEXT",1,"'fact'",0],
+  ["category","TEXT",1,"'general'",0],["content","TEXT",1,null,0],["importance","TEXT",1,"'normal'",0],
+  ["created_at","TEXT",1,"CURRENT_TIMESTAMP",0],["updated_at","TEXT",1,"CURRENT_TIMESTAMP",0],
+  ["archived_at","TEXT",0,null,0],
+];
 
 const projectTriggers = [
   "trg_intelligence_task_project_owner_insert",
@@ -131,8 +178,11 @@ if (mode === "preflight-0001") {
 if (mode === "preflight-0002") {
   requireNames(tables, ["intelligence_projects","intelligence_task_dependencies"], "Migration 0001 tables");
   requireExactColumnNames(await columns("intelligence_tasks"), taskMigratedColumns, "intelligence_tasks");
+  requireExactColumnDefinitions(await columns("intelligence_tasks"), taskMigratedDefinitions, "intelligence_tasks");
   requireExactColumnNames(await columns("intelligence_projects"), projectColumns, "intelligence_projects");
+  requireExactColumnDefinitions(await columns("intelligence_projects"), projectDefinitions, "intelligence_projects");
   requireExactColumnNames(await columns("intelligence_task_dependencies"), dependencyColumns, "intelligence_task_dependencies");
+  requireExactColumnDefinitions(await columns("intelligence_task_dependencies"), dependencyDefinitions, "intelligence_task_dependencies");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   requireAbsent(tables, ["intelligence_knowledge","intelligence_owner_memory"], "Migration 0002 tables");
@@ -149,8 +199,11 @@ if (mode === "preflight-0002") {
 if (mode === "verify-0001") {
   requireNames(tables, ["intelligence_projects","intelligence_task_dependencies"], "Migration 0001 tables");
   requireExactColumnNames(await columns("intelligence_tasks"), taskMigratedColumns, "intelligence_tasks");
+  requireExactColumnDefinitions(await columns("intelligence_tasks"), taskMigratedDefinitions, "intelligence_tasks");
   requireExactColumnNames(await columns("intelligence_projects"), projectColumns, "intelligence_projects");
+  requireExactColumnDefinitions(await columns("intelligence_projects"), projectDefinitions, "intelligence_projects");
   requireExactColumnNames(await columns("intelligence_task_dependencies"), dependencyColumns, "intelligence_task_dependencies");
+  requireExactColumnDefinitions(await columns("intelligence_task_dependencies"), dependencyDefinitions, "intelligence_task_dependencies");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   const fk = await query("PRAGMA foreign_key_check");
@@ -168,6 +221,8 @@ if (mode === "verify-0002") {
   requireNames(indexes, projectIndexes, "Migration 0001 indexes");
   requireNames(triggers, projectTriggers, "Migration 0001 triggers");
   requireExactColumnNames(await columns("intelligence_knowledge"), knowledgeColumns, "intelligence_knowledge");
+  requireExactColumnDefinitions(await columns("intelligence_knowledge"), knowledgeDefinitions, "intelligence_knowledge");
   requireExactColumnNames(await columns("intelligence_owner_memory"), memoryColumns, "intelligence_owner_memory");
+  requireExactColumnDefinitions(await columns("intelligence_owner_memory"), memoryDefinitions, "intelligence_owner_memory");
   console.log("PASS: migration 0002 tables, columns, indexes, and owner immutability triggers verified.");
 }
