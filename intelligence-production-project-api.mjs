@@ -101,7 +101,7 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
       .bind(id,ownerUid).first();
     if(!project) return fail("Project not found.",404);
     const tasks=await env.DB.prepare(
-      "SELECT t.id,t.title,t.description,t.assigned_to,t.priority,t.status,t.requires_approval,t.created_at,t.updated_at "+
+      "SELECT t.id,t.title,t.description,t.assigned_to,t.priority,t.status,t.requires_approval,t.action_type,t.result_text,t.created_at,t.updated_at "+
       "FROM intelligence_tasks t WHERE t.owner_uid=? AND t.project_id=? ORDER BY t.created_at ASC LIMIT 100"
     ).bind(ownerUid,id).all();
     return reply({success:true,project,tasks:tasks.results||[],executionEnabled:false});
