@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/intelligence-production-d1-check.mjs"
+      - "scripts/test-intelligence-production-rollout-workflow.mjs"
       - ".github/workflows/intelligence-production-d1-rollout.yml"
   workflow_dispatch:
     inputs:
@@ -38,6 +39,8 @@ jobs:
           node-version: "22"
       - name: Validate rollout checker syntax
         run: node --check scripts/intelligence-production-d1-check.mjs
+      - name: Validate safe workflow input handling
+        run: node scripts/test-intelligence-production-rollout-workflow.mjs
 
   rollout:
     if: github.event_name == 'workflow_dispatch'
