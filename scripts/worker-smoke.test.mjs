@@ -264,7 +264,7 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
     assert.ok(route.includes(tool), `missing MCP tool: ${tool}`);
   }
   assert.match(route, /additionalProperties:false/);
-  assert.match(route, /ensureIntelligenceTaskTable\(env\)/);
+  assert.doesNotMatch(route, /ensureIntelligenceTaskTable\(env\)/);
   assert.match(route, /adminAuditStatement\(env,admin/);
   assert.match(route, /await env\.DB\.batch\(\[/);
   assert.match(workerSource, /function adminAuditStatement\(env, admin/);
