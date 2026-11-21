@@ -8,6 +8,7 @@ const workflow = readFileSync(
 
 assert.ok(workflow.includes("ROLLOUT_ACTION: ${{ inputs.action }}"));
 assert.ok(workflow.includes("ROLLOUT_CONFIRMATION: ${{ inputs.confirmation }}"));
+assert.ok(workflow.includes("secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID"));
 
 const lines = workflow.split("\n");
 const runBodies = [];
