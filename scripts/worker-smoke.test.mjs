@@ -271,7 +271,7 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   const auditStart = workerSource.indexOf("function adminAuditStatement(env, admin");
   const auditEnd = workerSource.indexOf("async function writeAdminAudit", auditStart);
   assert.ok(auditStart >= 0 && auditEnd > auditStart, "batched audit helper must exist");
-  assert.match(workerSource.slice(auditStart, auditEnd), /SELECT \\?,\\?,\\?,\\?,\\?,\\?,\\? WHERE changes\\(\\)>0/);
+  assert.match(workerSource.slice(auditStart,auditEnd),/SELECT \?,\?,\?,\?,\?,\?,\? WHERE changes\(\)>0/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_tasks/);
   assert.match(workerSource, /path === "\/intelligence\/tasks"/);
   assert.match(workerSource, /intelligenceTaskMatch/);
