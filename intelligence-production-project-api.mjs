@@ -151,13 +151,13 @@ export async function handleProductionIntelligenceProjectApi({request,env,admin,
     const taskId=taskStatusMatch[1],body=await bodyOf(request);
     if(!body||Object.keys(body).some(k=>!["status","result"].includes(k))||!["completed","queued","cancelled"].includes(body.status))return fail("Only manual completion, reopening, or cancellation is allowed.");
     if(body.result!==undefined&&(typeof body.result!=="string"||body.result.length>3000))return fail("Invalid task result.");
-    const task=await env.DB.prepare("SELECT id,status,action_type FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(taskId,ownerUid).first();
+    const task=await env.DB.prepare("SELECT id,status,action_type,result_text FROM intelligence_tasks WHERE id=? AND owner_uid=?").bind(taskId,ownerUid).first();
     if(!task)return fail("Task not found.",404);
     if(task.action_type)return fail("Automated task approval and execution remain controlled by the existing approval flow.",409);
     try{
       await env.DB.batch([
         env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_uid=?")
-          .bind(body.status,clean(body.result||"",3000),taskId,ownerUid),
+          .bind(body.status,body.result===undefined?(task.result_text||""):clean(body.result,3000),taskId,ownerUid),
         env.DB.prepare("INSERT INTO admin_audit_log(id,admin_uid,admin_username,action,target_type,target_id,details,created_at) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP)")
           .bind(crypto.randomUUID(),admin.uid,admin.username,"task_status_changed","intelligence_task",taskId,JSON.stringify({status:body.status}))
       ]);
