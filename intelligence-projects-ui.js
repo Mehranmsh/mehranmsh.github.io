@@ -63,7 +63,7 @@ function renderPerformance(){
  const open=tasks.filter(t=>!["completed","cancelled"].includes(t.status));
  const completed=tasks.filter(t=>t.status==="completed");
  const priorities=["high","normal","low"].map(priority=>({priority,count:open.filter(t=>t.priority===priority).length}));
- const now=Date.now(),age=t=>{const stamp=Date.parse(t.created_at||"");return Number.isFinite(stamp)?Math.max(0,now-stamp):null;};
+ const now=Date.now(),age=t=>{const stamp=Date.parse(t.createdAt||t.created_at||"");return Number.isFinite(stamp)?Math.max(0,now-stamp):null;};
  const day=86400000;
  const dated=open.map(t=>({task:t,age:age(t)})).filter(x=>x.age!==null);
  const aging={underDay:dated.filter(x=>x.age<day).length,oneToSeven:dated.filter(x=>x.age>=day&&x.age<7*day).length,overSeven:dated.filter(x=>x.age>=7*day).length,unknown:open.length-dated.length};
