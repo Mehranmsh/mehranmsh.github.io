@@ -95,7 +95,7 @@ async function selectAuthorizedAccount() {
   const chosen = accessible.find((item) => item.value === accountId) || accessible[0];
   accountId = chosen.value;
   if (process.env.GITHUB_ENV) {
-    appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_ACCOUNT_ID=${accountId}\\n`);
+    appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_ACCOUNT_ID=${accountId}\n`);
   }
   console.log(`PASS: D1 access verified using the repository Account ID ${chosen.source}.`);
 }
