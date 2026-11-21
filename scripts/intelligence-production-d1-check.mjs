@@ -9,6 +9,18 @@ if (!accountId || !token) {
   throw new Error("Missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN GitHub Actions secret.");
 }
 
+async function verifyApiToken() {
+  const response = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const payload = await response.json();
+  if (!response.ok || payload.success !== true || payload.result?.status !== "active") {
+    throw new Error("Cloudflare API token verification failed or token is not active. No D1 query was sent.");
+  }
+  console.log("PASS: Cloudflare API token is active.");
+}
+
 async function query(sql) {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/query`,
@@ -23,6 +35,10 @@ async function query(sql) {
   );
   const payload = await response.json();
   if (!response.ok || payload.success !== true) {
+    const errorCodes = (payload.errors || []).map((item) => Number(item.code));
+    if (errorCodes.includes(7403)) {
+      throw new Error("Cloudflare rejected the configured account/token for this D1 database (7403). Confirm CLOUDFLARE_ACCOUNT_ID is the account that owns the database and the API token has D1 Read or D1 Write permission on that same account. No migration was executed.");
+    }
     throw new Error(`Cloudflare D1 query failed: ${JSON.stringify(payload.errors || payload)}`);
   }
   const first = payload.result?.[0];
@@ -197,6 +213,7 @@ if (!["preflight-0001","preflight-0002","verify-0001","verify-0002"].includes(mo
   throw new Error("Expected preflight-0001, preflight-0002, verify-0001, or verify-0002.");
 }
 
+await verifyApiToken();
 const all = await objects();
 const tables = all.filter((row) => row.type === "table");
 const indexes = all.filter((row) => row.type === "index");
