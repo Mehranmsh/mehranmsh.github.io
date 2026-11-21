@@ -24,7 +24,21 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mehran-intelligence-production-d1-rollout
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate rollout checker syntax
+        run: node --check scripts/intelligence-production-d1-check.mjs
+
   rollout:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
