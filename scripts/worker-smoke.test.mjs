@@ -4,9 +4,14 @@ import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const intelligenceProjectApiSource = await readFile(new URL("../intelligence-production-project-api.mjs", import.meta.url), "utf8");
-const workerExecutableSource = workerSource.replace(
+const intelligenceKnowledgeApiSource = await readFile(new URL("../intelligence-production-knowledge-api.mjs", import.meta.url), "utf8");
+const workerWithProjectApi = workerSource.replace(
   'import { handleProductionIntelligenceProjectApi } from "./intelligence-production-project-api.mjs";',
   intelligenceProjectApiSource.replace("export async function handleProductionIntelligenceProjectApi", "async function handleProductionIntelligenceProjectApi")
+);
+const workerExecutableSource = workerWithProjectApi.replace(
+  'import { handleProductionIntelligenceKnowledgeApi } from "./intelligence-production-knowledge-api.mjs";',
+  intelligenceKnowledgeApiSource.replace("export async function handleProductionIntelligenceKnowledgeApi", "async function handleProductionIntelligenceKnowledgeApi")
 );
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
@@ -135,6 +140,12 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.equal(response.status, 403);
   const payload = await response.json();
   assert.match(payload.error, /Admin authentication required/);
+});
+
+test("Production Intelligence knowledge and memory module is included in Worker smoke-test bundle", () => {
+  assert.match(workerSource, /handleProductionIntelligenceKnowledgeApi/);
+  assert.match(workerExecutableSource, /async function handleProductionIntelligenceKnowledgeApi/);
+  assert.doesNotMatch(workerExecutableSource, /from ["']\.\/intelligence-production-(?:project|knowledge)-api\.mjs["']/);
 });
 
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
