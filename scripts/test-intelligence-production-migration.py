@@ -117,6 +117,16 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertNotIn("intelligence_staging_audit", api)
         self.assertNotIn("created_by=?", api)
 
+    def test_project_and_task_updates_commit_with_audit_records(self):
+        api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
+        self.assertNotIn(".run();await audit(", api)
+        self.assertIn('env.DB.batch([\n        env.DB.prepare("UPDATE intelligence_projects', api)
+        self.assertIn('env.DB.prepare("UPDATE intelligence_tasks SET project_id=', api)
+        self.assertIn('env.DB.prepare("UPDATE intelligence_tasks SET status=', api)
+        self.assertIn('"project_updated","intelligence_project"', api)
+        self.assertIn('"task_project_changed","intelligence_task"', api)
+        self.assertIn('"task_status_changed","intelligence_task"', api)
+
     def test_production_api_keeps_execution_disabled(self):
         api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
         self.assertIn("executionEnabled:false", api)
