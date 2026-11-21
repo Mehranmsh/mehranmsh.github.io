@@ -81,6 +81,9 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("requireExactColumnNames(await columns(\"intelligence_owner_memory\"), memoryColumns", checker)
         self.assertGreaterEqual(checker.count('query("PRAGMA foreign_key_check")'), 2)
         self.assertIn('const taskMigratedColumns = [...taskBaseColumns, "owner_uid", "project_id"]', checker)
+        self.assertGreaterEqual(checker.count("requireExactColumnDefinitions(await columns("), 5)
+        self.assertIn("const knowledgeDefinitions = [", checker)
+        self.assertIn("const memoryDefinitions = [", checker)
 
     def test_migration_preserves_existing_production_indexes_and_schema(self):
         indexes = {
