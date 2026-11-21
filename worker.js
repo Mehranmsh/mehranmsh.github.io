@@ -6467,9 +6467,9 @@ export default {
 
       const intelligenceKnowledgeApiPath =
         path === "/intelligence/knowledge" ||
-        /^\\/intelligence\\/knowledge\\/[0-9a-f-]{36}$/i.test(path) ||
+        /^\/intelligence\/knowledge\/[0-9a-f-]{36}$/i.test(path) ||
         path === "/intelligence/memory" ||
-        /^\\/intelligence\\/memory\\/[0-9a-f-]{36}$/i.test(path);
+        /^\/intelligence\/memory\/[0-9a-f-]{36}$/i.test(path);
       if (intelligenceKnowledgeApiPath) {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
