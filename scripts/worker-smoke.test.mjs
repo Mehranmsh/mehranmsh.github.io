@@ -51,6 +51,10 @@ test("Intelligence project workspace is wired to owner-scoped project and task A
     'data-ip-action="add-dependency"',
     'data-ip-action="remove-dependency"',
     'dependencies[t.id]',
+    'id="ipSummary"',
+    'const blocked=tasks.filter(t=>t.status==="blocked").length',
+    'role="progressbar"',
+    'aria-valuenow=',
     'const esc=value',
     'execution'
   ]) {
