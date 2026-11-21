@@ -127,6 +127,20 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn('"task_project_changed","intelligence_task"', api)
         self.assertIn('"task_status_changed","intelligence_task"', api)
 
+    def test_legacy_owner_backfill_is_authenticated_confirmed_and_idempotent(self):
+        worker = (ROOT / "worker.js").read_text(encoding="utf-8")
+        route = worker[worker.index('path === "/intelligence/migration/legacy-tasks/preview"'):worker.index("const intelligenceProjectApiPath")]
+        self.assertIn("verifyAdmin(request, env)", route)
+        self.assertIn('body.confirmation !== "ASSIGN_LEGACY_TASKS_TO_MY_PI_UID"', route)
+        self.assertIn("SET owner_uid=?,updated_at=CURRENT_TIMESTAMP", route)
+        self.assertIn("WHERE owner_uid IS NULL AND created_by=?", route)
+        self.assertIn("admin.uid, admin.username", route)
+        self.assertIn('legacy_task_ownership_backfilled', route)
+        self.assertIn("env.DB.batch([", route)
+        self.assertIn("executionEnabled:false", route)
+        self.assertNotIn("request.body.owner_uid", route)
+        self.assertNotIn("request.body.uid", route)
+
     def test_production_api_keeps_execution_disabled(self):
         api = (ROOT / "intelligence-production-project-api.mjs").read_text(encoding="utf-8")
         self.assertIn("executionEnabled:false", api)
