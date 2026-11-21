@@ -74,7 +74,7 @@ function renderProjects(){
    <div class="eyebrow">${esc(moduleName(p.module_key))} · ${esc(p.status)}</div>
    <h3>${esc(p.name)}</h3><p>${esc(p.description||"No description")}</p>
    <div class="small-text">${done} / ${total} tasks completed · ${percent}%</div>
-   <div class="progress-track" role="progressbar" aria-label="Project completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><div class="progress-fill" style="width:${percent}%"></div></div>
+   <div role="progressbar" aria-label="Project completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" style="height:7px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-top:7px"><div style="height:100%;width:${percent}%;background:var(--cyan);border-radius:99px"></div></div>
    <div class="hero-actions"><button class="btn small" data-ip-action="open" data-id="${esc(p.id)}" type="button">Open workspace</button></div>
   </article>`;
  }).join("");
