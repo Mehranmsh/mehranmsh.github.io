@@ -6348,8 +6348,21 @@ export default {
       }
 
       if (path === "/mcp" && method === "POST") {
-        const admin = await verifyAdmin(request, env);
-        if (!admin) return error("Admin authentication required", 403);
+        const adminSession = await verifyAdmin(request, env);
+        const suppliedBridgeToken = getBearer(request);
+        const configuredBridgeToken = typeof env.MEHRAN_MCP_TOKEN === "string" ? env.MEHRAN_MCP_TOKEN : "";
+        let bridgeAuthorized = false;
+        if (!adminSession && configuredBridgeToken.length >= 40 && configuredBridgeToken.length <= 200 && suppliedBridgeToken.length >= 40 && suppliedBridgeToken.length <= 200) {
+          const expectedHash = await sha256(configuredBridgeToken);
+          const suppliedHash = await sha256(suppliedBridgeToken);
+          let mismatch = expectedHash.length ^ suppliedHash.length;
+          for (let i = 0; i < Math.max(expectedHash.length, suppliedHash.length); i++) {
+            mismatch |= (expectedHash.charCodeAt(i) || 0) ^ (suppliedHash.charCodeAt(i) || 0);
+          }
+          bridgeAuthorized = mismatch === 0;
+        }
+        const admin = adminSession || (bridgeAuthorized ? {uid:"mcp-chatgpt-bridge",username:"chatgpt-bridge"} : null);
+        if (!admin) return error("MEHRAN MCP authentication required", 401);
         if (!await checkRateLimit(env, request, "intelligence-mcp", 60, 60, 60, admin.uid)) {
           return error("MEHRAN MCP request limit reached. Try again shortly.", 429);
         }
@@ -6366,7 +6379,7 @@ export default {
           const requested = String(rpc.params?.protocolVersion || "");
           const supported = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
           const protocolVersion = supported.includes(requested) ? requested : "2025-06-18";
-          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.1.0"},instructions:"Authenticated MEHRAN MSH company tools. Read tools expose aggregate company data. Collaboration task tools create and update task records only; they do not execute deployments, payments, account changes or other external actions. Every request requires an authenticated MEHRAN administrator session."});
+          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.2.0"},instructions:"MEHRAN MSH collaboration bridge. The dedicated ChatGPT bridge identity is restricted to read-only company tools and creating task proposals that ALWAYS require owner approval. It cannot update task statuses, execute deployments, change accounts, move funds, or perform external side effects. Admin browser sessions retain the existing admin tool permissions."});
         }
         if (rpc.method === "ping") return rpcReply({});
         if (rpc.method === "tools/list") {
@@ -6377,7 +6390,7 @@ export default {
             {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN collaboration queue. This records work only and does not execute it.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
             {name:"list_collaboration_tasks",description:"List recent tasks in the shared MEHRAN collaboration queue.",inputSchema:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
-            {name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}
+            ...(bridgeAuthorized?[]:[{name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}])
           ]});
         }
         if (rpc.method === "tools/call") {
@@ -6421,7 +6434,8 @@ export default {
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000) return rpcError(-32602,"A task title and description are required.");
             if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
             const id=crypto.randomUUID();
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,args.requiresApproval?'awaiting_approval':'queued',args.requiresApproval?1:0,admin.username).run();
+            const requiresApproval = bridgeAuthorized ? true : Boolean(args.requiresApproval);
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username).run();
             await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
             return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
@@ -6442,6 +6456,7 @@ export default {
             return replyData({tasks:(rows.results||[]).map(formatIntelligenceTask)});
           }
           if (name === "update_collaboration_task") {
+            if (bridgeAuthorized) return rpcError(-32003,"The ChatGPT bridge may not change task status. Owner approval in MEHRAN MSH is required.");
             const allowed=["taskId","status","result"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
             const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
