@@ -235,19 +235,19 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
                 self.assertEqual(normalize(objects.get(name)), normalize(expected), name)
 
         task_fks = sorted(
-            (row[2], row[3], row[4], row[6].upper())
+            (row[2], row[3], row[4], row[5].upper(), row[6].upper())
             for row in self.db.execute("PRAGMA foreign_key_list('intelligence_tasks')")
         )
         self.assertEqual(task_fks, [
-            ("intelligence_projects", "project_id", "id", "RESTRICT"),
+            ("intelligence_projects", "project_id", "id", "NO ACTION", "RESTRICT"),
         ])
         dependency_fks = sorted(
             (row[2], row[3], row[4], row[6].upper())
             for row in self.db.execute("PRAGMA foreign_key_list('intelligence_task_dependencies')")
         )
         self.assertEqual(dependency_fks, [
-            ("intelligence_tasks", "depends_on_task_id", "id", "RESTRICT"),
-            ("intelligence_tasks", "task_id", "id", "RESTRICT"),
+            ("intelligence_tasks", "depends_on_task_id", "id", "NO ACTION", "RESTRICT"),
+            ("intelligence_tasks", "task_id", "id", "NO ACTION", "RESTRICT"),
         ])
 
     def add_project(self, project_id="p1", owner="pi-owner-1"):
