@@ -1,7 +1,7 @@
 {
   // INTELLIGENCE-only staging Worker.
   // DO NOT DEPLOY until database_id is replaced with the verified ID of
-  // mehran-msh-intelligence-staging and migrations 0000-0004 are applied there.
+  // mehran-msh-intelligence-staging and migrations 0000-0005 are applied there.
   // This config must never be used with the production database.
   "name": "mehran-intelligence-staging",
   "main": "intelligence-staging-worker.js",
