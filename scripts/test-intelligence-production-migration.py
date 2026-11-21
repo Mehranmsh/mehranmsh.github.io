@@ -172,6 +172,83 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
             0
         )
 
+    def test_critical_trigger_index_sql_and_foreign_keys_match_reviewed_migrations(self):
+        def normalize(sql):
+            return " ".join((sql or "").replace("IF NOT EXISTS", "").split()).rstrip(";").lower()
+
+        def migration_object(source, object_type, name):
+            import re
+            starts = list(re.finditer(
+                r"(?im)^CREATE\\s+(?:UNIQUE\\s+)?(?:TABLE|INDEX|TRIGGER)\\b",
+                source,
+            ))
+            for index, match in enumerate(starts):
+                end = starts[index + 1].start() if index + 1 < len(starts) else len(source)
+                statement = source[match.start():end].strip()
+                if re.match(
+                    rf"(?is)^CREATE\\s+(?:UNIQUE\\s+)?{object_type}\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?{re.escape(name)}\\b",
+                    statement,
+                ):
+                    return statement
+            self.fail(f"Missing {object_type.lower()} {name} in migration source")
+
+        objects = {
+            row[1]: row[2]
+            for row in self.db.execute(
+                "SELECT type,name,sql FROM sqlite_master WHERE type IN ('index','trigger')"
+            ).fetchall()
+        }
+        for migration, names in [
+            (MIGRATION.read_text(encoding="utf-8"), [
+                "trg_intelligence_task_project_owner_insert",
+                "trg_intelligence_task_project_owner_update",
+                "trg_intelligence_project_owner_immutable_with_tasks",
+                "trg_intelligence_project_complete_guard",
+                "trg_intelligence_task_completed_project_guard_insert",
+                "trg_intelligence_task_completed_project_guard_update",
+                "trg_intelligence_task_dependency_guard_insert",
+                "trg_intelligence_task_dependency_guard_update",
+                "trg_intelligence_task_completion_dependency_guard",
+                "trg_intelligence_task_dependency_completed_guard_insert",
+                "trg_intelligence_task_dependency_completed_guard_update",
+                "trg_intelligence_task_reopen_dependency_guard",
+                "trg_intelligence_task_dependency_consistency_update",
+                "idx_intelligence_projects_owner_status",
+                "idx_intelligence_projects_owner_module",
+                "idx_intelligence_tasks_owner_project_status",
+                "idx_intelligence_tasks_project_legacy",
+                "idx_intelligence_task_dependencies_task",
+                "idx_intelligence_task_dependencies_prerequisite",
+            ]),
+            (KNOWLEDGE_MIGRATION.read_text(encoding="utf-8"), [
+                "trg_intelligence_knowledge_owner_immutable",
+                "trg_intelligence_memory_owner_immutable",
+                "idx_intelligence_knowledge_owner_active",
+                "idx_intelligence_knowledge_owner_category",
+                "idx_intelligence_memory_owner_active",
+            ]),
+        ]:
+            for name in names:
+                object_type = "trigger" if name.startswith("trg_") else "index"
+                expected = migration_object(migration, object_type, name)
+                self.assertEqual(normalize(objects.get(name)), normalize(expected), name)
+
+        task_fks = sorted(
+            (row[2], row[3], row[4], row[6].upper())
+            for row in self.db.execute("PRAGMA foreign_key_list('intelligence_tasks')")
+        )
+        self.assertEqual(task_fks, [
+            ("intelligence_projects", "project_id", "id", "RESTRICT"),
+        ])
+        dependency_fks = sorted(
+            (row[2], row[3], row[4], row[6].upper())
+            for row in self.db.execute("PRAGMA foreign_key_list('intelligence_task_dependencies')")
+        )
+        self.assertEqual(dependency_fks, [
+            ("intelligence_tasks", "depends_on_task_id", "id", "RESTRICT"),
+            ("intelligence_tasks", "task_id", "id", "RESTRICT"),
+        ])
+
     def add_project(self, project_id="p1", owner="pi-owner-1"):
         self.db.execute(
             "INSERT INTO intelligence_projects(id,owner_uid,name,module_key) VALUES(?,?,?,?)",
