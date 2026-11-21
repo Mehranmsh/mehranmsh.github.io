@@ -8,6 +8,20 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>MEHRAN MSH | Digital Ecosystem</title>
+<script>
+window.__mshPiDebugLog=[];
+window.__mshPiDebug=function(message){
+ const line=new Date().toISOString()+" | "+String(message);
+ window.__mshPiDebugLog.push(line);
+ if(window.__mshPiDebugLog.length>30)window.__mshPiDebugLog.shift();
+ const panel=document.getElementById("piDebugLog");
+ if(panel)panel.textContent=window.__mshPiDebugLog.join("\n");
+ console.info("[MEHRAN PI DEBUG]",message);
+};
+window.addEventListener("error",event=>window.__mshPiDebug("JS ERROR: "+(event.message||"unknown")+" @ "+(event.filename||"")+" :"+(event.lineno||0)));
+window.addEventListener("unhandledrejection",event=>window.__mshPiDebug("UNHANDLED REJECTION: "+(event.reason?.message||String(event.reason))));
+window.__mshPiDebug("diagnostics booted; page="+location.href);
+</script>
 <script src="https://sdk.minepi.com/pi-sdk.js"></script>
 <script>
 /* Pi SDK bootstrap: wait for the official SDK, initialize once, and allow a clean retry after a transient failure. */
@@ -635,7 +649,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="grid"><div class="card"><div class="eyebrow">ACCOUNT</div><div class="stat" id="userStatus">Guest</div><div class="stat-label">MEHRAN MSH account status</div></div><div class="card"><div class="eyebrow">PI NETWORK</div><div class="stat" id="piStatus">Not connected</div><div class="stat-label">Pi authentication status</div></div><div class="card" id="socialAccountStatusCard"><div class="eyebrow">SOCIAL ACCOUNT</div><div class="stat" id="socialStatus">Not registered</div><div class="stat-label">SOCIAL membership</div></div></div>
 <div class="panel hidden" id="adminAccountPanel"><div class="eyebrow">ADMINISTRATOR ACCOUNT</div><h3 style="margin:8px 0">Management identity</h3><p class="small-text">This account has administrator privileges in MEHRAN MSH.</p><div class="grid" style="margin-top:14px"><div class="card"><div class="eyebrow">PI IDENTITY</div><div class="stat" id="adminAccountUsername">—</div><div class="stat-label">Verified administrator</div></div><div class="card"><div class="eyebrow">SECURE SESSION</div><div class="stat" id="adminAccountSession">—</div><div class="stat-label">Persistent admin session</div></div></div><div class="hero-actions"><button class="btn" type="button" onclick="showPage('admin')">Open Admin Panel</button></div></div>
 <div class="panel" id="socialUserAccountPanel"><h3>SOCIAL Membership</h3><p class="small-text">Manage your SOCIAL profile, conversations and community activity from the SOCIAL section.</p><button class="btn secondary" type="button" onclick="showPage('social')">Open SOCIAL</button></div>
-<div class="panel"><h3>Pi Network Authentication</h3><p class="small-text">Connect using the official Pi authentication window. Never share your wallet passphrase or private keys.</p><button type="button" class="btn" id="piLoginBtn" onclick="var m=document.getElementById('piMessage');if(m){m.textContent='Pi button click detected. Starting sign-in...';m.className='notice';}if(typeof window.piLogin==='function'){window.piLogin();}else if(m){m.textContent='Pi sign-in code is not available on this page.';m.className='notice error';}">Sign in with Pi</button><div id="piMessage" class="notice" role="status" aria-live="polite" style="display:block!important;visibility:visible!important;opacity:1!important;margin-top:12px;min-height:38px">Checking saved Pi session...</div><button class="btn secondary hidden" id="piLogoutBtn">Disconnect session</button></div>
+<div class="panel"><h3>Pi Network Authentication</h3><p class="small-text">Connect using the official Pi authentication window. Never share your wallet passphrase or private keys.</p><button type="button" class="btn" id="piLoginBtn" onclick="var m=document.getElementById('piMessage');var log=window.__mshPiDebug||function(){};log('sign-in button clicked; handler type='+typeof window.piLogin);if(m){m.textContent='Pi button click detected. Checking sign-in handler...';m.className='notice';}try{if(typeof window.piLogin==='function'){var result=window.piLogin();log('piLogin invoked; button text='+this.textContent+'; disabled='+this.disabled);if(result&&typeof result.then==='function')result.catch(function(e){log('piLogin rejected: '+(e&&e.message||e));});}else{log('window.piLogin is not a function');if(m){m.textContent='DEBUG: window.piLogin is '+typeof window.piLogin+'.';m.className='notice error';}}}catch(e){log('click handler exception: '+(e&&e.stack||e));if(m){m.textContent='DEBUG ERROR: '+(e&&e.message||e);m.className='notice error';}}">Sign in with Pi</button><div id="piMessage" class="notice" role="status" aria-live="polite" style="display:block!important;visibility:visible!important;opacity:1!important;margin-top:12px;min-height:38px">Checking saved Pi session...</div><pre id="piDebugLog" class="notice" style="display:block!important;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;max-height:180px;overflow:auto;margin-top:8px">Pi diagnostics loading...</pre><button class="btn secondary hidden" id="piLogoutBtn">Disconnect session</button></div>
 <div class="panel"><h3>Account Information</h3><div class="form-grid"><div class="field"><label>Pi Username</label><input id="piUsername" readonly placeholder="Not connected"></div><div class="field"><label>Account UID</label><input id="piUid" readonly placeholder="Not available"></div></div></div>
 </section>
 
@@ -1214,6 +1228,7 @@ document.querySelectorAll('.mobile-nav [data-page="admin"]').forEach(button=>{bu
 }
 let piLoginInFlight=false;
 async function piLogin(){
+window.__mshPiDebug?.("piLogin() entered");
 const button=$("piLoginBtn"),message=$("piMessage");
 const show=(text,kind="notice")=>{message.textContent=text;message.className=kind;};
 const withTimeout=(promise,label,ms=60000)=>{
@@ -1301,6 +1316,7 @@ button.disabled=false;button.textContent="Sign in with Pi";
 }
 }
 window.piLogin=piLogin;
+window.__mshPiDebug?.("window.piLogin assigned");
 $("piLogoutBtn").addEventListener("click",async()=>{
 const token=localStorage.getItem(ADMIN_SESSION_KEY)||"";
 if(token){try{await api("/admin/session",{method:"DELETE",headers:{"Authorization":"Bearer "+token}})}catch{}}
