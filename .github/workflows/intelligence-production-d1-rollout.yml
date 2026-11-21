@@ -70,7 +70,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: "2ee71f12-042b-4dba-8bf0-a0b577ace519"
-        env:
           ROLLOUT_ACTION: ${{ inputs.action }}
         run: |
           set -euo pipefail
@@ -85,7 +84,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        env:
           ROLLOUT_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
           set -euo pipefail
@@ -118,7 +116,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: "2ee71f12-042b-4dba-8bf0-a0b577ace519"
-        env:
           ROLLOUT_ACTION: ${{ inputs.action }}
         run: |
           set -euo pipefail
