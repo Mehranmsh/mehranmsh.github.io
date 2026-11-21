@@ -242,7 +242,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
             ("intelligence_projects", "project_id", "id", "NO ACTION", "RESTRICT"),
         ])
         dependency_fks = sorted(
-            (row[2], row[3], row[4], row[6].upper())
+            (row[2], row[3], row[4], row[5].upper(), row[6].upper())
             for row in self.db.execute("PRAGMA foreign_key_list('intelligence_task_dependencies')")
         )
         self.assertEqual(dependency_fks, [
