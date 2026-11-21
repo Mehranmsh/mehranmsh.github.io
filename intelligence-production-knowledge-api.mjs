@@ -51,10 +51,16 @@ export async function handleProductionIntelligenceKnowledgeApi({request,env,admi
     const b=await readBody(request);
     const allowed=["category","title","content","importance","sourceType","sourceRef","sourceTitle","sourceExcerpt","observedAt","recordedConfidence"];
     if(!b||Object.keys(b).some(k=>!allowed.includes(k)))return fail("Invalid knowledge payload.");
-    const title=clean(b.title,160),content=clean(b.content,12000),category=clean(b.category||"company",40),importance=b.importance||"normal";
-    const sourceType=b.sourceType||"owner_input",sourceRef=clean(b.sourceRef||"",1000),sourceTitle=clean(b.sourceTitle||"",200),sourceExcerpt=clean(b.sourceExcerpt||"",1000);
+    const title=clean(b.title,160),content=clean(b.content,12000);
+    const categoryInput=b.category===undefined?"company":b.category;
+    const category=clean(categoryInput,40);
+    const importance=b.importance===undefined?"normal":b.importance;
+    const sourceType=b.sourceType===undefined?"owner_input":b.sourceType;
+    const sourceRef=clean(b.sourceRef===undefined?"":b.sourceRef,1000),sourceTitle=clean(b.sourceTitle===undefined?"":b.sourceTitle,200),sourceExcerpt=clean(b.sourceExcerpt===undefined?"":b.sourceExcerpt,1000);
     const observedAt=b.observedAt||null,confidence=b.recordedConfidence===undefined?null:b.recordedConfidence;
-    if(!title||!content||!["high","normal","low"].includes(importance)||!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType))return fail("Title, content, importance or source type is invalid.");
+    if(!title||!content||typeof categoryInput!=="string"||!category||categoryInput.length>40||
+      typeof importance!=="string"||!["high","normal","low"].includes(importance)||
+      typeof sourceType!=="string"||!["owner_input","uploaded_document","external_url","system_observation"].includes(sourceType))return fail("Title, content, category, importance or source type is invalid.");
     if(b.sourceRef!==undefined&&typeof b.sourceRef!=="string"||b.sourceTitle!==undefined&&typeof b.sourceTitle!=="string"||b.sourceExcerpt!==undefined&&typeof b.sourceExcerpt!=="string")return fail("Invalid source metadata.");
     if(sourceType==="external_url"){try{const u=new URL(sourceRef);if(u.protocol!=="https:"||!u.hostname||u.username||u.password)return fail("Only public HTTPS source references are accepted.");}catch{return fail("Invalid source URL.");}}
     if(observedAt!==null&&(typeof observedAt!=="string"||!Number.isFinite(Date.parse(observedAt))))return fail("Invalid observation date.");
@@ -112,8 +118,14 @@ export async function handleProductionIntelligenceKnowledgeApi({request,env,admi
   if(path==="/intelligence/memory"&&method==="POST"){
     const b=await readBody(request);
     if(!b||Object.keys(b).some(k=>!["memoryType","category","content","importance"].includes(k)))return fail("Invalid memory payload.");
-    const type=b.memoryType||"fact",category=clean(b.category||"general",40),content=clean(b.content,4000),importance=b.importance||"normal";
-    if(!["fact","preference","instruction","project_decision"].includes(type)||!category||!content||typeof b.content!=="string"||b.content.length>4000||!["high","normal","low"].includes(importance))return fail("Memory type, category, content or importance is invalid.");
+    const type=b.memoryType===undefined?"fact":b.memoryType;
+    const categoryInput=b.category===undefined?"general":b.category;
+    const category=clean(categoryInput,40),content=clean(b.content,4000);
+    const importance=b.importance===undefined?"normal":b.importance;
+    if(typeof type!=="string"||!["fact","preference","instruction","project_decision"].includes(type)||
+      typeof categoryInput!=="string"||!category||categoryInput.length>40||
+      !content||typeof b.content!=="string"||b.content.length>4000||
+      typeof importance!=="string"||!["high","normal","low"].includes(importance))return fail("Memory type, category, content or importance is invalid.");
     const id=crypto.randomUUID();
     try{await env.DB.batch([
       env.DB.prepare("INSERT INTO intelligence_owner_memory(id,owner_uid,memory_type,category,content,importance) VALUES(?,?,?,?,?,?)").bind(id,owner,type,category,content,importance),
