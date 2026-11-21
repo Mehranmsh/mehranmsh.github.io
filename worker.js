@@ -1997,6 +1997,7 @@ async function socialDeletePost(request, env, postId) {
 async function socialLikePost(request, env, postId, shouldLike) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
+
   const post = await env.DB.prepare(
     "SELECT id,user_id,visibility FROM social_posts WHERE id=?"
   ).bind(postId).first();
@@ -3996,6 +3997,7 @@ async function socialManageChannelMember(request, env, channelId, targetUserId, 
 
   return error("Unsupported channel member action", 400);
 }
+
 async function socialRotateChannelInvite(request, env, channelId) {
   const user = await getSocialUser(request, env);
   if (!user) return error("Authentication required", 401);
@@ -7046,6 +7048,7 @@ export default {
         if (!project || !project.id || project.id.length > 100) {
           return error("Invalid project data");
         }
+
         await env.DB.prepare(`
           INSERT INTO projects(id,name,description,fa_description,url,status)
           VALUES(?,?,?,?,?,?)
