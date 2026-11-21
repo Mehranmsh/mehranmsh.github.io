@@ -19,9 +19,42 @@ CREATE TABLE intelligence_tasks (
   created_by TEXT NOT NULL,
   action_type TEXT NOT NULL DEFAULT '',
   action_payload TEXT NOT NULL DEFAULT '{}',
-  agent_claimed_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  agent_claimed_at TEXT
+);
+CREATE INDEX idx_intelligence_tasks_queue
+  ON intelligence_tasks(status,assigned_to,created_at);
+CREATE TABLE intelligence_scheduler_runs (
+  id TEXT PRIMARY KEY,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  status TEXT NOT NULL DEFAULT 'running',
+  processed_count INTEGER NOT NULL DEFAULT 0,
+  completed_count INTEGER NOT NULL DEFAULT 0,
+  blocked_count INTEGER NOT NULL DEFAULT 0,
+  error_text TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_intelligence_scheduler_runs_started
+  ON intelligence_scheduler_runs(started_at DESC);
+CREATE TABLE admin_sessions (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  uid TEXT NOT NULL,
+  username TEXT NOT NULL COLLATE NOCASE,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE TABLE admin_audit_log (
+  id TEXT PRIMARY KEY,
+  admin_uid TEXT NOT NULL,
+  admin_username TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT NOT NULL DEFAULT '',
+  target_id TEXT NOT NULL DEFAULT '',
+  details TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
 
@@ -38,6 +71,35 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
 
     def tearDown(self):
         self.db.close()
+
+    def test_migration_preserves_existing_production_indexes_and_schema(self):
+        indexes = {
+            row[0] for row in self.db.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        }
+        self.assertIn("idx_intelligence_tasks_queue", indexes)
+        self.assertIn("idx_intelligence_scheduler_runs_started", indexes)
+        self.assertIn("idx_intelligence_tasks_owner_project_status", indexes)
+        self.assertEqual(
+            self.db.execute("PRAGMA foreign_key_check").fetchall(),
+            []
+        )
+        task_columns = {
+            row[1] for row in self.db.execute("PRAGMA table_info('intelligence_tasks')")
+        }
+        self.assertTrue({
+            "id", "created_by", "owner_uid", "project_id",
+            "created_at", "updated_at", "agent_claimed_at"
+        }.issubset(task_columns))
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM admin_sessions").fetchone()[0],
+            0
+        )
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM admin_audit_log").fetchone()[0],
+            0
+        )
 
     def add_project(self, project_id="p1", owner="pi-owner-1"):
         self.db.execute(
