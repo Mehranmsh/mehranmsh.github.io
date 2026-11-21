@@ -33,6 +33,7 @@ function mount(){
   <button class="btn" id="ipTaskCreate" type="submit">Create task</button>
   <div class="small-text">New tasks are records only. No external action or automated execution is started.</div>
  </form>
+ <div class="grid" id="ipSummary" aria-live="polite"></div>
  <div class="grid" id="ipProjectList"></div>
  <div id="ipDetail" class="card" hidden></div>
  <p class="small-text">Project records and task assignments are private to the authenticated owner. Automated execution remains disabled; status changes do not execute external actions.</p>`;
@@ -57,14 +58,26 @@ async function loadAll(){
  }catch(e){note("Could not load project workspace: "+e.message,"warn");}
 }
 function renderProjects(){
- const host=$("ipProjectList");if(!host)return;
+ const host=$("ipProjectList"),summary=$("ipSummary");if(!host||!summary)return;
+ const completed=tasks.filter(t=>t.status==="completed").length;
+ const blocked=tasks.filter(t=>t.status==="blocked").length;
+ const active=tasks.filter(t=>["accepted","in_progress"].includes(t.status)).length;
+ summary.innerHTML=[
+  ["Projects",projects.length],["Open tasks",tasks.filter(t=>!["completed","cancelled"].includes(t.status)).length],
+  ["In progress",active],["Blocked",blocked],["Completed",completed]
+ ].map(([label,value])=>`<article class="card"><div class="eyebrow">${esc(label)}</div><h3>${Number(value)||0}</h3></article>`).join("");
  if(!projects.length){host.innerHTML='<div class="empty">No Intelligence projects yet. Create the first one above.</div>';return;}
- host.innerHTML=projects.map(p=>`<article class="card">
-  <div class="eyebrow">${esc(moduleName(p.module_key))} · ${esc(p.status)}</div>
-  <h3>${esc(p.name)}</h3><p>${esc(p.description||"No description")}</p>
-  <div class="small-text">${Number(p.completed_task_count)||0} / ${Number(p.task_count)||0} tasks completed</div>
-  <div class="hero-actions"><button class="btn small" data-ip-action="open" data-id="${esc(p.id)}" type="button">Open workspace</button></div>
- </article>`).join("");
+ host.innerHTML=projects.map(p=>{
+  const total=Number(p.task_count)||0,done=Number(p.completed_task_count)||0;
+  const percent=total?Math.round(done/total*100):0;
+  return `<article class="card">
+   <div class="eyebrow">${esc(moduleName(p.module_key))} · ${esc(p.status)}</div>
+   <h3>${esc(p.name)}</h3><p>${esc(p.description||"No description")}</p>
+   <div class="small-text">${done} / ${total} tasks completed · ${percent}%</div>
+   <div class="progress-track" role="progressbar" aria-label="Project completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><div class="progress-fill" style="width:${percent}%"></div></div>
+   <div class="hero-actions"><button class="btn small" data-ip-action="open" data-id="${esc(p.id)}" type="button">Open workspace</button></div>
+  </article>`;
+ }).join("");
 }
 async function createProject(event){
  event.preventDefault();const button=$("ipCreate");button.disabled=true;
