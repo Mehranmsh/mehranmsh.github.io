@@ -1,0 +1,48 @@
+name: Apply Intelligence staging migration 0004
+
+on:
+  push:
+    branches:
+      - intelligence/staging-schema-baseline-v1
+    paths:
+      - ".github/workflows/apply-intelligence-staging-0004.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: intelligence-staging-migration-0004
+  cancel-in-progress: false
+
+jobs:
+  apply-staging-migration:
+    if: github.ref == 'refs/heads/intelligence/staging-schema-baseline-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the staging migration branch
+        uses: actions/checkout@v4
+        with:
+          ref: intelligence/staging-schema-baseline-v1
+
+      - name: Verify required Cloudflare credentials are configured
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::CLOUDFLARE_API_TOKEN repository secret is missing."; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::CLOUDFLARE_ACCOUNT_ID repository secret is missing."; exit 1; }
+
+      - name: Apply migration 0004 to the isolated staging D1 database
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 execute mehran-msh-intelligence-staging --remote --config wrangler.intelligence-staging.jsonc --file migrations/0004_intelligence_knowledge_provenance.sql
+
+      - name: Verify provenance columns and guard triggers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 execute mehran-msh-intelligence-staging --remote --config wrangler.intelligence-staging.jsonc --command "SELECT name FROM pragma_table_info('intelligence_knowledge') WHERE name IN ('source_type','source_ref','observed_at','confidence_score','verification_status') ORDER BY name; SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('trg_intelligence_knowledge_provenance_guard_insert','trg_intelligence_knowledge_provenance_guard_update') ORDER BY name;"
