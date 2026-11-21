@@ -295,20 +295,22 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("SELECT ?,?,?,?,?,?,? WHERE changes()>0", api)
         self.assertIn("archived_at IS NULL", api)
         self.assertIn("UPDATE intelligence_knowledge SET verification_status=?", api)
-        self.assertIn("UPDATE intelligence_knowledge SET "+'"+sets.join(",")+"', api)
-        self.assertIn("UPDATE intelligence_owner_memory SET "+'"+sets.join(",")+"', api)
+        self.assertIn('UPDATE intelligence_knowledge SET "+sets.join(",")+"', api)
+        self.assertIn('UPDATE intelligence_owner_memory SET "+sets.join(",")+"', api)
 
         db = sqlite3.connect(":memory:")
         db.execute("CREATE TABLE records(id TEXT PRIMARY KEY, archived_at TEXT)")
         db.execute("CREATE TABLE audit(action TEXT)")
+        db.execute("INSERT INTO records(id,archived_at) VALUES('archived','now')")
+        db.execute("UPDATE records SET archived_at='now' WHERE id='archived' AND archived_at IS NULL")
+        db.execute("INSERT INTO audit(action) SELECT 'stale-write' WHERE changes()>0")
+        self.assertEqual(db.execute("SELECT COUNT(*) FROM audit").fetchone()[0], 0)
         db.execute("INSERT INTO records(id) VALUES('active')")
         db.execute("UPDATE records SET archived_at='now' WHERE id='active' AND archived_at IS NULL")
         db.execute("INSERT INTO audit(action) SELECT 'archive' WHERE changes()>0")
-        self.assertEqual(db.execute("SELECT COUNT(*) FROM audit").fetchone()[0], 0)
-        db.execute("UPDATE records SET archived_at='now' WHERE id='active' AND archived_at IS NULL")
-        db.execute("INSERT INTO audit(action) SELECT 'archive' WHERE changes()>0")
-        self.assertEqual(db.execute("SELECT COUNT(*) FROM audit").fetchone()[0], 0)
+        self.assertEqual(db.execute("SELECT action FROM audit").fetchall(), [("archive",)])
         db.close()
+
 
 if __name__ == "__main__":
     unittest.main()
