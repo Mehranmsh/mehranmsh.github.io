@@ -85,6 +85,64 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("const knowledgeDefinitions = [", checker)
         self.assertIn("const memoryDefinitions = [", checker)
 
+    def test_migrated_column_types_nullability_defaults_and_primary_keys(self):
+        def definitions(table):
+            return [
+                [row[1], row[2].upper(), row[3], row[4], row[5]]
+                for row in self.db.execute(f"PRAGMA table_info('{table}')").fetchall()
+            ]
+
+        self.assertEqual(definitions("intelligence_projects"), [
+            ["id", "TEXT", 0, None, 1],
+            ["owner_uid", "TEXT", 1, None, 0],
+            ["name", "TEXT", 1, None, 0],
+            ["description", "TEXT", 1, "''", 0],
+            ["module_key", "TEXT", 1, None, 0],
+            ["status", "TEXT", 1, "'planned'", 0],
+            ["created_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+            ["updated_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+            ["archived_at", "TEXT", 0, None, 0],
+        ])
+        self.assertEqual(definitions("intelligence_task_dependencies"), [
+            ["id", "TEXT", 0, None, 1],
+            ["owner_uid", "TEXT", 1, None, 0],
+            ["task_id", "TEXT", 1, None, 0],
+            ["depends_on_task_id", "TEXT", 1, None, 0],
+            ["dependency_type", "TEXT", 1, "'blocks'", 0],
+            ["created_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+        ])
+        self.assertEqual(definitions("intelligence_knowledge"), [
+            ["id", "TEXT", 0, None, 1],
+            ["owner_uid", "TEXT", 1, None, 0],
+            ["category", "TEXT", 1, "'company'", 0],
+            ["title", "TEXT", 1, None, 0],
+            ["content", "TEXT", 1, None, 0],
+            ["importance", "TEXT", 1, "'normal'", 0],
+            ["source_type", "TEXT", 1, "'owner_input'", 0],
+            ["source_ref", "TEXT", 1, "''", 0],
+            ["source_title", "TEXT", 1, "''", 0],
+            ["source_excerpt", "TEXT", 1, "''", 0],
+            ["observed_at", "TEXT", 0, None, 0],
+            ["recorded_confidence", "INTEGER", 0, None, 0],
+            ["verification_status", "TEXT", 1, "'unreviewed'", 0],
+            ["reviewed_by", "TEXT", 0, None, 0],
+            ["reviewed_at", "TEXT", 0, None, 0],
+            ["created_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+            ["updated_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+            ["archived_at", "TEXT", 0, None, 0],
+        ])
+        self.assertEqual(definitions("intelligence_owner_memory"), [
+            ["id", "TEXT", 0, None, 1],
+            ["owner_uid", "TEXT", 1, None, 0],
+            ["memory_type", "TEXT", 1, "'fact'", 0],
+            ["category", "TEXT", 1, "'general'", 0],
+            ["content", "TEXT", 1, None, 0],
+            ["importance", "TEXT", 1, "'normal'", 0],
+            ["created_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+            ["updated_at", "TEXT", 1, "CURRENT_TIMESTAMP", 0],
+            ["archived_at", "TEXT", 0, None, 0],
+        ])
+
     def test_migration_preserves_existing_production_indexes_and_schema(self):
         indexes = {
             row[0] for row in self.db.execute(
