@@ -6584,9 +6584,9 @@ export default {
         const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
-        const preapprovedReadOnlyActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
-        const autoApproved=preapprovedReadOnlyActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
-        const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
+        // Every action, including read-only reports, requires explicit owner approval.
+        // No action may become implicitly approved through an allowlist.
+        const requiresApproval=Boolean(body.requiresApproval||actionType);
         if (!await intelligenceOwnershipSchemaReady(env)) return error("Intelligence ownership migration is not installed.",503);
         const id=crypto.randomUUID();
         await env.DB.batch([
