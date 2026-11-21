@@ -47,6 +47,7 @@ def main():
 
     print("1/3 Checking Cloudflare Worker JavaScript syntax...")
     run_node_check(WORKER_FILE)
+    run_node_check(ROOT / "intelligence-knowledge-ui.js")
     for path in (SAMPLER_FILE, SAMPLE_MANIFEST):
         if not path.is_file():
             raise SystemExit(f"Required recorded-instrument asset file is missing: {path.relative_to(ROOT)}")
