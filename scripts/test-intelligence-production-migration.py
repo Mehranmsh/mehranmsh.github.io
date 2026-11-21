@@ -136,6 +136,7 @@ class ProductionIntelligenceMigrationTests(unittest.TestCase):
         self.assertIn("WHERE owner_uid IS NULL AND created_by=?", route)
         self.assertIn("admin.uid, admin.username", route)
         self.assertIn('legacy_task_ownership_backfilled', route)
+        self.assertIn('SELECT ?,?,?,?,?,?,? WHERE changes()>0', route)
         self.assertIn("env.DB.batch([", route)
         self.assertIn("executionEnabled:false", route)
         self.assertNotIn("request.body.owner_uid", route)
