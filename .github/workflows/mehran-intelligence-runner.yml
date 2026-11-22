@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   execute-safe-reports:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 4
     steps:
@@ -47,6 +48,9 @@ jobs:
             return payload;
           }
           async function execute(task) {
+            if (!task || task.status !== "in_progress" || task.requiresApproval !== false || !["mehran_intelligence", "shared"].includes(task.assignedTo)) {
+              throw new Error("Claimed task failed assignment, approval, or status validation.");
+            }
             if (task.actionType === "service_health_report") {
               const response = await fetch(base + "/health", {
                 headers: { "Accept": "application/json" },
@@ -115,6 +119,6 @@ jobs:
               method: "POST",
               body: JSON.stringify({ status, result })
             });
-            console.log(`Task ${task.id}: ${status}`);
+            console.log(`One read-only task finished with status: ${status}`);
           }
           NODE
