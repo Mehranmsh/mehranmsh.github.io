@@ -6630,18 +6630,20 @@ export default {
           }
           if (name === "update_collaboration_task") {
             if (bridgeAuthorized) return rpcError(-32003,"The ChatGPT bridge may not change task status. Owner approval in MEHRAN MSH is required.");
-            const allowed=["taskId","status","result"];
+            const allowed=["taskId","status"];
             if(Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
-            const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
-            const id=cleanText(args.taskId,80), result=typeof args.result==="string"?args.result:"";
-            if(!id||!statuses.includes(args.status)||result.length>3000) return rpcError(-32602,"Invalid task ID, status or result.");
-            const existing=await env.DB.prepare("SELECT id,result_text FROM intelligence_tasks WHERE id=?").bind(id).first();
+            const id=cleanText(args.taskId,80);
+            if(!id||!["accepted","cancelled"].includes(args.status)) return rpcError(-32602,"Only owner approval or cancellation is permitted.");
+            const existing=await env.DB.prepare("SELECT id,status,requires_approval FROM intelligence_tasks WHERE id=?").bind(id).first();
             if(!existing) return rpcError(-32602,"Task not found.");
-            const nextResult=Object.prototype.hasOwnProperty.call(args,"result")?result:(existing.result_text||"");
-            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(args.status,nextResult,id).run();
+            const approvalTransition=args.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
+            const cancelTransition=args.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
+            if(!approvalTransition&&!cancelTransition) return rpcError(-32009,"Only pending approval or cancellable tasks may be changed. Execution results are controlled by the execution service.");
+            const update=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=?").bind(args.status,args.status,id,existing.status,existing.requires_approval).run();
+            if(!Number(update?.meta?.changes||0)) return rpcError(-32009,"Task changed concurrently. Refresh the task before retrying.");
             await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:args.status}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
-            return replyData({task:formatIntelligenceTask(row),message:"Task record updated. No external action was executed."});
+            return replyData({task:formatIntelligenceTask(row),message:args.status==="accepted"?"Task approved by owner. The execution service controls its status and result.":"Task cancelled by owner."});
           }
           return rpcError(-32602,"Unknown tool.");
         }
