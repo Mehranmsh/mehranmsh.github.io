@@ -320,6 +320,28 @@ test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets unde
 });
 
 
+test("Intelligence mission planner creates a bounded deterministic fallback when AI planning is unavailable", () => {
+  const helperStart = workerSource.indexOf("async function createIntelligenceFallbackPackage");
+  const helperEnd = workerSource.indexOf("async function planIntelligenceMission", helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, "deterministic fallback package helper must exist");
+  const helper = workerSource.slice(helperStart, helperEnd);
+  assert.match(helper, /planner: "deterministic_fallback"/);
+  assert.match(helper, /service_health_report/);
+  assert.match(helper, /repository_quality_check/);
+  assert.match(helper, /source_security_audit/);
+  assert.match(helper, /createIntelligenceWorkPackage\(env/);
+  assert.match(helper, /Fixed read-only action allowlist enforced server-side/);
+
+  const plannerEnd = workerSource.indexOf("\\nexport function verifyIntelligenceReport", helperEnd);
+  const planner = workerSource.slice(helperEnd, plannerEnd);
+  assert.match(planner, /ai_binding_unavailable/);
+  assert.match(planner, /daily_ai_budget_unavailable/);
+  assert.match(planner, /ai_inference_failed/);
+  assert.match(planner, /ai_response_invalid_json/);
+  assert.match(planner, /ai_plan_validation_failed/);
+  assert.match(planner, /SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=\?/);
+});
+
 test("social feed excludes private-account public posts and blocked relationships", () => {
   const start = workerSource.indexOf("async function socialFeed");
   const end = workerSource.indexOf("async function socialUserPosts", start);
