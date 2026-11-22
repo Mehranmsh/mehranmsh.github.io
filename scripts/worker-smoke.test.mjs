@@ -1495,31 +1495,33 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
   const end = workerSource.indexOf('if (path === "/health"', start);
   assert.ok(start >= 0 && end > start, "authenticated agent API must exist");
   const route = workerSource.slice(start, end);
-  assert.match(route, /path === "\/agent\/v1\/work-packages" && method === "POST"/);
-  assert.match(route, /path\.startsWith\("\/agent\/v1\/work-packages\/"\)/);
-  assert.match(route, /idempotencyKey/);
-  assert.match(workerSource, /idempotency_key TEXT NOT NULL UNIQUE/);
-  assert.match(route, /tasks\.length > 20/);
-  assert.match(route, /service_health_report","repository_quality_check/);
-  assert.match(route, /Dependencies must reference earlier tasks in this package/);
-  assert.match(route, /env\.DB\.batch\(statements\)/);
-  assert.match(route, /intelligence_task_dependencies/);
-  assert.match(route, /intelligence_work_packages/);
-  assert.match(route, /intelligence_task_events/);
-  assert.match(route, /NOT EXISTS \(SELECT 1 FROM intelligence_task_dependencies/);
-  assert.match(route, /bind\(packageId \+ ":" \+ item\.taskId,packageId \+ ":" \+ dependency\)/);
-  assert.match(route, /p\.status<>'completed'/);
-  assert.match(route, /COALESCE\(t\.attempts,0\)<COALESCE\(t\.max_attempts,3\)/);
-  assert.match(route, /attention_required/);
-  assert.match(route, /retryWaiting:0/);
-  assert.match(route, /task\.status === "retry_wait"/);
-  assert.match(route, /waiting_retry/);
-  assert.match(route, /checkpoint_json,last_error_code/);
-
-  assert.match(route, /blockedDependencies/);
-  assert.match(route, /report_json=\?/);
-  assert.match(route, /UPDATE intelligence_work_packages SET status=/);
-  assert.match(route, /path\.startsWith\("\/agent\/v1\/"/);
-  assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
-  assert.match(route, /requires_approval=0/);
+  const checks = [
+    [route, 'path === "/agent/v1/work-packages" && method === "POST"'],
+    [route, 'path.startsWith("/agent/v1/work-packages/")'],
+    [route, "idempotencyKey"],
+    [workerSource, "idempotency_key TEXT NOT NULL UNIQUE"],
+    [route, "tasks.length > 20"],
+    [route, '"service_health_report","repository_quality_check"'],
+    [route, "Dependencies must reference earlier tasks in this package"],
+    [route, "env.DB.batch(statements)"],
+    [route, "intelligence_task_dependencies"],
+    [route, "intelligence_work_packages"],
+    [route, "intelligence_task_events"],
+    [route, "NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies"],
+    [route, 'bind(packageId + ":" + item.taskId,packageId + ":" + dependency)'],
+    [route, "p.status<>'completed'"],
+    [route, "COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3)"],
+    [route, "attention_required"],
+    [route, "retryWaiting:0"],
+    [route, 'task.status === "retry_wait"'],
+    [route, "waiting_retry"],
+    [route, "checkpoint_json,last_error_code"],
+    [route, "blockedDependencies"],
+    [route, "report_json=?"],
+    [route, "UPDATE intelligence_work_packages SET status="],
+    [route, 'path.startsWith("/agent/v1/")'],
+    [route, "env.MEHRAN_AGENT_TOKEN"],
+    [route, "requires_approval=0"]
+  ];
+  for (const [source, expected] of checks) assert.ok(source.includes(expected), "Missing protocol invariant: " + expected);
 });
