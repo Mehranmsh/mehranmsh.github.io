@@ -1431,6 +1431,12 @@ test("automated Intelligence task transitions are owner-approval-only and execut
   assert.match(route, /hasOwnProperty\.call\(body,"result"\)[\s\S]*?execution service\.[\s\S]*?409/);
   assert.match(route, /requires_approval=CASE WHEN \?=\x27accepted\x27 THEN 0 ELSE requires_approval END/);
   assert.match(route, /writeAdminAudit\(env,admin,"collaboration_task_updated"/);
+  assert.match(route, /const allowedFields=\["status"\]/);
+  assert.match(route, /Object\.keys\(body\)\.some/);
+  assert.match(route, /WHERE id=\? AND status=\? AND requires_approval=\? AND action_type=\?/);
+  assert.match(route, /Task changed concurrently\. Refresh the task before retrying/);
+  assert.match(route, /if\(!Number\(update\?\.meta\?\.changes\|\|0\)\)/);
+  assert.match(route, /WHERE id=\? AND status=\? AND requires_approval=\?/);
 });
 
 

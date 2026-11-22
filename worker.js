@@ -6750,13 +6750,20 @@ export default {
         const existing=await env.DB.prepare("SELECT id,status,result_text,requires_approval,action_type FROM intelligence_tasks WHERE id=?").bind(id).first();
         if(!existing)return error("Task not found.",404);
         if(existing.action_type){
+          const allowedFields=["status"];
+          if(Object.keys(body).some(key=>!allowedFields.includes(key)))return error("Automated task updates may contain only an owner status decision.",409);
           const approvalTransition=body.status==="accepted"&&existing.status==="awaiting_approval"&&Number(existing.requires_approval)===1;
           const cancelTransition=body.status==="cancelled"&&["awaiting_approval","queued","accepted"].includes(existing.status);
           if(!approvalTransition&&!cancelTransition)return error("Automated task execution status is controlled by MEHRAN INTELLIGENCE. The owner may approve or cancel it only.",409);
           if(Object.prototype.hasOwnProperty.call(body,"result"))return error("Automated task results can only be recorded by the execution service.",409);
         }
-        const nextResult=Object.prototype.hasOwnProperty.call(body,"result")?result:(existing.result_text||"");
-        await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(body.status,nextResult,body.status,id).run();
+        let update;
+        if(existing.action_type){
+          update=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=? AND action_type=?").bind(body.status,body.status,id,existing.status,existing.requires_approval,existing.action_type).run();
+        }else{
+          update=await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,requires_approval=CASE WHEN ?='accepted' THEN 0 ELSE requires_approval END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=?").bind(body.status,result,body.status,id,existing.status,existing.requires_approval).run();
+        }
+        if(!Number(update?.meta?.changes||0))return error("Task changed concurrently. Refresh the task before retrying.",409);
         await writeAdminAudit(env,admin,"collaboration_task_updated","intelligence_task",id,JSON.stringify({status:body.status}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)});
