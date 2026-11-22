@@ -1,41 +1,16 @@
-# MEHRAN ChatGPT Bridge: final owner setup
+# MEHRAN ChatGPT Bridge setup (superseded)
 
-This is a limited, read-only health-report bridge. It does not enable autonomous execution.
+This older guide describes the GitHub Issues-based public-safe health-check workflow. That workflow is **not** the private ChatGPT ↔ MEHRAN INTELLIGENCE connector and must not be treated as a live two-way integration.
 
-## 1. Configure the same private token in both services
+For the current authenticated remote MCP endpoint, supported ChatGPT account requirements, private Bearer-token handling, tool permissions, and validation steps, use:
 
-Generate a random token of 40–200 characters using a password manager. Do not paste it into chat, an issue, a commit, or a source file.
+- [MEHRAN INTELLIGENCE: ChatGPT MCP connection guide](MEHRAN_MCP_CHATGPT_CONNECTION.md)
 
-**Cloudflare Worker**
-1. Open the Cloudflare dashboard.
-2. Open Workers & Pages → `mehran-msh-auth` → Settings → Variables and Secrets.
-3. Add a Secret named `MEHRAN_MCP_TOKEN` with the generated token as its value.
-4. Save/deploy the Worker configuration.
+## Important safety note
 
-**GitHub repository**
-1. Open repository Settings → Secrets and variables → Actions.
-2. Create a repository secret named `MEHRAN_MCP_TOKEN`.
-3. Set its value to exactly the same token.
-4. Do not create a plain Actions variable. It must be a Secret.
+- Do not paste `MEHRAN_MCP_TOKEN` into ChatGPT messages, GitHub issues, commits, screenshots, or task descriptions.
+- Do not use a public GitHub issue as a transport for private company messages or task payloads.
+- Bridge-created task proposals must remain subject to owner approval.
+- The GitHub Issues health-check workflow may be used only for its explicitly public-safe configuration report. It is not a substitute for the authenticated MCP connection.
 
-## 2. Merge the reviewed bridge PR
-
-Review and merge PR #137 only after confirming the workflow and setup instructions. The workflow is not active on `main` until merged.
-
-## 3. Run the health check
-
-After merge, open a new GitHub issue using the template **MEHRAN Bridge Health Check**. It contains the required marker and asks only for the read-only health report.
-
-Expected result: GitHub Actions runs and adds a comment titled **MEHRAN INTELLIGENCE bridge result**. It reports only whether the Worker, D1 binding, AI binding, and MCP route are configured. It does not expose private company records or user data.
-
-## Troubleshooting
-
-- **Secret missing/invalid:** check that both secrets exist and match; never reveal either value.
-- **HTTP 401:** Cloudflare Worker secret is missing, mismatched, or not deployed.
-- **HTTP 429:** MCP rate limit was reached; wait before retrying.
-- **Workflow does not start:** confirm PR #137 is merged to `main`, then create a *new* issue from the template.
-- **No comment:** open the failed Actions run and inspect the error message. Do not paste secret values into an issue or chat.
-
-## Scope and safety
-
-This first bridge proves a controlled ChatGPT-to-MCP request and returns a public-safe report through GitHub. It is not a private, continuous ChatGPT ↔ INTELLIGENCE conversation, does not run general tasks, and does not bypass owner approval. A separate supported private connector is still required for that broader goal.
+Do not follow the old PR #137 / issue-template setup steps as instructions for connecting ChatGPT to the private MCP server.
