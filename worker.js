@@ -5821,7 +5821,15 @@ export default {
           const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
           const report = {status,counts,generatedAt:new Date().toISOString()};
           await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
-          return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:events.results || []});
+          const eventRows = events.results || [];
+          if (pkg.status !== status) {
+            const eventId = crypto.randomUUID();
+            const details = JSON.stringify({fromStatus:pkg.status,toStatus:status,counts});
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'mehran_intelligence',?)")
+              .bind(eventId,packageId,"package:"+packageId,pkg.status || null,status,details).run();
+            eventRows.push({task_id:"package:"+packageId,event_type:"work_package_status_changed",from_status:pkg.status || null,to_status:status,actor:"mehran_intelligence",details_json:details,created_at:new Date().toISOString()});
+          }
+          return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows});
         }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
