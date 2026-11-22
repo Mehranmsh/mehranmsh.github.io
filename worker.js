@@ -5796,7 +5796,7 @@ export default {
           }
           return json({success:true,duplicate:false,workPackageId:packageId,status:"queued",taskCount:normalized.length},202);
         }
-        const packageMatch = path.match(/^\\/agent\\/v1\\/work-packages\\/([^/]+)$/);
+        const packageMatch = path.startsWith("/agent/v1/work-packages/") ? [null,path.slice("/agent/v1/work-packages/".length)] : null;
         if (packageMatch && method === "GET") {
           const packageId = decodeURIComponent(packageMatch[1]);
           const pkg = await env.DB.prepare("SELECT id,title,objective,priority,status,created_at,updated_at FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
