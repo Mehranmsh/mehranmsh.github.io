@@ -28,3 +28,10 @@ The orchestrator secret is not configured by this code change. Until the owner-o
 This is not a general-purpose code execution agent. It cannot run shell commands supplied by a task, edit repository files, deploy Workers, access Pi wallets, move funds, change secrets, or read private SOCIAL user records. Any broader executor requires a separate design and owner review.
 
 The scheduled workflow becomes active on the default branch after merge. A successful GitHub Actions run proves the runner workflow executed; a task is considered complete only when the authenticated result endpoint records `status=completed` in D1.
+
+
+## Private notification outbox
+
+Work-package status transitions enqueue a minimal event for the `owner_private` channel. An owner-orchestrator authenticated receiver can poll `GET /agent/v1/notifications/next`, receive a five-minute delivery lease, and acknowledge with `POST /agent/v1/notifications/{id}` using `delivered`, `retry`, or `failed`. Retry attempts are bounded and expired delivery leases return to the pending queue.
+
+This implements a private, authenticated delivery handoff contract, not a configured notification provider. No Telegram, email, push, or ChatGPT-session delivery is active until a trusted receiver is provisioned with the owner orchestration credential and an actual private channel. The credential must never be placed in a public workflow, repository, issue, or agent token store.
