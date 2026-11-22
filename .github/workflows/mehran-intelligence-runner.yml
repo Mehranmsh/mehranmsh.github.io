@@ -60,7 +60,7 @@ jobs:
           let packageId = "";
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             const packagePayload = {
-              idempotencyKey: `mehran-intelligence-source-audit-v3-${new Date().toISOString().slice(0,10)}`,
+              idempotencyKey: `mehran-intelligence-source-audit-v4-${new Date().toISOString().slice(0,10)}`,
               title: "MEHRAN INTELLIGENCE bounded source security audit",
               objective: "Run a deterministic read-only audit of fixed Worker and runner source files after confirming service health and repository identity. Do not modify code, configuration, secrets, accounts, or data.",
               priority: "high",
@@ -178,7 +178,16 @@ jobs:
                 { id: "separate_agent_and_owner_tokens", passed: workerSource.text.includes("MEHRAN_AGENT_TOKEN") && workerSource.text.includes("MEHRAN_ORCHESTRATOR_TOKEN"), detail: "Agent and owner identities are separately referenced." },
                 { id: "constant_time_token_hash_comparison", passed: /let mismatch = expectedHash\.length \^ suppliedHash\.length;[\s\S]{0,500}mismatch \|= \(expectedHash\.charCodeAt\(i\) \|\| 0\) \^ \(suppliedHash\.charCodeAt\(i\) \|\| 0\);[\s\S]{0,180}if \(mismatch !== 0\)/.test(workerSource.text), detail: "Hashed-token comparison path is present." },
                 { id: "rate_limit_controls", passed: /checkRateLimit\(/.test(workerSource.text), detail: "Rate-limit enforcement calls are present." },
-                { id: "password_hash_work_factor", passed: /310000/.test(workerSource.text), detail: "Configured PBKDF2 work factor is present." },
+                {
+                  id: "pbkdf2_worker_compatible_configuration",
+                  passed: (() => {
+                    const configured = workerSource.text.match(/const\s+PBKDF2_ITERATIONS\s*=\s*(\d+)\s*;/);
+                    return Number(configured?.[1]) === 100000
+                      && /async function hashPassword\(password, iterations = PBKDF2_ITERATIONS\)/.test(workerSource.text)
+                      && /if \(iterations !== PBKDF2_ITERATIONS\)/.test(workerSource.text);
+                  })(),
+                  detail: "Password hashing and verification consistently use the Worker-compatible PBKDF2 setting of 100,000 iterations; unsupported higher counts are not enabled."
+                },
                 { id: "fixed_private_report_repository", passed: workerSource.text.includes("repos/Mehranmsh/mehran-intelligence-reports/contents/"), detail: "Report persistence targets the designated private repository." },
                 { id: "audit_action_is_allowlisted", passed: workerSource.text.includes('"source_security_audit"'), detail: "Bounded source-audit action is recognized." },
                 { id: "runner_read_only_contents_permission", passed: /permissions:\s*\n\s*contents:\s*read/.test(runnerSource.text), detail: "Runner workflow declares contents: read." },
@@ -197,7 +206,8 @@ jobs:
                 limitations: [
                   "Deterministic pattern-based audit, not an AI code review.",
                   "Reads only the two named files from main.",
-                  "Does not execute repository code, modify files, access secrets, or deploy."
+                  "Does not execute repository code, modify files, access secrets, or deploy.",
+                  "PBKDF2 is held at the Worker-compatible 100,000-iteration setting; stronger iteration counts require a runtime-supported KDF path and must not be enabled by assumption."
                 ]
               };
             }

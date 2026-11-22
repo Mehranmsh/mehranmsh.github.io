@@ -14,6 +14,8 @@ on:
       - "instrument-sampler.js"
       - "assets/instruments/**"
       - ".github/workflows/quality-checks.yml"
+      - ".github/workflows/mehran-intelligence-runner.yml"
+      - ".github/workflows/mehran-intelligence-runner.yml"
   pull_request:
     paths:
       - "index.html"
@@ -24,6 +26,7 @@ on:
       - "instrument-sampler.js"
       - "assets/instruments/**"
       - ".github/workflows/quality-checks.yml"
+      - ".github/workflows/mehran-intelligence-runner.yml"
   workflow_dispatch:
 
 permissions:
