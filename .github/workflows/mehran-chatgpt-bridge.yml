@@ -1,4 +1,4 @@
-name: MEHRAN ChatGPT Bridge (public-safe health only)
+name: MEHRAN ChatGPT Bridge (health + owner-gated task proposal)
 
 on:
   issues:
