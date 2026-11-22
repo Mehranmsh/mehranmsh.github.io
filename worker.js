@@ -5460,6 +5460,59 @@ async function createIntelligenceWorkPackage(env, input) {
   return { success: true, duplicate: false, workPackageId: packageId, status: "queued", taskCount: tasks.length };
 }
 
+async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason) {
+  const planSummary = "AI planning was unavailable. A fixed, read-only readiness package was created using only the existing allowlisted checks.";
+  const scope = {
+    mode: "read_only",
+    planner: "deterministic_fallback",
+    plannerReason: cleanText(reason, 80) || "ai_unavailable",
+    mission,
+    planSummary,
+    allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit"],
+    forbidden: ["source_changes", "deployment", "secret_changes", "account_mutations", "financial_actions", "external_user_actions"]
+  };
+  const tasks = [
+    {
+      taskId: "service-health",
+      title: "Verify Worker and D1 service health",
+      description: "Read the Worker health endpoint and verify that the service is online and the database binding is healthy.",
+      actionType: "service_health_report",
+      dependsOn: []
+    },
+    {
+      taskId: "repository-quality",
+      title: "Inspect repository metadata and latest commit",
+      description: "Read the configured GitHub repository metadata and latest commit information without changing repository contents.",
+      actionType: "repository_quality_check",
+      dependsOn: []
+    },
+    {
+      taskId: "source-security",
+      title: "Run the bounded deterministic source security audit",
+      description: "Run the existing pattern-based read-only checks against worker.js and the Intelligence runner workflow. This is not a semantic AI code review.",
+      actionType: "source_security_audit",
+      dependsOn: []
+    }
+  ];
+  const created = await createIntelligenceWorkPackage(env, {
+    idempotencyKey,
+    title: "MEHRAN INTELLIGENCE readiness baseline",
+    objective: "Establish an evidence-based baseline of service health, repository state, and the currently implemented deterministic security controls using only existing read-only capabilities.",
+    priority: "normal",
+    scope,
+    tasks
+  });
+  if (!created.success) return created;
+  return {
+    ...created,
+    planner: { provider: "deterministic_fallback" },
+    planSummary,
+    taskCount: created.taskCount || tasks.length,
+    fallback: true,
+    safety: "Fixed read-only action allowlist enforced server-side; no source writes, deployments, secret access, or external actions."
+  };
+}
+
 async function planIntelligenceMission(env, input) {
   const mission = cleanText(input?.mission, 1600);
   const idempotencyKey = cleanText(input?.idempotencyKey, 120);
@@ -5471,10 +5524,10 @@ async function planIntelligenceMission(env, input) {
   ).bind(idempotencyKey).first();
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   if (!env.AI || typeof env.AI.run !== "function") {
-    return { success: false, error: "Cloudflare Workers AI binding is unavailable.", code: -32003 };
+    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_binding_unavailable");
   }
   const budget = await reserveSocialWorkersAIBudget(env, 500, "intelligence");
-  if (!budget.allowed) return { success: false, error: "MEHRAN INTELLIGENCE daily AI budget is reserved for today.", code: -32005 };
+  if (!budget.allowed) return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "daily_ai_budget_unavailable");
 
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   const system = [
@@ -5539,7 +5592,7 @@ async function planIntelligenceMission(env, input) {
     });
   } catch (err) {
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err && err.message || err).slice(0, 180));
-    return { success: false, error: "Cloudflare AI could not plan this mission.", code: -32003 };
+    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_inference_failed");
   }
 
   // Workers AI JSON Mode may return the structured object directly in response.
@@ -5551,11 +5604,11 @@ async function planIntelligenceMission(env, input) {
   if (modelResponse && typeof modelResponse === "object" && !Array.isArray(modelResponse)) {
     try {
       if (JSON.stringify(modelResponse).length > 12000) {
-        return { success: false, error: "AI planner returned an oversized plan.", code: -32004 };
+        return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_oversized");
       }
       plan = modelResponse;
     } catch {
-      return { success: false, error: "AI planner returned an unreadable structured plan.", code: -32004 };
+      return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_unreadable");
     }
   } else if (typeof modelResponse === "string" && modelResponse.trim() && modelResponse.length <= 12000) {
     try {
@@ -5565,13 +5618,13 @@ async function planIntelligenceMission(env, input) {
       if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON object not found");
       plan = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
     } catch {
-      return { success: false, error: "AI planner did not return valid structured JSON; no tasks were created.", code: -32004 };
+      return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_invalid_json");
     }
   } else {
-    return { success: false, error: "AI planner returned an empty or oversized plan.", code: -32004 };
+    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_empty_or_oversized");
   }
   if (!Array.isArray(plan.tasks) || plan.tasks.length < 1 || plan.tasks.length > 5) {
-    return { success: false, error: "AI plan must contain between 1 and 5 tasks.", code: -32602 };
+    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_plan_task_count_invalid");
   }
   const scope = {
     mode: "read_only",
@@ -5590,7 +5643,7 @@ async function planIntelligenceMission(env, input) {
     scope,
     tasks: plan.tasks
   });
-  if (!created.success) return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };
+  if (!created.success) {\n    if (created.code === -32602) return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_plan_validation_failed");\n    return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };\n  }
   return {
     ...created,
     planner: { provider: "cloudflare_workers_ai", model },
