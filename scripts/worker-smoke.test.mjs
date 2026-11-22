@@ -172,6 +172,10 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(workerSource, /intelligenceTaskMatch/);
   assert.match(route, /No external action was executed/);
   assert.match(route, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
+  assert.match(route, /actionType:\{type:"string",enum:\["project_status_report","social_metrics_report","service_health_report","repository_quality_check"\]\}/);
+  assert.match(route, /action_type,action_payload/);
+  assert.match(route, /Allowlisted report actions must be assigned to mehran_intelligence or shared/);
+  assert.match(route, /bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
   assert.match(route, /requiresApproval\?'awaiting_approval':'queued'/);
   assert.match(route, /MEHRAN_MCP_TOKEN/);
   assert.match(route, /get_company_map/);
