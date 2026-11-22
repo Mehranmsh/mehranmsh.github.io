@@ -1550,6 +1550,7 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
   assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'));
   assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
+  assert.ok(route.includes("status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')"), "expired notification leases cannot be acknowledged");
   assert.ok(route.includes("status='processing'"));
   assert.ok(route.includes("leaseExpiresAt"));
   assert.ok(route.includes('["delivered","retry","failed"]'));
