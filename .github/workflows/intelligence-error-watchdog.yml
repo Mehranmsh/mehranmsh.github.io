@@ -1,0 +1,151 @@
+name: MEHRAN INTELLIGENCE Error Watchdog
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["*"]
+    types: [completed]
+
+permissions:
+  issues: write
+  actions: read
+  contents: read
+
+concurrency:
+  group: mehran-intelligence-error-watchdog-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  service-health:
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check MEHRAN Worker and MCP health
+        uses: actions/github-script@v7
+        env:
+          MEHRAN_MCP_TOKEN: ${{ secrets.MEHRAN_MCP_TOKEN }}
+          MEHRAN_MCP_URL: https://mehran-msh-auth.mehran79mehran.workers.dev/mcp
+        with:
+          script: |
+            const token = process.env.MEHRAN_MCP_TOKEN || "";
+            const alertTitle = "[MEHRAN ALERT] Service health check";
+            const issues = github.rest.issues;
+            const existing = await issues.listForRepo({
+              ...context.repo, state: "open", per_page: 100
+            });
+            const alert = existing.data.find(item =>
+              !item.pull_request && item.title === alertTitle
+            );
+            let health = null;
+            let failure = "";
+            try {
+              if (token.length < 40 || token.length > 200) {
+                throw new Error("MCP credential is missing or invalid.");
+              }
+              const response = await fetch(process.env.MEHRAN_MCP_URL, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                  Accept: "application/json"
+                },
+                body: JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: `watchdog-${context.runId}`,
+                  method: "tools/call",
+                  params: { name: "get_service_health", arguments: {} }
+                }),
+                signal: AbortSignal.timeout(15000)
+              });
+              const raw = await response.text();
+              if (!response.ok) throw new Error(`MCP HTTP ${response.status}`);
+              const payload = JSON.parse(raw);
+              if (payload.error) throw new Error("MCP health tool returned an error.");
+              health = payload.result?.structuredContent;
+              if (!health || health.worker !== "available" ||
+                  health.databaseBinding !== true || health.aiBinding !== true ||
+                  health.mcp !== "collaboration-v1") {
+                throw new Error("One or more required Worker/MCP health checks are not healthy.");
+              }
+            } catch (err) {
+              failure = String(err?.message || "Unknown health-check failure").slice(0, 240);
+            }
+
+            if (failure) {
+              const body = [
+                "## MEHRAN service health alert",
+                "",
+                `- Detected: ${new Date().toISOString()}`,
+                `- Failure: ${failure}`,
+                `- Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                "",
+                "This alert contains no private task content, user data, or credentials. The watchdog will re-check automatically."
+              ].join("\n");
+              if (alert) {
+                await issues.update({
+                  ...context.repo, issue_number: alert.number, body
+                });
+              } else {
+                await issues.create({
+                  ...context.repo, title: alertTitle, body
+                });
+              }
+              core.setFailed(failure);
+              return;
+            }
+
+            if (alert) {
+              await issues.createComment({
+                ...context.repo,
+                issue_number: alert.number,
+                body: `<badge>Recovered</badge> MEHRAN Worker/MCP health checks passed at ${new Date().toISOString()}. The watchdog is closing this alert.\n\nWorkflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+              });
+              await issues.update({
+                ...context.repo, issue_number: alert.number, state: "closed"
+              });
+            }
+            core.info("MEHRAN Worker, D1 binding, AI binding, and MCP health checks passed.");
+
+  workflow-failure-alert:
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'MEHRAN INTELLIGENCE Error Watchdog'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Notify owner about failed automation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const title = "[MEHRAN ALERT] Automation failure";
+            const body = [
+              "## MEHRAN automation failure",
+              "",
+              `- Workflow: ${run.name}`,
+              `- Conclusion: ${run.conclusion}`,
+              `- Branch: ${run.head_branch || "unknown"}`,
+              `- Commit: ${(run.head_sha || "").slice(0, 12)}`,
+              `- Failed run: ${run.html_url}`,
+              `- Detected: ${new Date().toISOString()}`,
+              "",
+              "This notification contains only workflow metadata. Open the run to inspect the failing step. Do not paste secrets or private user data into public logs or issues."
+            ].join("\n");
+            const found = await github.rest.issues.listForRepo({
+              ...context.repo, state: "open", per_page: 100
+            });
+            let issue = found.data.find(item =>
+              !item.pull_request && item.title === title
+            );
+            if (!issue) {
+              const created = await github.rest.issues.create({
+                ...context.repo, title, body
+              });
+              issue = created.data;
+            }
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: issue.number,
+              body: `Failure detected: **${run.name}**. [Open failed run]( ${run.html_url} ). Run ID: ${run.id}`
+            });
