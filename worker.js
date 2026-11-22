@@ -6947,7 +6947,7 @@ export default {
         }
         await ensureIntelligenceTaskTable(env);
         const negotiatedProtocol = request.headers.get("MCP-Protocol-Version");
-        const supportedProtocols = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
+        const supportedProtocols = ["2025-11-25","2025-06-18","2025-03-26"];
         if (negotiatedProtocol && !supportedProtocols.includes(negotiatedProtocol)) {
           return error("Unsupported MCP protocol version.", 400);
         }
@@ -6961,7 +6961,7 @@ export default {
         }
         if (rpc.method === "initialize") {
           const requested = String(rpc.params?.protocolVersion || "");
-          const supported = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
+          const supported = ["2025-11-25","2025-06-18","2025-03-26"];
           const protocolVersion = supported.includes(requested) ? requested : "2025-06-18";
           return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.2.0"},instructions:packageIntakeEnabled?"MEHRAN MSH INTELLIGENCE bridge. The authenticated ChatGPT bridge may submit bounded work packages only when the owner orchestration secret is configured. Package tasks are restricted to read-only service health and repository metadata reports. It cannot submit arbitrary code, edit repositories, deploy, change secrets, access private SOCIAL records, change accounts, or move funds.":"MEHRAN MSH collaboration bridge. The dedicated ChatGPT bridge is restricted to read-only company tools and creating task proposals that ALWAYS require owner approval. It cannot update task statuses, execute deployments, change accounts, move funds, or perform external side effects. Admin browser sessions retain the existing admin tool permissions."});
         }
