@@ -5782,7 +5782,7 @@ export default {
             statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
                .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId}),packageId));
             for (const dependency of item.dependencies) {
-              statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(item.taskId,dependency));
+              statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(packageId + ":" + item.taskId,packageId + ":" + dependency));
             }
             statements.push(env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_created',NULL,'queued','mehran_intelligence',?)")
                .bind(crypto.randomUUID(),packageId,packageId + ":" + item.taskId,JSON.stringify({sourceTaskId:item.taskId,actionType:item.actionType,dependencies:item.dependencies})));
