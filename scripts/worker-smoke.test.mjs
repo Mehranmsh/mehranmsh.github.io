@@ -342,6 +342,29 @@ test("Intelligence mission planner creates a bounded deterministic fallback when
   assert.match(planner, /SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=\?/);
 });
 
+test("owner mission intake is admin-gated and does not substitute a generic fallback for custom missions", () => {
+  const routeStart = workerSource.indexOf('if (path === "/intelligence/missions" && method === "POST")');
+  const routeEnd = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart, "owner mission intake route must exist before the task hub route");
+  const route = workerSource.slice(routeStart, routeEnd);
+  assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /intelligence-owner-mission-submit/);
+  assert.match(route, /allowDeterministicFallback: false/);
+  assert.match(route, /writeAdminAudit\(/);
+  assert.match(route, /planIntelligenceMission\(env/);
+
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(planner, /input\?\.allowDeterministicFallback === false/);
+  assert.match(planner, /AI planning is unavailable; no custom mission package was created/);
+
+  const formatterStart = workerSource.indexOf("function formatIntelligenceTask");
+  const formatterEnd = workerSource.indexOf("async function writeAdminAudit", formatterStart);
+  assert.ok(formatterStart >= 0 && formatterEnd > formatterStart);
+  assert.match(workerSource.slice(formatterStart, formatterEnd), /workPackageId: row\.work_package_id \|\| null/);
+});
+
 test("social feed excludes private-account public posts and blocked relationships", () => {
   const start = workerSource.indexOf("async function socialFeed");
   const end = workerSource.indexOf("async function socialUserPosts", start);
