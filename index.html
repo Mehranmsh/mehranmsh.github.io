@@ -993,6 +993,12 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="panel intelligence-tasks">
 <div class="section-title"><div><h2>Collaboration Task Hub</h2><div class="small-text">A shared work queue for ChatGPT and MEHRAN INTELLIGENCE.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
 <div id="intelTasksStatus" class="notice">Tasks are stored securely in MEHRAN MSH. Creating a task records and assigns it, it does not execute external actions.</div>
+<form id="intelMissionForm" class="card" autocomplete="off">
+<div class="section-title"><div><h3>Assign a mission to MEHRAN INTELLIGENCE</h3><div class="small-text">Describe the outcome you want. Intelligence plans a bounded read-only work package; unavailable AI will not create a misleading substitute mission.</div></div></div>
+<div class="field"><label for="intelMissionText">Owner mission</label><textarea id="intelMissionText" rows="4" maxlength="1600" required placeholder="مثلاً وضعیت امنیت و آمادگی ماژول‌های شرکت را بررسی کن، مشکلات را اولویت‌بندی کن و امن‌ترین قدم بعدی را پیشنهاد بده."></textarea></div>
+<div id="intelMissionStatus" class="notice" aria-live="polite">Missions are submitted only from the authenticated administrator workspace.</div>
+<div class="hero-actions"><button class="btn" id="intelMissionSubmitBtn" type="submit">Plan mission</button></div>
+</form>
 <div id="intelApprovalDebugLog" class="small-text" role="status" aria-live="polite">Approval diagnostics ready. Click Approve task to capture the event and API result.</div>
 <div class="section-title" style="margin-top:18px"><div><h3>Cloudflare scheduler history</h3><div class="small-text">Worker cron runs every five minutes. The private GitHub runner polls its task queue separately.</div></div><button class="btn secondary small" id="refreshIntelRunsBtn" type="button">Refresh history</button></div>
 <div id="intelRunsStatus" class="small-text" aria-live="polite">Loading scheduler history...</div>
@@ -1000,7 +1006,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <form id="intelTaskForm" class="card" autocomplete="off">
 <div class="field"><label for="intelTaskTitle">Task title</label><input id="intelTaskTitle" maxlength="120" required placeholder="مثلاً بررسی و تکمیل ماژول SOCIAL"></div>
 <div class="field"><label for="intelTaskDescription">Task details</label><textarea id="intelTaskDescription" rows="3" maxlength="3000" required placeholder="هدف، محدوده و نتیجهٔ مورد انتظار را بنویس..."></textarea></div>
-<div class="field"><label for="intelTaskActionType">Execution type</label><select id="intelTaskActionType"><option value="">Manual task · no automatic execution</option><option value="project_status_report">Project status report</option><option value="social_metrics_report">SOCIAL metrics report</option><option value="service_health_report">Service health report</option><option value="repository_quality_check">Repository quality checks</option></select><div class="small-text">Read-only reports and quality checks assigned to MEHRAN INTELLIGENCE or Shared run automatically. Sensitive changes remain approval-gated.</div></div>
+<div class="field"><label for="intelTaskActionType">Execution type</label><select id="intelTaskActionType"><option value="">Manual task · no automatic execution</option><option value="project_status_report">Project status report</option><option value="social_metrics_report">SOCIAL metrics report</option><option value="service_health_report">Service health report</option><option value="repository_quality_check">Repository quality checks</option><option value="source_security_audit">Source security audit</option></select><div class="small-text">Read-only reports and quality checks assigned to MEHRAN INTELLIGENCE or Shared run automatically. Sensitive changes remain approval-gated.</div></div>
 <div class="grid">
 <div class="field"><label for="intelTaskAssignee">Assign to</label><select id="intelTaskAssignee"><option value="mehran_intelligence">MEHRAN INTELLIGENCE</option><option value="chatgpt">ChatGPT</option><option value="shared">Shared collaboration</option></select></div>
 <div class="field"><label for="intelTaskPriority">Priority</label><select id="intelTaskPriority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></div>
@@ -2232,6 +2238,22 @@ $("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
 $("intelQuestion")?.addEventListener("keydown",e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendIntelligenceMessage()}});
 $("refreshIntelligenceBtn")?.addEventListener("click",loadIntelligence);
 
+async function submitIntelligenceMission(event){
+event.preventDefault();
+const form=$("intelMissionForm"),button=$("intelMissionSubmitBtn"),status=$("intelMissionStatus");
+const mission=$("intelMissionText")?.value.trim()||"";
+if(mission.length<12){status.textContent="Describe the mission in at least 12 characters.";status.className="notice warn";return}
+button.disabled=true;status.textContent="MEHRAN INTELLIGENCE is planning the mission...";status.className="notice";
+try{
+const result=await api("/intelligence/missions",{method:"POST",body:JSON.stringify({mission})});
+status.textContent="Mission planned and added to the private execution queue. "+Number(result.taskCount||0)+" read-only tasks created. The runner will claim them automatically.";
+status.className="notice success";form.reset();
+await loadIntelligenceTasks();
+}catch(error){status.textContent="Mission was not queued: "+error.message;status.className="notice warn"}
+finally{button.disabled=false}
+}
+$("intelMissionForm")?.addEventListener("submit",submitIntelligenceMission);
+
 async function loadIntelligenceTasks(){
 const status=$("intelTasksStatus"),list=$("intelTasksList");
 if(!status||!list)return;
@@ -2253,7 +2275,7 @@ function renderIntelligenceTasks(tasks){
 const list=$("intelTasksList");if(!list)return;
 if(!tasks.length){list.innerHTML='<div class="empty">No collaboration tasks yet. Add the first task above.</div>';return}
 const labels={queued:"Queued",accepted:"Accepted",in_progress:"In progress",blocked:"Blocked",awaiting_approval:"Awaiting approval",completed:"Completed",cancelled:"Cancelled"};
-const actionTypes={project_status_report:"Project status report",social_metrics_report:"SOCIAL metrics report",service_health_report:"Service health report",repository_quality_check:"Repository quality checks"};
+const actionTypes={project_status_report:"Project status report",social_metrics_report:"SOCIAL metrics report",service_health_report:"Service health report",repository_quality_check:"Repository quality checks",source_security_audit:"Source security audit"};
 list.innerHTML=tasks.map(task=>{
 const status=labels[task.status]||task.status;
 const next=task.status==="awaiting_approval"?"accepted":(["queued","accepted"].includes(task.status)?"cancelled":null);
