@@ -136,5 +136,5 @@ jobs:
                 "- Approval: required from the owner",
                 "",
                 "_This workflow submits a fixed, non-sensitive proposal. It does not accept arbitrary issue text as task instructions and does not execute or deploy anything._"
-              ].join("\\n")
+              ].join("\n")
             });
