@@ -1685,3 +1685,19 @@ test("MCP work-package tools are exposed only to the bridge when owner orchestra
   assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
   assert.ok(mcp.includes('["service_health_report","repository_quality_check"]'));
 });
+
+
+test("MCP Streamable HTTP transport explicitly handles GET probes and negotiated protocol headers", () => {
+  const getRoute = workerSource.indexOf('if (path === "/mcp" && method === "GET")');
+  const postRoute = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  assert.ok(getRoute >= 0 && postRoute > getRoute, "MCP GET probe handling must precede the POST handler");
+  const getHandler = workerSource.slice(getRoute, postRoute);
+  assert.match(getHandler, /status:\s*405/);
+  assert.match(getHandler, /"Allow":\s*"POST"/);
+
+  const chatRoute = workerSource.slice(postRoute, workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', postRoute));
+  assert.match(chatRoute, /MCP-Protocol-Version/);
+  assert.match(chatRoute, /Unsupported MCP protocol version/);
+  assert.match(chatRoute, /2025-11-25/);
+  assert.doesNotMatch(chatRoute, /2024-11-05/);
+});
