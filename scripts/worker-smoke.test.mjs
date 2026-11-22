@@ -215,6 +215,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report'\)/);
   assert.match(route, /status IN \('queued','accepted'\)/);
+  assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
@@ -1331,6 +1332,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
   assert.ok(scheduledBody.includes("status IN ('queued','accepted') AND requires_approval=0"));
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"));
+  assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
