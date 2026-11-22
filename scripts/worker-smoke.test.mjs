@@ -1446,3 +1446,17 @@ test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", ()
   assert.match(policy, /Boolean\(body\.requiresApproval\|\|\s*\(actionType&&!autoApproved\)\)/);
   assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
 });
+
+
+test("Intelligence task creation rejects automated reports assigned to ChatGPT without an executor", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf('const intelligenceTaskMatch=', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /if\\(actionType&&assignedTo==="chatgpt"\\)/);
+  assert.match(route, /Allowlisted report actions must be assigned to mehran_intelligence or shared/);
+  const mcpStart = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  const mcpEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', mcpStart);
+  assert.ok(mcpStart >= 0 && mcpEnd > mcpStart);
+  assert.match(workerSource.slice(mcpStart, mcpEnd), /if\\(actionType&&assignedTo==="chatgpt"\\)/);
+});
