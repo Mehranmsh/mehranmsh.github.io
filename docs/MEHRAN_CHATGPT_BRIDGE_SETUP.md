@@ -1,6 +1,6 @@
 # MEHRAN ChatGPT Bridge: final owner setup
 
-This is a limited, read-only health-report bridge. It does not enable autonomous execution.
+This bridge provides a public-safe health report and an owner-gated fixed task proposal. It does not enable autonomous execution or private two-way messaging.
 
 ## 1. Configure the same private token in both services
 
