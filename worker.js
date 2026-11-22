@@ -5247,14 +5247,28 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
       work_package_id: pkg.id,
       status: snapshot.status,
       counts: snapshot.counts || {},
-      tasks: (taskResult.results || []).map(task => ({
-        task_id: String(task.id || "").slice(0,100),
-        status: String(task.status || "").slice(0,40),
-        action_type: String(task.action_type || "").slice(0,64),
-        attempts: Number(task.attempts || 0),
-        max_attempts: Number(task.max_attempts || 0),
-        last_error_code: String(task.last_error_code || "").slice(0,100)
-      }))
+      tasks: (taskResult.results || []).map(task => {
+        const rawResult = String(task.result_text || "");
+        let result;
+        try {
+          const parsed = JSON.parse(rawResult);
+          const serialized = JSON.stringify(parsed);
+          result = serialized.length <= 12000
+            ? parsed
+            : { truncated: true, preview: serialized.slice(0,12000) };
+        } catch {
+          result = rawResult.slice(0,4000);
+        }
+        return {
+          task_id: String(task.id || "").slice(0,100),
+          status: String(task.status || "").slice(0,40),
+          action_type: String(task.action_type || "").slice(0,64),
+          attempts: Number(task.attempts || 0),
+          max_attempts: Number(task.max_attempts || 0),
+          last_error_code: String(task.last_error_code || "").slice(0,100),
+          result
+        };
+      })
     },
     warnings: snapshot.status === "attention_required"
       ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
