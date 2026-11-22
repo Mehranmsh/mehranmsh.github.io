@@ -5647,6 +5647,7 @@ export default {
         path.startsWith("/music/") ||
         path.startsWith("/admin/") ||
         path.startsWith("/intelligence/") ||
+        path.startsWith("/agent/v1/") ||
         path === "/mcp" ||
         path === "/auth";
 
