@@ -1568,6 +1568,8 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes("notification lease changed before acknowledgement") || route.includes("Notification lease changed before acknowledgement."));
   assert.ok((workerSource.match(/INSERT OR IGNORE INTO intelligence_notification_outbox/g) || []).length >= 2, "both scheduler and package-report transitions must enqueue notifications");
   assert.ok(workerSource.includes("channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')"));
+  assert.ok(!workerSource.includes("package_status:"), "each package status transition must receive a fresh event ID");
+  assert.ok(workerSource.includes("JSON.stringify({eventId,type:\"work_package_status_changed\""), "notification payload must carry its deduplication event ID");
   assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
 });
 
