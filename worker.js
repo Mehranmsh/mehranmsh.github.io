@@ -5814,6 +5814,7 @@ export default {
             else counts.queued++;
           }
           const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval) ? "attention_required" : counts.inProgress ? "in_progress" : "queued";
+          await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,packageId).run();
           return json({success:true,workPackage:{...pkg,status,counts},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:events.results || []});
         }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
