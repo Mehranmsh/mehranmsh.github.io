@@ -64,6 +64,12 @@ The route is already included in the Worker database-binding guard and validates
 
 This gives the private bridge a real execution-side integration point: the future relay can enqueue a narrowly scoped task for INTELLIGENCE and collect its result through the agent service. The remaining missing component is a supported, authenticated private transport callable by this ChatGPT session, plus end-to-end encryption and owner-controlled key lifecycle.
 
+## ChatGPT custom MCP availability (official product constraint)
+
+OpenAI's current Help Center documentation states that full custom MCP connections, including write/modify tools, are available for ChatGPT Business and Enterprise/Edu workspaces. The documented Pro path is limited to read/fetch permissions. The current Free account is not listed as eligible for custom MCP server connections. See: https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt and https://developers.openai.com/api/docs/guides/custom-mcp-server.
+
+This is a product-access constraint, not a defect in the MEHRAN Worker. Do not weaken authentication or expose a public plaintext inbox to work around it. The supported paths are: (a) connect the custom MCP server from an eligible ChatGPT workspace/account with the required write permissions, or (b) build a separately operated OpenAI API agent that calls this MCP server with a dedicated scoped credential. Option (b) is a separate agent/API workflow, not a direct connection from this exact ChatGPT conversation, and may incur API usage charges.
+
 ## Critical integration prerequisite
 
 A secure relay alone does not connect this ChatGPT session to the relay. The current GitHub connector can access GitHub, but this session has no configured private HTTP tool for authenticated POST/GET calls to the Cloudflare Worker. The existing public GitHub Issues intake is limited to public-safe, allowlisted reports and is not a private two-way channel.
