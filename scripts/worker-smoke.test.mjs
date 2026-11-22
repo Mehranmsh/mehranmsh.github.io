@@ -1638,7 +1638,9 @@ test("INTELLIGENCE completion requires action-specific acceptance checks and com
 
 test("INTELLIGENCE acceptance verifier accepts valid action-specific reports", () => {
   const valid = [
-    ["service_health_report", {type:"service_health_report",worker:"online",database:true}],\n    ["service_health_report", {type:"service_health_report",database:"healthy",projectRecords:4}],\n    ["source_security_audit", {type:"source_security_audit",mode:"deterministic_read_only_static_audit",files:{"worker.js":{sha:"a",bytes:10},".github/workflows/mehran-intelligence-runner.yml":{sha:"b",bytes:10}},summary:{checks:1,passed:1,failed:0,status:"passed"},checks:[{id:"cors",passed:true,detail:"ok"}]}],
+    ["service_health_report", {type:"service_health_report",worker:"online",database:true}],
+    ["service_health_report", {type:"service_health_report",database:"healthy",projectRecords:4}],
+    ["source_security_audit", {type:"source_security_audit",mode:"deterministic_read_only_static_audit",files:{"worker.js":{sha:"a",bytes:10},".github/workflows/mehran-intelligence-runner.yml":{sha:"b",bytes:10}},summary:{checks:1,passed:1,failed:0,status:"passed"},checks:[{id:"cors",passed:true,detail:"ok"}]}],
     ["repository_quality_check", {type:"repository_quality_check",repository:"Mehranmsh/mehranmsh.github.io",defaultBranch:"main",openIssues:2,lastPushedAt:"2026-11-22T10:00:00Z",latestCommit:"abcdef123456",latestCommitAt:"2026-11-22T09:00:00Z"}],
     ["project_status_report", {type:"project_status_report",projects:[{name:"SOCIAL",status:"active",description:"Module"}]}],
     ["social_metrics_report", {type:"social_metrics_report",registeredUsers:10,activeUsers:7,posts:12,openReports:1}]
@@ -1652,7 +1654,9 @@ test("INTELLIGENCE acceptance verifier accepts valid action-specific reports", (
 
 test("INTELLIGENCE acceptance verifier rejects malformed, mismatched, and unsafe reports", () => {
   assert.equal(verifyIntelligenceReport("service_health_report", {type:"repository_quality_check"}).passed, false);
-  assert.equal(verifyIntelligenceReport("service_health_report", {type:"service_health_report",database:"down",projectRecords:1}).passed, false);\n  assert.equal(verifyIntelligenceReport("service_health_report", {type:"service_health_report",worker:"offline",database:false}).passed, false);\n  assert.equal(verifyIntelligenceReport("source_security_audit", {type:"source_security_audit",mode:"deterministic_read_only_static_audit",summary:{checks:1,passed:1,failed:0,status:"passed"},checks:[]}).passed, false);
+  assert.equal(verifyIntelligenceReport("service_health_report", {type:"service_health_report",database:"down",projectRecords:1}).passed, false);
+  assert.equal(verifyIntelligenceReport("service_health_report", {type:"service_health_report",worker:"offline",database:false}).passed, false);
+  assert.equal(verifyIntelligenceReport("source_security_audit", {type:"source_security_audit",mode:"deterministic_read_only_static_audit",summary:{checks:1,passed:1,failed:0,status:"passed"},checks:[]}).passed, false);
   assert.equal(verifyIntelligenceReport("repository_quality_check", {type:"repository_quality_check",repository:"attacker/repo",defaultBranch:"main",openIssues:0,lastPushedAt:"2026-11-22",latestCommit:"abcdef123456",latestCommitAt:"2026-11-22"}).passed, false);
   assert.equal(verifyIntelligenceReport("project_status_report", {type:"project_status_report",projects:Array(51).fill({name:"x",status:"x",description:"x"})}).passed, false);
   assert.equal(verifyIntelligenceReport("social_metrics_report", {type:"social_metrics_report",registeredUsers:2,activeUsers:3,posts:0,openReports:0}).passed, false);
