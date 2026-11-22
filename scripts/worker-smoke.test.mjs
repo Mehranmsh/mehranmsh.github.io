@@ -132,6 +132,22 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.match(payload.error, /Admin authentication required/);
 });
 
+test("administrator sessions have a bounded seven-day lifetime and reject expired tokens", () => {
+  assert.match(workerSource, /const ADMIN_SESSION_TTL_SECONDS = 7 \* 24 \* 60 \* 60;/);
+  const createStart = workerSource.indexOf('if (path === "/admin/session" && method === "POST")');
+  const createEnd = workerSource.indexOf('if (path === "/admin/session" && method === "GET")', createStart);
+  assert.ok(createStart >= 0 && createEnd > createStart, "admin session creation route must exist");
+  const createRoute = workerSource.slice(createStart, createEnd);
+  assert.match(createRoute, /const expiresAt = now \+ ADMIN_SESSION_TTL_SECONDS;/);
+  assert.doesNotMatch(createRoute, /4102444800|persistent:true/);
+
+  const verifyStart = workerSource.indexOf("async function verifyAdmin");
+  const verifyEnd = workerSource.indexOf("function normalizeStatus", verifyStart);
+  assert.ok(verifyStart >= 0 && verifyEnd > verifyStart, "admin session verifier must exist");
+  const verifier = workerSource.slice(verifyStart, verifyEnd);
+  assert.match(verifier, /revoked_at IS NULL AND expires_at>\?/);
+});
+
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
   assert.match(workerSource, /const MAX_BODY_BYTES = 100000;/);
   assert.match(workerSource, /origin !== ALLOWED_ORIGIN/);
