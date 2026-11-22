@@ -1,0 +1,120 @@
+name: MEHRAN INTELLIGENCE private task runner
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mehran-intelligence-private-runner
+  cancel-in-progress: false
+
+jobs:
+  execute-safe-reports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Claim and execute bounded read-only reports
+        env:
+          MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
+          MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
+        run: |
+          node --input-type=module <<'NODE'
+          const base = process.env.MEHRAN_AGENT_URL;
+          const token = process.env.MEHRAN_AGENT_TOKEN || "";
+          if (!base || token.length < 40 || token.length > 200) {
+            throw new Error("MEHRAN_AGENT_TOKEN repository secret is missing or invalid.");
+          }
+          const headers = {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          };
+          async function request(path, options = {}) {
+            const response = await fetch(base + path, {
+              ...options,
+              headers: { ...headers, ...(options.headers || {}) },
+              signal: AbortSignal.timeout(20000)
+            });
+            const raw = await response.text();
+            let payload;
+            try { payload = raw ? JSON.parse(raw) : {}; }
+            catch { throw new Error(`Agent API returned non-JSON HTTP ${response.status}`); }
+            if (!response.ok) throw new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
+            return payload;
+          }
+          async function execute(task) {
+            if (task.actionType === "service_health_report") {
+              const response = await fetch(base + "/health", {
+                headers: { "Accept": "application/json" },
+                signal: AbortSignal.timeout(12000)
+              });
+              const health = await response.json();
+              if (!response.ok || health.status !== "online" || health.database !== true) {
+                throw new Error("Worker or D1 health check did not pass.");
+              }
+              return {
+                type: task.actionType,
+                generatedAt: new Date().toISOString(),
+                worker: health.status,
+                database: health.database,
+                scheduler: health.scheduler || null,
+                scope: "Read-only Worker health endpoint."
+              };
+            }
+            if (task.actionType === "repository_quality_check") {
+              const headers = {
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
+              };
+              const repoResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io", {
+                headers, signal: AbortSignal.timeout(12000)
+              });
+              if (!repoResponse.ok) throw new Error(`GitHub repository metadata HTTP ${repoResponse.status}`);
+              const metadata = await repoResponse.json();
+              if (metadata.full_name !== "Mehranmsh/mehranmsh.github.io") throw new Error("Unexpected repository identity.");
+              const commitResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits?per_page=1", {
+                headers, signal: AbortSignal.timeout(12000)
+              });
+              if (!commitResponse.ok) throw new Error(`GitHub latest commit HTTP ${commitResponse.status}`);
+              const commits = await commitResponse.json();
+              const latest = Array.isArray(commits) ? commits[0] : null;
+              return {
+                type: task.actionType,
+                generatedAt: new Date().toISOString(),
+                repository: metadata.full_name,
+                defaultBranch: metadata.default_branch || null,
+                openIssues: Number(metadata.open_issues_count || 0),
+                lastPushedAt: metadata.pushed_at || null,
+                latestCommit: latest?.sha ? latest.sha.slice(0, 12) : null,
+                latestCommitAt: latest?.commit?.committer?.date || latest?.commit?.author?.date || null,
+                scope: "Public GitHub metadata only. No source execution or repository writes."
+              };
+            }
+            throw new Error("Runner refused an action outside its read-only allowlist.");
+          }
+          for (let count = 0; count < 5; count++) {
+            const claim = await request("/agent/v1/tasks/next");
+            const task = claim.task;
+            if (!task) {
+              if (count === 0) console.log("No eligible approved tasks.");
+              break;
+            }
+            let status = "completed";
+            let result;
+            try {
+              result = JSON.stringify(await execute(task));
+            } catch (error) {
+              status = "blocked";
+              result = `Read-only runner failed: ${String(error?.message || error).slice(0,900)}`;
+            }
+            await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
+              method: "POST",
+              body: JSON.stringify({ status, result })
+            });
+            console.log(`Task ${task.id}: ${status}`);
+          }
+          NODE
