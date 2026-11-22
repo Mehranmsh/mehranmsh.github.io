@@ -23,6 +23,7 @@ jobs:
           MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
           MEHRAN_ORCHESTRATOR_TOKEN: ${{ secrets.MEHRAN_ORCHESTRATOR_TOKEN }}
           MEHRAN_AGENT_URL: https://mehran-msh-auth.mehran79mehran.workers.dev
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           node --input-type=module <<'NODE'
           const base = process.env.MEHRAN_AGENT_URL;
@@ -117,6 +118,7 @@ jobs:
             if (task.actionType === "repository_quality_check") {
               const headers = {
                 "Accept": "application/vnd.github+json",
+                "Authorization": `Bearer ${process.env.GITHUB_TOKEN || ""}`,
                 "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
               };
               const repoResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io", {
@@ -159,7 +161,9 @@ jobs:
               result = JSON.stringify(await execute(task));
             } catch (error) {
               status = "blocked";
-              result = `Read-only runner failed: ${String(error?.message || error).slice(0,900)}`;
+              const diagnostic = String(error?.message || error).slice(0,300);
+              console.log(`Read-only task diagnostic (${task.actionType}): ${diagnostic}`);
+              result = `Read-only runner failed: ${diagnostic}`;
             }
             await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
               method: "POST",
