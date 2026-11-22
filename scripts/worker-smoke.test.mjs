@@ -170,7 +170,7 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_tasks/);
   assert.match(workerSource, /path === "\/intelligence\/tasks"/);
   assert.match(workerSource, /intelligenceTaskMatch/);
-  assert.match(route, /No external action was executed/);
+  assert.match(route, /No execution was performed/);
   assert.match(route, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
   assert.match(route, /actionType:\{type:"string",enum:\["project_status_report","social_metrics_report","service_health_report","repository_quality_check"\]\}/);
   assert.match(route, /action_type,action_payload/);
@@ -1459,7 +1459,7 @@ test("Intelligence task creation rejects automated reports assigned to ChatGPT w
   const end = workerSource.indexOf('const intelligenceTaskMatch=', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
-  assert.match(route, /if\\(actionType&&assignedTo==="chatgpt"\\)/);
+  assert.match(route, /if\(actionType&&assignedTo==="chatgpt"\)/);
   assert.match(route, /Allowlisted report actions must be assigned to mehran_intelligence or shared/);
   const mcpStart = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const mcpEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', mcpStart);
