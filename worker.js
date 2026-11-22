@@ -6693,6 +6693,10 @@ export default {
         if(!admin)return error("Admin authentication required",403);
         await ensureIntelligenceTaskTable(env);
         if(method==="GET"){
+          // Normalize legacy rows whose approval flag is off but whose status still says awaiting_approval.
+          await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report','repository_quality_check')"
+          ).run();
           const url=new URL(request.url), status=url.searchParams.get("status"), assignedTo=url.searchParams.get("assignedTo");
           const statuses=["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"];
           const assignments=["mehran_intelligence","chatgpt","shared"];
