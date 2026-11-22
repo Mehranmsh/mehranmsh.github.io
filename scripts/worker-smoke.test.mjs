@@ -1359,7 +1359,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.ok(scheduledStart >= 0, "scheduled handler remains present");
   assert.ok(scheduledBody.indexOf("const run = async") >= 0, "scheduler has a background runner");
   assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
-  assert.ok(scheduledBody.includes("status IN ('queued','accepted') AND requires_approval=0"));
+  assert.ok(scheduledBody.includes("t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check')"), "scheduler must claim dependency-ready package tasks with retry support");
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
@@ -1525,8 +1525,7 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
     [route, "env.MEHRAN_AGENT_TOKEN"],
     [route, "ownerOrchestrationRoute"],
     [route, "env.MEHRAN_ORCHESTRATOR_TOKEN"],
-    [route, "Owner orchestration authentication required."]
-
+    [route, "Owner orchestration authentication required."],
     [route, "requires_approval=0"]
   ];
   for (const [source, expected] of checks) assert.ok(source.includes(expected), "Missing protocol invariant: " + expected);
