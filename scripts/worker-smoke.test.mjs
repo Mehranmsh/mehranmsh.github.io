@@ -1527,3 +1527,27 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
   ];
   for (const [source, expected] of checks) assert.ok(source.includes(expected), "Missing protocol invariant: " + expected);
 });
+
+
+test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks with bounded retries", () => {
+  const start = workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const end = workerSource.indexOf("async fetch(request, env)", start);
+  assert.ok(start >= 0 && end > start, "scheduled runner must exist");
+  const scheduler = workerSource.slice(start, end);
+  const required = [
+    "t.work_package_id IS NOT NULL",
+    "t.status IN ('queued','accepted','retry_wait')",
+    "t.action_type IN ('service_health_report','repository_quality_check')",
+    "t.next_attempt_at",
+    "NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies",
+    "p.status<>'completed'",
+    "attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1",
+    "agent_claimed_at=CURRENT_TIMESTAMP",
+    "candidate.work_package_id || null",
+    "task_verified",
+    'const nextStatus = retryable ? "retry_wait" : "blocked"',
+    "task_retry_scheduled",
+    "Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))))"
+  ];
+  for (const expected of required) assert.ok(scheduler.includes(expected), "Missing scheduler invariant: " + expected);
+});
