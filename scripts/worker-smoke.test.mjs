@@ -1671,7 +1671,7 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   };
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "shell_command" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], dependsOn: ["later"] }, { taskId: "later", title: "Later", actionType: "repository_quality_check" }] }).ok, false);
-  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: Array(21).fill(base.tasks[0]) }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: Array.from({ length: 21 }, (_, index) => ({ taskId: "task-" + index, title: "Task " + index, actionType: "service_health_report" })) }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
 });
 
