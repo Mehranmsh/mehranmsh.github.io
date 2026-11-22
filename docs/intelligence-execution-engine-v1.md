@@ -143,3 +143,10 @@ The first implementation milestone is now explicitly blocked on schema inventory
 1. Verify the current production schema using the existing read-only preflight mechanism, if its required credentials and protected branch are already configured.
 2. Reconcile the checker, referenced migration files, deployed schema, and current Worker source.
 3. Only then select the smallest compatible task-step storage design. Reuse existing tables only when their presence and ownership constraints are confirmed.
+
+
+## Follow-up correction: migration files are on the rollout branch
+
+The earlier note that migration files were missing from the repository was too broad. They are absent from `main`, but they do exist on the dedicated branch `intelligence/production-compatible-v1` at commit `3370ade4a7ba6e059ad94bbb106c5354a82d85db`. The production rollout workflow deliberately requires that branch for dispatch. Migration 0001 adds owner/project/dependency structure; migration 0002 adds owner-scoped knowledge and memory.
+
+This confirms the files and workflow are present on the rollout branch, **not** that either migration has been applied to production. Production schema state remains unknown until a successful read-only preflight run is observed. The correct next action is `preflight-0001` on that branch, not either `apply-*` option.
