@@ -1595,3 +1595,15 @@ test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks
   ];
   for (const expected of required) assert.ok(scheduler.includes(expected), "Missing scheduler invariant: " + expected);
 });
+
+
+test("INTELLIGENCE completion requires action-specific acceptance checks and commits evidence with status", () => {
+  assert.match(workerSource, /function verifyIntelligenceReport\(actionType, report\)/);
+  assert.match(workerSource, /report\.repository !== "Mehranmsh\/mehranmsh\.github\.io"/);
+  assert.match(workerSource, /report\.activeUsers > report\.registeredUsers/);
+  assert.match(workerSource, /const acceptance = verifyIntelligenceReport\(candidate\.action_type, report\)/);
+  assert.match(workerSource, /if \(!acceptance\.passed\) throw new Error\("Acceptance verification failed:/);
+  assert.match(workerSource, /acceptanceChecks:acceptance\.checks/);
+  assert.match(workerSource, /const completion = await env\.DB\.batch\(\[/);
+  assert.match(workerSource, /WHERE id=\? AND status='in_progress'/);
+});
