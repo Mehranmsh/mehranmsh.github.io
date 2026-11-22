@@ -1683,7 +1683,7 @@ test("MCP work-package tools are exposed only to the bridge when owner orchestra
   assert.ok(mcp.includes('name:"create_intelligence_work_package"'));
   assert.ok(mcp.includes('name:"get_intelligence_work_package"'));
   assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
-  assert.ok(mcp.includes('["service_health_report","repository_quality_check"]'));
+  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit"]'));
 });
 
 
