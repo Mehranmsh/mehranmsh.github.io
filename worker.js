@@ -5536,7 +5536,7 @@ export default {
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
@@ -5672,7 +5672,7 @@ export default {
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes')"
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).run();
           // Repair only stale approval labels on pre-authorized read-only tasks before claiming them.
           await env.DB.prepare(
@@ -5700,7 +5700,7 @@ export default {
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND assigned_to IN ('mehran_intelligence','shared')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).bind(body.status || "completed",resultText,id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
