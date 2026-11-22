@@ -10,7 +10,6 @@ on:
       - "music-studio.html"
       - "worker.js"
       - "intelligence/private-notification-receiver/**"
-      - "intelligence/private-notification-receiver/**"
       - "scripts/**"
       - "engine/**"
       - "instrument-sampler.js"
