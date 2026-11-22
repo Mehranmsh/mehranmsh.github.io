@@ -5599,7 +5599,7 @@ export default {
 
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
-            "SELECT id,action_type FROM intelligence_tasks WHERE status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT id,action_type,status FROM intelligence_tasks WHERE status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
@@ -5608,7 +5608,7 @@ export default {
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','scheduled_runner','{}')")
-            .bind(crypto.randomUUID(),null,candidate.id,"queued").run();
+            .bind(crypto.randomUUID(),null,candidate.id,candidate.status || "queued").run();
           try {
             let report;
             if (candidate.action_type === "project_status_report") {
