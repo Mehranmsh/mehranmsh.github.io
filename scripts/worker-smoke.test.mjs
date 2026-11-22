@@ -219,7 +219,10 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.ok(start >= 0 && end > start, "Agent API route must exist before health route");
   const route = workerSource.slice(start, end);
   assert.doesNotMatch(route, /return error\("Production Intelligence Agent execution is disabled\.", 410\)/);
-  assert.match(workerSource, /const needsDB =[\\s\\S]*path\\.startsWith\\("\/agent\\/v1\/"\\)/);
+  const needsDbStart = workerSource.indexOf("const needsDB =");
+  const needsDbEnd = workerSource.indexOf("if (needsDB && !env.DB)", needsDbStart);
+  assert.ok(needsDbStart >= 0 && needsDbEnd > needsDbStart);
+  assert.ok(workerSource.slice(needsDbStart, needsDbEnd).includes('path.startsWith("/agent/v1/")'));
   assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
   assert.match(route, /Agent authentication required/);
   assert.match(route, /Agent service identity is not configured/);
