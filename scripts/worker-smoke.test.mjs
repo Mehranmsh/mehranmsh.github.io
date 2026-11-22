@@ -1543,6 +1543,21 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
 });
 
 
+test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-based", () => {
+  const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const end = workerSource.indexOf('if (path === "/health"', start);
+  const route = workerSource.slice(start, end);
+  assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
+  assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'));
+  assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
+  assert.ok(route.includes("status='processing'"));
+  assert.ok(route.includes("leaseExpiresAt"));
+  assert.ok(route.includes('["delivered","retry","failed"]'));
+  assert.ok(route.includes("notification lease changed before acknowledgement") || route.includes("Notification lease changed before acknowledgement."));
+  assert.ok(workerSource.includes("INSERT OR IGNORE INTO intelligence_notification_outbox"));
+  assert.ok(workerSource.includes("channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')"));
+});
+
 test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks with bounded retries", () => {
   const start = workerSource.indexOf("async scheduled(controller, env, ctx)");
   const end = workerSource.indexOf("async fetch(request, env)", start);
