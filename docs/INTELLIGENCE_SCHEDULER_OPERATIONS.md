@@ -1,12 +1,12 @@
 # MEHRAN INTELLIGENCE Scheduled Queue
 
-Status: implementation candidate on `feature/intelligence-scheduled-queue-fix`. It is not live on `main` until reviewed and merged.
+Status: deployed to the production Cloudflare Worker from `main` on 2026-11-22. The scheduler implementation is live.
 
 ## What the scheduler does
 
-The Cloudflare Worker already has a Cron Trigger configured for every five minutes (`*/5 * * * *`). The scheduled handler imports eligible public-safe owner issues, checks the D1 task queue, and processes up to five eligible read-only tasks per run.
+The Cloudflare Worker has a Cron Trigger configured for every five minutes (`*/5 * * * *`). The scheduled handler imports eligible public-safe owner issues, checks the D1 task queue, and processes up to five eligible read-only tasks per run.
 
-This change fixes a queue mismatch: owner-created pre-approved report tasks are created as `queued`, while the scheduler previously selected only `accepted` tasks. The scheduler now claims either `queued` or `accepted` tasks, but only when `requires_approval=0` and the assignee is `mehran_intelligence` or `shared`.
+The queue fix allows the scheduler to claim either `queued` or `accepted` tasks, but only when `requires_approval=0` and the assignee is `mehran_intelligence` or `shared`.
 
 ## Allowlisted actions
 
@@ -25,10 +25,22 @@ The repository check uses a fixed allowlisted URL, bounded network timeout, and 
 - This scheduler is not a general-purpose command runner, does not deploy code, does not edit files, does not access SOCIAL personal data, and does not send private task content to ChatGPT.
 - The ChatGPT-to-Worker private two-way bridge is still not implemented by this change.
 
-## Verification after merge
+## Production deployment verification
 
-1. Confirm the Worker deployment includes this commit.
-2. Create a harmless admin task with action type `service_health_report` or `repository_quality_check`, assigned to `mehran_intelligence` or `shared`, with approval not required.
-3. Wait for the next five-minute Cron Trigger.
-4. Check `/health` for the latest scheduler run and inspect the task list in the Admin Intelligence panel.
-5. Confirm the task reaches `completed` or `blocked` with a bounded result. Do not use sensitive task descriptions for this test.
+Verified on 2026-11-22:
+
+- PR #140 was merged into `main` as commit `85fe54bd06ddfb8c562a84b09961295f9deeadd0`.
+- Cloudflare Worker deployment workflow run `45012770737` completed successfully.
+- GitHub Pages deployment workflow run `45012770425` completed successfully.
+- Main-branch quality workflow run `45012770786` completed successfully.
+- Live `/health` returned `status=online`, `database=true`, and scheduler `lastStatus=completed`.
+- The latest observed scheduler run reported `processed=0`, `completed=0`, and `blocked=0`. This confirms the scheduled handler ran, but it does not yet prove an actual queued task was executed; no eligible task was present at that run.
+
+## Remaining end-to-end check
+
+1. In the authenticated Admin Intelligence panel, create a harmless task with action type `service_health_report`, assigned to `mehran_intelligence` or `shared`, with approval not required.
+2. Wait for the next five-minute Cron Trigger.
+3. Check `/health` for the latest scheduler run and inspect the task in the Admin Intelligence panel.
+4. Confirm the task reaches `completed` with a bounded result. Do not use sensitive task descriptions for this test.
+
+Do not create a public GitHub issue for private work. The GitHub issue inbox is only for explicitly public-safe tasks.
