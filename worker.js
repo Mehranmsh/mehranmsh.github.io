@@ -5235,8 +5235,13 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
   if ((pkg.status || "queued") !== status) {
     const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
-    await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'scheduled_runner',?)")
-      .bind(crypto.randomUUID(),packageId,"package:"+packageId,pkg.status || "queued",status,details).run();
+    const eventId = "package_status:" + packageId + ":" + status;
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'scheduled_runner',?)")
+        .bind(crypto.randomUUID(),packageId,"package:"+packageId,pkg.status || "queued",status,details),
+      env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')")
+        .bind(crypto.randomUUID(),eventId,JSON.stringify({type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}))
+    ]);
   }
   return report;
 }
@@ -5787,7 +5792,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET");
+        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -5866,6 +5871,32 @@ export default {
             throw err;
           }
           return json({success:true,duplicate:false,workPackageId:packageId,status:"queued",taskCount:normalized.length},202);
+        }
+        if (path === "/agent/v1/notifications/next" && method === "GET") {
+          const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='pending',next_attempt_at=NULL,last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
+          const candidate = await env.DB.prepare("SELECT id,event_id,channel,payload_json,attempts FROM intelligence_notification_outbox WHERE status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now')) ORDER BY created_at ASC LIMIT 1").first();
+          if (!candidate) return json({success:true,notification:null},200);
+          const leaseUntil = new Date(Date.now()+5*60*1000).toISOString();
+          const claimed = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='processing',attempts=attempts+1,next_attempt_at=?,last_error='' WHERE id=? AND status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))").bind(leaseUntil,candidate.id).run();
+          if (!Number(claimed?.meta?.changes || 0)) return json({success:true,notification:null},200);
+          return json({success:true,notification:{id:candidate.id,eventId:candidate.event_id,channel:candidate.channel,payload:JSON.parse(candidate.payload_json),attempt:Number(candidate.attempts||0)+1,leaseExpiresAt:leaseUntil}},200);
+        }
+        const notificationMatch = path.startsWith("/agent/v1/notifications/") ? path.slice("/agent/v1/notifications/".length) : "";
+        if (notificationMatch && method === "POST") {
+          const notificationId = decodeURIComponent(notificationMatch);
+          if (!/^[0-9a-f-]{36}$/i.test(notificationId)) return error("Invalid notification id.",400);
+          const body = await readBody(request);
+          const outcome = body?.status;
+          const message = cleanText(body?.message,300);
+          if (!["delivered","retry","failed"].includes(outcome)) return error("Notification result must be delivered, retry, or failed.",400);
+          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=?").bind(notificationId).first();
+          if (!row || row.status !== "processing") return error("Notification is not in an active delivery lease.",409);
+          const retryable = outcome === "retry" && Number(row.attempts||0) < 5;
+          const finalStatus = outcome === "delivered" ? "delivered" : retryable ? "retry_wait" : "failed";
+          const nextAt = retryable ? new Date(Date.now()+Math.min(3600,30*(2**Math.max(0,Number(row.attempts||1)-1)))*1000).toISOString() : null;
+          const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,last_error=?,delivered_at=? WHERE id=? AND status='processing'").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId).run();
+          if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
+          return json({success:true,status:finalStatus},200);
         }
         const packageMatch = path.startsWith("/agent/v1/work-packages/") ? [null,path.slice("/agent/v1/work-packages/".length)] : null;
         if (packageMatch && method === "GET") {
