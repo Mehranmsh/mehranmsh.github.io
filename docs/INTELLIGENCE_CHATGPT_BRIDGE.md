@@ -52,6 +52,18 @@ All routes must use separate bridge identities, scoped permissions, short-lived 
 - INTELLIGENCE must return evidence: task ID, status, module, actions taken, changed files or records, test results, and remaining risks.
 - ChatGPT reviews evidence and may send follow-up tasks, but cannot silently promote an approval-required task.
 
+## Existing authenticated execution API (verified in Worker source)
+
+The current Worker already exposes a separate agent API under `/agent/v1/*`, authenticated with the `MEHRAN_AGENT_TOKEN` secret (minimum 40 characters). This is distinct from the ChatGPT MCP identity and must remain a separate least-privilege credential.
+
+Implemented routes:
+- `GET /agent/v1/tasks/next`: claims only eligible, non-approval, allowlisted `repository_quality_check` or `service_health_report` tasks assigned to `mehran_intelligence` or `shared`.
+- `POST /agent/v1/tasks/:id/result`: accepts a bounded result only for a task currently claimed by that agent, with a 15-minute claim window; status is limited to `completed` or `blocked`.
+
+The route is already included in the Worker database-binding guard and validates its bearer token. It does not provide a general-purpose private ChatGPT messaging channel, does not expose arbitrary task execution, and does not establish a direct ChatGPT-to-Worker HTTP connection. The MCP bridge token and agent token must not be reused interchangeably.
+
+This gives the private bridge a real execution-side integration point: the future relay can enqueue a narrowly scoped task for INTELLIGENCE and collect its result through the agent service. The remaining missing component is a supported, authenticated private transport callable by this ChatGPT session, plus end-to-end encryption and owner-controlled key lifecycle.
+
 ## Critical integration prerequisite
 
 A secure relay alone does not connect this ChatGPT session to the relay. The current GitHub connector can access GitHub, but this session has no configured private HTTP tool for authenticated POST/GET calls to the Cloudflare Worker. The existing public GitHub Issues intake is limited to public-safe, allowlisted reports and is not a private two-way channel.
