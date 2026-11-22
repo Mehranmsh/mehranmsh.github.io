@@ -60,7 +60,7 @@ jobs:
           let packageId = "";
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             const packagePayload = {
-              idempotencyKey: `mehran-intelligence-source-audit-${new Date().toISOString().slice(0,10)}`,
+              idempotencyKey: `mehran-intelligence-source-audit-v2-${new Date().toISOString().slice(0,10)}`,
               title: "MEHRAN INTELLIGENCE bounded source security audit",
               objective: "Run a deterministic read-only audit of fixed Worker and runner source files after confirming service health and repository identity. Do not modify code, configuration, secrets, accounts, or data.",
               priority: "high",
