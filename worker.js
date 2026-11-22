@@ -5202,12 +5202,14 @@ async function ensureIntelligenceProtocolTables(env) {
       status TEXT NOT NULL DEFAULT 'pending',
       attempts INTEGER NOT NULL DEFAULT 0,
       next_attempt_at TEXT,
+      lease_token TEXT NOT NULL DEFAULT '',
       last_error TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       delivered_at TEXT,
       UNIQUE(event_id,channel)
     )
   `).run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_notification_outbox ADD COLUMN lease_token TEXT NOT NULL DEFAULT ''").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
@@ -5883,13 +5885,14 @@ export default {
         }
         if (path === "/agent/v1/notifications/next" && method === "GET") {
           // Expired delivery leases consume an attempt; stop after five claims instead of retrying forever.
-          const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END,next_attempt_at=CASE WHEN attempts>=5 THEN NULL ELSE datetime('now','+' || min(3600,30 * (1 << max(0,attempts-1))) || ' seconds') END,last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
+          const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END,next_attempt_at=CASE WHEN attempts>=5 THEN NULL ELSE datetime('now','+' || min(3600,30 * (1 << max(0,attempts-1))) || ' seconds') END,lease_token='',last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
           const candidate = await env.DB.prepare("SELECT id,event_id,channel,payload_json,attempts FROM intelligence_notification_outbox WHERE status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now')) ORDER BY created_at ASC LIMIT 1").first();
           if (!candidate) return json({success:true,notification:null},200);
           const leaseUntil = new Date(Date.now()+5*60*1000).toISOString();
-          const claimed = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='processing',attempts=attempts+1,next_attempt_at=?,last_error='' WHERE id=? AND status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))").bind(leaseUntil,candidate.id).run();
+          const leaseToken = toBase64Url(crypto.getRandomValues(new Uint8Array(24)));
+          const claimed = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='processing',attempts=attempts+1,next_attempt_at=?,lease_token=?,last_error='' WHERE id=? AND status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))").bind(leaseUntil,leaseToken,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,notification:null},200);
-          return json({success:true,notification:{id:candidate.id,eventId:candidate.event_id,channel:candidate.channel,payload:JSON.parse(candidate.payload_json),attempt:Number(candidate.attempts||0)+1,leaseExpiresAt:leaseUntil}},200);
+          return json({success:true,notification:{id:candidate.id,eventId:candidate.event_id,channel:candidate.channel,payload:JSON.parse(candidate.payload_json),attempt:Number(candidate.attempts||0)+1,leaseExpiresAt:leaseUntil,leaseToken}},200);
         }
         const notificationMatch = path.startsWith("/agent/v1/notifications/") ? path.slice("/agent/v1/notifications/".length) : "";
         if (notificationMatch && method === "POST") {
@@ -5898,13 +5901,15 @@ export default {
           const body = await readBody(request);
           const outcome = body?.status;
           const message = cleanText(body?.message,300);
+          const leaseToken = typeof body?.leaseToken === "string" ? body.leaseToken : "";
+          if (!leaseToken || leaseToken.length > 100) return error("A valid notification lease token is required.",400);
           if (!["delivered","retry","failed"].includes(outcome)) return error("Notification result must be delivered, retry, or failed.",400);
-          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=? AND status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(notificationId).first();
+          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(notificationId,leaseToken).first();
           if (!row || row.status !== "processing") return error("Notification is not in an active delivery lease.",409);
           const retryable = outcome === "retry" && Number(row.attempts||0) < 5;
           const finalStatus = outcome === "delivered" ? "delivered" : retryable ? "retry_wait" : "failed";
           const nextAt = retryable ? new Date(Date.now()+Math.min(3600,30*(2**Math.max(0,Number(row.attempts||1)-1)))*1000).toISOString() : null;
-          const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,last_error=?,delivered_at=? WHERE id=? AND status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId).run();
+          const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,lease_token='',last_error=?,delivered_at=? WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId,leaseToken).run();
           if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
           return json({success:true,status:finalStatus},200);
         }
