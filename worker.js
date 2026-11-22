@@ -5469,7 +5469,7 @@ async function ingestGitHubIntelligenceInbox(env) {
       // Only these explicit read-only report actions can be queued for execution.
       // All other issue content remains a plain proposal and can never become code or commands.
       const actionMatch = body.match(/^Action:\s*([a-z_]+)\s*$/im);
-      const allowedActions = ["project_status_report","social_metrics_report","service_health_report"];
+      const allowedActions = ["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
       const actionType = actionMatch && allowedActions.includes(actionMatch[1].toLowerCase())
         ? actionMatch[1].toLowerCase()
         : "";
@@ -5527,11 +5527,11 @@ export default {
 
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
-            "SELECT id,action_type FROM intelligence_tasks WHERE status='accepted' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT id,action_type FROM intelligence_tasks WHERE status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report','service_health_report','repository_quality_check') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='accepted' AND requires_approval=0"
+            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
@@ -5552,6 +5552,31 @@ export default {
               await env.DB.prepare("SELECT 1 AS healthy").first();
               const projects = await env.DB.prepare("SELECT COUNT(*) AS total FROM projects").first();
               report = { type:candidate.action_type, generatedAt:new Date().toISOString(), database:"healthy", projectRecords:Number(projects?.total || 0) };
+            } else if (candidate.action_type === "repository_quality_check") {
+              // Fixed public repository only. Metadata reads only; no code execution or writes.
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 7000);
+              try {
+                const headers = { "Accept":"application/vnd.github+json", "User-Agent":"MEHRAN-MSH-INTELLIGENCE" };
+                const response = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io", { headers, signal:controller.signal });
+                if (!response.ok) throw new Error("GitHub repository metadata returned HTTP " + response.status);
+                const metadata = await response.json();
+                if (metadata.full_name !== "Mehranmsh/mehranmsh.github.io") throw new Error("Unexpected repository identity.");
+                const commitsResponse = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits?per_page=1", { headers, signal:controller.signal });
+                if (!commitsResponse.ok) throw new Error("GitHub latest commit lookup returned HTTP " + commitsResponse.status);
+                const commits = await commitsResponse.json();
+                const latest = Array.isArray(commits) ? commits[0] : null;
+                report = {
+                  type:candidate.action_type, generatedAt:new Date().toISOString(),
+                  repository:metadata.full_name, defaultBranch:metadata.default_branch || null,
+                  openIssues:Number(metadata.open_issues_count || 0), lastPushedAt:metadata.pushed_at || null,
+                  latestCommit:latest?.sha ? String(latest.sha).slice(0,12) : null,
+                  latestCommitAt:latest?.commit?.committer?.date || latest?.commit?.author?.date || null,
+                  scope:"Public GitHub metadata only; no source code execution or repository writes."
+                };
+              } finally {
+                clearTimeout(timeout);
+              }
             } else {
               throw new Error("Unsupported action type.");
             }
