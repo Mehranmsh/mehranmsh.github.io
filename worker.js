@@ -6180,7 +6180,16 @@ export default {
           } else {
             await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
           }
-          return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows});
+          let reportStorage = null;
+          if (["completed","attention_required"].includes(status)) {
+            try {
+              reportStorage = await persistIntelligencePackageReport(env, packageId, report);
+            } catch (err) {
+              console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", String(err?.message || err).slice(0,180));
+              reportStorage = {stored:false,reason:"write_failed"};
+            }
+          }
+          return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows,reportStorage});
         }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
