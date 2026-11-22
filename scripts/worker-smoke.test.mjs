@@ -259,6 +259,8 @@ test("owner approval remains the only way to release approval-gated tasks", () =
 test("scheduled Intelligence runner is single-flight, secret-backed and restricted to read-only reports", async () => {
   const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
   assert.match(runner, /schedule:/);
+  assert.match(runner, /push:\s*\n\s*branches:\s*\n\s*- main/);
+  assert.match(runner, /paths:\s*\n\s*- "\.github\/workflows\/mehran-intelligence-runner\.yml"/);
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
