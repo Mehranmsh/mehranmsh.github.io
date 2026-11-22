@@ -182,6 +182,17 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
 });
 
+test("Intelligence task listing repairs only stale approval labels on explicitly pre-authorized read-only tasks", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf('const intelligenceTaskMatch=', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
+  assert.ok(route.includes("assigned_to IN ('mehran_intelligence','shared')"));
+  assert.ok(route.includes("action_type IN ('project_status_report','social_metrics_report','service_health_report','repository_quality_check')"));
+  assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
+});
+
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
@@ -202,33 +213,64 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
   assert.match(payload.error, /Admin authentication required/);
 });
 
-test("MEHRAN Intelligence agent API is separately scoped and approval-gated", () => {
-  assert.match(workerSource, /path\.startsWith\("\/agent\/v1\/"\)/);
-  assert.match(workerSource, /env\.MEHRAN_AGENT_TOKEN/);
-  assert.match(workerSource, /requires_approval=0/);
-  assert.match(workerSource, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
-  assert.match(workerSource, /status IN \('queued','accepted'\)/);
-  assert.match(workerSource, /status='in_progress'/);
-  assert.match(workerSource, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.match(workerSource, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(workerSource, /agent_claimed_at=NULL/);
-  assert.match(workerSource, /\["completed","blocked"\]/);
-  assert.match(workerSource, /Agent authentication required/);
-  assert.match(workerSource, /Agent service identity is not configured/);
+test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer secret", () => {
+  const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const end = workerSource.indexOf('if (path === "/health"', start);
+  assert.ok(start >= 0 && end > start, "Agent API route must exist before health route");
+  const route = workerSource.slice(start, end);
+  assert.doesNotMatch(route, /return error\("Production Intelligence Agent execution is disabled\.", 410\)/);
+  const needsDbStart = workerSource.indexOf("const needsDB =");
+  const needsDbEnd = workerSource.indexOf("if (needsDB && !env.DB)", needsDbStart);
+  assert.ok(needsDbStart >= 0 && needsDbEnd > needsDbStart);
+  assert.ok(workerSource.slice(needsDbStart, needsDbEnd).includes('path.startsWith("/agent/v1/")'));
+  assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
+  assert.match(route, /Agent authentication required/);
+  assert.match(route, /Agent service identity is not configured/);
+  assert.match(route, /requires_approval=0/);
+  assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(route, /status IN \('queued','accepted'\)/);
+  assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
+  assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
+  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
+  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(route, /agent_claimed_at=NULL/);
+  assert.match(route, /\["completed","blocked"\]/);
 });
 
-test("MEHRAN Intelligence agent API remains disabled even when a service secret is absent or present", async () => {
-  const response = await request("/agent/v1/tasks/next", {}, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "x".repeat(64) });
-  assert.equal(response.status, 410);
-  const payload = await response.json();
-  assert.match(payload.error, /Production Intelligence Agent execution is disabled/);
+test("MEHRAN Intelligence Agent API rejects missing and incorrect credentials", async () => {
+  const db = mockDb();
+  const missing = await request("/agent/v1/tasks/next", {}, { DB: db });
+  assert.equal(missing.status, 503);
+  const incorrect = await request("/agent/v1/tasks/next", {
+    headers: { Authorization: "Bearer " + "y".repeat(64) }
+  }, { DB: db, MEHRAN_AGENT_TOKEN: "x".repeat(64) });
+  assert.equal(incorrect.status, 401);
 });
 
-test("owner approval cannot re-enable the disabled Production Intelligence Agent", () => {
-  assert.match(workerSource, /Production Intelligence Agent execution is disabled/);
+test("owner approval remains the only way to release approval-gated tasks", () => {
   assert.match(workerSource, /requires_approval=CASE WHEN \?='accepted' THEN 0 ELSE requires_approval END/);
-  assert.match(workerSource, /if \(path\.startsWith\("\/agent\/v1\/"\)\)\s*\{\s*return error\([\s\S]*?410\);/);
+  assert.match(workerSource, /status='in_progress' AND agent_claimed_at IS NOT NULL/);
+});
+
+test("scheduled Intelligence runner is single-flight, secret-backed and restricted to read-only reports", async () => {
+  const runner = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+  assert.match(runner, /schedule:/);
+  assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
+  assert.match(runner, /concurrency:/);
+  assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(runner, /task\.requiresApproval !== false/);
+  assert.match(runner, /task\.status !== "in_progress"/);
+  assert.match(runner, /task\.assignedTo/);
+  assert.match(runner, /secrets\.MEHRAN_AGENT_TOKEN/);
+  assert.match(runner, /service_health_report/);
+  assert.match(runner, /repository_quality_check/);
+  assert.match(runner, /status, result/);
+  assert.match(runner, /Runner refused an action outside its read-only allowlist/);
+  assert.doesNotMatch(runner, /CLOUDFLARE_API_TOKEN|MEHRAN_MCP_TOKEN/);
 });
 
 test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approved task proposals", () => {
@@ -1307,7 +1349,9 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.ok(scheduledBody.indexOf("const run = async") >= 0, "scheduler has a background runner");
   assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
   assert.ok(scheduledBody.includes("status IN ('queued','accepted') AND requires_approval=0"));
-  assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report','service_health_report','repository_quality_check')"));
+  assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
+  assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
   assert.match(workerSource, /Visibility:\\s\*public-safe/);
@@ -1320,7 +1364,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(workerSource, /created_by='github-inbox' AND action_type='service_health_report'/);
   assert.match(workerSource, /result:task\.status === "completed"/);
   assert.ok(workerSource.includes("status IN ('queued','accepted') AND requires_approval=0"));
-  assert.match(workerSource, /Production Intelligence Agent execution is disabled\./);
+  assert.doesNotMatch(workerSource, /Production Intelligence Agent execution is disabled\./);
   assert.match(workerSource, /github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/issues\?state=open&per_page=100/);
 });
 test("Intelligence scheduler history is private, bounded and stores execution counters", () => {
