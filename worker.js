@@ -5607,6 +5607,8 @@ export default {
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
+          await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','scheduled_runner','{}')")
+            .bind(crypto.randomUUID(),null,candidate.id,"queued").run();
           try {
             let report;
             if (candidate.action_type === "project_status_report") {
@@ -5654,10 +5656,14 @@ export default {
             }
             const resultText = JSON.stringify(report).slice(0,3000);
             await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_verified','in_progress','completed','scheduled_runner',?)")
+              .bind(crypto.randomUUID(),null,candidate.id,JSON.stringify({resultLength:resultText.length})).run();
             completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
             await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_blocked','in_progress','blocked','scheduled_runner',?)")
+              .bind(crypto.randomUUID(),null,candidate.id,JSON.stringify({error:resultText.slice(0,500)})).run();
             blocked++;
           }
         }
