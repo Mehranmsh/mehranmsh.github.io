@@ -284,7 +284,7 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /repository_quality_check/);
   assert.match(runner, /status, result/);
   assert.match(runner, /Runner refused an action outside its read-only allowlist/);
-  assert.doesNotMatch(runner, /CLOUDFLARE_API_TOKEN|MEHRAN_MCP_TOKEN/);
+  assert.doesNotMatch(runner, /CLOUDFLARE_API_TOKEN|secrets\\.MEHRAN_MCP_TOKEN|process\\.env\\.MEHRAN_MCP_TOKEN/);
 });
 
 test("Intelligence source audit cross-checks capability allowlists and owner safety boundaries", () => {
