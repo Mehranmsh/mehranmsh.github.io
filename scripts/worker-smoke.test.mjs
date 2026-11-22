@@ -1492,7 +1492,7 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
   assert.match(route, /path === "\/agent\/v1\/work-packages" && method === "POST"/);
   assert.match(route, /path\.startsWith\("\/agent\/v1\/work-packages\/"\)/);
   assert.match(route, /idempotencyKey/);
-  assert.match(route, /UNIQUE/);
+  assert.match(workerSource, /idempotency_key TEXT NOT NULL UNIQUE/);
   assert.match(route, /tasks\.length > 20/);
   assert.match(route, /service_health_report","repository_quality_check/);
   assert.match(route, /Dependencies must reference earlier tasks in this package/);
