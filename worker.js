@@ -5601,16 +5601,16 @@ export default {
 
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
-            "SELECT id,action_type,status FROM intelligence_tasks WHERE status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT t.id,t.action_type,t.status,t.work_package_id,t.attempts,t.max_attempts FROM intelligence_tasks t WHERE t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') AND ((t.status IN ('queued','accepted') AND t.action_type IN ('project_status_report','social_metrics_report')) OR (t.work_package_id IS NOT NULL AND t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed'))) ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report')"
-          ).bind(candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check')))"
+          ).bind(candidate.id,candidate.status).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','scheduled_runner','{}')")
-            .bind(crypto.randomUUID(),null,candidate.id,candidate.status || "queued").run();
+            .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,candidate.status || "queued").run();
           try {
             let report;
             if (candidate.action_type === "project_status_report") {
@@ -5657,16 +5657,20 @@ export default {
               throw new Error("Unsupported action type.");
             }
             const resultText = JSON.stringify(report).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,agent_claimed_at=NULL,next_attempt_at=NULL,last_error_code='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
             await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_verified','in_progress','completed','scheduled_runner',?)")
-              .bind(crypto.randomUUID(),null,candidate.id,JSON.stringify({resultLength:resultText.length})).run();
+              .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,JSON.stringify({resultLength:resultText.length})).run();
             completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_blocked','in_progress','blocked','scheduled_runner',?)")
-              .bind(crypto.randomUUID(),null,candidate.id,JSON.stringify({error:resultText.slice(0,500)})).run();
-            blocked++;
+            const retryable = !!candidate.work_package_id && /timeout|abort|fetch failed|network|HTTP 5\\d\\d|temporarily unavailable|rate limit/i.test(resultText) && Number(candidate.attempts || 0) + 1 < Number(candidate.max_attempts || 3);
+            const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))));
+            const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
+            const nextStatus = retryable ? "retry_wait" : "blocked";
+            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(nextStatus,resultText,nextAttemptAt,retryable?"transient_execution_error":"execution_blocked",candidate.id).run();
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'scheduled_runner',?)")
+              .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,retryable?"task_retry_scheduled":"task_blocked","in_progress",nextStatus,JSON.stringify({error:resultText.slice(0,500),retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
+            if (!retryable) blocked++;
           }
         }
 
