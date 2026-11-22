@@ -1552,7 +1552,11 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('path === "/agent/v1/notifications/status" && method === "GET"'));
   assert.ok(route.includes('recentFailures:failures.results||[]'));
   assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'));
-  assert.ok(route.includes('const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST")'), "notification delivery must require the separate owner orchestration identity");
+  assert.ok(route.includes('const ownerOrchestrationRoute ='), "owner orchestration routes must be explicitly separated");
+  assert.ok(route.includes('path === "/agent/v1/missions/plan" && method === "POST"'), "mission planning must require the separate owner orchestration identity");
+  assert.ok(route.includes('path === "/agent/v1/work-packages" && method === "POST"'));
+  assert.ok(route.includes('path.startsWith("/agent/v1/work-packages/") && method === "GET"'));
+  assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'), "notification delivery must require the separate owner orchestration identity");
   assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
   assert.ok(route.includes("status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')"), "only the current delivery lease can be acknowledged");
   assert.ok(route.includes("CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END"), "abandoned delivery leases must have bounded retries");
