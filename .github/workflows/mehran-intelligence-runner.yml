@@ -60,7 +60,7 @@ jobs:
           let packageId = "";
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             const packagePayload = {
-              idempotencyKey: "mehran-intelligence-bootstrap-audit-v1",
+              idempotencyKey: "mehran-intelligence-bootstrap-audit-v2",
               title: "MEHRAN INTELLIGENCE execution-pipeline readiness check",
               objective: "Verify the existing Worker/D1 health and GitHub repository metadata through the approved read-only execution path. Do not modify code, configuration, secrets, accounts, or data.",
               priority: "high",
