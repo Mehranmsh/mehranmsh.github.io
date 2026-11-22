@@ -6501,7 +6501,7 @@ export default {
             {name:"get_social_metrics",description:"Read aggregate SOCIAL metrics. No personal user data is returned.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_service_health",description:"Report configured service dependencies. Does not perform external health probes.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
-            {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN collaboration queue. This records work only and does not execute it.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
+            {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN queue. Optional allowlisted report actions can be routed to the execution service, but the ChatGPT bridge always leaves them awaiting owner approval.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},actionType:{type:"string",enum:["project_status_report","social_metrics_report","service_health_report","repository_quality_check"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
             {name:"list_collaboration_tasks",description:"List recent tasks in the shared MEHRAN collaboration queue.",inputSchema:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
             ...(bridgeAuthorized?[]:[{name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}])
           ]});
@@ -6597,18 +6597,21 @@ export default {
             return replyData(data);
           }
           if (name === "create_collaboration_task") {
-            const allowed=["title","description","assignedTo","priority","requiresApproval"];
+            const allowed=["title","description","assignedTo","priority","actionType","requiresApproval"];
             if (Object.keys(args).some(k=>!allowed.includes(k))) return rpcError(-32602,"Unknown task field.");
             const title=cleanText(args.title,120), description=cleanText(args.description,3000);
             const assignedTo=args.assignedTo||"mehran_intelligence", priority=args.priority||"normal";
+            const actionType=args.actionType||"";
+            const allowedActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
             if(!title||title.length<4||typeof args.description!=="string"||args.description.length>3000) return rpcError(-32602,"A task title and description are required.");
-            if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")) return rpcError(-32602,"Invalid task assignment, priority or approval flag.");
+            if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)||(args.requiresApproval!==undefined&&typeof args.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActions].includes(actionType)) return rpcError(-32602,"Invalid task assignment, priority, approval flag or action type.");
+            if(actionType&&assignedTo==="chatgpt") return rpcError(-32602,"Allowlisted report actions must be assigned to mehran_intelligence or shared so the execution service can claim them.");
             const id=crypto.randomUUID();
             const requiresApproval = bridgeAuthorized ? true : Boolean(args.requiresApproval);
-            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by) VALUES(?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username).run();
-            await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority}));
+            await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType,"{}").run();
+            await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
             const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
-            return replyData({task:formatIntelligenceTask(row),message:"Task recorded in the shared queue. No execution was performed."});
+            return replyData({task:formatIntelligenceTask(row),message:requiresApproval?"Task proposal saved and awaiting owner approval. No execution was performed.":"Task saved to the shared queue. No execution was performed."});
           }
           if (name === "list_collaboration_tasks") {
             const allowed=["status","assignedTo"];
