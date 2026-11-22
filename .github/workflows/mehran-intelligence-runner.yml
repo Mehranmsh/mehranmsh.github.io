@@ -179,16 +179,15 @@ jobs:
                 { id: "constant_time_token_hash_comparison", passed: /let mismatch = expectedHash\.length \^ suppliedHash\.length;[\s\S]{0,500}mismatch \|= \(expectedHash\.charCodeAt\(i\) \|\| 0\) \^ \(suppliedHash\.charCodeAt\(i\) \|\| 0\);[\s\S]{0,180}if \(mismatch !== 0\)/.test(workerSource.text), detail: "Hashed-token comparison path is present." },
                 { id: "rate_limit_controls", passed: /checkRateLimit\(/.test(workerSource.text), detail: "Rate-limit enforcement calls are present." },
                 {
-              id: "pbkdf2_worker_compatible_configuration",
-              passed: (() => {
-                const configured = workerSource.text.match(/const\s+PBKDF2_ITERATIONS\s*=\s*(\d+)\s*;/);
-                return Number(configured?.[1]) === 100000
-                  && /async function hashPassword\(password, iterations = PBKDF2_ITERATIONS\)/.test(workerSource.text)
-                  && /if \(iterations !== PBKDF2_ITERATIONS\)/.test(workerSource.text);
-              })(),
-              detail: "Password hashing and verification consistently use the Worker-compatible PBKDF2 setting of 100,000 iterations; unsupported higher counts are not enabled."
-            },
-                { id: "fixed_private_report_repository", passed: workerSource.text.includes("repos/Mehranmsh/mehran-intelligence-reports/contents/"), detail: "Report persistence targets the designated private repository." },
+                  id: "pbkdf2_worker_compatible_configuration",
+                  passed: (() => {
+                    const configured = workerSource.text.match(/const\s+PBKDF2_ITERATIONS\s*=\s*(\d+)\s*;/);
+                    return Number(configured?.[1]) === 100000
+                      && /async function hashPassword\(password, iterations = PBKDF2_ITERATIONS\)/.test(workerSource.text)
+                      && /if \(iterations !== PBKDF2_ITERATIONS\)/.test(workerSource.text);
+                  })(),
+                  detail: "Password hashing and verification consistently use the Worker-compatible PBKDF2 setting of 100,000 iterations; unsupported higher counts are not enabled."
+                },                { id: "fixed_private_report_repository", passed: workerSource.text.includes("repos/Mehranmsh/mehran-intelligence-reports/contents/"), detail: "Report persistence targets the designated private repository." },
                 { id: "audit_action_is_allowlisted", passed: workerSource.text.includes('"source_security_audit"'), detail: "Bounded source-audit action is recognized." },
                 { id: "runner_read_only_contents_permission", passed: /permissions:\s*\n\s*contents:\s*read/.test(runnerSource.text), detail: "Runner workflow declares contents: read." },
                 { id: "runner_does_not_checkout_or_execute_repo_scripts", passed: !/actions\/checkout@|npm\s+(?:run|install)|pnpm\s+(?:run|install)|yarn\s+(?:run|install)/.test(runnerSource.text), detail: "Runner does not check out the target repo or invoke its package scripts." }
