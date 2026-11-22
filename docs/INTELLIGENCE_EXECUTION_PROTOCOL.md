@@ -128,8 +128,15 @@ The protocol is not production-ready until all of the following are demonstrated
 9. A final consolidated report is retrievable by ChatGPT when the owner returns.
 10. Notification delivery failures are visible and retried.
 
-## Current implementation gap
+## Implementation status and remaining gaps
 
-The existing Worker has a five-minute scheduler and a narrow allowlist of read-only reports, plus an agent claim/result API restricted to `service_health_report` and `repository_quality_check`. This is not yet a general dependency-aware work-package orchestrator, does not implement the complete lifecycle above, and does not provide a private callable two-way transport from this ChatGPT session.
+The companion runtime work in PR #162 adds durable work-package storage, dependency-aware task eligibility, idempotency-key payload fingerprints, bounded retries, checkpoints, lifecycle events, stale-claim recovery, and owner-only package intake/report routes protected by a separate `MEHRAN_ORCHESTRATOR_TOKEN`. The Worker scheduler can execute only the currently allowlisted read-only report actions; the external agent API is likewise restricted to those actions.
 
-Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. The next implementation must prioritize durable work packages, dependencies, checkpoint/retry semantics, evidence-backed verification, and a supported private transport; do not expand unrelated company modules as part of this work.
+This is a runtime foundation, not the complete protocol and not yet production-active. The following acceptance items remain unproven or unimplemented:
+- A private authenticated intake path from ChatGPT or another approved owner interface.
+- A general, reviewed executor framework for additional task types and repository/Cloudflare operations.
+- Independent acceptance-check execution and durable evidence artifacts for every completed task.
+- Actual notification delivery from the outbox to a configured private channel, including retry and delivery confirmation.
+- End-to-end tests demonstrating restart recovery, independent task progress, transient failure recovery, duplicate delivery, owner approval gates, and final report retrieval.
+
+Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.
