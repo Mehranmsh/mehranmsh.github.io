@@ -1360,6 +1360,11 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.ok(scheduledBody.indexOf("const run = async") >= 0, "scheduler has a background runner");
   assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
   assert.ok(scheduledBody.includes("t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check')"), "scheduler must claim dependency-ready package tasks with retry support");
+  assert.ok(scheduledBody.includes("Recover abandoned package claims"), "scheduler must recover expired executor claims");
+  assert.match(workerSource, /refreshIntelligenceWorkPackageSnapshot\(env,candidate\.work_package_id\)/);
+  assert.match(workerSource, /refreshIntelligenceWorkPackageSnapshot\(env,stale\.work_package_id\)/);
+  assert.match(workerSource, /HTTP 5\\d\\d/);
+  assert.doesNotMatch(workerSource, /HTTP 5\\\\d\\\\d/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
