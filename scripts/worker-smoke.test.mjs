@@ -1523,6 +1523,10 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
     [route, "fromStatus:pkg.status,toStatus:status"],
     [route, 'path.startsWith("/agent/v1/")'],
     [route, "env.MEHRAN_AGENT_TOKEN"],
+    [route, "ownerOrchestrationRoute"],
+    [route, "env.MEHRAN_ORCHESTRATOR_TOKEN"],
+    [route, "Owner orchestration authentication required."]
+
     [route, "requires_approval=0"]
   ];
   for (const [source, expected] of checks) assert.ok(source.includes(expected), "Missing protocol invariant: " + expected);
