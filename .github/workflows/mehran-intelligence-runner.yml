@@ -1,6 +1,10 @@
 name: MEHRAN INTELLIGENCE private work-package runner
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mehran-intelligence-runner.yml"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
