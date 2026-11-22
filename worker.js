@@ -5140,7 +5140,73 @@ async function ensureIntelligenceTaskTable(env) {
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_type TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claimed_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN work_package_id TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN next_attempt_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN checkpoint_json TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN last_error_code TEXT NOT NULL DEFAULT ''").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_package ON intelligence_tasks(work_package_id,status)").run();
+}
+
+async function ensureIntelligenceProtocolTables(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_work_packages(
+      id TEXT PRIMARY KEY,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      objective TEXT NOT NULL DEFAULT '',
+      scope_json TEXT NOT NULL DEFAULT '{}',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'queued',
+      created_by TEXT NOT NULL,
+      report_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_task_dependencies(
+      task_id TEXT NOT NULL,
+      depends_on_task_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(task_id,depends_on_task_id),
+      CHECK(task_id <> depends_on_task_id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_dependencies_parent ON intelligence_task_dependencies(depends_on_task_id)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_task_events(
+      id TEXT PRIMARY KEY,
+      work_package_id TEXT,
+      task_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      actor TEXT NOT NULL,
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_task_events_package ON intelligence_task_events(work_package_id,created_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_task_events_task ON intelligence_task_events(task_id,created_at)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_notification_outbox(
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT,
+      last_error TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      delivered_at TEXT,
+      UNIQUE(event_id,channel)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
 async function ensureIntelligenceSchedulerRunsTable(env) {
@@ -5518,6 +5584,7 @@ export default {
       let runRecordCreated = false;
       try {
         await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceProtocolTables(env);
         await ensureIntelligenceSchedulerRunsTable(env);
         await ingestGitHubIntelligenceInbox(env);
         await env.DB.prepare(
@@ -5669,6 +5736,7 @@ export default {
         }
         if (mismatch !== 0) return error("Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceProtocolTables(env);
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
