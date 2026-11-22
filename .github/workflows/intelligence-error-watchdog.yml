@@ -1,6 +1,9 @@
 name: MEHRAN INTELLIGENCE Error Watchdog
 
 on:
+  push:
+    paths:
+      - ".github/workflows/intelligence-error-watchdog.yml"
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
