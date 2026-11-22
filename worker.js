@@ -5882,7 +5882,8 @@ export default {
           return json({success:true,counts,recentFailures:failures.results||[]},200);
         }
         if (path === "/agent/v1/notifications/next" && method === "GET") {
-          const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='pending',next_attempt_at=NULL,last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
+          // Expired delivery leases consume an attempt; stop after five claims instead of retrying forever.
+          const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END,next_attempt_at=CASE WHEN attempts>=5 THEN NULL ELSE datetime('now','+' || min(3600,30 * (1 << max(0,attempts-1))) || ' seconds') END,last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
           const candidate = await env.DB.prepare("SELECT id,event_id,channel,payload_json,attempts FROM intelligence_notification_outbox WHERE status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now')) ORDER BY created_at ASC LIMIT 1").first();
           if (!candidate) return json({success:true,notification:null},200);
           const leaseUntil = new Date(Date.now()+5*60*1000).toISOString();
