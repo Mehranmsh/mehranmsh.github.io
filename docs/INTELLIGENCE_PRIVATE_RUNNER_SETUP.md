@@ -4,9 +4,9 @@ This runner is deliberately limited to two read-only actions:
 - `service_health_report`: reads the Worker health endpoint and verifies the D1 binding.
 - `repository_quality_check`: reads public metadata and the latest commit for the fixed MEHRAN MSH repository.
 
-The Worker scheduler continues to process `project_status_report` and `social_metrics_report`. The external runner and the Worker scheduler use disjoint action allowlists so they cannot race to claim the same task.
+The Worker scheduler processes the legacy `project_status_report` and `social_metrics_report` tasks and also executes dependency-ready work-package tasks of the two read-only action types above. It claims at most five tasks per scheduled run. The optional external agent API can also claim the same package action types; both claim paths use a conditional status update so only one executor can win a task claim.
 
-## Required secret
+## Required secrets
 
 Before enabling the runner after its code is reviewed and merged, create one high-entropy random secret of at least 40 characters (64 random bytes encoded as hex is suitable). Store the exact same value in both locations:
 
@@ -15,7 +15,13 @@ Before enabling the runner after its code is reviewed and merged, create one hig
 
 Do not put the value in source code, Issues, pull requests, workflow logs, or ChatGPT messages. Do not reuse `MEHRAN_MCP_TOKEN` or any Pi credential.
 
-The runner polls every five minutes and claims at most five eligible tasks per run. It accepts only tasks assigned to `mehran_intelligence` or `shared`, with `requires_approval=0`, and only the two action types listed above. Claims expire after 15 minutes. Results can be submitted only while the task is still in the active claim lease.
+The Worker scheduler runs every five minutes and claims at most five eligible tasks per run. It accepts only tasks assigned to `mehran_intelligence` or `shared`, with `requires_approval=0`, and only the allowlisted read-only action types. Package tasks are eligible only after all dependencies are completed. Transient network failures receive bounded exponential retry; deterministic failures become blocked. Agent API claims expire after 15 minutes. Checkpoints and results can be submitted only while a task is in the active claim lease.
+
+## Owner orchestration identity
+
+Package creation and package-report retrieval are owner-only routes. They use a separate high-entropy Cloudflare encrypted Secret named `MEHRAN_ORCHESTRATOR_TOKEN`. Do not store this token in the agent runner, GitHub Actions, source code, Issues, pull requests, workflow logs, or ChatGPT messages. The agent runner must receive only `MEHRAN_AGENT_TOKEN`, which cannot create or read work packages.
+
+The orchestrator secret is not configured by this code change. Until the owner-only secret and a private authenticated ChatGPT-to-Worker relay are provisioned, package intake from this chat is not yet connected end to end. Do not substitute the agent token or send private task payloads through public GitHub Issues.
 
 ## Operational boundary
 
