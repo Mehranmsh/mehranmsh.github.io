@@ -60,21 +60,27 @@ jobs:
             return payload;
           }
 
-          // Ask the AI planning core to turn the owner's standing mission into a bounded read-only work package.
+          // AI planning is optional for this runner tick. A planner failure must never
+          // prevent deterministic checks or already-queued approved tasks from executing.
           let packageId = "";
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            const created = await request("/agent/v1/missions/plan", {
-              method: "POST",
-              body: JSON.stringify({
-                idempotencyKey: `mehran-intelligence-owner-mission-v1-${new Date().toISOString().slice(0,10)}`,
-                mission: "Assess the current MEHRAN INTELLIGENCE system and determine the next safest steps toward independently receiving, planning, executing, verifying, and reporting owner-assigned missions. Use only the currently available read-only capabilities. Identify what is already proven, what remains unproven, and the smallest next engineering milestone. Do not claim capabilities that have not been verified."
-              })
-            }, ownerHeaders, 90000);
-            packageId = created.workPackageId || "";
-            console.log(`AI-planned package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
-            if (created.planSummary) console.log(`AI plan summary: ${String(created.planSummary).slice(0, 500)}`);
+            try {
+              const created = await request("/agent/v1/missions/plan", {
+                method: "POST",
+                body: JSON.stringify({
+                  idempotencyKey: `mehran-intelligence-owner-mission-v1-${new Date().toISOString().slice(0,10)}`,
+                  mission: "Assess the current MEHRAN INTELLIGENCE system and determine the next safest steps toward independently receiving, planning, executing, verifying, and reporting owner-assigned missions. Use only the currently available read-only capabilities. Identify what is already proven, what remains unproven, and the smallest next engineering milestone. Do not claim capabilities that have not been verified."
+                })
+              }, ownerHeaders, 90000);
+              packageId = created.workPackageId || "";
+              console.log(`AI-planned package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
+              if (created.planSummary) console.log(`AI plan summary: ${String(created.planSummary).slice(0, 500)}`);
+            } catch (error) {
+              const diagnostic = String(error?.message || error).slice(0, 300);
+              console.log(`AI mission planning unavailable for this tick; continuing with eligible queued tasks: ${diagnostic}`);
+            }
           } else {
-            console.log("AI mission planning skipped: MEHRAN_ORCHESTRATOR_TOKEN repository secret is not configured. Existing eligible tasks may still run.");
+            console.log("AI mission planning skipped: owner token is unavailable. Existing eligible tasks may still run.");
           }
 
           async function execute(task) {
