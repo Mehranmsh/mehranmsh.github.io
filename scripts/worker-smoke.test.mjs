@@ -1460,3 +1460,18 @@ test("Intelligence task creation rejects automated reports assigned to ChatGPT w
   assert.ok(mcpStart >= 0 && mcpEnd > mcpStart);
   assert.match(workerSource.slice(mcpStart, mcpEnd), /if\\(actionType&&assignedTo==="chatgpt"\\)/);
 });
+
+
+test("MCP task updates permit only owner approval or cancellation and cannot forge execution results", () => {
+  const start = workerSource.indexOf('if (name === "update_collaboration_task")');
+  const end = workerSource.indexOf('return rpcError(-32602,"Unknown tool.")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /const allowed=\["taskId","status"\]/);
+  assert.match(route, /!\["accepted","cancelled"\]\.includes\(args\.status\)/);
+  assert.match(route, /approvalTransition=args\.status==="accepted"&&existing\.status==="awaiting_approval"&&Number\(existing\.requires_approval\)===1/);
+  assert.match(route, /cancelTransition=args\.status==="cancelled"&&\["awaiting_approval","queued","accepted"\]\.includes\(existing\.status\)/);
+  assert.match(route, /Execution results are controlled by the execution service/);
+  assert.match(route, /requires_approval=CASE WHEN \?='accepted' THEN 0 ELSE requires_approval END/);
+  assert.doesNotMatch(route, /result_text=/);
+});
