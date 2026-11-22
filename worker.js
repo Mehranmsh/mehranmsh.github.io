@@ -5815,9 +5815,12 @@ export default {
             else if (task.status === "in_progress") counts.inProgress++;
             else counts.queued++;
           }
-          const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval) ? "attention_required" : counts.inProgress ? "in_progress" : "queued";
-          await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,packageId).run();
-          return json({success:true,workPackage:{...pkg,status,counts},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:events.results || []});
+          const blockedDependencies = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
+          counts.blockedDependencies = Number(blockedDependencies?.total || 0);
+          const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : "queued";
+          const report = {status,counts,generatedAt:new Date().toISOString()};
+          await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
+          return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:events.results || []});
         }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
