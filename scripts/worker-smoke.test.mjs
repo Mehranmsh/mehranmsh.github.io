@@ -188,8 +188,8 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
-  assert.match(route, /assigned_to IN \\(\'mehran_intelligence\',\'shared\'\\)/);
-  assert.match(route, /action_type IN \\(\'project_status_report\',\'social_metrics_report\',\'service_health_report\',\'repository_quality_check\'\\)/);
+  assert.ok(route.includes("assigned_to IN ('mehran_intelligence','shared')"));
+  assert.ok(route.includes("action_type IN ('project_status_report','social_metrics_report','service_health_report','repository_quality_check')"));
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
