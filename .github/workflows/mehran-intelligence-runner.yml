@@ -149,10 +149,32 @@ jobs:
                 if (file.type !== "file" || typeof file.content !== "string" || file.encoding !== "base64") throw new Error(`Unexpected GitHub content response for ${path}`);
                 return { text: Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8"), sha: file.sha, size: Number(file.size || 0) };
               }
-              const [workerSource, runnerSource] = await Promise.all([
+              const [workerSource, runnerSource, protocolSource] = await Promise.all([
                 readSource("worker.js"),
-                readSource(".github/workflows/mehran-intelligence-runner.yml")
+                readSource(".github/workflows/mehran-intelligence-runner.yml"),
+                readSource("docs/INTELLIGENCE_EXECUTION_PROTOCOL.md")
               ]);
+              const plannerStart = workerSource.text.indexOf("async function planIntelligenceMission");
+              const plannerEnd = workerSource.text.indexOf("export function verifyIntelligenceReport", plannerStart);
+              const validationStart = workerSource.text.indexOf("export function validateIntelligenceWorkPackage");
+              const validationEnd = workerSource.text.indexOf("async function createIntelligenceWorkPackage", validationStart);
+              const agentStart = workerSource.text.indexOf('if (path.startsWith("/agent/v1/"))');
+              const agentEnd = workerSource.text.indexOf('if (path === "/health"', agentStart);
+              const mcpStart = workerSource.text.indexOf('if (path === "/mcp" && method === "POST")');
+              const mcpEnd = workerSource.text.indexOf('if (path === "/intelligence/chat" && method === "POST")', mcpStart);
+              const plannerSource = plannerStart >= 0 && plannerEnd > plannerStart ? workerSource.text.slice(plannerStart, plannerEnd) : "";
+              const validationSource = validationStart >= 0 && validationEnd > validationStart ? workerSource.text.slice(validationStart, validationEnd) : "";
+              const agentSource = agentStart >= 0 && agentEnd > agentStart ? workerSource.text.slice(agentStart, agentEnd) : "";
+              const mcpSource = mcpStart >= 0 && mcpEnd > mcpStart ? workerSource.text.slice(mcpStart, mcpEnd) : "";
+              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit"];
+              const capabilitySections = [plannerSource, validationSource, agentSource, mcpSource, runnerSource.text];
+              const capabilityAllowlistAligned = capabilitySections.every(section =>
+                section.length > 0 && capabilityActions.every(action => section.includes(action))
+              );
+              const ownerMissionStart = workerSource.text.indexOf('if (path === "/intelligence/missions" && method === "POST")');
+              const ownerMissionEnd = workerSource.text.indexOf('if (path === "/intelligence/tasks"', ownerMissionStart);
+              const ownerMissionRoute = ownerMissionStart >= 0 && ownerMissionEnd > ownerMissionStart
+                ? workerSource.text.slice(ownerMissionStart, ownerMissionEnd) : "";
               const checks = [
                 { id: "cors_origin_guard", passed: /origin\s*&&\s*origin\s*!==\s*ALLOWED_ORIGIN/.test(workerSource.text), detail: "Unexpected browser origins are rejected." },
                 { id: "separate_agent_and_owner_tokens", passed: workerSource.text.includes("MEHRAN_AGENT_TOKEN") && workerSource.text.includes("MEHRAN_ORCHESTRATOR_TOKEN"), detail: "Agent and owner identities are separately referenced." },
@@ -171,7 +193,13 @@ jobs:
                 { id: "fixed_private_report_repository", passed: workerSource.text.includes("repos/Mehranmsh/mehran-intelligence-reports/contents/"), detail: "Report persistence targets the designated private repository." },
                 { id: "audit_action_is_allowlisted", passed: workerSource.text.includes('"source_security_audit"'), detail: "Bounded source-audit action is recognized." },
                 { id: "runner_read_only_contents_permission", passed: /permissions:\s*\n\s*contents:\s*read/.test(runnerSource.text), detail: "Runner workflow declares contents: read." },
-                { id: "runner_does_not_checkout_or_execute_repo_scripts", passed: !/actions\/checkout@|npm\s+(?:run|install)|pnpm\s+(?:run|install)|yarn\s+(?:run|install)/.test(runnerSource.text), detail: "Runner does not check out the target repo or invoke its package scripts." }
+                { id: "runner_does_not_checkout_or_execute_repo_scripts", passed: !/actions\/checkout@|npm\s+(?:run|install)|pnpm\s+(?:run|install)|yarn\s+(?:run|install)/.test(runnerSource.text), detail: "Runner does not check out the target repo or invoke its package scripts." },
+                { id: "planner_validator_agent_mcp_and_runner_allowlists_aligned", passed: capabilityAllowlistAligned, detail: "The same three read-only action types appear in the planner schema, work-package validator, authenticated agent claim route, MCP package schema, and scheduled executor." },
+                { id: "custom_owner_missions_remain_admin_gated_without_fallback", passed: /verifyAdmin\(request, env\)/.test(ownerMissionRoute) && /allowDeterministicFallback: false/.test(ownerMissionRoute) && /writeAdminAudit\(/.test(ownerMissionRoute), detail: "Custom mission intake remains administrator-authenticated, audited, and fails closed when AI planning is unavailable." },
+                { id: "mcp_package_intake_keeps_separate_bridge_and_owner_identities", passed: mcpSource.includes("MEHRAN_MCP_TOKEN") && mcpSource.includes("MEHRAN_ORCHESTRATOR_TOKEN") && mcpSource.includes("packageIntakeEnabled = bridgeAuthorized && orchestratorSecret.length >= 40"), detail: "Private package tools require the dedicated bridge identity and the separately configured owner opt-in." },
+                { id: "executor_rechecks_assignment_status_and_approval", passed: /task\.status !== "in_progress"/.test(runnerSource.text) && /task\.requiresApproval !== false/.test(runnerSource.text) && /\["mehran_intelligence", "shared"\]\.includes\(task\.assignedTo\)/.test(runnerSource.text), detail: "The executor independently rejects tasks that are not active, assigned to an allowed identity, and explicitly pre-approved." },
+                { id: "runner_has_no_deploy_or_repository_write_commands", passed: !/wrangler\s+deploy|git\s+push|CLOUDFLARE_API_TOKEN|createOrUpdateFileContents/.test(runnerSource.text), detail: "The scheduled runner has no configured deployment or repository-write command path." },
+                { id: "execution_protocol_still_marks_end_to_end_acceptance_as_required", passed: protocolSource.text.includes("Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test."), detail: "The protocol's end-to-end acceptance boundary remains explicit in the source documentation." }
               ];
               return {
                 type: task.actionType,
@@ -179,13 +207,15 @@ jobs:
                 mode: "deterministic_read_only_static_audit",
                 files: {
                   "worker.js": { sha: workerSource.sha, bytes: workerSource.size },
-                  ".github/workflows/mehran-intelligence-runner.yml": { sha: runnerSource.sha, bytes: runnerSource.size }
+                  ".github/workflows/mehran-intelligence-runner.yml": { sha: runnerSource.sha, bytes: runnerSource.size },
+                  "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md": { sha: protocolSource.sha, bytes: protocolSource.size }
                 },
                 summary: { checks: checks.length, passed: checks.filter(x => x.passed).length, failed: checks.filter(x => !x.passed).length, status: checks.every(x => x.passed) ? "passed" : "attention_required" },
                 checks,
                 limitations: [
-                  "Deterministic pattern-based audit, not an AI code review.",
-                  "Reads only the two named files from main.",
+                  "Deterministic pattern-based capability and security audit, not an AI code review.",
+                  "Reads only worker.js, the Intelligence runner workflow, and the execution protocol from main.",
+                  "Allowlist alignment proves source-level consistency only; it does not prove that the current ChatGPT session has a live private MCP connection or that the complete end-to-end protocol has passed.",
                   "Does not execute repository code, modify files, access secrets, or deploy.",
                   "PBKDF2 is held at the Worker-compatible 100,000-iteration setting; stronger iteration counts require a runtime-supported KDF path and must not be enabled by assumption."
                 ]
