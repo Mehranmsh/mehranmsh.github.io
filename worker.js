@@ -5267,6 +5267,48 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 }
 
 
+function verifyIntelligenceReport(actionType, report) {
+  const integer = value => Number.isInteger(value) && value >= 0;
+  const isoDate = value => typeof value === "string" && Number.isFinite(Date.parse(value));
+  const checks = [];
+  if (!report || typeof report !== "object" || report.type !== actionType) {
+    return { passed: false, checks: ["report_identity"] };
+  }
+  checks.push("report_identity");
+  if (actionType === "service_health_report") {
+    if (report.database !== "healthy" || !integer(report.projectRecords)) {
+      return { passed: false, checks: [...checks, "service_health_schema"] };
+    }
+    checks.push("service_health_schema");
+  } else if (actionType === "repository_quality_check") {
+    if (report.repository !== "Mehranmsh/mehranmsh.github.io" ||
+        typeof report.defaultBranch !== "string" || !report.defaultBranch ||
+        !integer(report.openIssues) || !isoDate(report.lastPushedAt) ||
+        typeof report.latestCommit !== "string" || !/^[a-f0-9]{12}$/i.test(report.latestCommit) ||
+        !isoDate(report.latestCommitAt)) {
+      return { passed: false, checks: [...checks, "repository_metadata_schema"] };
+    }
+    checks.push("repository_identity", "repository_metadata_schema");
+  } else if (actionType === "project_status_report") {
+    if (!Array.isArray(report.projects) || report.projects.length > 50 ||
+        report.projects.some(project => !project || typeof project.name !== "string" ||
+          typeof project.status !== "string" || typeof project.description !== "string")) {
+      return { passed: false, checks: [...checks, "project_report_schema"] };
+    }
+    checks.push("project_report_schema");
+  } else if (actionType === "social_metrics_report") {
+    if (!integer(report.registeredUsers) || !integer(report.activeUsers) ||
+        !integer(report.posts) || !integer(report.openReports) ||
+        report.activeUsers > report.registeredUsers) {
+      return { passed: false, checks: [...checks, "social_metrics_schema"] };
+    }
+    checks.push("social_metrics_schema");
+  } else {
+    return { passed: false, checks: [...checks, "action_allowlist"] };
+  }
+  return { passed: true, checks };
+}
+
 function formatIntelligenceTask(row) {
   return {
     id: row.id, title: row.title, description: row.description || "",
@@ -5716,10 +5758,15 @@ export default {
             } else {
               throw new Error("Unsupported action type.");
             }
+            const acceptance = verifyIntelligenceReport(candidate.action_type, report);
+            if (!acceptance.passed) throw new Error("Acceptance verification failed: " + acceptance.checks.join(","));
             const resultText = JSON.stringify(report).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,agent_claimed_at=NULL,next_attempt_at=NULL,last_error_code='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_verified','in_progress','completed','scheduled_runner',?)")
-              .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,JSON.stringify({resultLength:resultText.length})).run();
+            const completion = await env.DB.batch([
+              env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,agent_claimed_at=NULL,next_attempt_at=NULL,last_error_code='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id),
+              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_verified','in_progress','completed','scheduled_runner',?)")
+                .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,JSON.stringify({resultLength:resultText.length,acceptanceChecks:acceptance.checks}))
+            ]);
+            if (!Number(completion?.[0]?.meta?.changes || 0)) throw new Error("Task claim changed before completion could be committed.");
             completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
