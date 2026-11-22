@@ -73,8 +73,8 @@ jobs:
                 })
               }, ownerHeaders, 90000);
               packageId = created.workPackageId || "";
-              console.log(`AI-planned package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
-              if (created.planSummary) console.log(`AI plan summary: ${String(created.planSummary).slice(0, 500)}`);
+              console.log(`Mission package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
+              if (created.planSummary) console.log(`Plan summary: ${String(created.planSummary).slice(0, 500)}`);
             } catch (error) {
               const diagnostic = String(error?.message || error).slice(0, 300);
               console.log(`AI mission planning unavailable for this tick; continuing with eligible queued tasks: ${diagnostic}`);
