@@ -111,3 +111,23 @@ Do not add a third scheduler. Keep one clear owner for each capability. Before c
 ## Known UI correction
 
 The current Intelligence UI reportedly labels the schedule as hourly while the Worker Cron expression is every five minutes. Correct the wording only after verifying the displayed component and the actual trigger configuration. A configured Cron expression is not proof that runs are occurring; show last successful heartbeat and last run result instead.
+
+
+## Existing infrastructure discovered during implementation review
+
+Do not create parallel tables or a second project/knowledge subsystem. The repository already contains production rollout support for:
+
+- `intelligence_projects` and `intelligence_task_dependencies` (migration 0001)
+- `intelligence_knowledge` and `intelligence_owner_memory` (migration 0002)
+- owner-scoped project/task triggers and knowledge/memory immutability triggers
+- preflight/verify checks in `scripts/intelligence-production-d1-check.mjs`
+- existing Node smoke tests in `scripts/worker-smoke.test.mjs`
+- production rollout workflow `.github/workflows/intelligence-production-d1-rollout.yml`
+
+The execution engine should extend these established project/task/dependency concepts, preserve owner scoping, and reuse the existing smoke-test and rollout validation conventions. Any new D1 table requires its own reviewed migration, preflight, verify, rollback plan, and owner approval before production execution.
+
+## Scheduler discrepancy requiring resolution
+
+The current Worker scheduled-handler queue SELECT and claim statements visible in `worker.js` filter to `project_status_report` and `social_metrics_report`. The separate GitHub Actions runner claims `service_health_report` and `repository_quality_check`. However, `docs/INTELLIGENCE_SCHEDULER_OPERATIONS.md` describes the Cloudflare scheduler as processing all four actions. The Worker contains handler branches for the latter two actions, but those branches are not reachable while the SELECT/claim allowlist excludes them.
+
+Before changing any allowlist, update the operations document and tests to state the actual split, then choose a single executor owner per action. Do not broaden either executor's allowlist until overlap, claim leases, result authorization, and duplicate execution behavior are covered by tests.
