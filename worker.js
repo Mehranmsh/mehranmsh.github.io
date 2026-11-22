@@ -5735,10 +5735,13 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const configuredToken = typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "";
+        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET");
+        const configuredToken = ownerOrchestrationRoute
+          ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
+          : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
         const suppliedToken = getBearer(request);
         if (!configuredToken || configuredToken.length < 40 || !suppliedToken || suppliedToken.length > 200) {
-          return error("Agent service identity is not configured.", 503);
+          return error(ownerOrchestrationRoute ? "Owner orchestration identity is not configured." : "Agent service identity is not configured.", 503);
         }
         const expectedHash = await sha256(configuredToken);
         const suppliedHash = await sha256(suppliedToken);
@@ -5746,7 +5749,7 @@ export default {
         for (let i = 0; i < Math.max(expectedHash.length, suppliedHash.length); i++) {
           mismatch |= (expectedHash.charCodeAt(i) || 0) ^ (suppliedHash.charCodeAt(i) || 0);
         }
-        if (mismatch !== 0) return error("Agent authentication required.", 401);
+        if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
         if (path === "/agent/v1/work-packages" && method === "POST") {
