@@ -5826,11 +5826,11 @@ export default {
             "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report') AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
+            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
