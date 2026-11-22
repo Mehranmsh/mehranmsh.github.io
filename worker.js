@@ -5743,6 +5743,79 @@ export default {
         if (mismatch !== 0) return error("Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/work-packages" && method === "POST") {
+          const body = await readBody(request);
+          const idempotencyKey = cleanText(body?.idempotencyKey,120);
+          const title = cleanText(body?.title,160);
+          const objective = cleanText(body?.objective,2000);
+          const tasks = Array.isArray(body?.tasks) ? body.tasks : [];
+          const priority = ["low","normal","high"].includes(body?.priority) ? body.priority : "normal";
+          if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
+            return error("A valid idempotencyKey, title, and 1-20 tasks are required.",400);
+          }
+          const normalized = [];
+          const known = new Set();
+          for (let index=0; index<tasks.length; index++) {
+            const item = tasks[index];
+            const taskId = cleanText(item?.taskId,80);
+            const taskTitle = cleanText(item?.title,160);
+            const description = cleanText(item?.description,1500);
+            const actionType = cleanText(item?.actionType,80);
+            const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
+            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check"].includes(actionType) || dependencies.length > 10) {
+              return error("Invalid task definition or action outside the read-only allowlist.",400);
+            }
+            if (dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
+              return error("Dependencies must reference earlier tasks in this package; cycles and forward references are rejected.",400);
+            }
+            known.add(taskId);
+            normalized.push({taskId,title:taskTitle,description,actionType,dependencies});
+          }
+          const existing = await env.DB.prepare("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
+          if (existing) return json({success:true,duplicate:true,workPackageId:existing.id,status:existing.status},200);
+          const packageId = crypto.randomUUID();
+          const statements = [
+            env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,'queued','mehran_intelligence')")
+              .bind(packageId,idempotencyKey,title,objective,JSON.stringify({taskCount:normalized.length}),priority)
+          ];
+          for (const item of normalized) {
+            statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
+              .bind(item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({}),packageId));
+            for (const dependency of item.dependencies) {
+              statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(item.taskId,dependency));
+            }
+            statements.push(env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_created',NULL,'queued','mehran_intelligence',?)")
+              .bind(crypto.randomUUID(),packageId,item.taskId,JSON.stringify({actionType:item.actionType,dependencies:item.dependencies})));
+          }
+          try {
+            await env.DB.batch(statements);
+          } catch (err) {
+            const raced = await env.DB.prepare("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
+            if (raced) return json({success:true,duplicate:true,workPackageId:raced.id,status:raced.status},200);
+            throw err;
+          }
+          return json({success:true,duplicate:false,workPackageId:packageId,status:"queued",taskCount:normalized.length},202);
+        }
+        const packageMatch = path.match(/^\\/agent\\/v1\\/work-packages\\/([^/]+)$/);
+        if (packageMatch && method === "GET") {
+          const packageId = decodeURIComponent(packageMatch[1]);
+          const pkg = await env.DB.prepare("SELECT id,title,objective,priority,status,created_at,updated_at FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+          if (!pkg) return error("Work package not found.",404);
+          const tasks = await env.DB.prepare("SELECT id,title,status,action_type,requires_approval,result_text,attempts,max_attempts,next_attempt_at,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
+          const events = await env.DB.prepare("SELECT task_id,event_type,from_status,to_status,actor,details_json,created_at FROM intelligence_task_events WHERE work_package_id=? ORDER BY created_at ASC LIMIT 100").bind(packageId).all();
+          const rows = tasks.results || [];
+          const counts = {total:rows.length,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0};
+          for (const task of rows) {
+            if (task.status === "completed") counts.completed++;
+            else if (task.status === "blocked") counts.blocked++;
+            else if (task.status === "failed") counts.failed++;
+            else if (task.status === "awaiting_approval") counts.awaitingApproval++;
+            else if (task.status === "in_progress") counts.inProgress++;
+            else counts.queued++;
+          }
+          const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval) ? "attention_required" : counts.inProgress ? "in_progress" : "queued";
+          return json({success:true,workPackage:{...pkg,status,counts},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:events.results || []});
+        }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
@@ -5753,7 +5826,7 @@ export default {
             "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT id,status FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report') AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
