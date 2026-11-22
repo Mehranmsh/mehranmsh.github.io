@@ -5665,7 +5665,9 @@ export function verifyIntelligenceReport(actionType, report) {
   }
   checks.push("report_identity");
   if (actionType === "service_health_report") {
-    if (report.database !== "healthy" || !integer(report.projectRecords)) {
+    const currentHealthShape = report.worker === "online" && report.database === true;
+    const legacyHealthShape = report.database === "healthy" && integer(report.projectRecords);
+    if (!currentHealthShape && !legacyHealthShape) {
       return { passed: false, checks: [...checks, "service_health_schema"] };
     }
     checks.push("service_health_schema");
@@ -5692,6 +5694,23 @@ export function verifyIntelligenceReport(actionType, report) {
       return { passed: false, checks: [...checks, "social_metrics_schema"] };
     }
     checks.push("social_metrics_schema");
+  } else if (actionType === "source_security_audit") {
+    const summary = report.summary;
+    const files = report.files && typeof report.files === "object" ? report.files : {};
+    const checksList = Array.isArray(report.checks) ? report.checks : [];
+    const validSummary = summary && integer(summary.checks) && integer(summary.passed) &&
+      integer(summary.failed) && summary.checks === checksList.length &&
+      summary.passed + summary.failed === summary.checks &&
+      ["passed", "attention_required"].includes(summary.status) &&
+      (summary.status === "passed" ? summary.failed === 0 : summary.failed > 0);
+    const validChecks = checksList.length > 0 && checksList.length <= 30 &&
+      checksList.every(item => item && typeof item.id === "string" &&
+        typeof item.passed === "boolean" && typeof item.detail === "string");
+    if (report.mode !== "deterministic_read_only_static_audit" || !validSummary || !validChecks ||
+        !files["worker.js"] || !files[".github/workflows/mehran-intelligence-runner.yml"]) {
+      return { passed: false, checks: [...checks, "source_security_audit_schema"] };
+    }
+    checks.push("source_security_audit_schema");
   } else {
     return { passed: false, checks: [...checks, "action_allowlist"] };
   }
