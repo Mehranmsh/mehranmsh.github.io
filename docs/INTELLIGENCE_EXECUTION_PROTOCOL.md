@@ -25,7 +25,7 @@ Every submitted work package must contain:
 - acceptance criteria that can be tested
 - risk class and required approval level
 - retry policy, timeout policy, and checkpoint policy
-- owner-visible reporting destination
+- owner-visible reporting destination. The default is a durable report retrievable by ChatGPT through the authenticated MCP connection in the same conversation when the owner returns; push notifications are optional and are not required for report delivery.
 
 The intake must acknowledge durable storage before the owner is told the work was accepted.
 
