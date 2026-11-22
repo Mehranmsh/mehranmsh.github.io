@@ -5232,16 +5232,18 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   counts.blockedDependencies = Number(dependencyResult?.total || 0);
   const status = counts.total > 0 && counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
   const report = {status,counts,generatedAt:new Date().toISOString()};
-  await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
   if ((pkg.status || "queued") !== status) {
     const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
     const eventId = "package_status:" + packageId + ":" + status;
     await env.DB.batch([
+      env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId),
       env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'scheduled_runner',?)")
         .bind(crypto.randomUUID(),packageId,"package:"+packageId,pkg.status || "queued",status,details),
       env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')")
         .bind(crypto.randomUUID(),eventId,JSON.stringify({type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}))
     ]);
+  } else {
+    await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
   }
   return report;
 }
@@ -5920,18 +5922,20 @@ export default {
           counts.blockedDependencies = Number(blockedDependencies?.total || 0);
           const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
           const report = {status,counts,generatedAt:new Date().toISOString()};
-          await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
           const eventRows = events.results || [];
           if (pkg.status !== status) {
             const eventId = crypto.randomUUID();
             const details = JSON.stringify({fromStatus:pkg.status,toStatus:status,counts});
             await env.DB.batch([
+              env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId),
               env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'mehran_intelligence',?)")
                 .bind(eventId,packageId,"package:"+packageId,pkg.status || null,status,details),
               env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')")
                 .bind(crypto.randomUUID(),"package_status:"+packageId+":"+status,JSON.stringify({type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}))
             ]);
             eventRows.push({task_id:"package:"+packageId,event_type:"work_package_status_changed",from_status:pkg.status || null,to_status:status,actor:"mehran_intelligence",details_json:details,created_at:new Date().toISOString()});
+          } else {
+            await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
           }
           return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows});
         }
