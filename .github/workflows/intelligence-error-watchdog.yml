@@ -5,7 +5,6 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
   workflow_run:
-    workflows: ["*"]
     types: [completed]
 
 permissions:
@@ -101,7 +100,7 @@ jobs:
               await issues.createComment({
                 ...context.repo,
                 issue_number: alert.number,
-                body: `<badge>Recovered</badge> MEHRAN Worker/MCP health checks passed at ${new Date().toISOString()}. The watchdog is closing this alert.\n\nWorkflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+                body: `RECOVERED: MEHRAN Worker/MCP health checks passed at ${new Date().toISOString()}. The watchdog is closing this alert.\n\nWorkflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
               });
               await issues.update({
                 ...context.repo, issue_number: alert.number, state: "closed"
@@ -147,5 +146,5 @@ jobs:
             await github.rest.issues.createComment({
               ...context.repo,
               issue_number: issue.number,
-              body: `Failure detected: **${run.name}**. [Open failed run]( ${run.html_url} ). Run ID: ${run.id}`
+              body: `Failure detected: **${run.name}**. [Open failed run](${run.html_url}). Run ID: ${run.id}`
             });
