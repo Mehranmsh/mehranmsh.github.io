@@ -5794,7 +5794,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -5873,6 +5873,13 @@ export default {
             throw err;
           }
           return json({success:true,duplicate:false,workPackageId:packageId,status:"queued",taskCount:normalized.length},202);
+        }
+        if (path === "/agent/v1/notifications/status" && method === "GET") {
+          const summary = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_notification_outbox GROUP BY status").all();
+          const failures = await env.DB.prepare("SELECT id,event_id,attempts,last_error,created_at FROM intelligence_notification_outbox WHERE status='failed' ORDER BY created_at DESC LIMIT 20").all();
+          const counts = {pending:0,processing:0,retry_wait:0,delivered:0,failed:0};
+          for (const row of summary.results || []) if (Object.prototype.hasOwnProperty.call(counts,row.status)) counts[row.status]=Number(row.total||0);
+          return json({success:true,counts,recentFailures:failures.results||[]},200);
         }
         if (path === "/agent/v1/notifications/next" && method === "GET") {
           const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='pending',next_attempt_at=NULL,last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
