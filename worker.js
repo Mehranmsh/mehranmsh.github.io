@@ -5503,25 +5503,72 @@ async function planIntelligenceMission(env, input) {
   try {
     modelResult = await env.AI.run(model, {
       messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            objective: { type: "string" },
+            priority: { type: "string", enum: ["low", "normal", "high"] },
+            planSummary: { type: "string" },
+            tasks: {
+              type: "array",
+              minItems: 1,
+              maxItems: 5,
+              items: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  actionType: { type: "string", enum: ["service_health_report", "repository_quality_check", "source_security_audit"] },
+                  dependsOn: { type: "array", items: { type: "string" } }
+                },
+                required: ["taskId", "title", "description", "actionType", "dependsOn"],
+                additionalProperties: false
+              }
+            }
+          },
+          required: ["title", "objective", "priority", "planSummary", "tasks"],
+          additionalProperties: false
+        }
+      },
+      temperature: 0,
       max_tokens: 1400
     });
   } catch (err) {
-    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err?.message || err).slice(0, 180));
+    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err && err.message || err).slice(0, 180));
     return { success: false, error: "Cloudflare AI could not plan this mission.", code: -32003 };
   }
-  const raw = modelResult?.response || modelResult?.result?.response || "";
-  if (typeof raw !== "string" || !raw.trim() || raw.length > 12000) {
-    return { success: false, error: "AI planner returned an empty or oversized plan.", code: -32004 };
-  }
+
+  // Workers AI JSON Mode may return the structured object directly in response.
+  // Non-JSON responses are still accepted as text and parsed below.
+  const modelResponse = modelResult && modelResult.response != null
+    ? modelResult.response
+    : (modelResult && modelResult.result && modelResult.result.response) || "";
   let plan;
-  try {
-    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start < 0 || end <= start) throw new Error("JSON object not found");
-    plan = JSON.parse(cleaned.slice(start, end + 1));
-  } catch {
-    return { success: false, error: "AI planner did not return valid structured JSON; no tasks were created.", code: -32004 };
+  if (modelResponse && typeof modelResponse === "object" && !Array.isArray(modelResponse)) {
+    try {
+      if (JSON.stringify(modelResponse).length > 12000) {
+        return { success: false, error: "AI planner returned an oversized plan.", code: -32004 };
+      }
+      plan = modelResponse;
+    } catch {
+      return { success: false, error: "AI planner returned an unreadable structured plan.", code: -32004 };
+    }
+  } else if (typeof modelResponse === "string" && modelResponse.trim() && modelResponse.length <= 12000) {
+    try {
+      const cleaned = modelResponse.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "");
+      const jsonStart = cleaned.indexOf("{");
+      const jsonEnd = cleaned.lastIndexOf("}");
+      if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON object not found");
+      plan = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
+    } catch {
+      return { success: false, error: "AI planner did not return valid structured JSON; no tasks were created.", code: -32004 };
+    }
+  } else {
+    return { success: false, error: "AI planner returned an empty or oversized plan.", code: -32004 };
   }
   if (!Array.isArray(plan.tasks) || plan.tasks.length < 1 || plan.tasks.length > 5) {
     return { success: false, error: "AI plan must contain between 1 and 5 tasks.", code: -32602 };
