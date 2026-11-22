@@ -5531,7 +5531,7 @@ export default {
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0"
+            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
