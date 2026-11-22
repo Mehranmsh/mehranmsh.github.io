@@ -23,6 +23,20 @@ Package creation and package-report retrieval are owner-only routes. They use a 
 
 The orchestrator secret is not configured by this code change. Until the owner-only secret and a private authenticated ChatGPT-to-Worker relay are provisioned, package intake from this chat is not yet connected end to end. Do not substitute the agent token or send private task payloads through public GitHub Issues.
 
+## Direct private MCP work-package intake
+
+The MCP endpoint can expose two additional tools to the dedicated ChatGPT bridge:
+- `create_intelligence_work_package`: creates a durable package with stable idempotency, explicit dependencies, and only the fixed read-only actions `service_health_report` and `repository_quality_check`.
+- `get_intelligence_work_package`: retrieves the package state and bounded task results.
+
+These tools are exposed only when both conditions hold:
+1. The request authenticates with the dedicated `MEHRAN_MCP_TOKEN` bridge identity.
+2. The owner has separately provisioned a valid `MEHRAN_ORCHESTRATOR_TOKEN` encrypted Secret in Cloudflare.
+
+The orchestrator token is only checked inside the Worker as an owner opt-in. It is never returned to ChatGPT, included in MCP responses, or stored in GitHub. The bridge cannot use the token to approve tasks, access notification acknowledgements, run arbitrary commands, write repository files, or deploy. Package intake remains limited to the two read-only report actions until a separate capability review expands the allowlist.
+
+This is the intended private ChatGPT-to-MCP intake route. It does not make the current ChatGPT session connected automatically: the MCP app must be installed and authenticated in an eligible ChatGPT workspace. If the tools are not exposed, verify both encrypted secrets and refresh the MCP app's tool list after deployment.
+
 ## Operational boundary
 
 This is not a general-purpose code execution agent. It cannot run shell commands supplied by a task, edit repository files, deploy Workers, access Pi wallets, move funds, change secrets, or read private SOCIAL user records. Any broader executor requires a separate design and owner review.
