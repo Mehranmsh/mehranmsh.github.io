@@ -181,10 +181,10 @@ jobs:
                 {
               id: "pbkdf2_worker_compatible_configuration",
               passed: (() => {
-                const configured = workerSource.text.match(/const\\s+PBKDF2_ITERATIONS\\s*=\\s*(\\d+)\\s*;/);
+                const configured = workerSource.text.match(/const\s+PBKDF2_ITERATIONS\s*=\s*(\d+)\s*;/);
                 return Number(configured?.[1]) === 100000
-                  && /async function hashPassword\\(password, iterations = PBKDF2_ITERATIONS\\)/.test(workerSource.text)
-                  && /if \\(iterations !== PBKDF2_ITERATIONS\\)/.test(workerSource.text);
+                  && /async function hashPassword\(password, iterations = PBKDF2_ITERATIONS\)/.test(workerSource.text)
+                  && /if \(iterations !== PBKDF2_ITERATIONS\)/.test(workerSource.text);
               })(),
               detail: "Password hashing and verification consistently use the Worker-compatible PBKDF2 setting of 100,000 iterations; unsupported higher counts are not enabled."
             },
