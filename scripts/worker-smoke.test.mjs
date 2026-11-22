@@ -1554,8 +1554,9 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes("leaseExpiresAt"));
   assert.ok(route.includes('["delivered","retry","failed"]'));
   assert.ok(route.includes("notification lease changed before acknowledgement") || route.includes("Notification lease changed before acknowledgement."));
-  assert.ok(workerSource.includes("INSERT OR IGNORE INTO intelligence_notification_outbox"));
+  assert.ok((workerSource.match(/INSERT OR IGNORE INTO intelligence_notification_outbox/g) || []).length >= 2, "both scheduler and package-report transitions must enqueue notifications");
   assert.ok(workerSource.includes("channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')"));
+  assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
 });
 
 test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks with bounded retries", () => {
