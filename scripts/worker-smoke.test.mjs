@@ -1487,6 +1487,30 @@ test("Dedicated ChatGPT MCP bridge cannot receive owner-only task mutation tools
   assert.doesNotMatch(toolList, /name:"manage_wallet"/);
 });
 
+test("MCP endpoint rejects unauthenticated JSON-RPC calls before dispatch", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("INSERT INTO social_auth_limits")) return { attempts: 1, blocked_until: null };
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          throw new Error("Unexpected MCP authentication query: " + sql);
+        },
+        async run() { return { meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const response = await request("/mcp", {
+    method: "POST",
+    headers: { "CF-Connecting-IP": "198.51.100.20" },
+    body: { jsonrpc: "2.0", id: 7, method: "tools/list" }
+  }, { DB: db });
+  assert.equal(response.status, 401);
+  const payload = await response.json();
+  assert.equal(payload.error, "MEHRAN MCP authentication required");
+});
+
 test("ChatGPT MCP bridge task proposals cannot override owner approval or expand action allowlists", () => {
   const start = workerSource.indexOf('if (name === "create_collaboration_task")');
   const end = workerSource.indexOf('if (name === "list_collaboration_tasks")', start);
