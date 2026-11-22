@@ -5213,6 +5213,94 @@ async function ensureIntelligenceProtocolTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
+async function persistIntelligencePackageReport(env, packageId, snapshot) {
+  const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string"
+    ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
+  if (token.length < 40 || !packageId || !snapshot ||
+      !["completed","attention_required"].includes(snapshot.status)) {
+    return { stored: false, reason: "not_configured_or_not_final" };
+  }
+
+  const pkg = await env.DB.prepare(
+    "SELECT id,title,created_at FROM intelligence_work_packages WHERE id=?"
+  ).bind(packageId).first();
+  if (!pkg) return { stored: false, reason: "package_not_found" };
+
+  const taskResult = await env.DB.prepare(
+    "SELECT id,title,status,action_type,attempts,max_attempts,last_error_code FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
+  ).bind(packageId).all();
+
+  const generatedAt = snapshot.generatedAt || new Date().toISOString();
+  const date = new Date(generatedAt);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid report timestamp.");
+  const year = date.toISOString().slice(0,4);
+  const month = date.toISOString().slice(5,7);
+  const report = {
+    schema_version: 1,
+    report_id: packageId,
+    generated_at: date.toISOString(),
+    source: "mehran_intelligence",
+    report_type: "work_package_summary",
+    status: snapshot.status === "completed" ? "success" : "warning",
+    summary: "MEHRAN INTELLIGENCE work package reached a final status.",
+    data: {
+      work_package_id: pkg.id,
+      title: String(pkg.title || "").slice(0,160),
+      package_status: snapshot.status,
+      counts: snapshot.counts || {},
+      tasks: (taskResult.results || []).map(task => ({
+        task_id: String(task.id || "").slice(0,100),
+        title: String(task.title || "").slice(0,160),
+        status: String(task.status || "").slice(0,40),
+        action_type: String(task.action_type || "").slice(0,64),
+        attempts: Number(task.attempts || 0),
+        max_attempts: Number(task.max_attempts || 0),
+        last_error_code: String(task.last_error_code || "").slice(0,100)
+      }))
+    },
+    warnings: snapshot.status === "attention_required"
+      ? ["One or more tasks require attention; inspect the authenticated work-package record for details."]
+      : [],
+    evidence: [{ kind: "work_package_id", reference: packageId }]
+  };
+
+  const path = `reports/${year}/${month}/${packageId}.json`;
+  const apiUrl = `https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/${path}`;
+  const headers = {
+    "Accept": "application/vnd.github+json",
+    "Authorization": `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "MEHRAN-INTELLIGENCE-Report-Store"
+  };
+
+  const existing = await fetch(apiUrl, { method: "GET", headers });
+  if (existing.ok) {
+    return { stored: true, alreadyExists: true, path };
+  }
+  if (existing.status !== 404) {
+    throw new Error(`GitHub report lookup failed with status ${existing.status}.`);
+  }
+
+  const bytes = new TextEncoder().encode(JSON.stringify(report, null, 2) + "\n");
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  const content = btoa(binary);
+  const response = await fetch(apiUrl, {
+    method: "PUT",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: `Store INTELLIGENCE report ${packageId}`,
+      content
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub report write failed with status ${response.status}.`);
+  }
+  return { stored: true, alreadyExists: false, path };
+}
+
 async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
   if (!packageId) return null;
   const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
@@ -5246,6 +5334,14 @@ async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
     ]);
   } else {
     await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
+  }
+  if (["completed","attention_required"].includes(status)) {
+    try {
+      await persistIntelligencePackageReport(env, packageId, report);
+    } catch (err) {
+      // Report storage is best-effort and must never break task scheduling.
+      console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", String(err?.message || err).slice(0,180));
+    }
   }
   return report;
 }
