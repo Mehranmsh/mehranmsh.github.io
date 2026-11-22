@@ -5245,7 +5245,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     summary: "MEHRAN INTELLIGENCE work package reached a final status.",
     data: {
       work_package_id: pkg.id,
-      package_status: snapshot.status,
+      status: snapshot.status,
       counts: snapshot.counts || {},
       tasks: (taskResult.results || []).map(task => ({
         task_id: String(task.id || "").slice(0,100),
