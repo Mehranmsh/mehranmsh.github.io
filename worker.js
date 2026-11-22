@@ -5643,7 +5643,10 @@ async function planIntelligenceMission(env, input) {
     scope,
     tasks: plan.tasks
   });
-  if (!created.success) {\n    if (created.code === -32602) return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_plan_validation_failed");\n    return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };\n  }
+  if (!created.success) {
+    if (created.code === -32602) return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_plan_validation_failed");
+    return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };
+  }
   return {
     ...created,
     planner: { provider: "cloudflare_workers_ai", model },
