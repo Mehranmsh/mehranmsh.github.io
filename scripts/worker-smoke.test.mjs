@@ -1650,6 +1650,20 @@ test("INTELLIGENCE package status transitions use compare-and-set and enqueue at
 });
 
 
+test("MEHRAN INTELLIGENCE mission planner uses Workers AI JSON Mode and accepts structured object responses", () => {
+  const start = workerSource.indexOf("async function planIntelligenceMission");
+  const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
+  assert.ok(start >= 0 && end > start, "mission planner must exist");
+  const planner = workerSource.slice(start, end);
+  assert.match(planner, /response_format:\s*\{\s*type:\s*"json_schema"/);
+  assert.match(planner, /json_schema:\s*\{/);
+  assert.match(planner, /const modelResponse = modelResult && modelResult\.response != null/);
+  assert.match(planner, /typeof modelResponse === "object" && !Array\.isArray\(modelResponse\)/);
+  assert.match(planner, /typeof modelResponse === "string"/);
+  assert.match(planner, /plan\.tasks\.length > 5/);
+  assert.match(planner, /createIntelligenceWorkPackage\(env/);
+});
+
 test("MCP work-package validation accepts bounded read-only task plans", () => {
   const result = validateIntelligenceWorkPackage({
     idempotencyKey: "owner-plan-2026-11-22-a1",
