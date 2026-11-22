@@ -4,6 +4,7 @@ const PI_ME_URL = "https://api.minepi.com/v2/me";
 const RAPIDFILE_API = "https://api.rapidfile.cc/v1";
 
 const SESSION_DAYS = 30;
+const ADMIN_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const PBKDF2_ITERATIONS = 100000;
 const MAX_BODY_BYTES = 100000;
 const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
@@ -5750,13 +5751,13 @@ export default {
           const token = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
           const tokenHash = await sha256(token);
           const now = Math.floor(Date.now() / 1000);
-          const expiresAt = 4102444800;
+          const expiresAt = now + ADMIN_SESSION_TTL_SECONDS;
           await env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at<? OR revoked_at IS NOT NULL").bind(now).run();
           await env.DB.prepare(`
             INSERT INTO admin_sessions(id,token_hash,uid,username,created_at,expires_at)
             VALUES(?,?,?,?,?,?)
           `).bind(crypto.randomUUID(),tokenHash,piUser.uid,piUser.username,now,expiresAt).run();
-          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt,persistent:true});
+          return json({success:true,token,username:piUser.username,uid:piUser.uid,expiresAt});
         }
         if (path === "/admin/session" && method === "GET") {
           const admin = await verifyAdmin(request, env);
