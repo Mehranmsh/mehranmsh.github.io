@@ -32,11 +32,11 @@ export function validateNotification(notification) {
   const fields = ["total", "completed", "blocked", "failed", "awaitingApproval", "inProgress", "queued", "retryWaiting", "blockedDependencies"];
   for (const field of fields) {
     const value = payload.counts[field];
-    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) {
+    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0 || value > 20)) {
       return { ok: false, reason: "invalid_event_counts" };
     }
   }
-  if (!Number.isSafeInteger(payload.counts.total) || payload.counts.total < 1) {
+  if (!Number.isSafeInteger(payload.counts.total) || payload.counts.total < 1 || payload.counts.total > 20) {
     return { ok: false, reason: "invalid_event_counts" };
   }
   return { ok: true, payload };
@@ -58,7 +58,7 @@ export function formatOwnerNotification(notification) {
     "مسدود: " + ((counts.blocked || 0) + (counts.failed || 0) + (counts.blockedDependencies || 0)),
     "در حال اجرا: " + (counts.inProgress || 0),
     "در انتظار: " + ((counts.queued || 0) + (counts.retryWaiting || 0) + (counts.awaitingApproval || 0)),
-    "زمان: " + (typeof payload.generatedAt === "string" && Number.isFinite(Date.parse(payload.generatedAt)) ? payload.generatedAt : "ثبت نشده")
+    "زمان: " + (typeof payload.generatedAt === "string" && Number.isFinite(Date.parse(payload.generatedAt)) ? new Date(payload.generatedAt).toISOString() : "ثبت نشده")
   ].join("\n");
 }
 
