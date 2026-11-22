@@ -21,7 +21,21 @@ The Worker scheduler runs every five minutes and claims at most five eligible ta
 
 Package creation and package-report retrieval are owner-only routes. They use a separate high-entropy Cloudflare encrypted Secret named `MEHRAN_ORCHESTRATOR_TOKEN`. Do not store this token in the agent runner, GitHub Actions, source code, Issues, pull requests, workflow logs, or ChatGPT messages. The agent runner must receive only `MEHRAN_AGENT_TOKEN`, which cannot create or read work packages.
 
-The orchestrator secret is not configured by this code change. Until the owner-only secret and a private authenticated ChatGPT-to-Worker relay are provisioned, package intake from this chat is not yet connected end to end. Do not substitute the agent token or send private task payloads through public GitHub Issues.
+The orchestrator secret is not configured by this code change. The intended owner-facing route is direct authenticated MCP access to the source Worker; a separate ChatGPT-to-Worker relay is not a protocol requirement. The current ChatGPT session is not connected merely because these Worker tools exist: the MCP app must be installed and authenticated in an eligible ChatGPT workspace, and the required owner secret must be provisioned in Cloudflare. Until those conditions are met and tested, package intake from this chat is not live. Do not substitute the agent token or send private task payloads through public GitHub Issues.
+
+## Direct private MCP work-package intake
+
+The MCP endpoint can expose two additional tools to the dedicated ChatGPT bridge:
+- `create_intelligence_work_package`: creates a durable package with stable idempotency, explicit dependencies, and only the fixed read-only actions `service_health_report` and `repository_quality_check`.
+- `get_intelligence_work_package`: retrieves the package state and bounded task results.
+
+These tools are exposed only when both conditions hold:
+1. The request authenticates with the dedicated `MEHRAN_MCP_TOKEN` bridge identity.
+2. The owner has separately provisioned a valid `MEHRAN_ORCHESTRATOR_TOKEN` encrypted Secret in Cloudflare.
+
+The orchestrator token is only checked inside the Worker as an owner opt-in. It is never returned to ChatGPT, included in MCP responses, or stored in GitHub. The bridge cannot use the token to approve tasks, access notification acknowledgements, run arbitrary commands, write repository files, or deploy. Package intake remains limited to the two read-only report actions until a separate capability review expands the allowlist.
+
+This is the intended private ChatGPT-to-MCP intake route. It does not make the current ChatGPT session connected automatically: the MCP app must be installed and authenticated in an eligible ChatGPT workspace. If the tools are not exposed, verify both encrypted secrets and refresh the MCP app's tool list after deployment.
 
 ## Operational boundary
 
@@ -34,4 +48,4 @@ The scheduled workflow becomes active on the default branch after merge. A succe
 
 Work-package status transitions enqueue a minimal event for the `owner_private` channel. The package status update, audit event, and outbox insertion are committed atomically. An owner-orchestrator authenticated receiver can inspect queue counts and recent terminal failures through `GET /agent/v1/notifications/status`, poll `GET /agent/v1/notifications/next`, receive a five-minute delivery lease, and acknowledge with `POST /agent/v1/notifications/{id}` using `delivered`, `retry`, or `failed`, and the exact `leaseToken` returned by that claim. Acknowledgements without the current lease token are rejected, so delayed acknowledgements from an expired delivery cannot complete a newer claim. Retry attempts are bounded and expired delivery leases return to the pending queue. Delivery is at-least-once, not exactly-once: the receiver must deduplicate side effects using the stable `eventId`.
 
-This implements a private, authenticated delivery handoff contract, not a configured notification provider. No Telegram, email, push, or ChatGPT-session delivery is active until a trusted receiver is provisioned with the owner orchestration credential and an actual private channel. The credential must never be placed in a public workflow, repository, issue, or agent token store.
+This implements a private, authenticated delivery handoff contract, not a configured notification provider. A separate notification receiver is optional and is not required for the core MCP intake or for ChatGPT to retrieve a package report when the MCP connection is available. No Telegram, email, push, or automatic ChatGPT-session delivery is active. The credential must never be placed in a public workflow, repository, issue, or agent token store.
