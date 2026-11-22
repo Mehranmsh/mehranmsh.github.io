@@ -1501,6 +1501,7 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
   assert.match(route, /intelligence_work_packages/);
   assert.match(route, /intelligence_task_events/);
   assert.match(route, /NOT EXISTS \(SELECT 1 FROM intelligence_task_dependencies/);
+  assert.match(route, /bind\(packageId \+ ":" \+ item\.taskId,packageId \+ ":" \+ dependency\)/);
   assert.match(route, /p\.status<>'completed'/);
   assert.match(route, /COALESCE\(t\.attempts,0\)<COALESCE\(t\.max_attempts,3\)/);
   assert.match(route, /attention_required/);
