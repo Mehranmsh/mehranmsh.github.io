@@ -46,11 +46,11 @@ jobs:
             "Accept": "application/json",
             "Content-Type": "application/json"
           };
-          async function request(path, options = {}, headers = agentHeaders) {
+          async function request(path, options = {}, headers = agentHeaders, timeoutMs = 20000) {
             const response = await fetch(base + path, {
               ...options,
               headers: { ...headers, ...(options.headers || {}) },
-              signal: AbortSignal.timeout(20000)
+              signal: AbortSignal.timeout(timeoutMs)
             });
             const raw = await response.text();
             let payload;
@@ -69,7 +69,7 @@ jobs:
                 idempotencyKey: `mehran-intelligence-owner-mission-v1-${new Date().toISOString().slice(0,10)}`,
                 mission: "Assess the current MEHRAN INTELLIGENCE system and determine the next safest steps toward independently receiving, planning, executing, verifying, and reporting owner-assigned missions. Use only the currently available read-only capabilities. Identify what is already proven, what remains unproven, and the smallest next engineering milestone. Do not claim capabilities that have not been verified."
               })
-            }, ownerHeaders);
+            }, ownerHeaders, 90000);
             packageId = created.workPackageId || "";
             console.log(`AI-planned package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
             if (created.planSummary) console.log(`AI plan summary: ${String(created.planSummary).slice(0, 500)}`);
