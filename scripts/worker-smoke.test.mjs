@@ -9,6 +9,7 @@ const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
 const worker = workerModule.default;
+const { verifyIntelligenceReport } = workerModule;
 
 function mockDb() {
   return {
@@ -1606,4 +1607,28 @@ test("INTELLIGENCE completion requires action-specific acceptance checks and com
   assert.match(workerSource, /acceptanceChecks:acceptance\.checks/);
   assert.match(workerSource, /const completion = await env\.DB\.batch\(\[/);
   assert.match(workerSource, /WHERE id=\? AND status='in_progress'/);
+});
+
+
+test("INTELLIGENCE acceptance verifier accepts valid action-specific reports", () => {
+  const valid = [
+    ["service_health_report", {type:"service_health_report",database:"healthy",projectRecords:4}],
+    ["repository_quality_check", {type:"repository_quality_check",repository:"Mehranmsh/mehranmsh.github.io",defaultBranch:"main",openIssues:2,lastPushedAt:"2026-11-22T10:00:00Z",latestCommit:"abcdef123456",latestCommitAt:"2026-11-22T09:00:00Z"}],
+    ["project_status_report", {type:"project_status_report",projects:[{name:"SOCIAL",status:"active",description:"Module"}]}],
+    ["social_metrics_report", {type:"social_metrics_report",registeredUsers:10,activeUsers:7,posts:12,openReports:1}]
+  ];
+  for (const [action, report] of valid) {
+    const result = verifyIntelligenceReport(action, report);
+    assert.equal(result.passed, true, action);
+    assert.ok(result.checks.length >= 2, action);
+  }
+});
+
+test("INTELLIGENCE acceptance verifier rejects malformed, mismatched, and unsafe reports", () => {
+  assert.equal(verifyIntelligenceReport("service_health_report", {type:"repository_quality_check"}).passed, false);
+  assert.equal(verifyIntelligenceReport("service_health_report", {type:"service_health_report",database:"down",projectRecords:1}).passed, false);
+  assert.equal(verifyIntelligenceReport("repository_quality_check", {type:"repository_quality_check",repository:"attacker/repo",defaultBranch:"main",openIssues:0,lastPushedAt:"2026-11-22",latestCommit:"abcdef123456",latestCommitAt:"2026-11-22"}).passed, false);
+  assert.equal(verifyIntelligenceReport("project_status_report", {type:"project_status_report",projects:Array(51).fill({name:"x",status:"x",description:"x"})}).passed, false);
+  assert.equal(verifyIntelligenceReport("social_metrics_report", {type:"social_metrics_report",registeredUsers:2,activeUsers:3,posts:0,openReports:0}).passed, false);
+  assert.equal(verifyIntelligenceReport("arbitrary_code", {type:"arbitrary_code"}).passed, false);
 });
