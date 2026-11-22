@@ -5747,7 +5747,7 @@ export default {
             "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT id,status FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
@@ -5757,7 +5757,7 @@ export default {
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
           if (row) {
             await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','mehran_intelligence','{}')")
-              .bind(crypto.randomUUID(),row.work_package_id || null,row.id,row.status === "in_progress" ? "queued" : "accepted").run();
+              .bind(crypto.randomUUID(),row.work_package_id || null,row.id,candidate.status || "queued").run();
           }
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
