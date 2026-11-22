@@ -1554,6 +1554,8 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes('const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST")'), "notification delivery must require the separate owner orchestration identity");
   assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
   assert.ok(route.includes("status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')"), "expired notification leases cannot be acknowledged");
+  assert.ok(route.includes("CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END"), "abandoned delivery leases must have bounded retries");
+  assert.ok(route.includes("min(3600,30 * (1 << max(0,attempts-1)))"), "delivery lease retry delay must use capped exponential backoff");
   assert.ok(route.includes("status='processing'"));
   assert.ok(route.includes("leaseExpiresAt"));
   assert.ok(route.includes('["delivered","retry","failed"]'));
