@@ -9,7 +9,7 @@ const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
 const worker = workerModule.default;
-const { verifyIntelligenceReport, validateIntelligenceWorkPackage } = workerModule;
+const { verifyIntelligenceReport, validateIntelligenceWorkPackage, persistIntelligencePackageReport } = workerModule;
 
 function mockDb() {
   return {
@@ -1700,4 +1700,64 @@ test("MCP Streamable HTTP transport explicitly handles GET probes and negotiated
   assert.match(chatRoute, /Unsupported MCP protocol version/);
   assert.match(chatRoute, /2025-11-25/);
   assert.doesNotMatch(chatRoute, /2024-11-05/);
+});
+
+
+test("private report persistence writes a minimized JSON report to the dedicated private repository", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), init });
+    if (init.method === "PUT") return new Response(JSON.stringify({ content: { path: "reports/2026/11/package-1.json" } }), { status: 201 });
+    return new Response("Not Found", { status: 404 });
+  };
+  const db = {
+    prepare(sql) {
+      return {
+        bind(...args) { this.args = args; return this; },
+        async first() {
+          if (sql.includes("SELECT id,created_at FROM intelligence_work_packages")) return { id: "package-1", created_at: "2026-11-22T20:00:00.000Z" };
+          throw new Error("Unexpected first query: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM intelligence_tasks WHERE work_package_id")) return {
+            results: [{ id: "task-1", status: "completed", action_type: "service_health_report", attempts: 1, max_attempts: 3, last_error_code: "" }]
+          };
+          throw new Error("Unexpected all query: " + sql);
+        }
+      };
+    }
+  };
+  try {
+    const result = await persistIntelligencePackageReport(
+      { DB: db, MEHRAN_REPORTS_GITHUB_TOKEN: "x".repeat(48) },
+      "package-1",
+      { status: "completed", generatedAt: "2026-11-22T20:00:00.000Z", counts: { total: 1, completed: 1 } }
+    );
+    assert.equal(result.stored, true);
+    assert.equal(result.alreadyExists, false);
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].url, /Mehranmsh\/mehran-intelligence-reports/);
+    assert.equal(calls[1].init.method, "PUT");
+    assert.match(calls[1].init.headers.Authorization, /^Bearer /);
+    const payload = JSON.parse(calls[1].init.body);
+    const report = JSON.parse(Buffer.from(payload.content, "base64").toString("utf8"));
+    assert.equal(report.schema_version, 1);
+    assert.equal(report.report_id, "package-1");
+    assert.equal(report.status, "success");
+    assert.equal(report.data.tasks[0].action_type, "service_health_report");
+    assert.equal("title" in report.data, false);
+    assert.equal("result_text" in report.data.tasks[0], false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("private report persistence is a no-op until its dedicated Worker secret is configured", async () => {
+  const result = await persistIntelligencePackageReport(
+    { DB: {} },
+    "package-1",
+    { status: "completed", generatedAt: "2026-11-22T20:00:00.000Z", counts: {} }
+  );
+  assert.deepEqual(result, { stored: false, reason: "not_configured_or_not_final" });
 });
