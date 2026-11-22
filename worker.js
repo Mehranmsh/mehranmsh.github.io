@@ -5516,6 +5516,9 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
 async function planIntelligenceMission(env, input) {
   const mission = cleanText(input?.mission, 1600);
   const idempotencyKey = cleanText(input?.idempotencyKey, 120);
+  const fallback = reason => input?.allowDeterministicFallback === false
+    ? { success: false, error: "AI planning is unavailable; no custom mission package was created.", code: -32003, plannerUnavailable: true, reason }
+    : createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason);
   if (!mission || !idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
     return { success: false, error: "A mission and valid idempotency key are required.", code: -32602 };
   }
@@ -5524,10 +5527,10 @@ async function planIntelligenceMission(env, input) {
   ).bind(idempotencyKey).first();
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   if (!env.AI || typeof env.AI.run !== "function") {
-    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_binding_unavailable");
+    return fallback("ai_binding_unavailable");
   }
   const budget = await reserveSocialWorkersAIBudget(env, 500, "intelligence");
-  if (!budget.allowed) return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "daily_ai_budget_unavailable");
+  if (!budget.allowed) return fallback("daily_ai_budget_unavailable");
 
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   const system = [
@@ -5592,7 +5595,7 @@ async function planIntelligenceMission(env, input) {
     });
   } catch (err) {
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err && err.message || err).slice(0, 180));
-    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_inference_failed");
+    return fallback("ai_inference_failed");
   }
 
   // Workers AI JSON Mode may return the structured object directly in response.
@@ -5604,11 +5607,11 @@ async function planIntelligenceMission(env, input) {
   if (modelResponse && typeof modelResponse === "object" && !Array.isArray(modelResponse)) {
     try {
       if (JSON.stringify(modelResponse).length > 12000) {
-        return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_oversized");
+        return fallback("ai_response_oversized");
       }
       plan = modelResponse;
     } catch {
-      return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_unreadable");
+      return fallback("ai_response_unreadable");
     }
   } else if (typeof modelResponse === "string" && modelResponse.trim() && modelResponse.length <= 12000) {
     try {
@@ -5618,13 +5621,13 @@ async function planIntelligenceMission(env, input) {
       if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON object not found");
       plan = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
     } catch {
-      return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_invalid_json");
+      return fallback("ai_response_invalid_json");
     }
   } else {
-    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_response_empty_or_oversized");
+    return fallback("ai_response_empty_or_oversized");
   }
   if (!Array.isArray(plan.tasks) || plan.tasks.length < 1 || plan.tasks.length > 5) {
-    return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_plan_task_count_invalid");
+    return fallback("ai_plan_task_count_invalid");
   }
   const scope = {
     mode: "read_only",
@@ -5644,7 +5647,7 @@ async function planIntelligenceMission(env, input) {
     tasks: plan.tasks
   });
   if (!created.success) {
-    if (created.code === -32602) return createIntelligenceFallbackPackage(env, mission, idempotencyKey, "ai_plan_validation_failed");
+    if (created.code === -32602) return fallback("ai_plan_validation_failed");
     return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };
   }
   return {
@@ -5723,6 +5726,7 @@ function formatIntelligenceTask(row) {
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
+    workPackageId: row.work_package_id || null,
     result: row.result_text || "", checkpoint: row.checkpoint_json || "{}",
     attempts: Number(row.attempts || 0), maxAttempts: Number(row.max_attempts || 3),
     nextAttemptAt: row.next_attempt_at || null, lastErrorCode: row.last_error_code || "",
@@ -7526,6 +7530,26 @@ export default {
           completed:Number(row.completed_count || 0), blocked:Number(row.blocked_count || 0),
           error:row.error_text || ""
         }))});
+      }
+
+      if (path === "/intelligence/missions" && method === "POST") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        if (!await checkRateLimit(env, request, "intelligence-owner-mission-submit", 5, 3600, 3600, admin.uid)) {
+          return error("Mission submission limit reached. Try again later.", 429);
+        }
+        const body = await readBody(request);
+        if (!body) return error("A valid mission request body is required.", 400);
+        const mission = cleanText(body.mission, 1600);
+        if (!mission || mission.length < 12) return error("Describe the mission in at least 12 characters.", 400);
+        const planned = await planIntelligenceMission(env, {
+          mission,
+          idempotencyKey: "owner-mission-" + crypto.randomUUID(),
+          allowDeterministicFallback: false
+        });
+        if (!planned.success) return error(planned.error || "Mission planning failed.", planned.code === -32003 ? 503 : 400);
+        await writeAdminAudit(env, admin, "intelligence_owner_mission_submitted", "intelligence_work_package", planned.workPackageId, JSON.stringify({ mission: mission.slice(0, 300), taskCount: planned.taskCount || 0, planner: planned.planner?.provider || "unknown" }));
+        return json({ success: true, workPackageId: planned.workPackageId, status: planned.status, taskCount: planned.taskCount || 0, planSummary: planned.planSummary || "", planner: planned.planner || null, safety: planned.safety || "" }, planned.duplicate ? 200 : 202);
       }
 
       if (path === "/intelligence/tasks" && ["GET","POST"].includes(method)) {
