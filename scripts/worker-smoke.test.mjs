@@ -240,7 +240,7 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report'\)/);
-  assert.match(route, /status IN \\('queued','accepted','retry_wait'\\)/, "agent claims must include retry_wait tasks");
+  assert.match(route, /status IN \('queued','accepted','retry_wait'\)/, "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
   assert.match(route, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
