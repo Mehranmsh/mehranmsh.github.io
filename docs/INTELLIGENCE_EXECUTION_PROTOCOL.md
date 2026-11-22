@@ -135,8 +135,8 @@ The companion runtime work in PR #162 adds durable work-package storage, depende
 This is a runtime foundation, not the complete protocol and not yet production-active. The following acceptance items remain unproven or unimplemented:
 - A private authenticated intake path from ChatGPT or another approved owner interface.
 - A general, reviewed executor framework for additional task types and repository/Cloudflare operations.
-- Independent acceptance-check execution and durable evidence artifacts for every completed task.
-- Actual notification delivery from the outbox to a configured private channel, including retry and delivery confirmation.
+- Independent acceptance-check execution and durable evidence artifacts for every completed task. Current completion evidence is limited to bounded task result text and lifecycle events for the two read-only report actions.
+- A configured private notification receiver/channel. PR #162 now provides an owner-token-protected outbox claim/ack API, five-minute delivery leases, bounded retry, and status-transition enqueueing, but no Telegram/email/push/ChatGPT delivery provider is configured.
 - End-to-end tests demonstrating restart recovery, independent task progress, transient failure recovery, duplicate delivery, owner approval gates, and final report retrieval.
 
 Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test. Keep public GitHub intake limited to non-sensitive signals. Do not expand unrelated company modules as part of this work.
