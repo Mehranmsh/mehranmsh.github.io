@@ -131,3 +131,15 @@ The execution engine should extend these established project/task/dependency con
 The current Worker scheduled-handler queue SELECT and claim statements visible in `worker.js` filter to `project_status_report` and `social_metrics_report`. The separate GitHub Actions runner claims `service_health_report` and `repository_quality_check`. However, `docs/INTELLIGENCE_SCHEDULER_OPERATIONS.md` describes the Cloudflare scheduler as processing all four actions. The Worker contains handler branches for the latter two actions, but those branches are not reachable while the SELECT/claim allowlist excludes them.
 
 Before changing any allowlist, update the operations document and tests to state the actual split, then choose a single executor owner per action. Do not broaden either executor's allowlist until overlap, claim leases, result authorization, and duplicate execution behavior are covered by tests.
+
+
+## Repository and schema verification correction (2026-11-22)
+
+A follow-up inspection of the current `main` Git tree found that the referenced production migration workflow and checker exist, but the recursive `main` tree did not contain the referenced `migrations/production/*.sql` files. The current `worker.js` also defines `ensureIntelligenceTaskTable` and `ensureIntelligenceSchedulerRunsTable`, but the inspected source does not define `intelligence_projects`, `intelligence_task_dependencies`, `intelligence_knowledge`, or `intelligence_owner_memory`.
+
+Therefore the earlier assumption that those schema objects are present in the repository or production database is **not verified**. The rollout checker expects some of them to exist, but that expectation is not evidence of their presence. Do not create code that depends on these tables until the actual production schema and migration history are verified through the approved read-only D1 preflight workflow. Do not run any `apply-*` workflow action as part of this verification.
+
+The first implementation milestone is now explicitly blocked on schema inventory:
+1. Verify the current production schema using the existing read-only preflight mechanism, if its required credentials and protected branch are already configured.
+2. Reconcile the checker, referenced migration files, deployed schema, and current Worker source.
+3. Only then select the smallest compatible task-step storage design. Reuse existing tables only when their presence and ownership constraints are confirmed.
