@@ -1,4 +1,4 @@
-name: MEHRAN ChatGPT Bridge (public-safe health only)
+name: MEHRAN ChatGPT Bridge (health + owner-gated task proposal)
 
 on:
   issues:
@@ -69,5 +69,72 @@ jobs:
                 "```",
                 "",
                 "_Read-only configuration check. No project descriptions, user data, secrets, or private task content are returned._"
+              ].join("\n")
+            });
+
+  task-proposal:
+    if: >-
+      contains(github.event.issue.body, '<!-- MEHRAN-CHATGPT-BRIDGE:TASK-PROPOSAL:v1 -->')
+      && github.event.issue.author_association == 'OWNER'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Submit fixed private-bridge implementation proposal to MEHRAN MCP
+        uses: actions/github-script@v7
+        env:
+          MEHRAN_MCP_TOKEN: ${{ secrets.MEHRAN_MCP_TOKEN }}
+          MEHRAN_MCP_URL: https://mehran-msh-auth.mehran79mehran.workers.dev/mcp
+        with:
+          script: |
+            const token = process.env.MEHRAN_MCP_TOKEN || "";
+            if (token.length < 40 || token.length > 200) {
+              throw new Error("MEHRAN_MCP_TOKEN repository secret is missing or invalid.");
+            }
+            const response = await fetch(process.env.MEHRAN_MCP_URL, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+              },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: `gh-task-proposal-${context.issue.number}`,
+                method: "tools/call",
+                params: {
+                  name: "create_collaboration_task",
+                  arguments: {
+                    title: "Build private two-way ChatGPT to MEHRAN MCP bridge",
+                    description: "Design and implement a private, authenticated, encrypted two-way relay between the ChatGPT bridge and MEHRAN INTELLIGENCE. Do not use public GitHub Issues or comments for private payloads. Keep the relay disabled until end-to-end encryption, scoped identity, replay protection, expiry, rate limits, audit logging, owner approval gates, and regression tests are implemented and reviewed. This is a planning proposal only; no deployment or security setting changes are authorized.",
+                    assignedTo: "mehran_intelligence",
+                    priority: "high",
+                    requiresApproval: true
+                  }
+                }
+              }),
+              signal: AbortSignal.timeout(20000)
+            });
+            const raw = await response.text();
+            if (!response.ok) throw new Error(`MEHRAN MCP returned HTTP ${response.status}: ${raw.slice(0, 200)}`);
+            let payload;
+            try { payload = JSON.parse(raw); }
+            catch { throw new Error("MCP response was not JSON."); }
+            if (payload.error) throw new Error(payload.error.message || "MCP task proposal failed.");
+            const task = payload.result?.structuredContent?.task;
+            if (!task || typeof task.id !== "string" || task.status !== "awaiting_approval") {
+              throw new Error("MCP did not confirm an approval-gated task proposal.");
+            }
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: [
+                "## MEHRAN INTELLIGENCE task proposal",
+                "",
+                "- Result: successfully submitted to the internal MCP task queue",
+                `- Task ID: ${task.id}`,
+                `- Status: ${task.status}`,
+                "- Approval: required from the owner",
+                "",
+                "_This workflow submits a fixed, non-sensitive proposal. It does not accept arbitrary issue text as task instructions and does not execute or deploy anything._"
               ].join("\n")
             });

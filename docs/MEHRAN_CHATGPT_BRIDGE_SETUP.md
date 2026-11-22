@@ -1,6 +1,6 @@
 # MEHRAN ChatGPT Bridge: final owner setup
 
-This is a limited, read-only health-report bridge. It does not enable autonomous execution.
+This bridge provides a public-safe health report and an owner-gated fixed task proposal. It does not enable autonomous execution or private two-way messaging.
 
 ## 1. Configure the same private token in both services
 
@@ -39,3 +39,18 @@ Expected result: GitHub Actions runs and adds a comment titled **MEHRAN INTELLIG
 ## Scope and safety
 
 This first bridge proves a controlled ChatGPT-to-MCP request and returns a public-safe report through GitHub. It is not a private, continuous ChatGPT ↔ INTELLIGENCE conversation, does not run general tasks, and does not bypass owner approval. A separate supported private connector is still required for that broader goal.
+
+## 4. Owner-gated fixed task proposal
+
+The workflow also supports one fixed, non-sensitive task proposal using the marker
+`<!-- MEHRAN-CHATGPT-BRIDGE:TASK-PROPOSAL:v1 -->`. This path runs only when the
+issue author association is `OWNER`. It submits a predefined proposal to
+`create_collaboration_task`; it does not copy arbitrary issue text into MCP.
+
+The MCP bridge identity forces this proposal into `awaiting_approval`. The
+workflow verifies that status and comments only the task ID and approval state.
+It does not execute the task, deploy code, or change security settings.
+
+Do not use public issues for private prompts, project records, user data, credentials,
+or task results. This fixed proposal is a safe hand-off signal, not a private
+two-way messaging channel.
