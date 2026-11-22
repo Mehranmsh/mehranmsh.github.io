@@ -5155,6 +5155,7 @@ async function ensureIntelligenceProtocolTables(env) {
     CREATE TABLE IF NOT EXISTS intelligence_work_packages(
       id TEXT PRIMARY KEY,
       idempotency_key TEXT NOT NULL UNIQUE,
+      request_hash TEXT NOT NULL DEFAULT '',
       title TEXT NOT NULL,
       objective TEXT NOT NULL DEFAULT '',
       scope_json TEXT NOT NULL DEFAULT '{}',
@@ -5166,6 +5167,7 @@ async function ensureIntelligenceProtocolTables(env) {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''").run(); } catch {}
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_task_dependencies(
       task_id TEXT NOT NULL,
@@ -5809,6 +5811,9 @@ export default {
           const objective = cleanText(body?.objective,2000);
           const tasks = Array.isArray(body?.tasks) ? body.tasks : [];
           const priority = ["low","normal","high"].includes(body?.priority) ? body.priority : "normal";
+          const scope = body?.scope && typeof body.scope === "object" && !Array.isArray(body.scope) ? body.scope : {};
+          const scopeJson = JSON.stringify(scope);
+          if (!scopeJson || scopeJson.length > 4000) return error("Work package scope exceeds the 4 KB limit.",400);
           if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
             return error("A valid idempotencyKey, title, and 1-20 tasks are required.",400);
           }
@@ -5824,18 +5829,22 @@ export default {
             if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check"].includes(actionType) || dependencies.length > 10) {
               return error("Invalid task definition or action outside the read-only allowlist.",400);
             }
-            if (dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
-              return error("Dependencies must reference earlier tasks in this package; cycles and forward references are rejected.",400);
+            if (new Set(dependencies).size !== dependencies.length || dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
+              return error("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.",400);
             }
             known.add(taskId);
             normalized.push({taskId,title:taskTitle,description,actionType,dependencies});
           }
-          const existing = await env.DB.prepare("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
-          if (existing) return json({success:true,duplicate:true,workPackageId:existing.id,status:existing.status},200);
+          const requestHash = await sha256(JSON.stringify({title,objective,priority,scope,tasks:normalized}));
+          const existing = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
+          if (existing) {
+            if (existing.request_hash && existing.request_hash !== requestHash) return error("Idempotency key was already used with a different work package payload.",409);
+            return json({success:true,duplicate:true,workPackageId:existing.id,status:existing.status},200);
+          }
           const packageId = crypto.randomUUID();
           const statements = [
-            env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,'queued','mehran_intelligence')")
-              .bind(packageId,idempotencyKey,title,objective,JSON.stringify({taskCount:normalized.length}),priority)
+            env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence')")
+              .bind(packageId,idempotencyKey,requestHash,title,objective,scopeJson,priority)
           ];
           for (const item of normalized) {
             statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
@@ -5849,8 +5858,11 @@ export default {
           try {
             await env.DB.batch(statements);
           } catch (err) {
-            const raced = await env.DB.prepare("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
-            if (raced) return json({success:true,duplicate:true,workPackageId:raced.id,status:raced.status},200);
+            const raced = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
+            if (raced) {
+              if (raced.request_hash && raced.request_hash !== requestHash) return error("Idempotency key was already used with a different work package payload.",409);
+              return json({success:true,duplicate:true,workPackageId:raced.id,status:raced.status},200);
+            }
             throw err;
           }
           return json({success:true,duplicate:false,workPackageId:packageId,status:"queued",taskCount:normalized.length},202);
