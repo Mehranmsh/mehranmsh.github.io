@@ -994,7 +994,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div class="section-title"><div><h2>Collaboration Task Hub</h2><div class="small-text">A shared work queue for ChatGPT and MEHRAN INTELLIGENCE.</div></div><button class="btn secondary small" id="refreshIntelTasksBtn" type="button">Refresh tasks</button></div>
 <div id="intelTasksStatus" class="notice">Tasks are stored securely in MEHRAN MSH. Creating a task records and assigns it, it does not execute external actions.</div>
 <div id="intelApprovalDebugLog" class="small-text" role="status" aria-live="polite">Approval diagnostics ready. Click Approve task to capture the event and API result.</div>
-<div class="section-title" style="margin-top:18px"><div><h3>Scheduled execution history</h3><div class="small-text">Recent hourly runs and their results.</div></div><button class="btn secondary small" id="refreshIntelRunsBtn" type="button">Refresh history</button></div>
+<div class="section-title" style="margin-top:18px"><div><h3>Scheduled execution history</h3><div class="small-text">Recent scheduled runs and their results.</div></div><button class="btn secondary small" id="refreshIntelRunsBtn" type="button">Refresh history</button></div>
 <div id="intelRunsStatus" class="small-text" aria-live="polite">Loading scheduler history...</div>
 <div id="intelRunsList" class="grid"><div class="empty">Scheduler history will appear here after the next scheduled run.</div></div>
 <form id="intelTaskForm" class="card" autocomplete="off">
@@ -2271,7 +2271,7 @@ try{
 const data=await api("/intelligence/scheduler/runs?limit=10");
 const runs=data.runs||[];
 if(!runs.length){
-status.textContent="No scheduled runs have been recorded yet. The history will populate after the next hourly trigger.";
+status.textContent="No scheduled runs have been recorded yet. The history will populate after the next five-minute scheduled trigger.";
 list.innerHTML='<div class="empty">No execution history yet.</div>';
 return;
 }
