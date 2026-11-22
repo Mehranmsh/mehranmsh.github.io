@@ -242,6 +242,10 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
+  assert.match(runner, /if: github\\.ref == 'refs\\/heads\\/main'/);
+  assert.match(runner, /task\\.requiresApproval !== false/);
+  assert.match(runner, /task\\.status !== "in_progress"/);
+  assert.match(runner, /task\\.assignedTo/);
   assert.match(runner, /secrets\.MEHRAN_AGENT_TOKEN/);
   assert.match(runner, /service_health_report/);
   assert.match(runner, /repository_quality_check/);
