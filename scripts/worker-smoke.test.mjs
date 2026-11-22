@@ -287,6 +287,22 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.doesNotMatch(runner, /CLOUDFLARE_API_TOKEN|MEHRAN_MCP_TOKEN/);
 });
 
+test("Intelligence source audit cross-checks capability allowlists and owner safety boundaries", () => {
+  for (const checkId of [
+    "planner_validator_agent_mcp_and_runner_allowlists_aligned",
+    "custom_owner_missions_remain_admin_gated_without_fallback",
+    "mcp_package_intake_keeps_separate_bridge_and_owner_identities",
+    "executor_rechecks_assignment_status_and_approval",
+    "runner_has_no_deploy_or_repository_write_commands",
+    "execution_protocol_still_marks_end_to_end_acceptance_as_required"
+  ]) {
+    assert.ok(runnerSource.includes('id: "' + checkId + '"'), "source audit must emit " + checkId);
+  }
+  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit"\]/);
+  assert.match(runnerSource, /capabilitySections\.every\(section/);
+  assert.match(runnerSource, /docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md/);
+});
+
 test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approved task proposals", () => {
   const start = workerSource.indexOf('const system = "You are MEHRAN INTELLIGENCE');
   const end = workerSource.indexOf('if (path === "/admin/overview"', start);
