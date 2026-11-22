@@ -7579,11 +7579,11 @@ export default {
         const title=cleanText(body.title,120),description=cleanText(body.description,3000);
         const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
         const actionType=body.actionType||"";
-        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
+        const allowedActionTypes=["project_status_report","social_metrics_report","service_health_report","repository_quality_check","source_security_audit"];
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
         if(actionType&&assignedTo==="chatgpt")return error("Allowlisted report actions must be assigned to mehran_intelligence or shared so the execution service can claim them.");
-        const preapprovedReadOnlyActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check"];
+        const preapprovedReadOnlyActions=["project_status_report","social_metrics_report","service_health_report","repository_quality_check","source_security_audit"];
         const autoApproved=preapprovedReadOnlyActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
         const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
         const id=crypto.randomUUID();
