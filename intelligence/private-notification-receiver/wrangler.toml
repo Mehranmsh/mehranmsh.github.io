@@ -1,0 +1,6 @@
+name = "mehran-private-notification-receiver"
+main = "worker.js"
+compatibility_date = "2026-11-03"
+
+[triggers]
+crons = ["* * * * *"]
