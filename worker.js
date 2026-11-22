@@ -5755,6 +5755,10 @@ export default {
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
+          if (row) {
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','mehran_intelligence','{}')")
+              .bind(crypto.randomUUID(),row.work_package_id || null,row.id,row.status === "in_progress" ? "queued" : "accepted").run();
+          }
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
@@ -5767,10 +5771,14 @@ export default {
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
+          const before = await env.DB.prepare("SELECT id,work_package_id,status FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')").bind(id).first();
+          if (!before) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const update = await env.DB.prepare(
             "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).bind(body.status || "completed",resultText,id).run();
-          if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
+          if (!Number(update?.meta?.changes || 0)) return error("Task claim expired or changed before result commit.",409);
+          await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_result',?,?, 'mehran_intelligence',?)")
+            .bind(crypto.randomUUID(),before.work_package_id || null,id,"in_progress",body.status || "completed",JSON.stringify({resultLength:resultText.length})).run();
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }
