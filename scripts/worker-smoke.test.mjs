@@ -332,7 +332,7 @@ test("Intelligence mission planner creates a bounded deterministic fallback when
   assert.match(helper, /createIntelligenceWorkPackage\(env/);
   assert.match(helper, /Fixed read-only action allowlist enforced server-side/);
 
-  const plannerEnd = workerSource.indexOf("\\nexport function verifyIntelligenceReport", helperEnd);
+  const plannerEnd = workerSource.indexOf("\nexport function verifyIntelligenceReport", helperEnd);
   const planner = workerSource.slice(helperEnd, plannerEnd);
   assert.match(planner, /ai_binding_unavailable/);
   assert.match(planner, /daily_ai_budget_unavailable/);
