@@ -10,14 +10,14 @@ const workerSource = await readFile(new URL("../worker.js", import.meta.url), "u
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
-const workerSourceForTest = workerSource.replace(
-  /^import \\{ INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES \\} from "\.\\/scripts\\/intelligence-capabilities\\.mjs";\\s*/,
-  `const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
-const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};`
-);
-if (workerSourceForTest === workerSource) {
-  throw new Error("Worker capability registry import was not replaced for the isolated smoke-test module");
+const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
+if (!workerSource.startsWith(capabilityImport)) {
+  throw new Error("Worker capability registry import was not found at the module entry point");
 }
+const workerSourceForTest = `const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
+const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
+` + workerSource.slice(capabilityImport.length);
+
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSourceForTest).toString("base64")
 );
