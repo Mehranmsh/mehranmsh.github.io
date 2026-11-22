@@ -56,53 +56,21 @@ jobs:
             return payload;
           }
 
-          // Idempotent bootstrap: this creates one bounded package, never a new package on every schedule.
+          // Ask the AI planning core to turn the owner's standing mission into a bounded read-only work package.
           let packageId = "";
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            const packagePayload = {
-              idempotencyKey: `mehran-intelligence-source-audit-v4-${new Date().toISOString().slice(0,10)}`,
-              title: "MEHRAN INTELLIGENCE bounded source security audit",
-              objective: "Run a deterministic read-only audit of fixed Worker and runner source files after confirming service health and repository identity. Do not modify code, configuration, secrets, accounts, or data.",
-              priority: "high",
-              scope: {
-                mode: "read_only",
-                allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit"],
-                forbidden: ["source_changes", "deployment", "secret_changes", "data_mutation", "external_user_actions"],
-                reportDestination: "private GitHub reports repository via the Worker report persistence function",
-                auditedFiles: ["worker.js", ".github/workflows/mehran-intelligence-runner.yml"]
-              },
-              tasks: [
-                {
-                  taskId: "worker-health",
-                  title: "Verify Worker and D1 service health",
-                  description: "Run the allowlisted read-only service health check. Record Worker status, D1 status, and scheduler summary.",
-                  actionType: "service_health_report",
-                  dependsOn: []
-                },
-                {
-                  taskId: "repository-metadata",
-                  title: "Verify primary repository metadata",
-                  description: "Run the allowlisted read-only repository metadata check. Do not clone, modify, or deploy source code.",
-                  actionType: "repository_quality_check",
-                  dependsOn: ["worker-health"]
-                },
-                {
-                  taskId: "source-security-audit",
-                  title: "Audit fixed Worker and runner source files",
-                  description: "Read only worker.js and the runner workflow from main. Run deterministic security and architecture checks. Never execute repository code or write to GitHub.",
-                  actionType: "source_security_audit",
-                  dependsOn: ["repository-metadata"]
-                }
-              ]
-            };
-            const created = await request("/agent/v1/work-packages", {
+            const created = await request("/agent/v1/missions/plan", {
               method: "POST",
-              body: JSON.stringify(packagePayload)
+              body: JSON.stringify({
+                idempotencyKey: `mehran-intelligence-owner-mission-v1-${new Date().toISOString().slice(0,10)}`,
+                mission: "Assess the current MEHRAN INTELLIGENCE system and determine the next safest steps toward independently receiving, planning, executing, verifying, and reporting owner-assigned missions. Use only the currently available read-only capabilities. Identify what is already proven, what remains unproven, and the smallest next engineering milestone. Do not claim capabilities that have not been verified."
+              })
             }, ownerHeaders);
             packageId = created.workPackageId || "";
-            console.log(`Bootstrap package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}`);
+            console.log(`AI-planned package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
+            if (created.planSummary) console.log(`AI plan summary: ${String(created.planSummary).slice(0, 500)}`);
           } else {
-            console.log("Package bootstrap skipped: MEHRAN_ORCHESTRATOR_TOKEN repository secret is not configured. Existing eligible tasks may still run.");
+            console.log("AI mission planning skipped: MEHRAN_ORCHESTRATOR_TOKEN repository secret is not configured. Existing eligible tasks may still run.");
           }
 
           async function execute(task) {

@@ -5460,6 +5460,99 @@ async function createIntelligenceWorkPackage(env, input) {
   return { success: true, duplicate: false, workPackageId: packageId, status: "queued", taskCount: tasks.length };
 }
 
+async function planIntelligenceMission(env, input) {
+  const mission = cleanText(input?.mission, 1600);
+  const idempotencyKey = cleanText(input?.idempotencyKey, 120);
+  if (!mission || !idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
+    return { success: false, error: "A mission and valid idempotency key are required.", code: -32602 };
+  }
+  const existing = await env.DB.prepare(
+    "SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=? LIMIT 1"
+  ).bind(idempotencyKey).first();
+  if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
+  if (!env.AI || typeof env.AI.run !== "function") {
+    return { success: false, error: "Cloudflare Workers AI binding is unavailable.", code: -32003 };
+  }
+  const budget = await reserveSocialWorkersAIBudget(env, 500, "intelligence");
+  if (!budget.allowed) return { success: false, error: "MEHRAN INTELLIGENCE daily AI budget is reserved for today.", code: -32005 };
+
+  const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+  const system = [
+    "You are the planning core of MEHRAN INTELLIGENCE.",
+    "Convert the owner's mission into a small, evidence-oriented work package.",
+    "You are a planner, not an executor. Never claim an action has already happened.",
+    "Only create read-only tasks using exactly these action types: service_health_report, repository_quality_check, source_security_audit.",
+    "Never request secrets, credentials, wallet keys, or personal data.",
+    "Never propose source writes, deployments, account changes, financial actions, or external user actions.",
+    "Use dependencies only on earlier task IDs. Return valid JSON only, without markdown fences."
+  ].join(" ");
+  const userPrompt = [
+    "Owner mission:",
+    mission,
+    "",
+    "Available executor capabilities:",
+    "- service_health_report: read-only Worker and D1 health report.",
+    "- repository_quality_check: read-only metadata for Mehranmsh/mehranmsh.github.io.",
+    "- source_security_audit: deterministic read-only checks on worker.js and the runner workflow; it is not a semantic AI code review.",
+    "",
+    'Return exactly this JSON shape: {"title":"...","objective":"...","priority":"low|normal|high","planSummary":"...","tasks":[{"taskId":"short-id","title":"...","description":"...","actionType":"one exact allowed type","dependsOn":[]}]}',
+    "Create between 1 and 5 tasks. Choose only tasks genuinely relevant to the mission. Keep every task read-only."
+  ].join("\n");
+
+  let modelResult;
+  try {
+    modelResult = await env.AI.run(model, {
+      messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
+      max_tokens: 1400
+    });
+  } catch (err) {
+    console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err?.message || err).slice(0, 180));
+    return { success: false, error: "Cloudflare AI could not plan this mission.", code: -32003 };
+  }
+  const raw = modelResult?.response || modelResult?.result?.response || "";
+  if (typeof raw !== "string" || !raw.trim() || raw.length > 12000) {
+    return { success: false, error: "AI planner returned an empty or oversized plan.", code: -32004 };
+  }
+  let plan;
+  try {
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start < 0 || end <= start) throw new Error("JSON object not found");
+    plan = JSON.parse(cleaned.slice(start, end + 1));
+  } catch {
+    return { success: false, error: "AI planner did not return valid structured JSON; no tasks were created.", code: -32004 };
+  }
+  if (!Array.isArray(plan.tasks) || plan.tasks.length < 1 || plan.tasks.length > 5) {
+    return { success: false, error: "AI plan must contain between 1 and 5 tasks.", code: -32602 };
+  }
+  const scope = {
+    mode: "read_only",
+    planner: "Cloudflare Workers AI",
+    model,
+    mission,
+    planSummary: cleanText(plan.planSummary, 1200),
+    allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit"],
+    forbidden: ["source_changes", "deployment", "secret_changes", "account_mutations", "financial_actions", "external_user_actions"]
+  };
+  const created = await createIntelligenceWorkPackage(env, {
+    idempotencyKey,
+    title: cleanText(plan.title, 160) || "MEHRAN INTELLIGENCE owner mission",
+    objective: cleanText(plan.objective, 2000) || mission,
+    priority: ["low", "normal", "high"].includes(plan.priority) ? plan.priority : "normal",
+    scope,
+    tasks: plan.tasks
+  });
+  if (!created.success) return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };
+  return {
+    ...created,
+    planner: { provider: "cloudflare_workers_ai", model },
+    planSummary: scope.planSummary,
+    taskCount: created.taskCount || plan.tasks.length,
+    safety: "Read-only allowlist enforced server-side; no source writes, deployments, secret access, or external actions."
+  };
+}
+
 export function verifyIntelligenceReport(actionType, report) {
   const integer = value => Number.isInteger(value) && value >= 0;
   const isoDate = value => typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -6036,7 +6129,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -6053,6 +6146,13 @@ export default {
         if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
         await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/missions/plan" && method === "POST") {
+          const body = await readBody(request);
+          if (!body) return error("A valid mission request body is required.", 400);
+          const planned = await planIntelligenceMission(env, body);
+          if (!planned.success) return error(planned.error || "Mission planning failed.", planned.code === -32003 ? 503 : planned.code === -32005 ? 429 : 400);
+          return json(planned, planned.duplicate ? 200 : 202);
+        }
         if (path === "/agent/v1/work-packages" && method === "POST") {
           const body = await readBody(request);
           const idempotencyKey = cleanText(body?.idempotencyKey,120);
