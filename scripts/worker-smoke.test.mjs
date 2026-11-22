@@ -1511,6 +1511,8 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
   assert.match(route, /p\.status<>'completed'/);
   assert.match(route, /COALESCE\(t\.attempts,0\)<COALESCE\(t\.max_attempts,3\)/);
   assert.match(route, /attention_required/);
+  assert.match(route, /blockedDependencies/);
+  assert.match(route, /report_json=\?/);
   assert.match(route, /UPDATE intelligence_work_packages SET status=/);
   assert.match(route, /path\.startsWith\("\/agent\/v1\/"/);
   assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
