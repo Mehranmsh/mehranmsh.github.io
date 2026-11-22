@@ -1558,6 +1558,12 @@ test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-b
   assert.ok(route.includes("min(3600,30 * (1 << max(0,attempts-1)))"), "delivery lease retry delay must use capped exponential backoff");
   assert.ok(route.includes("status='processing'"));
   assert.ok(route.includes("leaseExpiresAt"));
+  assert.ok(route.includes("leaseToken"));
+  assert.ok(route.includes("const leaseToken = typeof body?.leaseToken === \"string\" ? body.leaseToken : \"\""));
+  assert.ok(route.includes("A valid notification lease token is required."));
+  assert.ok(route.includes("lease_token=?"));
+  assert.ok(route.includes("lease_token=''"));
+  assert.ok(workerSource.includes("ALTER TABLE intelligence_notification_outbox ADD COLUMN lease_token TEXT NOT NULL DEFAULT ''"));
   assert.ok(route.includes('["delivered","retry","failed"]'));
   assert.ok(route.includes("notification lease changed before acknowledgement") || route.includes("Notification lease changed before acknowledgement."));
   assert.ok((workerSource.match(/INSERT OR IGNORE INTO intelligence_notification_outbox/g) || []).length >= 2, "both scheduler and package-report transitions must enqueue notifications");
