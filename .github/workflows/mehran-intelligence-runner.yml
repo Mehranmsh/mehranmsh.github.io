@@ -63,6 +63,7 @@ jobs:
           // AI planning is optional for this runner tick. A planner failure must never
           // prevent deterministic checks or already-queued approved tasks from executing.
           let packageId = "";
+          const packageIds = new Set();
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             try {
               const created = await request("/agent/v1/missions/plan", {
@@ -73,6 +74,7 @@ jobs:
                 })
               }, ownerHeaders, 90000);
               packageId = created.workPackageId || "";
+              if (packageId) packageIds.add(packageId);
               console.log(`Mission package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
               if (created.planSummary) console.log(`Plan summary: ${String(created.planSummary).slice(0, 500)}`);
             } catch (error) {
@@ -195,6 +197,7 @@ jobs:
           for (let count = 0; count < 5; count++) {
             const claim = await request("/agent/v1/tasks/next");
             const task = claim.task;
+            if (task?.workPackageId) packageIds.add(task.workPackageId);
             if (!task) {
               if (count === 0) console.log("No eligible approved tasks.");
               break;
@@ -216,10 +219,12 @@ jobs:
             console.log(`One read-only task finished with status: ${status}`);
           }
 
-          // Reading the final package computes its final state and invokes private GitHub report persistence.
-          if (packageId && orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            const finalState = await request(`/agent/v1/work-packages/${encodeURIComponent(packageId)}`, {}, ownerHeaders);
-            console.log(`Work package final status: ${finalState.workPackage?.status || "unknown"}`);
-            console.log(`Private report storage: ${finalState.reportStorage?.stored ? "stored" : "not stored"}; path=${finalState.reportStorage?.path || "none"}; reason=${finalState.reportStorage?.reason || "none"}`);
+          // Finalize every package touched by this tick, including missions submitted from the owner UI.
+          if (packageIds.size && orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+            for (const workPackageId of packageIds) {
+              const finalState = await request(`/agent/v1/work-packages/${encodeURIComponent(workPackageId)}`, {}, ownerHeaders);
+              console.log("Work package " + workPackageId + " final status: " + (finalState.workPackage?.status || "unknown"));
+              console.log("Private report storage: " + (finalState.reportStorage?.stored ? "stored" : "not stored") + "; path=" + (finalState.reportStorage?.path || "none") + "; reason=" + (finalState.reportStorage?.reason || "none"));
+            }
           }
           NODE
