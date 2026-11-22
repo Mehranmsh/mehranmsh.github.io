@@ -176,7 +176,7 @@ jobs:
               const checks = [
                 { id: "cors_origin_guard", passed: /origin\s*&&\s*origin\s*!==\s*ALLOWED_ORIGIN/.test(workerSource.text), detail: "Unexpected browser origins are rejected." },
                 { id: "separate_agent_and_owner_tokens", passed: workerSource.text.includes("MEHRAN_AGENT_TOKEN") && workerSource.text.includes("MEHRAN_ORCHESTRATOR_TOKEN"), detail: "Agent and owner identities are separately referenced." },
-                { id: "constant_time_token_hash_comparison", passed: /expectedHash[\s\S]{0,700}suppliedHash/.test(workerSource.text), detail: "Hashed-token comparison path is present." },
+                { id: "constant_time_token_hash_comparison", passed: /let mismatch = expectedHash\.length \^ suppliedHash\.length;[\s\S]{0,500}mismatch \|= \(expectedHash\.charCodeAt\(i\) \|\| 0\) \^ \(suppliedHash\.charCodeAt\(i\) \|\| 0\);[\s\S]{0,180}if \(mismatch !== 0\)/.test(workerSource.text), detail: "Hashed-token comparison path is present." },
                 { id: "rate_limit_controls", passed: /checkRateLimit\(/.test(workerSource.text), detail: "Rate-limit enforcement calls are present." },
                 { id: "password_hash_work_factor", passed: /310000/.test(workerSource.text), detail: "Configured PBKDF2 work factor is present." },
                 { id: "fixed_private_report_repository", passed: workerSource.text.includes("repos/Mehranmsh/mehran-intelligence-reports/contents/"), detail: "Report persistence targets the designated private repository." },
