@@ -182,6 +182,17 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
 });
 
+test("Intelligence task listing repairs only stale approval labels on explicitly pre-authorized read-only tasks", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))');
+  const end = workerSource.indexOf('const intelligenceTaskMatch=', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
+  assert.match(route, /assigned_to IN \\(\'mehran_intelligence\',\'shared\'\\)/);
+  assert.match(route, /action_type IN \\(\'project_status_report\',\'social_metrics_report\',\'service_health_report\',\'repository_quality_check\'\\)/);
+  assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
+});
+
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
