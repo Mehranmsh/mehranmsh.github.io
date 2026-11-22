@@ -1469,6 +1469,35 @@ test("Intelligence task creation rejects automated reports assigned to ChatGPT w
 });
 
 
+test("Dedicated ChatGPT MCP bridge cannot receive owner-only task mutation tools", () => {
+  const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "MCP route must exist");
+  const route = workerSource.slice(start, end);
+  const listStart = route.indexOf('if (rpc.method === "tools/list")');
+  const listEnd = route.indexOf('if (rpc.method === "tools/call")', listStart);
+  assert.ok(listStart >= 0 && listEnd > listStart, "MCP tool listing must exist");
+  const toolList = route.slice(listStart, listEnd);
+  assert.match(toolList, /\.\.\.\(bridgeAuthorized\?\[\]:\[\{name:"update_collaboration_task"/);
+  assert.match(route, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
+  assert.match(route, /No execution was performed/);
+  assert.doesNotMatch(toolList, /name:"approve_collaboration_task"/);
+  assert.doesNotMatch(toolList, /name:"execute_task"/);
+  assert.doesNotMatch(toolList, /name:"deploy_worker"/);
+  assert.doesNotMatch(toolList, /name:"manage_wallet"/);
+});
+
+test("ChatGPT MCP bridge task proposals cannot override owner approval or expand action allowlists", () => {
+  const start = workerSource.indexOf('if (name === "create_collaboration_task")');
+  const end = workerSource.indexOf('if (name === "list_collaboration_tasks")', start);
+  assert.ok(start >= 0 && end > start, "MCP task proposal handler must exist");
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
+  assert.match(handler, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
+  assert.match(handler, /requiresApproval\?'awaiting_approval':'queued'/);
+  assert.match(handler, /No execution was performed/);
+});
+
 test("MCP task updates permit only owner approval or cancellation and cannot forge execution results", () => {
   const start = workerSource.indexOf('if (name === "update_collaboration_task")');
   const end = workerSource.indexOf('return rpcError(-32602,"Unknown tool.")', start);
