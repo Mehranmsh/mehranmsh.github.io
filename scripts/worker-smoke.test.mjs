@@ -1482,3 +1482,30 @@ test("MCP task updates permit only owner approval or cancellation and cannot for
   assert.match(route, /requires_approval=CASE WHEN \?='accepted' THEN 0 ELSE requires_approval END/);
   assert.doesNotMatch(route, /result_text=/);
 });
+
+
+test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, dependency-aware, and read-only", () => {
+  const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const end = workerSource.indexOf('if (path === "/health"', start);
+  assert.ok(start >= 0 && end > start, "authenticated agent API must exist");
+  const route = workerSource.slice(start, end);
+  assert.match(route, /path === "\/agent\/v1\/work-packages" && method === "POST"/);
+  assert.match(route, /path\.startsWith\("\/agent\/v1\/work-packages\/"\)/);
+  assert.match(route, /idempotencyKey/);
+  assert.match(route, /UNIQUE/);
+  assert.match(route, /tasks\.length > 20/);
+  assert.match(route, /service_health_report","repository_quality_check/);
+  assert.match(route, /Dependencies must reference earlier tasks in this package/);
+  assert.match(route, /env\.DB\.batch\(statements\)/);
+  assert.match(route, /intelligence_task_dependencies/);
+  assert.match(route, /intelligence_work_packages/);
+  assert.match(route, /intelligence_task_events/);
+  assert.match(route, /NOT EXISTS \(SELECT 1 FROM intelligence_task_dependencies/);
+  assert.match(route, /p\.status<>'completed'/);
+  assert.match(route, /COALESCE\(t\.attempts,0\)<COALESCE\(t\.max_attempts,3\)/);
+  assert.match(route, /attention_required/);
+  assert.match(route, /UPDATE intelligence_work_packages SET status=/);
+  assert.match(route, /path\.startsWith\("\/agent\/v1\/"/);
+  assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
+  assert.match(route, /requires_approval=0/);
+});
