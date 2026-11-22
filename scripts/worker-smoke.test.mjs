@@ -182,7 +182,8 @@ test("MEHRAN INTELLIGENCE MCP exposes authenticated collaboration task tools wit
   assert.match(route, /get_module_status/);
   assert.match(route, /key:"studio",name:"STUDIO"/);
   assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(body,"result"\)/);
-  assert.match(workerSource, /Object\.prototype\.hasOwnProperty\.call\(args,"result"\)/);
+  assert.match(route, /const allowed=\["taskId","status"\]/);
+  assert.match(route, /Object\.keys\(args\)\.some\(k=>!allowed\.includes\(k\)\)/);
   assert.match(indexSource, /task\.status==="awaiting_approval"\?"accepted"/);
 });
 
@@ -1464,7 +1465,7 @@ test("Intelligence task creation rejects automated reports assigned to ChatGPT w
   const mcpStart = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const mcpEnd = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', mcpStart);
   assert.ok(mcpStart >= 0 && mcpEnd > mcpStart);
-  assert.match(workerSource.slice(mcpStart, mcpEnd), /if\\(actionType&&assignedTo==="chatgpt"\\)/);
+  assert.match(workerSource.slice(mcpStart, mcpEnd), /if\(actionType&&assignedTo==="chatgpt"\)/);
 });
 
 
