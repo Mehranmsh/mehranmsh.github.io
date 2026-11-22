@@ -5803,21 +5803,22 @@ export default {
           const packageId = decodeURIComponent(packageMatch[1]);
           const pkg = await env.DB.prepare("SELECT id,title,objective,priority,status,created_at,updated_at FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
           if (!pkg) return error("Work package not found.",404);
-          const tasks = await env.DB.prepare("SELECT id,title,status,action_type,requires_approval,result_text,attempts,max_attempts,next_attempt_at,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
+          const tasks = await env.DB.prepare("SELECT id,title,status,action_type,requires_approval,result_text,attempts,max_attempts,next_attempt_at,checkpoint_json,last_error_code,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
           const events = await env.DB.prepare("SELECT task_id,event_type,from_status,to_status,actor,details_json,created_at FROM intelligence_task_events WHERE work_package_id=? ORDER BY created_at ASC LIMIT 100").bind(packageId).all();
           const rows = tasks.results || [];
-          const counts = {total:rows.length,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0};
+          const counts = {total:rows.length,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0};
           for (const task of rows) {
             if (task.status === "completed") counts.completed++;
             else if (task.status === "blocked") counts.blocked++;
             else if (task.status === "failed") counts.failed++;
             else if (task.status === "awaiting_approval") counts.awaitingApproval++;
             else if (task.status === "in_progress") counts.inProgress++;
+            else if (task.status === "retry_wait") counts.retryWaiting++;
             else counts.queued++;
           }
           const blockedDependencies = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
           counts.blockedDependencies = Number(blockedDependencies?.total || 0);
-          const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : "queued";
+          const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
           const report = {status,counts,generatedAt:new Date().toISOString()};
           await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
           return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:events.results || []});
