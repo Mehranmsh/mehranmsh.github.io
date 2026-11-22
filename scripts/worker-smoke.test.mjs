@@ -1374,7 +1374,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(workerSource, /publicBridgeResultMatch = path\.match/);
   assert.match(workerSource, /created_by='github-inbox' AND action_type='service_health_report'/);
   assert.match(workerSource, /result:task\.status === "completed"/);
-  assert.ok(workerSource.includes("status IN ('queued','accepted') AND requires_approval=0"));
+  assert.ok(workerSource.includes("t.status IN ('queued','accepted','retry_wait')"), "package scheduler must include retry-wait tasks");
   assert.doesNotMatch(workerSource, /Production Intelligence Agent execution is disabled\./);
   assert.match(workerSource, /github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/issues\?state=open&per_page=100/);
 });
