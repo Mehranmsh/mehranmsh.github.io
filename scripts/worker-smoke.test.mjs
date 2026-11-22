@@ -1469,6 +1469,59 @@ test("Intelligence task creation rejects automated reports assigned to ChatGPT w
 });
 
 
+test("Dedicated ChatGPT MCP bridge cannot receive owner-only task mutation tools", () => {
+  const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start, "MCP route must exist");
+  const route = workerSource.slice(start, end);
+  const listStart = route.indexOf('if (rpc.method === "tools/list")');
+  const listEnd = route.indexOf('if (rpc.method === "tools/call")', listStart);
+  assert.ok(listStart >= 0 && listEnd > listStart, "MCP tool listing must exist");
+  const toolList = route.slice(listStart, listEnd);
+  assert.match(toolList, /\.\.\.\(bridgeAuthorized\?\[\]:\[\{name:"update_collaboration_task"/);
+  assert.match(route, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
+  assert.match(route, /No execution was performed/);
+  assert.doesNotMatch(toolList, /name:"approve_collaboration_task"/);
+  assert.doesNotMatch(toolList, /name:"execute_task"/);
+  assert.doesNotMatch(toolList, /name:"deploy_worker"/);
+  assert.doesNotMatch(toolList, /name:"manage_wallet"/);
+});
+
+test("MCP endpoint rejects unauthenticated JSON-RPC calls before dispatch", async () => {
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("INSERT INTO social_auth_limits")) return { attempts: 1, blocked_until: null };
+          if (sql.includes("SELECT uid,username,expires_at FROM admin_sessions")) return null;
+          throw new Error("Unexpected MCP authentication query: " + sql);
+        },
+        async run() { return { meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const response = await request("/mcp", {
+    method: "POST",
+    headers: { "CF-Connecting-IP": "198.51.100.20" },
+    body: { jsonrpc: "2.0", id: 7, method: "tools/list" }
+  }, { DB: db });
+  assert.equal(response.status, 401);
+  const payload = await response.json();
+  assert.equal(payload.error, "MEHRAN MCP authentication required");
+});
+
+test("ChatGPT MCP bridge task proposals cannot override owner approval or expand action allowlists", () => {
+  const start = workerSource.indexOf('if (name === "create_collaboration_task")');
+  const end = workerSource.indexOf('if (name === "list_collaboration_tasks")', start);
+  assert.ok(start >= 0 && end > start, "MCP task proposal handler must exist");
+  const handler = workerSource.slice(start, end);
+  assert.match(handler, /const requiresApproval = bridgeAuthorized \? true : Boolean\(args\.requiresApproval\)/);
+  assert.match(handler, /project_status_report.*social_metrics_report.*service_health_report.*repository_quality_check/);
+  assert.match(handler, /requiresApproval\?'awaiting_approval':'queued'/);
+  assert.match(handler, /No execution was performed/);
+});
+
 test("MCP task updates permit only owner approval or cancellation and cannot forge execution results", () => {
   const start = workerSource.indexOf('if (name === "update_collaboration_task")');
   const end = workerSource.indexOf('return rpcError(-32602,"Unknown tool.")', start);
