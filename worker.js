@@ -5213,7 +5213,7 @@ async function ensureIntelligenceProtocolTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
-async function persistIntelligencePackageReport(env, packageId, snapshot) {
+export async function persistIntelligencePackageReport(env, packageId, snapshot) {
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string"
     ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
   if (token.length < 40 || !packageId || !snapshot ||
@@ -5222,7 +5222,7 @@ async function persistIntelligencePackageReport(env, packageId, snapshot) {
   }
 
   const pkg = await env.DB.prepare(
-    "SELECT id,title,created_at FROM intelligence_work_packages WHERE id=?"
+    "SELECT id,created_at FROM intelligence_work_packages WHERE id=?"
   ).bind(packageId).first();
   if (!pkg) return { stored: false, reason: "package_not_found" };
 
@@ -5245,12 +5245,10 @@ async function persistIntelligencePackageReport(env, packageId, snapshot) {
     summary: "MEHRAN INTELLIGENCE work package reached a final status.",
     data: {
       work_package_id: pkg.id,
-      title: String(pkg.title || "").slice(0,160),
       package_status: snapshot.status,
       counts: snapshot.counts || {},
       tasks: (taskResult.results || []).map(task => ({
         task_id: String(task.id || "").slice(0,100),
-        title: String(task.title || "").slice(0,160),
         status: String(task.status || "").slice(0,40),
         action_type: String(task.action_type || "").slice(0,64),
         attempts: Number(task.attempts || 0),
