@@ -5889,12 +5889,12 @@ export default {
           const outcome = body?.status;
           const message = cleanText(body?.message,300);
           if (!["delivered","retry","failed"].includes(outcome)) return error("Notification result must be delivered, retry, or failed.",400);
-          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=?").bind(notificationId).first();
+          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=? AND status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(notificationId).first();
           if (!row || row.status !== "processing") return error("Notification is not in an active delivery lease.",409);
           const retryable = outcome === "retry" && Number(row.attempts||0) < 5;
           const finalStatus = outcome === "delivered" ? "delivered" : retryable ? "retry_wait" : "failed";
           const nextAt = retryable ? new Date(Date.now()+Math.min(3600,30*(2**Math.max(0,Number(row.attempts||1)-1)))*1000).toISOString() : null;
-          const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,last_error=?,delivered_at=? WHERE id=? AND status='processing'").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId).run();
+          const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,last_error=?,delivered_at=? WHERE id=? AND status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId).run();
           if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
           return json({success:true,status:finalStatus},200);
         }
