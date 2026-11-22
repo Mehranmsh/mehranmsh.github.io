@@ -5140,7 +5140,114 @@ async function ensureIntelligenceTaskTable(env) {
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_type TEXT NOT NULL DEFAULT ''").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN action_payload TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
   try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN agent_claimed_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN work_package_id TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN max_attempts INTEGER NOT NULL DEFAULT 3").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN next_attempt_at TEXT").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN checkpoint_json TEXT NOT NULL DEFAULT '{}'").run(); } catch {}
+  try { await env.DB.prepare("ALTER TABLE intelligence_tasks ADD COLUMN last_error_code TEXT NOT NULL DEFAULT ''").run(); } catch {}
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_queue ON intelligence_tasks(status,assigned_to,created_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_tasks_package ON intelligence_tasks(work_package_id,status)").run();
+}
+
+async function ensureIntelligenceProtocolTables(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_work_packages(
+      id TEXT PRIMARY KEY,
+      idempotency_key TEXT NOT NULL UNIQUE,
+      request_hash TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL,
+      objective TEXT NOT NULL DEFAULT '',
+      scope_json TEXT NOT NULL DEFAULT '{}',
+      priority TEXT NOT NULL DEFAULT 'normal',
+      status TEXT NOT NULL DEFAULT 'queued',
+      created_by TEXT NOT NULL,
+      report_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN request_hash TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_task_dependencies(
+      task_id TEXT NOT NULL,
+      depends_on_task_id TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(task_id,depends_on_task_id),
+      CHECK(task_id <> depends_on_task_id)
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_dependencies_parent ON intelligence_task_dependencies(depends_on_task_id)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_task_events(
+      id TEXT PRIMARY KEY,
+      work_package_id TEXT,
+      task_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      from_status TEXT,
+      to_status TEXT,
+      actor TEXT NOT NULL,
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_task_events_package ON intelligence_task_events(work_package_id,created_at)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_task_events_task ON intelligence_task_events(task_id,created_at)").run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS intelligence_notification_outbox(
+      id TEXT PRIMARY KEY,
+      event_id TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT,
+      lease_token TEXT NOT NULL DEFAULT '',
+      last_error TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      delivered_at TEXT,
+      UNIQUE(event_id,channel)
+    )
+  `).run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_notification_outbox ADD COLUMN lease_token TEXT NOT NULL DEFAULT ''").run(); } catch {}
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
+}
+
+async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
+  if (!packageId) return null;
+  const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+  if (!pkg) return null;
+  const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
+  const counts = {total:0,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
+  for (const row of result.results || []) {
+    const n = Number(row.total || 0);
+    counts.total += n;
+    if (row.status === "completed") counts.completed += n;
+    else if (row.status === "blocked") counts.blocked += n;
+    else if (row.status === "failed") counts.failed += n;
+    else if (row.status === "awaiting_approval") counts.awaitingApproval += n;
+    else if (row.status === "in_progress") counts.inProgress += n;
+    else if (row.status === "retry_wait") counts.retryWaiting += n;
+    else counts.queued += n;
+  }
+  const dependencyResult = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
+  counts.blockedDependencies = Number(dependencyResult?.total || 0);
+  const status = counts.total > 0 && counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
+  const report = {status,counts,generatedAt:new Date().toISOString()};
+  if ((pkg.status || "queued") !== status) {
+    const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
+    const eventId = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId),
+      env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'scheduled_runner',?)")
+        .bind(crypto.randomUUID(),packageId,"package:"+packageId,pkg.status || "queued",status,details),
+      env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')")
+        .bind(crypto.randomUUID(),eventId,JSON.stringify({eventId,type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}))
+    ]);
+  } else {
+    await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
+  }
+  return report;
 }
 
 async function ensureIntelligenceSchedulerRunsTable(env) {
@@ -5160,14 +5267,58 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 }
 
 
+export function verifyIntelligenceReport(actionType, report) {
+  const integer = value => Number.isInteger(value) && value >= 0;
+  const isoDate = value => typeof value === "string" && Number.isFinite(Date.parse(value));
+  const checks = [];
+  if (!report || typeof report !== "object" || report.type !== actionType) {
+    return { passed: false, checks: ["report_identity"] };
+  }
+  checks.push("report_identity");
+  if (actionType === "service_health_report") {
+    if (report.database !== "healthy" || !integer(report.projectRecords)) {
+      return { passed: false, checks: [...checks, "service_health_schema"] };
+    }
+    checks.push("service_health_schema");
+  } else if (actionType === "repository_quality_check") {
+    if (report.repository !== "Mehranmsh/mehranmsh.github.io" ||
+        typeof report.defaultBranch !== "string" || !report.defaultBranch ||
+        !integer(report.openIssues) || !isoDate(report.lastPushedAt) ||
+        typeof report.latestCommit !== "string" || !/^[a-f0-9]{12}$/i.test(report.latestCommit) ||
+        !isoDate(report.latestCommitAt)) {
+      return { passed: false, checks: [...checks, "repository_metadata_schema"] };
+    }
+    checks.push("repository_identity", "repository_metadata_schema");
+  } else if (actionType === "project_status_report") {
+    if (!Array.isArray(report.projects) || report.projects.length > 50 ||
+        report.projects.some(project => !project || typeof project.name !== "string" ||
+          typeof project.status !== "string" || typeof project.description !== "string")) {
+      return { passed: false, checks: [...checks, "project_report_schema"] };
+    }
+    checks.push("project_report_schema");
+  } else if (actionType === "social_metrics_report") {
+    if (!integer(report.registeredUsers) || !integer(report.activeUsers) ||
+        !integer(report.posts) || !integer(report.openReports) ||
+        report.activeUsers > report.registeredUsers) {
+      return { passed: false, checks: [...checks, "social_metrics_schema"] };
+    }
+    checks.push("social_metrics_schema");
+  } else {
+    return { passed: false, checks: [...checks, "action_allowlist"] };
+  }
+  return { passed: true, checks };
+}
+
 function formatIntelligenceTask(row) {
   return {
     id: row.id, title: row.title, description: row.description || "",
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
-    result: row.result_text || "", createdBy: row.created_by,
-    createdAt: row.created_at, updatedAt: row.updated_at
+    result: row.result_text || "", checkpoint: row.checkpoint_json || "{}",
+    attempts: Number(row.attempts || 0), maxAttempts: Number(row.max_attempts || 3),
+    nextAttemptAt: row.next_attempt_at || null, lastErrorCode: row.last_error_code || "",
+    createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
@@ -5518,12 +5669,32 @@ export default {
       let runRecordCreated = false;
       try {
         await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceProtocolTables(env);
         await ensureIntelligenceSchedulerRunsTable(env);
         await ingestGitHubIntelligenceInbox(env);
         await env.DB.prepare(
           "INSERT INTO intelligence_scheduler_runs(id,started_at,status) VALUES(?,?,'running')"
         ).bind(runId,startedAt).run();
         runRecordCreated = true;
+
+        // Recover abandoned package claims so a crashed executor cannot strand work forever.
+        const staleClaims = await env.DB.prepare(
+          "SELECT id,work_package_id,attempts,max_attempts FROM intelligence_tasks WHERE work_package_id IS NOT NULL AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('service_health_report','repository_quality_check')"
+        ).all();
+        for (const stale of staleClaims.results || []) {
+          const exhausted = Number(stale.attempts || 0) >= Number(stale.max_attempts || 3);
+          const nextStatus = exhausted ? "blocked" : "retry_wait";
+          const delay = Math.min(3600,30 * (2 ** Math.max(0,Number(stale.attempts || 1)-1)));
+          const nextAt = exhausted ? null : new Date(Date.now()+delay*1000).toISOString();
+          const updated = await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes')"
+          ).bind(nextStatus,nextAt,exhausted?"claim_expired_max_attempts":"claim_expired_retry",exhausted?"Executor claim expired and retry limit was reached.":"Executor claim expired; task scheduled for retry.",stale.id).run();
+          if (Number(updated?.meta?.changes || 0)) {
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'claim_expired','in_progress',?,?,?)")
+              .bind(crypto.randomUUID(),stale.work_package_id,stale.id,nextStatus,"scheduled_runner",JSON.stringify({attempts:Number(stale.attempts||0),maxAttempts:Number(stale.max_attempts||3),retryDelaySeconds:exhausted?0:delay})).run();
+            await refreshIntelligenceWorkPackageSnapshot(env,stale.work_package_id);
+          }
+        }
 
         // Repair only stale approval labels on read-only tasks that are already explicitly pre-authorized.
         await env.DB.prepare(
@@ -5532,14 +5703,16 @@ export default {
 
         for (let n = 0; n < 5; n++) {
           const candidate = await env.DB.prepare(
-            "SELECT id,action_type FROM intelligence_tasks WHERE status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT t.id,t.action_type,t.status,t.work_package_id,t.attempts,t.max_attempts FROM intelligence_tasks t WHERE t.requires_approval=0 AND t.assigned_to IN ('mehran_intelligence','shared') AND ((t.status IN ('queued','accepted') AND t.action_type IN ('project_status_report','social_metrics_report')) OR (t.work_package_id IS NOT NULL AND t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed'))) ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) break;
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report')"
-          ).bind(candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1 ELSE attempts END,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=? AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND (action_type IN ('project_status_report','social_metrics_report') OR (work_package_id IS NOT NULL AND action_type IN ('service_health_report','repository_quality_check')))"
+          ).bind(candidate.id,candidate.status).run();
           if (!Number(claimed?.meta?.changes || 0)) continue;
           processed++;
+          await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','scheduled_runner','{}')")
+            .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,candidate.status || "queued").run();
           try {
             let report;
             if (candidate.action_type === "project_status_report") {
@@ -5585,14 +5758,28 @@ export default {
             } else {
               throw new Error("Unsupported action type.");
             }
+            const acceptance = verifyIntelligenceReport(candidate.action_type, report);
+            if (!acceptance.passed) throw new Error("Acceptance verification failed: " + acceptance.checks.join(","));
             const resultText = JSON.stringify(report).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
+            const completion = await env.DB.batch([
+              env.DB.prepare("UPDATE intelligence_tasks SET status='completed',result_text=?,agent_claimed_at=NULL,next_attempt_at=NULL,last_error_code='',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id),
+              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_verified','in_progress','completed','scheduled_runner',?)")
+                .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,JSON.stringify({resultLength:resultText.length,acceptanceChecks:acceptance.checks}))
+            ]);
+            if (!Number(completion?.[0]?.meta?.changes || 0)) throw new Error("Task claim changed before completion could be committed.");
             completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-            await env.DB.prepare("UPDATE intelligence_tasks SET status='blocked',result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(resultText,candidate.id).run();
-            blocked++;
+            const retryable = !!candidate.work_package_id && /timeout|abort|fetch failed|network|HTTP 5\d\d|temporarily unavailable|rate limit/i.test(resultText) && Number(candidate.attempts || 0) + 1 < Number(candidate.max_attempts || 3);
+            const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))));
+            const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
+            const nextStatus = retryable ? "retry_wait" : "blocked";
+            await env.DB.prepare("UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress'").bind(nextStatus,resultText,nextAttemptAt,retryable?"transient_execution_error":"execution_blocked",candidate.id).run();
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'scheduled_runner',?)")
+              .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,retryable?"task_retry_scheduled":"task_blocked","in_progress",nextStatus,JSON.stringify({error:resultText.slice(0,500),retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
+            if (!retryable) blocked++;
           }
+          if (candidate.work_package_id) await refreshIntelligenceWorkPackageSnapshot(env,candidate.work_package_id);
         }
 
         if (runRecordCreated) {
@@ -5656,10 +5843,13 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const configuredToken = typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "";
+        const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const configuredToken = ownerOrchestrationRoute
+          ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
+          : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
         const suppliedToken = getBearer(request);
         if (!configuredToken || configuredToken.length < 40 || !suppliedToken || suppliedToken.length > 200) {
-          return error("Agent service identity is not configured.", 503);
+          return error(ownerOrchestrationRoute ? "Owner orchestration identity is not configured." : "Agent service identity is not configured.", 503);
         }
         const expectedHash = await sha256(configuredToken);
         const suppliedHash = await sha256(suppliedToken);
@@ -5667,42 +5857,219 @@ export default {
         for (let i = 0; i < Math.max(expectedHash.length, suppliedHash.length); i++) {
           mismatch |= (expectedHash.charCodeAt(i) || 0) ^ (suppliedHash.charCodeAt(i) || 0);
         }
-        if (mismatch !== 0) return error("Agent authentication required.", 401);
+        if (mismatch !== 0) return error(ownerOrchestrationRoute ? "Owner orchestration authentication required." : "Agent authentication required.", 401);
         await ensureIntelligenceTaskTable(env);
+        await ensureIntelligenceProtocolTables(env);
+        if (path === "/agent/v1/work-packages" && method === "POST") {
+          const body = await readBody(request);
+          const idempotencyKey = cleanText(body?.idempotencyKey,120);
+          const title = cleanText(body?.title,160);
+          const objective = cleanText(body?.objective,2000);
+          const tasks = Array.isArray(body?.tasks) ? body.tasks : [];
+          const priority = ["low","normal","high"].includes(body?.priority) ? body.priority : "normal";
+          const scope = body?.scope && typeof body.scope === "object" && !Array.isArray(body.scope) ? body.scope : {};
+          const scopeJson = JSON.stringify(scope);
+          if (!scopeJson || scopeJson.length > 4000) return error("Work package scope exceeds the 4 KB limit.",400);
+          if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
+            return error("A valid idempotencyKey, title, and 1-20 tasks are required.",400);
+          }
+          const normalized = [];
+          const known = new Set();
+          for (let index=0; index<tasks.length; index++) {
+            const item = tasks[index];
+            const taskId = cleanText(item?.taskId,80);
+            const taskTitle = cleanText(item?.title,160);
+            const description = cleanText(item?.description,1500);
+            const actionType = cleanText(item?.actionType,80);
+            const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
+            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check"].includes(actionType) || dependencies.length > 10) {
+              return error("Invalid task definition or action outside the read-only allowlist.",400);
+            }
+            if (new Set(dependencies).size !== dependencies.length || dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
+              return error("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.",400);
+            }
+            known.add(taskId);
+            normalized.push({taskId,title:taskTitle,description,actionType,dependencies});
+          }
+          const requestHash = await sha256(JSON.stringify({title,objective,priority,scope,tasks:normalized}));
+          const existing = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
+          if (existing) {
+            if (existing.request_hash && existing.request_hash !== requestHash) return error("Idempotency key was already used with a different work package payload.",409);
+            return json({success:true,duplicate:true,workPackageId:existing.id,status:existing.status},200);
+          }
+          const packageId = crypto.randomUUID();
+          const statements = [
+            env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence')")
+              .bind(packageId,idempotencyKey,requestHash,title,objective,scopeJson,priority)
+          ];
+          for (const item of normalized) {
+            statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
+               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId}),packageId));
+            for (const dependency of item.dependencies) {
+              statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(packageId + ":" + item.taskId,packageId + ":" + dependency));
+            }
+            statements.push(env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_created',NULL,'queued','mehran_intelligence',?)")
+               .bind(crypto.randomUUID(),packageId,packageId + ":" + item.taskId,JSON.stringify({sourceTaskId:item.taskId,actionType:item.actionType,dependencies:item.dependencies})));
+          }
+          try {
+            await env.DB.batch(statements);
+          } catch (err) {
+            const raced = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
+            if (raced) {
+              if (raced.request_hash && raced.request_hash !== requestHash) return error("Idempotency key was already used with a different work package payload.",409);
+              return json({success:true,duplicate:true,workPackageId:raced.id,status:raced.status},200);
+            }
+            throw err;
+          }
+          return json({success:true,duplicate:false,workPackageId:packageId,status:"queued",taskCount:normalized.length},202);
+        }
+        if (path === "/agent/v1/notifications/status" && method === "GET") {
+          const summary = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_notification_outbox GROUP BY status").all();
+          const failures = await env.DB.prepare("SELECT id,event_id,attempts,last_error,created_at FROM intelligence_notification_outbox WHERE status='failed' ORDER BY created_at DESC LIMIT 20").all();
+          const counts = {pending:0,processing:0,retry_wait:0,delivered:0,failed:0};
+          for (const row of summary.results || []) if (Object.prototype.hasOwnProperty.call(counts,row.status)) counts[row.status]=Number(row.total||0);
+          return json({success:true,counts,recentFailures:failures.results||[]},200);
+        }
+        if (path === "/agent/v1/notifications/next" && method === "GET") {
+          // Expired delivery leases consume an attempt; stop after five claims instead of retrying forever.
+          const stale = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END,next_attempt_at=CASE WHEN attempts>=5 THEN NULL ELSE datetime('now','+' || min(3600,30 * (1 << max(0,attempts-1))) || ' seconds') END,lease_token='',last_error='delivery_lease_expired' WHERE status='processing' AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)<datetime('now')").run();
+          const candidate = await env.DB.prepare("SELECT id,event_id,channel,payload_json,attempts FROM intelligence_notification_outbox WHERE status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now')) ORDER BY created_at ASC LIMIT 1").first();
+          if (!candidate) return json({success:true,notification:null},200);
+          const leaseUntil = new Date(Date.now()+5*60*1000).toISOString();
+          const leaseToken = toBase64Url(crypto.getRandomValues(new Uint8Array(24)));
+          const claimed = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status='processing',attempts=attempts+1,next_attempt_at=?,lease_token=?,last_error='' WHERE id=? AND status IN ('pending','retry_wait') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))").bind(leaseUntil,leaseToken,candidate.id).run();
+          if (!Number(claimed?.meta?.changes || 0)) return json({success:true,notification:null},200);
+          return json({success:true,notification:{id:candidate.id,eventId:candidate.event_id,channel:candidate.channel,payload:JSON.parse(candidate.payload_json),attempt:Number(candidate.attempts||0)+1,leaseExpiresAt:leaseUntil,leaseToken}},200);
+        }
+        const notificationMatch = path.startsWith("/agent/v1/notifications/") ? path.slice("/agent/v1/notifications/".length) : "";
+        if (notificationMatch && method === "POST") {
+          const notificationId = decodeURIComponent(notificationMatch);
+          if (!/^[0-9a-f-]{36}$/i.test(notificationId)) return error("Invalid notification id.",400);
+          const body = await readBody(request);
+          const outcome = body?.status;
+          const message = cleanText(body?.message,300);
+          const leaseToken = typeof body?.leaseToken === "string" ? body.leaseToken : "";
+          if (!leaseToken || leaseToken.length > 100) return error("A valid notification lease token is required.",400);
+          if (!["delivered","retry","failed"].includes(outcome)) return error("Notification result must be delivered, retry, or failed.",400);
+          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(notificationId,leaseToken).first();
+          if (!row || row.status !== "processing") return error("Notification is not in an active delivery lease.",409);
+          const retryable = outcome === "retry" && Number(row.attempts||0) < 5;
+          const finalStatus = outcome === "delivered" ? "delivered" : retryable ? "retry_wait" : "failed";
+          const nextAt = retryable ? new Date(Date.now()+Math.min(3600,30*(2**Math.max(0,Number(row.attempts||1)-1)))*1000).toISOString() : null;
+          const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,lease_token='',last_error=?,delivered_at=? WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId,leaseToken).run();
+          if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
+          return json({success:true,status:finalStatus},200);
+        }
+        const packageMatch = path.startsWith("/agent/v1/work-packages/") ? [null,path.slice("/agent/v1/work-packages/".length)] : null;
+        if (packageMatch && method === "GET") {
+          const packageId = decodeURIComponent(packageMatch[1]);
+          const pkg = await env.DB.prepare("SELECT id,title,objective,priority,status,created_at,updated_at FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+          if (!pkg) return error("Work package not found.",404);
+          const tasks = await env.DB.prepare("SELECT id,title,status,action_type,requires_approval,result_text,attempts,max_attempts,next_attempt_at,checkpoint_json,last_error_code,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC").bind(packageId).all();
+          const events = await env.DB.prepare("SELECT task_id,event_type,from_status,to_status,actor,details_json,created_at FROM intelligence_task_events WHERE work_package_id=? ORDER BY created_at ASC LIMIT 100").bind(packageId).all();
+          const rows = tasks.results || [];
+          const counts = {total:rows.length,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0};
+          for (const task of rows) {
+            if (task.status === "completed") counts.completed++;
+            else if (task.status === "blocked") counts.blocked++;
+            else if (task.status === "failed") counts.failed++;
+            else if (task.status === "awaiting_approval") counts.awaitingApproval++;
+            else if (task.status === "in_progress") counts.inProgress++;
+            else if (task.status === "retry_wait") counts.retryWaiting++;
+            else counts.queued++;
+          }
+          const blockedDependencies = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
+          counts.blockedDependencies = Number(blockedDependencies?.total || 0);
+          const status = counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
+          const report = {status,counts,generatedAt:new Date().toISOString()};
+          const eventRows = events.results || [];
+          if (pkg.status !== status) {
+            const eventId = crypto.randomUUID();
+            const details = JSON.stringify({fromStatus:pkg.status,toStatus:status,counts});
+            const transition = await env.DB.batch([
+              // Compare-and-set prevents concurrent report requests from emitting duplicate transitions.
+              env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?")
+                .bind(status,JSON.stringify(report),packageId,pkg.status),
+              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) SELECT ?,?,?, 'work_package_status_changed',?,?, 'mehran_intelligence',? WHERE changes()>0")
+                .bind(eventId,packageId,"package:"+packageId,pkg.status || null,status,details),
+              env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) SELECT ?,?, 'owner_private',?,'pending' WHERE EXISTS (SELECT 1 FROM intelligence_task_events WHERE id=?)")
+                .bind(crypto.randomUUID(),eventId,JSON.stringify({eventId,type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}),eventId)
+            ]);
+            if (Number(transition?.[0]?.meta?.changes || 0)) {
+              eventRows.push({task_id:"package:"+packageId,event_type:"work_package_status_changed",from_status:pkg.status || null,to_status:status,actor:"mehran_intelligence",details_json:details,created_at:new Date().toISOString()});
+            }
+          } else {
+            await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
+          }
+          return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows});
+        }
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
+            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND work_package_id IS NULL AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
+          ).run();
+          await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND work_package_id IS NULL AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report') AND COALESCE(attempts,0)<COALESCE(max_attempts,3)"
           ).run();
           // Repair only stale approval labels on pre-authorized read-only tasks before claiming them.
           await env.DB.prepare(
             "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT id FROM intelligence_tasks WHERE assigned_to IN ('mehran_intelligence','shared') AND status IN ('queued','accepted') AND requires_approval=0 AND action_type IN ('repository_quality_check','service_health_report') ORDER BY CASE priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,created_at ASC LIMIT 1"
+            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
+          if (row) {
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_claimed',?,'in_progress','mehran_intelligence','{}')")
+              .bind(crypto.randomUUID(),row.work_package_id || null,row.id,candidate.status || "queued").run();
+          }
           return json({success:true,task:row?formatIntelligenceTask(row):null});
+        }
+        const checkpointMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/checkpoint$/);
+        if (checkpointMatch && method === "POST") {
+          const id = decodeURIComponent(checkpointMatch[1]);
+          if (!id || id.length > 160) return error("Invalid task ID.");
+          const body = await readBody(request);
+          if (!body || !body.checkpoint || typeof body.checkpoint !== "object" || Array.isArray(body.checkpoint)) return error("A checkpoint object is required.");
+          let checkpointJson;
+          try { checkpointJson = JSON.stringify(body.checkpoint); } catch { return error("Checkpoint must be valid JSON."); }
+          if (!checkpointJson || checkpointJson.length > 4000) return error("Checkpoint exceeds the 4 KB limit.");
+          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')").bind(id).first();
+          if (!before) return error("Task claim not found or expired.",409);
+          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')").bind(checkpointJson,id).run();
+          if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
+          await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
+            .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointLength:checkpointJson.length})).run();
+          return json({success:true,taskId:id,checkpointSaved:true});
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
           const id = decodeURIComponent(agentResultMatch[1]);
-          if (!id || id.length > 80) return error("Invalid task ID.");
+          if (!id || id.length > 160) return error("Invalid task ID.");
           const body = await readBody(request);
           if (!body || typeof body.result !== "string" || body.result.length > 3000 || !["completed","blocked"].includes(body.status || "completed")) {
             return error("A bounded result and valid terminal status are required.");
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
+          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')").bind(id).first();
+          if (!before) return error("Task not found, not assigned to this agent, or not in progress.",409);
+          const requestedStatus = body.status || "completed";
+          const retryable = requestedStatus === "blocked" && body.retryable === true && Number(before.attempts || 0) < Number(before.max_attempts || 3);
+          const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(before.attempts || 1)-1)));
+          const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
+          const finalStatus = retryable ? "retry_wait" : requestedStatus;
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
-          ).bind(body.status || "completed",resultText,id).run();
-          if (!Number(update?.meta?.changes || 0)) return error("Task not found, not assigned to this agent, or not in progress.",409);
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"
+          ).bind(finalStatus,resultText,nextAttemptAt,retryable?"retryable_agent_error":requestedStatus==="blocked"?"non_retryable_agent_error":"",id).run();
+          if (!Number(update?.meta?.changes || 0)) return error("Task claim expired or changed before result commit.",409);
+          await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'mehran_intelligence',?)")
+            .bind(crypto.randomUUID(),before.work_package_id || null,id,retryable?"task_retry_scheduled":"task_result","in_progress",finalStatus,JSON.stringify({resultLength:resultText.length,retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
           return json({success:true,task:row?formatIntelligenceTask(row):null});
         }

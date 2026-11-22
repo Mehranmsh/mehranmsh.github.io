@@ -9,6 +9,7 @@ const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
 const worker = workerModule.default;
+const { verifyIntelligenceReport } = workerModule;
 
 function mockDb() {
   return {
@@ -229,18 +230,25 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.ok(needsDbStart >= 0 && needsDbEnd > needsDbStart);
   assert.ok(workerSource.slice(needsDbStart, needsDbEnd).includes('path.startsWith("/agent/v1/")'));
   assert.match(route, /env\.MEHRAN_AGENT_TOKEN/);
+  assert.match(route, /checkpointMatch/);
+  assert.match(route, /checkpointJson\.length > 4000/);
+  assert.match(route, /checkpoint_saved/);
+  assert.match(route, /finalStatus = retryable \? "retry_wait" : requestedStatus/);
+  assert.match(route, /Math\.min\(3600,30 \* \(2 \*\* Math\.max/);
+  assert.match(route, /id\.length > 160/);
   assert.match(route, /Agent authentication required/);
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report'\)/);
-  assert.match(route, /status IN \('queued','accepted'\)/);
+  assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.match(route, /WHERE id=\? AND status IN \('queued','accepted'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
-  assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.match(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
+  assert.equal((route.match(/work_package_id IS NULL AND agent_claimed_at IS NOT NULL/g) || []).length, 2, "agent API recovery must leave package tasks to the scheduler");
   assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report'\)/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
@@ -1353,7 +1361,12 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.ok(scheduledStart >= 0, "scheduled handler remains present");
   assert.ok(scheduledBody.indexOf("const run = async") >= 0, "scheduler has a background runner");
   assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
-  assert.ok(scheduledBody.includes("status IN ('queued','accepted') AND requires_approval=0"));
+  assert.ok(scheduledBody.includes("t.status IN ('queued','accepted','retry_wait') AND t.action_type IN ('service_health_report','repository_quality_check')"), "scheduler must claim dependency-ready package tasks with retry support");
+  assert.ok(scheduledBody.includes("Recover abandoned package claims"), "scheduler must recover expired executor claims");
+  assert.match(workerSource, /refreshIntelligenceWorkPackageSnapshot\(env,candidate\.work_package_id\)/);
+  assert.match(workerSource, /refreshIntelligenceWorkPackageSnapshot\(env,stale\.work_package_id\)/);
+  assert.match(workerSource, /HTTP 5\\d\\d/);
+  assert.doesNotMatch(workerSource, /HTTP 5\\\\d\\\\d/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
@@ -1368,7 +1381,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.match(workerSource, /publicBridgeResultMatch = path\.match/);
   assert.match(workerSource, /created_by='github-inbox' AND action_type='service_health_report'/);
   assert.match(workerSource, /result:task\.status === "completed"/);
-  assert.ok(workerSource.includes("status IN ('queued','accepted') AND requires_approval=0"));
+  assert.ok(workerSource.includes("t.status IN ('queued','accepted','retry_wait')"), "package scheduler must include retry-wait tasks");
   assert.doesNotMatch(workerSource, /Production Intelligence Agent execution is disabled\./);
   assert.match(workerSource, /github\.com\/repos\/Mehranmsh\/mehranmsh\.github\.io\/issues\?state=open&per_page=100/);
 });
@@ -1481,4 +1494,153 @@ test("MCP task updates permit only owner approval or cancellation and cannot for
   assert.match(route, /Execution results are controlled by the execution service/);
   assert.match(route, /requires_approval=CASE WHEN \?='accepted' THEN 0 ELSE requires_approval END/);
   assert.doesNotMatch(route, /result_text=/);
+});
+
+
+test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, dependency-aware, and read-only", () => {
+  const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const end = workerSource.indexOf('if (path === "/health"', start);
+  assert.ok(start >= 0 && end > start, "authenticated agent API must exist");
+  const route = workerSource.slice(start, end);
+  const checks = [
+    [route, 'path === "/agent/v1/work-packages" && method === "POST"'],
+    [route, 'path.startsWith("/agent/v1/work-packages/")'],
+    [route, "idempotencyKey"],
+    [route, "requestHash = await sha256(JSON.stringify({title,objective,priority,scope,tasks:normalized}))"],
+    [route, "Idempotency key was already used with a different work package payload."],
+    [route, "new Set(dependencies).size !== dependencies.length"],
+    [route, "scopeJson.length > 4000"],
+    [workerSource, "request_hash TEXT NOT NULL DEFAULT ''"],
+    [workerSource, "idempotency_key TEXT NOT NULL UNIQUE"],
+    [route, "tasks.length > 20"],
+    [route, '"service_health_report","repository_quality_check"'],
+    [route, "Dependencies must be unique and reference earlier tasks in this package"],
+    [route, "env.DB.batch(statements)"],
+    [route, "intelligence_task_dependencies"],
+    [route, "intelligence_work_packages"],
+    [route, "intelligence_task_events"],
+    [route, "NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies"],
+    [route, 'bind(packageId + ":" + item.taskId,packageId + ":" + dependency)'],
+    [route, "p.status<>'completed'"],
+    [route, "COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3)"],
+    [route, "attention_required"],
+    [route, "retryWaiting:0"],
+    [route, 'task.status === "retry_wait"'],
+    [route, "waiting_retry"],
+    [route, "checkpoint_json,last_error_code"],
+    [route, "blockedDependencies"],
+    [route, "report_json=?"],
+    [route, "UPDATE intelligence_work_packages SET status="],
+    [route, "work_package_status_changed"],
+    [route, "fromStatus:pkg.status,toStatus:status"],
+    [route, 'path.startsWith("/agent/v1/")'],
+    [route, "env.MEHRAN_AGENT_TOKEN"],
+    [route, "ownerOrchestrationRoute"],
+    [route, "env.MEHRAN_ORCHESTRATOR_TOKEN"],
+    [route, "Owner orchestration authentication required."],
+    [route, "requires_approval=0"]
+  ];
+  for (const [source, expected] of checks) assert.ok(source.includes(expected), "Missing protocol invariant: " + expected);
+});
+
+
+test("MEHRAN INTELLIGENCE owner notification outbox is authenticated and lease-based", () => {
+  const start = workerSource.indexOf('if (path.startsWith("/agent/v1/"))');
+  const end = workerSource.indexOf('if (path === "/health"', start);
+  const route = workerSource.slice(start, end);
+  assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
+  assert.ok(route.includes('path === "/agent/v1/notifications/status" && method === "GET"'));
+  assert.ok(route.includes('recentFailures:failures.results||[]'));
+  assert.ok(route.includes('path.startsWith("/agent/v1/notifications/") && method === "POST"'));
+  assert.ok(route.includes('const ownerOrchestrationRoute = (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST")'), "notification delivery must require the separate owner orchestration identity");
+  assert.ok(route.includes('status IN (\'pending\',\'retry_wait\')'));
+  assert.ok(route.includes("status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')"), "only the current delivery lease can be acknowledged");
+  assert.ok(route.includes("CASE WHEN attempts>=5 THEN 'failed' ELSE 'retry_wait' END"), "abandoned delivery leases must have bounded retries");
+  assert.ok(route.includes("min(3600,30 * (1 << max(0,attempts-1)))"), "delivery lease retry delay must use capped exponential backoff");
+  assert.ok(route.includes("status='processing'"));
+  assert.ok(route.includes("leaseExpiresAt"));
+  assert.ok(route.includes("leaseToken"));
+  assert.ok(route.includes("const leaseToken = typeof body?.leaseToken === \"string\" ? body.leaseToken : \"\""));
+  assert.ok(route.includes("A valid notification lease token is required."));
+  assert.ok(route.includes("lease_token=?"));
+  assert.ok(route.includes("lease_token=''"));
+  assert.ok(workerSource.includes("ALTER TABLE intelligence_notification_outbox ADD COLUMN lease_token TEXT NOT NULL DEFAULT ''"));
+  assert.ok(route.includes('["delivered","retry","failed"]'));
+  assert.ok(route.includes("notification lease changed before acknowledgement") || route.includes("Notification lease changed before acknowledgement."));
+  assert.ok((workerSource.match(/INSERT OR IGNORE INTO intelligence_notification_outbox/g) || []).length >= 2, "both scheduler and package-report transitions must enqueue notifications");
+  assert.ok(workerSource.includes("channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')"));
+  assert.ok(!workerSource.includes("package_status:"), "each package status transition must receive a fresh event ID");
+  assert.ok(workerSource.includes("JSON.stringify({eventId,type:\"work_package_status_changed\""), "notification payload must carry its deduplication event ID");
+  assert.ok(route.includes('path === "/agent/v1/notifications/next" && method === "GET"'));
+});
+
+test("MEHRAN INTELLIGENCE scheduler executes only dependency-ready package tasks with bounded retries", () => {
+  const start = workerSource.indexOf("async scheduled(controller, env, ctx)");
+  const end = workerSource.indexOf("async fetch(request, env)", start);
+  assert.ok(start >= 0 && end > start, "scheduled runner must exist");
+  const scheduler = workerSource.slice(start, end);
+  const required = [
+    "t.work_package_id IS NOT NULL",
+    "t.status IN ('queued','accepted','retry_wait')",
+    "t.action_type IN ('service_health_report','repository_quality_check')",
+    "t.next_attempt_at",
+    "NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies",
+    "p.status<>'completed'",
+    "attempts=CASE WHEN work_package_id IS NOT NULL THEN COALESCE(attempts,0)+1",
+    "agent_claimed_at=CURRENT_TIMESTAMP",
+    "candidate.work_package_id || null",
+    "task_verified",
+    'const nextStatus = retryable ? "retry_wait" : "blocked"',
+    "task_retry_scheduled",
+    "Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))))"
+  ];
+  for (const expected of required) assert.ok(scheduler.includes(expected), "Missing scheduler invariant: " + expected);
+});
+
+
+test("INTELLIGENCE completion requires action-specific acceptance checks and commits evidence with status", () => {
+  assert.match(workerSource, /function verifyIntelligenceReport\(actionType, report\)/);
+  assert.match(workerSource, /report\.repository !== "Mehranmsh\/mehranmsh\.github\.io"/);
+  assert.match(workerSource, /report\.activeUsers > report\.registeredUsers/);
+  assert.match(workerSource, /const acceptance = verifyIntelligenceReport\(candidate\.action_type, report\)/);
+  assert.match(workerSource, /if \(!acceptance\.passed\) throw new Error\("Acceptance verification failed:/);
+  assert.match(workerSource, /acceptanceChecks:acceptance\.checks/);
+  assert.match(workerSource, /const completion = await env\.DB\.batch\(\[/);
+  assert.match(workerSource, /WHERE id=\? AND status='in_progress'/);
+});
+
+
+test("INTELLIGENCE acceptance verifier accepts valid action-specific reports", () => {
+  const valid = [
+    ["service_health_report", {type:"service_health_report",database:"healthy",projectRecords:4}],
+    ["repository_quality_check", {type:"repository_quality_check",repository:"Mehranmsh/mehranmsh.github.io",defaultBranch:"main",openIssues:2,lastPushedAt:"2026-11-22T10:00:00Z",latestCommit:"abcdef123456",latestCommitAt:"2026-11-22T09:00:00Z"}],
+    ["project_status_report", {type:"project_status_report",projects:[{name:"SOCIAL",status:"active",description:"Module"}]}],
+    ["social_metrics_report", {type:"social_metrics_report",registeredUsers:10,activeUsers:7,posts:12,openReports:1}]
+  ];
+  for (const [action, report] of valid) {
+    const result = verifyIntelligenceReport(action, report);
+    assert.equal(result.passed, true, action);
+    assert.ok(result.checks.length >= 2, action);
+  }
+});
+
+test("INTELLIGENCE acceptance verifier rejects malformed, mismatched, and unsafe reports", () => {
+  assert.equal(verifyIntelligenceReport("service_health_report", {type:"repository_quality_check"}).passed, false);
+  assert.equal(verifyIntelligenceReport("service_health_report", {type:"service_health_report",database:"down",projectRecords:1}).passed, false);
+  assert.equal(verifyIntelligenceReport("repository_quality_check", {type:"repository_quality_check",repository:"attacker/repo",defaultBranch:"main",openIssues:0,lastPushedAt:"2026-11-22",latestCommit:"abcdef123456",latestCommitAt:"2026-11-22"}).passed, false);
+  assert.equal(verifyIntelligenceReport("project_status_report", {type:"project_status_report",projects:Array(51).fill({name:"x",status:"x",description:"x"})}).passed, false);
+  assert.equal(verifyIntelligenceReport("social_metrics_report", {type:"social_metrics_report",registeredUsers:2,activeUsers:3,posts:0,openReports:0}).passed, false);
+  assert.equal(verifyIntelligenceReport("arbitrary_code", {type:"arbitrary_code"}).passed, false);
+});
+
+
+test("INTELLIGENCE package status transitions use compare-and-set and enqueue at most one notification", () => {
+  const start = workerSource.indexOf('if (pkg.status !== status)');
+  const end = workerSource.indexOf('return json({success:true,workPackage:', start);
+  assert.ok(start >= 0 && end > start, "work-package report status block must exist");
+  const block = workerSource.slice(start, end);
+  assert.match(block, /WHERE id=\? AND status=\?/);
+  assert.match(block, /SELECT .*WHERE changes\(\)>0/);
+  assert.match(block, /WHERE EXISTS \(SELECT 1 FROM intelligence_task_events WHERE id=\?\)/);
+  assert.match(block, /if \(Number\(transition\?\.\[0\]\?\.meta\?\.changes \|\| 0\)\)/);
 });
