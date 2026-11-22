@@ -5267,6 +5267,91 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 }
 
 
+
+export function validateIntelligenceWorkPackage(input) {
+  const fail = message => ({ ok: false, error: message });
+  if (!input || typeof input !== "object" || Array.isArray(input)) return fail("A work package object is required.");
+  const idempotencyKey = cleanText(input.idempotencyKey, 120);
+  const title = cleanText(input.title, 160);
+  const objective = cleanText(input.objective, 2000);
+  const priority = input.priority === undefined ? "normal" : input.priority;
+  const scope = input.scope && typeof input.scope === "object" && !Array.isArray(input.scope) ? input.scope : {};
+  const scopeJson = JSON.stringify(scope);
+  const tasks = Array.isArray(input.tasks) ? input.tasks : [];
+  if (!idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey) || !title || !tasks.length || tasks.length > 20) {
+    return fail("A valid idempotencyKey, title, and 1-20 tasks are required.");
+  }
+  if (!["low", "normal", "high"].includes(priority)) return fail("Invalid work package priority.");
+  if (!scopeJson || scopeJson.length > 4000) return fail("Work package scope exceeds the 4 KB limit.");
+  const normalized = [];
+  const known = new Set();
+  for (let index = 0; index < tasks.length; index++) {
+    const item = tasks[index];
+    const taskId = cleanText(item?.taskId, 80);
+    const taskTitle = cleanText(item?.title, 160);
+    const description = cleanText(item?.description, 1500);
+    const actionType = cleanText(item?.actionType, 80);
+    const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
+    if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
+        !["service_health_report", "repository_quality_check"].includes(actionType) || dependencies.length > 10) {
+      return fail("Invalid task definition or action outside the read-only allowlist.");
+    }
+    if (new Set(dependencies).size !== dependencies.length ||
+        dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
+      return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
+    }
+    known.add(taskId);
+    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies });
+  }
+  return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
+}
+
+async function createIntelligenceWorkPackage(env, input) {
+  const validated = validateIntelligenceWorkPackage(input);
+  if (!validated.ok) return { success: false, error: validated.error, code: -32602 };
+  await ensureIntelligenceTaskTable(env);
+  await ensureIntelligenceProtocolTables(env);
+  const { idempotencyKey, title, objective, priority, scope, scopeJson, tasks } = validated;
+  const requestHash = await sha256(JSON.stringify({ title, objective, priority, scope, tasks }));
+  const existing = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?")
+    .bind(idempotencyKey).first();
+  if (existing) {
+    if (existing.request_hash && existing.request_hash !== requestHash) {
+      return { success: false, error: "Idempotency key was already used with a different work package payload.", code: -32009 };
+    }
+    return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
+  }
+  const packageId = crypto.randomUUID();
+  const statements = [
+    env.DB.prepare("INSERT INTO intelligence_work_packages(id,idempotency_key,request_hash,title,objective,scope_json,priority,status,created_by) VALUES(?,?,?,?,?,?,?,'queued','mehran_intelligence')")
+      .bind(packageId, idempotencyKey, requestHash, title, objective, scopeJson, priority)
+  ];
+  for (const item of tasks) {
+    statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
+      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId }), packageId));
+    for (const dependency of item.dependencies) {
+      statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)")
+        .bind(packageId + ":" + item.taskId, packageId + ":" + dependency));
+    }
+    statements.push(env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'task_created',NULL,'queued','mehran_intelligence',?)")
+      .bind(crypto.randomUUID(), packageId, packageId + ":" + item.taskId, JSON.stringify({ sourceTaskId: item.taskId, actionType: item.actionType, dependencies: item.dependencies })));
+  }
+  try {
+    await env.DB.batch(statements);
+  } catch (err) {
+    const raced = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?")
+      .bind(idempotencyKey).first();
+    if (raced) {
+      if (raced.request_hash && raced.request_hash !== requestHash) {
+        return { success: false, error: "Idempotency key was already used with a different work package payload.", code: -32009 };
+      }
+      return { success: true, duplicate: true, workPackageId: raced.id, status: raced.status };
+    }
+    throw err;
+  }
+  return { success: true, duplicate: false, workPackageId: packageId, status: "queued", taskCount: tasks.length };
+}
+
 export function verifyIntelligenceReport(actionType, report) {
   const integer = value => Number.isInteger(value) && value >= 0;
   const isoDate = value => typeof value === "string" && Number.isFinite(Date.parse(value));
@@ -6839,6 +6924,8 @@ export default {
           }
           bridgeAuthorized = mismatch === 0;
         }
+        const orchestratorSecret = typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "";
+        const packageIntakeEnabled = bridgeAuthorized && orchestratorSecret.length >= 40 && orchestratorSecret.length <= 200;
         const admin = adminSession || (bridgeAuthorized ? {uid:"mcp-chatgpt-bridge",username:"chatgpt-bridge"} : null);
         if (!admin) return error("MEHRAN MCP authentication required", 401);
         if (!await checkRateLimit(env, request, "intelligence-mcp", 60, 60, 60, admin.uid)) {
@@ -6857,7 +6944,7 @@ export default {
           const requested = String(rpc.params?.protocolVersion || "");
           const supported = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
           const protocolVersion = supported.includes(requested) ? requested : "2025-06-18";
-          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.2.0"},instructions:"MEHRAN MSH collaboration bridge. The dedicated ChatGPT bridge identity is restricted to read-only company tools and creating task proposals that ALWAYS require owner approval. It cannot update task statuses, execute deployments, change accounts, move funds, or perform external side effects. Admin browser sessions retain the existing admin tool permissions."});
+          return rpcReply({protocolVersion,capabilities:{tools:{listChanged:false}},serverInfo:{name:"mehran-intelligence-mcp",version:"1.2.0"},instructions:packageIntakeEnabled?"MEHRAN MSH INTELLIGENCE bridge. The authenticated ChatGPT bridge may submit bounded work packages only when the owner orchestration secret is configured. Package tasks are restricted to read-only service health and repository metadata reports. It cannot submit arbitrary code, edit repositories, deploy, change secrets, access private SOCIAL records, change accounts, or move funds.":"MEHRAN MSH collaboration bridge. The dedicated ChatGPT bridge is restricted to read-only company tools and creating task proposals that ALWAYS require owner approval. It cannot update task statuses, execute deployments, change accounts, move funds, or perform external side effects. Admin browser sessions retain the existing admin tool permissions."});
         }
         if (rpc.method === "ping") return rpcReply({});
         if (rpc.method === "tools/list") {
@@ -6870,6 +6957,10 @@ export default {
             {name:"get_management_report",description:"Create a read-only summary of project and SOCIAL operating metrics.",inputSchema:{type:"object",properties:{},additionalProperties:false}},
             {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN queue. Optional allowlisted report actions can be routed to the execution service, but the ChatGPT bridge always leaves them awaiting owner approval.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},actionType:{type:"string",enum:["project_status_report","social_metrics_report","service_health_report","repository_quality_check"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
             {name:"list_collaboration_tasks",description:"List recent tasks in the shared MEHRAN collaboration queue.",inputSchema:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
+            ...(packageIntakeEnabled ? [
+              {name:"create_intelligence_work_package",description:"Submit a durable MEHRAN INTELLIGENCE work package. Available only to the dedicated authenticated ChatGPT bridge after the owner separately enables orchestration. Executes no arbitrary code: every task must be service_health_report or repository_quality_check, both read-only. Use stable idempotencyKey values and explicit dependencies.",inputSchema:{type:"object",properties:{idempotencyKey:{type:"string",minLength:8,maxLength:120},title:{type:"string",minLength:1,maxLength:160},objective:{type:"string",maxLength:2000},priority:{type:"string",enum:["low","normal","high"]},scope:{type:"object",additionalProperties:true},tasks:{type:"array",minItems:1,maxItems:20,items:{type:"object",properties:{taskId:{type:"string",minLength:1,maxLength:80},title:{type:"string",minLength:1,maxLength:160},description:{type:"string",maxLength:1500},actionType:{type:"string",enum:["service_health_report","repository_quality_check"]},dependsOn:{type:"array",maxItems:10,items:{type:"string",maxLength:80}}},required:["taskId","title","actionType"],additionalProperties:false}}},required:["idempotencyKey","title","tasks"],additionalProperties:false}},
+              {name:"get_intelligence_work_package",description:"Retrieve the status, task results, checkpoints and report for a work package submitted through the owner-enabled ChatGPT bridge. Read-only.",inputSchema:{type:"object",properties:{workPackageId:{type:"string",minLength:36,maxLength:36}},required:["workPackageId"],additionalProperties:false}}
+            ] : []),
             ...(bridgeAuthorized?[]:[{name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}])
           ]});
         }
@@ -6878,6 +6969,24 @@ export default {
           const args = rpc.params?.arguments || {};
           if (!args || typeof args !== "object" || Array.isArray(args)) return rpcError(-32602,"Tool arguments must be an object.");
           const replyData = data => rpcReply({content:[{type:"text",text:JSON.stringify(data)}],structuredContent:data,isError:false});
+          if (name === "create_intelligence_work_package") {
+            if (!packageIntakeEnabled) return rpcError(-32003,"Owner-enabled private work-package intake is not configured.");
+            const result = await createIntelligenceWorkPackage(env, args);
+            if (!result.success) return rpcError(result.code || -32602, result.error || "Work package was rejected.");
+            return replyData(result);
+          }
+          if (name === "get_intelligence_work_package") {
+            if (!packageIntakeEnabled) return rpcError(-32003,"Owner-enabled private work-package access is not configured.");
+            if (Object.keys(args).some(key => key !== "workPackageId")) return rpcError(-32602,"Unknown work-package field.");
+            const packageId = cleanText(args.workPackageId, 36);
+            if (!/^[0-9a-f-]{36}$/i.test(packageId)) return rpcError(-32602,"A valid workPackageId is required.");
+            await ensureIntelligenceProtocolTables(env);
+            const pkg = await env.DB.prepare("SELECT id,title,objective,scope_json,priority,status,report_json,created_at,updated_at FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+            if (!pkg) return rpcError(-32004,"Work package not found.");
+            const taskRows = await env.DB.prepare("SELECT id,title,description,status,result_text,action_type,attempts,max_attempts,next_attempt_at,last_error_code,checkpoint_json,created_at,updated_at FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC").bind(packageId).all();
+            const parseJson = value => { try { return value ? JSON.parse(value) : null; } catch { return null; } };
+            return replyData({workPackage:{id:pkg.id,title:pkg.title,objective:pkg.objective,scope:parseJson(pkg.scope_json),priority:pkg.priority,status:pkg.status,report:parseJson(pkg.report_json),createdAt:pkg.created_at,updatedAt:pkg.updated_at},tasks:(taskRows.results||[]).map(task=>({id:task.id,title:task.title,description:task.description,status:task.status,result:task.result_text||"",actionType:task.action_type,attempts:Number(task.attempts||0),maxAttempts:Number(task.max_attempts||0),nextAttemptAt:task.next_attempt_at||null,lastErrorCode:task.last_error_code||"",checkpoint:parseJson(task.checkpoint_json),createdAt:task.created_at,updatedAt:task.updated_at}))});
+          }
           let data;
           if (name === "get_company_map") {
             if (Object.keys(args).length) return rpcError(-32602,"This tool accepts no arguments.");
