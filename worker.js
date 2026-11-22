@@ -5986,14 +5986,18 @@ export default {
           if (pkg.status !== status) {
             const eventId = crypto.randomUUID();
             const details = JSON.stringify({fromStatus:pkg.status,toStatus:status,counts});
-            await env.DB.batch([
-              env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId),
-              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'mehran_intelligence',?)")
+            const transition = await env.DB.batch([
+              // Compare-and-set prevents concurrent report requests from emitting duplicate transitions.
+              env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=?")
+                .bind(status,JSON.stringify(report),packageId,pkg.status),
+              env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) SELECT ?,?,?, 'work_package_status_changed',?,?, 'mehran_intelligence',? WHERE changes()>0")
                 .bind(eventId,packageId,"package:"+packageId,pkg.status || null,status,details),
-              env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) VALUES(?,?, 'owner_private',?,'pending')")
-                .bind(crypto.randomUUID(),eventId,JSON.stringify({eventId,type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}))
+              env.DB.prepare("INSERT OR IGNORE INTO intelligence_notification_outbox(id,event_id,channel,payload_json,status) SELECT ?,?, 'owner_private',?,'pending' WHERE EXISTS (SELECT 1 FROM intelligence_task_events WHERE id=?)")
+                .bind(crypto.randomUUID(),eventId,JSON.stringify({eventId,type:"work_package_status_changed",workPackageId:packageId,status,counts,generatedAt:report.generatedAt}),eventId)
             ]);
-            eventRows.push({task_id:"package:"+packageId,event_type:"work_package_status_changed",from_status:pkg.status || null,to_status:status,actor:"mehran_intelligence",details_json:details,created_at:new Date().toISOString()});
+            if (Number(transition?.[0]?.meta?.changes || 0)) {
+              eventRows.push({task_id:"package:"+packageId,event_type:"work_package_status_changed",from_status:pkg.status || null,to_status:status,actor:"mehran_intelligence",details_json:details,created_at:new Date().toISOString()});
+            }
           } else {
             await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
           }
