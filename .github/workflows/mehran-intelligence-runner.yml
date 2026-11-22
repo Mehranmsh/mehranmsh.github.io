@@ -172,5 +172,6 @@ jobs:
           if (packageId && orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             const finalState = await request(`/agent/v1/work-packages/${encodeURIComponent(packageId)}`, {}, ownerHeaders);
             console.log(`Work package final status: ${finalState.workPackage?.status || "unknown"}`);
+            console.log(`Private report storage: ${finalState.reportStorage?.stored ? "stored" : "not stored"}; path=${finalState.reportStorage?.path || "none"}; reason=${finalState.reportStorage?.reason || "none"}`);
           }
           NODE
