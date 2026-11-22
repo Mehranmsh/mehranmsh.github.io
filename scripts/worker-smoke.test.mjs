@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
@@ -340,6 +341,36 @@ test("Intelligence mission planner creates a bounded deterministic fallback when
   assert.match(planner, /ai_response_invalid_json/);
   assert.match(planner, /ai_plan_validation_failed/);
   assert.match(planner, /SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=\?/);
+});
+
+test("owner mission intake is admin-gated and does not substitute a generic fallback for custom missions", () => {
+  const routeStart = workerSource.indexOf('if (path === "/intelligence/missions" && method === "POST")');
+  const routeEnd = workerSource.indexOf('if (path === "/intelligence/tasks" && ["GET","POST"].includes(method))', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart, "owner mission intake route must exist before the task hub route");
+  const route = workerSource.slice(routeStart, routeEnd);
+  assert.match(route, /verifyAdmin\(request, env\)/);
+  assert.match(route, /intelligence-owner-mission-submit/);
+  assert.match(route, /allowDeterministicFallback: false/);
+  assert.match(route, /writeAdminAudit\(/);
+  assert.match(route, /planIntelligenceMission\(env/);
+
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(planner, /input\?\.allowDeterministicFallback === false/);
+  assert.match(planner, /AI planning is unavailable; no custom mission package was created/);
+
+  const formatterStart = workerSource.indexOf("function formatIntelligenceTask");
+  const formatterEnd = workerSource.indexOf("async function writeAdminAudit", formatterStart);
+  assert.ok(formatterStart >= 0 && formatterEnd > formatterStart);
+  assert.match(workerSource.slice(formatterStart, formatterEnd), /workPackageId: row\.work_package_id \|\| null/);
+
+  assert.match(indexSource, /id="intelMissionForm"/);
+  assert.match(indexSource, /api\("\/intelligence\/missions"/);
+  assert.match(runnerSource, /const packageIds = new Set\(\)/);
+  assert.match(runnerSource, /task\?\.workPackageId/);
+  assert.match(runnerSource, /for \(const workPackageId of packageIds\)/);
+  assert.match(runnerSource, /work-packages\/\$\{encodeURIComponent\(workPackageId\)\}/);
 });
 
 test("social feed excludes private-account public posts and blocked relationships", () => {
