@@ -60,15 +60,16 @@ jobs:
           let packageId = "";
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             const packagePayload = {
-              idempotencyKey: "mehran-intelligence-bootstrap-audit-v2",
-              title: "MEHRAN INTELLIGENCE execution-pipeline readiness check",
-              objective: "Verify the existing Worker/D1 health and GitHub repository metadata through the approved read-only execution path. Do not modify code, configuration, secrets, accounts, or data.",
+              idempotencyKey: `mehran-intelligence-source-audit-${new Date().toISOString().slice(0,10)}`,
+              title: "MEHRAN INTELLIGENCE bounded source security audit",
+              objective: "Run a deterministic read-only audit of fixed Worker and runner source files after confirming service health and repository identity. Do not modify code, configuration, secrets, accounts, or data.",
               priority: "high",
               scope: {
                 mode: "read_only",
-                allowedActions: ["service_health_report", "repository_quality_check"],
+                allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit"],
                 forbidden: ["source_changes", "deployment", "secret_changes", "data_mutation", "external_user_actions"],
-                reportDestination: "private GitHub reports repository via the Worker report persistence function"
+                reportDestination: "private GitHub reports repository via the Worker report persistence function",
+                auditedFiles: ["worker.js", ".github/workflows/mehran-intelligence-runner.yml"]
               },
               tasks: [
                 {
@@ -84,6 +85,13 @@ jobs:
                   description: "Run the allowlisted read-only repository metadata check. Do not clone, modify, or deploy source code.",
                   actionType: "repository_quality_check",
                   dependsOn: ["worker-health"]
+                },
+                {
+                  taskId: "source-security-audit",
+                  title: "Audit fixed Worker and runner source files",
+                  description: "Read only worker.js and the runner workflow from main. Run deterministic security and architecture checks. Never execute repository code or write to GitHub.",
+                  actionType: "source_security_audit",
+                  dependsOn: ["repository-metadata"]
                 }
               ]
             };
@@ -143,6 +151,54 @@ jobs:
                 latestCommit: latest?.sha ? latest.sha.slice(0, 12) : null,
                 latestCommitAt: latest?.commit?.committer?.date || latest?.commit?.author?.date || null,
                 scope: "Public GitHub metadata only. No source execution or repository writes."
+              };
+            }
+            if (task.actionType === "source_security_audit") {
+              const repo = "Mehranmsh/mehranmsh.github.io";
+              async function readSource(path) {
+                const response = await fetch(`https://api.github.com/repos/${repo}/contents/${path}?ref=main`, {
+                  headers: {
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": `Bearer ${process.env.GITHUB_TOKEN || ""}`,
+                    "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
+                  },
+                  signal: AbortSignal.timeout(20000)
+                });
+                if (!response.ok) throw new Error(`GitHub source read failed for ${path}: HTTP ${response.status}`);
+                const file = await response.json();
+                if (file.type !== "file" || typeof file.content !== "string" || file.encoding !== "base64") throw new Error(`Unexpected GitHub content response for ${path}`);
+                return { text: Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8"), sha: file.sha, size: Number(file.size || 0) };
+              }
+              const [workerSource, runnerSource] = await Promise.all([
+                readSource("worker.js"),
+                readSource(".github/workflows/mehran-intelligence-runner.yml")
+              ]);
+              const checks = [
+                { id: "cors_origin_guard", passed: /origin\s*&&\s*origin\s*!==\s*ALLOWED_ORIGIN/.test(workerSource.text), detail: "Unexpected browser origins are rejected." },
+                { id: "separate_agent_and_owner_tokens", passed: workerSource.text.includes("MEHRAN_AGENT_TOKEN") && workerSource.text.includes("MEHRAN_ORCHESTRATOR_TOKEN"), detail: "Agent and owner identities are separately referenced." },
+                { id: "constant_time_token_hash_comparison", passed: /let mismatch = expectedHash\.length \^ suppliedHash\.length;[\s\S]{0,500}mismatch \|= \(expectedHash\.charCodeAt\(i\) \|\| 0\) \^ \(suppliedHash\.charCodeAt\(i\) \|\| 0\);[\s\S]{0,180}if \(mismatch !== 0\)/.test(workerSource.text), detail: "Hashed-token comparison path is present." },
+                { id: "rate_limit_controls", passed: /checkRateLimit\(/.test(workerSource.text), detail: "Rate-limit enforcement calls are present." },
+                { id: "password_hash_work_factor", passed: /310000/.test(workerSource.text), detail: "Configured PBKDF2 work factor is present." },
+                { id: "fixed_private_report_repository", passed: workerSource.text.includes("repos/Mehranmsh/mehran-intelligence-reports/contents/"), detail: "Report persistence targets the designated private repository." },
+                { id: "audit_action_is_allowlisted", passed: workerSource.text.includes('"source_security_audit"'), detail: "Bounded source-audit action is recognized." },
+                { id: "runner_read_only_contents_permission", passed: /permissions:\s*\n\s*contents:\s*read/.test(runnerSource.text), detail: "Runner workflow declares contents: read." },
+                { id: "runner_does_not_checkout_or_execute_repo_scripts", passed: !/actions\/checkout@|npm\s+(?:run|install)|pnpm\s+(?:run|install)|yarn\s+(?:run|install)/.test(runnerSource.text), detail: "Runner does not check out the target repo or invoke its package scripts." }
+              ];
+              return {
+                type: task.actionType,
+                generatedAt: new Date().toISOString(),
+                mode: "deterministic_read_only_static_audit",
+                files: {
+                  "worker.js": { sha: workerSource.sha, bytes: workerSource.size },
+                  ".github/workflows/mehran-intelligence-runner.yml": { sha: runnerSource.sha, bytes: runnerSource.size }
+                },
+                summary: { checks: checks.length, passed: checks.filter(x => x.passed).length, failed: checks.filter(x => !x.passed).length, status: checks.every(x => x.passed) ? "passed" : "attention_required" },
+                checks,
+                limitations: [
+                  "Deterministic pattern-based audit, not an AI code review.",
+                  "Reads only the two named files from main.",
+                  "Does not execute repository code, modify files, access secrets, or deploy."
+                ]
               };
             }
             throw new Error("Runner refused an action outside its read-only allowlist.");
