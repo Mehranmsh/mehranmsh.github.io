@@ -5227,7 +5227,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   if (!pkg) return { stored: false, reason: "package_not_found" };
 
   const taskResult = await env.DB.prepare(
-    "SELECT id,status,action_type,attempts,max_attempts,last_error_code FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
+    "SELECT id,status,action_type,attempts,max_attempts,last_error_code,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
   ).bind(packageId).all();
 
   const generatedAt = snapshot.generatedAt || new Date().toISOString();
