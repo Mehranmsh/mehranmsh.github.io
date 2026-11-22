@@ -15,7 +15,7 @@ Before enabling the runner after its code is reviewed and merged, create one hig
 
 Do not put the value in source code, Issues, pull requests, workflow logs, or ChatGPT messages. Do not reuse `MEHRAN_MCP_TOKEN` or any Pi credential.
 
-The Worker scheduler runs every five minutes and claims at most five eligible tasks per run. It accepts only tasks assigned to `mehran_intelligence` or `shared`, with `requires_approval=0`, and only the allowlisted read-only action types. Package tasks are eligible only after all dependencies are completed. Transient network failures receive bounded exponential retry; deterministic failures become blocked. Agent API claims expire after 15 minutes. Checkpoints and results can be submitted only while a task is in the active claim lease.
+The Worker scheduler runs every five minutes and claims at most five eligible tasks per run. It accepts only tasks assigned to `mehran_intelligence` or `shared`, with `requires_approval=0`, and only the allowlisted read-only action types. Package tasks are eligible only after all dependencies are completed. Transient network failures receive bounded exponential retry; deterministic failures become blocked. Expired package claims are recovered by the scheduler after 15 minutes, with retries bounded by each task's attempt limit. Package status snapshots are refreshed after scheduler execution and remain retrievable from the owner-only package report route. Checkpoints and results can be submitted only while a task is in the active claim lease.
 
 ## Owner orchestration identity
 
