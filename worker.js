@@ -6905,6 +6905,20 @@ export default {
         await ensureAdminSessionTable(env);
       }
 
+      if (path === "/mcp" && method === "GET") {
+        // Streamable HTTP clients may probe for a server-initiated SSE stream.
+        // This endpoint is intentionally request/response only, so signal that
+        // clearly instead of falling through to the generic 404 handler.
+        return new Response(null, {
+          status: 405,
+          headers: {
+            "Allow": "POST",
+            "Cache-Control": "no-store",
+            "Vary": "Origin"
+          }
+        });
+      }
+
       if (path === "/mcp" && method === "POST") {
         // Rate-limit every MCP attempt by source IP before checking credentials.
         // This prevents unauthenticated callers from brute-forcing the bridge token.
@@ -6932,6 +6946,11 @@ export default {
           return error("MEHRAN MCP request limit reached. Try again shortly.", 429);
         }
         await ensureIntelligenceTaskTable(env);
+        const negotiatedProtocol = request.headers.get("MCP-Protocol-Version");
+        const supportedProtocols = ["2025-11-25","2025-06-18","2025-03-26","2024-11-05"];
+        if (negotiatedProtocol && !supportedProtocols.includes(negotiatedProtocol)) {
+          return error("Unsupported MCP protocol version.", 400);
+        }
         const rpc = await readBody(request);
         const rpcId = rpc && Object.prototype.hasOwnProperty.call(rpc, "id") ? rpc.id : undefined;
         const rpcReply = (result, status = 200) => json({jsonrpc:"2.0",id:rpcId,result}, status);
