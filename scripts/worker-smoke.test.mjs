@@ -1519,6 +1519,8 @@ test("MEHRAN INTELLIGENCE private work packages are idempotent, bounded, depende
     [route, "blockedDependencies"],
     [route, "report_json=?"],
     [route, "UPDATE intelligence_work_packages SET status="],
+    [route, "work_package_status_changed"],
+    [route, "fromStatus:pkg.status,toStatus:status"],
     [route, 'path.startsWith("/agent/v1/")'],
     [route, "env.MEHRAN_AGENT_TOKEN"],
     [route, "requires_approval=0"]
