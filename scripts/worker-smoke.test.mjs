@@ -9,7 +9,7 @@ const workerModule = await import(
   "data:text/javascript;base64," + Buffer.from(workerSource).toString("base64")
 );
 const worker = workerModule.default;
-const { verifyIntelligenceReport } = workerModule;
+const { verifyIntelligenceReport, validateIntelligenceWorkPackage } = workerModule;
 
 function mockDb() {
   return {
@@ -1643,4 +1643,61 @@ test("INTELLIGENCE package status transitions use compare-and-set and enqueue at
   assert.match(block, /SELECT .*WHERE changes\(\)>0/);
   assert.match(block, /WHERE EXISTS \(SELECT 1 FROM intelligence_task_events WHERE id=\?\)/);
   assert.match(block, /if \(Number\(transition\?\.\[0\]\?\.meta\?\.changes \|\| 0\)\)/);
+});
+
+
+test("MCP work-package validation accepts bounded read-only task plans", () => {
+  const result = validateIntelligenceWorkPackage({
+    idempotencyKey: "owner-plan-2026-11-22-a1",
+    title: "Protocol acceptance checks",
+    objective: "Verify the private bridge foundation.",
+    priority: "high",
+    scope: { modules: ["intelligence"], private: true },
+    tasks: [
+      { taskId: "health", title: "Check service health", actionType: "service_health_report" },
+      { taskId: "repo", title: "Check repository metadata", actionType: "repository_quality_check", dependsOn: ["health"] }
+    ]
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.tasks.length, 2);
+  assert.deepEqual(result.tasks[1].dependencies, ["health"]);
+});
+
+test("MCP work-package validation rejects arbitrary actions, forward dependencies, and oversized plans", () => {
+  const base = {
+    idempotencyKey: "owner-plan-2026-11-22-b1",
+    title: "Bounded plan",
+    tasks: [{ taskId: "one", title: "Safe report", actionType: "service_health_report" }]
+  };
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], actionType: "shell_command" }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], dependsOn: ["later"] }, { taskId: "later", title: "Later", actionType: "repository_quality_check" }] }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: Array.from({ length: 21 }, (_, index) => ({ taskId: "task-" + index, title: "Task " + index, actionType: "service_health_report" })) }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
+});
+
+test("MCP work-package tools are exposed only to the bridge when owner orchestration is enabled", () => {
+  const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  const end = workerSource.indexOf("const publicBridgeResultMatch", start);
+  const mcp = workerSource.slice(start, end);
+  assert.ok(mcp.includes("const packageIntakeEnabled = bridgeAuthorized && orchestratorSecret.length >= 40 && orchestratorSecret.length <= 200"));
+  assert.ok(mcp.includes('name:"create_intelligence_work_package"'));
+  assert.ok(mcp.includes('name:"get_intelligence_work_package"'));
+  assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
+  assert.ok(mcp.includes('["service_health_report","repository_quality_check"]'));
+});
+
+
+test("MCP Streamable HTTP transport explicitly handles GET probes and negotiated protocol headers", () => {
+  const getRoute = workerSource.indexOf('if (path === "/mcp" && method === "GET")');
+  const postRoute = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
+  assert.ok(getRoute >= 0 && postRoute > getRoute, "MCP GET probe handling must precede the POST handler");
+  const getHandler = workerSource.slice(getRoute, postRoute);
+  assert.match(getHandler, /status:\s*405/);
+  assert.match(getHandler, /"Allow":\s*"POST"/);
+
+  const chatRoute = workerSource.slice(postRoute, workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")', postRoute));
+  assert.match(chatRoute, /MCP-Protocol-Version/);
+  assert.match(chatRoute, /Unsupported MCP protocol version/);
+  assert.match(chatRoute, /2025-11-25/);
+  assert.doesNotMatch(chatRoute, /2024-11-05/);
 });
