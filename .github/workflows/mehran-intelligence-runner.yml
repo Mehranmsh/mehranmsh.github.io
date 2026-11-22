@@ -72,9 +72,6 @@ jobs:
           } else {
             console.log("AI mission planning skipped: MEHRAN_ORCHESTRATOR_TOKEN repository secret is not configured. Existing eligible tasks may still run.");
           }
-          } else {
-            console.log("Package bootstrap skipped: MEHRAN_ORCHESTRATOR_TOKEN repository secret is not configured. Existing eligible tasks may still run.");
-          }
 
           async function execute(task) {
             if (!task || task.status !== "in_progress" || task.requiresApproval !== false || !["mehran_intelligence", "shared"].includes(task.assignedTo)) {
