@@ -8,7 +8,7 @@ on:
     paths:
       - "index.html"
       - "music-studio.html"
-      - "worker.js"
+      - "worker.js"\n      - "intelligence/private-notification-receiver/**"
       - "scripts/**"
       - "engine/**"
       - "instrument-sampler.js"
@@ -53,5 +53,5 @@ jobs:
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
 
-      - name: Run local Music Studio control-plane tests
+      - name: Run private notification receiver tests\n        run: node --test intelligence/private-notification-receiver/worker.test.mjs\n\n      - name: Run local Music Studio control-plane tests
         run: python -m unittest discover -s engine -p 'test_*.py' -v
