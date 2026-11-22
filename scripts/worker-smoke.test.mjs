@@ -1632,3 +1632,15 @@ test("INTELLIGENCE acceptance verifier rejects malformed, mismatched, and unsafe
   assert.equal(verifyIntelligenceReport("social_metrics_report", {type:"social_metrics_report",registeredUsers:2,activeUsers:3,posts:0,openReports:0}).passed, false);
   assert.equal(verifyIntelligenceReport("arbitrary_code", {type:"arbitrary_code"}).passed, false);
 });
+
+
+test("INTELLIGENCE package status transitions use compare-and-set and enqueue at most one notification", () => {
+  const start = workerSource.indexOf('if (pkg.status !== status)');
+  const end = workerSource.indexOf('return json({success:true,workPackage:', start);
+  assert.ok(start >= 0 && end > start, "work-package report status block must exist");
+  const block = workerSource.slice(start, end);
+  assert.match(block, /WHERE id=\? AND status=\?/);
+  assert.match(block, /SELECT .*WHERE changes\(\)>0/);
+  assert.match(block, /WHERE EXISTS \(SELECT 1 FROM intelligence_task_events WHERE id=\?\)/);
+  assert.match(block, /if \(Number\(transition\?\.\[0\]\?\.meta\?\.changes \|\| 0\)\)/);
+});
