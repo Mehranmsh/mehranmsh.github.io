@@ -5232,8 +5232,10 @@ function formatIntelligenceTask(row) {
     assignedTo: row.assigned_to, priority: row.priority, status: row.status,
     requiresApproval: !!Number(row.requires_approval),
     actionType: row.action_type || "", actionPayload: row.action_payload || "{}",
-    result: row.result_text || "", createdBy: row.created_by,
-    createdAt: row.created_at, updatedAt: row.updated_at
+    result: row.result_text || "", checkpoint: row.checkpoint_json || "{}",
+    attempts: Number(row.attempts || 0), maxAttempts: Number(row.max_attempts || 3),
+    nextAttemptAt: row.next_attempt_at || null, lastErrorCode: row.last_error_code || "",
+    createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
@@ -5843,6 +5845,23 @@ export default {
               .bind(crypto.randomUUID(),row.work_package_id || null,row.id,candidate.status || "queued").run();
           }
           return json({success:true,task:row?formatIntelligenceTask(row):null});
+        }
+        const checkpointMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/checkpoint$/);
+        if (checkpointMatch && method === "POST") {
+          const id = decodeURIComponent(checkpointMatch[1]);
+          if (!id || id.length > 160) return error("Invalid task ID.");
+          const body = await readBody(request);
+          if (!body || !body.checkpoint || typeof body.checkpoint !== "object" || Array.isArray(body.checkpoint)) return error("A checkpoint object is required.");
+          let checkpointJson;
+          try { checkpointJson = JSON.stringify(body.checkpoint); } catch { return error("Checkpoint must be valid JSON."); }
+          if (!checkpointJson || checkpointJson.length > 4000) return error("Checkpoint exceeds the 4 KB limit.");
+          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')").bind(id).first();
+          if (!before) return error("Task claim not found or expired.",409);
+          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report')").bind(checkpointJson,id).run();
+          if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
+          await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
+            .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointLength:checkpointJson.length})).run();
+          return json({success:true,taskId:id,checkpointSaved:true});
         }
         const agentResultMatch = path.match(/^\/agent\/v1\/tasks\/([^/]+)\/result$/);
         if (agentResultMatch && method === "POST") {
