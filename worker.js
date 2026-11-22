@@ -5209,6 +5209,36 @@ async function ensureIntelligenceProtocolTables(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_outbox_delivery ON intelligence_notification_outbox(status,next_attempt_at,created_at)").run();
 }
 
+async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
+  if (!packageId) return null;
+  const pkg = await env.DB.prepare("SELECT status FROM intelligence_work_packages WHERE id=?").bind(packageId).first();
+  if (!pkg) return null;
+  const result = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM intelligence_tasks WHERE work_package_id=? GROUP BY status").bind(packageId).all();
+  const counts = {total:0,completed:0,blocked:0,failed:0,awaitingApproval:0,inProgress:0,queued:0,retryWaiting:0,blockedDependencies:0};
+  for (const row of result.results || []) {
+    const n = Number(row.total || 0);
+    counts.total += n;
+    if (row.status === "completed") counts.completed += n;
+    else if (row.status === "blocked") counts.blocked += n;
+    else if (row.status === "failed") counts.failed += n;
+    else if (row.status === "awaiting_approval") counts.awaitingApproval += n;
+    else if (row.status === "in_progress") counts.inProgress += n;
+    else if (row.status === "retry_wait") counts.retryWaiting += n;
+    else counts.queued += n;
+  }
+  const dependencyResult = await env.DB.prepare("SELECT COUNT(*) AS total FROM intelligence_task_dependencies d JOIN intelligence_tasks child ON child.id=d.task_id JOIN intelligence_tasks parent ON parent.id=d.depends_on_task_id WHERE child.work_package_id=? AND child.status IN ('queued','accepted','retry_wait') AND parent.status IN ('blocked','failed')").bind(packageId).first();
+  counts.blockedDependencies = Number(dependencyResult?.total || 0);
+  const status = counts.total > 0 && counts.completed === counts.total ? "completed" : (counts.blocked || counts.failed || counts.awaitingApproval || counts.blockedDependencies) ? "attention_required" : counts.inProgress ? "in_progress" : counts.retryWaiting && !counts.queued ? "waiting_retry" : "queued";
+  const report = {status,counts,generatedAt:new Date().toISOString()};
+  await env.DB.prepare("UPDATE intelligence_work_packages SET status=?,report_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(status,JSON.stringify(report),packageId).run();
+  if ((pkg.status || "queued") !== status) {
+    const details = JSON.stringify({fromStatus:pkg.status || "queued",toStatus:status,counts});
+    await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'work_package_status_changed',?,?, 'scheduled_runner',?)")
+      .bind(crypto.randomUUID(),packageId,"package:"+packageId,pkg.status || "queued",status,details).run();
+  }
+  return report;
+}
+
 async function ensureIntelligenceSchedulerRunsTable(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_scheduler_runs(
@@ -5594,6 +5624,25 @@ export default {
         ).bind(runId,startedAt).run();
         runRecordCreated = true;
 
+        // Recover abandoned package claims so a crashed executor cannot strand work forever.
+        const staleClaims = await env.DB.prepare(
+          "SELECT id,work_package_id,attempts,max_attempts FROM intelligence_tasks WHERE work_package_id IS NOT NULL AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('service_health_report','repository_quality_check')"
+        ).all();
+        for (const stale of staleClaims.results || []) {
+          const exhausted = Number(stale.attempts || 0) >= Number(stale.max_attempts || 3);
+          const nextStatus = exhausted ? "blocked" : "retry_wait";
+          const delay = Math.min(3600,30 * (2 ** Math.max(0,Number(stale.attempts || 1)-1)));
+          const nextAt = exhausted ? null : new Date(Date.now()+delay*1000).toISOString();
+          const updated = await env.DB.prepare(
+            "UPDATE intelligence_tasks SET status=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,result_text=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)<datetime('now','-15 minutes')"
+          ).bind(nextStatus,nextAt,exhausted?"claim_expired_max_attempts":"claim_expired_retry",exhausted?"Executor claim expired and retry limit was reached.":"Executor claim expired; task scheduled for retry.",stale.id).run();
+          if (Number(updated?.meta?.changes || 0)) {
+            await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'claim_expired','in_progress',?,?,?)")
+              .bind(crypto.randomUUID(),stale.work_package_id,stale.id,nextStatus,"scheduled_runner",JSON.stringify({attempts:Number(stale.attempts||0),maxAttempts:Number(stale.max_attempts||3),retryDelaySeconds:exhausted?0:delay})).run();
+            await refreshIntelligenceWorkPackageSnapshot(env,stale.work_package_id);
+          }
+        }
+
         // Repair only stale approval labels on read-only tasks that are already explicitly pre-authorized.
         await env.DB.prepare(
           "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('project_status_report','social_metrics_report')"
@@ -5663,7 +5712,7 @@ export default {
             completed++;
           } catch (err) {
             const resultText = ("Safe report execution failed: " + String(err?.message || err)).slice(0,3000);
-            const retryable = !!candidate.work_package_id && /timeout|abort|fetch failed|network|HTTP 5\\d\\d|temporarily unavailable|rate limit/i.test(resultText) && Number(candidate.attempts || 0) + 1 < Number(candidate.max_attempts || 3);
+            const retryable = !!candidate.work_package_id && /timeout|abort|fetch failed|network|HTTP 5\d\d|temporarily unavailable|rate limit/i.test(resultText) && Number(candidate.attempts || 0) + 1 < Number(candidate.max_attempts || 3);
             const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(candidate.attempts || 0))));
             const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
             const nextStatus = retryable ? "retry_wait" : "blocked";
@@ -5672,6 +5721,7 @@ export default {
               .bind(crypto.randomUUID(),candidate.work_package_id || null,candidate.id,retryable?"task_retry_scheduled":"task_blocked","in_progress",nextStatus,JSON.stringify({error:resultText.slice(0,500),retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
             if (!retryable) blocked++;
           }
+          if (candidate.work_package_id) await refreshIntelligenceWorkPackageSnapshot(env,candidate.work_package_id);
         }
 
         if (runRecordCreated) {
