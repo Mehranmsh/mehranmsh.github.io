@@ -1525,17 +1525,16 @@ test("automated Intelligence task transitions are owner-approval-only and execut
 
 
 test("MEHRAN Intelligence auto-approves only pre-authorized read-only tasks", () => {
-  assert.match(workerSource, /import \\{ INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES \\} from "\.\\/scripts\\/intelligence-capabilities\\.mjs"/);
-  assert.match(workerSource, /const allowedActionTypes=INTELLIGENCE_ACTION_TYPES/);
+  assert.ok(workerSource.includes('import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";'));
+  assert.ok(workerSource.includes("const allowedActionTypes=INTELLIGENCE_ACTION_TYPES"));
   const start = workerSource.indexOf('const preapprovedReadOnlyActions=PREAPPROVED_INTELLIGENCE_ACTION_TYPES;');
   const end = workerSource.indexOf('const id=crypto.randomUUID()', start);
   assert.ok(start >= 0 && end > start, "task creation must use the canonical read-only pre-approval policy");
   const policy = workerSource.slice(start, end);
-  assert.match(policy, /PREAPPROVED_INTELLIGENCE_ACTION_TYPES/);
-  assert.match(policy, /\\["mehran_intelligence","shared"\\]\\.includes\\(assignedTo\\)/);
-  assert.match(policy, /body\\.requiresApproval!==true/);
-  assert.match(policy, /Boolean\\(body\\.requiresApproval\\|\\|\\s*\\(actionType&&!autoApproved\\)\\)/);
-  assert.match(workerSource, /Automated task execution status is controlled by MEHRAN INTELLIGENCE/);
+  assert.ok(policy.includes('["mehran_intelligence","shared"].includes(assignedTo)'));
+  assert.ok(policy.includes("body.requiresApproval!==true"));
+  assert.ok(policy.includes("Boolean(body.requiresApproval|| (actionType&&!autoApproved))"));
+  assert.ok(workerSource.includes("Automated task execution status is controlled by MEHRAN INTELLIGENCE"));
 });
 
 
