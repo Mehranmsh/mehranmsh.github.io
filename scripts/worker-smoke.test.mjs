@@ -1349,6 +1349,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.ok(scheduledBody.indexOf("const run = async") >= 0, "scheduler has a background runner");
   assert.match(scheduledBody, /await ingestGitHubIntelligenceInbox\(env\)/);
   assert.ok(scheduledBody.includes("status IN ('queued','accepted') AND requires_approval=0"));
+  assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"));
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
   assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report'\)/);
