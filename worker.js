@@ -5267,7 +5267,7 @@ async function ensureIntelligenceSchedulerRunsTable(env) {
 }
 
 
-function verifyIntelligenceReport(actionType, report) {
+export function verifyIntelligenceReport(actionType, report) {
   const integer = value => Number.isInteger(value) && value >= 0;
   const isoDate = value => typeof value === "string" && Number.isFinite(Date.parse(value));
   const checks = [];
