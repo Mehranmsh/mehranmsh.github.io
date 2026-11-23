@@ -933,3 +933,17 @@ test("Private notification archive strips base64 whitespace before verification"
   const helper = workerSource.slice(start, end);
   assert.match(helper, /body\.content\.replace\(\/\\s\+\/g,""\)/);
 });
+
+test("Private notification archive enforces the exact status schema and bounded numeric counters", () => {
+  const start = workerSource.indexOf("async function persistIntelligenceNotification");
+  const end = workerSource.indexOf("export async function persistIntelligencePackageReport", start);
+  const helper = workerSource.slice(start, end);
+  assert.match(helper, /payload\.type !== "work_package_status_changed"/);
+  assert.match(helper, /payload\.workPackageId\.length > 160/);
+  assert.match(helper, /const countKeys = \["total","completed","blocked","failed","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"\]/);
+  assert.match(helper, /Object\.keys\(payload\.counts\)\.some\(key => !countKeys\.includes\(key\)\)/);
+  assert.match(helper, /Number\.isSafeInteger\(value\)/);
+  assert.match(helper, /value < 0 \|\| value > 1000000000/);
+  assert.match(helper, /date\.toISOString\(\) !== payload\.generatedAt/);
+  assert.doesNotMatch(helper, /counts: payload\.counts/);
+});
