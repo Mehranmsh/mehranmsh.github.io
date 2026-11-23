@@ -23,7 +23,7 @@ function decodeBase64Utf8(value) {
   return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 }
 
-function artifactPath(record) {
+export function getPrivatePatchArtifactPath(record) {
   const date = new Date(record.createdAt);
   const year = date.toISOString().slice(0, 4);
   const month = date.toISOString().slice(5, 7);
@@ -72,7 +72,7 @@ export async function storePrivatePatchArtifact({
   const serialized = JSON.stringify(artifact, null, 2) + "\n";
   if (new TextEncoder().encode(serialized).byteLength > MAX_ARTIFACT_BYTES) return fail("artifact_size_exceeded");
 
-  const path = artifactPath(artifact);
+  const path = getPrivatePatchArtifactPath(artifact);
   const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
   const requestHeaders = headers(token.trim());
   const existing = await fetchImpl(url, { method: "GET", headers: requestHeaders });
@@ -95,6 +95,26 @@ export async function storePrivatePatchArtifact({
     if (raced.ok) return verifyExisting(raced, artifactSha256);
   }
   return fail("artifact_write_failed");
+}
+
+export async function verifyPrivatePatchArtifactAtPath({
+  token,
+  path,
+  artifactSha256,
+  fetchImpl = fetch
+} = {}) {
+  if (typeof token !== "string" || token.trim().length < 40 ||
+      typeof path !== "string" || !/^patch-proposals\\/\\d{4}\\/\\d{2}\\/[a-f0-9-]{36}\\.json$/.test(path) ||
+      typeof artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(artifactSha256)) {
+    return fail("invalid_artifact_lookup");
+  }
+  const url = `${API_ROOT}/repos/${REPORTS_REPOSITORY}/contents/${path}`;
+  const response = await fetchImpl(url, { method: "GET", headers: headers(token.trim()) });
+  if (response.status === 404) return fail("artifact_not_found");
+  if (!response.ok) return fail("artifact_lookup_failed");
+  const verified = await verifyExisting(response, artifactSha256);
+  if (!verified.stored || verified.path !== path) return fail("artifact_id_conflict");
+  return verified;
 }
 
 export const PRIVATE_PATCH_ARTIFACT_STORE_POLICY = Object.freeze({
