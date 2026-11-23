@@ -5770,6 +5770,10 @@ async function planIntelligenceMission(env, input) {
     "SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=? LIMIT 1"
   ).bind(idempotencyKey).first();
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
+  await ensureIntelligenceMemoryTables(env);
+  await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
+  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind("mehran_intelligence").all();
+  const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
   if (!env.AI || typeof env.AI.run !== "function") {
     return fallback("ai_binding_unavailable");
   }
@@ -5779,6 +5783,7 @@ async function planIntelligenceMission(env, input) {
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
   const system = [
     "You are the planning core of MEHRAN INTELLIGENCE.",
+    "Use the durable owner-confirmed project memory included in the mission context. Preserve project continuity and honor the newest owner decisions; never ask the owner to repeat facts already recorded.",
     "Convert the owner's mission into a small, evidence-oriented work package.",
     "You are a planner, not an executor. Never claim an action has already happened.",
     "Only create tasks using exactly these action types: service_health_report, repository_quality_check, source_security_audit, inspect_repository, propose_code_patch.",
@@ -5788,6 +5793,9 @@ async function planIntelligenceMission(env, input) {
     "Use dependencies only on earlier task IDs. Return valid JSON only, without markdown fences."
   ].join(" ");
   const userPrompt = [
+    "Durable project memory (owner-confirmed context; newer owner corrections override older entries):",
+    JSON.stringify(durableMemoryContext),
+    "",
     "Owner mission:",
     mission,
     "",
@@ -7953,7 +7961,7 @@ export default {
             if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(key) || !categories.includes(category) || !content || content.length < 8 || !Number.isInteger(importance) || importance < 1 || importance > 5) throw new Error("Invalid durable memory entry.");
             if (/(password|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|wallet passphrase)/i.test(content)) throw new Error("Credentials and wallet secrets cannot be stored in memory.");
             await env.DB.prepare("INSERT INTO intelligence_memory_items(id,owner_uid,memory_key,category,content,importance,source) VALUES(?,?,?,?,?,?, 'owner_chat') ON CONFLICT(owner_uid,memory_key) DO UPDATE SET category=excluded.category,content=excluded.content,importance=excluded.importance,source='owner_chat',updated_at=CURRENT_TIMESTAMP")
-              .bind(crypto.randomUUID(),admin.uid,key,category,content,importance).run();
+              .bind(crypto.randomUUID(),"mehran_intelligence",key,category,content,importance).run();
             return {saved:true,key,category,updated:true};
           }
           if (name === "get_project_status") {
@@ -8186,8 +8194,8 @@ export default {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
         await ensureIntelligenceMemoryTables(env);
-        await seedIntelligenceOwnerMemory(env,admin.uid);
-        const rows = await env.DB.prepare("SELECT memory_key,category,content,importance,source,created_at,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all();
+        await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
+        const rows = await env.DB.prepare("SELECT memory_key,category,content,importance,source,created_at,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind("mehran_intelligence").all();
         return json({success:true,items:rows.results||[]});
       }
       const intelligenceMemoryMatch = path.match(/^\/intelligence\/memory\/([^/]+)$/);
@@ -8197,7 +8205,7 @@ export default {
         await ensureIntelligenceMemoryTables(env);
         const key = decodeURIComponent(intelligenceMemoryMatch[1]).toLowerCase();
         if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(key)) return error("Invalid memory key.",400);
-        const removed = await env.DB.prepare("DELETE FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND source<>'project_baseline'").bind(admin.uid,key).run();
+        const removed = await env.DB.prepare("DELETE FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND source<>'project_baseline'").bind("mehran_intelligence",key).run();
         return json({success:true,deleted:Number(removed?.meta?.changes||0)>0});
       }
 
@@ -8214,7 +8222,7 @@ export default {
         const sessionKey = requestedSession && /^[A-Za-z0-9._:-]{1,80}$/.test(requestedSession) ? requestedSession : "default";
         const priorTurnsResult = await env.DB.prepare("SELECT role,content FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 12").bind(admin.uid,sessionKey).all();
         const priorTurns = (priorTurnsResult.results || []).reverse();
-        const memoryResult = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 30").bind(admin.uid).all();
+        const memoryResult = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind("mehran_intelligence").all();
         const persistentMemory = memoryResult.results || [];
         await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"user",question);
         // Skip inference for greetings and acknowledgements; these do not need an AI model.
