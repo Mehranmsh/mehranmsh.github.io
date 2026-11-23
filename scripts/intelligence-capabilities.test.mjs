@@ -309,7 +309,7 @@ test("patch artifact envelope binds exact diff bytes to immutable metadata", asy
     "-const previous = 1;",
     "+const current = 2;",
     ""
-  ].join("\\n");
+  ].join("\n");
   const input = {
     proposalId: "123e4567-e89b-42d3-a456-426614174000",
     createdAt: "2026-11-23T00:00:00.000Z",
@@ -339,7 +339,7 @@ test("patch artifact envelope detects altered diffs, metadata, and artifact hash
     "-const a = 1;",
     "+const a = 2;",
     ""
-  ].join("\\n");
+  ].join("\n");
   const created = await createPatchArtifactRecord({
     proposalId: "123e4567-e89b-42d3-a456-426614174000",
     createdAt: "2026-11-23T00:00:00.000Z",
