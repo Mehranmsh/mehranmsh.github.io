@@ -104,6 +104,16 @@ export async function generatePatchArtifact({
     return fail("model_output_schema_invalid");
   }
 
+  let finalMainResponse;
+  try {
+    finalMainResponse = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/commits/main`, { headers });
+  } catch {
+    return fail("main_commit_recheck_failed");
+  }
+  if (!finalMainResponse.ok) return fail("main_commit_recheck_failed");
+  const finalMainCommit = await finalMainResponse.json();
+  if (finalMainCommit?.sha !== baseSha) return fail("stale_base_sha");
+
   const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
   const validated = validateGeneratedPatch({
     baseSha,
