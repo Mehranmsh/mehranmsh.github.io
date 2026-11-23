@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
+import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -453,4 +454,60 @@ test("private patch store rejects a conflicting artifact ID and invalid credenti
   });
   assert.equal(invalid.code, "store_not_configured");
   assert.equal(calls, before);
+});
+
+test("patch generation prompt treats source as untrusted and fixes the narrow output contract", () => {
+  const source = "const example = true;";
+  const prompt = buildPatchGenerationPrompt({
+    baseSha: "a".repeat(40),
+    objective: "Add regression coverage for a bounded policy helper",
+    source
+  });
+  assert.equal(prompt.ok, true);
+  assert.match(prompt.system, /untrusted data/);
+  assert.match(prompt.system, /zero deletions/);
+  assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
+  assert.match(prompt.user, /Immutable base commit/);
+  assert.match(prompt.user, /const example = true/);
+  assert.equal(buildPatchGenerationPrompt({ baseSha: "bad", objective: "A valid objective here", source }).code, "invalid_base_sha");
+  assert.equal(buildPatchGenerationPrompt({ baseSha: "a".repeat(40), objective: "short", source }).code, "invalid_objective");
+  assert.equal(PATCH_GENERATION_POLICY.appendOnly, true);
+  assert.equal(PATCH_GENERATION_POLICY.appliesChanges, false);
+});
+
+test("generated patches accept only pure additions at exact end-of-file", () => {
+  const path = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${path}`,
+    `+++ b/${path}`,
+    "@@ -100,0 +101,2 @@",
+    "+test(\"new bounded regression\", () => {});",
+    "+",
+    ""
+  ].join("\n");
+  const result = validateGeneratedPatch({
+    baseSha: "b".repeat(40),
+    sourceLineCount: 100,
+    summary: "Add a bounded regression test at end of file",
+    diff
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.additions, 2);
+  assert.equal(result.deletions, 0);
+  assert.equal(result.mode, "append_only_validate_only");
+});
+
+test("generated patch validator rejects replacements, non-EOF hunks, and extra files", () => {
+  const path = "scripts/intelligence-capabilities.test.mjs";
+  const replacement = [
+    `--- a/${path}`, `+++ b/${path}`, "@@ -100,1 +100,1 @@",
+    "-const original = 1;", "+const replacement = 2;", ""
+  ].join("\n");
+  const nonEof = [
+    `--- a/${path}`, `+++ b/${path}`, "@@ -99,0 +100,1 @@", "+test(\"x\",()=>{});", ""
+  ].join("\n");
+  const base = { baseSha: "c".repeat(40), sourceLineCount: 100, summary: "Reject unsafe generated patch mutations" };
+  assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
+  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
+  assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "path_not_allowed");
 });
