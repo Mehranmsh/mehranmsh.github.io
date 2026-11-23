@@ -20,8 +20,14 @@ jobs:
   execute-safe-reports:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
+      - name: Check out the immutable main history for ancestry checks
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
       - name: Bootstrap the first bounded read-only work package and execute approved tasks
         env:
           MEHRAN_AGENT_TOKEN: ${{ secrets.MEHRAN_AGENT_TOKEN }}
@@ -30,6 +36,11 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           node --input-type=module <<'NODE'
+          import { spawnSync } from "node:child_process";
+          import { mkdtempSync, rmSync } from "node:fs";
+          import { tmpdir } from "node:os";
+          import { join } from "node:path";
+          import { createHash } from "node:crypto";
           const base = process.env.MEHRAN_AGENT_URL;
           const agentToken = process.env.MEHRAN_AGENT_TOKEN || "";
           const orchestratorToken = process.env.MEHRAN_ORCHESTRATOR_TOKEN || "";
@@ -128,9 +139,111 @@ jobs:
             console.log("AI mission planning skipped: owner token is unavailable. Existing eligible tasks may still run.");
           }
 
+          // Queue one immutable fixed-suite test mission per main commit. The idempotency key
+          // prevents repeated five-minute runner ticks from duplicating the same test.
+          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+            const baseSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+            if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Runner main commit SHA is unavailable or invalid.");
+            try {
+              const seeded = await request("/agent/v1/work-packages", {
+                method: "POST",
+                body: JSON.stringify({
+                  idempotencyKey: `mehran-intelligence-fixed-tests-${baseSha}`,
+                  title: "MEHRAN INTELLIGENCE isolated repository test",
+                  objective: "Run the one fixed Intelligence policy test suite against this immutable main commit inside a no-network, read-only, resource-limited container.",
+                  priority: "normal",
+                  scope: {
+                    mode: "isolated_ci",
+                    mission: "Execute only scripts/intelligence-capabilities.test.mjs at the exact main commit.",
+                    allowedActions: ["run_repository_tests"],
+                    forbidden: ["arbitrary_commands", "network_access_in_container", "repository_writes", "secret_access", "deployment", "wallet_operations"]
+                  },
+                  tasks: [{
+                    taskId: "fixed-tests",
+                    title: "Run the fixed isolated Intelligence test suite",
+                    description: "Verify the exact immutable main commit is an ancestor of this runner's main checkout, then execute only the fixed Node test file in the pinned no-network read-only container. Return bounded test counts and container-policy evidence.",
+                    actionType: "run_repository_tests",
+                    dependsOn: [],
+                    baseSha
+                  }]
+                })
+              }, ownerHeaders, 30000);
+              if (seeded.workPackageId) packageIds.add(seeded.workPackageId);
+              console.log(`Fixed test package: ${seeded.status || "unknown"}; duplicate=${Boolean(seeded.duplicate)}; tasks=${seeded.taskCount || 0}; baseSha=${baseSha.slice(0,12)}`);
+            } catch (error) {
+              console.log("Fixed test package seeding failed closed: " + String(error?.message || error).slice(0,240));
+            }
+          }
+
+          function runHost(command, args, timeoutMs = 30000) {
+            const result = spawnSync(command, args, { encoding: "utf8", timeout: timeoutMs, maxBuffer: 1024 * 1024 });
+            if (result.error) throw new Error(`${command} failed: ${String(result.error.message || result.error).slice(0,160)}`);
+            if (result.status !== 0) throw new Error(`${command} exited ${result.status}: ${String(result.stderr || result.stdout || "").slice(0,180)}`);
+            return String(result.stdout || "").trim();
+          }
+
+          function runFixedRepositoryTests(task) {
+            let payload = {};
+            try {
+              payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+            } catch {
+              throw new Error("Test task payload is not valid JSON.");
+            }
+            const baseSha = String(payload.baseSha || "").toLowerCase();
+            if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Test task requires one exact 40-character base SHA.");
+            const currentSha = String(process.env.GITHUB_SHA || runHost("git", ["rev-parse", "HEAD"])).toLowerCase();
+            if (!/^[a-f0-9]{40}$/.test(currentSha)) throw new Error("Runner checkout SHA is invalid.");
+            runHost("git", ["merge-base", "--is-ancestor", baseSha, currentSha]);
+            const tempRoot = mkdtempSync(join(tmpdir(), "mehran-intelligence-tests-"));
+            const workspace = join(tempRoot, "repo");
+            try {
+              runHost("git", ["worktree", "add", "--detach", workspace, baseSha]);
+              const image = "node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a";
+              const args = [
+                "run", "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+                "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "768m",
+                "--cpus", "1", "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=64m",
+                "--mount", `type=bind,src=${workspace},dst=/workspace,readonly`,
+                "--workdir", "/workspace", image, "node", "--test", "--test-reporter=tap",
+                "scripts/intelligence-capabilities.test.mjs"
+              ];
+              const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
+              const output = `${result.stdout || ""}
+${result.stderr || ""}`.slice(-24000);
+              const total = Number(output.match(/^# tests (\d+)$/m)?.[1] || 0);
+              const passed = Number(output.match(/^# pass (\d+)$/m)?.[1] || 0);
+              const failed = Number(output.match(/^# fail (\d+)$/m)?.[1] || 0);
+              const exitCode = Number.isInteger(result.status) ? result.status : 1;
+              return {
+                type: "run_repository_tests",
+                generatedAt: new Date().toISOString(),
+                mode: "isolated_fixed_repository_test",
+                repository: "Mehranmsh/mehranmsh.github.io",
+                baseSha,
+                workflowRunId: String(process.env.GITHUB_RUN_ID || ""),
+                workflowAttempt: Number(process.env.GITHUB_RUN_ATTEMPT || 0),
+                testSuite: "scripts/intelligence-capabilities.test.mjs",
+                tests: { total, passed, failed },
+                exitCode,
+                outputSha256: createHash("sha256").update(output).digest("hex"),
+                container: {
+                  network: "none", readOnly: true, capDropAll: true, noNewPrivileges: true,
+                  memoryMb: 768, cpus: 1, pidsLimit: 64
+                },
+                passed: exitCode === 0 && total > 0 && passed === total && failed === 0
+              };
+            } finally {
+              try { runHost("git", ["worktree", "remove", "--force", workspace]); } catch {}
+              rmSync(tempRoot, { recursive: true, force: true });
+            }
+          }
+
           async function execute(task) {
             if (!task || task.status !== "in_progress" || task.requiresApproval !== false || !["mehran_intelligence", "shared"].includes(task.assignedTo)) {
               throw new Error("Claimed task failed assignment, approval, or status validation.");
+            }
+            if (task.actionType === "run_repository_tests") {
+              return runFixedRepositoryTests(task);
             }
             if (task.actionType === "service_health_report") {
               const health = await request("/health", {}, { "Accept": "application/json" });
@@ -435,7 +548,9 @@ jobs:
             let result;
             const executionStartedAt = Date.now();
             try {
-              result = serializeBoundedResult(await execute(task));
+              const executionResult = await execute(task);
+              if (task.actionType === "run_repository_tests" && executionResult?.passed !== true) status = "blocked";
+              result = serializeBoundedResult(executionResult);
             } catch (error) {
               status = "blocked";
               const diagnostic = String(error?.message || error).slice(0,300);
