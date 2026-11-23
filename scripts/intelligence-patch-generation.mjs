@@ -19,6 +19,8 @@ export function buildPatchGenerationPrompt({ baseSha, objective, source }) {
   if (typeof source !== "string" || !source.trim() || new TextEncoder().encode(source).byteLength > 128 * 1024) {
     return fail("invalid_source");
   }
+  const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
+  const exactHunkHeader = `@@ -${sourceLineCount},0 +${sourceLineCount + 1},1 @@`;
   return {
     ok: true,
     system: [
@@ -30,6 +32,9 @@ export function buildPatchGenerationPrompt({ baseSha, objective, source }) {
       "The second line must be exactly: +++ b/scripts/intelligence-capabilities.test.mjs",
       "Do not include diff --git, index, file mode, rename, or any preamble before those two lines.",
       "Never use an alternate, shortened, absolute, or differently cased file path. If you cannot follow the exact headers, return an empty diff.",
+      "Immediately after the two file header lines, put exactly this hunk header with no blank line or commentary: " + exactHunkHeader,
+      "The hunk header syntax is mandatory: @@ -OLD_LINE,0 +NEW_LINE,1 @@. Do not omit ,0 or ,1, do not add a section heading after the closing @@, and do not use a bare @@ line.",
+      "After the hunk header, every remaining line must begin with + and contain one added test line. No context lines, deletion lines, blank lines, or trailing metadata.",
       "The patch must append new tests at end of file only: exactly one hunk, zero context lines, zero deletions, and additions only.",
       "Do not modify existing tests, production code, workflows, configuration, permissions, secrets, network behavior, or dependencies.",
       "Keep the diff under 8192 UTF-8 bytes. If a safe test cannot be added, return an empty diff and explain in summary."
