@@ -58,6 +58,8 @@ jobs:
             "Content-Type": "application/json"
           };
           const tickStartedAt = Date.now();
+          const baseSha = String(process.env.GITHUB_SHA || "").toLowerCase();
+          if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Runner main commit SHA is unavailable or invalid.");
           // Keep a safety margin for durable result submission and private report finalization.
           const taskExecutionDeadline = tickStartedAt + 7 * 60 * 1000;
           const timingSamples = [];
@@ -98,7 +100,7 @@ jobs:
             }
           }
 
-          // Seed one bounded read-only baseline inspection. Its stable daily key avoids duplicate packages
+          // Seed one bounded read-only baseline inspection. Its immutable commit key avoids duplicate packages
           // while ensuring the AI planner has real, immutable repository evidence to analyze.
           const packageIds = new Set();
           let selfImprovementPackageId = "";
@@ -172,8 +174,6 @@ jobs:
           // Queue one immutable fixed-suite test mission per main commit. The idempotency key
           // prevents repeated five-minute runner ticks from duplicating the same test.
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            const baseSha = String(process.env.GITHUB_SHA || "").toLowerCase();
-            if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("Runner main commit SHA is unavailable or invalid.");
             try {
               const seeded = await request("/agent/v1/work-packages", {
                 method: "POST",
