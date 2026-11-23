@@ -213,7 +213,7 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
-test("Agent API stale-claim recovery includes package-bound read-only tasks", () => {
+test("Agent API stale-claim recovery includes package-bound allowlisted tasks", () => {
   const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const end = workerSource.indexOf("const checkpointMatch", start);
   assert.ok(start >= 0 && end > start, "Agent task-claim route must exist");
@@ -221,7 +221,7 @@ test("Agent API stale-claim recovery includes package-bound read-only tasks", ()
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL/,
     "stale recovery must include tasks claimed from durable work packages");
 });
@@ -267,11 +267,11 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')"));
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
@@ -1467,7 +1467,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
-  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.doesNotMatch(scheduledBody, /inspect_repository/, "Worker scheduled executor must not claim the GitHub-only inspection capability.");
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
