@@ -2886,7 +2886,7 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
         },
         async run() {
           // Schema setup is intentionally a no-op in this in-memory fake.
-          if (/^\\s*(CREATE TABLE|CREATE INDEX|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
+          if (/^\s*(CREATE TABLE|CREATE INDEX|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
           if (sql.includes("claim_expired_max_attempts")) return { meta: { changes: 0 } };
           if (sql.includes("claim_expired_retry")) {
             if (state.expired && state.row.status === "in_progress") {
