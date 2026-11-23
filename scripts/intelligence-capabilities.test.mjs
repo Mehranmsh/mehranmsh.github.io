@@ -269,7 +269,7 @@ test("patch proposal validator accepts only a bounded single-file test diff and 
     ok: true,
     baseSha,
     targetPath,
-    bytes: Buffer.byteLength(diff, "utf8"),
+    bytes: new TextEncoder().encode(diff).byteLength,
     additions: 1,
     deletions: 1,
     hunkCount: 1,
