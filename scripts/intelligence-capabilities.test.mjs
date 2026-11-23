@@ -128,7 +128,7 @@ test("security audit gathers bounded evidence from fixed official research sourc
 });
 
 test("completed self-assessment creates one idempotent evidence-driven terminal follow-up", () => {
-  assert.match(runnerSource, /workPackageId === selfImprovementPackageId && finalState\.workPackage\?\.status === "completed"/);
+  assert.match(runnerSource, /workPackageId === selfImprovementPackageId && finalState\.workPackage\?\.status === "completed" && finalState\.reportStorage\?\.stored === true/);
   assert.match(runnerSource, /\.slice\(0, 6\)[\s\S]*?result_text[\s\S]*?\.slice\(0, 420\)/);
   assert.match(runnerSource, /JSON\.stringify\([\s\S]*?tasks: taskEvidence[\s\S]*?\.slice\(0, 1150\)/);
   assert.match(runnerSource, /idempotencyKey: "mehran-intelligence-self-improvement-evidence-review-v1"/);
