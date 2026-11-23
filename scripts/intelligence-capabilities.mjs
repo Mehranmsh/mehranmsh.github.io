@@ -66,6 +66,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     permissionTier: "read_only",
     executors: ["isolated_inspector"],
     requiresApproval: false,
+    autonomous: true,
     description: "Inspect an allowlisted repository path and summarize relevant code.",
     inputSchema: {
       required: ["paths"],
@@ -77,8 +78,9 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "planned",
     permissionTier: "isolated_ci",
     executors: ["github_actions_runner"],
-    requiresApproval: true,
-    description: "Run only the repository's predefined test workflow in an isolated CI job.",
+    requiresApproval: false,
+    autonomous: true,
+    description: "Run only the repository's predefined test workflow in isolated CI; pre-authorized within the fixed workflow and repository scope.",
     inputSchema: {
       required: ["baseSha"],
       properties: { baseSha: { type: "string", minLength: 40, maxLength: 40, pattern: "^[a-f0-9]{40}$" } }
@@ -89,8 +91,9 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "planned",
     permissionTier: "proposal_only",
     executors: ["proposal_store"],
-    requiresApproval: true,
-    description: "Store a bounded, reviewable patch proposal without applying it.",
+    requiresApproval: false,
+    autonomous: true,
+    description: "Prepare and store bounded patch proposals on an isolated Intelligence branch; no direct writes to protected branches.",
     inputSchema: {
       required: ["summary", "targetPaths", "diff"],
       properties: {
@@ -105,8 +108,9 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     status: "planned",
     permissionTier: "branch_scoped_write",
     executors: ["github_actions_runner"],
-    requiresApproval: true,
-    description: "Create a review-only PR from a tested, isolated branch.",
+    requiresApproval: false,
+    autonomous: true,
+    description: "Create a review-only PR from a tested, isolated Intelligence branch; merge and deployment remain owner-controlled.",
     inputSchema: {
       required: ["branch", "title", "headSha"],
       properties: {
