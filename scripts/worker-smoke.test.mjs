@@ -3004,7 +3004,11 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
   const scheduledRetryAt = Date.parse(state.row.next_attempt_at);
   assert.ok(Number.isFinite(scheduledRetryAt), "retry must persist a valid next-attempt timestamp");
   assert.ok(scheduledRetryAt > Date.now(), "retry must not be claimable before its backoff expires");
-  assert.ok(scheduledRetryAt <= Date.now() + 31_000, "first retry must use the bounded 30-second backoff");
+  const expectedRetryDelaySeconds = Math.min(3600, 30 * (2 ** Math.max(0, Number(state.row.attempts || 1) - 1)));
+  assert.ok(scheduledRetryAt <= Date.now() + (expectedRetryDelaySeconds + 2) * 1000,
+    "retry must respect the exponential backoff derived from the consumed attempt count");
+  assert.ok(scheduledRetryAt >= Date.now() + (expectedRetryDelaySeconds - 2) * 1000,
+    "retry must not shorten the configured exponential backoff");
 
   // Simulate the bounded backoff window elapsing before the next runner claims.
   state.row.next_attempt_at = "2000-01-01T00:00:00.000Z";
