@@ -7,6 +7,7 @@ import {
   PREAPPROVED_INTELLIGENCE_ACTION_TYPES
 } from "./intelligence-capabilities.mjs";
 import { createPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
+import { buildPatchGenerationMessages, validateAppendOnlyPatchGeneration } from "./intelligence-patch-generator.mjs";
 
 const workerSource = await readFile(new URL("../worker.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
@@ -14,12 +15,16 @@ const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelli
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";';
-if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport)) {
-  throw new Error("Worker capability or patch storage imports were not found");
+const patchArtifactImport = 'import { createPatchArtifactRecord } from "./scripts/intelligence-patch-artifact.mjs";';
+const patchGeneratorImport = 'import { buildPatchGenerationMessages, validateAppendOnlyPatchGeneration } from "./scripts/intelligence-patch-generator.mjs";';
+if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) ||
+    !workerSource.includes(patchArtifactImport) || !workerSource.includes(patchGeneratorImport)) {
+  throw new Error("Worker capability or patch generation imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
 const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs", import.meta.url), "utf8");
 const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
+const patchGeneratorSource = await readFile(new URL("./intelligence-patch-generator.mjs", import.meta.url), "utf8");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
@@ -30,8 +35,17 @@ const patchStoreUrl = moduleUrl(patchStoreSource.replace(
   'from "./intelligence-patch-artifact.mjs"',
   `from "${artifactUrl}"`
 ));
-const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "");
+const patchGeneratorUrl = moduleUrl(patchGeneratorSource.replace(
+  'from "./intelligence-patch-policy.mjs"',
+  `from "${policyUrl}"`
+));
+const workerRest = workerSource.slice(capabilityImport.length)
+  .replace(patchStoreImport, "")
+  .replace(patchArtifactImport, "")
+  .replace(patchGeneratorImport, "");
 const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
+import { createPatchArtifactRecord } from "${artifactUrl}";
+import { buildPatchGenerationMessages, validateAppendOnlyPatchGeneration } from "${patchGeneratorUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
 ` + workerRest;
@@ -241,6 +255,63 @@ test("Agent API stale-claim recovery includes package-bound allowlisted tasks", 
   assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL/,
     "stale recovery must include tasks claimed from durable work packages");
+});
+
+
+test("AI patch generator accepts only append-only test additions at the exact EOF", () => {
+  const source = "import test from \"node:test\";\nconst existing = true;\n";
+  const baseSha = "a".repeat(40);
+  const objective = "Add a regression test for a bounded parser edge case.";
+  const summary = "Add a focused parser regression test at the end of the suite.";
+  const diff = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ -2,0 +3,2 @@",
+    "+test(\"new regression\", () => {",
+    "+  assert.equal(existing, true);",
+    ""
+  ].join("\n");
+  const result = validateAppendOnlyPatchGeneration({ baseSha, objective, source, summary, diff });
+  assert.equal(result.ok, true);
+  assert.equal(result.additions, 2);
+  assert.equal(result.deletions, 0);
+  assert.equal(result.mode, "append_only_test_proposal");
+});
+
+test("AI patch generator rejects deletions, misplaced hunks, and invalid inputs", () => {
+  const source = "one\ntwo\nthree\n";
+  const baseSha = "b".repeat(40);
+  const objective = "Add one focused regression test without changing existing assertions.";
+  const summary = "Add a narrow regression test.";
+  const deleted = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ -3,1 +3,1 @@",
+    "-three",
+    "+four",
+    ""
+  ].join("\n");
+  const misplaced = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ -1,0 +2,1 @@",
+    "+test(\"bad location\", () => {});",
+    ""
+  ].join("\n");
+  assert.equal(validateAppendOnlyPatchGeneration({ baseSha, objective, source, summary, diff:deleted }).code,
+    "generated_patch_not_append_only");
+  assert.equal(validateAppendOnlyPatchGeneration({ baseSha, objective, source, summary, diff:misplaced }).code,
+    "generated_patch_not_append_only");
+  assert.equal(buildPatchGenerationMessages({ baseSha:"bad", objective, source }).code,
+    "invalid_generation_input");
+});
+
+test("AI patch generation route remains authenticated, budgeted, fixed-path, and non-applying", () => {
+  assert.ok(workerSource.includes('path === "/agent/v1/patch-proposals/generate"'));
+  assert.ok(workerSource.includes('reserveSocialWorkersAIBudget(env,250,"intelligence")'));
+  assert.ok(workerSource.includes("https://raw.githubusercontent.com/Mehranmsh/mehranmsh.github.io/"));
+  assert.ok(workerSource.includes("validateAppendOnlyPatchGeneration"));
+  assert.ok(workerSource.includes("applied:false,branchCreated:false,pullRequestCreated:false,deployed:false"));
 });
 
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
