@@ -599,19 +599,6 @@ jobs:
             }
             return bounded;
           }
-          // Re-discover terminal packages on every tick so a crash after task-result
-          // commit cannot permanently skip private report finalization.
-          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            try {
-              const pending = await request("/agent/v1/work-packages/pending-finalization", {}, ownerHeaders);
-              for (const id of (Array.isArray(pending.workPackageIds) ? pending.workPackageIds : [])) {
-                if (typeof id === "string" && id.length > 0 && id.length <= 160) packageIds.add(id);
-              }
-            } catch (error) {
-              console.log("Pending work-package finalization discovery unavailable: " + String(error?.message || error).slice(0,180));
-            }
-          }
-
           for (let count = 0; count < 5; count++) {
             const claim = await request("/agent/v1/tasks/next");
             const task = claim.task;
@@ -644,6 +631,19 @@ jobs:
               body: JSON.stringify({ status, result, retryable, claimToken: task.claimToken })
             });
             console.log(`One bounded task finished with status: ${status}; retryable=${retryable}`);
+          }
+
+          // Re-discover terminal packages on every tick so a crash after task-result
+          // commit cannot permanently skip private report finalization.
+          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+            try {
+              const pending = await request("/agent/v1/work-packages/pending-finalization", {}, ownerHeaders);
+              for (const id of (Array.isArray(pending.workPackageIds) ? pending.workPackageIds : [])) {
+                if (typeof id === "string" && id.length > 0 && id.length <= 160) packageIds.add(id);
+              }
+            } catch (error) {
+              console.log("Pending work-package finalization discovery unavailable: " + String(error?.message || error).slice(0,180));
+            }
           }
 
           // Finalize every package touched by this tick, including missions submitted from the owner UI.
