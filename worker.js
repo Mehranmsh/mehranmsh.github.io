@@ -249,7 +249,7 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
   const budgetColumns = {
     music: { column: "music_reserved", cap: WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS },
     social: { column: "social_reserved", cap: WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS },
-    intelligence: { column: "intelligence_reserved", cap: 1000 }
+    intelligence: { column: "intelligence_reserved", cap: 3000 }
   };
   const selected = budgetColumns[productKey];
   if (!env?.DB || !Number.isInteger(reservedCredits) || reservedCredits < 1 || !selected) {
@@ -5653,7 +5653,7 @@ async function planIntelligenceMission(env, input) {
   if (!env.AI || typeof env.AI.run !== "function") {
     return fallback("ai_binding_unavailable");
   }
-  const budget = await reserveSocialWorkersAIBudget(env, 500, "intelligence");
+  const budget = await reserveSocialWorkersAIBudget(env, 250, "intelligence");
   if (!budget.allowed) return fallback("daily_ai_budget_unavailable");
 
   const model = cleanText(env.MEHRAN_INTELLIGENCE_MODEL, 120) || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
@@ -5720,7 +5720,7 @@ async function planIntelligenceMission(env, input) {
         }
       },
       temperature: 0,
-      max_tokens: 1400
+      max_tokens: 1000
     });
   } catch (err) {
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err && err.message || err).slice(0, 180));
