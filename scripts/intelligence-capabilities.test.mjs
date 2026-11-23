@@ -511,5 +511,6 @@ test("AI patch generation endpoint remains fixed-path, budgeted, and non-applyin
   assert.ok(workerSource.includes('reserveSocialWorkersAIBudget(env,250,"intelligence")'));
   assert.ok(workerSource.includes("https://raw.githubusercontent.com/Mehranmsh/mehranmsh.github.io/"));
   assert.ok(workerSource.includes("validateAppendOnlyPatchGeneration"));
+  assert.ok(workerSource.includes("sourceReader.cancel()"));
   assert.ok(workerSource.includes("applied:false,branchCreated:false,pullRequestCreated:false,deployed:false"));
 });
