@@ -14,12 +14,15 @@ const runnerSource = await readFile(new URL("../.github/workflows/mehran-intelli
 const musicStudioSource = await readFile(new URL("../music-studio.html", import.meta.url), "utf8");
 const capabilityImport = 'import { INTELLIGENCE_ACTION_TYPES, PREAPPROVED_INTELLIGENCE_ACTION_TYPES } from "./scripts/intelligence-capabilities.mjs";';
 const patchStoreImport = 'import { storePrivatePatchArtifact } from "./scripts/intelligence-private-patch-store.mjs";';
-if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport)) {
+const patchGenerationImport = 'import { generatePatchArtifact } from "./scripts/intelligence-patch-generation-service.mjs";';
+if (!workerSource.startsWith(capabilityImport) || !workerSource.includes(patchStoreImport) || !workerSource.includes(patchGenerationImport)) {
   throw new Error("Worker capability or patch storage imports were not found");
 }
 const policySource = await readFile(new URL("./intelligence-patch-policy.mjs", import.meta.url), "utf8");
 const artifactSource = await readFile(new URL("./intelligence-patch-artifact.mjs", import.meta.url), "utf8");
 const patchStoreSource = await readFile(new URL("./intelligence-private-patch-store.mjs", import.meta.url), "utf8");
+const patchGenerationPromptSource = await readFile(new URL("./intelligence-patch-generation.mjs", import.meta.url), "utf8");
+const patchGenerationServiceSource = await readFile(new URL("./intelligence-patch-generation-service.mjs", import.meta.url), "utf8");
 const moduleUrl = source => "data:text/javascript;base64," + Buffer.from(source).toString("base64");
 const policyUrl = moduleUrl(policySource);
 const artifactUrl = moduleUrl(artifactSource.replace(
@@ -30,7 +33,15 @@ const patchStoreUrl = moduleUrl(patchStoreSource.replace(
   'from "./intelligence-patch-artifact.mjs"',
   `from "${artifactUrl}"`
 ));
-const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "");
+const patchGenerationPromptUrl = moduleUrl(patchGenerationPromptSource.replace(
+  'from "./intelligence-patch-policy.mjs"',
+  `from "${policyUrl}"`
+));
+const patchGenerationServiceUrl = moduleUrl(patchGenerationServiceSource
+  .replace('from "./intelligence-patch-generation.mjs"', `from "${patchGenerationPromptUrl}"`)
+  .replace('from "./intelligence-patch-artifact.mjs"', `from "${artifactUrl}"`)
+);
+const workerRest = workerSource.slice(capabilityImport.length).replace(patchStoreImport, "").replace(patchGenerationImport, "");
 const workerSourceForTest = `import { storePrivatePatchArtifact } from "${patchStoreUrl}";
 const INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(INTELLIGENCE_ACTION_TYPES)};
 const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = ${JSON.stringify(PREAPPROVED_INTELLIGENCE_ACTION_TYPES)};
