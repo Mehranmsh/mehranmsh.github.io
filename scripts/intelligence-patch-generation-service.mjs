@@ -99,7 +99,7 @@ export async function generatePatchArtifact({
 
   let budget;
   try {
-    budget = await reserveBudget(250);
+    budget = await reserveBudget(100);
   } catch {
     return fail("ai_budget_guard_failed");
   }
@@ -185,7 +185,7 @@ export const PATCH_GENERATION_SERVICE_POLICY = Object.freeze({
   targetPath: TARGET_PATH,
   model: MODEL,
   maxSourceBytes: MAX_SOURCE_BYTES,
-  reservedCreditsPerAttempt: 250,
+  reservedCreditsPerAttempt: 100,
   requiresExactCurrentMainSha: true,
   storesArtifact: false,
   appliesPatch: false,
