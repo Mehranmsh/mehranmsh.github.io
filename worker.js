@@ -5712,6 +5712,27 @@ export function verifyIntelligenceReport(actionType, report) {
       return { passed: false, checks: [...checks, "social_metrics_schema"] };
     }
     checks.push("social_metrics_schema");
+  } else if (actionType === "inspect_repository") {
+    const files = Array.isArray(report.files) ? report.files : [];
+    const seen = new Set();
+    let totalBytes = 0;
+    const validFiles = files.length >= 1 && files.length <= 6 && files.every(file => {
+      if (!file || typeof file.path !== "string" || !INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(file.path) || seen.has(file.path) ||
+          typeof file.blobSha !== "string" || !/^[a-f0-9]{40}$/i.test(file.blobSha) ||
+          !integer(file.bytes) || file.bytes > 100000 || !integer(file.lineCount) || file.lineCount > 20000 ||
+          !Array.isArray(file.symbols) || file.symbols.length > 4 || file.symbols.some(symbol => typeof symbol !== "string" || symbol.length > 100)) return false;
+      seen.add(file.path);
+      totalBytes += file.bytes;
+      return true;
+    });
+    if (report.mode !== "bounded_read_only_repository_inspection" ||
+        report.repository !== "Mehranmsh/mehranmsh.github.io" ||
+        typeof report.commitSha !== "string" || !/^[a-f0-9]{40}$/i.test(report.commitSha) ||
+        !validFiles || totalBytes > 250000 ||
+        !report.summary || report.summary.filesInspected !== files.length || report.summary.totalBytes !== totalBytes) {
+      return { passed: false, checks: [...checks, "inspect_repository_schema"] };
+    }
+    checks.push("inspect_repository_identity", "inspect_repository_paths", "inspect_repository_bounds");
   } else if (actionType === "source_security_audit") {
     const summary = report.summary;
     const files = report.files && typeof report.files === "object" ? report.files : {};
@@ -6502,9 +6523,15 @@ export default {
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
-          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')").bind(id).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')").bind(id).first();
           if (!before) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const requestedStatus = body.status || "completed";
+          if (requestedStatus === "completed") {
+            let parsedReport;
+            try { parsedReport = JSON.parse(resultText); } catch { return error("Completed task results must be valid JSON reports.",422); }
+            const acceptance = verifyIntelligenceReport(before.action_type, parsedReport);
+            if (!acceptance.passed) return error("Task result failed independent schema verification: " + acceptance.checks.join(","),422);
+          }
           const retryable = requestedStatus === "blocked" && body.retryable === true && Number(before.attempts || 0) < Number(before.max_attempts || 3);
           const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(before.attempts || 1)-1)));
           const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
@@ -7337,7 +7364,7 @@ export default {
             {name:"create_collaboration_task",description:"Create a task in the shared MEHRAN queue. Optional allowlisted report actions can be routed to the execution service, but the ChatGPT bridge always leaves them awaiting owner approval.",inputSchema:{type:"object",properties:{title:{type:"string",minLength:4,maxLength:120},description:{type:"string",maxLength:3000},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]},priority:{type:"string",enum:["low","normal","high"]},actionType:{type:"string",enum:["project_status_report","social_metrics_report","service_health_report","repository_quality_check"]},requiresApproval:{type:"boolean"}},required:["title","description"],additionalProperties:false}},
             {name:"list_collaboration_tasks",description:"List recent tasks in the shared MEHRAN collaboration queue.",inputSchema:{type:"object",properties:{status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},assignedTo:{type:"string",enum:["mehran_intelligence","chatgpt","shared"]}},additionalProperties:false}},
             ...(packageIntakeEnabled ? [
-              {name:"create_intelligence_work_package",description:"Submit a durable MEHRAN INTELLIGENCE work package. Available only to the dedicated authenticated ChatGPT bridge after the owner separately enables orchestration. Executes no arbitrary code: every task must be service_health_report, repository_quality_check, or source_security_audit, all read-only. Use stable idempotencyKey values and explicit dependencies.",inputSchema:{type:"object",properties:{idempotencyKey:{type:"string",minLength:8,maxLength:120},title:{type:"string",minLength:1,maxLength:160},objective:{type:"string",maxLength:2000},priority:{type:"string",enum:["low","normal","high"]},scope:{type:"object",additionalProperties:true},tasks:{type:"array",minItems:1,maxItems:20,items:{type:"object",properties:{taskId:{type:"string",minLength:1,maxLength:80},title:{type:"string",minLength:1,maxLength:160},description:{type:"string",maxLength:1500},actionType:{type:"string",enum:["service_health_report","repository_quality_check","source_security_audit"]},dependsOn:{type:"array",maxItems:10,items:{type:"string",maxLength:80}}},required:["taskId","title","actionType"],additionalProperties:false}}},required:["idempotencyKey","title","tasks"],additionalProperties:false}},
+              {name:"create_intelligence_work_package",description:"Submit a durable MEHRAN INTELLIGENCE work package. Available only to the dedicated authenticated ChatGPT bridge after the owner separately enables orchestration. Executes no arbitrary code: tasks are limited to service_health_report, repository_quality_check, source_security_audit, and bounded inspect_repository over six exact allowlisted files. Use stable idempotencyKey values and explicit dependencies.",inputSchema:{type:"object",properties:{idempotencyKey:{type:"string",minLength:8,maxLength:120},title:{type:"string",minLength:1,maxLength:160},objective:{type:"string",maxLength:2000},priority:{type:"string",enum:["low","normal","high"]},scope:{type:"object",additionalProperties:true},tasks:{type:"array",minItems:1,maxItems:20,items:{type:"object",properties:{taskId:{type:"string",minLength:1,maxLength:80},title:{type:"string",minLength:1,maxLength:160},description:{type:"string",maxLength:1500},actionType:{type:"string",enum:["service_health_report","repository_quality_check","source_security_audit","inspect_repository"]},paths:{type:"array",minItems:1,maxItems:6,items:{type:"string",enum:[...INTELLIGENCE_INSPECT_ALLOWED_PATHS]}},dependsOn:{type:"array",maxItems:10,items:{type:"string",maxLength:80}}},required:["taskId","title","actionType"],additionalProperties:false}}},required:["idempotencyKey","title","tasks"],additionalProperties:false}},
               {name:"get_intelligence_work_package",description:"Retrieve the status, task results, checkpoints and report for a work package submitted through the owner-enabled ChatGPT bridge. Read-only.",inputSchema:{type:"object",properties:{workPackageId:{type:"string",minLength:36,maxLength:36}},required:["workPackageId"],additionalProperties:false}}
             ] : []),
             ...(bridgeAuthorized?[]:[{name:"update_collaboration_task",description:"Update a shared task status and add a short result note. This does not execute the task.",inputSchema:{type:"object",properties:{taskId:{type:"string",minLength:10,maxLength:80},status:{type:"string",enum:["queued","accepted","in_progress","blocked","awaiting_approval","completed","cancelled"]},result:{type:"string",maxLength:3000}},required:["taskId","status"],additionalProperties:false}}])
