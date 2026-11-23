@@ -244,6 +244,66 @@ jobs:
             if (task.actionType === "run_repository_tests") {
               return runFixedRepositoryTests(task);
             }
+            if (task.actionType === "propose_code_patch") {
+              let payload = {};
+              let checkpoint = {};
+              try {
+                payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+                checkpoint = typeof task.checkpoint === "string" ? JSON.parse(task.checkpoint || "{}") : (task.checkpoint || {});
+              } catch {
+                throw new Error("Patch proposal task payload or checkpoint is not valid JSON.");
+              }
+              const objective = typeof payload.objective === "string" ? payload.objective.trim() : "";
+              if (objective.length < 12 || objective.length > 800) {
+                throw new Error("Patch proposal task requires one bounded objective.");
+              }
+              let baseSha = String(checkpoint.baseSha || "").toLowerCase();
+              if (!/^[a-f0-9]{40}$/.test(baseSha)) {
+                const headers = {
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": `Bearer ${process.env.GITHUB_TOKEN || ""}`,
+                  "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
+                };
+                const response = await fetch("https://api.github.com/repos/Mehranmsh/mehranmsh.github.io/commits/main", {
+                  headers, signal: AbortSignal.timeout(15000)
+                });
+                if (!response.ok) throw new Error(`GitHub main commit lookup HTTP ${response.status}`);
+                const commit = await response.json();
+                baseSha = String(commit?.sha || "").toLowerCase();
+                if (!/^[a-f0-9]{40}$/.test(baseSha)) throw new Error("GitHub returned an invalid main commit SHA.");
+                const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                  method: "POST",
+                  body: JSON.stringify({ checkpoint: { baseSha } })
+                });
+                if (!saved.checkpointSaved) throw new Error("Immutable patch base commit could not be checkpointed.");
+              }
+              const proposal = await request("/agent/v1/patch-proposals/generate", {
+                method: "POST",
+                body: JSON.stringify({ baseSha, objective, requestId: task.id })
+              });
+              if (proposal.requestId !== task.id || proposal.status !== "stored" ||
+                  !/^[A-Za-z0-9_-]{43}$/.test(proposal.requestHash || "") ||
+                  !/^[a-f0-9-]{36}$/.test(proposal.proposalId || "") ||
+                  !/^[a-f0-9]{64}$/.test(proposal.artifactSha256 || "") ||
+                  !/^[a-f0-9]{64}$/.test(proposal.diffSha256 || "")) {
+                throw new Error("Patch generation API returned incomplete or unverified proposal metadata.");
+              }
+              return {
+                type: task.actionType,
+                generatedAt: new Date().toISOString(),
+                requestId: proposal.requestId,
+                requestHash: proposal.requestHash,
+                proposalId: proposal.proposalId,
+                path: proposal.path,
+                artifactSha256: proposal.artifactSha256,
+                diffSha256: proposal.diffSha256,
+                status: proposal.status,
+                baseSha,
+                targetPath: proposal.targetPath,
+                validationMode: proposal.validationMode,
+                summary: proposal.summary
+              };
+            }
             if (task.actionType === "service_health_report") {
               const health = await request("/health", {}, { "Accept": "application/json" });
               if (health.status !== "online" || health.database !== true) {
@@ -405,7 +465,7 @@ jobs:
               const validationSource = validationStart >= 0 && validationEnd > validationStart ? workerSource.text.slice(validationStart, validationEnd) : "";
               const agentSource = agentStart >= 0 && agentEnd > agentStart ? workerSource.text.slice(agentStart, agentEnd) : "";
               const mcpSource = mcpStart >= 0 && mcpEnd > mcpStart ? workerSource.text.slice(mcpStart, mcpEnd) : "";
-              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"];
+              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"];
               const capabilitySections = [plannerSource, validationSource, agentSource, mcpSource, runnerSource.text];
               const capabilityAllowlistAligned = capabilitySections.every(section =>
                 section.length > 0 && capabilityActions.every(action => section.includes(action))
