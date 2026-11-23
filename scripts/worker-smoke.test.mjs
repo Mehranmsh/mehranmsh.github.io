@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import {
   INTELLIGENCE_ACTION_TYPES,
@@ -1794,6 +1795,24 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: [{ ...base.tasks[0], dependsOn: ["later"] }, { taskId: "later", title: "Later", actionType: "repository_quality_check" }] }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, tasks: Array.from({ length: 21 }, (_, index) => ({ taskId: "task-" + index, title: "Task " + index, actionType: "service_health_report" })) }).ok, false);
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
+});
+
+test("private Intelligence runner inline JavaScript parses as an ES module", () => {
+  const marker = "node --input-type=module <<'NODE'";
+  const markerAt = runnerSource.indexOf(marker);
+  assert.ok(markerAt >= 0, "private runner heredoc must exist");
+  const scriptStart = runnerSource.indexOf("\\n", markerAt) + 1;
+  const scriptEnd = runnerSource.indexOf("\\n          NODE", scriptStart);
+  assert.ok(scriptStart > 0 && scriptEnd > scriptStart, "runner heredoc boundaries must be valid");
+  const script = runnerSource.slice(scriptStart, scriptEnd)
+    .split("\\n")
+    .map(line => line.startsWith("          ") ? line.slice(10) : line)
+    .join("\\n");
+  const syntax = spawnSync(process.execPath, ["--check", "--input-type=module"], {
+    input: script,
+    encoding: "utf8"
+  });
+  assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout || "Runner inline JavaScript syntax check failed.");
 });
 
 test("repository inspection work packages enforce exact bounded paths and persist them", () => {
