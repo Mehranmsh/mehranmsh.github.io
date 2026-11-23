@@ -221,7 +221,7 @@ test("MEHRAN INTELLIGENCE chat uses one inference and formats safe tool results 
   const route = workerSource.slice(start, end);
   assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("reserveSocialWorkersAIBudget"));
   assert.equal(route.split("env.AI.run(").length - 1, 1, "one user request may invoke Workers AI only once");
-  assert.ok(route.includes("toolCalls.slice(0,2)"));
+  assert.ok(route.includes("result?.tool_calls.slice(0,2)"));
   assert.ok(route.includes("single_inference_tool_execution"));
   assert.ok(route.includes("get_project_status"));
   assert.ok(route.includes("get_social_metrics"));
