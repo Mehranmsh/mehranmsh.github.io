@@ -46,7 +46,25 @@ jobs:
             "Accept": "application/json",
             "Content-Type": "application/json"
           };
+          const tickStartedAt = Date.now();
+          const timingSamples = [];
+          function recordTiming(name, startedAt) {
+            const elapsedMs = Date.now() - startedAt;
+            timingSamples.push({ name, elapsedMs });
+            console.log(`[performance] ${name}: ${elapsedMs}ms`);
+            return elapsedMs;
+          }
+          function timingRoute(path) {
+            if (path === "/agent/v1/missions/plan") return "mission_plan";
+            if (path === "/agent/v1/tasks/next") return "task_claim";
+            if (path.endsWith("/result")) return "task_result";
+            if (path.startsWith("/agent/v1/work-packages/")) return "package_finalize";
+            if (path === "/health") return "worker_health";
+            return "agent_api";
+          }
           async function request(path, options = {}, headers = agentHeaders, timeoutMs = 20000) {
+            const requestStartedAt = Date.now();
+            try {
             const response = await fetch(base + path, {
               ...options,
               headers: { ...headers, ...(options.headers || {}) },
@@ -58,6 +76,9 @@ jobs:
             catch { throw new Error(`Agent API returned non-JSON HTTP ${response.status}`); }
             if (!response.ok) throw new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
             return payload;
+            } finally {
+              recordTiming(`api:${timingRoute(path)}`, requestStartedAt);
+            }
           }
 
           // AI planning is optional for this runner tick. A planner failure must never
@@ -234,6 +255,7 @@ jobs:
             }
             let status = "completed";
             let result;
+            const executionStartedAt = Date.now();
             try {
               result = JSON.stringify(await execute(task));
             } catch (error) {
@@ -242,6 +264,7 @@ jobs:
               console.log(`Read-only task diagnostic (${task.actionType}): ${diagnostic}`);
               result = `Read-only runner failed: ${diagnostic}`;
             }
+            recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
             await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
               method: "POST",
               body: JSON.stringify({ status, result })
@@ -257,4 +280,5 @@ jobs:
               console.log("Private report storage: " + (finalState.reportStorage?.stored ? "stored" : "not stored") + "; path=" + (finalState.reportStorage?.path || "none") + "; reason=" + (finalState.reportStorage?.reason || "none"));
             }
           }
+          console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
           NODE
