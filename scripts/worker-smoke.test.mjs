@@ -301,7 +301,7 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(runner, /schedule:/);
   assert.match(runner, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(runner, /concurrency:/);
-  assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(runner, /if: \\$\\{\\{ github\\.ref == 'refs\\/heads\\/main' \\}\\}/);
   assert.match(runner, /task\.requiresApproval !== false/);
   assert.match(runner, /task\.status !== "in_progress"/);
   assert.match(runner, /task\.assignedTo/);
