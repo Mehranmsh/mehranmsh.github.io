@@ -212,6 +212,19 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
+test("Agent API stale-claim recovery includes package-bound read-only tasks", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const end = workerSource.indexOf("const checkpointMatch", start);
+  assert.ok(start >= 0 && end > start, "Agent task-claim route must exist");
+  const route = workerSource.slice(start, end);
+  assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
+  assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
+  assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
+  assert.doesNotMatch(route, /work_package_id IS NULL/,
+    "stale recovery must include tasks claimed from durable work packages");
+});
+
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
