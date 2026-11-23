@@ -3291,4 +3291,16 @@ test("real Worker task recovery preserves durable checkpoints and fences the cra
   assert.equal(state.row.agent_claim_token_hash, "", "replacement terminal result must revoke its claim");
   assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
     "terminal result must not discard the latest durable checkpoint");
+
+  const lateCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: {
+      claimToken: replacement.claimToken,
+      checkpoint: { corruptedAfterTerminalCommit: true }
+    }
+  }, env);
+  assert.equal(lateCheckpoint.status, 409,
+    "a checkpoint arriving after terminal result commit must be rejected");
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
+    "a late checkpoint must not mutate terminal task state");
 });
