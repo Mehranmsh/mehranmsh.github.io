@@ -728,3 +728,10 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
   });
   assert.equal(unsafe.code, "patch_not_append_only");
 });
+
+
+test("Intelligence mission planning uses a bounded, more efficient daily reservation", () => {
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 3000 \}/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 250, "intelligence"\)/);
+  assert.match(workerSource, /max_tokens: 1000/);
+});
