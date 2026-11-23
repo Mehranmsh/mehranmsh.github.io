@@ -220,15 +220,15 @@ test("MEHRAN INTELLIGENCE chat uses one inference and formats safe tool results 
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("reserveSocialWorkersAIBudget"));
-  assert.equal((route.match(/env\\.AI\\.run\\(/g) || []).length, 1, "one user request may invoke Workers AI only once");
-  assert.match(route, /toolCalls\\.slice\\(0,2\\)/);
-  assert.match(route, /single_inference_tool_execution/);
-  assert.match(route, /get_project_status/);
-  assert.match(route, /get_social_metrics/);
-  assert.match(route, /list_collaboration_tasks/);
-  assert.match(route, /propose_collaboration_task/);
-  assert.doesNotMatch(route, /messages\\.push\\(\\{role:"tool"/);
-  assert.equal((route.match(/max_tokens:650/g) || []).length, 1);
+  assert.equal(route.split("env.AI.run(").length - 1, 1, "one user request may invoke Workers AI only once");
+  assert.ok(route.includes("toolCalls.slice(0,2)"));
+  assert.ok(route.includes("single_inference_tool_execution"));
+  assert.ok(route.includes("get_project_status"));
+  assert.ok(route.includes("get_social_metrics"));
+  assert.ok(route.includes("list_collaboration_tasks"));
+  assert.ok(route.includes("propose_collaboration_task"));
+  assert.ok(!route.includes('messages.push({role:"tool"'));
+  assert.equal(route.split("max_tokens:650").length - 1, 1);
 });
 
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
