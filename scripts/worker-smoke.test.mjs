@@ -2778,7 +2778,7 @@ test("private report persistence is a no-op until its dedicated Worker secret is
 
 test("Agent task claim tokens fence checkpoint and result commits to the current runner", () => {
   assert.match(workerSource, /agent_claim_token_hash TEXT NOT NULL DEFAULT ''/);
-  assert.match(workerSource, /const claimTokenHash = claimToken \\? await sha256\\(claimToken\\) : "";/);
+  assert.ok(workerSource.includes('const claimTokenHash = claimToken ? await sha256(claimToken) : "";'));
   assert.match(workerSource, /agent_claim_token_hash=\?/);
   assert.match(workerSource, /Task claim not found, superseded, or expired/);
   assert.match(workerSource, /agent_claim_token_hash='',next_attempt_at/);
