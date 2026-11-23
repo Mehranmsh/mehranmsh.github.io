@@ -94,6 +94,8 @@ test("patch proposals enforce bounded typed inputs without applying changes", ()
   assert.equal(schema.properties.summary.maxLength, 500);
   assert.equal(schema.properties.targetPaths.maxItems, 10);
   assert.equal(schema.properties.diff.maxLength, 20000);
+  assert.equal(getIntelligenceCapability("propose_code_patch").requiresApproval, false);
+  assert.equal(getIntelligenceCapability("propose_code_patch").autonomous, true);
   assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).code, "capability_not_implemented");
   assert.deepEqual(getIntelligenceCapability("propose_code_patch").executors, ["proposal_store"]);
 });
@@ -102,5 +104,21 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
   const capability = getIntelligenceCapability("create_pull_request");
   assert.equal(capability.inputSchema.properties.branch.pattern, "^intelligence/proposal-[a-f0-9-]{8,64}$");
   assert.equal(capability.inputSchema.properties.headSha.pattern, "^[a-f0-9]{40}$");
-  assert.equal(capability.requiresApproval, true);
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
+});
+
+
+test("safe self-improvement work is pre-authorized without activating missing executors", () => {
+  for (const id of ["inspect_repository", "run_repository_tests", "propose_code_patch", "create_pull_request"]) {
+    const capability = getIntelligenceCapability(id);
+    assert.equal(capability.requiresApproval, false, id);
+    assert.equal(capability.autonomous, true, id);
+    assert.equal(capability.status, "planned", id);
+    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented", id);
+  }
+  for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
+    assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
+    assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
+  }
 });
