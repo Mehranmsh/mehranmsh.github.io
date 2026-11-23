@@ -1006,7 +1006,7 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.match(workerSource, /LEFT JOIN intelligence_work_packages wp ON wp\.id=t\.work_package_id/);
   assert.match(workerSource, /wp\.owner_uid=\? AND t\.work_package_id IS NOT NULL/);
   assert.match(workerSource, /t\.work_package_id IS NULL AND t\.created_by=\?/);
-  assert.ok(workerSource.includes("checkpoint_json,attempts,max_attempts,next_attempt_at,last_error_code,updated_at"));
+  assert.ok(workerSource.includes("t.checkpoint_json,t.attempts,t.max_attempts,t.next_attempt_at,t.last_error_code,t.updated_at"));
   assert.ok(workerSource.includes("const activeMissions = (activeTaskResult.results || []).map"));
 
 });
