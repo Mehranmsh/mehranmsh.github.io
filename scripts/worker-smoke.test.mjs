@@ -2912,6 +2912,76 @@ test("private report finalization verifies existing artifact bytes before markin
   }
 });
 
+test("private report retries accept only legacy generated_at drift and keep report evidence immutable", async () => {
+  const originalFetch = globalThis.fetch;
+  let storedContent = "";
+  let mode = "missing";
+  let markerWrites = 0;
+  let reportStoredAt = null;
+  globalThis.fetch = async (_url, init = {}) => {
+    if (init.method === "PUT") {
+      storedContent = JSON.parse(init.body).content;
+      return new Response(JSON.stringify({ content: { path: "reports/2026/11/package-stable.json" } }), { status: 201 });
+    }
+    if (mode === "missing") return new Response("Not Found", { status: 404 });
+    return new Response(JSON.stringify({ encoding: "base64", content: storedContent }), { status: 200 });
+  };
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("SELECT id,created_at,report_stored_at FROM intelligence_work_packages")) {
+            return { id: "package-stable", created_at: "2026-11-22T20:00:00.000Z", report_stored_at: reportStoredAt };
+          }
+          throw new Error("Unexpected first query: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM intelligence_tasks WHERE work_package_id")) {
+            return { results: [{ id: "task-stable", status: "completed", action_type: "service_health_report",
+              attempts: 1, max_attempts: 3, last_error_code: "", result_text: "{}" }] };
+          }
+          throw new Error("Unexpected all query: " + sql);
+        },
+        async run() { markerWrites += 1; reportStoredAt = "2026-11-23T00:00:00.000Z"; return { success: true, meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const env = { DB: db, MEHRAN_REPORTS_GITHUB_TOKEN: "x".repeat(48) };
+  try {
+    const first = await persistIntelligencePackageReport(env, "package-stable", {
+      status: "completed", generatedAt: "2026-11-23T21:00:00.000Z", counts: { total: 1, completed: 1 }
+    });
+    assert.equal(first.stored, true);
+    const originalReport = JSON.parse(Buffer.from(storedContent, "base64").toString("utf8"));
+    assert.equal(originalReport.generated_at, "2026-11-22T20:00:00.000Z");
+
+    const legacyReport = { ...originalReport, generated_at: "2026-11-23T21:00:00.000Z" };
+    storedContent = Buffer.from(JSON.stringify(legacyReport, null, 2) + "\n").toString("base64");
+    mode = "matching";
+    reportStoredAt = null;
+    const recovered = await persistIntelligencePackageReport(env, "package-stable", {
+      status: "completed", generatedAt: "2026-11-24T01:00:00.000Z", counts: { total: 1, completed: 1 }
+    });
+    assert.equal(recovered.stored, true);
+    assert.equal(recovered.alreadyExists, true);
+    assert.equal(markerWrites, 2);
+
+    const tampered = { ...legacyReport, data: { ...legacyReport.data, tasks: [{ ...legacyReport.data.tasks[0], status: "blocked" }] } };
+    storedContent = Buffer.from(JSON.stringify(tampered, null, 2) + "\n").toString("base64");
+    reportStoredAt = null;
+    await assert.rejects(
+      persistIntelligencePackageReport(env, "package-stable", {
+        status: "completed", generatedAt: "2026-11-24T01:00:00.000Z", counts: { total: 1, completed: 1 }
+      }),
+      /does not match the current package snapshot/
+    );
+    assert.equal(markerWrites, 2, "changed task evidence must never be marked as stored");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("private report persistence is a no-op until its dedicated Worker secret is configured", async () => {
   const result = await persistIntelligencePackageReport(
     { DB: {} },
