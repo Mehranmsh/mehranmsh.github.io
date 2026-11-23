@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -234,7 +235,8 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "node:test",
     "node:assert/strict",
     "node:fs",
-    "./intelligence-capabilities.mjs"
+    "./intelligence-capabilities.mjs",
+    "./intelligence-patch-policy.mjs"
   ]);
   for (const forbidden of [
     ["process", ".", "env"].join(""),
@@ -243,4 +245,54 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   ]) {
     assert.equal(isolatedTestSource.includes(forbidden), false, forbidden);
   }
+});
+
+
+test("patch proposal validator accepts only a bounded single-file test diff and never applies it", () => {
+  const baseSha = "c".repeat(40);
+  const targetPath = "scripts/intelligence-capabilities.test.mjs";
+  const diff = [
+    `--- a/${targetPath}`,
+    `+++ b/${targetPath}`,
+    "@@ -1 +1 @@",
+    "-const before = true;",
+    "+const after = true;",
+    ""
+  ].join("\\n");
+  const result = validatePatchProposal({
+    baseSha,
+    summary: "Add a regression assertion for a bounded proposal policy",
+    targetPaths: [targetPath],
+    diff
+  });
+  assert.deepEqual(result, {
+    ok: true,
+    baseSha,
+    targetPath,
+    bytes: Buffer.byteLength(diff, "utf8"),
+    additions: 1,
+    deletions: 1,
+    hunkCount: 1,
+    mode: "validate_only"
+  });
+  assert.equal(PATCH_PROPOSAL_POLICY.appliesChanges, false);
+  assert.equal(PATCH_PROPOSAL_POLICY.createsBranches, false);
+  assert.equal(PATCH_PROPOSAL_POLICY.createsPullRequests, false);
+  assert.deepEqual(PATCH_PROPOSAL_POLICY.allowedPaths, [targetPath]);
+});
+
+test("patch proposal validator rejects paths, multi-file input, malformed hunks, and oversized diffs", () => {
+  const base = {
+    baseSha: "d".repeat(40),
+    summary: "A sufficiently descriptive patch proposal",
+    targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
+    diff: "--- a/scripts/intelligence-capabilities.test.mjs\\n+++ b/scripts/intelligence-capabilities.test.mjs\\n@@ -1 +1 @@\\n-old\\n+new\\n"
+  };
+  assert.equal(validatePatchProposal({ ...base, targetPaths: ["worker.js"] }).code, "path_not_allowed");
+  assert.equal(validatePatchProposal({ ...base, targetPaths: [base.targetPaths[0], base.targetPaths[0]] }).code, "invalid_target_count");
+  assert.equal(validatePatchProposal({ ...base, baseSha: "not-a-sha" }).code, "invalid_base_sha");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+++ b/scripts/", "+++ b/worker.js\\n--- a/scripts/") }).code, "patch_path_mismatch");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("@@ -1 +1 @@", "@@ -2,4 +2,4 @@") }).code, "truncated_hunk");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff.replace("+new", "GIT binary patch") }).code, "invalid_hunk_line");
+  assert.equal(validatePatchProposal({ ...base, diff: base.diff + "x".repeat(8200) }).code, "patch_size_invalid");
 });
