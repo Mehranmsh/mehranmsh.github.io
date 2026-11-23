@@ -242,6 +242,10 @@ async function checkRateLimit(env, request, scope, maxAttempts, windowSeconds, b
 // These are conservative reservation credits, NOT Cloudflare's measured Neurons.
 // Cloudflare Free itself remains the final hard stop at 10,000 actual Neurons/day.
 // Keep 10% headroom for model variance and unrelated account-level AI usage.
+// Intelligence receives a larger allocation so planning and self-audit are not
+// starved by its former 3,000-credit product sub-cap. The shared 9,000 ceiling
+// and Cloudflare's actual account limit remain enforced.
+const WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS = 7000;
 const WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000;
 const WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000;
 const WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000;
@@ -249,7 +253,7 @@ async function reserveSocialWorkersAIBudget(env, reservedCredits, productKey = "
   const budgetColumns = {
     music: { column: "music_reserved", cap: WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS },
     social: { column: "social_reserved", cap: WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS },
-    intelligence: { column: "intelligence_reserved", cap: 3000 }
+    intelligence: { column: "intelligence_reserved", cap: WORKERS_AI_INTELLIGENCE_DAILY_RESERVATION_CREDITS }
   };
   const selected = budgetColumns[productKey];
   if (!env?.DB || !Number.isInteger(reservedCredits) || reservedCredits < 1 || !selected) {
