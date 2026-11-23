@@ -6400,7 +6400,7 @@ export default {
       }
 
       if (path.startsWith("/agent/v1/")) {
-        const ownerOrchestrationRoute = (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
+        const ownerOrchestrationRoute = (path === "/agent/v1/missions/plan" && method === "POST") || (path === "/agent/v1/work-packages" && method === "POST") || (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") || (path.startsWith("/agent/v1/work-packages/") && method === "GET") || (path === "/agent/v1/notifications/next" && method === "GET") || (path === "/agent/v1/notifications/status" && method === "GET") || (path.startsWith("/agent/v1/notifications/") && method === "POST");
         const configuredToken = ownerOrchestrationRoute
           ? (typeof env.MEHRAN_ORCHESTRATOR_TOKEN === "string" ? env.MEHRAN_ORCHESTRATOR_TOKEN : "")
           : (typeof env.MEHRAN_AGENT_TOKEN === "string" ? env.MEHRAN_AGENT_TOKEN : "");
@@ -6695,6 +6695,12 @@ export default {
           const updated = await env.DB.prepare("UPDATE intelligence_notification_outbox SET status=?,next_attempt_at=?,lease_token='',last_error=?,delivered_at=? WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(finalStatus,nextAt,outcome==="delivered"?"":(message||outcome),outcome==="delivered"?new Date().toISOString():null,notificationId,leaseToken).run();
           if (!Number(updated?.meta?.changes || 0)) return error("Notification lease changed before acknowledgement.",409);
           return json({success:true,status:finalStatus},200);
+        }
+        if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") {
+          const pending = await env.DB.prepare(
+            "SELECT id FROM intelligence_work_packages WHERE status IN ('completed','attention_required') ORDER BY updated_at DESC LIMIT 20"
+          ).all();
+          return json({success:true,workPackageIds:(pending.results || []).map(row => String(row.id || "")).filter(Boolean)});
         }
         const packageMatch = path.startsWith("/agent/v1/work-packages/") ? [null,path.slice("/agent/v1/work-packages/".length)] : null;
         if (packageMatch && method === "GET") {
