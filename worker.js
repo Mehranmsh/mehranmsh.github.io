@@ -5413,8 +5413,10 @@ export function validateIntelligenceWorkPackage(input) {
     const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
     const paths = actionType === "inspect_repository" ? item?.paths : undefined;
     const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => typeof path === "string" && INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(path)));
+    const baseSha = actionType === "run_repository_tests" ? item?.baseSha : undefined;
+    const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
-        !["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"].includes(actionType) || !validInspectPaths || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || dependencies.length > 10) {
+        !["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests"].includes(actionType) || !validInspectPaths || !validTestBaseSha || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || dependencies.length > 10) {
       return fail("Invalid task definition or action outside the read-only allowlist.");
     }
     if (new Set(dependencies).size !== dependencies.length ||
@@ -5422,7 +5424,7 @@ export function validateIntelligenceWorkPackage(input) {
       return fail("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.");
     }
     known.add(taskId);
-    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}) });
+    normalized.push({ taskId, title: taskTitle, description, actionType, dependencies, ...(paths ? { paths } : {}), ...(baseSha ? { baseSha } : {}) });
   }
   return { ok: true, idempotencyKey, title, objective, priority, scope, scopeJson, tasks: normalized };
 }
@@ -5449,7 +5451,7 @@ async function createIntelligenceWorkPackage(env, input) {
   ];
   for (const item of tasks) {
     statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
-      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}) }), packageId));
+      .bind(packageId + ":" + item.taskId, item.title, item.description, priority, item.actionType, JSON.stringify({ sourceTaskId: item.taskId, ...(item.paths ? { paths: item.paths } : {}), ...(item.baseSha ? { baseSha: item.baseSha } : {}) }), packageId));
     for (const dependency of item.dependencies) {
       statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)")
         .bind(packageId + ":" + item.taskId, packageId + ":" + dependency));
@@ -5733,6 +5735,25 @@ export function verifyIntelligenceReport(actionType, report) {
       return { passed: false, checks: [...checks, "inspect_repository_schema"] };
     }
     checks.push("inspect_repository_identity", "inspect_repository_paths", "inspect_repository_bounds");
+  } else if (actionType === "run_repository_tests") {
+    const tests = report.tests && typeof report.tests === "object" ? report.tests : {};
+    const container = report.container && typeof report.container === "object" ? report.container : {};
+    if (report.mode !== "isolated_fixed_repository_test" ||
+        report.repository !== "Mehranmsh/mehranmsh.github.io" ||
+        typeof report.baseSha !== "string" || !/^[a-f0-9]{40}$/.test(report.baseSha) ||
+        typeof report.workflowRunId !== "string" || !/^\\d{1,20}$/.test(report.workflowRunId) ||
+        !integer(report.workflowAttempt) || report.workflowAttempt < 1 ||
+        report.testSuite !== "scripts/intelligence-capabilities.test.mjs" ||
+        report.exitCode !== 0 ||
+        !integer(tests.total) || tests.total < 1 ||
+        tests.passed !== tests.total || tests.failed !== 0 ||
+        container.network !== "none" || container.readOnly !== true ||
+        container.capDropAll !== true || container.noNewPrivileges !== true ||
+        container.memoryMb !== 768 || container.cpus !== 1 || container.pidsLimit !== 64 ||
+        typeof report.outputSha256 !== "string" || !/^[a-f0-9]{64}$/.test(report.outputSha256)) {
+      return { passed: false, checks: [...checks, "isolated_repository_test_schema"] };
+    }
+    checks.push("isolated_test_identity", "isolated_test_commit", "isolated_test_container_policy", "isolated_test_results");
   } else if (actionType === "source_security_audit") {
     const summary = report.summary;
     const files = report.files && typeof report.files === "object" ? report.files : {};
@@ -6339,14 +6360,16 @@ export default {
             const dependencies = Array.isArray(item?.dependsOn) ? item.dependsOn : [];
             const paths = actionType === "inspect_repository" ? item?.paths : undefined;
             const validInspectPaths = actionType !== "inspect_repository" || (Array.isArray(paths) && paths.length >= 1 && paths.length <= 6 && new Set(paths).size === paths.length && paths.every(path => typeof path === "string" && INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(path)));
-            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check","source_security_audit","inspect_repository"].includes(actionType) || !validInspectPaths || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || dependencies.length > 10) {
+            const baseSha = actionType === "run_repository_tests" ? item?.baseSha : undefined;
+            const validTestBaseSha = actionType !== "run_repository_tests" || (typeof baseSha === "string" && /^[a-f0-9]{40}$/.test(baseSha));
+            if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle || !["service_health_report","repository_quality_check","source_security_audit","inspect_repository","run_repository_tests"].includes(actionType) || !validInspectPaths || !validTestBaseSha || (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) || (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) || dependencies.length > 10) {
               return error("Invalid task definition or action outside the read-only allowlist.",400);
             }
             if (new Set(dependencies).size !== dependencies.length || dependencies.some(dep => typeof dep !== "string" || !known.has(dep))) {
               return error("Dependencies must be unique and reference earlier tasks in this package; cycles and forward references are rejected.",400);
             }
             known.add(taskId);
-            normalized.push({taskId,title:taskTitle,description,actionType,dependencies,...(paths?{paths}:{})});
+            normalized.push({taskId,title:taskTitle,description,actionType,dependencies,...(paths?{paths}:{}),...(baseSha?{baseSha}:{})});
           }
           const requestHash = await sha256(JSON.stringify({title,objective,priority,scope,tasks:normalized}));
           const existing = await env.DB.prepare("SELECT id,status,request_hash FROM intelligence_work_packages WHERE idempotency_key=?").bind(idempotencyKey).first();
@@ -6361,7 +6384,7 @@ export default {
           ];
           for (const item of normalized) {
             statements.push(env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,result_text,created_by,action_type,action_payload,work_package_id,max_attempts) VALUES(?,?,?,'mehran_intelligence',?,'queued',0,'','mehran_intelligence',?,?,?,3)")
-               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{})}),packageId));
+               .bind(packageId + ":" + item.taskId,item.title,item.description,priority,item.actionType,JSON.stringify({sourceTaskId:item.taskId,...(item.paths?{paths:item.paths}:{}),...(item.baseSha?{baseSha:item.baseSha}:{})}),packageId));
             for (const dependency of item.dependencies) {
               statements.push(env.DB.prepare("INSERT INTO intelligence_task_dependencies(task_id,depends_on_task_id) VALUES(?,?)").bind(packageId + ":" + item.taskId,packageId + ":" + dependency));
             }
@@ -6472,21 +6495,21 @@ export default {
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository') AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
+            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests') AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
           ).run();
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository') AND COALESCE(attempts,0)<COALESCE(max_attempts,3)"
+            "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests') AND COALESCE(attempts,0)<COALESCE(max_attempts,3)"
           ).run();
           // Repair only stale approval labels on pre-authorized read-only tasks before claiming them.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')"
+            "UPDATE intelligence_tasks SET status='queued',updated_at=CURRENT_TIMESTAMP WHERE status='awaiting_approval' AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"
           ).run();
           const candidate = await env.DB.prepare(
-            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
+            "SELECT t.id,t.status FROM intelligence_tasks t WHERE t.assigned_to IN ('mehran_intelligence','shared') AND t.status IN ('queued','accepted','retry_wait') AND t.requires_approval=0 AND t.action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests') AND COALESCE(t.attempts,0)<COALESCE(t.max_attempts,3) AND (t.next_attempt_at IS NULL OR datetime(t.next_attempt_at)<=datetime('now')) AND NOT EXISTS (SELECT 1 FROM intelligence_task_dependencies d JOIN intelligence_tasks p ON p.id=d.depends_on_task_id WHERE d.task_id=t.id AND p.status<>'completed') ORDER BY CASE t.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,t.created_at ASC LIMIT 1"
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')"
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"
           ).bind(candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
@@ -6505,9 +6528,9 @@ export default {
           let checkpointJson;
           try { checkpointJson = JSON.stringify(body.checkpoint); } catch { return error("Checkpoint must be valid JSON."); }
           if (!checkpointJson || checkpointJson.length > 4000) return error("Checkpoint exceeds the 4 KB limit.");
-          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')").bind(id).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')").bind(id).first();
           if (!before) return error("Task claim not found or expired.",409);
-          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')").bind(checkpointJson,id).run();
+          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')").bind(checkpointJson,id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
             .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointLength:checkpointJson.length})).run();
@@ -6523,7 +6546,7 @@ export default {
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
-          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')").bind(id).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')").bind(id).first();
           if (!before) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const requestedStatus = body.status || "completed";
           if (requestedStatus === "completed") {
@@ -6537,7 +6560,7 @@ export default {
           const nextAttemptAt = retryable ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString() : null;
           const finalStatus = retryable ? "retry_wait" : requestedStatus;
           const update = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')"
+            "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')"
           ).bind(finalStatus,resultText,nextAttemptAt,retryable?"retryable_agent_error":requestedStatus==="blocked"?"non_retryable_agent_error":"",id).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired or changed before result commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'mehran_intelligence',?)")
