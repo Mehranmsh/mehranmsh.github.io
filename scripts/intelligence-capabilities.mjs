@@ -1,6 +1,6 @@
 /**
  * Canonical capability policy for MEHRAN INTELLIGENCE.
- * Only entries marked active are executable by the current scheduled runner.
+ * Executor routing is explicit: Worker Cron, GitHub Actions Runner, or both.
  * Planned entries describe future gates; they do not grant permissions.
  */
 const freezeCapability = (capability) => Object.freeze({
@@ -18,7 +18,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "project_status_report",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executor: "worker_scheduler",
     requiresApproval: false,
     description: "Read project status and produce a private report.",
     inputSchema: {}
@@ -27,7 +27,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "social_metrics_report",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executor: "worker_scheduler",
     requiresApproval: false,
     description: "Read aggregate SOCIAL metrics and produce a private report.",
     inputSchema: {}
@@ -36,7 +36,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "service_health_report",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executor: "worker_scheduler_and_github_actions_runner",
     requiresApproval: false,
     description: "Read service health signals and produce a private report.",
     inputSchema: {}
@@ -45,7 +45,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "repository_quality_check",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executor: "worker_scheduler_and_github_actions_runner",
     requiresApproval: false,
     description: "Inspect repository quality signals without changing files.",
     inputSchema: {}
@@ -54,7 +54,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "source_security_audit",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executor: "github_actions_runner",
     requiresApproval: false,
     description: "Perform a static, read-only source security audit.",
     inputSchema: {}
@@ -164,7 +164,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
 
 export const INTELLIGENCE_ACTION_TYPES = Object.freeze(
   Object.values(INTELLIGENCE_CAPABILITIES)
-    .filter((item) => item.status === "active" && item.executor === "scheduled_runner" && item.permissionTier === "read_only")
+    .filter((item) => item.status === "active" && ["github_actions_runner", "worker_scheduler_and_github_actions_runner"].includes(item.executor) && item.permissionTier === "read_only")
     .map((item) => item.id)
 );
 
@@ -201,7 +201,7 @@ function validateValue(value, rule) {
 export function validateIntelligenceCapabilityRequest(capabilityId, input) {
   const capability = getIntelligenceCapability(capabilityId);
   if (!capability) return { ok: false, code: "unknown_capability" };
-  if (capability.status !== "active" || capability.executor !== "scheduled_runner") {
+  if (capability.status !== "active" || !["github_actions_runner", "worker_scheduler_and_github_actions_runner"].includes(capability.executor)) {
     return { ok: false, code: capability.status === "blocked" ? "capability_blocked" : "capability_not_implemented" };
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
