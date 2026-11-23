@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generatePatchArtifact, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
+import { canonicalizeAppendOnlyHunkHeader, generatePatchArtifact, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
 import { buildPatchGenerationPrompt } from "./intelligence-patch-generation.mjs";
 
 const baseSha = "a".repeat(40);
@@ -100,4 +100,25 @@ test("generated patch normalization converts CRLF and adds the required final ne
 
 test("generated patch normalization rejects bare carriage returns", () => {
   assert.equal(normalizeGeneratedDiff("--- a/file\r+++ b/file"), null);
+});
+
+test("canonicalizes only malformed hunk counts for exact-path additions-only patches", () => {
+  const input = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ malformed header",
+    "+test(\"safe append-only case\", () => {});",
+    "+test(\"second safe case\", () => {});",
+    ""
+  ].join("\n");
+  const output = canonicalizeAppendOnlyHunkHeader(input, 42);
+  assert.equal(output.split("\n")[2], "@@ -42,0 +43,2 @@");
+  assert.equal(output.split("\n").slice(3).join("\n"), input.split("\n").slice(3).join("\n"));
+});
+
+test("does not canonicalize patches with context, deletions, or a different path", () => {
+  const malformed = "--- a/scripts/intelligence-capabilities.test.mjs\n+++ b/scripts/intelligence-capabilities.test.mjs\n@@ broken\n context\n+addition\n";
+  const wrongPath = "--- a/other.js\n+++ b/other.js\n@@ broken\n+addition\n";
+  assert.equal(canonicalizeAppendOnlyHunkHeader(malformed, 42), malformed);
+  assert.equal(canonicalizeAppendOnlyHunkHeader(wrongPath, 42), wrongPath);
 });
