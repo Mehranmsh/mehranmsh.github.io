@@ -5365,11 +5365,15 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   const reportText = JSON.stringify(report, null, 2) + "\n";
   const bytes = new TextEncoder().encode(reportText);
   const expectedReportHash = await sha256(reportText);
-  const existing = await fetch(apiUrl, { method: "GET", headers });
-  if (existing.ok) {
+  async function verifyExistingReport() {
+    const lookup = await fetch(apiUrl, { method: "GET", headers });
+    if (!lookup.ok) {
+      if (lookup.status === 404) return { exists: false };
+      throw new Error(`GitHub report lookup failed with status ${lookup.status}.`);
+    }
     let existingReportText = "";
     try {
-      const existingPayload = await existing.json();
+      const existingPayload = await lookup.json();
       if (existingPayload?.encoding !== "base64" || typeof existingPayload.content !== "string") {
         throw new Error("Existing report response did not include base64 content.");
       }
@@ -5383,10 +5387,12 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
       throw new Error("Existing private report content does not match the current package snapshot.");
     }
     await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
-    return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
+    return { exists: true };
   }
-  if (existing.status !== 404) {
-    throw new Error(`GitHub report lookup failed with status ${existing.status}.`);
+
+  const existing = await verifyExistingReport();
+  if (existing.exists) {
+    return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
   }
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
@@ -5402,10 +5408,18 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     })
   });
   if (!response.ok) {
+    // Another Runner may have won the create race after our initial 404.
+    // Accept only the exact expected artifact; never overwrite a conflicting report.
+    if ([409, 422].includes(response.status)) {
+      const raced = await verifyExistingReport();
+      if (raced.exists) {
+        return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
+      }
+    }
     throw new Error(`GitHub report write failed with status ${response.status}.`);
   }
   await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
-  return { stored: true, alreadyExists: false, path };
+  return { stored: true, alreadyExists: false, path, artifactSha256: expectedReportHash };
 }
 
 async function refreshIntelligenceWorkPackageSnapshot(env, packageId) {
