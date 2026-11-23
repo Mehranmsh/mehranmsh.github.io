@@ -88,7 +88,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
-    run_repository_tests: ["github_actions_runner"]
+    run_repository_tests: ["github_actions_runner"],
+    propose_code_patch: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -106,17 +107,16 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
   );
 });
 
-test("future self-improvement capabilities remain planned and non-executable", () => {
-  for (const id of ["propose_code_patch", "create_pull_request"]) {
-    assert.equal(getIntelligenceCapability(id).status, "planned");
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
-    assert.ok(getIntelligenceCapability(id).executors.length > 0);
-  }
+test("pull request creation remains planned and non-executable", () => {
+  const capability = getIntelligenceCapability("create_pull_request");
+  assert.equal(capability.status, "planned");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
+  assert.ok(capability.executors.length > 0);
 });
 
 test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain blocked", () => {
@@ -134,20 +134,17 @@ test("unknown capabilities and malformed inputs fail closed", () => {
   assert.equal(validateIntelligenceCapabilityRequest("project_status_report", { command: "echo unsafe" }).code, "unknown_input_field");
 });
 
-test("patch proposals enforce bounded typed inputs without applying changes", () => {
-  const good = {
-    summary: "Add a bounded validation helper for repository metadata",
-    targetPaths: ["scripts/intelligence/example.mjs"],
-    diff: "--- a/example\n+++ b/example\n@@ -1 +1 @@\n-old\n+new"
-  };
+test("patch proposals enforce bounded objective input and use the private proposal runner", () => {
+  const good = { objective: "Add one focused regression test for an uncovered parser boundary." };
   const schema = getIntelligenceCapability("propose_code_patch").inputSchema;
-  assert.equal(schema.properties.summary.maxLength, 500);
-  assert.equal(schema.properties.targetPaths.maxItems, 10);
-  assert.equal(schema.properties.diff.maxLength, 20000);
+  assert.equal(schema.properties.objective.minLength, 20);
+  assert.equal(schema.properties.objective.maxLength, 600);
+  assert.deepEqual(schema.required, ["objective"]);
   assert.equal(getIntelligenceCapability("propose_code_patch").requiresApproval, false);
   assert.equal(getIntelligenceCapability("propose_code_patch").autonomous, true);
-  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).code, "capability_not_implemented");
-  assert.deepEqual(getIntelligenceCapability("propose_code_patch").executors, ["proposal_store"]);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { objective: "short" }).ok, false);
+  assert.deepEqual(getIntelligenceCapability("propose_code_patch").executors, ["github_actions_runner"]);
 });
 
 test("PR creation schema requires a scoped proposal branch and immutable head SHA", () => {
