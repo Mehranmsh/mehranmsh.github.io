@@ -411,6 +411,18 @@ test("prepared private patch artifact recovery verifies the exact path and full 
     });
     assert.equal(unsafePath.stored, false);
     assert.equal(unsafePath.code, "invalid_artifact_lookup");
+    const mismatchedPath = "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174099.json";
+    const mismatched = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path: mismatchedPath,
+      artifactSha256: created.artifactSha256,
+      fetchImpl: async () => new Response(JSON.stringify({
+        path: mismatchedPath,
+        encoding: "base64",
+        content: Buffer.from(JSON.stringify(created.artifact), "utf8").toString("base64")
+      }), { status: 200 })
+    });
+    assert.equal(mismatched.stored, false);
+    assert.equal(mismatched.code, "artifact_id_conflict");
   }
 });
 
