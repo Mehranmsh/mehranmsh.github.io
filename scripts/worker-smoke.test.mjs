@@ -422,6 +422,7 @@ test("prepared request recovers after private storage succeeds but its response 
       let values = [];
       return {
         bind(...args) { values = args; return this; },
+        async all() { return { results: [] }; },
         async first() {
           if (sql.includes("FROM intelligence_patch_generation_requests WHERE request_id=?")) {
             return state.request ? { ...state.request } : null;
@@ -699,6 +700,10 @@ test("authenticated patch proposal route stores only verified metadata and retur
     if (options.method === "GET") return new Response("", { status: 404 });
     return new Response(JSON.stringify({ content: { path: "patch-proposals/2026/11/123e4567-e89b-42d3-a456-426614174000.json" } }), { status: 201 });
   };
+  globalThis.__MEHRAN_PATCH_TEST_HOOKS = {
+    store: args => patchStoreModule.storePrivatePatchArtifact(args),
+    verify: args => patchStoreModule.verifyPrivatePatchArtifactAtPath(args)
+  };
   try {
     const response = await request("/agent/v1/patch-proposals", {
       method: "POST",
@@ -721,6 +726,7 @@ test("authenticated patch proposal route stores only verified metadata and retur
     assert.equal(metadata.get(created.artifact.proposalId).diff_sha256, created.artifact.diffSha256);
   } finally {
     globalThis.fetch = originalFetch;
+    delete globalThis.__MEHRAN_PATCH_TEST_HOOKS;
   }
 });
 
