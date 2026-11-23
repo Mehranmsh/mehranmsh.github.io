@@ -1,10 +1,11 @@
 /**
  * Canonical capability policy for MEHRAN INTELLIGENCE.
- * Only entries marked active are executable by the current scheduled runner.
+ * Executor metadata mirrors the real Worker and GitHub Actions claim paths.
  * Planned entries describe future gates; they do not grant permissions.
  */
 const freezeCapability = (capability) => Object.freeze({
   ...capability,
+  executors: Object.freeze([...(capability.executors || [])]),
   inputSchema: Object.freeze({
     type: "object",
     required: Object.freeze([...(capability.inputSchema?.required || [])]),
@@ -18,52 +19,52 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "project_status_report",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executors: ["cloudflare_worker_scheduler"],
     requiresApproval: false,
-    description: "Read project status and produce a private report.",
+    description: "Read project status and produce a private report through the Cloudflare Worker scheduler.",
     inputSchema: {}
   }),
   social_metrics_report: freezeCapability({
     id: "social_metrics_report",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executors: ["cloudflare_worker_scheduler"],
     requiresApproval: false,
-    description: "Read aggregate SOCIAL metrics and produce a private report.",
+    description: "Read aggregate SOCIAL metrics and produce a private report through the Cloudflare Worker scheduler.",
     inputSchema: {}
   }),
   service_health_report: freezeCapability({
     id: "service_health_report",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executors: ["cloudflare_worker_scheduler", "github_actions_runner"],
     requiresApproval: false,
-    description: "Read service health signals and produce a private report.",
+    description: "Read service health signals through the Worker scheduler or the GitHub Actions package runner.",
     inputSchema: {}
   }),
   repository_quality_check: freezeCapability({
     id: "repository_quality_check",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executors: ["cloudflare_worker_scheduler", "github_actions_runner"],
     requiresApproval: false,
-    description: "Inspect repository quality signals without changing files.",
+    description: "Inspect fixed-repository metadata without changing files, through the Worker scheduler or GitHub Actions package runner.",
     inputSchema: {}
   }),
   source_security_audit: freezeCapability({
     id: "source_security_audit",
     status: "active",
     permissionTier: "read_only",
-    executor: "scheduled_runner",
+    executors: ["github_actions_runner"],
     requiresApproval: false,
-    description: "Perform a static, read-only source security audit.",
+    description: "Perform a static, read-only source security audit through the GitHub Actions package runner.",
     inputSchema: {}
   }),
   inspect_repository: freezeCapability({
     id: "inspect_repository",
     status: "planned",
     permissionTier: "read_only",
-    executor: "isolated_inspector",
+    executors: ["isolated_inspector"],
     requiresApproval: false,
     description: "Inspect an allowlisted repository path and summarize relevant code.",
     inputSchema: {
@@ -75,7 +76,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "run_repository_tests",
     status: "planned",
     permissionTier: "isolated_ci",
-    executor: "github_actions",
+    executors: ["github_actions_runner"],
     requiresApproval: true,
     description: "Run only the repository's predefined test workflow in an isolated CI job.",
     inputSchema: {
@@ -87,7 +88,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "propose_code_patch",
     status: "planned",
     permissionTier: "proposal_only",
-    executor: "proposal_store",
+    executors: ["proposal_store"],
     requiresApproval: true,
     description: "Store a bounded, reviewable patch proposal without applying it.",
     inputSchema: {
@@ -103,7 +104,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "create_pull_request",
     status: "planned",
     permissionTier: "branch_scoped_write",
-    executor: "github_actions",
+    executors: ["github_actions_runner"],
     requiresApproval: true,
     description: "Create a review-only PR from a tested, isolated branch.",
     inputSchema: {
@@ -119,7 +120,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "merge_pull_request",
     status: "blocked",
     permissionTier: "human_approval",
-    executor: "owner_only",
+    executors: [],
     requiresApproval: true,
     description: "Merge is never performed autonomously.",
     inputSchema: {}
@@ -128,7 +129,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "deploy",
     status: "blocked",
     permissionTier: "human_approval",
-    executor: "owner_only",
+    executors: [],
     requiresApproval: true,
     description: "Production deployment requires explicit owner approval.",
     inputSchema: {}
@@ -137,7 +138,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "read_secrets",
     status: "blocked",
     permissionTier: "forbidden",
-    executor: "none",
+    executors: [],
     requiresApproval: true,
     description: "Secrets are never exposed to the agent.",
     inputSchema: {}
@@ -146,7 +147,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "wallet_operations",
     status: "blocked",
     permissionTier: "forbidden",
-    executor: "none",
+    executors: [],
     requiresApproval: true,
     description: "The agent cannot access wallets, keys, or move assets.",
     inputSchema: {}
@@ -155,7 +156,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "arbitrary_shell",
     status: "blocked",
     permissionTier: "forbidden",
-    executor: "none",
+    executors: [],
     requiresApproval: true,
     description: "Arbitrary shell or command execution is forbidden.",
     inputSchema: {}
@@ -164,7 +165,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
 
 export const INTELLIGENCE_ACTION_TYPES = Object.freeze(
   Object.values(INTELLIGENCE_CAPABILITIES)
-    .filter((item) => item.status === "active" && item.executor === "scheduled_runner" && item.permissionTier === "read_only")
+    .filter((item) => item.status === "active" && item.permissionTier === "read_only" && item.executors.length > 0)
     .map((item) => item.id)
 );
 
@@ -201,7 +202,7 @@ function validateValue(value, rule) {
 export function validateIntelligenceCapabilityRequest(capabilityId, input) {
   const capability = getIntelligenceCapability(capabilityId);
   if (!capability) return { ok: false, code: "unknown_capability" };
-  if (capability.status !== "active" || capability.executor !== "scheduled_runner") {
+  if (capability.status !== "active" || capability.permissionTier !== "read_only" || capability.executors.length === 0) {
     return { ok: false, code: capability.status === "blocked" ? "capability_blocked" : "capability_not_implemented" };
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
