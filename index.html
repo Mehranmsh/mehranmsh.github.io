@@ -2251,7 +2251,7 @@ reply.textContent="";reply.style.display="none";
 $("intelQuota").textContent="Today: "+(data.usage?.dailyRequests??"—")+"/"+(data.usage?.dailyLimit??10)+" requests · Hourly limit: "+(data.usage?.hourlyLimit??3);
 await loadIntelligenceChatHistory();
 status.textContent="Analysis complete. No company data was changed.";status.className="notice success";
-}catch(error){status.textContent="Assistant unavailable: "+error.message;status.className="notice warn"}
+}catch(error){await loadIntelligenceChatHistory();status.textContent="Assistant unavailable: "+error.message;status.className="notice warn"}
 finally{button.disabled=false}
 }
 $("intelSendBtn")?.addEventListener("click",sendIntelligenceMessage);
