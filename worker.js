@@ -5355,16 +5355,32 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     "User-Agent": "MEHRAN-INTELLIGENCE-Report-Store"
   };
 
+  const reportText = JSON.stringify(report, null, 2) + "\n";
+  const bytes = new TextEncoder().encode(reportText);
+  const expectedReportHash = await sha256(reportText);
   const existing = await fetch(apiUrl, { method: "GET", headers });
   if (existing.ok) {
+    let existingReportText = "";
+    try {
+      const existingPayload = await existing.json();
+      if (existingPayload?.encoding !== "base64" || typeof existingPayload.content !== "string") {
+        throw new Error("Existing report response did not include base64 content.");
+      }
+      const existingBinary = atob(existingPayload.content.replace(/\\s+/g, ""));
+      const existingBytes = Uint8Array.from(existingBinary, character => character.charCodeAt(0));
+      existingReportText = new TextDecoder().decode(existingBytes);
+    } catch {
+      throw new Error("Existing private report could not be verified; refusing to mark it stored.");
+    }
+    if (await sha256(existingReportText) !== expectedReportHash) {
+      throw new Error("Existing private report content does not match the current package snapshot.");
+    }
     await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
-    return { stored: true, alreadyExists: true, path };
+    return { stored: true, alreadyExists: true, path, artifactSha256: expectedReportHash };
   }
   if (existing.status !== 404) {
     throw new Error(`GitHub report lookup failed with status ${existing.status}.`);
   }
-
-  const bytes = new TextEncoder().encode(JSON.stringify(report, null, 2) + "\n");
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
