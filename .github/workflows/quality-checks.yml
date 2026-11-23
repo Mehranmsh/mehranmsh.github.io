@@ -56,6 +56,9 @@ jobs:
       - name: Run Worker smoke tests
         run: node --test scripts/worker-smoke.test.mjs
 
+      - name: Run Intelligence patch generation service retry tests
+        run: node --test scripts/intelligence-patch-generation-service.test.mjs
+
       - name: Run Intelligence capability policy tests
         run: node --check scripts/intelligence-capabilities.mjs && node --test scripts/intelligence-capabilities.test.mjs
 
