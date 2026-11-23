@@ -1057,7 +1057,9 @@ test("private report finalization recovery is owner-authenticated and re-discove
   const agentRoute = workerSource.slice(agentStart, agentEnd);
   assert.match(agentRoute, /path === "\/agent\/v1\/work-packages\/pending-finalization" && method === "GET"/);
   assert.match(agentRoute, /MEHRAN_ORCHESTRATOR_TOKEN/);
-  assert.match(agentRoute, /status IN \('completed','attention_required'\).*LIMIT 20/);
+  assert.match(agentRoute, /status IN \\('completed','attention_required'\\).*report_stored_at IS NULL.*LIMIT 20/);
+  assert.match(workerSource, /ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT/);
+  assert.equal((workerSource.match(/SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\\?/g) || []).length, 2);
   assert.match(runnerSource, /pending-finalization/);
   assert.match(runnerSource, /for \(const id of \(Array\.isArray\(pending\.workPackageIds\)/);
   assert.match(runnerSource, /Re-discover terminal packages on every tick/);
