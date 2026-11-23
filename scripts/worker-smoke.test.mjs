@@ -389,7 +389,7 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
     "HTTP 503 is reserved for prepared-artifact recovery paths that are safe to retry with the same request ID");
 });
 
-test("prepared request recovers after private storage succeeds but its response is lost, without regenerating", async () => {
+test("prepared request recovers across storage response loss and partial D1 finalization without regenerating", async () => {
   const requestId = "recovery-crash-0001";
   const baseSha = "d".repeat(40);
   const objective = "Add a deterministic recovery regression test";
@@ -415,7 +415,9 @@ test("prepared request recovers after private storage succeeds but its response 
     proposal: null,
     generated: 0,
     store: 0,
-    verify: 0
+    verify: 0,
+    proposalInsertAttempts: 0,
+    failNextFinalizeUpdate: true
   };
   const db = {
     prepare(sql) {
@@ -457,6 +459,7 @@ test("prepared request recovers after private storage succeeds but its response 
             return { meta: { changes: 1 } };
           }
           if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_proposals")) {
+            state.proposalInsertAttempts += 1;
             const [proposalId,baseShaValue,targetPath,summary,path,artifactSha,diffSha,createdAt] = values;
             if (!state.proposal) state.proposal = {
               proposal_id:proposalId,base_sha:baseShaValue,target_path:targetPath,summary,
@@ -466,6 +469,10 @@ test("prepared request recovers after private storage succeeds but its response 
           }
           if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='stored'")) {
             const [id,artifactSha] = values;
+            if (state.failNextFinalizeUpdate) {
+              state.failNextFinalizeUpdate = false;
+              return { meta: { changes: 0 } };
+            }
             if (state.request?.request_id === id && state.request.status === "prepared" &&
                 state.request.artifact_sha256 === artifactSha) state.request.status = "stored";
             return { meta: { changes: 1 } };
@@ -510,6 +517,18 @@ test("prepared request recovers after private storage succeeds but its response 
     assert.equal(state.proposal, null);
     assert.equal(state.generated, 1);
     assert.equal(state.store, 1);
+    assert.equal(state.verify, 0);
+
+    const finalizeInterrupted = await request("/agent/v1/patch-proposals/generate", {
+      method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
+    }, env);
+    assert.equal(finalizeInterrupted.status, 503);
+    assert.equal(state.request.status, "prepared");
+    assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
+    assert.equal(state.proposalInsertAttempts, 1);
+    assert.equal(state.generated, 1);
+    assert.equal(state.store, 1);
+    assert.equal(state.verify, 1);
 
     const retry = await request("/agent/v1/patch-proposals/generate", {
       method: "POST", headers: { Authorization: "Bearer " + "s".repeat(48) }, body: payload
@@ -521,7 +540,8 @@ test("prepared request recovers after private storage succeeds but its response 
     assert.equal(recovered.path, artifactPath);
     assert.equal(state.generated, 1, "recovery must not invoke AI generation a second time");
     assert.equal(state.store, 1, "recovery must not attempt another private artifact write");
-    assert.equal(state.verify, 1, "recovery must verify the already-persisted private artifact");
+    assert.equal(state.verify, 2, "each recovery must verify the already-persisted private artifact");
+    assert.equal(state.proposalInsertAttempts, 2, "proposal insert must be safely repeatable");
     assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
     assert.equal(state.request.status, "stored");
   } finally {
