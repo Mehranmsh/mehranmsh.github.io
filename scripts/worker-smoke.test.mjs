@@ -2959,7 +2959,7 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
   assert.equal(winners.length, 1, "only one concurrent claimant may receive the task");
   const oldToken = winners[0].claimToken;
   assert.match(oldToken, /^[A-Za-z0-9_-]{43}$/);
-  assert.equal(state.row.agent_claim_token_hash.length, 64);
+  assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
 
   // Simulate passage beyond the 15-minute claim window, then let the real route
   // recover and issue a fresh claim to the next runner.
