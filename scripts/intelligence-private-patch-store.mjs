@@ -118,7 +118,7 @@ export async function verifyPrivatePatchArtifactAtPath({
   fetchImpl = fetch
 } = {}) {
   if (typeof token !== "string" || token.trim().length < 40 ||
-      typeof path !== "string" || !/^patch-proposals\\/\\d{4}\\/\\d{2}\\/[a-f0-9-]{36}\\.json$/.test(path) ||
+      typeof path !== "string" || !/^patch-proposals\/\d{4}\/\d{2}\/[a-f0-9-]{36}\.json$/.test(path) ||
       typeof artifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(artifactSha256)) {
     return fail("invalid_artifact_lookup");
   }
