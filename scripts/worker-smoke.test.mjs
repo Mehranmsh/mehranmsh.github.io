@@ -3153,6 +3153,40 @@ test("real Worker result route rejects a terminal commit when expiry recovery wi
 });
 
 
+test("real Worker result route accepts only one concurrent terminal commit for a claim", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb();
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const claimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(claimResponse.status, 200);
+  const claim = (await claimResponse.json()).task;
+  assert.ok(claim);
+
+  const submit = result => request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: claim.claimToken, status: "blocked", retryable: false, result }
+  }, env);
+  const responses = await Promise.all([
+    submit("first terminal result"),
+    submit("competing terminal result")
+  ]);
+
+  assert.deepEqual(responses.map(response => response.status).sort(), [200, 409],
+    "only one concurrent terminal result may consume the active claim");
+  assert.ok(
+    ["first terminal result", "competing terminal result"].includes(state.row.result_text),
+    "the accepted result must be one of the two submitted values"
+  );
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "",
+    "the winning terminal result must revoke the shared claim token");
+});
+
+
 test("real Worker task recovery preserves durable checkpoints and fences the crashed runner", async () => {
   const token = "test-agent-token-".padEnd(48, "x");
   const { db, state } = makeClaimLifecycleDb();
