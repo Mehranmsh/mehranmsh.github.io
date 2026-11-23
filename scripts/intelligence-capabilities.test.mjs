@@ -20,7 +20,7 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all seven active capabilities are registered with their permission tiers", () => {
+test("all eight active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -28,7 +28,8 @@ test("all seven active capabilities are registered with their permission tiers",
     "repository_quality_check",
     "source_security_audit",
     "inspect_repository",
-    "run_repository_tests"
+    "run_repository_tests",
+    "propose_code_patch"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
@@ -36,12 +37,14 @@ test("all seven active capabilities are registered with their permission tiers",
     const item = getIntelligenceCapability(id);
     const isolated = id === "run_repository_tests";
     assert.equal(item.status, "active");
-    assert.equal(item.permissionTier, isolated ? "isolated_ci" : "read_only");
+    const expectedTier = isolated ? "isolated_ci" : id === "propose_code_patch" ? "proposal_only" : "read_only";
+    assert.equal(item.permissionTier, expectedTier);
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
-      : isolated ? { baseSha: "a".repeat(40) } : {};
+      : isolated ? { baseSha: "a".repeat(40) }
+      : id === "propose_code_patch" ? { objective: "Add one focused regression test for an uncovered parser boundary." } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
