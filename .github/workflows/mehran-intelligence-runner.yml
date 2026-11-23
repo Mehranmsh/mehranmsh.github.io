@@ -1,4 +1,5 @@
 name: MEHRAN INTELLIGENCE private work-package runner
+# Trigger a fresh bounded tick after the verified Worker diagnostics deployment.
 
 on:
   push:
