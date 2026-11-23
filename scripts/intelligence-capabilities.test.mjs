@@ -791,3 +791,17 @@ test("Intelligence task recovery is claim-token scoped, bounded, and attempt lim
   assert.match(claimRoute, /agent_claim_token_hash=\?/);
   assert.match(claimRoute, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\)/);
 });
+
+test("Intelligence task result commits require the live claim and apply bounded exponential retry", () => {
+  const start = workerSource.indexOf('const agentResultMatch = path.match(/^\\/agent\\/v1\\/tasks\\/([^/]+)\\/result$/);');
+  const end = workerSource.indexOf('return error("Not found",404);', start);
+  assert.ok(start >= 0 && end > start);
+  const resultRoute = workerSource.slice(start, end);
+  assert.match(resultRoute, /status='in_progress' AND agent_claim_token_hash=\?/);
+  assert.match(resultRoute, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
+  assert.match(resultRoute, /body\.retryable === true && Number\(before\.attempts \|\| 0\) < Number\(before\.max_attempts \|\| 3\)/);
+  assert.match(resultRoute, /Math\.min\(3600,30 \* \(2 \*\* Math\.max\(0,Number\(before\.attempts \|\| 1\)-1\)\)\)/);
+  assert.match(resultRoute, /const finalStatus = retryable \? "retry_wait" : requestedStatus/);
+  assert.match(resultRoute, /agent_claim_token_hash='',next_attempt_at=\?/);
+  assert.match(resultRoute, /Task claim expired or changed before result commit/);
+});
