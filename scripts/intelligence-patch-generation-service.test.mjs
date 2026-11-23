@@ -60,7 +60,7 @@ test("patch generation uses the independent Atom ref after REST API failures", a
   let calls = 0;
   const result = await generatePatchArtifact({
     env,
-    baseSha: currentSha,
+    baseSha,
     objective: "Add a focused regression test for a verified edge case",
     reserveBudget: async () => ({ allowed: true }),
     fetchImpl: async url => {
@@ -75,5 +75,5 @@ test("patch generation uses the independent Atom ref after REST API failures", a
     }
   });
   assert.equal(calls, 4);
-  assert.deepEqual(result, { ok: false, code: "source_fetch_failed" });
+  assert.deepEqual(result, { ok: false, code: "stale_base_sha" });
 });
