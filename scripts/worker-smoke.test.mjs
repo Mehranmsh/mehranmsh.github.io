@@ -443,7 +443,7 @@ test("private patch artifact storage treats a matching existing artifact as idem
   const diff = [
     `--- a/${targetPath}`,
     `+++ b/${targetPath}`,
-    "@@ -1 +1 @@",
+    "@@ -0,0 +1 @@",
     "+// deterministic recovery fixture",
     ""
   ].join("\n");
