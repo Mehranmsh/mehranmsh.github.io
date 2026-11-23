@@ -107,7 +107,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
     id: "propose_code_patch",
     status: "active",
     permissionTier: "proposal_only",
-    executors: ["proposal_store"],
+    executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
     description: "Generate and store an append-only test-only patch proposal in the private reports repository; never apply source changes.",
