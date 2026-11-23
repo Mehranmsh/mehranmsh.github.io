@@ -305,7 +305,7 @@ test("Agent patch proposal runner checkpoints an immutable base and submits a st
   assert.match(runnerSource, /requestId: task\.id/);
   assert.match(runnerSource, /checkpoint: \{ baseSha \}/);
   assert.match(runnerSource, /retryable = Number\(error\?\.status\) === 503/);
-  assert.match(runnerSource, /JSON\.stringify\(\{ status, result, retryable \}\)/);
+  assert.match(runnerSource, /JSON\.stringify\(\{ status, result, retryable, claimToken: task\.claimToken \}\)/);
   assert.match(workerSource, /parsedReport\.requestId !== id/);
   assert.match(workerSource, /checkpoint\.baseSha !== parsedReport\.baseSha/);
   assert.match(workerSource, /parsedReport\.requestHash !== expectedHash/);
@@ -2778,7 +2778,7 @@ test("private report persistence is a no-op until its dedicated Worker secret is
 
 test("Agent task claim tokens fence checkpoint and result commits to the current runner", () => {
   assert.match(workerSource, /agent_claim_token_hash TEXT NOT NULL DEFAULT ''/);
-  assert.match(workerSource, /agent_claim_token_hash=\?/);
+  assert.match(workerSource, /const claimTokenHash = claimToken \\? await sha256\\(claimToken\\) : "";/);\n  assert.match(workerSource, /agent_claim_token_hash=\?/);
   assert.match(workerSource, /Task claim not found, superseded, or expired/);
   assert.match(workerSource, /agent_claim_token_hash='',next_attempt_at/);
   assert.match(runnerSource, /claimToken: task\.claimToken/);
