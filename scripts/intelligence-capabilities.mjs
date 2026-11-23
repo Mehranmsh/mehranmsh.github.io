@@ -92,7 +92,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
   }),
   run_repository_tests: freezeCapability({
     id: "run_repository_tests",
-    status: "planned",
+    status: "active",
     permissionTier: "isolated_ci",
     executors: ["github_actions_runner"],
     requiresApproval: false,
@@ -186,13 +186,13 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
 
 export const INTELLIGENCE_ACTION_TYPES = Object.freeze(
   Object.values(INTELLIGENCE_CAPABILITIES)
-    .filter((item) => item.status === "active" && item.permissionTier === "read_only" && item.executors.length > 0)
+    .filter((item) => item.status === "active" && ["read_only", "isolated_ci"].includes(item.permissionTier) && item.executors.length > 0)
     .map((item) => item.id)
 );
 
 export const PREAPPROVED_INTELLIGENCE_ACTION_TYPES = Object.freeze(
   Object.values(INTELLIGENCE_CAPABILITIES)
-    .filter((item) => item.status === "active" && item.requiresApproval === false && item.permissionTier === "read_only")
+    .filter((item) => item.status === "active" && item.requiresApproval === false && ["read_only", "isolated_ci"].includes(item.permissionTier))
     .map((item) => item.id)
 );
 
@@ -226,7 +226,7 @@ function validateValue(value, rule) {
 export function validateIntelligenceCapabilityRequest(capabilityId, input) {
   const capability = getIntelligenceCapability(capabilityId);
   if (!capability) return { ok: false, code: "unknown_capability" };
-  if (capability.status !== "active" || capability.permissionTier !== "read_only" || capability.executors.length === 0) {
+  if (capability.status !== "active" || !["read_only", "isolated_ci"].includes(capability.permissionTier) || capability.executors.length === 0) {
     return { ok: false, code: capability.status === "blocked" ? "capability_blocked" : "capability_not_implemented" };
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
