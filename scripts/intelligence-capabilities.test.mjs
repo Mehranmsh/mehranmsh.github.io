@@ -889,3 +889,40 @@ test("Notification delivery leases are bounded, acknowledged with the lease toke
   assert.match(ack, /outcome === "retry" && Number\(row\.attempts\|\|0\) < 5/);
   assert.match(ack, /"delivered","retry","failed"/);
 });
+
+test("Owner notifications are archived idempotently in the private reports repository before delivery acknowledgement", () => {
+  const helperStart = workerSource.indexOf("async function persistIntelligenceNotification");
+  const helperEnd = workerSource.indexOf("export async function persistIntelligencePackageReport", helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const helper = workerSource.slice(helperStart, helperEnd);
+  assert.match(helper, /MEHRAN_REPORTS_GITHUB_TOKEN/);
+  assert.match(helper, /Mehranmsh\/mehran-intelligence-reports/);
+  assert.match(helper, /notifications\//);
+  assert.match(helper, /method:"GET"/);
+  assert.match(helper, /method:"PUT"/);
+  assert.match(helper, /await sha256\(existingText\) !== expectedHash/);
+  assert.match(helper, /\[409,422\]\.includes\(response\.status\)/);
+  assert.doesNotMatch(helper, /return \{[^}]*token/);
+
+  const routeStart = workerSource.indexOf("const notificationMatch = path.startsWith");
+  const routeEnd = workerSource.indexOf('if (path === "/agent/v1/work-packages/pending-finalization"', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart);
+  const route = workerSource.slice(routeStart, routeEnd);
+  assert.match(route, /SELECT id,event_id,channel,payload_json,created_at,attempts,status FROM intelligence_notification_outbox/);
+  assert.ok(route.indexOf("persistIntelligenceNotification(env, row)") < route.indexOf("UPDATE intelligence_notification_outbox SET status=?"));
+  assert.match(route, /Private notification archive failed:[\s\S]*?,503/);
+});
+
+test("Runner archives owner notifications only through the authenticated Worker and never exposes the private archive token", () => {
+  const start = runnerSource.indexOf("// Archive owner-private notifications through the Worker");
+  const end = runnerSource.indexOf("`[performance] tick_total:", start);
+  assert.ok(start >= 0 && end > start);
+  const delivery = runnerSource.slice(start, end);
+  assert.match(delivery, /notifications\/next/);
+  assert.match(delivery, /status: "delivered"/);
+  assert.match(delivery, /status: "retry"/);
+  assert.match(delivery, /count < 10/);
+  assert.match(delivery, /notification\.channel !== "owner_private"/);
+  assert.doesNotMatch(delivery, /MEHRAN_REPORTS_GITHUB_TOKEN|secrets\./);
+  assert.doesNotMatch(delivery, /payload\.counts|payload\.workPackageId/);
+});
