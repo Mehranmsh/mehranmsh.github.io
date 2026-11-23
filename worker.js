@@ -7912,6 +7912,14 @@ export default {
         const assignedTo=body.assignedTo||"mehran_intelligence",priority=body.priority||"normal";
         const actionType=body.actionType||"";
         const allowedActionTypes=INTELLIGENCE_ACTION_TYPES;
+        let actionPayload={};
+        if(actionType==="propose_code_patch"){
+          const supplied=body.actionPayload;
+          if(!supplied||typeof supplied!=="object"||Array.isArray(supplied)||Object.keys(supplied).join(",")!=="objective"||typeof supplied.objective!=="string"||supplied.objective.trim().length<12||supplied.objective.length>800)return error("A bounded patch proposal objective is required.");
+          actionPayload={objective:supplied.objective.trim()};
+        }else if(body.actionPayload!==undefined){
+          return error("This task action does not accept a custom payload through the task hub.");
+        }
         if(!title||title.length<4||typeof body.description!=="string"||body.description.length>3000)return error("A task title and description are required.");
         if(!["mehran_intelligence","chatgpt","shared"].includes(assignedTo)||!["low","normal","high"].includes(priority)|| (body.requiresApproval!==undefined&&typeof body.requiresApproval!=="boolean")||typeof actionType!=="string"||!["",...allowedActionTypes].includes(actionType))return error("Invalid task assignment, priority, approval flag or action type.");
         if(actionType&&assignedTo==="chatgpt")return error("Allowlisted report actions must be assigned to mehran_intelligence or shared so the execution service can claim them.");
@@ -7919,7 +7927,7 @@ export default {
         const autoApproved=preapprovedActions.includes(actionType)&&["mehran_intelligence","shared"].includes(assignedTo)&&body.requiresApproval!==true;
         const requiresApproval=Boolean(body.requiresApproval|| (actionType&&!autoApproved));
         const id=crypto.randomUUID();
-        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type) VALUES(?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType).run();
+        await env.DB.prepare("INSERT INTO intelligence_tasks(id,title,description,assigned_to,priority,status,requires_approval,created_by,action_type,action_payload) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(id,title,description,assignedTo,priority,requiresApproval?'awaiting_approval':'queued',requiresApproval?1:0,admin.username,actionType,JSON.stringify(actionPayload)).run();
         await writeAdminAudit(env,admin,"collaboration_task_created","intelligence_task",id,JSON.stringify({assignedTo,priority,actionType,requiresApproval}));
         const row=await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(id).first();
         return json({success:true,task:formatIntelligenceTask(row)},201);
