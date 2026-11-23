@@ -5511,7 +5511,7 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
     plannerReason: cleanText(reason, 80) || "ai_unavailable",
     mission,
     planSummary,
-    allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"],
+    allowedActions: ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"],
     forbidden: ["source_changes", "deployment", "secret_changes", "account_mutations", "financial_actions", "external_user_actions"]
   };
   const tasks = [
