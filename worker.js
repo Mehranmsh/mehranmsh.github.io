@@ -6371,11 +6371,33 @@ export default {
           const targetPath = "scripts/intelligence-capabilities.test.mjs";
           const sourceResponse = await fetch("https://raw.githubusercontent.com/Mehranmsh/mehranmsh.github.io/" + baseSha + "/" + targetPath);
           if (!sourceResponse.ok) return error("Could not read the allowlisted test file at the verified main commit.",503);
-          const sourceBytes = await sourceResponse.arrayBuffer();
-          if (!sourceBytes.byteLength || sourceBytes.byteLength > 100000) {
-            return error("The allowlisted source file is empty or exceeds the generation limit.",413);
+          if (!sourceResponse.body) return error("The allowlisted source response has no readable body.",503);
+          const sourceReader = sourceResponse.body.getReader();
+          const sourceChunks = [];
+          let sourceByteCount = 0;
+          while (true) {
+            const chunk = await sourceReader.read();
+            if (chunk.done) break;
+            sourceByteCount += chunk.value.byteLength;
+            if (sourceByteCount > 100000) {
+              await sourceReader.cancel();
+              return error("The allowlisted source file exceeds the 100 KB generation limit.",413);
+            }
+            sourceChunks.push(chunk.value);
           }
-          const source = new TextDecoder("utf-8", { fatal:true }).decode(sourceBytes);
+          if (!sourceByteCount) return error("The allowlisted source file is empty.",413);
+          const sourceBytes = new Uint8Array(sourceByteCount);
+          let sourceOffset = 0;
+          for (const chunk of sourceChunks) {
+            sourceBytes.set(chunk,sourceOffset);
+            sourceOffset += chunk.byteLength;
+          }
+          let source;
+          try {
+            source = new TextDecoder("utf-8", { fatal:true }).decode(sourceBytes);
+          } catch {
+            return error("The allowlisted source file is not valid UTF-8.",422);
+          }
           const prompt = buildPatchGenerationMessages({ baseSha, objective:body.objective, source });
           if (!prompt.ok) return error("Patch generation input failed validation.",400);
 
