@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generatePatchArtifact } from "./intelligence-patch-generation-service.mjs";
+import { generatePatchArtifact, normalizeGeneratedDiff } from "./intelligence-patch-generation-service.mjs";
 
 const baseSha = "a".repeat(40);
 const currentSha = "b".repeat(40);
@@ -76,4 +76,14 @@ test("patch generation uses the independent Atom ref after REST API failures", a
   });
   assert.equal(calls, 4);
   assert.deepEqual(result, { ok: false, code: "stale_base_sha" });
+});
+
+
+test("generated patch normalization converts CRLF and adds the required final newline", () => {
+  assert.equal(normalizeGeneratedDiff("--- a/file\r\n+++ b/file\r\n@@ -1,0 +2,1 @@\r\n+test"), "--- a/file\n+++ b/file\n@@ -1,0 +2,1 @@\n+test\n");
+  assert.equal(normalizeGeneratedDiff("--- a/file\n+++ b/file\n"), "--- a/file\n+++ b/file\n");
+});
+
+test("generated patch normalization rejects bare carriage returns", () => {
+  assert.equal(normalizeGeneratedDiff("--- a/file\r+++ b/file"), null);
 });
