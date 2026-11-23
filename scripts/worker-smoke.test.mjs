@@ -2789,6 +2789,66 @@ test("private report persistence writes a minimized JSON report to the dedicated
   }
 });
 
+test("private report finalization verifies existing artifact bytes before marking them stored", async () => {
+  const originalFetch = globalThis.fetch;
+  let storedContent = "";
+  let mode = "missing";
+  let markerWrites = 0;
+  globalThis.fetch = async (_url, init = {}) => {
+    if (init.method === "PUT") {
+      storedContent = JSON.parse(init.body).content;
+      return new Response(JSON.stringify({ content: { path: "reports/2026/11/package-verify.json" } }), { status: 201 });
+    }
+    if (mode === "missing") return new Response("Not Found", { status: 404 });
+    const content = mode === "matching" ? storedContent : btoa("tampered report");
+    return new Response(JSON.stringify({ encoding: "base64", content }), { status: 200 });
+  };
+  const db = {
+    prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes("SELECT id,created_at FROM intelligence_work_packages")) {
+            return { id: "package-verify", created_at: "2026-11-22T20:00:00.000Z" };
+          }
+          throw new Error("Unexpected first query: " + sql);
+        },
+        async all() {
+          if (sql.includes("FROM intelligence_tasks WHERE work_package_id")) {
+            return { results: [{ id: "task-verify", status: "completed", action_type: "service_health_report",
+              attempts: 1, max_attempts: 3, last_error_code: "", result_text: "{}" }] };
+          }
+          throw new Error("Unexpected all query: " + sql);
+        },
+        async run() { markerWrites += 1; return { success: true, meta: { changes: 1 } }; }
+      };
+    }
+  };
+  const env = { DB: db, MEHRAN_REPORTS_GITHUB_TOKEN: "x".repeat(48) };
+  const snapshot = { status: "completed", generatedAt: "2026-11-22T20:00:00.000Z", counts: { total: 1, completed: 1 } };
+  try {
+    const first = await persistIntelligencePackageReport(env, "package-verify", snapshot);
+    assert.equal(first.stored, true);
+    assert.equal(first.alreadyExists, false);
+    assert.equal(markerWrites, 1);
+
+    mode = "matching";
+    const recovered = await persistIntelligencePackageReport(env, "package-verify", snapshot);
+    assert.equal(recovered.stored, true);
+    assert.equal(recovered.alreadyExists, true);
+    assert.equal(markerWrites, 2, "verified existing bytes may complete the recovery marker");
+
+    mode = "tampered";
+    await assert.rejects(
+      persistIntelligencePackageReport(env, "package-verify", snapshot),
+      /does not match the current package snapshot/
+    );
+    assert.equal(markerWrites, 2, "a conflicting artifact must never be marked as finalized");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("private report persistence is a no-op until its dedicated Worker secret is configured", async () => {
   const result = await persistIntelligencePackageReport(
     { DB: {} },
