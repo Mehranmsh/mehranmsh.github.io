@@ -40,7 +40,7 @@ function headers(token, json = false) {
   };
 }
 
-async function verifyExisting(response, expectedSha256) {
+async function verifyExisting(response, expectedSha256, expectedPath = null) {
   let payload;
   try { payload = await response.json(); } catch { return fail("existing_artifact_unreadable"); }
   if (payload?.encoding !== "base64" || typeof payload.content !== "string") {
@@ -51,6 +51,9 @@ async function verifyExisting(response, expectedSha256) {
     existing = JSON.parse(decodeBase64Utf8(payload.content));
   } catch {
     return fail("existing_artifact_invalid_json");
+  }
+  if (expectedPath && getPrivatePatchArtifactPath(existing) !== expectedPath) {
+    return fail("artifact_path_mismatch");
   }
   const verified = await verifyPatchArtifactRecord(existing, expectedSha256);
   if (!verified.ok) return fail("artifact_id_conflict");
@@ -80,7 +83,7 @@ export async function storePrivatePatchArtifact({
   try { existing = await fetchImpl(url, { method: "GET", headers: requestHeaders }); }
   catch { return fail("artifact_lookup_failed"); }
   if (existing.ok) {
-    const verifiedExisting = await verifyExisting(existing, artifactSha256);
+    const verifiedExisting = await verifyExisting(existing, artifactSha256, path);
     return verifiedExisting.stored && verifiedExisting.path === path ? verifiedExisting : fail("artifact_id_conflict");
   }
   if (existing.status !== 404) return fail("artifact_lookup_failed");
@@ -104,7 +107,7 @@ export async function storePrivatePatchArtifact({
     try { raced = await fetchImpl(url, { method: "GET", headers: requestHeaders }); }
     catch { return fail("artifact_lookup_failed"); }
     if (raced.ok) {
-      const verifiedRace = await verifyExisting(raced, artifactSha256);
+      const verifiedRace = await verifyExisting(raced, artifactSha256, path);
       return verifiedRace.stored && verifiedRace.path === path ? verifiedRace : fail("artifact_id_conflict");
     }
   }
@@ -128,7 +131,7 @@ export async function verifyPrivatePatchArtifactAtPath({
   catch { return fail("artifact_lookup_failed"); }
   if (response.status === 404) return fail("artifact_not_found");
   if (!response.ok) return fail("artifact_lookup_failed");
-  const verified = await verifyExisting(response, artifactSha256);
+  const verified = await verifyExisting(response, artifactSha256, path);
   if (!verified.stored || verified.path !== path) return fail("artifact_id_conflict");
   return verified;
 }
