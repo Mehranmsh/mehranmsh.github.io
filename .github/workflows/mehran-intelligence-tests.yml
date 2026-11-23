@@ -1,0 +1,60 @@
+name: MEHRAN INTELLIGENCE isolated repository tests
+
+run-name: "MEHRAN INTELLIGENCE isolated tests @ ${{ inputs.base_sha }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: "Exact 40-character main-branch commit SHA to validate"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mehran-intelligence-isolated-tests
+  cancel-in-progress: false
+
+jobs:
+  fixed-test-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out the exact requested commit without persisting credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.base_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify commit identity and main-branch ancestry
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Rejected: base_sha must be a lowercase 40-character commit SHA."
+            exit 1
+          fi
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" origin/main
+          echo "Verified immutable commit $BASE_SHA is an ancestor of origin/main."
+
+      - name: Run the one fixed policy test in a network-isolated container
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 64 \
+            --memory 768m \
+            --cpus 1 \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace,readonly" \
+            --workdir /workspace \
+            node:22-alpine \
+            node --test scripts/intelligence-capabilities.test.mjs
