@@ -50,6 +50,7 @@ The capability registry is the canonical routing map:
 - `project_status_report` and `social_metrics_report`: Cloudflare Worker scheduled handler only.
 - `service_health_report` and `repository_quality_check`: both the Worker scheduled handler and GitHub Actions package runner may execute these bounded read-only tasks. Both paths use conditional state transitions when claiming a task, so only one executor can claim a given eligible task.
 - `source_security_audit`: GitHub Actions package runner only.
+- `inspect_repository`: GitHub Actions package runner only; reads 1-6 exact allowlisted files from one immutable `main` commit, capped at 500 KB per file and 750 KB total. It extracts bounded declaration names and file metadata only; repository content is never executed or treated as instructions.
 
 The registry stores executor identities as an explicit list. The GitHub Runner's action allowlist must be checked against the registry and the Worker scheduled handler. An active capability does not imply that every executor can run it. Any routing change must update registry metadata, executor allowlists, and regression tests together.
 
