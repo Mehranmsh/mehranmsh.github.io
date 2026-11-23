@@ -6546,7 +6546,7 @@ export default {
           }
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
-          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')").bind(id).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type,action_payload FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests')").bind(id).first();
           if (!before) return error("Task not found, not assigned to this agent, or not in progress.",409);
           const requestedStatus = body.status || "completed";
           if (requestedStatus === "completed") {
@@ -6554,6 +6554,13 @@ export default {
             try { parsedReport = JSON.parse(resultText); } catch { return error("Completed task results must be valid JSON reports.",422); }
             const acceptance = verifyIntelligenceReport(before.action_type, parsedReport);
             if (!acceptance.passed) return error("Task result failed independent schema verification: " + acceptance.checks.join(","),422);
+            if (before.action_type === "run_repository_tests") {
+              let expectedPayload;
+              try { expectedPayload = JSON.parse(before.action_payload || "{}"); } catch { return error("Stored test-task payload is invalid.",422); }
+              if (!expectedPayload || expectedPayload.baseSha !== parsedReport.baseSha) {
+                return error("Test report commit does not match the immutable task commit.",422);
+              }
+            }
           }
           const retryable = requestedStatus === "blocked" && body.retryable === true && Number(before.attempts || 0) < Number(before.max_attempts || 3);
           const retryDelaySeconds = Math.min(3600,30 * (2 ** Math.max(0,Number(before.attempts || 1)-1)));
