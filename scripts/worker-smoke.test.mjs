@@ -1211,7 +1211,7 @@ test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets unde
   assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
   assert.match(workerSource, /WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS workers_ai_daily_budget/);
-  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 1000 \}/);
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 3000 \}/);
   assert.match(workerSource, /ensureColumn\("workers_ai_daily_budget", "intelligence_reserved"/);
   assert.match(workerSource, /total_reserved/);
   assert.match(workerSource, /music_reserved/);
