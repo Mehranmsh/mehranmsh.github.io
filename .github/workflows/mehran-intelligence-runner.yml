@@ -82,21 +82,34 @@ jobs:
           async function request(path, options = {}, headers = agentHeaders, timeoutMs = 20000) {
             const requestStartedAt = Date.now();
             try {
-            const response = await fetch(base + path, {
-              ...options,
-              headers: { ...headers, ...(options.headers || {}) },
-              signal: AbortSignal.timeout(timeoutMs)
-            });
-            const raw = await response.text();
-            let payload;
-            try { payload = raw ? JSON.parse(raw) : {}; }
-            catch { throw new Error(`Agent API returned non-JSON HTTP ${response.status}`); }
-            if (!response.ok) {
-              const failure = new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
-              failure.status = response.status;
-              throw failure;
-            }
-            return payload;
+              let lastError;
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  const response = await fetch(base + path, {
+                    ...options,
+                    headers: { ...headers, ...(options.headers || {}) },
+                    signal: AbortSignal.timeout(timeoutMs)
+                  });
+                  const raw = await response.text();
+                  let payload;
+                  try { payload = raw ? JSON.parse(raw) : {}; }
+                  catch { throw new Error(`Agent API returned non-JSON HTTP ${response.status}`); }
+                  if (!response.ok) {
+                    const failure = new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
+                    failure.status = response.status;
+                    throw failure;
+                  }
+                  return payload;
+                } catch (error) {
+                  lastError = error;
+                  const transientNetworkFailure = error instanceof TypeError ||
+                    /ECONNRESET|ECONNREFUSED|EPIPE|fetch failed|socket hang up/i.test(String(error?.message || error));
+                  if (!transientNetworkFailure || attempt === 2) throw error;
+                  console.log(`Transient Agent API network failure; retrying attempt ${attempt + 2}/3 for ${path}.`);
+                  await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+                }
+              }
+              throw lastError || new Error("Agent API request failed after retries.");
             } finally {
               recordTiming(`api:${timingRoute(path)}`, requestStartedAt);
             }
