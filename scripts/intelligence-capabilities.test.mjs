@@ -164,8 +164,8 @@ const isolatedTestWorkflowSource = readFileSync(
 
 test("isolated test workflow runs one fixed suite without secrets or network access", () => {
   assert.match(isolatedTestWorkflowSource, /workflow_dispatch:/);
-  assert.match(isolatedTestWorkflowSource, /permissions:\\s*\\n\\s*contents:\\s*read/);
-  assert.match(isolatedTestWorkflowSource, /persist-credentials:\\s*false/);
+  assert.match(isolatedTestWorkflowSource, /permissions:\s*\n\s*contents:\s*read/);
+  assert.match(isolatedTestWorkflowSource, /persist-credentials:\s*false/);
   assert.match(isolatedTestWorkflowSource, /git merge-base --is-ancestor/);
   assert.match(isolatedTestWorkflowSource, /--network none/);
   assert.match(isolatedTestWorkflowSource, /--read-only/);
@@ -176,12 +176,12 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.match(isolatedTestWorkflowSource, /--cpus 1/);
   assert.match(isolatedTestWorkflowSource, /--tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
   assert.match(isolatedTestWorkflowSource, /dst=\/workspace,readonly/);
-  assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\\.test\\.mjs/);
-  assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\\s*write/);
-  assert.doesNotMatch(isolatedTestWorkflowSource, /npm\\s+(?:install|run)|pnpm\\s+(?:install|run)|yarn\\s+(?:install|run)/);
+  assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\s*write/);
+  assert.doesNotMatch(isolatedTestWorkflowSource, /npm\s+(?:install|run)|pnpm\s+(?:install|run)|yarn\s+(?:install|run)/);
 
   assert.doesNotMatch(
     readFileSync(new URL("./intelligence-capabilities.test.mjs", import.meta.url), "utf8"),
-    /node:child_process|node:net|node:http|node:https|node:worker_threads|spawnSync|execFile|process\\.env|fetch\\(/
+    /node:child_process|node:net|node:http|node:https|node:worker_threads|spawnSync|execFile|process\.env|fetch\(/
   );
 });
