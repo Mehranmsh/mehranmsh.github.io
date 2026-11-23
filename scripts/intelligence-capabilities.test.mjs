@@ -21,7 +21,7 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all seven active capabilities are registered with their permission tiers", () => {
+test("all eight active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -29,20 +29,23 @@ test("all seven active capabilities are registered with their permission tiers",
     "repository_quality_check",
     "source_security_audit",
     "inspect_repository",
-    "run_repository_tests"
+    "run_repository_tests",
+    "propose_code_patch"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
   for (const id of expected) {
     const item = getIntelligenceCapability(id);
     const isolated = id === "run_repository_tests";
+    const proposal = id === "propose_code_patch";
     assert.equal(item.status, "active");
-    assert.equal(item.permissionTier, isolated ? "isolated_ci" : "read_only");
+    assert.equal(item.permissionTier, proposal ? "proposal_only" : isolated ? "isolated_ci" : "read_only");
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
     const input = id === "inspect_repository"
       ? { paths: ["worker.js"] }
-      : isolated ? { baseSha: "a".repeat(40) } : {};
+      : isolated ? { baseSha: "a".repeat(40) }
+      : proposal ? { objective: "Add a regression test for a safe parser boundary" } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
@@ -86,7 +89,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
     inspect_repository: ["github_actions_runner"],
-    run_repository_tests: ["github_actions_runner"]
+    run_repository_tests: ["github_actions_runner"],
+    propose_code_patch: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -108,13 +112,12 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   );
 });
 
-test("future self-improvement capabilities remain planned and non-executable", () => {
-  for (const id of ["propose_code_patch", "create_pull_request"]) {
-    assert.equal(getIntelligenceCapability(id).status, "planned");
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
-    assert.ok(getIntelligenceCapability(id).executors.length > 0);
-  }
+test("pull request creation remains planned and non-executable", () => {
+  const capability = getIntelligenceCapability("create_pull_request");
+  assert.equal(capability.status, "planned");
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("create_pull_request", {}).code, "capability_not_implemented");
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
 });
 
 test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain blocked", () => {
@@ -132,20 +135,18 @@ test("unknown capabilities and malformed inputs fail closed", () => {
   assert.equal(validateIntelligenceCapabilityRequest("project_status_report", { command: "echo unsafe" }).code, "unknown_input_field");
 });
 
-test("patch proposals enforce bounded typed inputs without applying changes", () => {
-  const good = {
-    summary: "Add a bounded validation helper for repository metadata",
-    targetPaths: ["scripts/intelligence/example.mjs"],
-    diff: "--- a/example\n+++ b/example\n@@ -1 +1 @@\n-old\n+new"
-  };
-  const schema = getIntelligenceCapability("propose_code_patch").inputSchema;
-  assert.equal(schema.properties.summary.maxLength, 500);
-  assert.equal(schema.properties.targetPaths.maxItems, 10);
-  assert.equal(schema.properties.diff.maxLength, 20000);
-  assert.equal(getIntelligenceCapability("propose_code_patch").requiresApproval, false);
-  assert.equal(getIntelligenceCapability("propose_code_patch").autonomous, true);
-  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).code, "capability_not_implemented");
-  assert.deepEqual(getIntelligenceCapability("propose_code_patch").executors, ["proposal_store"]);
+test("patch proposal capability is active only for bounded private proposal generation", () => {
+  const good = { objective: "Add a regression test for a safe parser boundary" };
+  const capability = getIntelligenceCapability("propose_code_patch");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "proposal_only");
+  assert.equal(capability.inputSchema.properties.objective.minLength, 12);
+  assert.equal(capability.inputSchema.properties.objective.maxLength, 800);
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", { ...good, command: "unsafe" }).code, "unknown_input_field");
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
 });
 
 test("PR creation schema requires a scoped proposal branch and immutable head SHA", () => {
