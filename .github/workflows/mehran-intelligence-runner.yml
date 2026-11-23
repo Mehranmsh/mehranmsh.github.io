@@ -107,7 +107,7 @@ jobs:
               const created = await request("/agent/v1/work-packages", {
                 method: "POST",
                 body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-repo-inspection-v1-${new Date().toISOString().slice(0,10)}`,
+                  idempotencyKey: `mehran-intelligence-repo-inspection-v2-${baseSha}`,
                   title: "MEHRAN INTELLIGENCE first bounded repository inspection",
                   objective: "Inspect the bounded core execution architecture and preserve verified evidence for the first self-improvement assessment.",
                   priority: "normal",
