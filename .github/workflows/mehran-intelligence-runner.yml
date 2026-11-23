@@ -208,8 +208,7 @@ jobs:
                 "node --check worker.js && node --check scripts/intelligence-capabilities.mjs && node --test --test-reporter=tap scripts/intelligence-capabilities.test.mjs"
               ];
               const result = spawnSync("docker", args, { encoding: "utf8", timeout: 240000, maxBuffer: 1024 * 1024 });
-              const output = `${result.stdout || ""}
-${result.stderr || ""}`.slice(-24000);
+              const output = [result.stdout || "", result.stderr || ""].join("\n").slice(-24000);
               const total = Number(output.match(/^# tests (\d+)$/m)?.[1] || 0);
               const passed = Number(output.match(/^# pass (\d+)$/m)?.[1] || 0);
               const failed = Number(output.match(/^# fail (\d+)$/m)?.[1] || 0);
