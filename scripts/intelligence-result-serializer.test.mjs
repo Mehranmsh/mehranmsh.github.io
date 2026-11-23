@@ -16,6 +16,16 @@ const sandbox = {};
 runInNewContext(source + "\nglobalThis.serializeBoundedResult = serializeBoundedResult;", sandbox);
 const serializeBoundedResult = sandbox.serializeBoundedResult;
 
+const workerSource = readFileSync("worker.js", "utf8");
+const verifierStart = workerSource.indexOf("export function verifyIntelligenceReport(");
+const verifierEnd = workerSource.indexOf("\nfunction formatIntelligenceTask", verifierStart);
+assert.ok(verifierStart >= 0 && verifierEnd > verifierStart, "Worker report verifier must exist");
+const verifierSource = workerSource.slice(verifierStart, verifierEnd)
+  .replace("export function verifyIntelligenceReport(", "function verifyIntelligenceReport(");
+const verifierSandbox = {};
+runInNewContext(verifierSource + "\nglobalThis.verifyIntelligenceReport = verifyIntelligenceReport;", verifierSandbox);
+const verifyIntelligenceReport = verifierSandbox.verifyIntelligenceReport;
+
 function auditReport() {
   const checks = Array.from({ length: 15 }, (_, index) => ({
     id: `security_check_${String(index + 1).padStart(2, "0")}`,
@@ -56,6 +66,8 @@ test("oversized security audit remains within limit and preserves verifier schem
   }
   assert.equal(report.checks[4].passed, false);
   assert.equal(report.detailsTruncated, true);
+  const verification = verifyIntelligenceReport("source_security_audit", report);
+  assert.equal(verification.passed, true, `Worker verifier rejected compact audit: ${verification.checks.join(", ")}`);
 });
 
 test("small results are preserved without unnecessary compaction", () => {
