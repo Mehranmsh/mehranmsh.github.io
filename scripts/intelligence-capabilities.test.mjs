@@ -150,6 +150,20 @@ test("completed self-assessment creates one idempotent evidence-driven terminal 
   assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
 });
 
+test("AI mission planner uses JSON mode and extracts one complete balanced object", () => {
+  const start = workerSource.indexOf("function extractIntelligenceJsonObject(raw)");
+  const plannerStart = workerSource.indexOf("async function planIntelligenceMission(env, input)");
+  const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
+  assert.ok(start >= 0 && plannerStart > start && plannerEnd > plannerStart);
+  const planner = workerSource.slice(plannerStart, plannerEnd);
+  assert.match(planner, /response_format: \{ type: "json_object" \}/);
+  assert.match(planner, /max_tokens: 1600/);
+  assert.match(planner, /extractIntelligenceJsonObject\(modelResponse\)/);
+  assert.match(workerSource.slice(start, plannerStart), /if \(depth === 0 && start >= 0\) return text\.slice\(start, index \+ 1\)/);
+  assert.match(workerSource.slice(start, plannerStart), /if \(escaped\) escaped = false/);
+  assert.match(workerSource.slice(start, plannerStart), /raw.length > 12000/);
+});
+
 test("AI planner strips schema-optional fields that are invalid for another action", () => {
   assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
