@@ -1060,10 +1060,10 @@ test("private report finalization recovery is owner-authenticated and re-discove
   assert.match(agentRoute, /status IN \('completed','attention_required'\).*report_stored_at IS NULL.*LIMIT 20/);
   assert.match(workerSource, /ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT/);
   const persistenceStart = workerSource.indexOf("export async function persistIntelligencePackageReport");
-  const persistenceEnd = workerSource.indexOf("\\n}\\n\\nasync function refreshIntelligenceWorkPackageSnapshot", persistenceStart);
+  const persistenceEnd = workerSource.indexOf("\n}\n\nasync function refreshIntelligenceWorkPackageSnapshot", persistenceStart);
   const persistence = workerSource.slice(persistenceStart, persistenceEnd);
   assert.match(persistence, /Another Runner may have won the create race/);
-  assert.match(persistence, /if \\(\\[409, 422\\]\\.includes\\(response\\.status\\)\\)/);
+  assert.match(persistence, /if \(\[409, 422\]\.includes\(response\.status\)\)/);
   assert.match(persistence, /const raced = await verifyExistingReport\\(\\)/);
   assert.match(persistence, /Existing private report could not be verified/);
   assert.match(persistence, /Existing private report content does not match/);
