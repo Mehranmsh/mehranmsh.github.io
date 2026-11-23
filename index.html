@@ -368,6 +368,7 @@ body[data-theme="light"]{--bg:#f2f6fc;--panel:#ffffff;--panel2:#eaf0f8;--line:#d
 .workspace-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.workspace-link{display:flex;align-items:center;gap:13px;text-align:left;width:100%;padding:16px;border:1px solid var(--line);border-radius:13px;background:var(--panel);color:var(--text)}.workspace-link:hover{border-color:#287ca2;background:var(--panel2)}.workspace-link-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:11px;background:#122b43;color:var(--cyan);font-size:19px}.workspace-link strong,.workspace-link small{display:block}.workspace-link strong{font-size:13px}.workspace-link small{font-size:11px;color:var(--muted);margin-top:4px}.workspace-arrow{margin-left:auto;color:var(--muted);font-size:22px}
 .services-grid .feature{min-height:175px}.service-action{margin-top:14px!important}.intelligence-overview .section-title{margin-top:0}.intelligence-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.intelligence-stats .card{padding:14px}.intelligence-stats .stat{font-size:22px}.intelligence-assistant .section-title{margin-top:0}.intelligence-reply{display:none;margin-top:14px;white-space:pre-wrap;line-height:1.8}.intelligence-advanced{padding:16px}.intelligence-advanced summary{cursor:pointer;color:var(--muted);font-size:12px;font-weight:700}.intelligence-advanced[open] summary{margin-bottom:16px}
 @media(max-width:700px){.workspace-links{grid-template-columns:1fr}.intelligence-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.workspace-link{padding:13px}.services-grid .feature{min-height:0}}
+.intel-conversation{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow:auto;padding:12px;margin:12px 0;border:1px solid var(--line);border-radius:14px;background:#080f1b}.intel-turn{max-width:92%;padding:11px 13px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.75}.intel-turn.user{align-self:flex-end;background:#123149;border:1px solid #286080}.intel-turn.assistant{align-self:flex-start;background:#111e32;border:1px solid #263b56}.intel-turn small{display:block;color:var(--muted);font-size:9px;margin-bottom:5px;text-transform:uppercase;letter-spacing:1px}
 </style>
 <style id="social-profile-editor-refresh">
 /* A visibly rebuilt editor surface, with selectors tied to the actual editor IDs. */
@@ -1021,6 +1022,7 @@ html body #page-social #profileEditor .profile-editor-actions .btn{
 <div id="intelChatStatus" class="notice">The assistant can analyze company data. Execution tools are being introduced gradually with separate approval controls.</div>
 <div class="field"><label for="intelQuestion">What would you like to know?</label><textarea id="intelQuestion" rows="3" maxlength="2000" placeholder="مثلاً مهم‌ترین قدم بعدی شرکت چیه؟"></textarea></div>
 <div class="hero-actions" style="margin-top:0"><button class="btn" id="intelSendBtn">Ask MEHRAN AI</button><span class="small-text" id="intelQuota">3 requests/hour · 3/day</span></div>
+<div id="intelConversation" class="intel-conversation" aria-live="polite"><div class="empty">Conversation history will appear here.</div></div>
 <div id="intelReply" class="card intelligence-reply" aria-live="polite"></div>
 </div>
 <details class="panel intelligence-advanced"><summary>Technical connections and project data</summary>
@@ -2190,6 +2192,7 @@ $("intelUsers").textContent=String(stats.users??0);
 $("intelActiveUsers").textContent=String(stats.activeUsers??0);
 $("intelOpenReports").textContent=String(stats.openReports??0);
 $("intelligenceProjectsList").innerHTML=list.length?'<div class="grid">'+list.map(p=>'<div class="card"><div class="eyebrow">PROJECT · '+escapeHTML(p.status||"Planned")+'</div><h3>'+escapeHTML(p.name||"Untitled project")+'</h3><p>'+escapeHTML(p.description||"No description provided.")+'</p><div class="small-text" style="margin-top:10px">Updated: '+escapeHTML(p.updatedAt||p.updated_at||"Not available")+'</div></div>').join("")+'</div>':'<div class="empty">No registered projects yet.</div>';
+await loadIntelligenceChatHistory();
 message.textContent="Live company data loaded successfully. Updated "+new Date().toLocaleString()+".";
 message.className="notice success";
 }catch(error){
@@ -2198,6 +2201,22 @@ message.className="notice warn";
 $("intelligenceProjectsList").textContent="Project information is unavailable until the protected session is restored.";
 $("intelProjects").textContent=$("intelUsers").textContent=$("intelActiveUsers").textContent=$("intelOpenReports").textContent="—";
 }finally{$("refreshIntelligenceBtn").disabled=false;loadIntelligenceTasks()}
+}
+async function loadIntelligenceChatHistory(){
+const container=$("intelConversation");if(!container)return;
+try{
+const data=await api("/intelligence/chat/history");
+const turns=Array.isArray(data.turns)?data.turns:[];
+container.replaceChildren();
+if(!turns.length){const empty=document.createElement("div");empty.className="empty";empty.textContent="No saved conversation yet.";container.appendChild(empty);return}
+for(const turn of turns){
+const bubble=document.createElement("article");bubble.className="intel-turn "+(turn.role==="user"?"user":"assistant");
+const label=document.createElement("small");label.textContent=turn.role==="user"?"You":"MEHRAN INTELLIGENCE";
+const body=document.createElement("div");body.textContent=String(turn.content||"");
+bubble.append(label,body);container.appendChild(bubble);
+}
+container.scrollTop=container.scrollHeight;
+}catch(error){container.textContent="Saved conversation is unavailable: "+error.message}
 }
 async function testMcpConnection(){
 const button=$("testMcpBtn"),status=$("mcpStatus");
@@ -2230,6 +2249,7 @@ try{
 const data=await api("/intelligence/chat",{method:"POST",body:JSON.stringify({message})});
 reply.textContent=data.reply||"No response returned.";reply.style.display="block";
 $("intelQuota").textContent="Today: "+(data.usage?.dailyRequests??"—")+"/"+(data.usage?.dailyLimit??10)+" requests · Hourly limit: "+(data.usage?.hourlyLimit??3);
+await loadIntelligenceChatHistory();
 status.textContent="Analysis complete. No company data was changed.";status.className="notice success";
 }catch(error){status.textContent="Assistant unavailable: "+error.message;status.className="notice warn"}
 finally{button.disabled=false}
