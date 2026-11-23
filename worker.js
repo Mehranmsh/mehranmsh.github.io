@@ -5892,6 +5892,46 @@ async function planIntelligenceMission(env, input) {
   if (!Array.isArray(plan.tasks) || plan.tasks.length < 1 || plan.tasks.length > 5) {
     return fallback("ai_plan_task_count_invalid");
   }
+
+  // Models occasionally include optional schema fields on the wrong task type.
+  // Normalize into the executor's exact contract, then let the server validator
+  // enforce identifiers, dependency order, and capability-specific constraints.
+  const allowedPlannerActions = new Set([
+    "service_health_report", "repository_quality_check", "source_security_audit",
+    "inspect_repository", "propose_code_patch"
+  ]);
+  const normalizedPlanTasks = [];
+  for (const rawTask of plan.tasks) {
+    if (!rawTask || typeof rawTask !== "object" || Array.isArray(rawTask)) {
+      return fallback("ai_plan_task_shape_invalid");
+    }
+    const taskId = cleanText(rawTask.taskId, 80);
+    const title = cleanText(rawTask.title, 160);
+    const description = cleanText(rawTask.description, 1500);
+    const actionType = cleanText(rawTask.actionType, 80);
+    const dependsOn = Array.isArray(rawTask.dependsOn)
+      ? rawTask.dependsOn.map(value => cleanText(value, 80))
+      : [];
+    if (!taskId || !title || !description || !allowedPlannerActions.has(actionType) ||
+        dependsOn.length > 10 || dependsOn.some(value => !value)) {
+      return fallback("ai_plan_task_contract_invalid");
+    }
+    const task = { taskId, title, description, actionType, dependsOn };
+    if (actionType === "inspect_repository") {
+      const requestedPaths = Array.isArray(rawTask.paths) ? rawTask.paths : [];
+      const paths = [...new Set(requestedPaths.filter(path =>
+        typeof path === "string" && INTELLIGENCE_INSPECT_ALLOWED_PATHS.includes(path)
+      ))];
+      if (paths.length < 1 || paths.length > 6) return fallback("ai_plan_inspect_paths_invalid");
+      task.paths = paths;
+    } else if (actionType === "propose_code_patch") {
+      const objective = cleanText(rawTask.objective, 800);
+      if (objective.length < 12) return fallback("ai_plan_patch_objective_invalid");
+      task.objective = objective;
+    }
+    normalizedPlanTasks.push(task);
+  }
+
   const scope = {
     mode: "bounded_read_only_and_proposal",
     planner: "Cloudflare Workers AI",
@@ -5907,7 +5947,7 @@ async function planIntelligenceMission(env, input) {
     objective: cleanText(plan.objective, 2000) || mission,
     priority: ["low", "normal", "high"].includes(plan.priority) ? plan.priority : "normal",
     scope,
-    tasks: plan.tasks,
+    tasks: normalizedPlanTasks,
     ownerUid: input?.ownerUid
   });
   if (!created.success) {

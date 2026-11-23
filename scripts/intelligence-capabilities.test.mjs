@@ -1035,3 +1035,15 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes("never create a duplicate task just because the conversation session changed"));
 
 });
+
+
+test("mission planner normalizes model task fields to the executor contract", () => {
+  const start = workerSource.indexOf("async function planIntelligenceMission(env, input)");
+  const end = workerSource.indexOf("\nexport function verifyIntelligenceReport", start);
+  const planner = workerSource.slice(start, end);
+  assert.match(planner, /const normalizedPlanTasks = \[\]/);
+  assert.match(planner, /allowedPlannerActions\.has\(actionType\)/);
+  assert.match(planner, /INTELLIGENCE_INSPECT_ALLOWED_PATHS\.includes\(path\)/);
+  assert.match(planner, /tasks: normalizedPlanTasks/);
+  assert.match(planner, /ai_plan_task_contract_invalid/);
+});
