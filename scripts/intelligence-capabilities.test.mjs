@@ -828,3 +828,35 @@ test("Patch generation replay is idempotent across stored, prepared, processing,
   assert.match(route, /if \(existing\.status === "processing"\)[\s\S]*?return error\("The previous generation attempt expired; submit a new request ID\.",409\)/);
   assert.match(route, /if \(existing\.status === "prepared"\)[\s\S]*?finalizePatchGenerationRequest/);
 });
+
+test("Private package reports are verified before the durable stored marker is set", () => {
+  const start = workerSource.indexOf("export async function persistIntelligencePackageReport");
+  const end = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot", start);
+  assert.ok(start >= 0 && end > start);
+  const persist = workerSource.slice(start, end);
+  const verify = persist.indexOf("async function verifyExistingReport()");
+  const hashCheck = persist.indexOf("await sha256(existingReportText) !== expectedReportHash");
+  const markStored = persist.indexOf("SET report_stored_at=CURRENT_TIMESTAMP");
+  const upload = persist.indexOf("method: \"PUT\"");
+  assert.ok(verify >= 0 && hashCheck > verify && markStored > hashCheck && upload > verify);
+  assert.match(persist, /Existing private report content does not match the current package snapshot/);
+  assert.match(persist, /refusing to mark it stored/);
+  assert.match(persist, /if \(\[409, 422\]\.includes\(response\.status\)\)[\s\S]*?verifyExistingReport\(\)/);
+  assert.match(persist, /UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\? AND report_stored_at IS NULL/);
+});
+
+test("Terminal work packages with unstored reports are rediscovered for later finalization", () => {
+  const pendingRoute = workerSource.indexOf('if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET")');
+  const pendingRouteEnd = workerSource.indexOf("const packageMatch", pendingRoute);
+  assert.ok(pendingRoute >= 0 && pendingRouteEnd > pendingRoute);
+  const route = workerSource.slice(pendingRoute, pendingRouteEnd);
+  assert.match(route, /status IN \('completed','attention_required'\) AND report_stored_at IS NULL/);
+  assert.match(route, /ORDER BY created_at ASC LIMIT 20/);
+
+  const runnerStart = runnerSource.indexOf("// Re-discover terminal packages on every tick");
+  const runnerEnd = runnerSource.indexOf("// Finalize every package touched by this tick", runnerStart);
+  assert.ok(runnerStart >= 0 && runnerEnd > runnerStart);
+  const recovery = runnerSource.slice(runnerStart, runnerEnd);
+  assert.match(recovery, /work-packages\/pending-finalization/);
+  assert.match(recovery, /packageIds\.add\(id\)/);
+});
