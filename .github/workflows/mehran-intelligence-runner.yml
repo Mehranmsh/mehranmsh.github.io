@@ -96,6 +96,48 @@ jobs:
             }
           }
 
+          // Seed one bounded read-only baseline inspection. Its stable daily key avoids duplicate packages
+          // while ensuring the AI planner has real, immutable repository evidence to analyze.
+          const packageIds = new Set();
+          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+            try {
+              const created = await request("/agent/v1/work-packages", {
+                method: "POST",
+                body: JSON.stringify({
+                  idempotencyKey: `mehran-intelligence-repo-inspection-v1-${new Date().toISOString().slice(0,10)}`,
+                  title: "MEHRAN INTELLIGENCE first bounded repository inspection",
+                  objective: "Inspect the bounded core execution architecture and preserve verified evidence for the first self-improvement assessment.",
+                  priority: "normal",
+                  scope: {
+                    mode: "read_only",
+                    mission: "Inspect six explicitly allowlisted core files at one immutable main commit.",
+                    allowedActions: ["inspect_repository"],
+                    forbidden: ["source_changes", "deployment", "secret_access", "wallet_operations", "arbitrary_shell"]
+                  },
+                  tasks: [{
+                    taskId: "inspect-core",
+                    title: "Inspect MEHRAN INTELLIGENCE core files",
+                    description: "Read exact allowlisted source files from one immutable main commit and return bounded file metadata and declaration inventory for private review.",
+                    actionType: "inspect_repository",
+                    dependsOn: [],
+                    paths: [
+                      "worker.js",
+                      "scripts/intelligence-agent.mjs",
+                      "scripts/intelligence-capabilities.mjs",
+                      "scripts/intelligence-capabilities.test.mjs",
+                      ".github/workflows/mehran-intelligence-runner.yml",
+                      "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                    ]
+                  }]
+                })
+              }, ownerHeaders, 30000);
+              if (created.workPackageId) packageIds.add(created.workPackageId);
+              console.log(`Baseline inspection package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
+            } catch (error) {
+              console.log("Baseline inspection seeding failed closed: " + String(error?.message || error).slice(0,240));
+            }
+          }
+
           // Give MEHRAN INTELLIGENCE its first owner-defined self-improvement mission.
           // The Workers AI planner may decompose it only into server-allowlisted actions.
           // If AI planning is unavailable, fail visibly instead of disguising a fallback as AI work.
