@@ -8050,6 +8050,16 @@ export default {
         if (!body) return error("Invalid request body");
         const question = cleanText(body.message, 2000);
         if (!question) return error("Write a question first.", 400);
+        // Skip inference for greetings and acknowledgements; these do not need an AI model.
+        const lightweightMessage = question.trim().toLocaleLowerCase("fa-IR").replace(/[!؟?.،,\\s]+/gu, "");
+        if (/^(سلام|درود|خسته نباشید|ممنون|مرسی|سپاس|متشکرم|خوبم|باشه|اوکی|اوکیم|فعلا|خداحافظ)$/u.test(lightweightMessage)) {
+          const reply = /^(ممنون|مرسی|سپاس|متشکرم)$/u.test(lightweightMessage)
+            ? "خواهش می‌کنم. هر وقت کاری داشتی بگو."
+            : /^(فعلا|خداحافظ)$/u.test(lightweightMessage)
+              ? "فعلاً. هر زمان برگشتی ادامه می‌دهیم."
+              : "سلام. آماده‌ام؛ درخواست یا مسئله‌ات را بگو.";
+          return json({success:true,reply,usage:{aiRequests:0,reason:"deterministic_short_circuit"}});
+        }
         const budget = await reserveSocialWorkersAIBudget(env, 300, "intelligence");
         if (!budget.allowed) return error("Daily MEHRAN INTELLIGENCE or shared Workers AI allowance reached.", 429);
         const [projectRows, userRow, activeRow, postRow, reportRow] = await Promise.all([
@@ -8125,9 +8135,9 @@ export default {
           throw new Error("Tool is not available.");
         };
         try {
-          let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
-          for(let round=0;round<2&&Array.isArray(result?.tool_calls)&&result.tool_calls.length;round++){
-            const calls=result.tool_calls.slice(0,4);
+          let result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:650});
+          for(let round=0;round<1&&Array.isArray(result?.tool_calls)&&result.tool_calls.length;round++){
+            const calls=result.tool_calls.slice(0,2);
             messages.push({role:"assistant",content:result.response||"",tool_calls:calls});
             for(const call of calls){
               const name=call?.function?.name;
@@ -8137,11 +8147,11 @@ export default {
               try{toolResult=await executeTool(name,args);}catch(e){toolResult={error:String(e?.message||e).slice(0,240)};}
               messages.push({role:"tool",tool_call_id:call.id,name,content:JSON.stringify(toolResult)});
             }
-            result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:900});
+            result=await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast",{messages,tools,tool_choice:"auto",max_tokens:650});
           }
           const reply=result?.response||result?.result?.response||"";
           if(typeof reply!=="string"||!reply.trim())return error("AI returned an empty response.",502);
-          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:Math.min(2,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
+          return json({success:true,reply:reply.trim(),usage:{dailyRequests:Math.floor(budget.reservedCredits/300),dailyLimit:3,hourlyLimit:3,toolRounds:Math.min(1,messages.filter(m=>m.role==="assistant"&&m.tool_calls).length)}});
         } catch(e) {
           console.error("MEHRAN INTELLIGENCE AI error:",String(e?.message||e).slice(0,300));
           return error("MEHRAN INTELLIGENCE could not complete its tool-assisted response.",502);
