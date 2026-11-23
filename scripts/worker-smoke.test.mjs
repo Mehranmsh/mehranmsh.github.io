@@ -1064,12 +1064,12 @@ test("private report finalization recovery is owner-authenticated and re-discove
   const persistence = workerSource.slice(persistenceStart, persistenceEnd);
   assert.match(persistence, /Another Runner may have won the create race/);
   assert.match(persistence, /if \(\[409, 422\]\.includes\(response\.status\)\)/);
-  assert.match(persistence, /const raced = await verifyExistingReport\\(\\)/);
+  assert.match(persistence, /const raced = await verifyExistingReport\(\)/);
   assert.match(persistence, /Existing private report could not be verified/);
   assert.match(persistence, /Existing private report content does not match/);
 
   assert.match(workerSource, /if \(!\/duplicate column name\/i\.test\(String\(migrationError\?\.message \|\| migrationError\)\)\) \{\s*throw migrationError;/);
-  assert.equal((workerSource.match(/SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\\?/g) || []).length, 2);
+  assert.equal((workerSource.match(/SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\?/g) || []).length, 2);
   assert.match(runnerSource, /pending-finalization/);
   assert.match(runnerSource, /for \(const id of \(Array\.isArray\(pending\.workPackageIds\)/);
   assert.match(runnerSource, /Re-discover terminal packages on every tick/);
