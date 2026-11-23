@@ -16,6 +16,35 @@ function extractModelText(result) {
   return "";
 }
 
+function extractJsonObject(raw) {
+  if (typeof raw !== "string") return "";
+  const text = raw.trim().replace(/^\`\`\`(?:json)?\\s*/i, "").replace(/\\s*\`\`\`$/, "").trim();
+  if (!text) return "";
+  if (text.startsWith("{") && text.endsWith("}")) return text;
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') { inString = true; continue; }
+    if (character === "{") {
+      if (depth === 0) start = index;
+      depth++;
+    } else if (character === "}" && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) return text.slice(start, index + 1);
+    }
+  }
+  return "";
+}
+
 async function readBoundedText(response, maxBytes) {
   const declaredLength = Number(response.headers.get("Content-Length") || 0);
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
@@ -126,7 +155,7 @@ export async function generatePatchArtifact({
   if (!raw || raw.length > 24000) return fail("model_output_invalid");
   let generated;
   try {
-    generated = JSON.parse(raw);
+    generated = JSON.parse(extractJsonObject(raw));
   } catch {
     return fail("model_output_not_json");
   }
