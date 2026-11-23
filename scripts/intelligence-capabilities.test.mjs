@@ -150,6 +150,15 @@ test("completed self-assessment creates one idempotent evidence-driven terminal 
   assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
 });
 
+test("AI planner strips schema-optional fields that are invalid for another action", () => {
+  assert.match(workerSource, /const normalizedTasks = plan\.tasks\.map\(item =>/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
+  assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
+  assert.match(workerSource, /if \(!Array\.isArray\(normalized\.dependsOn\)\) normalized\.dependsOn = \[\]/);
+  assert.match(workerSource, /tasks: normalizedTasks/);
+});
+
 test("pull request creation remains planned and non-executable", () => {
   const capability = getIntelligenceCapability("create_pull_request");
   assert.equal(capability.status, "planned");
