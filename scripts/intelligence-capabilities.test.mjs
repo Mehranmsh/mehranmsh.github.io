@@ -947,3 +947,14 @@ test("Private notification archive enforces the exact status schema and bounded 
   assert.match(helper, /date\.toISOString\(\) !== payload\.generatedAt/);
   assert.doesNotMatch(helper, /counts: payload\.counts/);
 });
+
+test("Malformed private notification JSON is quarantined before a delivery lease is created", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/notifications/next"');
+  const end = workerSource.indexOf("const notificationMatch = path.startsWith", start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /channel='owner_private'/);
+  assert.ok(route.indexOf("JSON.parse(candidate.payload_json)") < route.indexOf("SET status='processing'"));
+  assert.match(route, /status='failed',next_attempt_at=NULL,lease_token='',last_error='invalid_payload_json'/);
+  assert.match(route, /Notification payload is invalid and was quarantined/);
+  assert.ok(route.indexOf("invalid_payload_json") < route.indexOf("SET status='processing'"));
+});
