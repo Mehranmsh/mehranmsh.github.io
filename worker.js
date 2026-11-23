@@ -5156,7 +5156,7 @@ async function appendIntelligenceChatTurn(env, ownerUid, sessionKey, role, conte
   if (!safeContent) return;
   await env.DB.prepare("INSERT INTO intelligence_chat_turns(id,owner_uid,session_key,role,content) VALUES(?,?,?,?,?)")
     .bind(crypto.randomUUID(),ownerUid,sessionKey,role,safeContent).run();
-  await env.DB.prepare("DELETE FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? AND id NOT IN (SELECT id FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 30)")
+  await env.DB.prepare("DELETE FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? AND id NOT IN (SELECT id FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 100)")
     .bind(ownerUid,sessionKey,ownerUid,sessionKey).run();
 }
 
@@ -8219,7 +8219,7 @@ export default {
         await ensureIntelligenceMemoryTables(env);
         const requestedSession = cleanText(new URL(request.url).searchParams.get("sessionId"),80);
         const sessionKey = requestedSession && /^[A-Za-z0-9._:-]{1,80}$/.test(requestedSession) ? requestedSession : "default";
-        const rows = await env.DB.prepare("SELECT role,content,created_at FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 30").bind(admin.uid,sessionKey).all();
+        const rows = await env.DB.prepare("SELECT role,content,created_at FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 100").bind(admin.uid,sessionKey).all();
         return json({success:true,turns:(rows.results||[]).reverse().map(turn=>({role:turn.role,content:String(turn.content||"").slice(0,4000),createdAt:turn.created_at||null}))});
       }
 
@@ -8236,7 +8236,7 @@ export default {
         await ensureIntelligenceProtocolTables(env);
         const requestedSession = cleanText(body.sessionId,80);
         const sessionKey = requestedSession && /^[A-Za-z0-9._:-]{1,80}$/.test(requestedSession) ? requestedSession : "default";
-        const priorTurnsResult = await env.DB.prepare("SELECT role,content FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 12").bind(admin.uid,sessionKey).all();
+        const priorTurnsResult = await env.DB.prepare("SELECT role,content FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 16").bind(admin.uid,sessionKey).all();
         const priorTurns = (priorTurnsResult.results || []).reverse();
         const [memoryResult,activeTaskResult] = await Promise.all([
           env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all(),
