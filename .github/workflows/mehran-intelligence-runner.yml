@@ -37,7 +37,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { spawnSync } from "node:child_process";
-          import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
+          import { mkdtempSync, rmSync } from "node:fs";
           import { tmpdir } from "node:os";
           import { join } from "node:path";
           import { createHash } from "node:crypto";
@@ -789,59 +789,5 @@ jobs:
 
             }
           }
-          // Deliver owner-private notifications to this run summary; acknowledge only after append.
-          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
-            const summaryPath = process.env.GITHUB_STEP_SUMMARY || "";
-            if (summaryPath) {
-              for (let count = 0; count < 10 && Date.now() < taskExecutionDeadline; count++) {
-                let notification;
-                try {
-                  const claimed = await request("/agent/v1/notifications/next", {}, ownerHeaders, 15000);
-                  notification = claimed?.notification;
-                  if (!notification) break;
-                  if (notification.channel !== "owner_private" || typeof notification.id !== "string" ||
-                      typeof notification.leaseToken !== "string" || !notification.payload || typeof notification.payload !== "object") {
-                    throw new Error("Unsupported or malformed owner notification payload.");
-                  }
-                  const payload = notification.payload;
-                  const safe = value => String(value ?? "").replace(/[\r\n\t]+/g, " ").slice(0, 180);
-                  const lines = [
-                    "",
-                    "## MEHRAN INTELLIGENCE notification",
-                    "",
-                    "- Event: " + safe(payload.eventId),
-                    "- Type: " + safe(payload.type),
-                    "- Work package: " + safe(payload.workPackageId),
-                    "- Status: " + safe(payload.status),
-                    "- Counts: " + safe(JSON.stringify(payload.counts || {})),
-                    "- Created: " + safe(payload.generatedAt),
-                    ""
-                  ];
-                  appendFileSync(summaryPath, lines.join(String.fromCharCode(10)), { encoding: "utf8" });
-                  await request("/agent/v1/notifications/" + encodeURIComponent(notification.id), {
-                    method: "POST",
-                    body: JSON.stringify({ status: "delivered", leaseToken: notification.leaseToken })
-                  }, ownerHeaders, 15000);
-                  console.log("Owner notification recorded in the private GitHub Actions run summary.");
-                } catch (error) {
-                  console.log("Owner notification delivery deferred: " + String(error?.message || error).slice(0,180));
-                  if (notification?.id && notification?.leaseToken) {
-                    try {
-                      await request("/agent/v1/notifications/" + encodeURIComponent(notification.id), {
-                        method: "POST",
-                        body: JSON.stringify({ status: "retry", message: String(error?.message || error).slice(0,180), leaseToken: notification.leaseToken })
-                      }, ownerHeaders, 10000);
-                    } catch (ackError) {
-                      console.log("Notification retry acknowledgement deferred: " + String(ackError?.message || ackError).slice(0,140));
-                    }
-                  }
-                  break;
-                }
-              }
-            } else {
-              console.log("GITHUB_STEP_SUMMARY is unavailable; owner notifications remain queued.");
-            }
-          }
-
-                    console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
+          console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
           NODE
