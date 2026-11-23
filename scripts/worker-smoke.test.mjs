@@ -2863,7 +2863,9 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
               await state.releaseCandidates.gate;
             }
             const r = state.row;
-            if (["queued", "accepted", "retry_wait"].includes(r.status) &&
+            const retryIsDue = r.status !== "retry_wait" ||
+              !r.next_attempt_at || Date.parse(r.next_attempt_at) <= Date.now();
+            if (["queued", "accepted", "retry_wait"].includes(r.status) && retryIsDue &&
                 Number(r.attempts) < Number(r.max_attempts)) return { id: r.id, status: r.status };
             return null;
           }
@@ -2921,11 +2923,12 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
             return { meta: { changes: 0 } };
           }
           if (sql.includes("SET status=?,result_text=?")) {
-            const [status, resultText, , , id, hash] = args;
+            const [status, resultText, nextAttemptAt, , id, hash] = args;
             if (id === state.row.id && state.row.status === "in_progress" &&
                 state.row.agent_claim_token_hash === hash && !state.expired) {
               state.row.status = status;
               state.row.result_text = resultText;
+              state.row.next_attempt_at = nextAttemptAt;
               state.row.agent_claimed_at = null;
               state.row.agent_claim_token_hash = "";
               return { meta: { changes: 1 } };
@@ -2990,9 +2993,35 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
   }, env);
   assert.equal(staleResult.status, 409, "expired runner must not commit a result");
 
+  const retryResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, status: "blocked", retryable: true, result: "transient runner interruption" }
+  }, env);
+  assert.equal(retryResult.status, 200);
+  assert.equal(state.row.status, "retry_wait", "recoverable failures must enter bounded retry wait");
+  assert.equal(state.row.agent_claim_token_hash, "", "retry scheduling must revoke the previous claim");
+  assert.equal(state.row.agent_claimed_at, null);
+
+  // Simulate the bounded backoff window elapsing before the next runner claims.
+  state.row.next_attempt_at = "2000-01-01T00:00:00.000Z";
+  const retryClaimResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(retryClaimResponse.status, 200);
+  const retryClaim = (await retryClaimResponse.json()).task;
+  assert.ok(retryClaim);
+  assert.notEqual(retryClaim.claimToken, replacement.claimToken);
+  assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
+
+  const supersededCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, checkpoint: { staleAfterRetry: true } }
+  }, env);
+  assert.equal(supersededCheckpoint.status, 409, "pre-retry runner must not checkpoint after a fresh claim");
+
   const terminalResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
     method: "POST", headers: auth,
-    body: { claimToken: replacement.claimToken, status: "blocked", result: "controlled lifecycle test complete" }
+    body: { claimToken: retryClaim.claimToken, status: "blocked", result: "controlled lifecycle test complete" }
   }, env);
   assert.equal(terminalResult.status, 200);
   assert.equal(state.row.status, "blocked");
@@ -3000,7 +3029,7 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
 
   const replay = await request("/agent/v1/tasks/" + state.row.id + "/result", {
     method: "POST", headers: auth,
-    body: { claimToken: replacement.claimToken, status: "blocked", result: "replayed result" }
+    body: { claimToken: retryClaim.claimToken, status: "blocked", result: "replayed result" }
   }, env);
   assert.equal(replay.status, 409, "terminal claim token must not be replayable");
 });
