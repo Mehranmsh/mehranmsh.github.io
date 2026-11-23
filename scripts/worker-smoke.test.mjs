@@ -2815,3 +2815,190 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   assert.doesNotMatch(runnerLogLines.join("\n"), /claimToken|agentHeaders|ownerHeaders|Authorization|Bearer/,
     "runner logs must not expose claim credentials or authorization headers");
 });
+
+
+// Route-level claim lifecycle test using a deliberately narrow in-memory D1 fake.
+// This exercises the real Worker fetch/auth/claim/checkpoint/result handlers; it is
+// not a Cloudflare D1 integration test.
+function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
+  const state = {
+    row: {
+      id: "claim-lifecycle-task",
+      status: "queued",
+      assigned_to: "mehran_intelligence",
+      action_type: "repository_quality_check",
+      action_payload: "{}",
+      checkpoint_json: "{}",
+      attempts: 0,
+      max_attempts: 3,
+      requires_approval: 0,
+      work_package_id: null,
+      agent_claim_token_hash: "",
+      agent_claimed_at: null,
+      next_attempt_at: null,
+      priority: "normal",
+      created_at: "2026-11-23T00:00:00.000Z"
+    },
+    expired: false,
+    candidateReads: 0,
+    releaseCandidates: null
+  };
+  if (synchronizeCandidateReads) {
+    state.releaseCandidates = (() => {
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      return { gate, release };
+    })();
+  }
+  const db = {
+    prepare(sql) {
+      let args = [];
+      return {
+        bind(...values) { args = values; return this; },
+        async first() {
+          if (sql.includes("SELECT t.id,t.status FROM intelligence_tasks t")) {
+            if (state.releaseCandidates) {
+              state.candidateReads++;
+              if (state.candidateReads === 2) state.releaseCandidates.release();
+              await state.releaseCandidates.gate;
+            }
+            const r = state.row;
+            if (["queued", "accepted", "retry_wait"].includes(r.status) &&
+                Number(r.attempts) < Number(r.max_attempts)) return { id: r.id, status: r.status };
+            return null;
+          }
+          if (sql.includes("SELECT * FROM intelligence_tasks WHERE id=?")) {
+            return args[0] === state.row.id ? { ...state.row } : null;
+          }
+          if (sql.includes("SELECT id,work_package_id,status,attempts,max_attempts")) {
+            const r = state.row;
+            return args[0] === r.id && r.status === "in_progress" &&
+              r.agent_claim_token_hash === args[1] && !state.expired
+              ? { ...r } : null;
+          }
+          if (sql.includes("SELECT id,work_package_id FROM intelligence_tasks")) {
+            const r = state.row;
+            return args[0] === r.id && r.status === "in_progress" &&
+              r.agent_claim_token_hash === args[1] && !state.expired
+              ? { id: r.id, work_package_id: r.work_package_id } : null;
+          }
+          throw new Error("Unexpected claim lifecycle first(): " + sql);
+        },
+        async run() {
+          if (sql.includes("claim_expired_max_attempts")) return { meta: { changes: 0 } };
+          if (sql.includes("claim_expired_retry")) {
+            if (state.expired && state.row.status === "in_progress") {
+              state.row.status = "accepted";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+              state.expired = false;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("UPDATE intelligence_tasks SET status='queued'")) return { meta: { changes: 0 } };
+          if (sql.includes("SET status='in_progress'") && sql.includes("agent_claim_token_hash=?")) {
+            const [hash, id] = args;
+            if (id === state.row.id && ["queued", "accepted", "retry_wait"].includes(state.row.status)) {
+              state.row.status = "in_progress";
+              state.row.attempts++;
+              state.row.agent_claimed_at = new Date().toISOString();
+              state.row.agent_claim_token_hash = hash;
+              state.expired = false;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("SET checkpoint_json=?")) {
+            const [checkpoint, id, hash] = args;
+            if (id === state.row.id && state.row.status === "in_progress" &&
+                state.row.agent_claim_token_hash === hash && !state.expired) {
+              state.row.checkpoint_json = checkpoint;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("SET status=?,result_text=?")) {
+            const [status, resultText, , , id, hash] = args;
+            if (id === state.row.id && state.row.status === "in_progress" &&
+                state.row.agent_claim_token_hash === hash && !state.expired) {
+              state.row.status = status;
+              state.row.result_text = resultText;
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
+          if (sql.includes("INSERT INTO intelligence_task_events")) return { meta: { changes: 1 } };
+          throw new Error("Unexpected claim lifecycle run(): " + sql);
+        }
+      };
+    }
+  };
+  return { db, state };
+}
+
+test("real Worker task routes fence concurrent, expired, superseded, and replayed runner claims", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb({ synchronizeCandidateReads: true });
+  const env = { DB: db, MEHRAN_AGENT_TOKEN: token };
+  const auth = { Authorization: "Bearer " + token };
+
+  const [firstResponse, secondResponse] = await Promise.all([
+    request("/agent/v1/tasks/next", { method: "GET", headers: auth }, env),
+    request("/agent/v1/tasks/next", { method: "GET", headers: auth }, env)
+  ]);
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 200);
+  const firstPayload = await firstResponse.json();
+  const secondPayload = await secondResponse.json();
+  const winners = [firstPayload.task, secondPayload.task].filter(Boolean);
+  assert.equal(winners.length, 1, "only one concurrent claimant may receive the task");
+  const oldToken = winners[0].claimToken;
+  assert.match(oldToken, /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(state.row.agent_claim_token_hash.length, 64);
+
+  // Simulate passage beyond the 15-minute claim window, then let the real route
+  // recover and issue a fresh claim to the next runner.
+  state.expired = true;
+  const replacementResponse = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: auth
+  }, env);
+  assert.equal(replacementResponse.status, 200);
+  const replacement = (await replacementResponse.json()).task;
+  assert.ok(replacement);
+  assert.notEqual(replacement.claimToken, oldToken);
+
+  const staleCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: oldToken, checkpoint: { stale: true } }
+  }, env);
+  assert.equal(staleCheckpoint.status, 409, "expired runner must not checkpoint after ownership changes");
+
+  const currentCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, checkpoint: { baseSha: "a".repeat(40) } }
+  }, env);
+  assert.equal(currentCheckpoint.status, 200);
+
+  const staleResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: oldToken, status: "blocked", result: "stale runner result" }
+  }, env);
+  assert.equal(staleResult.status, 409, "expired runner must not commit a result");
+
+  const terminalResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, status: "blocked", result: "controlled lifecycle test complete" }
+  }, env);
+  assert.equal(terminalResult.status, 200);
+  assert.equal(state.row.status, "blocked");
+  assert.equal(state.row.agent_claim_token_hash, "", "terminal result must revoke the claim token");
+
+  const replay = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: { claimToken: replacement.claimToken, status: "blocked", result: "replayed result" }
+  }, env);
+  assert.equal(replay.status, 409, "terminal claim token must not be replayable");
+});
