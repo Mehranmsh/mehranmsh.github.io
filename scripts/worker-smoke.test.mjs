@@ -275,6 +275,31 @@ test("MEHRAN collaboration task APIs reject unauthenticated access", async () =>
 });
 
 
+test("AI patch generation endpoint requires the dedicated agent bearer token", async () => {
+  const response = await request("/agent/v1/patch-proposals/generate", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + "x".repeat(48) },
+    body: { baseSha: "a".repeat(40), objective: "Add a bounded regression test" }
+  }, { DB: mockDb(), MEHRAN_AGENT_TOKEN: "s".repeat(48) });
+  assert.equal(response.status, 401);
+  const payload = await response.json();
+  assert.match(payload.error, /Agent authentication required/);
+});
+
+test("AI patch generation endpoint has a strict bounded request and storage-only response", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /Object\.keys\(body\)\.sort\(\)\.join\(","\) !== "baseSha,objective"/);
+  assert.match(route, /checkRateLimit\(env,request,"intelligence-patch-generation",3,86400,86400\)/);
+  assert.match(route, /reserveSocialWorkersAIBudget\(env,credits,"intelligence"\)/);
+  assert.match(route, /storePrivatePatchArtifact/);
+  assert.match(route, /INSERT OR IGNORE INTO intelligence_patch_proposals/);
+  assert.doesNotMatch(route, /diff\s*:/);
+  assert.match(route, /generated\.validation\.mode/);
+});
+
 test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
   const response = await request("/agent/v1/patch-proposals", {
     method: "POST",
