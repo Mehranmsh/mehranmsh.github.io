@@ -52,8 +52,11 @@ async function verifyExisting(response, expectedSha256, expectedPath = null) {
   } catch {
     return fail("existing_artifact_invalid_json");
   }
-  if (expectedPath && getPrivatePatchArtifactPath(existing) !== expectedPath) {
-    return fail("artifact_path_mismatch");
+  if (expectedPath) {
+    let canonicalPath;
+    try { canonicalPath = getPrivatePatchArtifactPath(existing); }
+    catch { return fail("existing_artifact_invalid_json"); }
+    if (canonicalPath !== expectedPath) return fail("artifact_path_mismatch");
   }
   const verified = await verifyPatchArtifactRecord(existing, expectedSha256);
   if (!verified.ok) return fail("artifact_id_conflict");
