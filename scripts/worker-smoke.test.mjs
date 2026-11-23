@@ -1136,6 +1136,12 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.ok(timeoutMatch, "runner job must have an explicit maximum runtime");
   assert.ok(Number(timeoutMatch[1]) < 15,
     "runner maximum runtime must remain below the 15-minute claim-expiry window");
+  assert.match(runner, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000;/,
+    "task execution must leave a safety margin for result submission and report finalization");
+  assert.match(runner, /count < 5 && Date\.now\(\) < taskExecutionDeadline/,
+    "each scheduled tick must bound both task count and execution time");
+  assert.match(runner, /remaining eligible tasks stay queued for the next scheduled tick/,
+    "unclaimed work must remain queued when the execution budget is reached");
   assert.match(workerSource, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/,
     "claim recovery must use the documented 15-minute ownership window");
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
