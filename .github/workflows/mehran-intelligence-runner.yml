@@ -284,7 +284,7 @@ jobs:
               const proposal = await request("/agent/v1/patch-proposals/generate", {
                 method: "POST",
                 body: JSON.stringify({ baseSha, objective, requestId: task.id })
-              });
+              }, agentHeaders, 90000);
               if (proposal.requestId !== task.id || proposal.status !== "stored" ||
                   !/^[A-Za-z0-9_-]{43}$/.test(proposal.requestHash || "") ||
                   !/^[a-f0-9-]{36}$/.test(proposal.proposalId || "") ||
@@ -617,7 +617,10 @@ jobs:
               result = serializeBoundedResult(executionResult);
             } catch (error) {
               status = "blocked";
-              retryable = Number(error?.status) === 503;
+              retryable = Number(error?.status) === 503 ||
+                (task.actionType === "propose_code_patch" &&
+                  ((Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || ""))) ||
+                   error?.name === "TimeoutError" || error?.name === "AbortError"));
               const diagnostic = String(error?.message || error).slice(0,300);
               console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
               result = `Bounded runner failed: ${diagnostic}`;
