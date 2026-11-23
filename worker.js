@@ -5929,12 +5929,20 @@ async function planIntelligenceMission(env, input) {
   // schema even when they do not apply to the selected action. The package
   // validator intentionally rejects those cross-action fields, so normalize
   // them at this trust boundary before independent validation.
+  const acceptedTaskIds = new Set();
   const normalizedTasks = plan.tasks.map(item => {
     const normalized = { ...item };
     if (normalized.actionType !== "inspect_repository") delete normalized.paths;
     if (normalized.actionType !== "run_repository_tests") delete normalized.baseSha;
     if (normalized.actionType !== "propose_code_patch") delete normalized.objective;
-    if (!Array.isArray(normalized.dependsOn)) normalized.dependsOn = [];
+    // Enforce a valid acyclic dependency graph at the model trust boundary.
+    // Keep only unique references to task IDs already accepted in this package.
+    const seenDependencies = new Set();
+    normalized.dependsOn = (Array.isArray(normalized.dependsOn) ? normalized.dependsOn : [])
+      .filter(dep => typeof dep === "string" && acceptedTaskIds.has(dep) && !seenDependencies.has(dep) && seenDependencies.add(dep));
+    if (typeof normalized.taskId === "string" && /^[A-Za-z0-9._:-]{1,80}$/.test(normalized.taskId)) {
+      acceptedTaskIds.add(normalized.taskId);
+    }
     return normalized;
   });
   const created = await createIntelligenceWorkPackage(env, {
