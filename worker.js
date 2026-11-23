@@ -5184,7 +5184,14 @@ async function ensureIntelligenceProtocolTables(env) {
     )
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_dependencies_parent ON intelligence_task_dependencies(depends_on_task_id)").run();
-  try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT").run(); } catch {}
+  try {
+    await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT").run();
+  } catch (migrationError) {
+    // Repeated initialization is expected, but unrelated migration failures must remain visible.
+    if (!/duplicate column name/i.test(String(migrationError?.message || migrationError))) {
+      throw migrationError;
+    }
+  }
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_task_events(
       id TEXT PRIMARY KEY,
