@@ -361,6 +361,10 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
   assert.match(route, /status='prepared'/);
   assert.doesNotMatch(route, /diff\s*:/);
   assert.match(route, /validationMode:row\.validation_mode/);
+  const generationFailure = route.slice(route.indexOf("if (!generated.ok)"), route.indexOf("const artifact = generated.artifact"));
+  assert.match(generationFailure, /source_fetch_failed.*502/);
+  assert.doesNotMatch(generationFailure, /\? 503/,
+    "HTTP 503 is reserved for prepared-artifact recovery paths that are safe to retry with the same request ID");
 });
 
 test("authenticated patch proposal route is bound to the dedicated agent token", async () => {
