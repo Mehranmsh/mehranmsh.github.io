@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-patch-policy.mjs";
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
+import { buildPatchGenerationMessages, validateAppendOnlyPatchGeneration } from "./intelligence-patch-generator.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -453,4 +454,61 @@ test("private patch store rejects a conflicting artifact ID and invalid credenti
   });
   assert.equal(invalid.code, "store_not_configured");
   assert.equal(calls, before);
+});
+
+
+test("AI patch generation accepts only additions appended at the exact end of the allowlisted test file", () => {
+  const source = "import test from \"node:test\";\nconst existing = true;\n";
+  const baseSha = "a".repeat(40);
+  const objective = "Add a regression test for a bounded parser edge case.";
+  const summary = "Add a focused parser regression test at the end of the suite.";
+  const diff = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ -2,0 +3,2 @@",
+    "+test(\"new regression\", () => {",
+    "+  assert.equal(existing, true);",
+    ""
+  ].join("\n");
+  const result = validateAppendOnlyPatchGeneration({ baseSha, objective, source, summary, diff });
+  assert.equal(result.ok, true);
+  assert.equal(result.additions, 2);
+  assert.equal(result.deletions, 0);
+  assert.equal(result.mode, "append_only_test_proposal");
+});
+
+test("AI patch generation rejects deletions, misplaced hunks, and invalid source metadata", () => {
+  const source = "one\ntwo\nthree\n";
+  const baseSha = "b".repeat(40);
+  const objective = "Add one focused regression test without changing existing assertions.";
+  const summary = "Add a narrow regression test.";
+  const deleted = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ -3,1 +3,1 @@",
+    "-three",
+    "+four",
+    ""
+  ].join("\n");
+  const misplaced = [
+    "--- a/scripts/intelligence-capabilities.test.mjs",
+    "+++ b/scripts/intelligence-capabilities.test.mjs",
+    "@@ -1,0 +2,1 @@",
+    "+test(\"bad location\", () => {});",
+    ""
+  ].join("\n");
+  assert.equal(validateAppendOnlyPatchGeneration({ baseSha, objective, source, summary, diff:deleted }).code,
+    "generated_patch_not_append_only");
+  assert.equal(validateAppendOnlyPatchGeneration({ baseSha, objective, source, summary, diff:misplaced }).code,
+    "generated_patch_not_append_only");
+  assert.equal(buildPatchGenerationMessages({ baseSha:"bad", objective, source }).code,
+    "invalid_generation_input");
+});
+
+test("AI patch generation endpoint remains fixed-path, budgeted, and non-applying", () => {
+  assert.ok(workerSource.includes('path === "/agent/v1/patch-proposals/generate"'));
+  assert.ok(workerSource.includes('reserveSocialWorkersAIBudget(env,250,"intelligence")'));
+  assert.ok(workerSource.includes("https://raw.githubusercontent.com/Mehranmsh/mehranmsh.github.io/"));
+  assert.ok(workerSource.includes("validateAppendOnlyPatchGeneration"));
+  assert.ok(workerSource.includes("applied:false,branchCreated:false,pullRequestCreated:false,deployed:false"));
 });
