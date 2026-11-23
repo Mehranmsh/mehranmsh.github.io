@@ -6491,10 +6491,13 @@ export default {
             await env.DB.prepare(
               "UPDATE intelligence_patch_generation_requests SET status='failed',failure_code=?,updated_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='processing'"
             ).bind(String(generated.code || "generation_failed").slice(0,80),body.requestId).run();
+            // Generation failures are persisted as terminal "failed" requests.
+            // Do not return 503 here: the runner retries 503 with the same request ID,
+            // and this request is intentionally not regenerable. HTTP 503 is reserved
+            // for prepared-artifact recovery/storage interruptions, which are idempotent.
             const status = generated.code === "stale_base_sha" ? 409 :
               generated.code === "ai_budget_exhausted" ? 429 :
-              ["ai_unavailable","budget_guard_unavailable","ai_budget_guard_failed","main_commit_lookup_failed","source_fetch_failed"].includes(generated.code) ? 503 :
-              ["model_request_failed","model_returned_error","model_output_not_json","model_output_invalid"].includes(generated.code) ? 502 : 400;
+              ["ai_unavailable","budget_guard_unavailable","ai_budget_guard_failed","main_commit_lookup_failed","source_fetch_failed","model_request_failed","model_returned_error","model_output_not_json","model_output_invalid"].includes(generated.code) ? 502 : 400;
             return error("Patch generation rejected: " + String(generated.code || "unknown"),status);
           }
           const artifact = generated.artifact;
