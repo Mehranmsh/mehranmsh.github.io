@@ -1796,6 +1796,63 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
 });
 
+test("repository inspection work packages enforce exact bounded paths and persist them", () => {
+  const base = {
+    idempotencyKey: "inspect-plan-2026-11-23-a1",
+    title: "Inspect Intelligence source",
+    objective: "Read selected source files safely.",
+    tasks: [{
+      taskId: "inspect-core",
+      title: "Inspect core source",
+      actionType: "inspect_repository",
+      paths: ["worker.js", "scripts/intelligence-capabilities.mjs"]
+    }]
+  };
+  const accepted = validateIntelligenceWorkPackage(base);
+  assert.equal(accepted.ok, true);
+  assert.deepEqual(accepted.tasks[0].paths, base.tasks[0].paths);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["../../secrets"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["worker.js", "worker.js"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: [] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["worker.js", "scripts/intelligence-agent.mjs", "scripts/intelligence-capabilities.mjs", "scripts/intelligence-capabilities.test.mjs", ".github/workflows/mehran-intelligence-runner.yml", "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md", "worker.js"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ taskId: "health", title: "Health", actionType: "service_health_report", paths: ["worker.js"] }]
+  }).ok, false);
+});
+
+test("repository inspection result verifier requires immutable commit and bounded file evidence", () => {
+  const report = {
+    type: "inspect_repository",
+    generatedAt: "2026-11-23T00:00:00.000Z",
+    mode: "bounded_read_only_repository_inspection",
+    repository: "Mehranmsh/mehranmsh.github.io",
+    commitSha: "a".repeat(40),
+    summary: { filesInspected: 2, totalBytes: 15 },
+    files: [
+      { path: "worker.js", blobSha: "b".repeat(40), bytes: 10, lineCount: 2, symbols: ["fetch"] },
+      { path: "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md", blobSha: "c".repeat(40), bytes: 5, lineCount: 1, symbols: [] }
+    ]
+  };
+  assert.equal(verifyIntelligenceReport("inspect_repository", report).passed, true);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...report, files: [{ ...report.files[0], path: "../../secrets" }, report.files[1]]
+  }).passed, false);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...report, files: [{ ...report.files[0], bytes: 500001 }, report.files[1]]
+  }).passed, false);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...report, summary: { filesInspected: 1, totalBytes: 15 }
+  }).passed, false);
+});
+
 test("MCP work-package tools are exposed only to the bridge when owner orchestration is enabled", () => {
   const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const end = workerSource.indexOf("const publicBridgeResultMatch", start);
