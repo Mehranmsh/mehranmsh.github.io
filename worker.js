@@ -5772,7 +5772,7 @@ async function planIntelligenceMission(env, input) {
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
-  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind("mehran_intelligence").all();
+  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind(admin.uid).all();
   const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
   if (!env.AI || typeof env.AI.run !== "function") {
     return fallback("ai_binding_unavailable");
@@ -8205,7 +8205,7 @@ export default {
         await ensureIntelligenceMemoryTables(env);
         const key = decodeURIComponent(intelligenceMemoryMatch[1]).toLowerCase();
         if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(key)) return error("Invalid memory key.",400);
-        const removed = await env.DB.prepare("DELETE FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND source<>'project_baseline'").bind("mehran_intelligence",key).run();
+        const removed = await env.DB.prepare("DELETE FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND source<>'project_baseline'").bind(admin.uid,key).run();
         return json({success:true,deleted:Number(removed?.meta?.changes||0)>0});
       }
 
@@ -8304,6 +8304,19 @@ export default {
         ];
         const executeTool = async (name,args) => {
           if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid tool arguments.");
+          if (name === "remember_context") {
+            if (Object.keys(args).some(k=>!["key","category","content","importance"].includes(k))) throw new Error("Unknown memory field.");
+            const key = typeof args.key === "string" ? args.key.trim().toLowerCase() : "";
+            const category = args.category;
+            const content = cleanText(args.content,1200);
+            const categories = ["goal","decision","architecture","preference","constraint","progress"];
+            const importance = args.importance === undefined ? 3 : Number(args.importance);
+            if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(key) || !categories.includes(category) || !content || content.length < 8 || !Number.isInteger(importance) || importance < 1 || importance > 5) throw new Error("Invalid durable memory entry.");
+            if (/(password|api[_ -]?key|private[_ -]?key|seed phrase|recovery phrase|wallet passphrase)/i.test(content)) throw new Error("Credentials and wallet secrets cannot be stored in memory.");
+            await env.DB.prepare("INSERT INTO intelligence_memory_items(id,owner_uid,memory_key,category,content,importance,source) VALUES(?,?,?,?,?,?, 'owner_chat') ON CONFLICT(owner_uid,memory_key) DO UPDATE SET category=excluded.category,content=excluded.content,importance=excluded.importance,source='owner_chat',updated_at=CURRENT_TIMESTAMP")
+              .bind(crypto.randomUUID(),admin.uid,key,category,content,importance).run();
+            return {saved:true,key,category,updated:true};
+          }
           if (name === "get_project_status") {
             if (Object.keys(args).length) throw new Error("This tool accepts no arguments.");
             const rows=await env.DB.prepare("SELECT name,status,description,updated_at FROM projects ORDER BY created_at DESC LIMIT 50").all();
