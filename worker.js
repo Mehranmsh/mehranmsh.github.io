@@ -5943,7 +5943,14 @@ async function planIntelligenceMission(env, input) {
     ownerUid: input?.ownerUid
   });
   if (!created.success) {
-    if (created.code === -32602) return fallback("ai_plan_validation_failed");
+    if (created.code === -32602) {
+      console.error("INTELLIGENCE_PLAN_VALIDATION_REJECTED", {
+        reason: cleanText(created.error, 240),
+        taskCount: normalizedTasks.length,
+        taskTypes: normalizedTasks.map(item => cleanText(item?.actionType, 60))
+      });
+      return fallback("ai_plan_validation_failed");
+    }
     return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };
   }
   return {
@@ -6061,9 +6068,14 @@ export function verifyIntelligenceReport(actionType, report) {
     const validChecks = checksList.length > 0 && checksList.length <= 30 &&
       checksList.every(item => item && typeof item.id === "string" &&
         typeof item.passed === "boolean" && typeof item.detail === "string");
-    if (report.mode !== "deterministic_read_only_static_audit" || !validSummary || !validChecks ||
-        !files["worker.js"] || !files[".github/workflows/mehran-intelligence-runner.yml"]) {
-      return { passed: false, checks: [...checks, "source_security_audit_schema"] };
+    const schemaFailures = [];
+    if (report.mode !== "deterministic_read_only_static_audit") schemaFailures.push("source_audit_mode_invalid");
+    if (!validSummary) schemaFailures.push("source_audit_summary_invalid");
+    if (!validChecks) schemaFailures.push("source_audit_checks_invalid");
+    if (!files["worker.js"]) schemaFailures.push("source_audit_worker_file_missing");
+    if (!files[".github/workflows/mehran-intelligence-runner.yml"]) schemaFailures.push("source_audit_runner_file_missing");
+    if (schemaFailures.length) {
+      return { passed: false, checks: [...checks, "source_security_audit_schema", ...schemaFailures] };
     }
     checks.push("source_security_audit_schema");
   } else {
