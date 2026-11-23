@@ -127,6 +127,16 @@ test("security audit gathers bounded evidence from fixed official research sourc
   assert.match(runnerSource, /fixed official documentation URLs/);
 });
 
+test("completed self-assessment creates one idempotent evidence-driven terminal follow-up", () => {
+  assert.match(runnerSource, /workPackageId === selfImprovementPackageId && finalState\.workPackage\?\.status === "completed"/);
+  assert.match(runnerSource, /\.slice\(0, 6\)[\s\S]*?result_text[\s\S]*?\.slice\(0, 420\)/);
+  assert.match(runnerSource, /JSON\.stringify\([\s\S]*?tasks: taskEvidence[\s\S]*?\.slice\(0, 1150\)/);
+  assert.match(runnerSource, /idempotencyKey: "mehran-intelligence-self-improvement-evidence-review-v1"/);
+  assert.match(runnerSource, /allowDeterministicFallback: false/);
+  assert.match(runnerSource, /CYCLE 2 \(FINAL, NON-RECURSIVE\)/);
+  assert.match(runnerSource, /Do not create another self-improvement mission or recursive follow-up/);
+});
+
 test("pull request creation remains planned and non-executable", () => {
   const capability = getIntelligenceCapability("create_pull_request");
   assert.equal(capability.status, "planned");
