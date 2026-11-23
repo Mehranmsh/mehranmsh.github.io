@@ -3001,6 +3001,10 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
   assert.equal(state.row.status, "retry_wait", "recoverable failures must enter bounded retry wait");
   assert.equal(state.row.agent_claim_token_hash, "", "retry scheduling must revoke the previous claim");
   assert.equal(state.row.agent_claimed_at, null);
+  const scheduledRetryAt = Date.parse(state.row.next_attempt_at);
+  assert.ok(Number.isFinite(scheduledRetryAt), "retry must persist a valid next-attempt timestamp");
+  assert.ok(scheduledRetryAt > Date.now(), "retry must not be claimable before its backoff expires");
+  assert.ok(scheduledRetryAt <= Date.now() + 31_000, "first retry must use the bounded 30-second backoff");
 
   // Simulate the bounded backoff window elapsing before the next runner claims.
   state.row.next_attempt_at = "2000-01-01T00:00:00.000Z";
@@ -3021,7 +3025,7 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
 
   const terminalResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
     method: "POST", headers: auth,
-    body: { claimToken: retryClaim.claimToken, status: "blocked", result: "controlled lifecycle test complete" }
+    body: { claimToken: retryClaim.claimToken, status: "blocked", retryable: true, result: "controlled lifecycle test complete" }
   }, env);
   assert.equal(terminalResult.status, 200);
   assert.equal(state.row.status, "blocked");
