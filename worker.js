@@ -6808,6 +6808,7 @@ export default {
           const resultText = cleanText(body.result,3000);
           if (!resultText) return error("Task result cannot be empty.");
           const claimToken = typeof body.claimToken === "string" ? body.claimToken : "";
+          const claimTokenHash = claimToken ? await sha256(claimToken) : "";
           if (!/^[A-Za-z0-9_-]{43}$/.test(claimToken)) return error("A valid task claim token is required.",401);
           const before = await env.DB.prepare("SELECT id,work_package_id,status,attempts,max_attempts,action_type,action_payload,checkpoint_json FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(id,claimTokenHash).first();
           if (!before) return error("Task claim not found, superseded, or expired.",409);
