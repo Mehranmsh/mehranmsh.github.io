@@ -241,6 +241,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
     "./intelligence-patch-policy.mjs",
     "./intelligence-patch-artifact.mjs",
     "./intelligence-private-patch-store.mjs",
+    "./intelligence-patch-generator.mjs",
     "./intelligence-capabilities.mjs"
   ]);
   for (const forbidden of [
