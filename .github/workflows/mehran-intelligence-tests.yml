@@ -1,8 +1,16 @@
 name: MEHRAN INTELLIGENCE isolated repository tests
 
-run-name: "MEHRAN INTELLIGENCE isolated tests @ ${{ inputs.base_sha }}"
+run-name: "MEHRAN INTELLIGENCE isolated tests @ ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha }}"
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "worker.js"
+      - "scripts/**"
+      - ".github/workflows/mehran-intelligence-runner.yml"
+      - ".github/workflows/mehran-intelligence-tests.yml"
+      - "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
   workflow_dispatch:
     inputs:
       base_sha:
@@ -25,22 +33,29 @@ jobs:
       - name: Check out the exact requested commit without persisting credentials
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
-          ref: ${{ inputs.base_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Verify commit identity and main-branch ancestry
         env:
-          BASE_SHA: ${{ inputs.base_sha }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha }}
+          EXPECTED_PR_SHA: ${{ github.event.pull_request.head.sha || '' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Rejected: base_sha must be a lowercase 40-character commit SHA."
+            echo "Rejected: selected commit must be a lowercase 40-character SHA."
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
-          git merge-base --is-ancestor "$BASE_SHA" origin/main
-          echo "Verified immutable commit $BASE_SHA is an ancestor of origin/main."
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test "$BASE_SHA" = "$EXPECTED_PR_SHA"
+            echo "Verified exact pull-request head commit $BASE_SHA."
+          else
+            git merge-base --is-ancestor "$BASE_SHA" origin/main
+            echo "Verified immutable commit $BASE_SHA is an ancestor of origin/main."
+          fi
 
       - name: Run the one fixed policy test in a network-isolated container
         run: |
