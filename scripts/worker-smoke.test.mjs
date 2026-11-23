@@ -3145,4 +3145,20 @@ test("real Worker task recovery preserves durable checkpoints and fences the cra
   }, env);
   assert.equal(resumed.status, 200);
   assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint);
+
+  const replacementResult = await request("/agent/v1/tasks/" + state.row.id + "/result", {
+    method: "POST", headers: auth,
+    body: {
+      claimToken: replacement.claimToken,
+      status: "blocked",
+      retryable: false,
+      result: "replacement runner completed its bounded recovery check"
+    }
+  }, env);
+  assert.equal(replacementResult.status, 200);
+  assert.equal(state.row.status, "blocked");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "", "replacement terminal result must revoke its claim");
+  assert.deepEqual(JSON.parse(state.row.checkpoint_json), resumedCheckpoint,
+    "terminal result must not discard the latest durable checkpoint");
 });
