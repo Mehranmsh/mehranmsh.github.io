@@ -650,7 +650,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
       async run(model, input) {
         modelName = model;
         assert.equal(input.max_tokens, 2200);
-        return { response: JSON.stringify({
+        return { response: "```json\\n" + JSON.stringify({
           summary: "Add a regression test for the generation boundary",
           diff: [
             "--- a/scripts/intelligence-capabilities.test.mjs",
@@ -659,7 +659,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
             "+test(\"generated boundary\", () => {});",
             ""
           ].join("\n")
-        }) };
+        }) + "\\n```" };
       }
     }
   };
