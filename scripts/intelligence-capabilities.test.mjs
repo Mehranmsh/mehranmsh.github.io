@@ -530,6 +530,25 @@ test("Workers AI patch generation rejects stale bases before budget or model use
   assert.equal(modelCalls, 0);
 });
 
+test("Workers AI patch generation bounds streamed source before budget or model use", async () => {
+  const baseSha = "e".repeat(40);
+  let budgetCalls = 0;
+  let modelCalls = 0;
+  const fetchImpl = async url => String(url).includes("/commits/main")
+    ? new Response(JSON.stringify({ sha: baseSha }), { status: 200 })
+    : new Response("x".repeat(128 * 1024 + 1), { status: 200 });
+  const result = await generatePatchArtifact({
+    env: { AI: { async run() { modelCalls++; return {}; } } },
+    baseSha,
+    objective: "Add a regression test for bounded source loading",
+    reserveBudget: async () => { budgetCalls++; return { allowed: true }; },
+    fetchImpl
+  });
+  assert.equal(result.code, "source_size_invalid");
+  assert.equal(budgetCalls, 0);
+  assert.equal(modelCalls, 0);
+});
+
 test("Workers AI patch generation validates and envelopes only an append-only diff", async () => {
   const source = "const original = true;\n";
   const baseSha = "d".repeat(40);
