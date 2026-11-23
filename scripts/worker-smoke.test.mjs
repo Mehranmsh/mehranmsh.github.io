@@ -423,6 +423,18 @@ test("prepared private patch artifact recovery verifies the exact path and full 
     });
     assert.equal(mismatched.stored, false);
     assert.equal(mismatched.code, "artifact_id_conflict");
+    const malformedArtifact = { ...created.artifact, createdAt: "not-a-date" };
+    const malformed = await patchStoreModule.verifyPrivatePatchArtifactAtPath({
+      token: "r".repeat(48), path,
+      artifactSha256: created.artifactSha256,
+      fetchImpl: async () => new Response(JSON.stringify({
+        path,
+        encoding: "base64",
+        content: Buffer.from(JSON.stringify(malformedArtifact), "utf8").toString("base64")
+      }), { status: 200 })
+    });
+    assert.equal(malformed.stored, false);
+    assert.equal(malformed.code, "artifact_id_conflict");
   }
 });
 
