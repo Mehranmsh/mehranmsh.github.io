@@ -1043,4 +1043,8 @@ test("execution protocol describes the merged mainline state accurately", () => 
   assert.doesNotMatch(protocol, /PR #217 branch/);
   assert.doesNotMatch(protocol, /pull request remains open as a draft/);
   assert.doesNotMatch(protocol, /separate, unmerged PR chain/);
+  assert.match(protocol, /bridge authenticates with `MEHRAN_MCP_TOKEN`/);
+  assert.match(protocol, /additionally gated by `MEHRAN_ORCHESTRATOR_TOKEN`/);
+  assert.match(protocol, /PR #164 was closed without merge/);
+  assert.doesNotMatch(protocol, /PR #164 implements the bounded MCP tools/);
 });
