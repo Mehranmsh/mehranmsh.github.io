@@ -5438,9 +5438,15 @@ export function validateIntelligenceWorkPackage(input) {
     const proposalObjective = actionType === "propose_code_patch" ? item?.objective : undefined;
     const validProposalObjective = actionType !== "propose_code_patch" ||
       (typeof proposalObjective === "string" && proposalObjective.trim().length >= 20 && proposalObjective.length <= 600);
+    const allowedTaskKeys = new Set(["taskId", "title", "description", "actionType", "dependsOn"]);
+    if (actionType === "inspect_repository") allowedTaskKeys.add("paths");
+    if (actionType === "run_repository_tests") allowedTaskKeys.add("baseSha");
+    if (actionType === "propose_code_patch") allowedTaskKeys.add("objective");
+    const validTaskKeys = item && typeof item === "object" && !Array.isArray(item) &&
+      Object.keys(item).every(key => allowedTaskKeys.has(key));
     if (!taskId || !/^[A-Za-z0-9._:-]{1,80}$/.test(taskId) || known.has(taskId) || !taskTitle ||
         !["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "run_repository_tests", "propose_code_patch"].includes(actionType) ||
-        !validInspectPaths || !validTestBaseSha || !validProposalObjective ||
+        !validTaskKeys || !validInspectPaths || !validTestBaseSha || !validProposalObjective ||
         (actionType !== "inspect_repository" && Object.hasOwn(item || {}, "paths")) ||
         (actionType !== "run_repository_tests" && Object.hasOwn(item || {}, "baseSha")) ||
         (actionType !== "propose_code_patch" && Object.hasOwn(item || {}, "objective")) ||
