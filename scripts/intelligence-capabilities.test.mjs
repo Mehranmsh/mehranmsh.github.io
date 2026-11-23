@@ -739,7 +739,7 @@ test("Intelligence mission planning uses a bounded, more efficient daily reserva
 test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
   assert.match(runnerSource, /concurrency:\s*group:\s*mehran-intelligence-private-runner\s*cancel-in-progress:\s*false/);
   assert.match(runnerSource, /for \(let count = 0; count < 5 && Date\.now\(\) < taskExecutionDeadline; count\+\+\)/);
-  assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \\* 60 \\* 1000/);
+  assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000/);
 });
 
 test("mission planner checks its idempotency key before any Workers AI budget reservation", () => {
