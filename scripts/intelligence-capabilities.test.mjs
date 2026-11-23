@@ -5,6 +5,7 @@ import { validatePatchProposal, PATCH_PROPOSAL_POLICY } from "./intelligence-pat
 import { createPatchArtifactRecord, verifyPatchArtifactRecord } from "./intelligence-patch-artifact.mjs";
 import { storePrivatePatchArtifact, PRIVATE_PATCH_ARTIFACT_STORE_POLICY } from "./intelligence-private-patch-store.mjs";
 import { buildPatchGenerationPrompt, validateGeneratedPatch, PATCH_GENERATION_POLICY } from "./intelligence-patch-generation.mjs";
+import { generatePatchArtifact, PATCH_GENERATION_SERVICE_POLICY } from "./intelligence-patch-generation-service.mjs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -510,4 +511,103 @@ test("generated patch validator rejects replacements, non-EOF hunks, and extra f
   assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof.replace(path, "worker.js") }).code, "path_not_allowed");
+});
+
+test("Workers AI patch generation rejects stale bases before budget or model use", async () => {
+  let budgetCalls = 0;
+  let modelCalls = 0;
+  const result = await generatePatchArtifact({
+    env: { AI: { async run() { modelCalls++; return {}; } } },
+    baseSha: "a".repeat(40),
+    objective: "Add a regression test for a bounded parser",
+    reserveBudget: async () => { budgetCalls++; return { allowed: true }; },
+    fetchImpl: async () => new Response(JSON.stringify({ sha: "b".repeat(40) }), { status: 200 })
+  });
+  assert.equal(result.code, "stale_base_sha");
+  assert.equal(budgetCalls, 0);
+  assert.equal(modelCalls, 0);
+});
+
+test("Workers AI patch generation validates and envelopes only an append-only diff", async () => {
+  const source = "const original = true;\n";
+  const baseSha = "d".repeat(40);
+  let budgetAmount = 0;
+  let modelName = "";
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes("/commits/main")) {
+      return new Response(JSON.stringify({ sha: baseSha }), { status: 200 });
+    }
+    return new Response(source, { status: 200 });
+  };
+  const env = {
+    AI: {
+      async run(model, input) {
+        modelName = model;
+        assert.equal(input.max_tokens, 2200);
+        return { response: JSON.stringify({
+          summary: "Add a regression test for the generation boundary",
+          diff: [
+            "--- a/scripts/intelligence-capabilities.test.mjs",
+            "+++ b/scripts/intelligence-capabilities.test.mjs",
+            "@@ -1,0 +2,1 @@",
+            "+test(\"generated boundary\", () => {});",
+            ""
+          ].join("\n")
+        }) };
+      }
+    }
+  };
+  const result = await generatePatchArtifact({
+    env, baseSha,
+    objective: "Add a regression test for the generation boundary",
+    reserveBudget: async amount => { budgetAmount = amount; return { allowed: true }; },
+    fetchImpl,
+    now: () => "2026-11-23T12:00:00.000Z",
+    proposalId: () => "12345678-1234-4234-8234-123456789abc"
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.validation.deletions, 0);
+  assert.equal(result.artifact.baseSha, baseSha);
+  assert.equal(result.artifact.targetPath, "scripts/intelligence-capabilities.test.mjs");
+  assert.equal(result.artifactSha256.length, 64);
+  assert.equal(budgetAmount, 250);
+  assert.equal(modelName, PATCH_GENERATION_SERVICE_POLICY.model);
+  assert.equal(calls.length, 2);
+  assert.equal(result.mode, "generate_validate_only");
+  assert.equal(PATCH_GENERATION_SERVICE_POLICY.appliesPatch, false);
+});
+
+test("Workers AI patch generation fails closed on budget denial and unsafe model output", async () => {
+  const baseSha = "e".repeat(40);
+  const fetchImpl = async url => String(url).includes("/commits/main")
+    ? new Response(JSON.stringify({ sha: baseSha }), { status: 200 })
+    : new Response("const original = true;\n", { status: 200 });
+  const base = {
+    baseSha,
+    objective: "Add a regression test for unsafe model output",
+    fetchImpl
+  };
+  const denied = await generatePatchArtifact({
+    ...base, env: { AI: { async run() { throw new Error("must not run"); } } },
+    reserveBudget: async () => ({ allowed: false })
+  });
+  assert.equal(denied.code, "ai_budget_exhausted");
+  const unsafe = await generatePatchArtifact({
+    ...base,
+    env: { AI: { async run() { return { response: JSON.stringify({
+      summary: "Replace an existing assertion with a different behavior",
+      diff: [
+        "--- a/scripts/intelligence-capabilities.test.mjs",
+        "+++ b/scripts/intelligence-capabilities.test.mjs",
+        "@@ -1,1 +1,1 @@",
+        "-const original = true;",
+        "+const original = false;",
+        ""
+      ].join("\n")
+    }) }; } } },
+    reserveBudget: async () => ({ allowed: true })
+  });
+  assert.equal(unsafe.code, "patch_not_append_only");
 });
