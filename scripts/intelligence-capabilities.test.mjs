@@ -180,8 +180,24 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\s*write/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /npm\s+(?:install|run)|pnpm\s+(?:install|run)|yarn\s+(?:install|run)/);
 
-  assert.doesNotMatch(
-    readFileSync(new URL("./intelligence-capabilities.test.mjs", import.meta.url), "utf8"),
-    /node:child_process|node:net|node:http|node:https|node:worker_threads|spawnSync|execFile|process\.env|fetch\(/
+  const isolatedTestSource = readFileSync(
+    new URL("./intelligence-capabilities.test.mjs", import.meta.url),
+    "utf8"
   );
+  const importedModules = [...isolatedTestSource.matchAll(/from ["']([^"']+)["']/g)]
+    .map((match) => match[1]);
+  assert.deepEqual(importedModules, [
+    "node:test",
+    "node:assert/strict",
+    "node:fs",
+    "./intelligence-capabilities.mjs"
+  ]);
+  for (const forbidden of [
+    ["process", ".", "env"].join(""),
+    ["fetch", "("].join(""),
+    ["require", "("].join(""),
+    ["import", "("].join("")
+  ]) {
+    assert.equal(isolatedTestSource.includes(forbidden), false, forbidden);
+  }
 });
