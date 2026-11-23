@@ -5184,6 +5184,7 @@ async function ensureIntelligenceProtocolTables(env) {
     )
   `).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_dependencies_parent ON intelligence_task_dependencies(depends_on_task_id)").run();
+  try { await env.DB.prepare("ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT").run(); } catch {}
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS intelligence_task_events(
       id TEXT PRIMARY KEY,
@@ -5356,6 +5357,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
 
   const existing = await fetch(apiUrl, { method: "GET", headers });
   if (existing.ok) {
+    await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
     return { stored: true, alreadyExists: true, path };
   }
   if (existing.status !== 404) {
@@ -5379,6 +5381,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   if (!response.ok) {
     throw new Error(`GitHub report write failed with status ${response.status}.`);
   }
+  await env.DB.prepare("UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=? AND report_stored_at IS NULL").bind(packageId).run();
   return { stored: true, alreadyExists: false, path };
 }
 
@@ -6698,7 +6701,7 @@ export default {
         }
         if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET") {
           const pending = await env.DB.prepare(
-            "SELECT id FROM intelligence_work_packages WHERE status IN ('completed','attention_required') ORDER BY updated_at DESC LIMIT 20"
+            "SELECT id FROM intelligence_work_packages WHERE status IN ('completed','attention_required') AND report_stored_at IS NULL ORDER BY created_at ASC LIMIT 20"
           ).all();
           return json({success:true,workPackageIds:(pending.results || []).map(row => String(row.id || "")).filter(Boolean)});
         }
