@@ -85,7 +85,11 @@ jobs:
             let payload;
             try { payload = raw ? JSON.parse(raw) : {}; }
             catch { throw new Error(`Agent API returned non-JSON HTTP ${response.status}`); }
-            if (!response.ok) throw new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
+            if (!response.ok) {
+              const failure = new Error(`Agent API HTTP ${response.status}: ${String(payload.error || "request failed").slice(0,180)}`);
+              failure.status = response.status;
+              throw failure;
+            }
             return payload;
             } finally {
               recordTiming(`api:${timingRoute(path)}`, requestStartedAt);
@@ -605,6 +609,7 @@ jobs:
             }
             let status = "completed";
             let result;
+            let retryable = false;
             const executionStartedAt = Date.now();
             try {
               const executionResult = await execute(task);
@@ -612,16 +617,17 @@ jobs:
               result = serializeBoundedResult(executionResult);
             } catch (error) {
               status = "blocked";
+              retryable = Number(error?.status) === 503;
               const diagnostic = String(error?.message || error).slice(0,300);
-              console.log(`Read-only task diagnostic (${task.actionType}): ${diagnostic}`);
-              result = `Read-only runner failed: ${diagnostic}`;
+              console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
+              result = `Bounded runner failed: ${diagnostic}`;
             }
             recordTiming(`task_execute:${task.actionType}`, executionStartedAt);
             await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/result`, {
               method: "POST",
-              body: JSON.stringify({ status, result })
+              body: JSON.stringify({ status, result, retryable })
             });
-            console.log(`One read-only task finished with status: ${status}`);
+            console.log(`One bounded task finished with status: ${status}; retryable=${retryable}`);
           }
 
           // Finalize every package touched by this tick, including missions submitted from the owner UI.
