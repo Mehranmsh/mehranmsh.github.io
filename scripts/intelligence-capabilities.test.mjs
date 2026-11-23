@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   INTELLIGENCE_CAPABILITIES,
   INTELLIGENCE_ACTION_TYPES,
@@ -8,35 +9,70 @@ import {
   validateIntelligenceCapabilityRequest
 } from "./intelligence-capabilities.mjs";
 
-test("only the existing five read-only report actions are active in the scheduled runner", () => {
-  assert.deepEqual(INTELLIGENCE_ACTION_TYPES, [
+const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
+const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
+const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduledStart);
+assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
+const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
+
+test("all five active read-only capabilities are registered independent of executor type", () => {
+  const expected = [
     "project_status_report",
     "social_metrics_report",
     "service_health_report",
     "repository_quality_check",
     "source_security_audit"
-  ]);
-  assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, INTELLIGENCE_ACTION_TYPES);
-  for (const id of INTELLIGENCE_ACTION_TYPES) {
+  ];
+  assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
+  assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
+  for (const id of expected) {
     const item = getIntelligenceCapability(id);
     assert.equal(item.status, "active");
     assert.equal(item.permissionTier, "read_only");
-    assert.equal(item.executor, "scheduled_runner");
     assert.equal(item.requiresApproval, false);
+    assert.ok(Object.isFrozen(item.executors));
+    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, true);
   }
 });
 
-test("future self-improvement capabilities are explicitly planned, not executable", () => {
+test("executor metadata matches the actual Worker and GitHub Actions routing", () => {
+  const expected = {
+    project_status_report: ["cloudflare_worker_scheduler"],
+    social_metrics_report: ["cloudflare_worker_scheduler"],
+    service_health_report: ["cloudflare_worker_scheduler", "github_actions_runner"],
+    repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
+    source_security_audit: ["github_actions_runner"]
+  };
+  for (const [id, executors] of Object.entries(expected)) {
+    assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
+  }
+
+  assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
+  assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
+  assert.doesNotMatch(workerSchedulerSource, /source_security_audit/);
+
+  const runnerActions = runnerSource.match(/const capabilityActions = \[([^\]]+)\]/);
+  assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
+  assert.deepEqual(
+    [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
+    ["service_health_report", "repository_quality_check", "source_security_audit"]
+  );
+});
+
+test("future self-improvement capabilities remain planned and non-executable", () => {
   for (const id of ["inspect_repository", "run_repository_tests", "propose_code_patch", "create_pull_request"]) {
     assert.equal(getIntelligenceCapability(id).status, "planned");
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
+    assert.ok(getIntelligenceCapability(id).executors.length > 0);
   }
 });
 
 test("merge, deployment, secrets, wallet and arbitrary shell capabilities remain blocked", () => {
   for (const id of ["merge_pull_request", "deploy", "read_secrets", "wallet_operations", "arbitrary_shell"]) {
     assert.equal(getIntelligenceCapability(id).status, "blocked");
+    assert.deepEqual(getIntelligenceCapability(id).executors, []);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_blocked");
   }
@@ -59,7 +95,7 @@ test("patch proposals enforce bounded typed inputs without applying changes", ()
   assert.equal(schema.properties.targetPaths.maxItems, 10);
   assert.equal(schema.properties.diff.maxLength, 20000);
   assert.equal(validateIntelligenceCapabilityRequest("propose_code_patch", good).code, "capability_not_implemented");
-  assert.equal(getIntelligenceCapability("propose_code_patch").executor, "proposal_store");
+  assert.deepEqual(getIntelligenceCapability("propose_code_patch").executors, ["proposal_store"]);
 });
 
 test("PR creation schema requires a scoped proposal branch and immutable head SHA", () => {
