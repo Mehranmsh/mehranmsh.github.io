@@ -5137,7 +5137,7 @@ async function ensureIntelligenceTaskTable(env) {
       action_type TEXT NOT NULL DEFAULT '',
       action_payload TEXT NOT NULL DEFAULT '{}',
       agent_claimed_at TEXT,
-      agent_claim_token TEXT NOT NULL DEFAULT '',
+      agent_claim_token_hash TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -6751,7 +6751,7 @@ export default {
         if (path === "/agent/v1/tasks/next" && method === "GET") {
           // Recover only claims made by this agent API; never reset manually managed in-progress tasks.
           await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,agent_claim_token='',last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
+            "UPDATE intelligence_tasks SET status='blocked',agent_claimed_at=NULL,agent_claim_token_hash='',last_error_code='claim_expired_max_attempts',result_text='Agent claim expired and retry limit was reached.',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)>=COALESCE(max_attempts,3)"
           ).run();
           await env.DB.prepare(
             "UPDATE intelligence_tasks SET status='accepted',agent_claimed_at=NULL,agent_claim_token='',last_error_code='claim_expired_retry',updated_at=CURRENT_TIMESTAMP WHERE status='in_progress' AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at) < datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch') AND COALESCE(attempts,0)<COALESCE(max_attempts,3)"
@@ -6765,9 +6765,10 @@ export default {
           ).first();
           if (!candidate) return json({success:true,task:null});
           const claimToken = toBase64Url(crypto.getRandomValues(new Uint8Array(32)));
+          const claimTokenHash = await sha256(claimToken);
           const claimed = await env.DB.prepare(
-            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
-          ).bind(claimToken,candidate.id).run();
+            "UPDATE intelligence_tasks SET status='in_progress',attempts=COALESCE(attempts,0)+1,agent_claimed_at=CURRENT_TIMESTAMP,agent_claim_token_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
+          ).bind(claimTokenHash,candidate.id).run();
           if (!Number(claimed?.meta?.changes || 0)) return json({success:true,task:null,retry:true});
           const row = await env.DB.prepare("SELECT * FROM intelligence_tasks WHERE id=?").bind(candidate.id).first();
           if (row) {
@@ -6786,10 +6787,11 @@ export default {
           try { checkpointJson = JSON.stringify(body.checkpoint); } catch { return error("Checkpoint must be valid JSON."); }
           if (!checkpointJson || checkpointJson.length > 4000) return error("Checkpoint exceeds the 4 KB limit.");
           const claimToken = typeof body.claimToken === "string" ? body.claimToken : "";
+          const claimTokenHash = claimToken ? await sha256(claimToken) : "";
           if (!/^[A-Za-z0-9_-]{43}$/.test(claimToken)) return error("A valid task claim token is required.",401);
-          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(id,claimToken).first();
+          const before = await env.DB.prepare("SELECT id,work_package_id FROM intelligence_tasks WHERE id=? AND status='in_progress' AND agent_claim_token_hash=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(id,claimTokenHash).first();
           if (!before) return error("Task claim not found, superseded, or expired.",409);
-          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(checkpointJson,id,claimToken).run();
+          const update = await env.DB.prepare("UPDATE intelligence_tasks SET checkpoint_json=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')").bind(checkpointJson,id,claimTokenHash).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired before checkpoint commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,'checkpoint_saved','in_progress','in_progress','mehran_intelligence',?)")
             .bind(crypto.randomUUID(),before.work_package_id || null,id,JSON.stringify({checkpointLength:checkpointJson.length})).run();
@@ -6843,7 +6845,7 @@ export default {
           const finalStatus = retryable ? "retry_wait" : requestedStatus;
           const update = await env.DB.prepare(
             "UPDATE intelligence_tasks SET status=?,result_text=?,agent_claimed_at=NULL,agent_claim_token='',next_attempt_at=?,last_error_code=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_progress' AND agent_claim_token=? AND agent_claimed_at IS NOT NULL AND datetime(agent_claimed_at)>=datetime('now','-15 minutes') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch')"
-          ).bind(finalStatus,resultText,nextAttemptAt,retryable?"retryable_agent_error":requestedStatus==="blocked"?"non_retryable_agent_error":"",id,claimToken).run();
+          ).bind(finalStatus,resultText,nextAttemptAt,retryable?"retryable_agent_error":requestedStatus==="blocked"?"non_retryable_agent_error":"",id,claimTokenHash).run();
           if (!Number(update?.meta?.changes || 0)) return error("Task claim expired or changed before result commit.",409);
           await env.DB.prepare("INSERT INTO intelligence_task_events(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json) VALUES(?,?,?,?,?,?, 'mehran_intelligence',?)")
             .bind(crypto.randomUUID(),before.work_package_id || null,id,retryable?"task_retry_scheduled":"task_result","in_progress",finalStatus,JSON.stringify({resultLength:resultText.length,retryable,retryDelaySeconds:retryable?retryDelaySeconds:0})).run();
