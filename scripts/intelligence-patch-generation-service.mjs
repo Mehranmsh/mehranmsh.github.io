@@ -16,6 +16,12 @@ function extractModelText(result) {
   return "";
 }
 
+export function normalizeGeneratedDiff(diff) {
+  if (typeof diff !== "string" || /\r(?!\n)/.test(diff)) return null;
+  const normalized = diff.replace(/\r\n/g, "\n");
+  return normalized.endsWith("\n") ? normalized : normalized + "\n";
+}
+
 function extractJsonObject(raw) {
   if (typeof raw !== "string") return "";
   const text = raw.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "").trim();
@@ -210,9 +216,8 @@ export async function generatePatchArtifact({
   const sourceLineCount = source.endsWith("\n") ? source.split("\n").length - 1 : source.split("\n").length;
   // Canonicalize harmless transport formatting from model output before strict validation.
   // Preserve patch content; reject lone carriage returns and malformed no-newline markers.
-  if (/\r(?!\n)/.test(generated.diff)) return fail("model_diff_encoding_invalid");
-  const canonicalDiff = generated.diff.replace(/\r\n/g, "\n");
-  const normalizedDiff = canonicalDiff.endsWith("\n") ? canonicalDiff : canonicalDiff + "\n";
+  const normalizedDiff = normalizeGeneratedDiff(generated.diff);
+  if (normalizedDiff === null) return fail("model_diff_encoding_invalid");
   const validated = validateGeneratedPatch({
     baseSha,
     sourceLineCount,
