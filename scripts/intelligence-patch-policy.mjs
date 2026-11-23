@@ -23,7 +23,7 @@ export function validatePatchProposal(input) {
   if (!Array.isArray(targetPaths) || targetPaths.length !== 1) return fail("invalid_target_count");
   const targetPath = targetPaths[0];
   if (typeof targetPath !== "string" || !ALLOWED_PATCH_PATHS.includes(targetPath)) return fail("path_not_allowed");
-  if (typeof diff !== "string" || diff.length < 20 || Buffer.byteLength(diff, "utf8") > MAX_PATCH_BYTES) return fail("patch_size_invalid");
+  if (typeof diff !== "string" || diff.length < 20 || new TextEncoder().encode(diff).byteLength > MAX_PATCH_BYTES) return fail("patch_size_invalid");
   if (diff.includes("\u0000") || diff.includes("\r") || !diff.endsWith("\n")) return fail("patch_encoding_invalid");
 
   const lines = diff.slice(0, -1).split("\n");
@@ -72,7 +72,7 @@ export function validatePatchProposal(input) {
     ok: true,
     baseSha,
     targetPath,
-    bytes: Buffer.byteLength(diff, "utf8"),
+    bytes: new TextEncoder().encode(diff).byteLength,
     additions,
     deletions,
     hunkCount,
