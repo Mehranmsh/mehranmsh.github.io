@@ -862,6 +862,11 @@ test("Private package reports are verified before the durable stored marker is s
   const end = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot", start);
   assert.ok(start >= 0 && end > start);
   const persist = workerSource.slice(start, end);
+  const storedMarkerGuard = persist.indexOf("if (pkg.report_stored_at)");
+  const alreadyRecorded = persist.indexOf('reason: "already_recorded"');
+  const taskRead = persist.indexOf('SELECT id,status,action_type,attempts,max_attempts,last_error_code,result_text');
+  assert.ok(storedMarkerGuard >= 0 && alreadyRecorded > storedMarkerGuard && taskRead > alreadyRecorded,
+    "already-verified reports must bypass regeneration and immutable-content comparison");
   const verify = persist.indexOf("async function verifyExistingReport()");
   const hashCheck = persist.indexOf("await sha256(existingReportText) !== expectedReportHash");
   const markStored = persist.indexOf("SET report_stored_at=CURRENT_TIMESTAMP");
