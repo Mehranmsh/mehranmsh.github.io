@@ -213,14 +213,14 @@ jobs:
                 ];
                 for (const pattern of patterns) {
                   let match;
-                  while ((match = pattern.exec(source)) && symbols.size < 4) symbols.add(match[1]);
+                  while ((match = pattern.exec(source)) && symbols.size < 2) symbols.add(match[1]);
                 }
                 files.push({
                   path,
                   blobSha: file.sha,
                   bytes,
                   lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
-                  symbols: [...symbols]
+                  symbols: [...symbols].map(symbol => symbol.slice(0, 60))
                 });
               }
               return {
