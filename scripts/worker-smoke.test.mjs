@@ -3019,6 +3019,8 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
   const retryClaim = (await retryClaimResponse.json()).task;
   assert.ok(retryClaim);
   assert.notEqual(retryClaim.claimToken, replacement.claimToken);
+  assert.equal(state.row.attempts, 3, "the final permitted attempt must consume the configured attempt budget");
+  assert.equal(state.row.max_attempts, 3);
   assert.match(state.row.agent_claim_token_hash, /^[A-Za-z0-9_-]{43}$/);
 
   const supersededCheckpoint = await request("/agent/v1/tasks/" + state.row.id + "/checkpoint", {
@@ -3032,7 +3034,9 @@ test("real Worker task routes fence concurrent, expired, superseded, and replaye
     body: { claimToken: retryClaim.claimToken, status: "blocked", retryable: true, result: "controlled lifecycle test complete" }
   }, env);
   assert.equal(terminalResult.status, 200);
-  assert.equal(state.row.status, "blocked");
+  assert.equal(state.row.status, "blocked", "retryable=true must not schedule an attempt beyond max_attempts");
+  assert.equal(state.row.next_attempt_at, null, "exhausted tasks must not retain a future retry time");
+  assert.equal(state.row.attempts, state.row.max_attempts, "attempt count must never exceed its configured cap");
   assert.equal(state.row.agent_claim_token_hash, "", "terminal result must revoke the claim token");
 
   const replay = await request("/agent/v1/tasks/" + state.row.id + "/result", {
