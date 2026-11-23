@@ -8182,6 +8182,25 @@ export default {
         return json({success:true,task:formatIntelligenceTask(row)});
       }
 
+      if (path === "/intelligence/memory" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceMemoryTables(env);
+        await seedIntelligenceOwnerMemory(env,admin.uid);
+        const rows = await env.DB.prepare("SELECT memory_key,category,content,importance,source,created_at,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all();
+        return json({success:true,items:rows.results||[]});
+      }
+      const intelligenceMemoryMatch = path.match(/^\\/intelligence\\/memory\\/([^/]+)$/);
+      if (intelligenceMemoryMatch && method === "DELETE") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceMemoryTables(env);
+        const key = decodeURIComponent(intelligenceMemoryMatch[1]).toLowerCase();
+        if (!/^[a-z0-9][a-z0-9._:-]{1,79}$/.test(key)) return error("Invalid memory key.",400);
+        const removed = await env.DB.prepare("DELETE FROM intelligence_memory_items WHERE owner_uid=? AND memory_key=? AND source<>'project_baseline'").bind(admin.uid,key).run();
+        return json({success:true,deleted:Number(removed?.meta?.changes||0)>0});
+      }
+
       if (path === "/intelligence/chat" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
