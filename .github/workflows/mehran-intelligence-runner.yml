@@ -87,17 +87,39 @@ jobs:
           const packageIds = new Set();
           if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
             try {
-              const created = await request("/agent/v1/missions/plan", {
+              const created = await request("/agent/v1/work-packages", {
                 method: "POST",
                 body: JSON.stringify({
-                  idempotencyKey: `mehran-intelligence-owner-mission-v1-${new Date().toISOString().slice(0,10)}`,
-                  mission: "Assess the current MEHRAN INTELLIGENCE system and determine the next safest steps toward independently receiving, planning, executing, verifying, and reporting owner-assigned missions. Use only the currently available read-only capabilities. Identify what is already proven, what remains unproven, and the smallest next engineering milestone. Do not claim capabilities that have not been verified."
+                  idempotencyKey: `mehran-intelligence-repo-inspection-v1-${new Date().toISOString().slice(0,10)}`,
+                  title: "MEHRAN INTELLIGENCE first autonomous repository inspection",
+                  objective: "Perform the first real bounded repository inspection so MEHRAN INTELLIGENCE can establish an evidence-based understanding of its own execution architecture and identify the next safe self-improvement milestone.",
+                  priority: "normal",
+                  scope: {
+                    mode: "read_only",
+                    mission: "Inspect the six explicitly allowlisted core files at one immutable main commit.",
+                    allowedActions: ["inspect_repository"],
+                    forbidden: ["source_changes", "deployment", "secret_access", "wallet_operations", "arbitrary_shell"]
+                  },
+                  tasks: [{
+                    taskId: "inspect-core",
+                    title: "Inspect MEHRAN INTELLIGENCE core repository files",
+                    description: "Read the exact allowlisted source files from one immutable main commit, return bounded file metadata and declaration inventory, and preserve the verified evidence in the private work-package report.",
+                    actionType: "inspect_repository",
+                    dependsOn: [],
+                    paths: [
+                      "worker.js",
+                      "scripts/intelligence-agent.mjs",
+                      "scripts/intelligence-capabilities.mjs",
+                      "scripts/intelligence-capabilities.test.mjs",
+                      ".github/workflows/mehran-intelligence-runner.yml",
+                      "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+                    ]
+                  }]
                 })
-              }, ownerHeaders, 90000);
+              }, ownerHeaders, 30000);
               packageId = created.workPackageId || "";
               if (packageId) packageIds.add(packageId);
-              console.log(`Mission package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
-              if (created.planSummary) console.log(`Plan summary: ${String(created.planSummary).slice(0, 500)}`);
+              console.log(`Repository inspection package: ${created.status || "unknown"}; duplicate=${Boolean(created.duplicate)}; tasks=${created.taskCount || 0}`);
             } catch (error) {
               const diagnostic = String(error?.message || error).slice(0, 300);
               console.log(`AI mission planning unavailable for this tick; continuing with eligible queued tasks: ${diagnostic}`);
@@ -205,7 +227,7 @@ jobs:
                 const bytes = Buffer.byteLength(source, "utf8");
                 if (bytes !== file.size) throw new Error(`GitHub source size verification failed for ${path}.`);
                 totalBytes += bytes;
-                if (totalBytes > 750000) throw new Error("Inspection exceeded the 250 KB aggregate source limit.");
+                if (totalBytes > 750000) throw new Error("Inspection exceeded the 750 KB aggregate source limit.");
                 const symbols = new Set();
                 const patterns = [
                   /^\s*(?:export\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/gm,
