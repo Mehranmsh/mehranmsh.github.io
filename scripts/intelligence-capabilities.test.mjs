@@ -155,7 +155,10 @@ test("AI planner strips schema-optional fields that are invalid for another acti
   assert.match(workerSource, /if \(normalized\.actionType !== "inspect_repository"\) delete normalized\.paths/);
   assert.match(workerSource, /if \(normalized\.actionType !== "run_repository_tests"\) delete normalized\.baseSha/);
   assert.match(workerSource, /if \(normalized\.actionType !== "propose_code_patch"\) delete normalized\.objective/);
-  assert.match(workerSource, /if \(!Array\.isArray\(normalized\.dependsOn\)\) normalized\.dependsOn = \[\]/);
+  assert.match(workerSource, /const acceptedTaskIds = new Set\(\)/);
+  assert.match(workerSource, /acceptedTaskIds\.has\(dep\)/);
+  assert.match(workerSource, /seenDependencies\.has\(dep\)/);
+  assert.match(workerSource, /acceptedTaskIds\.add\(normalized\.taskId\)/);
   assert.match(workerSource, /tasks: normalizedTasks/);
 });
 
