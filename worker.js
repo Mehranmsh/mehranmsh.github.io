@@ -5290,6 +5290,59 @@ async function ensureIntelligencePatchProposalTable(env) {
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_intelligence_patch_proposals_created ON intelligence_patch_proposals(created_at DESC)").run();
 }
 
+async function persistIntelligenceNotification(env, row) {
+  const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string" ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
+  if (token.length < 40) throw new Error("Private notification archive is not configured.");
+  if (!row || row.channel !== "owner_private" || !/^[0-9a-f-]{36}$/i.test(String(row.event_id || ""))) throw new Error("Invalid private notification record.");
+  let payload;
+  try { payload = JSON.parse(String(row.payload_json || "")); } catch { throw new Error("Private notification payload is invalid JSON."); }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload) || payload.eventId !== row.event_id ||
+      typeof payload.type !== "string" || typeof payload.workPackageId !== "string" ||
+      !["completed","attention_required","in_progress","waiting_retry","queued"].includes(payload.status)) {
+    throw new Error("Private notification payload failed validation.");
+  }
+  const generatedAt = typeof payload.generatedAt === "string" ? payload.generatedAt : new Date().toISOString();
+  const date = new Date(generatedAt);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid private notification timestamp.");
+  const record = {
+    schema_version: 1, notification_id: String(row.id || "").slice(0,100), event_id: String(row.event_id),
+    channel: "owner_private", created_at: row.created_at || null,
+    notification: { type: payload.type.slice(0,80), work_package_id: payload.workPackageId.slice(0,160),
+      status: payload.status, counts: payload.counts && typeof payload.counts === "object" && !Array.isArray(payload.counts) ? payload.counts : {},
+      generated_at: date.toISOString() }
+  };
+  const year = date.toISOString().slice(0,4), month = date.toISOString().slice(5,7);
+  const path = "notifications/" + year + "/" + month + "/" + row.event_id + ".json";
+  const apiUrl = "https://api.github.com/repos/Mehranmsh/mehran-intelligence-reports/contents/" + path;
+  const headers = { "Accept":"application/vnd.github+json", "Authorization":"Bearer " + token,
+    "X-GitHub-Api-Version":"2022-11-28", "User-Agent":"MEHRAN-INTELLIGENCE-Private-Notification-Store" };
+  const contentText = JSON.stringify(record, null, 2) + "\n";
+  const expectedHash = await sha256(contentText);
+  async function verifyExisting() {
+    const response = await fetch(apiUrl, {method:"GET",headers});
+    if (!response.ok) { if (response.status === 404) return false; throw new Error("Private notification lookup failed with status " + response.status + "."); }
+    let existingText = "";
+    try {
+      const body = await response.json();
+      if (body?.encoding !== "base64" || typeof body.content !== "string") throw new Error("Invalid content encoding.");
+      const binary = atob(body.content.replace(/\\s+/g,""));
+      existingText = new TextDecoder().decode(Uint8Array.from(binary, ch => ch.charCodeAt(0)));
+    } catch { throw new Error("Existing private notification could not be verified."); }
+    if (await sha256(existingText) !== expectedHash) throw new Error("Existing private notification conflicts with the expected event.");
+    return true;
+  }
+  if (await verifyExisting()) return {stored:true,alreadyExists:true,path,artifactSha256:expectedHash};
+  const bytes = new TextEncoder().encode(contentText);
+  let binary = "";
+  for (let offset=0; offset<bytes.length; offset+=0x8000) binary += String.fromCharCode(...bytes.subarray(offset,offset+0x8000));
+  const response = await fetch(apiUrl,{method:"PUT",headers:{...headers,"Content-Type":"application/json"},
+    body:JSON.stringify({message:"Archive INTELLIGENCE notification " + row.event_id,content:btoa(binary)})});
+  if (!response.ok) {
+    if ([409,422].includes(response.status) && await verifyExisting()) return {stored:true,alreadyExists:true,path,artifactSha256:expectedHash};
+    throw new Error("Private notification write failed with status " + response.status + ".");
+  }
+  return {stored:true,alreadyExists:false,path,artifactSha256:expectedHash};
+}
 export async function persistIntelligencePackageReport(env, packageId, snapshot) {
   const token = typeof env.MEHRAN_REPORTS_GITHUB_TOKEN === "string"
     ? env.MEHRAN_REPORTS_GITHUB_TOKEN.trim() : "";
@@ -6727,8 +6780,12 @@ export default {
           const leaseToken = typeof body?.leaseToken === "string" ? body.leaseToken : "";
           if (!leaseToken || leaseToken.length > 100) return error("A valid notification lease token is required.",400);
           if (!["delivered","retry","failed"].includes(outcome)) return error("Notification result must be delivered, retry, or failed.",400);
-          const row = await env.DB.prepare("SELECT id,attempts,status FROM intelligence_notification_outbox WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(notificationId,leaseToken).first();
+          const row = await env.DB.prepare("SELECT id,event_id,channel,payload_json,created_at,attempts,status FROM intelligence_notification_outbox WHERE id=? AND status='processing' AND lease_token=? AND next_attempt_at IS NOT NULL AND datetime(next_attempt_at)>=datetime('now')").bind(notificationId,leaseToken).first();
           if (!row || row.status !== "processing") return error("Notification is not in an active delivery lease.",409);
+          if (outcome === "delivered") {
+            try { await persistIntelligenceNotification(env, row); }
+            catch (archiveError) { return error("Private notification archive failed: " + String(archiveError?.message || archiveError).slice(0,160),503); }
+          }
           const retryable = outcome === "retry" && Number(row.attempts||0) < 5;
           const finalStatus = outcome === "delivered" ? "delivered" : retryable ? "retry_wait" : "failed";
           const nextAt = retryable ? new Date(Date.now()+Math.min(3600,30*(2**Math.max(0,Number(row.attempts||1)-1)))*1000).toISOString() : null;
