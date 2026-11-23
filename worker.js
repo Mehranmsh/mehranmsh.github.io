@@ -5772,7 +5772,7 @@ async function planIntelligenceMission(env, input) {
   if (existing) return { success: true, duplicate: true, workPackageId: existing.id, status: existing.status };
   await ensureIntelligenceMemoryTables(env);
   await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
-  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind("mehran_intelligence").all();
+  const memoryRows = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind("mehran_intelligence").all();
   const durableMemoryContext = (memoryRows.results || []).map(item => ({key:item.memory_key,category:item.category,content:String(item.content||"").slice(0,700),importance:Number(item.importance||3)}));
   if (!env.AI || typeof env.AI.run !== "function") {
     return fallback("ai_binding_unavailable");
@@ -8222,7 +8222,7 @@ export default {
         const sessionKey = requestedSession && /^[A-Za-z0-9._:-]{1,80}$/.test(requestedSession) ? requestedSession : "default";
         const priorTurnsResult = await env.DB.prepare("SELECT role,content FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 12").bind(admin.uid,sessionKey).all();
         const priorTurns = (priorTurnsResult.results || []).reverse();
-        const memoryResult = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 18").bind(admin.uid).all();
+        const memoryResult = await env.DB.prepare("SELECT memory_key,category,content,importance,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all();
         const persistentMemory = memoryResult.results || [];
         await appendIntelligenceChatTurn(env,admin.uid,sessionKey,"user",question);
         // Skip inference for greetings and acknowledgements; these do not need an AI model.
