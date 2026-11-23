@@ -758,7 +758,7 @@ jobs:
                   "Analyze the following bounded results from the completed first self-assessment. Separate verified facts from uncertainty, identify the single highest-value capability gap, and create a small executable work package using only existing allowlisted actions. Prefer a focused proposal-only regression-test improvement when evidence justifies it; otherwise produce a concrete validation or research task. Keep all changes proposal-only and private. Do not create another self-improvement mission or recursive follow-up. No source writes, branch/PR creation, merge, deployment, secrets, wallet, or financial operations.",
                   "Evidence JSON:",
                   evidenceText
-                ].join("\\n").slice(0, 1590);
+                ].join("\n").slice(0, 1590);
                 try {
                   const followUp = await request("/agent/v1/missions/plan", {
                     method: "POST",
