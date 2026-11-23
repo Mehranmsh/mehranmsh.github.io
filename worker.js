@@ -5544,7 +5544,7 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
     binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
   }
   const content = btoa(binary);
-  const response = await fetch(apiUrl, {
+  const response = await reportFetch(apiUrl, {
     method: "PUT",
     headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({
