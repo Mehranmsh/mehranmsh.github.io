@@ -5424,9 +5424,14 @@ export async function persistIntelligencePackageReport(env, packageId, snapshot)
   }
 
   const pkg = await env.DB.prepare(
-    "SELECT id,created_at FROM intelligence_work_packages WHERE id=?"
+    "SELECT id,created_at,report_stored_at FROM intelligence_work_packages WHERE id=?"
   ).bind(packageId).first();
   if (!pkg) return { stored: false, reason: "package_not_found" };
+  // The durable marker is written only after the exact private report is verified.
+  // Do not regenerate a timestamped snapshot and compare it against that immutable report.
+  if (pkg.report_stored_at) {
+    return { stored: true, alreadyExists: true, path: null, reason: "already_recorded" };
+  }
 
   const taskResult = await env.DB.prepare(
     "SELECT id,status,action_type,attempts,max_attempts,last_error_code,result_text FROM intelligence_tasks WHERE work_package_id=? ORDER BY created_at ASC,id ASC"
