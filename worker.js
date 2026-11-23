@@ -8213,6 +8213,16 @@ export default {
         return json({success:true,deleted:Number(removed?.meta?.changes||0)>0});
       }
 
+      if (path === "/intelligence/chat/history" && method === "GET") {
+        const admin = await verifyAdmin(request, env);
+        if (!admin) return error("Admin authentication required", 403);
+        await ensureIntelligenceMemoryTables(env);
+        const requestedSession = cleanText(new URL(request.url).searchParams.get("sessionId"),80);
+        const sessionKey = requestedSession && /^[A-Za-z0-9._:-]{1,80}$/.test(requestedSession) ? requestedSession : "default";
+        const rows = await env.DB.prepare("SELECT role,content,created_at FROM intelligence_chat_turns WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 30").bind(admin.uid,sessionKey).all();
+        return json({success:true,turns:(rows.results||[]).reverse().map(turn=>({role:turn.role,content:String(turn.content||"").slice(0,4000),createdAt:turn.created_at||null}))});
+      }
+
       if (path === "/intelligence/chat" && method === "POST") {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
