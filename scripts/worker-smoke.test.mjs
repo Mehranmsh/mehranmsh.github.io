@@ -400,7 +400,7 @@ test("prepared request recovers after private storage succeeds but its response 
     summary: "Crash recovery fixture",
     targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
     diff: [
-      "--- /dev/null",
+      "--- a/scripts/intelligence-capabilities.test.mjs",
       "+++ b/scripts/intelligence-capabilities.test.mjs",
       "@@ -0,0 +1 @@",
       "+// recovered exactly once",
