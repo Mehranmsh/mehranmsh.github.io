@@ -214,16 +214,21 @@ test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without
   assert.ok(workerSource.includes(String.raw`replace(/[!؟?.،,\s\u200c]+/gu, "")`));
 });
 
-test("MEHRAN INTELLIGENCE chat skips trivial messages and bounds model/tool calls", () => {
+test("MEHRAN INTELLIGENCE chat uses one inference and formats safe tool results deterministically", () => {
   const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/admin/overview" && method === "GET")', start);
   assert.ok(start >= 0 && end > start);
   const route = workerSource.slice(start, end);
   assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("reserveSocialWorkersAIBudget"));
-  assert.match(route, /round<1&&Array\.isArray\(result\?\.tool_calls\)/);
-  assert.match(route, /tool_calls\.slice\(0,2\)/);
-  assert.equal((route.match(/max_tokens:650/g) || []).length, 2);
-  assert.match(route, /Math\.min\(1,messages\.filter/);
+  assert.equal((route.match(/env\\.AI\\.run\\(/g) || []).length, 1, "one user request may invoke Workers AI only once");
+  assert.match(route, /toolCalls\\.slice\\(0,2\\)/);
+  assert.match(route, /single_inference_tool_execution/);
+  assert.match(route, /get_project_status/);
+  assert.match(route, /get_social_metrics/);
+  assert.match(route, /list_collaboration_tasks/);
+  assert.match(route, /propose_collaboration_task/);
+  assert.doesNotMatch(route, /messages\\.push\\(\\{role:"tool"/);
+  assert.equal((route.match(/max_tokens:650/g) || []).length, 1);
 });
 
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
