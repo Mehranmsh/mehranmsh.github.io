@@ -58,6 +58,8 @@ jobs:
             "Content-Type": "application/json"
           };
           const tickStartedAt = Date.now();
+          // Keep a safety margin for durable result submission and private report finalization.
+          const taskExecutionDeadline = tickStartedAt + 7 * 60 * 1000;
           const timingSamples = [];
           function recordTiming(name, startedAt) {
             const elapsedMs = Date.now() - startedAt;
@@ -684,7 +686,7 @@ jobs:
             }
             return bounded;
           }
-          for (let count = 0; count < 5; count++) {
+          for (let count = 0; count < 5 && Date.now() < taskExecutionDeadline; count++) {
             const claim = await request("/agent/v1/tasks/next");
             const task = claim.task;
             if (task?.workPackageId) packageIds.add(task.workPackageId);
@@ -715,7 +717,11 @@ jobs:
               method: "POST",
               body: JSON.stringify({ status, result, retryable, claimToken: task.claimToken })
             });
-            console.log(`One bounded task finished with status: ${status}; retryable=${retryable}`);
+            console.log(`Bounded task ${count + 1} finished with status: ${status}; retryable=${retryable}`);
+          }
+
+          if (Date.now() >= taskExecutionDeadline) {
+            console.log("Task execution budget reached; remaining eligible tasks stay queued for the next scheduled tick.");
           }
 
           // Re-discover terminal packages on every tick so a crash after task-result
