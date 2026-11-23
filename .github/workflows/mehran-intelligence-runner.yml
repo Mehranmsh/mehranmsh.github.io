@@ -1,6 +1,7 @@
 name: MEHRAN INTELLIGENCE private work-package runner
 # Trigger a fresh bounded tick after the verified Worker diagnostics deployment.
 # Manual push trigger for post-deploy verification.
+# Validation tick: exercise the append-only patch-header canonicalizer on the latest main commit.
 
 on:
   push:
