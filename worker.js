@@ -6466,10 +6466,6 @@ export default {
             }
             return error("This generation request is terminal; submit a new request ID to retry.",409);
           }
-          await ensureSocialTables(env);
-          if (!await checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)) {
-            return error("Patch generation limit reached. Try again tomorrow.",429);
-          }
           const reservation = await env.DB.prepare(
             "INSERT OR IGNORE INTO intelligence_patch_generation_requests(request_id,request_hash,base_sha,status) VALUES(?,?,?,'processing')"
           ).bind(body.requestId,requestHash,body.baseSha).run();
@@ -6481,6 +6477,14 @@ export default {
             return error("Generation request reservation failed.",409);
           }
           if (reserved.status !== "processing") return error("Generation request was concurrently reserved; retry the same request ID.",409);
+          // Only the atomic single-winner reservation consumes an IP rate-limit slot.
+          await ensureSocialTables(env);
+          if (!await checkRateLimit(env,request,"intelligence-patch-generation",3,86400,86400)) {
+            await env.DB.prepare(
+              "UPDATE intelligence_patch_generation_requests SET status='failed',failure_code='rate_limited',updated_at=CURRENT_TIMESTAMP WHERE request_id=? AND status='processing'"
+            ).bind(body.requestId).run();
+            return error("Patch generation limit reached. Try again tomorrow.",429);
+          }
           const generated = await generatePatchArtifact({
             env,
             baseSha:body.baseSha,
