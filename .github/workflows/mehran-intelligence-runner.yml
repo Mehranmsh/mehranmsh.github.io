@@ -789,5 +789,38 @@ jobs:
 
             }
           }
-          console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
+          // Archive owner-private notifications through the Worker, which holds the private-repository credential.
+          // The Actions runner receives only a lease; it never receives the reports-repository token or payload.
+          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+            for (let count = 0; count < 10 && Date.now() < taskExecutionDeadline; count++) {
+              let notification;
+              try {
+                const claimed = await request("/agent/v1/notifications/next", {}, ownerHeaders, 15000);
+                notification = claimed?.notification;
+                if (!notification) break;
+                if (notification.channel !== "owner_private" || typeof notification.id !== "string" ||
+                    typeof notification.leaseToken !== "string") throw new Error("Invalid owner notification lease.");
+                await request("/agent/v1/notifications/" + encodeURIComponent(notification.id), {
+                  method: "POST",
+                  body: JSON.stringify({ status: "delivered", leaseToken: notification.leaseToken })
+                }, ownerHeaders, 30000);
+                console.log("Archived one owner notification in the private reports repository.");
+              } catch (error) {
+                console.log("Owner notification archival deferred: " + String(error?.message || error).slice(0,160));
+                if (notification?.id && notification?.leaseToken) {
+                  try {
+                    await request("/agent/v1/notifications/" + encodeURIComponent(notification.id), {
+                      method: "POST",
+                      body: JSON.stringify({ status: "retry", message: "Private archive delivery deferred.", leaseToken: notification.leaseToken })
+                    }, ownerHeaders, 10000);
+                  } catch {
+                    console.log("Owner notification lease could not be rescheduled; it will expire and recover automatically.");
+                  }
+                }
+                break;
+              }
+            }
+          }
+
+                    console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
           NODE
