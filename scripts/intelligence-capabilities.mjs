@@ -62,15 +62,32 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
   }),
   inspect_repository: freezeCapability({
     id: "inspect_repository",
-    status: "planned",
+    status: "active",
     permissionTier: "read_only",
-    executors: ["isolated_inspector"],
+    executors: ["github_actions_runner"],
     requiresApproval: false,
     autonomous: true,
-    description: "Inspect an allowlisted repository path and summarize relevant code.",
+    description: "Inventory exact allowlisted source files from one immutable commit without executing repository content or writing files.",
     inputSchema: {
       required: ["paths"],
-      properties: { paths: { type: "array", maxItems: 20, itemType: "string", maxItemLength: 240 } }
+      properties: {
+        paths: {
+          type: "array",
+          minItems: 1,
+          maxItems: 6,
+          itemType: "string",
+          maxItemLength: 240,
+          uniqueItems: true,
+          itemEnum: [
+            "worker.js",
+            "scripts/intelligence-agent.mjs",
+            "scripts/intelligence-capabilities.mjs",
+            "scripts/intelligence-capabilities.test.mjs",
+            ".github/workflows/mehran-intelligence-runner.yml",
+            "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+          ]
+        }
+      }
     }
   }),
   run_repository_tests: freezeCapability({
@@ -195,9 +212,12 @@ function validateValue(value, rule) {
   if (rule.type === "array") {
     return Array.isArray(value)
       && value.length <= (rule.maxItems ?? 100)
+      && value.length >= (rule.minItems ?? 0)
+      && (!rule.uniqueItems || new Set(value).size === value.length)
       && value.every((entry) => validateValue(entry, {
         type: rule.itemType || "string",
-        maxLength: rule.maxItemLength
+        maxLength: rule.maxItemLength,
+        enum: rule.itemEnum
       }));
   }
   return false;

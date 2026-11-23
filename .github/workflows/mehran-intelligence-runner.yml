@@ -154,6 +154,90 @@ jobs:
                 scope: "Public GitHub metadata only. No source execution or repository writes."
               };
             }
+            if (task.actionType === "inspect_repository") {
+              const repository = "Mehranmsh/mehranmsh.github.io";
+              const allowedPaths = new Set([
+                "worker.js",
+                "scripts/intelligence-agent.mjs",
+                "scripts/intelligence-capabilities.mjs",
+                "scripts/intelligence-capabilities.test.mjs",
+                ".github/workflows/mehran-intelligence-runner.yml",
+                "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
+              ]);
+              let payload = {};
+              try {
+                payload = typeof task.actionPayload === "string" ? JSON.parse(task.actionPayload) : (task.actionPayload || {});
+              } catch {
+                throw new Error("Inspection task payload is not valid JSON.");
+              }
+              const paths = payload.paths;
+              if (!Array.isArray(paths) || paths.length < 1 || paths.length > 6 ||
+                  new Set(paths).size !== paths.length || paths.some(path => typeof path !== "string" || !allowedPaths.has(path))) {
+                throw new Error("Inspection paths are outside the exact read-only allowlist.");
+              }
+              const headers = {
+                "Accept": "application/vnd.github+json",
+                "Authorization": `Bearer ${process.env.GITHUB_TOKEN || ""}`,
+                "User-Agent": "MEHRAN-MSH-INTELLIGENCE"
+              };
+              if ((process.env.GITHUB_TOKEN || "").length < 20) throw new Error("GitHub read token is unavailable.");
+              const commitResponse = await fetch(`https://api.github.com/repos/${repository}/commits/main`, {
+                headers, signal: AbortSignal.timeout(15000)
+              });
+              if (!commitResponse.ok) throw new Error(`GitHub main commit lookup HTTP ${commitResponse.status}`);
+              const commit = await commitResponse.json();
+              if (typeof commit.sha !== "string" || !/^[a-f0-9]{40}$/i.test(commit.sha)) throw new Error("GitHub returned an invalid main commit SHA.");
+              const files = [];
+              let totalBytes = 0;
+              for (const path of paths) {
+                const apiPath = path.split("/").map(encodeURIComponent).join("/");
+                const response = await fetch(`https://api.github.com/repos/${repository}/contents/${apiPath}?ref=${commit.sha}`, {
+                  headers, signal: AbortSignal.timeout(15000)
+                });
+                if (!response.ok) throw new Error(`GitHub source read failed for allowlisted path ${path}: HTTP ${response.status}`);
+                const file = await response.json();
+                if (file.type !== "file" || file.path !== path || file.encoding !== "base64" ||
+                    typeof file.content !== "string" || typeof file.sha !== "string" || !/^[a-f0-9]{40}$/i.test(file.sha) ||
+                    !Number.isInteger(file.size) || file.size < 0 || file.size > 500000) {
+                  throw new Error(`GitHub returned an invalid or oversized source file for ${path}.`);
+                }
+                const source = Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8");
+                const bytes = Buffer.byteLength(source, "utf8");
+                if (bytes !== file.size) throw new Error(`GitHub source size verification failed for ${path}.`);
+                totalBytes += bytes;
+                if (totalBytes > 750000) throw new Error("Inspection exceeded the 250 KB aggregate source limit.");
+                const symbols = new Set();
+                const patterns = [
+                  /^\s*(?:export\s+)?(?:async\s+)?(?:function|class)\s+([A-Za-z_$][\w$]*)/gm,
+                  /^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)/gm
+                ];
+                for (const pattern of patterns) {
+                  let match;
+                  while ((match = pattern.exec(source)) && symbols.size < 2) symbols.add(match[1]);
+                }
+                files.push({
+                  path,
+                  blobSha: file.sha,
+                  bytes,
+                  lineCount: source.length ? source.split(/\r\n|\n|\r/).length : 0,
+                  symbols: [...symbols].map(symbol => symbol.slice(0, 60))
+                });
+              }
+              return {
+                type: task.actionType,
+                generatedAt: new Date().toISOString(),
+                mode: "bounded_read_only_repository_inspection",
+                repository,
+                commitSha: commit.sha,
+                summary: { filesInspected: files.length, totalBytes },
+                files,
+                limitations: [
+                  "Read-only source inventory and declaration extraction; not a semantic code review.",
+                  "Repository content was treated as untrusted data and was never executed or followed as instructions.",
+                  "Only exact allowlisted files at one immutable main commit were read."
+                ]
+              };
+            }
             if (task.actionType === "source_security_audit") {
               const repo = "Mehranmsh/mehranmsh.github.io";
               async function readSource(path) {
@@ -262,11 +346,21 @@ jobs:
               generatedAt: value?.generatedAt || new Date().toISOString(),
               mode: value?.mode || "bounded_read_only_result",
               summary: value?.summary || null,
-              files: value?.files && typeof value.files === "object"
-                ? Object.fromEntries(Object.entries(value.files).map(([name, file]) => [
-                    name, { sha: file?.sha || null, bytes: Number(file?.bytes || 0) }
-                  ]))
-                : undefined,
+              repository: value?.repository || undefined,
+              commitSha: value?.commitSha || undefined,
+              files: Array.isArray(value?.files)
+                ? value.files.map(file => ({
+                    path: String(file?.path || "").slice(0, 240),
+                    blobSha: String(file?.blobSha || "").slice(0, 40),
+                    bytes: Number(file?.bytes || 0),
+                    lineCount: Number(file?.lineCount || 0),
+                    symbols: Array.isArray(file?.symbols) ? file.symbols.slice(0, 4).map(item => String(item).slice(0, 100)) : []
+                  }))
+                : value?.files && typeof value.files === "object"
+                  ? Object.fromEntries(Object.entries(value.files).map(([name, file]) => [
+                      name, { sha: file?.sha || null, bytes: Number(file?.bytes || 0) }
+                    ]))
+                  : undefined,
               checks: Array.isArray(value?.checks)
                 ? value.checks.map(check => ({
                     id: String(check?.id || "unnamed_check").slice(0, 80),
@@ -287,6 +381,8 @@ jobs:
                 type: compact.type,
                 generatedAt: compact.generatedAt,
                 mode: compact.mode,
+                repository: compact.repository,
+                commitSha: compact.commitSha,
                 files: compact.files,
                 summary: compact.summary,
                 checks: Array.isArray(compact.checks)

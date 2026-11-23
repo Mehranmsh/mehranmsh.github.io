@@ -16,13 +16,14 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all five active read-only capabilities are registered independent of executor type", () => {
+test("all six active read-only capabilities are registered independent of executor type", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
     "service_health_report",
     "repository_quality_check",
-    "source_security_audit"
+    "source_security_audit",
+    "inspect_repository"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
@@ -32,7 +33,8 @@ test("all five active read-only capabilities are registered independent of execu
     assert.equal(item.permissionTier, "read_only");
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, true);
+    const input = id === "inspect_repository" ? { paths: ["worker.js"] } : {};
+    assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
 
@@ -42,7 +44,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     social_metrics_report: ["cloudflare_worker_scheduler"],
     service_health_report: ["cloudflare_worker_scheduler", "github_actions_runner"],
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
-    source_security_audit: ["github_actions_runner"]
+    source_security_audit: ["github_actions_runner"],
+    inspect_repository: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -50,7 +53,9 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
 
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
-  assert.doesNotMatch(workerSchedulerSource, /source_security_audit/);
+  assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
 
   const runnerActions = runnerSource.match(/const capabilityActions = \[([^\]]+)\]/);
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
@@ -61,7 +66,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
 });
 
 test("future self-improvement capabilities remain planned and non-executable", () => {
-  for (const id of ["inspect_repository", "run_repository_tests", "propose_code_patch", "create_pull_request"]) {
+  for (const id of ["run_repository_tests", "propose_code_patch", "create_pull_request"]) {
     assert.equal(getIntelligenceCapability(id).status, "planned");
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
@@ -111,7 +116,7 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
 
 // Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
 test("safe self-improvement work is pre-authorized without activating missing executors", () => {
-  for (const id of ["inspect_repository", "run_repository_tests", "propose_code_patch", "create_pull_request"]) {
+  for (const id of ["run_repository_tests", "propose_code_patch", "create_pull_request"]) {
     const capability = getIntelligenceCapability(id);
     assert.equal(capability.requiresApproval, false, id);
     assert.equal(capability.autonomous, true, id);
@@ -122,4 +127,21 @@ test("safe self-improvement work is pre-authorized without activating missing ex
     assert.equal(getIntelligenceCapability(id).requiresApproval, true, id);
     assert.equal(getIntelligenceCapability(id).autonomous, undefined, id);
   }
+});
+
+test("repository inspection is active, pre-authorized, exact-path allowlisted, and read-only", () => {
+  const capability = getIntelligenceCapability("inspect_repository");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "read_only");
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
+    paths: ["worker.js", "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"]
+  }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: ["../../secrets"] }).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: [] }).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
+    paths: ["worker.js", "worker.js"]
+  }).ok, false);
 });

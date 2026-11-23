@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import {
   INTELLIGENCE_ACTION_TYPES,
@@ -220,7 +221,7 @@ test("Agent API stale-claim recovery includes package-bound read-only tasks", ()
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
   assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
   assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL/,
     "stale recovery must include tasks claimed from durable work packages");
 });
@@ -266,16 +267,16 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.match(route, /Agent service identity is not configured/);
   assert.match(route, /requires_approval=0/);
   assert.match(route, /assigned_to IN \('mehran_intelligence','shared'\)/);
-  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
   assert.ok(route.includes("status IN ('queued','accepted','retry_wait')"), "agent claims must include retry_wait tasks");
   assert.match(route, /status='awaiting_approval' AND requires_approval=0/);
   assert.match(route, /agent_claimed_at=CURRENT_TIMESTAMP/);
-  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit')"));
+  assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit','inspect_repository')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
   assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
     "agent API recovery must also release expired claims from durable work packages");
-  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
+  assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
 });
@@ -1463,7 +1464,11 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.doesNotMatch(workerSource, /HTTP 5\\\\d\\\\d/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
+  const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
+  const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
+  assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.doesNotMatch(scheduledBody, /inspect_repository/, "Worker scheduled executor must not claim the GitHub-only inspection capability.");
   assert.match(workerSource, /INSERT OR IGNORE INTO intelligence_tasks/);
   assert.match(workerSource, /'github-inbox',\?,'\{\}'/);
   assert.match(workerSource, /Visibility:\\s\*public-safe/);
@@ -1792,6 +1797,81 @@ test("MCP work-package validation rejects arbitrary actions, forward dependencie
   assert.equal(validateIntelligenceWorkPackage({ ...base, idempotencyKey: "short" }).ok, false);
 });
 
+test("private Intelligence runner inline JavaScript parses as an ES module", () => {
+  const marker = "node --input-type=module <<'NODE'";
+  const markerAt = runnerSource.indexOf(marker);
+  assert.ok(markerAt >= 0, "private runner heredoc must exist");
+  const scriptStart = runnerSource.indexOf("\n", markerAt) + 1;
+  const scriptEnd = runnerSource.indexOf("\n          NODE", scriptStart);
+  assert.ok(scriptStart > 0 && scriptEnd > scriptStart, "runner heredoc boundaries must be valid");
+  const script = runnerSource.slice(scriptStart, scriptEnd)
+    .split("\n")
+    .map(line => line.startsWith("          ") ? line.slice(10) : line)
+    .join("\n");
+  const syntax = spawnSync(process.execPath, ["--check", "--input-type=module"], {
+    input: script,
+    encoding: "utf8"
+  });
+  assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout || "Runner inline JavaScript syntax check failed.");
+});
+
+test("repository inspection work packages enforce exact bounded paths and persist them", () => {
+  const base = {
+    idempotencyKey: "inspect-plan-2026-11-23-a1",
+    title: "Inspect Intelligence source",
+    objective: "Read selected source files safely.",
+    tasks: [{
+      taskId: "inspect-core",
+      title: "Inspect core source",
+      actionType: "inspect_repository",
+      paths: ["worker.js", "scripts/intelligence-capabilities.mjs"]
+    }]
+  };
+  const accepted = validateIntelligenceWorkPackage(base);
+  assert.equal(accepted.ok, true);
+  assert.deepEqual(accepted.tasks[0].paths, base.tasks[0].paths);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["../../secrets"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["worker.js", "worker.js"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: [] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ ...base.tasks[0], paths: ["worker.js", "scripts/intelligence-agent.mjs", "scripts/intelligence-capabilities.mjs", "scripts/intelligence-capabilities.test.mjs", ".github/workflows/mehran-intelligence-runner.yml", "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md", "worker.js"] }]
+  }).ok, false);
+  assert.equal(validateIntelligenceWorkPackage({
+    ...base, tasks: [{ taskId: "health", title: "Health", actionType: "service_health_report", paths: ["worker.js"] }]
+  }).ok, false);
+});
+
+test("repository inspection result verifier requires immutable commit and bounded file evidence", () => {
+  const report = {
+    type: "inspect_repository",
+    generatedAt: "2026-11-23T00:00:00.000Z",
+    mode: "bounded_read_only_repository_inspection",
+    repository: "Mehranmsh/mehranmsh.github.io",
+    commitSha: "a".repeat(40),
+    summary: { filesInspected: 2, totalBytes: 15 },
+    files: [
+      { path: "worker.js", blobSha: "b".repeat(40), bytes: 10, lineCount: 2, symbols: ["fetch"] },
+      { path: "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md", blobSha: "c".repeat(40), bytes: 5, lineCount: 1, symbols: [] }
+    ]
+  };
+  assert.equal(verifyIntelligenceReport("inspect_repository", report).passed, true);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...report, files: [{ ...report.files[0], path: "../../secrets" }, report.files[1]]
+  }).passed, false);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...report, files: [{ ...report.files[0], bytes: 500001 }, report.files[1]]
+  }).passed, false);
+  assert.equal(verifyIntelligenceReport("inspect_repository", {
+    ...report, summary: { filesInspected: 1, totalBytes: 15 }
+  }).passed, false);
+});
+
 test("MCP work-package tools are exposed only to the bridge when owner orchestration is enabled", () => {
   const start = workerSource.indexOf('if (path === "/mcp" && method === "POST")');
   const end = workerSource.indexOf("const publicBridgeResultMatch", start);
@@ -1800,7 +1880,7 @@ test("MCP work-package tools are exposed only to the bridge when owner orchestra
   assert.ok(mcp.includes('name:"create_intelligence_work_package"'));
   assert.ok(mcp.includes('name:"get_intelligence_work_package"'));
   assert.ok(mcp.includes('if (!packageIntakeEnabled) return rpcError(-32003'));
-  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit"]'));
+  assert.ok(mcp.includes('["service_health_report","repository_quality_check","source_security_audit","inspect_repository"]'));
 });
 
 
