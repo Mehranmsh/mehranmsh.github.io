@@ -1033,3 +1033,18 @@ test("Intelligence retains owner-scoped durable memory and recent conversation c
   assert.ok(workerSource.includes("never create a duplicate task just because the conversation session changed"));
 
 });
+
+
+test("execution protocol describes the merged mainline state accurately", () => {
+  const protocol = readFileSync(new URL("../docs/INTELLIGENCE_EXECUTION_PROTOCOL.md", import.meta.url), "utf8");
+  assert.match(protocol, /implementation consolidated by PR #217 was merged into `main`/);
+  assert.match(protocol, /Bounded AI patch proposal generation \(merged to main, not production-active\)/);
+  assert.match(protocol, /PR #217 is closed and merged/);
+  assert.doesNotMatch(protocol, /PR #217 branch/);
+  assert.doesNotMatch(protocol, /pull request remains open as a draft/);
+  assert.doesNotMatch(protocol, /separate, unmerged PR chain/);
+  assert.match(protocol, /bridge authenticates with `MEHRAN_MCP_TOKEN`/);
+  assert.match(protocol, /additionally gated by `MEHRAN_ORCHESTRATOR_TOKEN`/);
+  assert.match(protocol, /PR #164 was closed without merge/);
+  assert.doesNotMatch(protocol, /PR #164 implements the bounded MCP tools/);
+});
