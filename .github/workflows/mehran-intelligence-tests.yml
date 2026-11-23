@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 8
     steps:
       - name: Check out the exact requested commit without persisting credentials
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           ref: ${{ inputs.base_sha }}
           fetch-depth: 0
@@ -56,5 +56,5 @@ jobs:
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
             --mount "type=bind,src=${GITHUB_WORKSPACE},dst=/workspace,readonly" \
             --workdir /workspace \
-            node:22-alpine \
+            node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a \
             node --test scripts/intelligence-capabilities.test.mjs
