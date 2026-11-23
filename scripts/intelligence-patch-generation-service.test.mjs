@@ -35,7 +35,7 @@ test("patch generation bounds repeated GitHub 5xx failures to three attempts", a
       return new Response("temporary upstream failure", { status: 502 });
     }
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.deepEqual(result, { ok: false, code: "main_commit_lookup_failed" });
 });
 
@@ -53,4 +53,27 @@ test("patch generation retries transient network failures and then fails closed"
   });
   assert.equal(calls, 3);
   assert.deepEqual(result, { ok: false, code: "main_commit_lookup_failed" });
+});
+
+
+test("patch generation uses the independent Atom ref after REST API failures", async () => {
+  let calls = 0;
+  const result = await generatePatchArtifact({
+    env,
+    baseSha: currentSha,
+    objective: "Add a focused regression test for a verified edge case",
+    reserveBudget: async () => ({ allowed: true }),
+    fetchImpl: async url => {
+      calls++;
+      if (String(url).includes("api.github.com")) {
+        return new Response("temporary upstream failure", { status: 502 });
+      }
+      return new Response(
+        `<feed><entry><id>tag:github.com,2008:Grit::Commit/${currentSha}</id></entry></feed>`,
+        { status: 200 }
+      );
+    }
+  });
+  assert.equal(calls, 4);
+  assert.deepEqual(result, { ok: false, code: "source_fetch_failed" });
 });
