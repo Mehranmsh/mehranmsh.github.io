@@ -1145,6 +1145,14 @@ test("scheduled Intelligence runner is single-flight, secret-backed and restrict
   assert.match(workerSource, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/,
     "claim recovery must use the documented 15-minute ownership window");
   assert.match(runner, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(runner, /permissions:\s*contents:\s*read/,
+    "the scheduled runner must keep its repository token read-only");
+  assert.match(runner, /persist-credentials:\s*false/,
+    "checkout must not leave a write-capable Git credential in the workspace");
+  assert.match(runner, /timeout-minutes:\s*10/,
+    "the runner job must retain its hard ten-minute ceiling");
+  assert.doesNotMatch(runner, /\b(?:git\s+push|gh\s+pr\s+create|wrangler\s+deploy)\b/,
+    "the autonomous runner must not push source, create PRs, or deploy");
   const runnerLines = runner.split(/\r?\n/);
   const runBlockLine = runnerLines.findIndex(line => /^\s*run:\s*\|\s*$/.test(line));
   assert.ok(runBlockLine >= 0, "runner inline script block must exist");
