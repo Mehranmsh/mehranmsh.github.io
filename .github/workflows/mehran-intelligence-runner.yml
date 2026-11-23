@@ -246,12 +246,16 @@ jobs:
           }
 
           function serializeBoundedResult(value, maxChars = 3000) {
+            if (!Number.isInteger(maxChars) || maxChars < 256) {
+              throw new Error("Invalid bounded-result character limit.");
+            }
             const full = JSON.stringify(value);
             if (typeof full !== "string") throw new Error("Task result is not JSON serializable.");
             if (full.length <= maxChars) return full;
 
-            // Preserve every security-check ID and pass/fail outcome while dropping
-            // verbose descriptions when a report exceeds the Worker API limit.
+            // Keep the exact schema required by verifyIntelligenceReport while
+            // shortening verbose evidence. In particular, every check retains
+            // its id, boolean outcome, and string detail.
             const compact = {
               type: value?.type || "read_only_report",
               generatedAt: value?.generatedAt || new Date().toISOString(),
@@ -263,29 +267,43 @@ jobs:
                   ]))
                 : undefined,
               checks: Array.isArray(value?.checks)
-                ? value.checks.map(check => ({ id: String(check?.id || "unnamed_check"), passed: check?.passed === true }))
+                ? value.checks.map(check => ({
+                    id: String(check?.id || "unnamed_check").slice(0, 80),
+                    passed: check?.passed === true,
+                    detail: String(check?.detail || "").slice(0, 64)
+                  }))
                 : undefined,
               limitations: Array.isArray(value?.limitations)
-                ? value.limitations.map(item => String(item).slice(0, 100))
+                ? value.limitations.map(item => String(item).slice(0, 72))
                 : undefined,
               detailsTruncated: true
             };
             let bounded = JSON.stringify(compact);
             if (bounded.length > maxChars) {
-              bounded = JSON.stringify({
+              // The Worker verifier requires mode, both source-file entries,
+              // summary, and a detail string for every check. Do not drop them.
+              const minimal = {
                 type: compact.type,
                 generatedAt: compact.generatedAt,
+                mode: compact.mode,
+                files: compact.files,
                 summary: compact.summary,
-                checks: compact.checks,
+                checks: Array.isArray(compact.checks)
+                  ? compact.checks.map(check => ({
+                      id: check.id,
+                      passed: check.passed,
+                      detail: ""
+                    }))
+                  : undefined,
                 detailsTruncated: true
-              });
+              };
+              bounded = JSON.stringify(minimal);
             }
             if (bounded.length > maxChars) {
-              throw new Error("Task result exceeds the Worker API limit after safe compaction.");
+              throw new Error("Task result exceeds the Worker API limit after schema-preserving compaction.");
             }
             return bounded;
           }
-
           for (let count = 0; count < 5; count++) {
             const claim = await request("/agent/v1/tasks/next");
             const task = claim.task;

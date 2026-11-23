@@ -212,6 +212,19 @@ test("Intelligence task listing repairs only stale approval labels on explicitly
   assert.ok(route.indexOf("UPDATE intelligence_tasks") < route.indexOf("SELECT * FROM intelligence_tasks"));
 });
 
+test("Agent API stale-claim recovery includes package-bound read-only tasks", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const end = workerSource.indexOf("const checkpointMatch", start);
+  assert.ok(start >= 0 && end > start, "Agent task-claim route must exist");
+  const route = workerSource.slice(start, end);
+  assert.equal((route.match(/UPDATE intelligence_tasks SET status='blocked'/g) || []).length, 1);
+  assert.equal((route.match(/UPDATE intelligence_tasks SET status='accepted'/g) || []).length, 1);
+  assert.match(route, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(route, /action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
+  assert.doesNotMatch(route, /work_package_id IS NULL/,
+    "stale recovery must include tasks claimed from durable work packages");
+});
+
 test("MEHRAN collaboration task APIs reject unauthenticated access", async () => {
   const db = {
     prepare(sql) {
@@ -260,8 +273,8 @@ test("MEHRAN Intelligence Agent API is enabled only behind its dedicated bearer 
   assert.ok(route.includes("WHERE id=? AND status IN ('queued','accepted','retry_wait') AND requires_approval=0 AND assigned_to IN ('mehran_intelligence','shared') AND action_type IN ('repository_quality_check','service_health_report','source_security_audit')"));
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
   assert.match(route, /agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
-  assert.match(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL AND datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
-  assert.equal((route.match(/work_package_id IS NULL AND agent_claimed_at IS NOT NULL/g) || []).length, 2, "agent API recovery must leave package tasks to the scheduler");
+  assert.doesNotMatch(route, /work_package_id IS NULL AND agent_claimed_at IS NOT NULL/,
+    "agent API recovery must also release expired claims from durable work packages");
   assert.match(route, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\) AND requires_approval=0 AND assigned_to IN \('mehran_intelligence','shared'\) AND action_type IN \('repository_quality_check','service_health_report','source_security_audit'\)/);
   assert.match(route, /agent_claimed_at=NULL/);
   assert.match(route, /\["completed","blocked"\]/);
