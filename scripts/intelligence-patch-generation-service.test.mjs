@@ -88,7 +88,7 @@ test("patch prompt supplies the exact append-only hunk header for the source lin
     source
   });
   assert.equal(prompt.ok, true);
-  assert.match(prompt.system, /@@ -2,0 \\+3,1 @@/);
+  assert.ok(prompt.system.includes("@@ -2,0 +3,1 @@"));
   assert.match(prompt.system, /no blank line or commentary/);
   assert.match(prompt.system, /Do not omit ,0 or ,1/);
 });
