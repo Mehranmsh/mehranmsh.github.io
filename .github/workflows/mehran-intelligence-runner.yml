@@ -697,17 +697,52 @@ jobs:
             let status = "completed";
             let result;
             let retryable = false;
+            let resumedFromCheckpoint = false;
+            let savedCheckpoint = {};
+            try {
+              savedCheckpoint = typeof task.checkpoint === "string" ? JSON.parse(task.checkpoint || "{}") : (task.checkpoint || {});
+            } catch {
+              throw new Error("Stored task checkpoint is not valid JSON; refusing to silently restart the task.");
+            }
+            if (savedCheckpoint.phase === "result_ready" &&
+                savedCheckpoint.actionType === task.actionType &&
+                typeof savedCheckpoint.result === "string" &&
+                savedCheckpoint.result.length > 0 && savedCheckpoint.result.length <= 3000 &&
+                ["completed","blocked"].includes(savedCheckpoint.status)) {
+              result = savedCheckpoint.result;
+              status = savedCheckpoint.status;
+              resumedFromCheckpoint = true;
+              console.log("Resuming task " + task.id + " from its durable result checkpoint; execution will not be repeated.");
+            }
             const executionStartedAt = Date.now();
             try {
-              const executionResult = await execute(task);
-              if (task.actionType === "run_repository_tests" && executionResult?.passed !== true) status = "blocked";
-              result = serializeBoundedResult(executionResult);
+              if (!resumedFromCheckpoint) {
+                const executionResult = await execute(task);
+                if (task.actionType === "run_repository_tests" && executionResult?.passed !== true) status = "blocked";
+                result = serializeBoundedResult(executionResult);
+                if (status === "completed") {
+                  const checkpoint = {
+                    phase: "result_ready",
+                    actionType: task.actionType,
+                    status,
+                    result,
+                    resultSha256: createHash("sha256").update(result).digest("hex"),
+                    preparedAt: new Date().toISOString()
+                  };
+                  const saved = await request(`/agent/v1/tasks/${encodeURIComponent(task.id)}/checkpoint`, {
+                    method: "POST",
+                    body: JSON.stringify({ checkpoint, claimToken: task.claimToken })
+                  });
+                  if (saved.checkpointSaved !== true) throw new Error("Completed task result could not be durably checkpointed.");
+                  console.log("Durable result checkpoint saved for task " + task.id + ".");
+                }
+              }
             } catch (error) {
               status = "blocked";
               retryable = Number(error?.status) === 503 ||
+                error?.name === "TimeoutError" || error?.name === "AbortError" ||
                 (task.actionType === "propose_code_patch" &&
-                  ((Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || ""))) ||
-                   error?.name === "TimeoutError" || error?.name === "AbortError"));
+                  Number(error?.status) === 409 && /already in progress|concurrently reserved/i.test(String(error?.message || "")));
               const diagnostic = String(error?.message || error).slice(0,300);
               console.log(`Bounded task diagnostic (${task.actionType}): ${diagnostic}`);
               result = `Bounded runner failed: ${diagnostic}`;
@@ -717,7 +752,7 @@ jobs:
               method: "POST",
               body: JSON.stringify({ status, result, retryable, claimToken: task.claimToken })
             });
-            console.log(`Bounded task ${count + 1} finished with status: ${status}; retryable=${retryable}`);
+            console.log(`Bounded task ${count + 1} finished with status: ${status}; retryable=${retryable}; resumedFromCheckpoint=${resumedFromCheckpoint}`);
           }
 
           if (Date.now() >= taskExecutionDeadline) {
@@ -789,5 +824,38 @@ jobs:
 
             }
           }
+          // Archive owner-private notifications through the Worker, which holds the private-repository credential.
+          // The Actions runner receives only a lease; it never receives the reports-repository token or payload.
+          if (orchestratorToken.length >= 40 && orchestratorToken.length <= 200) {
+            for (let count = 0; count < 10 && Date.now() < taskExecutionDeadline; count++) {
+              let notification;
+              try {
+                const claimed = await request("/agent/v1/notifications/next", {}, ownerHeaders, 15000);
+                notification = claimed?.notification;
+                if (!notification) break;
+                if (notification.channel !== "owner_private" || typeof notification.id !== "string" ||
+                    typeof notification.leaseToken !== "string") throw new Error("Invalid owner notification lease.");
+                await request("/agent/v1/notifications/" + encodeURIComponent(notification.id), {
+                  method: "POST",
+                  body: JSON.stringify({ status: "delivered", leaseToken: notification.leaseToken })
+                }, ownerHeaders, 30000);
+                console.log("Archived one owner notification in the private reports repository.");
+              } catch (error) {
+                console.log("Owner notification archival deferred: " + String(error?.message || error).slice(0,160));
+                if (notification?.id && notification?.leaseToken) {
+                  try {
+                    await request("/agent/v1/notifications/" + encodeURIComponent(notification.id), {
+                      method: "POST",
+                      body: JSON.stringify({ status: "retry", message: "Private archive delivery deferred.", leaseToken: notification.leaseToken })
+                    }, ownerHeaders, 10000);
+                  } catch {
+                    console.log("Owner notification lease could not be rescheduled; it will expire and recover automatically.");
+                  }
+                }
+                break;
+              }
+            }
+          }
+
           console.log(`[performance] tick_total: ${Date.now() - tickStartedAt}ms; measured_stages=${timingSamples.length}`);
           NODE

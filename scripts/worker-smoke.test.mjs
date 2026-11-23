@@ -198,6 +198,39 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.match(payload.error, /Admin authentication required/);
 });
 
+test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without Workers AI", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/admin/overview"', start);
+  assert.ok(start >= 0 && end > start, "Intelligence chat route must exist");
+  const route = workerSource.slice(start, end);
+  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf("reserveSocialWorkersAIBudget"));
+  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf("reserveSocialWorkersAIBudget"));
+  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf('if (!env.AI || typeof env.AI.run'));
+  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf('if (!env.AI || typeof env.AI.run'));
+  assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30/);
+  assert.match(route, /SELECT COUNT\(\*\) AS total FROM social_users/);
+  assert.match(route, /aiRequests:0,reason:"deterministic_project_status"/);
+  assert.match(route, /aiRequests:0,reason:"deterministic_social_metrics"/);
+  assert.ok(workerSource.includes(String.raw`replace(/[!؟?.،,\s\u200c]+/gu, "")`));
+});
+
+test("MEHRAN INTELLIGENCE chat uses one inference and formats safe tool results deterministically", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/admin/overview" && method === "GET")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  assert.ok(route.indexOf("deterministic_short_circuit") < route.indexOf("reserveSocialWorkersAIBudget"));
+  assert.equal(route.split("env.AI.run(").length - 1, 1, "one user request may invoke Workers AI only once");
+  assert.ok(route.includes("Array.isArray(result?.tool_calls) ? result.tool_calls.slice(0,2) : []"));
+  assert.ok(route.includes("single_inference_tool_execution"));
+  assert.ok(route.includes("get_project_status"));
+  assert.ok(route.includes("get_social_metrics"));
+  assert.ok(route.includes("list_collaboration_tasks"));
+  assert.ok(route.includes("propose_collaboration_task"));
+  assert.ok(!route.includes('messages.push({role:"tool"'));
+  assert.equal(route.split("max_tokens:650").length - 1, 1);
+});
+
 test("security guardrails keep request bodies bounded and CORS restricted", () => {
   assert.match(workerSource, /const MAX_BODY_BYTES = 100000;/);
   assert.match(workerSource, /origin !== ALLOWED_ORIGIN/);
@@ -1206,12 +1239,13 @@ test("MEHRAN Intelligence tool calling is limited to safe reads and owner-approv
   assert.doesNotMatch(chat, /deploy_worker|transfer_pi|delete_social_user/);
 });
 
+// Intelligence has its own bounded reservation cap within the shared global ceiling.
 test("Workers AI has separate Music, SOCIAL and MEHRAN INTELLIGENCE budgets under one fail-closed ceiling", () => {
   assert.match(workerSource, /WORKERS_AI_GLOBAL_DAILY_RESERVATION_CREDITS = 9000/);
   assert.match(workerSource, /WORKERS_AI_MUSIC_DAILY_RESERVATION_CREDITS = 6000/);
   assert.match(workerSource, /WORKERS_AI_SOCIAL_DAILY_RESERVATION_CREDITS = 3000/);
   assert.match(workerSource, /CREATE TABLE IF NOT EXISTS workers_ai_daily_budget/);
-  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 1000 \}/);
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 3000 \}/);
   assert.match(workerSource, /ensureColumn\("workers_ai_daily_budget", "intelligence_reserved"/);
   assert.match(workerSource, /total_reserved/);
   assert.match(workerSource, /music_reserved/);

@@ -15,11 +15,24 @@ import {
 } from "./intelligence-capabilities.mjs";
 
 const workerSource = readFileSync(new URL("../worker.js", import.meta.url), "utf8");
+const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const runnerSource = readFileSync(new URL("../.github/workflows/mehran-intelligence-runner.yml", import.meta.url), "utf8");
 const scheduledStart = workerSource.indexOf("async scheduled(controller, env, ctx)");
 const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduledStart);
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
+
+test("runner resumes a durable completed result checkpoint without repeating execution", () => {
+  assert.ok(runnerSource.includes('savedCheckpoint.phase === "result_ready"'));
+  assert.ok(runnerSource.includes('savedCheckpoint.actionType === task.actionType'));
+  assert.ok(runnerSource.includes('savedCheckpoint.result.length <= 3000'));
+  assert.ok(runnerSource.includes('resumedFromCheckpoint = true'));
+  assert.ok(runnerSource.includes('task will not be repeated') || runnerSource.includes('execution will not be repeated'));
+  assert.ok(runnerSource.includes('phase: "result_ready"'));
+  assert.ok(runnerSource.includes('resultSha256: createHash("sha256").update(result).digest("hex")'));
+  assert.ok(runnerSource.includes('saved.checkpointSaved !== true'));
+  assert.ok(workerSource.includes('checkpointJson.length > 4000'));
+});
 
 test("all eight active capabilities are registered with their permission tiers", () => {
   const expected = [
@@ -654,7 +667,7 @@ test("Workers AI patch generation validates and envelopes only an append-only di
   assert.equal(result.artifact.baseSha, baseSha);
   assert.equal(result.artifact.targetPath, "scripts/intelligence-capabilities.test.mjs");
   assert.equal(result.artifactSha256.length, 64);
-  assert.equal(budgetAmount, 250);
+  assert.equal(budgetAmount, 100);
   assert.equal(modelName, PATCH_GENERATION_SERVICE_POLICY.model);
   assert.equal(calls.length, 3);
   assert.equal(result.mode, "generate_validate_only");
@@ -730,6 +743,239 @@ test("Workers AI patch generation fails closed on budget denial and unsafe model
 });
 
 
+test("Intelligence mission planning uses a bounded, more efficient daily reservation", () => {
+  assert.match(workerSource, /intelligence: \{ column: "intelligence_reserved", cap: 3000 \}/);
+  assert.match(workerSource, /reserveSocialWorkersAIBudget\(env, 25, "intelligence"\)/);
+  assert.match(workerSource, /max_tokens: 1000/);
+});
+
+test("scheduled Intelligence runner serializes ticks and bounds per-tick task execution", () => {
+  assert.match(runnerSource, /concurrency:\s*group:\s*mehran-intelligence-private-runner\s*cancel-in-progress:\s*false/);
+  assert.match(runnerSource, /for \(let count = 0; count < 5 && Date\.now\(\) < taskExecutionDeadline; count\+\+\)/);
+  assert.match(runnerSource, /const taskExecutionDeadline = tickStartedAt \+ 7 \* 60 \* 1000/);
+});
+
+test("mission planner checks its idempotency key before any Workers AI budget reservation", () => {
+  const start = workerSource.indexOf("async function planIntelligenceMission(env, input)");
+  const end = workerSource.indexOf("export function verifyIntelligenceReport", start);
+  assert.ok(start >= 0 && end > start);
+  const planner = workerSource.slice(start, end);
+  const existingCheck = planner.indexOf("SELECT id,status FROM intelligence_work_packages WHERE idempotency_key=?");
+  const budgetReservation = planner.indexOf('reserveSocialWorkersAIBudget(env, 25, "intelligence")');
+  const inference = planner.indexOf("await env.AI.run(model");
+  assert.ok(existingCheck >= 0 && budgetReservation > existingCheck && inference > budgetReservation);
+  assert.match(planner, /if \(existing\) return \{ success: true, duplicate: true/);
+});
+
+test("Intelligence runner retries only explicitly safe patch-generation interruptions", () => {
+  const retryStart = runnerSource.indexOf("retryable = Number(error?.status) === 503 ||");
+  const retryEnd = runnerSource.indexOf("const diagnostic =", retryStart);
+  assert.ok(retryStart >= 0 && retryEnd > retryStart);
+  const retryPolicy = runnerSource.slice(retryStart, retryEnd);
+  assert.match(retryPolicy, /Number\(error\?\.status\) === 503/);
+  assert.match(retryPolicy, /Number\(error\?\.status\) === 409 && \/already in progress\|concurrently reserved\//);
+  assert.match(retryPolicy, /error\?\.name === "TimeoutError" \|\| error\?\.name === "AbortError"/);
+  assert.doesNotMatch(retryPolicy, /Number\(error\?\.status\) === 409\s*\|\|/);
+  assert.doesNotMatch(retryPolicy, /Number\(error\?\.status\) === 502/);
+});
+
+test("Patch generation timeout and model failures remain terminal instead of triggering duplicate inference", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start);
+  const generationRoute = workerSource.slice(start, end);
+  assert.match(generationRoute, /status='failed',failure_code='processing_timeout'/);
+  assert.match(generationRoute, /The previous generation attempt expired; submit a new request ID/);
+  assert.match(generationRoute, /model_request_failed/);
+  assert.match(generationRoute, /includes\(generated\.code\) \? 502/);
+  assert.match(generationRoute, /Generation failures are persisted as terminal "failed" requests/);
+  assert.match(generationRoute, /HTTP 503 is reserved[\s\S]*?prepared-artifact recovery\/storage interruptions/);
+});
+
+test("Intelligence task recovery is claim-token scoped, bounded, and attempt limited", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const end = workerSource.indexOf('const checkpointMatch = path.match', start);
+  assert.ok(start >= 0 && end > start);
+  const claimRoute = workerSource.slice(start, end);
+  assert.match(claimRoute, /datetime\(agent_claimed_at\) < datetime\('now','-15 minutes'\)/);
+  assert.match(claimRoute, /COALESCE\(attempts,0\)>=COALESCE\(max_attempts,3\)/);
+  assert.match(claimRoute, /COALESCE\(attempts,0\)<COALESCE\(max_attempts,3\)/);
+  assert.match(claimRoute, /attempts=COALESCE\(attempts,0\)\+1/);
+  assert.match(claimRoute, /agent_claim_token_hash=\?/);
+  assert.match(claimRoute, /WHERE id=\? AND status IN \('queued','accepted','retry_wait'\)/);
+});
+
+test("Intelligence task result commits require the live claim and apply bounded exponential retry", () => {
+  const start = workerSource.indexOf('const agentResultMatch = path.match(');
+  const end = workerSource.indexOf('return error("Not found",404);', start);
+  assert.ok(start >= 0 && end > start);
+  const resultRoute = workerSource.slice(start, end);
+  assert.match(resultRoute, /status='in_progress' AND agent_claim_token_hash=\?/);
+  assert.match(resultRoute, /datetime\(agent_claimed_at\)>=datetime\('now','-15 minutes'\)/);
+  assert.match(resultRoute, /body\.retryable === true && Number\(before\.attempts \|\| 0\) < Number\(before\.max_attempts \|\| 3\)/);
+  assert.match(resultRoute, /Math\.min\(3600,30 \* \(2 \*\* Math\.max\(0,Number\(before\.attempts \|\| 1\)-1\)\)\)/);
+  assert.match(resultRoute, /const finalStatus = retryable \? "retry_wait" : requestedStatus/);
+  assert.match(resultRoute, /agent_claim_token_hash='',next_attempt_at=\?/);
+  assert.match(resultRoute, /Task claim expired or changed before result commit/);
+});
+
+test("Patch generation replay is idempotent across stored, prepared, processing, and terminal states", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  assert.ok(start >= 0 && end > start);
+  const route = workerSource.slice(start, end);
+  const storedReplay = route.indexOf('if (existing.status === "stored") return responseFor(existing)');
+  const preparedRecovery = route.indexOf('if (existing.status === "prepared")');
+  const processingGuard = route.indexOf('if (existing.status === "processing")');
+  const terminalGuard = route.indexOf('return error("This generation request is terminal; submit a new request ID to retry.",409)');
+  const freshReservation = route.indexOf("INSERT OR IGNORE INTO intelligence_patch_generation_requests");
+  const inference = route.indexOf("const generated = await generatePatchArtifact");
+  assert.ok(storedReplay >= 0 && preparedRecovery > storedReplay);
+  assert.ok(processingGuard > preparedRecovery && terminalGuard > processingGuard);
+  assert.ok(freshReservation > terminalGuard && inference > freshReservation);
+  assert.match(route, /if \(existing\.status === "stored"\) return responseFor\(existing\)/);
+  assert.match(route, /if \(existing\.status === "prepared"\)[\s\S]*?verifyPrivatePatchArtifactAtPath/);
+  assert.match(route, /if \(current\?\.status === "processing"\) return error\("This generation request is already in progress; retry the same request ID later\.",409\)/);
+  assert.match(route, /status='failed',failure_code='processing_timeout'/);
+  assert.match(route, /The previous generation attempt expired; submit a new request ID/);
+  assert.match(route, /if \(existing\.status === "processing"\)[\s\S]*?return error\("The previous generation attempt expired; submit a new request ID\.",409\)/);
+  assert.match(route, /if \(existing\.status === "prepared"\)[\s\S]*?finalizePatchGenerationRequest/);
+});
+
+test("Private package reports are verified before the durable stored marker is set", () => {
+  const start = workerSource.indexOf("export async function persistIntelligencePackageReport");
+  const end = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot", start);
+  assert.ok(start >= 0 && end > start);
+  const persist = workerSource.slice(start, end);
+  const verify = persist.indexOf("async function verifyExistingReport()");
+  const hashCheck = persist.indexOf("await sha256(existingReportText) !== expectedReportHash");
+  const markStored = persist.indexOf("SET report_stored_at=CURRENT_TIMESTAMP");
+  const upload = persist.indexOf("method: \"PUT\"");
+  assert.ok(verify >= 0 && hashCheck > verify && markStored > hashCheck && upload > verify);
+  assert.match(persist, /Existing private report content does not match the current package snapshot/);
+  assert.match(persist, /refusing to mark it stored/);
+  assert.match(persist, /if \(\[409, 422\]\.includes\(response\.status\)\)[\s\S]*?verifyExistingReport\(\)/);
+  assert.match(persist, /UPDATE intelligence_work_packages SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\? AND report_stored_at IS NULL/);
+});
+
+test("Terminal work packages with unstored reports are rediscovered for later finalization", () => {
+  const pendingRoute = workerSource.indexOf('if (path === "/agent/v1/work-packages/pending-finalization" && method === "GET")');
+  const pendingRouteEnd = workerSource.indexOf("const packageMatch", pendingRoute);
+  assert.ok(pendingRoute >= 0 && pendingRouteEnd > pendingRoute);
+  const route = workerSource.slice(pendingRoute, pendingRouteEnd);
+  assert.match(route, /status IN \('completed','attention_required'\) AND report_stored_at IS NULL/);
+  assert.match(route, /ORDER BY created_at ASC LIMIT 20/);
+
+  const runnerStart = runnerSource.indexOf("// Re-discover terminal packages on every tick");
+  const runnerEnd = runnerSource.indexOf("// Finalize every package touched by this tick", runnerStart);
+  assert.ok(runnerStart >= 0 && runnerEnd > runnerStart);
+  const recovery = runnerSource.slice(runnerStart, runnerEnd);
+  assert.match(recovery, /work-packages\/pending-finalization/);
+  assert.match(recovery, /packageIds\.add\(id\)/);
+});
+
+test("Work-package audit events and notification outbox rows share one stable event identity", () => {
+  const start = workerSource.indexOf("async function refreshIntelligenceWorkPackageSnapshot");
+  const end = workerSource.indexOf("async function ensureIntelligenceSchedulerRunsTable", start);
+  assert.ok(start >= 0 && end > start);
+  const refresh = workerSource.slice(start, end);
+  assert.match(refresh, /const eventId = crypto\.randomUUID\(\)/);
+  assert.match(refresh, /INSERT INTO intelligence_task_events\(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json\)[\s\S]*?\.bind\(eventId,packageId/);
+  assert.match(refresh, /INSERT OR IGNORE INTO intelligence_notification_outbox\(id,event_id,channel,payload_json,status\)[\s\S]*?\.bind\(crypto\.randomUUID\(\),eventId/);
+  const schemaStart = workerSource.indexOf("CREATE TABLE IF NOT EXISTS intelligence_notification_outbox");
+  const schemaEnd = workerSource.indexOf("async function ensureIntelligencePatchGenerationRequestsTable", schemaStart);
+  assert.ok(schemaStart >= 0 && schemaEnd > schemaStart);
+  assert.match(workerSource.slice(schemaStart, schemaEnd), /UNIQUE\(event_id,channel\)/);
+});
+
+test("Notification delivery leases are bounded, acknowledged with the lease token, and stop after five attempts", () => {
+  const routeStart = workerSource.indexOf('if (path === "/agent/v1/notifications/next" && method === "GET")');
+  const routeEnd = workerSource.indexOf('const notificationMatch', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart);
+  const claim = workerSource.slice(routeStart, routeEnd);
+  assert.match(claim, /attempts>=5 THEN 'failed' ELSE 'retry_wait'/);
+  assert.match(claim, /attempts=attempts\+1/);
+  assert.match(claim, /leaseToken/);
+  assert.match(claim, /5\*60\*1000/);
+
+  const ackStart = routeEnd;
+  const ackEnd = workerSource.indexOf('if (path === "/agent/v1/work-packages/pending-finalization"', ackStart);
+  const ack = workerSource.slice(ackStart, ackEnd);
+  assert.match(ack, /WHERE id=\? AND status='processing' AND lease_token=\?/);
+  assert.match(ack, /outcome === "retry" && Number\(row\.attempts\|\|0\) < 5/);
+  assert.match(ack, /"delivered","retry","failed"/);
+});
+
+test("Owner notifications are archived idempotently in the private reports repository before delivery acknowledgement", () => {
+  const helperStart = workerSource.indexOf("async function persistIntelligenceNotification");
+  const helperEnd = workerSource.indexOf("export async function persistIntelligencePackageReport", helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart);
+  const helper = workerSource.slice(helperStart, helperEnd);
+  assert.match(helper, /MEHRAN_REPORTS_GITHUB_TOKEN/);
+  assert.match(helper, /Mehranmsh\/mehran-intelligence-reports/);
+  assert.match(helper, /notifications\//);
+  assert.match(helper, /method:"GET"/);
+  assert.match(helper, /method:"PUT"/);
+  assert.match(helper, /await sha256\(existingText\) !== expectedHash/);
+  assert.match(helper, /\[409,422\]\.includes\(response\.status\)/);
+  assert.doesNotMatch(helper, /return \{[^}]*token/);
+
+  const routeStart = workerSource.indexOf("const notificationMatch = path.startsWith");
+  const routeEnd = workerSource.indexOf('if (path === "/agent/v1/work-packages/pending-finalization"', routeStart);
+  assert.ok(routeStart >= 0 && routeEnd > routeStart);
+  const route = workerSource.slice(routeStart, routeEnd);
+  assert.match(route, /SELECT id,event_id,channel,payload_json,created_at,attempts,status FROM intelligence_notification_outbox/);
+  assert.ok(route.indexOf("persistIntelligenceNotification(env, row)") < route.indexOf("UPDATE intelligence_notification_outbox SET status=?"));
+  assert.match(route, /Private notification archive failed:[\s\S]*?,503/);
+});
+
+test("Runner archives owner notifications only through the authenticated Worker and never exposes the private archive token", () => {
+  const start = runnerSource.indexOf("// Archive owner-private notifications through the Worker");
+  const end = runnerSource.indexOf("`[performance] tick_total:", start);
+  assert.ok(start >= 0 && end > start);
+  const delivery = runnerSource.slice(start, end);
+  assert.match(delivery, /notifications\/next/);
+  assert.match(delivery, /status: "delivered"/);
+  assert.match(delivery, /status: "retry"/);
+  assert.match(delivery, /count < 10/);
+  assert.match(delivery, /notification\.channel !== "owner_private"/);
+  assert.doesNotMatch(delivery, /MEHRAN_REPORTS_GITHUB_TOKEN|secrets\./);
+  assert.doesNotMatch(delivery, /payload\.counts|payload\.workPackageId/);
+});
+
+test("Private notification archive strips base64 whitespace before verification", () => {
+  const start = workerSource.indexOf("async function persistIntelligenceNotification");
+  const end = workerSource.indexOf("export async function persistIntelligencePackageReport", start);
+  const helper = workerSource.slice(start, end);
+  assert.match(helper, /body\.content\.replace\(\/\\s\+\/g,""\)/);
+});
+
+test("Private notification archive enforces the exact status schema and bounded numeric counters", () => {
+  const start = workerSource.indexOf("async function persistIntelligenceNotification");
+  const end = workerSource.indexOf("export async function persistIntelligencePackageReport", start);
+  const helper = workerSource.slice(start, end);
+  assert.match(helper, /payload\.type !== "work_package_status_changed"/);
+  assert.match(helper, /payload\.workPackageId\.length > 160/);
+  assert.match(helper, /const countKeys = \["total","completed","blocked","failed","awaitingApproval","inProgress","queued","retryWaiting","blockedDependencies"\]/);
+  assert.match(helper, /Object\.keys\(payload\.counts\)\.some\(key => !countKeys\.includes\(key\)\)/);
+  assert.match(helper, /Number\.isSafeInteger\(value\)/);
+  assert.match(helper, /value < 0 \|\| value > 1000000000/);
+  assert.match(helper, /date\.toISOString\(\) !== payload\.generatedAt/);
+  assert.doesNotMatch(helper, /counts: payload\.counts/);
+});
+
+test("Malformed private notification JSON is quarantined before a delivery lease is created", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/notifications/next"');
+  const end = workerSource.indexOf("const notificationMatch = path.startsWith", start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /channel='owner_private'/);
+  assert.ok(route.indexOf("JSON.parse(candidate.payload_json)") < route.indexOf("SET status='processing'"));
+  assert.match(route, /status='failed',next_attempt_at=NULL,lease_token='',last_error='invalid_payload_json'/);
+  assert.match(route, /Notification payload is invalid and was quarantined/);
+  assert.ok(route.indexOf("invalid_payload_json") < route.indexOf("SET status='processing'"));
+});
+
+
 test("private report storage preserves safe HTTP status diagnostics", () => {
   const diagnosticStart = workerSource.indexOf("const safeStoreReason");
   const diagnosticEnd = workerSource.indexOf('console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE"', diagnosticStart);
@@ -737,4 +983,53 @@ test("private report storage preserves safe HTTP status diagnostics", () => {
   const diagnostic = workerSource.slice(diagnosticStart, diagnosticEnd);
   assert.ok(diagnostic.includes("status \\d{3}\\."), "HTTP status regex must match a three-digit status code");
   assert.equal(diagnostic.includes("status \\\\d{3}\\\\."), false, "regex must not search for a literal backslash-d sequence");
+});
+
+
+test("Intelligence retains owner-scoped durable memory and recent conversation context across requests", () => {
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_memory_items/);
+  assert.match(workerSource, /UNIQUE\(owner_uid,memory_key\)/);
+  assert.match(workerSource, /CREATE TABLE IF NOT EXISTS intelligence_chat_turns/);
+  assert.match(workerSource, /LIMIT 100\)"/);
+  assert.match(workerSource, /ORDER BY created_at DESC,rowid DESC LIMIT 16/);
+  assert.match(workerSource, /PERSISTENT PROJECT MEMORY/);
+  assert.match(workerSource, /RECENT CONVERSATION/);
+  assert.match(workerSource, /name:"remember_context"/);
+  assert.match(workerSource, /ON CONFLICT\(owner_uid,memory_key\) DO UPDATE/);
+  assert.match(workerSource, /Credentials and wallet secrets cannot be stored in memory/);
+  assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,admin\.uid\)/);
+  assert.match(workerSource, /path.match\(\/\^\\\/intelligence\\\/memory\\\/\(\[\^\/\]\+\)\$\//);
+  assert.match(workerSource, /DELETE FROM intelligence_memory_items WHERE owner_uid=\? AND memory_key=\?/);
+  assert.match(workerSource, /JSON\.stringify\(durableMemoryContext\)/);
+  assert.match(workerSource, /Use the durable owner-confirmed project memory included in the mission context/);
+  assert.match(workerSource, /seedIntelligenceOwnerMemory\(env,"mehran_intelligence"\)/);
+  assert.match(workerSource, /appendIntelligenceChatTurn\(env,admin\.uid,sessionKey,"user",question\)/);
+  assert.match(workerSource, /appendIntelligenceChatTurn\(env,admin\.uid,sessionKey,"assistant"/);
+  const chatHandlerStart = workerSource.indexOf("const executeTool = async (name,args) =>", workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")'));
+  const chatHandlerEnd = workerSource.indexOf('if (name === "get_project_status")', chatHandlerStart);
+  const chatHandler = workerSource.slice(chatHandlerStart, chatHandlerEnd);
+  assert.ok(chatHandler.includes('if (name === "remember_context")'));
+  assert.ok(chatHandler.includes(".bind(crypto.randomUUID(),admin.uid,key,category,content,importance)"));
+  assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all()'));
+  assert.ok(workerSource.includes('FROM intelligence_memory_items WHERE owner_uid=? ORDER BY updated_at DESC,importance DESC LIMIT 24").bind(admin.uid).all()'));
+  assert.ok(workerSource.includes("ACTIVE MISSION STATE (authoritative live task records; resume existing work before proposing duplicates)"));
+  assert.ok(workerSource.includes('if (path === "/intelligence/chat/history" && method === "GET")'));
+  assert.ok(workerSource.includes('WHERE owner_uid=? AND session_key=? ORDER BY created_at DESC,rowid DESC LIMIT 100'));
+  assert.ok(workerSource.includes('return json({success:true,turns:'));
+  assert.ok(indexSource.includes('id="intelConversation"'));
+  assert.ok(indexSource.includes('async function loadIntelligenceChatHistory()'));
+  assert.ok(indexSource.includes('api("/intelligence/chat/history")'));
+  assert.match(workerSource, /ALTER TABLE intelligence_work_packages ADD COLUMN owner_uid TEXT/);
+  assert.match(workerSource, /ownerUid: input\?\.ownerUid/);
+  assert.match(workerSource, /ownerUid: admin\.uid/);
+  assert.match(workerSource, /LEFT JOIN intelligence_work_packages wp ON wp\.id=t\.work_package_id/);
+  assert.match(workerSource, /wp\.owner_uid=\? AND t\.work_package_id IS NOT NULL/);
+  assert.match(workerSource, /t\.work_package_id IS NULL AND t\.created_by=\?/);
+  assert.ok(workerSource.includes("t.checkpoint_json,t.attempts,t.max_attempts,t.next_attempt_at,t.last_error_code,t.updated_at"));
+  assert.ok(workerSource.includes("const activeMissions = (activeTaskResult.results || []).map"));
+  assert.ok(workerSource.includes("wp.title AS package_title,wp.objective AS package_objective,wp.status AS package_status"));
+  assert.ok(workerSource.includes('packageObjective:String(task.package_objective || "").slice(0,900)'));
+  assert.ok(workerSource.includes("If an active mission exists, continue from its recorded objective, status, and checkpoint before suggesting new work"));
+  assert.ok(workerSource.includes("never create a duplicate task just because the conversation session changed"));
+
 });
