@@ -2798,6 +2798,13 @@ test("Agent task claim tokens fence checkpoint and result commits to the current
   assert.match(workerSource, /Task claim not found, superseded, or expired/);
   assert.match(workerSource, /agent_claim_token_hash='',last_error_code='claim_expired_max_attempts'/);
   assert.match(workerSource, /agent_claim_token_hash='',last_error_code='claim_expired_retry'/);
+  const schedulerRecoveryStart = workerSource.indexOf('const staleClaims = await env.DB.prepare(');
+  const schedulerRecoveryEnd = workerSource.indexOf('// Repair only stale approval labels', schedulerRecoveryStart);
+  const schedulerRecovery = workerSource.slice(schedulerRecoveryStart, schedulerRecoveryEnd);
+  assert.match(schedulerRecovery, /SET status=\?,agent_claimed_at=NULL,agent_claim_token_hash=''/);
+  const schedulerClaimStart = workerSource.indexOf('const claimed = await env.DB.prepare(', schedulerRecoveryEnd);
+  const schedulerClaimEnd = workerSource.indexOf('if (!Number(claimed?.meta?.changes || 0)) continue;', schedulerClaimStart);
+  assert.match(workerSource.slice(schedulerClaimStart, schedulerClaimEnd), /agent_claim_token_hash=''/);
   assert.match(runnerSource, /claimToken: task\.claimToken/);
   assert.doesNotMatch(runnerSource, /console\.log\([^\n]*claimToken/);
 });
