@@ -8,21 +8,42 @@ import {
   validateIntelligenceCapabilityRequest
 } from "./intelligence-capabilities.mjs";
 
-test("only the existing five read-only report actions are active in the scheduled runner", () => {
+test("executor routing matches the real Worker scheduler and GitHub Actions runner", () => {
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, [
+    "service_health_report",
+    "repository_quality_check",
+    "source_security_audit"
+  ]);
+  assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, [
     "project_status_report",
     "social_metrics_report",
     "service_health_report",
     "repository_quality_check",
     "source_security_audit"
   ]);
-  assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, INTELLIGENCE_ACTION_TYPES);
-  for (const id of INTELLIGENCE_ACTION_TYPES) {
+
+  const expectedExecutors = {
+    project_status_report: "worker_scheduler",
+    social_metrics_report: "worker_scheduler",
+    service_health_report: "worker_scheduler_and_github_actions_runner",
+    repository_quality_check: "worker_scheduler_and_github_actions_runner",
+    source_security_audit: "github_actions_runner"
+  };
+  for (const [id, executor] of Object.entries(expectedExecutors)) {
     const item = getIntelligenceCapability(id);
     assert.equal(item.status, "active");
     assert.equal(item.permissionTier, "read_only");
-    assert.equal(item.executor, "scheduled_runner");
+    assert.equal(item.executor, executor);
     assert.equal(item.requiresApproval, false);
+  }
+});
+
+test("runner capability validation accepts only actions routed to GitHub Actions", () => {
+  for (const id of INTELLIGENCE_ACTION_TYPES) {
+    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, true);
+  }
+  for (const id of ["project_status_report", "social_metrics_report"]) {
+    assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
   }
 });
 
