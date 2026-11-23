@@ -5786,9 +5786,13 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
 async function planIntelligenceMission(env, input) {
   const mission = cleanText(input?.mission, 1600);
   const idempotencyKey = cleanText(input?.idempotencyKey, 120);
-  const fallback = reason => input?.allowDeterministicFallback === false
-    ? { success: false, error: `AI planning is unavailable (${cleanText(reason, 80) || "unknown"}); no custom mission package was created.`, code: -32003, plannerUnavailable: true, reason }
-    : createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason, input?.ownerUid);
+  const fallback = (reason, detail = "") => {
+    const safeReason = cleanText(reason, 80) || "unknown";
+    const safeDetail = cleanText(detail, 180);
+    return input?.allowDeterministicFallback === false
+      ? { success: false, error: `AI planning is unavailable (${safeReason})${safeDetail ? `: ${safeDetail}` : ""}; no custom mission package was created.`, code: -32003, plannerUnavailable: true, reason: safeReason }
+      : createIntelligenceFallbackPackage(env, mission, idempotencyKey, safeReason, input?.ownerUid);
+  };
   if (!mission || !idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
     return { success: false, error: "A mission and valid idempotency key are required.", code: -32602 };
   }
@@ -5949,7 +5953,7 @@ async function planIntelligenceMission(env, input) {
         taskCount: normalizedTasks.length,
         taskTypes: normalizedTasks.map(item => cleanText(item?.actionType, 60))
       });
-      return fallback("ai_plan_validation_failed");
+      return fallback("ai_plan_validation_failed", created.error);
     }
     return { success: false, error: created.error || "AI-generated work package failed validation.", code: created.code || -32602 };
   }
