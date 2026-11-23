@@ -16,26 +16,61 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all six active read-only capabilities are registered independent of executor type", () => {
+test("all seven active capabilities are registered with their permission tiers", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
     "service_health_report",
     "repository_quality_check",
     "source_security_audit",
-    "inspect_repository"
+    "inspect_repository",
+    "run_repository_tests"
   ];
   assert.deepEqual(INTELLIGENCE_ACTION_TYPES, expected);
   assert.deepEqual(PREAPPROVED_INTELLIGENCE_ACTION_TYPES, expected);
   for (const id of expected) {
     const item = getIntelligenceCapability(id);
+    const isolated = id === "run_repository_tests";
     assert.equal(item.status, "active");
-    assert.equal(item.permissionTier, "read_only");
+    assert.equal(item.permissionTier, isolated ? "isolated_ci" : "read_only");
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
-    const input = id === "inspect_repository" ? { paths: ["worker.js"] } : {};
+    const input = id === "inspect_repository"
+      ? { paths: ["worker.js"] }
+      : isolated ? { baseSha: "a".repeat(40) } : {};
     assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
+});
+
+test("fixed repository tests are active only through the isolated GitHub runner", () => {
+  const capability = getIntelligenceCapability("run_repository_tests");
+  assert.equal(capability.status, "active");
+  assert.equal(capability.permissionTier, "isolated_ci");
+  assert.equal(capability.requiresApproval, false);
+  assert.equal(capability.autonomous, true);
+  assert.deepEqual(capability.executors, ["github_actions_runner"]);
+  assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40) }).ok, true);
+  assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
+  assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
+  assert.match(workerSource, /actionType === "run_repository_tests"/);
+  assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
+  assert.match(workerSource, /before\.action_payload/);
+  assert.match(workerSource, /expectedPayload\.baseSha !== parsedReport\.baseSha/);
+  assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
+  assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
+  assert.match(runnerSource, /node --check worker\.js/);
+  assert.match(runnerSource, /"--network", "none"/);
+  assert.match(runnerSource, /"--read-only"/);
+  assert.match(runnerSource, /"--cap-drop", "ALL"/);
+  assert.match(runnerSource, /"--security-opt", "no-new-privileges"/);
+  assert.match(runnerSource, /"--memory", "768m"/);
+  assert.match(runnerSource, /"--cpus", "1"/);
+  assert.match(runnerSource, /"--pids-limit", "64"/);
+  const dockerArgsStart = runnerSource.indexOf("const args = [", runnerSource.indexOf("function runFixedRepositoryTests"));
+  const dockerArgsEnd = runnerSource.indexOf('spawnSync("docker", args', dockerArgsStart);
+  assert.ok(dockerArgsStart >= 0 && dockerArgsEnd > dockerArgsStart);
+  assert.doesNotMatch(runnerSource.slice(dockerArgsStart, dockerArgsEnd), /--env|["']-e["']/);
+  assert.doesNotMatch(runnerSource, /"--network", "host"/);
 });
 
 test("executor metadata matches the actual Worker and GitHub Actions routing", () => {
@@ -45,7 +80,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
     service_health_report: ["cloudflare_worker_scheduler", "github_actions_runner"],
     repository_quality_check: ["cloudflare_worker_scheduler", "github_actions_runner"],
     source_security_audit: ["github_actions_runner"],
-    inspect_repository: ["github_actions_runner"]
+    inspect_repository: ["github_actions_runner"],
+    run_repository_tests: ["github_actions_runner"]
   };
   for (const [id, executors] of Object.entries(expected)) {
     assert.deepEqual(getIntelligenceCapability(id).executors, executors, id);
@@ -54,8 +90,10 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
   assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
+  assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
+  assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
 
   const runnerActions = runnerSource.match(/const capabilityActions = \[([^\]]+)\]/);
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
@@ -66,7 +104,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
 });
 
 test("future self-improvement capabilities remain planned and non-executable", () => {
-  for (const id of ["run_repository_tests", "propose_code_patch", "create_pull_request"]) {
+  for (const id of ["propose_code_patch", "create_pull_request"]) {
     assert.equal(getIntelligenceCapability(id).status, "planned");
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, false);
     assert.equal(validateIntelligenceCapabilityRequest(id, {}).code, "capability_not_implemented");
@@ -116,7 +154,7 @@ test("PR creation schema requires a scoped proposal branch and immutable head SH
 
 // Autonomous metadata is policy only; planned capabilities remain non-executable until an executor ships.
 test("safe self-improvement work is pre-authorized without activating missing executors", () => {
-  for (const id of ["run_repository_tests", "propose_code_patch", "create_pull_request"]) {
+  for (const id of ["propose_code_patch", "create_pull_request"]) {
     const capability = getIntelligenceCapability(id);
     assert.equal(capability.requiresApproval, false, id);
     assert.equal(capability.autonomous, true, id);
@@ -164,6 +202,9 @@ const isolatedTestWorkflowSource = readFileSync(
 
 test("isolated test workflow runs one fixed suite without secrets or network access", () => {
   assert.match(isolatedTestWorkflowSource, /workflow_dispatch:/);
+  assert.match(isolatedTestWorkflowSource, /pull_request:/);
+  assert.match(isolatedTestWorkflowSource, /github\.event\.pull_request\.head\.sha/);
+  assert.match(isolatedTestWorkflowSource, /github\.event\.pull_request\.head\.repo\.full_name/);
   assert.match(isolatedTestWorkflowSource, /uses: actions\/checkout@11d5960a326750d5838078e36cf38b85af677262/);
   assert.match(isolatedTestWorkflowSource, /node:22-alpine@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a/);
   assert.match(isolatedTestWorkflowSource, /permissions:\s*\n\s*contents:\s*read/);
@@ -179,6 +220,7 @@ test("isolated test workflow runs one fixed suite without secrets or network acc
   assert.match(isolatedTestWorkflowSource, /--tmpfs \/tmp:rw,noexec,nosuid,nodev,size=64m/);
   assert.match(isolatedTestWorkflowSource, /dst=\/workspace,readonly/);
   assert.match(isolatedTestWorkflowSource, /node --test scripts\/intelligence-capabilities\.test\.mjs/);
+  assert.match(isolatedTestWorkflowSource, /node --check worker\.js/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /secrets\.|GITHUB_TOKEN|MEHRAN_AGENT_TOKEN|MEHRAN_ORCHESTRATOR_TOKEN|actions:\s*write/);
   assert.doesNotMatch(isolatedTestWorkflowSource, /npm\s+(?:install|run)|pnpm\s+(?:install|run)|yarn\s+(?:install|run)/);
 
