@@ -6426,7 +6426,7 @@ export default {
           }
           await ensureIntelligencePatchProposalTable(env);
           await ensureIntelligencePatchGenerationRequestsTable(env);
-          const requestHash = await sha256(body.baseSha + "\\n" + body.objective.trim());
+          const requestHash = await sha256(body.baseSha + "\n" + body.objective.trim());
           const readRequest = () => env.DB.prepare(
             "SELECT request_id,request_hash,base_sha,status,proposal_id,target_path,summary,artifact_path,artifact_sha256,diff_sha256,validation_mode,failure_code,created_at,updated_at FROM intelligence_patch_generation_requests WHERE request_id=?"
           ).bind(body.requestId).first();
@@ -6812,8 +6812,7 @@ export default {
                 expectedPayload = JSON.parse(before.action_payload || "{}");
                 checkpoint = JSON.parse(before.checkpoint_json || "{}");
               } catch { return error("Stored patch-task payload or checkpoint is invalid.",422); }
-              const expectedHash = await sha256(parsedReport.baseSha + "
-" + String(expectedPayload.objective || "").trim());
+              const expectedHash = await sha256(parsedReport.baseSha + "\n" + String(expectedPayload.objective || "").trim());
               if (!expectedPayload || typeof expectedPayload.objective !== "string" ||
                   parsedReport.requestId !== id || checkpoint.baseSha !== parsedReport.baseSha ||
                   parsedReport.requestHash !== expectedHash) {
