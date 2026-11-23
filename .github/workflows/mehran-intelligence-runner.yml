@@ -196,6 +196,7 @@ jobs:
               const ownerMissionEnd = workerSource.text.indexOf('if (path === "/intelligence/tasks"', ownerMissionStart);
               const ownerMissionRoute = ownerMissionStart >= 0 && ownerMissionEnd > ownerMissionStart
                 ? workerSource.text.slice(ownerMissionStart, ownerMissionEnd) : "";
+              const forbiddenRunnerPatterns = [new RegExp("wrangler\\s+deploy"), new RegExp("git\\s+push"), new RegExp(["CLOUDFLARE", "_API_TOKEN"].join("")), new RegExp(["createOrUpdate", "FileContents"].join(""))];
               const checks = [
                 { id: "cors_origin_guard", passed: /origin\s*&&\s*origin\s*!==\s*ALLOWED_ORIGIN/.test(workerSource.text), detail: "Unexpected browser origins are rejected." },
                 { id: "separate_agent_and_owner_tokens", passed: workerSource.text.includes("MEHRAN_AGENT_TOKEN") && workerSource.text.includes("MEHRAN_ORCHESTRATOR_TOKEN"), detail: "Agent and owner identities are separately referenced." },
@@ -219,7 +220,6 @@ jobs:
                 { id: "custom_owner_missions_remain_admin_gated_without_fallback", passed: /verifyAdmin\(request, env\)/.test(ownerMissionRoute) && /allowDeterministicFallback: false/.test(ownerMissionRoute) && /writeAdminAudit\(/.test(ownerMissionRoute), detail: "Custom mission intake remains administrator-authenticated, audited, and fails closed when AI planning is unavailable." },
                 { id: "mcp_package_intake_keeps_separate_bridge_and_owner_identities", passed: mcpSource.includes("MEHRAN_MCP_TOKEN") && mcpSource.includes("MEHRAN_ORCHESTRATOR_TOKEN") && mcpSource.includes("packageIntakeEnabled = bridgeAuthorized && orchestratorSecret.length >= 40"), detail: "Private package tools require the dedicated bridge identity and the separately configured owner opt-in." },
                 { id: "executor_rechecks_assignment_status_and_approval", passed: /task\.status !== "in_progress"/.test(runnerSource.text) && /task\.requiresApproval !== false/.test(runnerSource.text) && /\["mehran_intelligence", "shared"\]\.includes\(task\.assignedTo\)/.test(runnerSource.text), detail: "The executor independently rejects tasks that are not active, assigned to an allowed identity, and explicitly pre-approved." },
-            const forbiddenRunnerPatterns = [new RegExp("wrangler\\s+deploy"), new RegExp("git\\s+push"), new RegExp(["CLOUDFLARE", "_API_TOKEN"].join("")), new RegExp(["createOrUpdate", "FileContents"].join(""))];
                 { id: "runner_has_no_deploy_or_repository_write_commands", passed: forbiddenRunnerPatterns.every(pattern => !pattern.test(runnerSource.text)), detail: "The scheduled runner has no configured deployment or repository-write command path." },
                 { id: "execution_protocol_still_marks_end_to_end_acceptance_as_required", passed: protocolSource.text.includes("Do not describe the protocol as active until the acceptance criteria have passed in an end-to-end test."), detail: "The protocol's end-to-end acceptance boundary remains explicit in the source documentation." }
               ];
