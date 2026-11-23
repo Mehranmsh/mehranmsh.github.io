@@ -1463,7 +1463,7 @@ test("Production Intelligence scheduler runs only approved read-only reports and
   assert.doesNotMatch(workerSource, /HTTP 5\\\\d\\\\d/);
   assert.ok(scheduledBody.includes("action_type IN ('project_status_report','social_metrics_report')"), "scheduler claim must use the same action allowlist as candidate selection");
   assert.ok(scheduledBody.includes("status='awaiting_approval' AND requires_approval=0"));
-  assert.match(workerSource  const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
+  const agentClaimStart = workerSource.indexOf('if (path === "/agent/v1/tasks/next" && method === "GET")');
   const agentClaimEnd = workerSource.indexOf("const checkpointMatch", agentClaimStart);
   const agentClaimRoute = workerSource.slice(agentClaimStart, agentClaimEnd);
   assert.match(agentClaimRoute, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
