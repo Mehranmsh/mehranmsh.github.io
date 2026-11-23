@@ -98,8 +98,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
 
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
-  assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
-  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
+  assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository|propose_code_patch/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests','propose_code_patch'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
   assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
   assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
@@ -108,7 +108,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"]
   );
 });
 
