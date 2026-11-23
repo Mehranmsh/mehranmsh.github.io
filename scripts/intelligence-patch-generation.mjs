@@ -36,7 +36,7 @@ export function buildPatchGenerationPrompt({ baseSha, objective, source }) {
       "The hunk header syntax is mandatory: @@ -OLD_LINE,0 +NEW_LINE,1 @@. Do not omit ,0 or ,1, do not add a section heading after the closing @@, and do not use a bare @@ line.",
       "After the hunk header, every remaining line must begin with + and contain one added test line. No context lines, deletion lines, blank lines, or trailing metadata.",
       "The patch must append new tests at end of file only: exactly one hunk, zero context lines, zero deletions, and additions only.",
-      "The hunk header must use this exact unified-diff syntax with decimal integers: @@ -N,0 +N+1,K @@. N is the supplied source line count; K is the exact number of added lines. Never omit ,0 or ,K, never use bare @@, and do not add section text after @@."
+      "The hunk header must use this exact unified-diff syntax with decimal integers: @@ -N,0 +N+1,K @@. N is the supplied source line count; K is the exact number of added lines. Never omit ,0 or ,K, never use bare @@, and do not add section text after @@.",
       "Do not modify existing tests, production code, workflows, configuration, permissions, secrets, network behavior, or dependencies.",
       "Keep the diff under 8192 UTF-8 bytes. If a safe test cannot be added, return an empty diff and explain in summary."
     ].join(" "),
