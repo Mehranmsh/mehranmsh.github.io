@@ -1,8 +1,16 @@
 name: MEHRAN INTELLIGENCE isolated repository tests
 
-run-name: "MEHRAN INTELLIGENCE isolated tests @ ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha }}"
+run-name: "MEHRAN INTELLIGENCE isolated tests @ ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha || github.sha }}"
 
 on:
+  push:
+    branches: ["intelligence/**"]
+    paths:
+      - "worker.js"
+      - "scripts/**"
+      - ".github/workflows/mehran-intelligence-runner.yml"
+      - ".github/workflows/mehran-intelligence-tests.yml"
+      - "docs/INTELLIGENCE_EXECUTION_PROTOCOL.md"
   pull_request:
     branches: [main]
     paths:
@@ -34,15 +42,16 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
         with:
           repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Verify commit identity and main-branch ancestry
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha }}
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.base_sha || github.sha }}
           EXPECTED_PR_SHA: ${{ github.event.pull_request.head.sha || '' }}
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
@@ -53,9 +62,12 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             test "$BASE_SHA" = "$EXPECTED_PR_SHA"
             echo "Verified exact pull-request head commit $BASE_SHA."
-          else
+          elif [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             git merge-base --is-ancestor "$BASE_SHA" origin/main
             echo "Verified immutable commit $BASE_SHA is an ancestor of origin/main."
+          else
+            test "$BASE_SHA" = "$EVENT_SHA"
+            echo "Verified exact Intelligence branch push commit $BASE_SHA."
           fi
 
       - name: Run the one fixed policy test in a network-isolated container
