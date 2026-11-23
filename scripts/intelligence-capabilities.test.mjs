@@ -588,7 +588,7 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
       mainLookups++;
       return new Response(JSON.stringify({ sha: mainLookups === 1 ? baseSha : "9".repeat(40) }), { status: 200 });
     }
-    return new Response("const original = true;\\n", { status: 200 });
+    return new Response("const original = true;\n", { status: 200 });
   };
   const result = await generatePatchArtifact({
     baseSha,
@@ -603,7 +603,7 @@ test("Workers AI patch generation rejects a main-branch race after the model ret
           "@@ -1,0 +2,1 @@",
           "+test(\"race guard\", () => {});",
           ""
-        ].join("\\n")
+        ].join("\n")
       }) };
     } } },
     reserveBudget: async () => ({ allowed: true }),
