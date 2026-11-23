@@ -16,7 +16,7 @@ const scheduledEnd = workerSource.indexOf("async fetch(request, env)", scheduled
 assert.ok(scheduledStart >= 0 && scheduledEnd > scheduledStart, "Worker scheduled handler must be locatable");
 const workerSchedulerSource = workerSource.slice(scheduledStart, scheduledEnd);
 
-test("all five active read-only capabilities are registered independent of executor type", () => {
+test("all six active read-only capabilities are registered independent of executor type", () => {
   const expected = [
     "project_status_report",
     "social_metrics_report",
@@ -33,7 +33,8 @@ test("all five active read-only capabilities are registered independent of execu
     assert.equal(item.permissionTier, "read_only");
     assert.equal(item.requiresApproval, false);
     assert.ok(Object.isFrozen(item.executors));
-    assert.equal(validateIntelligenceCapabilityRequest(id, {}).ok, true);
+    const input = id === "inspect_repository" ? { paths: ["worker.js"] } : {};
+    assert.equal(validateIntelligenceCapabilityRequest(id, input).ok, true);
   }
 });
 
@@ -53,8 +54,8 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
   assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
-  assert.match(workerSource, /action_type IN \\('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\\)/);
-  assert.match(runnerSource, /if \\(task\\.actionType === "inspect_repository"\\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository'\)/);
+  assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
 
   const runnerActions = runnerSource.match(/const capabilityActions = \[([^\]]+)\]/);
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
@@ -142,5 +143,5 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", { paths: [] }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("inspect_repository", {
     paths: ["worker.js", "worker.js"]
-  }).ok, true); // Worker and runner reject duplicates independently.
+  }).ok, false);
 });
