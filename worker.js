@@ -8194,8 +8194,8 @@ export default {
         const admin = await verifyAdmin(request, env);
         if (!admin) return error("Admin authentication required", 403);
         await ensureIntelligenceMemoryTables(env);
-        await seedIntelligenceOwnerMemory(env,"mehran_intelligence");
-        const rows = await env.DB.prepare("SELECT memory_key,category,content,importance,source,created_at,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind("mehran_intelligence").all();
+        await seedIntelligenceOwnerMemory(env,admin.uid);
+        const rows = await env.DB.prepare("SELECT memory_key,category,content,importance,source,created_at,updated_at FROM intelligence_memory_items WHERE owner_uid=? ORDER BY importance DESC,updated_at DESC LIMIT 100").bind(admin.uid).all();
         return json({success:true,items:rows.results||[]});
       }
       const intelligenceMemoryMatch = path.match(/^\/intelligence\/memory\/([^/]+)$/);
