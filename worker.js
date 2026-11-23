@@ -5788,6 +5788,34 @@ async function createIntelligenceFallbackPackage(env, mission, idempotencyKey, r
   };
 }
 
+function extractIntelligenceJsonObject(raw) {
+  if (typeof raw !== "string" || raw.length > 12000) return "";
+  const text = raw.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "").trim();
+  if (!text) return "";
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') { inString = true; continue; }
+    if (character === "{") {
+      if (depth === 0) start = index;
+      depth++;
+    } else if (character === "}" && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) return text.slice(start, index + 1);
+    }
+  }
+  return "";
+}
+
 async function planIntelligenceMission(env, input) {
   const mission = cleanText(input?.mission, 1600);
   const idempotencyKey = cleanText(input?.idempotencyKey, 120);
@@ -5849,41 +5877,9 @@ async function planIntelligenceMission(env, input) {
   try {
     modelResult = await env.AI.run(model, {
       messages: [{ role: "system", content: system }, { role: "user", content: userPrompt }],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          type: "object",
-          properties: {
-            title: { type: "string" },
-            objective: { type: "string" },
-            priority: { type: "string", enum: ["low", "normal", "high"] },
-            planSummary: { type: "string" },
-            tasks: {
-              type: "array",
-              minItems: 1,
-              maxItems: 5,
-              items: {
-                type: "object",
-                properties: {
-                  taskId: { type: "string" },
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  actionType: { type: "string", enum: ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"] },
-                  dependsOn: { type: "array", items: { type: "string" } },
-                  paths: { type: "array", minItems: 1, maxItems: 6, items: { type: "string", enum: [...INTELLIGENCE_INSPECT_ALLOWED_PATHS] } },
-                  objective: { type: "string", minLength: 12, maxLength: 800 }
-                },
-                required: ["taskId", "title", "description", "actionType", "dependsOn"],
-                additionalProperties: false
-              }
-            }
-          },
-          required: ["title", "objective", "priority", "planSummary", "tasks"],
-          additionalProperties: false
-        }
-      },
+      response_format: { type: "json_object" },
       temperature: 0,
-      max_tokens: 1000
+      max_tokens: 1600
     });
   } catch (err) {
     console.error("INTELLIGENCE_MISSION_PLANNER_FAILURE", String(err && err.message || err).slice(0, 180));
@@ -5907,11 +5903,9 @@ async function planIntelligenceMission(env, input) {
     }
   } else if (typeof modelResponse === "string" && modelResponse.trim() && modelResponse.length <= 12000) {
     try {
-      const cleaned = modelResponse.trim().replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/i, "");
-      const jsonStart = cleaned.indexOf("{");
-      const jsonEnd = cleaned.lastIndexOf("}");
-      if (jsonStart < 0 || jsonEnd <= jsonStart) throw new Error("JSON object not found");
-      plan = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1));
+      const jsonText = extractIntelligenceJsonObject(modelResponse);
+      if (!jsonText) throw new Error("Complete JSON object not found");
+      plan = JSON.parse(jsonText);
     } catch {
       return fallback("ai_response_invalid_json");
     }
