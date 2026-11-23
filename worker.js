@@ -5641,7 +5641,7 @@ async function planIntelligenceMission(env, input) {
   const mission = cleanText(input?.mission, 1600);
   const idempotencyKey = cleanText(input?.idempotencyKey, 120);
   const fallback = reason => input?.allowDeterministicFallback === false
-    ? { success: false, error: "AI planning is unavailable; no custom mission package was created.", code: -32003, plannerUnavailable: true, reason }
+    ? { success: false, error: `AI planning is unavailable (${cleanText(reason, 80) || "unknown"}); no custom mission package was created.`, code: -32003, plannerUnavailable: true, reason }
     : createIntelligenceFallbackPackage(env, mission, idempotencyKey, reason);
   if (!mission || !idempotencyKey || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
     return { success: false, error: "A mission and valid idempotency key are required.", code: -32602 };
@@ -6788,8 +6788,12 @@ export default {
             try {
               reportStorage = await persistIntelligencePackageReport(env, packageId, report);
             } catch (err) {
-              console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", String(err?.message || err).slice(0,180));
-              reportStorage = {stored:false,reason:"write_failed"};
+              const storeError = String(err?.message || err);
+              const safeStoreReason = /^GitHub report (?:lookup|write) failed with status \\d{3}\\.$/.test(storeError)
+                ? storeError.slice(0,100)
+                : "internal_store_error";
+              console.error("INTELLIGENCE_PRIVATE_REPORT_STORE_FAILURE", safeStoreReason);
+              reportStorage = {stored:false,reason:safeStoreReason};
             }
           }
           return json({success:true,workPackage:{...pkg,status,counts,report},tasks:rows.map(row=>({...row,requiresApproval:!!Number(row.requires_approval)})),events:eventRows,reportStorage});
