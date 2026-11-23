@@ -198,6 +198,21 @@ test("admin overview rejects requests without a verified admin session", async (
   assert.match(payload.error, /Admin authentication required/);
 });
 
+test("MEHRAN INTELLIGENCE serves exact project and SOCIAL status queries without Workers AI", () => {
+  const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/admin/overview"', start);
+  assert.ok(start >= 0 && end > start, "Intelligence chat route must exist");
+  const route = workerSource.slice(start, end);
+  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf("reserveSocialWorkersAIBudget"));
+  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf("reserveSocialWorkersAIBudget"));
+  assert.ok(route.indexOf("deterministic_project_status") < route.indexOf('if (!env.AI || typeof env.AI.run'));
+  assert.ok(route.indexOf("deterministic_social_metrics") < route.indexOf('if (!env.AI || typeof env.AI.run'));
+  assert.match(route, /SELECT name,status FROM projects ORDER BY created_at DESC LIMIT 30/);
+  assert.match(route, /SELECT COUNT\(\*\) AS total FROM social_users/);
+  assert.match(route, /aiRequests:0,reason:"deterministic_project_status"/);
+  assert.match(route, /aiRequests:0,reason:"deterministic_social_metrics"/);
+});
+
 test("MEHRAN INTELLIGENCE chat skips trivial messages and bounds model/tool calls", () => {
   const start = workerSource.indexOf('if (path === "/intelligence/chat" && method === "POST")');
   const end = workerSource.indexOf('if (path === "/admin/overview" && method === "GET")', start);
