@@ -53,9 +53,9 @@ test("fixed repository tests are active only through the isolated GitHub runner"
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "not-a-commit" }).ok, false);
   assert.equal(validateIntelligenceCapabilityRequest("run_repository_tests", { baseSha: "b".repeat(40), command: "echo unsafe" }).code, "unknown_input_field");
   assert.match(workerSource, /actionType === "run_repository_tests"/);
-  assert.match(workerSource, /report\\.mode !== "isolated_fixed_repository_test"/);
-  assert.match(runnerSource, /actionType: "run_repository_tests"/);
-  assert.match(runnerSource, /function runFixedRepositoryTests\\(task\\)/);
+  assert.match(workerSource, /report\.mode !== "isolated_fixed_repository_test"/);
+  assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
+  assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
   assert.match(runnerSource, /"--network", "none"/);
   assert.match(runnerSource, /"--read-only"/);
   assert.match(runnerSource, /"--cap-drop", "ALL"/);
@@ -83,10 +83,10 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.match(workerSchedulerSource, /action_type IN \('project_status_report','social_metrics_report'\)/);
   assert.match(workerSchedulerSource, /action_type IN \('service_health_report','repository_quality_check'\)/);
   assert.doesNotMatch(workerSchedulerSource, /source_security_audit|inspect_repository/);
-  assert.match(workerSource, /action_type IN \\('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\\)/);
+  assert.match(workerSource, /action_type IN \('repository_quality_check','service_health_report','source_security_audit','inspect_repository','run_repository_tests'\)/);
   assert.match(runnerSource, /if \(task\.actionType === "inspect_repository"\)/);
-  assert.match(runnerSource, /if \\(task\\.actionType === "run_repository_tests"\\)/);
-  assert.match(runnerSource, /function runFixedRepositoryTests\\(task\\)/);
+  assert.match(runnerSource, /if \(task\.actionType === "run_repository_tests"\)/);
+  assert.match(runnerSource, /function runFixedRepositoryTests\(task\)/);
 
   const runnerActions = runnerSource.match(/const capabilityActions = \[([^\]]+)\]/);
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
