@@ -755,7 +755,7 @@ test("mission planner checks its idempotency key before any Workers AI budget re
 });
 
 test("Intelligence runner retries only explicitly safe patch-generation interruptions", () => {
-  const retryStart = runnerSource.indexOf("retryable = Number(error?.status) === 503;");
+  const retryStart = runnerSource.indexOf("retryable = Number(error?.status) === 503 ||");
   const retryEnd = runnerSource.indexOf("const diagnostic =", retryStart);
   assert.ok(retryStart >= 0 && retryEnd > retryStart);
   const retryPolicy = runnerSource.slice(retryStart, retryEnd);
@@ -776,7 +776,7 @@ test("Patch generation timeout and model failures remain terminal instead of tri
   assert.match(generationRoute, /model_request_failed/);
   assert.match(generationRoute, /includes\(generated\.code\) \? 502/);
   assert.match(generationRoute, /Generation failures are persisted as terminal "failed" requests/);
-  assert.match(generationRoute, /HTTP 503 is reserved for prepared-artifact recovery\/storage interruptions/);
+  assert.match(generationRoute, /HTTP 503 is reserved[\s\S]*?prepared-artifact recovery\/storage interruptions/);
 });
 
 test("Intelligence task recovery is claim-token scoped, bounded, and attempt limited", () => {
@@ -869,7 +869,10 @@ test("Work-package audit events and notification outbox rows share one stable ev
   assert.match(refresh, /const eventId = crypto\.randomUUID\(\)/);
   assert.match(refresh, /INSERT INTO intelligence_task_events\(id,work_package_id,task_id,event_type,from_status,to_status,actor,details_json\)[\s\S]*?\.bind\(eventId,packageId/);
   assert.match(refresh, /INSERT OR IGNORE INTO intelligence_notification_outbox\(id,event_id,channel,payload_json,status\)[\s\S]*?\.bind\(crypto\.randomUUID\(\),eventId/);
-  assert.match(refresh, /UNIQUE\(event_id,channel\)/);
+  const schemaStart = workerSource.indexOf("CREATE TABLE IF NOT EXISTS intelligence_notification_outbox");
+  const schemaEnd = workerSource.indexOf("async function ensureIntelligencePatchGenerationRequestsTable", schemaStart);
+  assert.ok(schemaStart >= 0 && schemaEnd > schemaStart);
+  assert.match(workerSource.slice(schemaStart, schemaEnd), /UNIQUE\(event_id,channel\)/);
 });
 
 test("Notification delivery leases are bounded, acknowledged with the lease token, and stop after five attempts", () => {
