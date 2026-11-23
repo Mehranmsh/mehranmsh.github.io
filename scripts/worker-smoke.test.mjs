@@ -1057,7 +1057,7 @@ test("private report finalization recovery is owner-authenticated and re-discove
   const agentRoute = workerSource.slice(agentStart, agentEnd);
   assert.match(agentRoute, /path === "\/agent\/v1\/work-packages\/pending-finalization" && method === "GET"/);
   assert.match(agentRoute, /MEHRAN_ORCHESTRATOR_TOKEN/);
-  assert.match(agentRoute, /status IN \\('completed','attention_required'\\).*report_stored_at IS NULL.*LIMIT 20/);
+  assert.match(agentRoute, /status IN \('completed','attention_required'\).*report_stored_at IS NULL.*LIMIT 20/);
   assert.match(workerSource, /ALTER TABLE intelligence_work_packages ADD COLUMN report_stored_at TEXT/);
   assert.equal((workerSource.match(/SET report_stored_at=CURRENT_TIMESTAMP WHERE id=\\?/g) || []).length, 2);
   assert.match(runnerSource, /pending-finalization/);
@@ -2759,7 +2759,8 @@ test("private report persistence writes a minimized JSON report to the dedicated
             results: [{ id: "task-1", status: "completed", action_type: "service_health_report", attempts: 1, max_attempts: 3, last_error_code: "" }]
           };
           throw new Error("Unexpected all query: " + sql);
-        }
+        },
+        async run() { return { success: true, meta: { changes: 1 } }; }
       };
     }
   };
