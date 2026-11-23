@@ -1262,7 +1262,7 @@ test("owner mission intake is admin-gated and does not substitute a generic fall
   const plannerEnd = workerSource.indexOf("export function verifyIntelligenceReport", plannerStart);
   const planner = workerSource.slice(plannerStart, plannerEnd);
   assert.match(planner, /input\?\.allowDeterministicFallback === false/);
-  assert.match(planner, /AI planning is unavailable \\(/);
+  assert.match(planner, /AI planning is unavailable \(/);
 
   const formatterStart = workerSource.indexOf("function formatIntelligenceTask");
   const formatterEnd = workerSource.indexOf("async function writeAdminAudit", formatterStart);
