@@ -389,6 +389,132 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
     "HTTP 503 is reserved for prepared-artifact recovery paths that are safe to retry with the same request ID");
 });
 
+test("simultaneous first delivery uses the atomic request reservation as the single-winner gate", async () => {
+  const requestId = "simultaneous-first-delivery-0001";
+  const baseSha = "f".repeat(40);
+  const objective = "Verify the atomic reservation protects concurrent first delivery";
+  const created = await createPatchArtifactRecord({
+    proposalId: "123e4567-e89b-42d3-a456-426614174005",
+    createdAt: "2026-11-23T00:00:00.000Z",
+    baseSha,
+    summary: "Atomic reservation fixture",
+    targetPaths: ["scripts/intelligence-capabilities.test.mjs"],
+    diff: [
+      "--- a/scripts/intelligence-capabilities.test.mjs",
+      "+++ b/scripts/intelligence-capabilities.test.mjs",
+      "@@ -0,0 +1 @@",
+      "+// atomic reservation fixture",
+      ""
+    ].join("\n")
+  });
+  assert.equal(created.ok, true);
+  const artifactPath = patchStoreModule.getPrivatePatchArtifactPath(created.artifact);
+  const state = { request: null, proposal: null, initialReads: 0, generationCalls: 0, budgetReservations: 0, stores: 0 };
+  let releaseInitialReads;
+  const bothInitialReads = new Promise(resolve => { releaseInitialReads = resolve; });
+  const db = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...args) { values = args; return this; },
+        async all() { return { results: [] }; },
+        async first() {
+          if (sql.includes("FROM intelligence_patch_generation_requests WHERE request_id=?")) {
+            if (state.initialReads < 2) {
+              state.initialReads += 1;
+              if (state.initialReads === 2) releaseInitialReads();
+              await bothInitialReads;
+              return null;
+            }
+            return state.request ? { ...state.request } : null;
+          }
+          if (sql.includes("FROM intelligence_patch_proposals WHERE proposal_id=?")) {
+            return state.proposal ? { ...state.proposal } : null;
+          }
+          if (sql.includes("RETURNING attempts,blocked_until")) return { attempts: 1, blocked_until: null };
+          if (sql.includes("RETURNING intelligence_reserved")) {
+            state.budgetReservations += 1;
+            return { product_reserved: 250, total_reserved: 250, request_count: state.budgetReservations };
+          }
+          return null;
+        },
+        async run() {
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_generation_requests")) {
+            if (state.request) return { meta: { changes: 0 } };
+            state.request = {
+              request_id: values[0], request_hash: values[1], base_sha: values[2],
+              status: "processing", proposal_id: null, target_path: null, summary: null,
+              artifact_path: null, artifact_sha256: null, diff_sha256: null,
+              validation_mode: null, failure_code: "", created_at: "2026-11-23T00:00:00.000Z"
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='prepared'")) {
+            const [proposalId,targetPath,summary,path,artifactSha,diffSha,validationMode,id] = values;
+            if (state.request?.request_id === id && state.request.status === "processing") {
+              Object.assign(state.request,{status:"prepared",proposal_id:proposalId,target_path:targetPath,
+                summary,artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,
+                validation_mode:validationMode});
+            }
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("INSERT OR IGNORE INTO intelligence_patch_proposals")) {
+            const [proposalId,baseShaValue,targetPath,summary,path,artifactSha,diffSha,createdAt] = values;
+            if (!state.proposal) state.proposal = {
+              proposal_id:proposalId,base_sha:baseShaValue,target_path:targetPath,summary,
+              artifact_path:path,artifact_sha256:artifactSha,diff_sha256:diffSha,status:"stored",created_at:createdAt
+            };
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes("UPDATE intelligence_patch_generation_requests SET status='stored'")) {
+            const [id,artifactSha] = values;
+            if (state.request?.request_id === id && state.request.status === "prepared" &&
+                state.request.artifact_sha256 === artifactSha) state.request.status = "stored";
+            return { meta: { changes: 1 } };
+          }
+          return { meta: { changes: 1 } };
+        }
+      };
+    }
+  };
+  globalThis.__MEHRAN_PATCH_TEST_HOOKS = {
+    async generate(args) {
+      state.generationCalls += 1;
+      const budget = await args.reserveBudget(250);
+      assert.equal(budget.allowed, true);
+      return { ok: true, artifact: created.artifact, artifactSha256: created.artifactSha256,
+        validation: { mode: "bounded_static" } };
+    },
+    async store(args) {
+      state.stores += 1;
+      assert.equal(args.artifactSha256, created.artifactSha256);
+      return { stored: true, path: artifactPath, artifactSha256: created.artifactSha256 };
+    },
+    async verify() {
+      return { stored: true, alreadyExists: true, path: artifactPath, artifactSha256: created.artifactSha256 };
+    }
+  };
+  try {
+    const env = { DB: db, MEHRAN_AGENT_TOKEN: "s".repeat(48), MEHRAN_REPORTS_GITHUB_TOKEN: "r".repeat(48) };
+    const payload = { baseSha, objective, requestId };
+    const headers = { Authorization: "Bearer " + "s".repeat(48) };
+    const responses = await Promise.all([
+      request("/agent/v1/patch-proposals/generate", { method: "POST", headers, body: payload }, env),
+      request("/agent/v1/patch-proposals/generate", { method: "POST", headers, body: payload }, env)
+    ]);
+    const statuses = responses.map(response => response.status).sort((a,b) => a-b);
+    assert.deepEqual(statuses, [200,409]);
+    assert.equal(state.initialReads, 2, "both callers must observe the initially absent request before racing to reserve it");
+    assert.equal(state.generationCalls, 1, "the atomic primary-key reservation must elect exactly one generator");
+    assert.equal(state.budgetReservations, 1, "only the reservation winner may spend the AI budget");
+    assert.equal(state.stores, 1, "only one private artifact write is permitted");
+    assert.equal(state.proposal.proposal_id, created.artifact.proposalId);
+    assert.equal(state.request.status, "stored");
+  } finally {
+    delete globalThis.__MEHRAN_PATCH_TEST_HOOKS;
+  }
+});
+
 test("concurrent duplicate delivery cannot regenerate or reserve AI budget twice", async () => {
   const requestId = "concurrent-duplicate-0001";
   const baseSha = "e".repeat(40);
