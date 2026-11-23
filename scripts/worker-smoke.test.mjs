@@ -377,7 +377,7 @@ test("prepared private patch artifact recovery verifies the exact path and full 
     "-const original = 1;",
     "+const proposed = 2;",
     ""
-  ].join("\\n");
+  ].join("\n");
   const created = await createPatchArtifactRecord({
     proposalId: "123e4567-e89b-42d3-a456-426614174001",
     createdAt: "2026-11-23T00:00:00.000Z",
