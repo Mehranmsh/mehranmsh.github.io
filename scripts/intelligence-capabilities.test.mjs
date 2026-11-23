@@ -221,7 +221,7 @@ test("repository inspection is active, pre-authorized, exact-path allowlisted, a
 
 test("private runner seeds one idempotent, bounded repository inspection task", () => {
   assert.match(runnerSource, /request\("\/agent\/v1\/work-packages"/);
-  assert.match(runnerSource, /mehran-intelligence-repo-inspection-v1-/);
+  assert.match(runnerSource, /mehran-intelligence-repo-inspection-v2-\$\{baseSha\}/);
   assert.match(runnerSource, /actionType: "inspect_repository"/);
   assert.match(runnerSource, /"scripts\/intelligence-agent\.mjs"/);
   assert.match(runnerSource, /"docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md"/);
