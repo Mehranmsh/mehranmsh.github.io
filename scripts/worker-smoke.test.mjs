@@ -396,6 +396,21 @@ test("AI patch generation endpoint has a strict bounded request and storage-only
     "HTTP 503 is reserved for prepared-artifact recovery paths that are safe to retry with the same request ID");
 });
 
+test("stale processing patch requests fail closed without regenerating under the same idempotency key", () => {
+  const start = workerSource.indexOf('if (path === "/agent/v1/patch-proposals/generate" && method === "POST")');
+  const end = workerSource.indexOf('if (path === "/agent/v1/patch-proposals" && method === "POST")', start);
+  const route = workerSource.slice(start, end);
+  assert.match(route, /existing\.status === "processing"/);
+  assert.match(route, /status='failed',failure_code='processing_timeout'/);
+  assert.match(route, /datetime\(updated_at\)<datetime\('now','-10 minutes'\)/);
+  assert.match(route, /previous generation attempt expired; submit a new request ID/);
+  const processingBranch = route.slice(route.indexOf('if (existing.status === "processing")'), route.indexOf('return error("This generation request is terminal;'));
+  assert.doesNotMatch(processingBranch, /generatePatchArtifact/,
+    "an uncertain prior AI attempt must never be silently regenerated with the same request ID");
+  assert.match(runnerSource, /already in progress\|concurrently reserved/);
+  assert.match(runnerSource, /Number\(error\?\.status\) === 409/);
+});
+
 test("simultaneous first delivery uses the atomic request reservation as the single-winner gate", async () => {
   const requestId = "simultaneous-first-delivery-0001";
   const baseSha = "f".repeat(40);
