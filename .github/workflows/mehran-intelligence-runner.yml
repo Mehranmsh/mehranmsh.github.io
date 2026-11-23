@@ -452,7 +452,7 @@ jobs:
               const validationSource = validationStart >= 0 && validationEnd > validationStart ? workerSource.text.slice(validationStart, validationEnd) : "";
               const agentSource = agentStart >= 0 && agentEnd > agentStart ? workerSource.text.slice(agentStart, agentEnd) : "";
               const mcpSource = mcpStart >= 0 && mcpEnd > mcpStart ? workerSource.text.slice(mcpStart, mcpEnd) : "";
-              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"];
+              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository", "propose_code_patch"];
               const capabilitySections = [plannerSource, validationSource, agentSource, mcpSource, runnerSource.text];
               const capabilityAllowlistAligned = capabilitySections.every(section =>
                 section.length > 0 && capabilityActions.every(action => section.includes(action))
