@@ -2247,7 +2247,7 @@ button.disabled=true;status.textContent="MEHRAN INTELLIGENCE is analyzing the av
 reply.style.display="none";
 try{
 const data=await api("/intelligence/chat",{method:"POST",body:JSON.stringify({message})});
-reply.textContent=data.reply||"No response returned.";reply.style.display="block";
+reply.textContent="";reply.style.display="none";
 $("intelQuota").textContent="Today: "+(data.usage?.dailyRequests??"—")+"/"+(data.usage?.dailyLimit??10)+" requests · Hourly limit: "+(data.usage?.hourlyLimit??3);
 await loadIntelligenceChatHistory();
 status.textContent="Analysis complete. No company data was changed.";status.className="notice success";
