@@ -412,6 +412,10 @@ test("stale processing patch requests fail closed without regenerating under the
     "an uncertain prior AI attempt must never be silently regenerated with the same request ID");
   assert.match(runnerSource, /already in progress\|concurrently reserved/);
   assert.match(runnerSource, /Number\(error\?\.status\) === 409/);
+  assert.match(runnerSource, /agentHeaders, 90000/,
+    "the runner's patch-generation request must stay within its explicit 90-second timeout");
+  assert.match(route, /datetime\(updated_at\)<datetime\('now','-10 minutes'\)/,
+    "the Worker must fail closed only after the bounded processing window expires");
 });
 
 test("simultaneous first delivery uses the atomic request reservation as the single-winner gate", async () => {
