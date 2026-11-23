@@ -422,7 +422,7 @@ test("private patch artifact storage treats a matching existing artifact as idem
     "@@ -1 +1 @@",
     "+// deterministic recovery fixture",
     ""
-  ].join("\\n");
+  ].join("\n");
   const created = await createPatchArtifactRecord({
     proposalId: "123e4567-e89b-42d3-a456-426614174002",
     createdAt: "2026-11-23T00:00:00.000Z",
