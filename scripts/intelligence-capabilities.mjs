@@ -77,6 +77,7 @@ export const INTELLIGENCE_CAPABILITIES = Object.freeze({
           maxItems: 6,
           itemType: "string",
           maxItemLength: 240,
+          uniqueItems: true,
           itemEnum: [
             "worker.js",
             "scripts/intelligence-agent.mjs",
@@ -212,6 +213,7 @@ function validateValue(value, rule) {
     return Array.isArray(value)
       && value.length <= (rule.maxItems ?? 100)
       && value.length >= (rule.minItems ?? 0)
+      && (!rule.uniqueItems || new Set(value).size === value.length)
       && value.every((entry) => validateValue(entry, {
         type: rule.itemType || "string",
         maxLength: rule.maxItemLength,
