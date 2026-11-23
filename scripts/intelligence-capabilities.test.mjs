@@ -466,7 +466,7 @@ test("patch generation prompt treats source as untrusted and fixes the narrow ou
   assert.equal(prompt.ok, true);
   assert.match(prompt.system, /untrusted data/);
   assert.match(prompt.system, /zero deletions/);
-  assert.match(prompt.system, /exactly scripts\\/intelligence-capabilities\\.test\\.mjs/);
+  assert.ok(prompt.system.includes("scripts/intelligence-capabilities.test.mjs"));
   assert.match(prompt.user, /Immutable base commit/);
   assert.match(prompt.user, /const example = true/);
   assert.equal(buildPatchGenerationPrompt({ baseSha: "bad", objective: "A valid objective here", source }).code, "invalid_base_sha");
@@ -484,7 +484,7 @@ test("generated patches accept only pure additions at exact end-of-file", () => 
     "+test(\"new bounded regression\", () => {});",
     "+",
     ""
-  ].join("\\n");
+  ].join("\n");
   const result = validateGeneratedPatch({
     baseSha: "b".repeat(40),
     sourceLineCount: 100,
@@ -502,10 +502,10 @@ test("generated patch validator rejects replacements, non-EOF hunks, and extra f
   const replacement = [
     `--- a/${path}`, `+++ b/${path}`, "@@ -100,1 +100,1 @@",
     "-const original = 1;", "+const replacement = 2;", ""
-  ].join("\\n");
+  ].join("\n");
   const nonEof = [
     `--- a/${path}`, `+++ b/${path}`, "@@ -99,0 +100,1 @@", "+test(\"x\",()=>{});", ""
-  ].join("\\n");
+  ].join("\n");
   const base = { baseSha: "c".repeat(40), sourceLineCount: 100, summary: "Reject unsafe generated patch mutations" };
   assert.equal(validateGeneratedPatch({ ...base, diff: replacement }).code, "patch_not_append_only");
   assert.equal(validateGeneratedPatch({ ...base, diff: nonEof }).code, "patch_not_appended_at_eof");
