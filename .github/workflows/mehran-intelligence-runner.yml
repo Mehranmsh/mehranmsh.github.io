@@ -293,7 +293,7 @@ jobs:
               const validationSource = validationStart >= 0 && validationEnd > validationStart ? workerSource.text.slice(validationStart, validationEnd) : "";
               const agentSource = agentStart >= 0 && agentEnd > agentStart ? workerSource.text.slice(agentStart, agentEnd) : "";
               const mcpSource = mcpStart >= 0 && mcpEnd > mcpStart ? workerSource.text.slice(mcpStart, mcpEnd) : "";
-              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit"];
+              const capabilityActions = ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"];
               const capabilitySections = [plannerSource, validationSource, agentSource, mcpSource, runnerSource.text];
               const capabilityAllowlistAligned = capabilitySections.every(section =>
                 section.length > 0 && capabilityActions.every(action => section.includes(action))
@@ -322,7 +322,7 @@ jobs:
                 { id: "audit_action_is_allowlisted", passed: workerSource.text.includes('"source_security_audit"'), detail: "Bounded source-audit action is recognized." },
                 { id: "runner_read_only_contents_permission", passed: /permissions:\s*\n\s*contents:\s*read/.test(runnerSource.text), detail: "Runner workflow declares contents: read." },
                 { id: "runner_does_not_checkout_or_execute_repo_scripts", passed: !/actions\/checkout@|npm\s+(?:run|install)|pnpm\s+(?:run|install)|yarn\s+(?:run|install)/.test(runnerSource.text), detail: "Runner does not check out the target repo or invoke its package scripts." },
-                { id: "planner_validator_agent_mcp_and_runner_allowlists_aligned", passed: capabilityAllowlistAligned, detail: "The same three read-only action types appear in the planner schema, work-package validator, authenticated agent claim route, MCP package schema, and scheduled executor." },
+                { id: "planner_validator_agent_mcp_and_runner_allowlists_aligned", passed: capabilityAllowlistAligned, detail: "The same four read-only action types appear in the planner schema, work-package validator, authenticated agent claim route, MCP package schema, and scheduled executor." },
                 { id: "custom_owner_missions_remain_admin_gated_without_fallback", passed: /verifyAdmin\(request, env\)/.test(ownerMissionRoute) && /allowDeterministicFallback: false/.test(ownerMissionRoute) && /writeAdminAudit\(/.test(ownerMissionRoute), detail: "Custom mission intake remains administrator-authenticated, audited, and fails closed when AI planning is unavailable." },
                 { id: "mcp_package_intake_keeps_separate_bridge_and_owner_identities", passed: mcpSource.includes("MEHRAN_MCP_TOKEN") && mcpSource.includes("MEHRAN_ORCHESTRATOR_TOKEN") && mcpSource.includes("packageIntakeEnabled = bridgeAuthorized && orchestratorSecret.length >= 40"), detail: "Private package tools require the dedicated bridge identity and the separately configured owner opt-in." },
                 { id: "executor_rechecks_assignment_status_and_approval", passed: /task\.status !== "in_progress"/.test(runnerSource.text) && /task\.requiresApproval !== false/.test(runnerSource.text) && /\["mehran_intelligence", "shared"\]\.includes\(task\.assignedTo\)/.test(runnerSource.text), detail: "The executor independently rejects tasks that are not active, assigned to an allowed identity, and explicitly pre-approved." },

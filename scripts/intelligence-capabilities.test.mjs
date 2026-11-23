@@ -61,7 +61,7 @@ test("executor metadata matches the actual Worker and GitHub Actions routing", (
   assert.ok(runnerActions, "GitHub runner must declare its action allowlist");
   assert.deepEqual(
     [...runnerActions[1].matchAll(/"([a-z_]+)"/g)].map(match => match[1]),
-    ["service_health_report", "repository_quality_check", "source_security_audit"]
+    ["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"]
   );
 });
 

@@ -324,7 +324,7 @@ test("Intelligence source audit cross-checks capability allowlists and owner saf
   ]) {
     assert.ok(runnerSource.includes('id: "' + checkId + '"'), "source audit must emit " + checkId);
   }
-  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit"\]/);
+  assert.match(runnerSource, /const capabilityActions = \["service_health_report", "repository_quality_check", "source_security_audit", "inspect_repository"\]/);
   assert.match(runnerSource, /capabilitySections\.every\(section/);
   assert.match(runnerSource, /docs\/INTELLIGENCE_EXECUTION_PROTOCOL\.md/);
 });
