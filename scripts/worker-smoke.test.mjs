@@ -2889,7 +2889,18 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
         async run() {
           // Schema setup is intentionally a no-op in this in-memory fake.
           if (/^\s*(CREATE TABLE|CREATE INDEX|ALTER TABLE)/i.test(sql)) return { meta: { changes: 0 } };
-          if (sql.includes("claim_expired_max_attempts")) return { meta: { changes: 0 } };
+          if (sql.includes("claim_expired_max_attempts")) {
+            if (state.expired && state.row.status === "in_progress" &&
+                Number(state.row.attempts) >= Number(state.row.max_attempts)) {
+              state.row.status = "blocked";
+              state.row.agent_claimed_at = null;
+              state.row.agent_claim_token_hash = "";
+              state.row.last_error_code = "claim_expired_max_attempts";
+              state.expired = false;
+              return { meta: { changes: 1 } };
+            }
+            return { meta: { changes: 0 } };
+          }
           if (sql.includes("claim_expired_retry")) {
             if (state.expired && state.row.status === "in_progress") {
               state.row.status = "accepted";
@@ -2943,6 +2954,28 @@ function makeClaimLifecycleDb({ synchronizeCandidateReads = false } = {}) {
   };
   return { db, state };
 }
+
+test("real Worker task route blocks an expired claim after the retry budget is exhausted", async () => {
+  const token = "test-agent-token-".padEnd(48, "x");
+  const { db, state } = makeClaimLifecycleDb();
+  state.row.status = "in_progress";
+  state.row.attempts = state.row.max_attempts;
+  state.row.agent_claimed_at = "2000-01-01T00:00:00.000Z";
+  state.row.agent_claim_token_hash = "a".repeat(43);
+  state.expired = true;
+
+  const response = await request("/agent/v1/tasks/next", {
+    method: "GET", headers: { Authorization: "Bearer " + token }
+  }, { DB: db, MEHRAN_AGENT_TOKEN: token });
+
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).task, null);
+  assert.equal(state.row.status, "blocked", "an expired final attempt must become terminally blocked");
+  assert.equal(state.row.agent_claimed_at, null);
+  assert.equal(state.row.agent_claim_token_hash, "", "expired final claims must be revoked");
+  assert.equal(state.row.last_error_code, "claim_expired_max_attempts");
+  assert.equal(state.row.attempts, state.row.max_attempts, "expiry recovery must not exceed the attempt budget");
+});
 
 test("real Worker task routes fence concurrent, expired, superseded, and replayed runner claims", async () => {
   const token = "test-agent-token-".padEnd(48, "x");
